@@ -312,6 +312,7 @@ it.each([true, false])("interleaves browser sessions with their requests and pre
 });
 
 it("coordinates first reveal while keeping the composer and visible history mounted through refresh", async () => {
+  sidebarState.isMobile = true;
   const props = {
     issueId: "coordinated-issue",
     comments: [],
@@ -321,17 +322,22 @@ it("coordinates first reveal while keeping the composer and visible history moun
   const composer = container.querySelector('[data-testid="mock-editor"]');
   expect(composer).not.toBeNull();
   expect(container.querySelector('[aria-busy="true"]')).not.toBeNull();
+  expect(container.querySelector('.task-chat-history-pending')).not.toBeNull();
+  expect(container.querySelector('[data-testid="task-chat-composer-dock"]')?.hasAttribute("inert")).toBe(true);
   render(<TaskChatThread {...props} initialHistoryPending={false} />);
   await act(async () => {
     await new Promise((resolve) => requestAnimationFrame(resolve));
   });
   expect(container.querySelector('[aria-busy="false"]')).not.toBeNull();
+  expect(container.querySelector('.task-chat-history-pending')).toBeNull();
+  expect(container.querySelector('[data-testid="task-chat-composer-dock"]')?.hasAttribute("inert")).toBe(false);
   expect(container.querySelector('[data-testid="mock-editor"]')).toBe(composer);
   render(<TaskChatThread {...props} initialHistoryPending />);
   expect(
     container.querySelector('[data-testid="task-chat-history-loading"]'),
   ).toBeNull();
   expect(container.querySelector('[data-testid="mock-editor"]')).toBe(composer);
+  expect(container.querySelector('.task-chat-history-pending')).toBeNull();
 });
 
 describe.each(["legacy", "native"] as const)("%s task history readiness", (runtimeMode) => {
@@ -370,8 +376,25 @@ describe.each(["legacy", "native"] as const)("%s task history readiness", (runti
     expect(container.textContent).toContain("Thread message 1");
   });
 
+  it("does not delay the first reveal for an older run outside the loaded comment window", () => {
+    render(<TaskChatThread
+      issueId="issue-1"
+      comments={createLongThreadComments()}
+      onAdd={async () => {}}
+      linkedRuns={[{
+        ...retryRun,
+        runId: "older-run",
+        status: "succeeded",
+        createdAt: "2026-08-01T12:00:00.000Z",
+        startedAt: "2026-08-01T12:00:00.000Z",
+        finishedAt: "2026-08-01T12:01:00.000Z",
+      }]}
+    />);
+    expect(container.querySelector('[aria-busy="false"]')).not.toBeNull();
+  });
+
   it.each(["running", "succeeded"])(
-    "reveals durable comments before a %s run finishes hydrating",
+    "reveals durable comments together with a %s run's initial history",
     async (status) => {
       const props = {
         issueId: "issue-1",
@@ -388,10 +411,10 @@ describe.each(["legacy", "native"] as const)("%s task history readiness", (runti
         ],
       };
       render(<TaskChatThread {...props} />);
-      expect(container.querySelector('[aria-busy="false"]')).not.toBeNull();
+      expect(container.querySelector('[aria-busy="true"]')).not.toBeNull();
       expect(
         container.querySelector('[data-testid="task-chat-history-loading"]'),
-      ).toBeNull();
+      ).not.toBeNull();
       expect(container.textContent).toContain("Thread message 1");
 
       transcriptState.hydratedRunIds = new Set(["started-run"]);

@@ -2851,12 +2851,11 @@ export function TaskChatThread(props: TaskChatThreadProps) {
       ? !hydratedLogRunIds.has(run.id)
       : logsAreInitiallyHydrating;
   });
-  // Durable messages are useful immediately. Tool history can fill in around
-  // their stable anchors without concealing already-loaded replies. A thread
-  // with only runtime output still waits for that output before showing empty.
-  const historyPending = initialHistoryPending || (
-    comments.length === 0 && !issueBrief?.description && (planLoading || transcriptHistoryPending)
-  );
+  // Hydrating a run inserts activity around its saved reply and can move the
+  // latest viewport substantially. Wait for the initial comment window's run
+  // history and plan before revealing; older runs outside that window do not
+  // delay it, and the latch below keeps subsequent refreshes visible.
+  const historyPending = initialHistoryPending || planLoading || transcriptHistoryPending;
   const historyError =
     initialHistoryError ||
     planError ||
@@ -2900,13 +2899,17 @@ export function TaskChatThread(props: TaskChatThreadProps) {
           mode={streamlinedUiEnabled ? "streamlined" : "production"}
         >
           <div
-            className={cn("flex flex-col", !isMobile && "min-h-0 flex-1")}
+            className={cn(
+              "flex flex-col",
+              !isMobile && "min-h-0 flex-1",
+              isMobile && !historyRevealed && "task-chat-history-pending",
+            )}
             data-testid="task-chat-thread"
           >
             <div
               className={cn(
                 "relative flex flex-col",
-                !isMobile && "min-h-0 flex-1",
+                (!isMobile || !historyRevealed) && "min-h-0 flex-1",
               )}
               aria-busy={!historyRevealed}
             >
@@ -2937,6 +2940,7 @@ export function TaskChatThread(props: TaskChatThreadProps) {
                 </div>
               ) : null}
               <div
+                data-testid="task-chat-history-content"
                 className={cn(
                   "flex flex-col",
                   !isMobile && "min-h-0 flex-1",
@@ -3095,7 +3099,7 @@ export function TaskChatThread(props: TaskChatThreadProps) {
               </div>
             ) : null}
             {showComposer ? (
-              <TaskChatComposerDock mobile={isMobile} streamlined={streamlinedUiEnabled}>
+              <TaskChatComposerDock mobile={isMobile} streamlined={streamlinedUiEnabled} concealed={!historyRevealed}>
                 {composerAccessory}
                 {tailTurnStatus ? (
                   <TaskChatTurnStatusIsland model={tailTurnStatus} />

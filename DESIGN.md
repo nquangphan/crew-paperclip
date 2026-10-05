@@ -43,6 +43,24 @@ action on the left and the primary action on the right. A step owns its whole
 footer: do not render Save & exit in a separate parent block below it. Check this
 alignment in every step and conditional state, not just the first screen.
 
+## Mobile navigation and text fields
+
+The fixed bottom navigation uses an opaque surface so scrolling content cannot
+show through its labels. On touch devices, editable controls use at least the
+16px base typography token to prevent Safari's automatic focus zoom. Larger
+title sizes remain larger.
+
+The bottom navigation responds to accumulated scrolling, ignoring small
+reversals and Safari's edge bounce. It glides out and eases back in with shared
+motion tokens; the task composer follows the same motion. Keep page padding
+stable while the navigation moves, and honor reduced-motion preferences.
+
+Task conversations reveal their initial comments, interaction cards, plan, and
+relevant run history together after positioning the latest message. Keep the
+mobile loading surface at a stable viewport height while that history loads;
+concealed content must not stretch the document. Background refreshes keep an
+already revealed conversation and composer mounted and visible.
+
 ## Contextual feedback
 
 Task chat shows execution errors and waits only while they remain relevant.

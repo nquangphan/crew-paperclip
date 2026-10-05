@@ -2430,15 +2430,13 @@ const IssueDetailChatTab = memo(function IssueDetailChatTab({
             initialHistoryPending={!!issueId && (
               initialHistoryPending ||
               commentsInitialLoading ||
-              // Saved replies and the description can render while supporting
-              // history loads. Only an otherwise empty thread needs that data
-              // before deciding whether it has anything to show.
-              ((classicTaskInterfaceEnabled || (commentsForThread.length === 0 && !issueBrief?.description)) && (
-                initialMetadataPending ||
-                activityPending ||
-                linkedRunsPending ||
-                !runtimeSelectionKnown
-              )))
+              // These responses add rows or change the composer takeover.
+              // Coordinate the first reveal so each response does not move a
+              // conversation the reader has already started looking at.
+              initialMetadataPending ||
+              activityPending ||
+              linkedRunsPending ||
+              !runtimeSelectionKnown)
             }
             initialHistoryError={
               initialHistoryError ||
