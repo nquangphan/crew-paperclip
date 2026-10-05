@@ -340,6 +340,45 @@ it("coordinates first reveal while keeping the composer and visible history moun
   expect(container.querySelector('.task-chat-history-pending')).toBeNull();
 });
 
+it.each([true, false])("reveals saved conversation when initial history stalls (mobile=%s)", async (mobile) => {
+  vi.useFakeTimers();
+  try {
+    sidebarState.isMobile = mobile;
+    const props = {
+      issueId: "stalled-issue",
+      comments: [{
+        id: "saved-comment", body: "An already saved reply.", runId: null,
+        companyId: "company", issueId: "stalled-issue", authorType: "agent" as const,
+        authorAgentId: "agent", authorUserId: null, presentation: null, metadata: null,
+        createdAt: new Date("2025-01-01T10:00:20Z"), updatedAt: new Date("2025-01-01T10:00:20Z"),
+      }],
+      onAdd: async () => {},
+    };
+    render(<TaskChatThread {...props} initialHistoryPending />);
+    const composer = container.querySelector('[data-testid="mock-editor"]');
+    await act(async () => { await vi.advanceTimersByTimeAsync(14_999); });
+    expect(container.querySelector('[data-testid="task-chat-history-loading"]')).not.toBeNull();
+    await act(async () => { await vi.advanceTimersByTimeAsync(1); });
+    expect(container.querySelector('[data-testid="task-chat-history-loading"]')).toBeNull();
+    expect(container.querySelector('[data-testid="task-chat-history-content"]')?.hasAttribute("inert")).toBe(false);
+    expect(container.querySelector('[data-testid="task-chat-composer-dock"]')?.hasAttribute("inert")).toBe(false);
+    expect(container.textContent).toContain("An already saved reply.");
+    expect(container.textContent).toContain("Some task history is still loading.");
+    expect(container.querySelector('[data-testid="mock-editor"]')).toBe(composer);
+    render(<TaskChatThread {...props} initialHistoryPending={false} />);
+    expect(container.textContent).not.toContain("Some task history is still loading.");
+    expect(container.querySelector('[data-testid="mock-editor"]')).toBe(composer);
+
+    // A timeout on one task must not bypass coordination on the next task.
+    render(<TaskChatThread {...props} issueId="next-issue" initialHistoryPending />);
+    expect(container.querySelector('[data-testid="task-chat-history-loading"]')).not.toBeNull();
+    await act(async () => { await vi.advanceTimersByTimeAsync(15_000); });
+    expect(container.querySelector('[data-testid="task-chat-history-loading"]')).toBeNull();
+  } finally {
+    vi.useRealTimers();
+  }
+});
+
 describe.each(["legacy", "native"] as const)("%s task history readiness", (runtimeMode) => {
   const retryRun = {
     runId: "scheduled-run",

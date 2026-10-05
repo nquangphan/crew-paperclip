@@ -60,6 +60,8 @@ relevant run history together after positioning the latest message. Keep the
 mobile loading surface at a stable viewport height while that history loads;
 concealed content must not stretch the document. Background refreshes keep an
 already revealed conversation and composer mounted and visible.
+Bound the initial wait to 15 seconds. If a request stalls, reveal the available
+conversation and composer with a notice that some history is still loading.
 
 ## Contextual feedback
 

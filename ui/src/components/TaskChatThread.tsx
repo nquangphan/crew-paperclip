@@ -243,6 +243,7 @@ function isRunnerResponseComment(params: {
 // off to (e.g. a stopped run with no tool activity). Normal completions hand off
 // well within this as soon as the settled turn/comment lands.
 const SETTLING_TAIL_MAX_MS = 15_000;
+const INITIAL_HISTORY_REVEAL_TIMEOUT_MS = 15_000;
 const EMPTY_LIVE_ISSUE_IDS: ReadonlySet<string> = new Set<string>();
 const LONG_THREAD_BLOCKER_REPEAT_COUNT = 4;
 
@@ -2869,6 +2870,19 @@ export function TaskChatThread(props: TaskChatThreadProps) {
     () => (historyPending ? undefined : issueId),
   );
   const historyRevealed = revealedIssue === issueId;
+  const [expiredHistoryWait, setExpiredHistoryWait] = useState<{ issueId: typeof issueId } | null>(null);
+  const historyWaitExpired = expiredHistoryWait !== null && expiredHistoryWait.issueId === issueId;
+  // Supporting requests can stall without rejecting. Bound the first reveal
+  // independently of their pending states so saved conversation and the
+  // composer stay accessible, with an explicit incomplete-history notice.
+  useEffect(() => {
+    if (historyRevealed) return;
+    const timer = window.setTimeout(() => {
+      setExpiredHistoryWait({ issueId });
+      setRevealedIssue(issueId);
+    }, INITIAL_HISTORY_REVEAL_TIMEOUT_MS);
+    return () => window.clearTimeout(timer);
+  }, [historyRevealed, issueId]);
   // Mount and measure the real thread while concealed, then reveal in one
   // commit. A frame also lets ancestor navigation scroll restoration finish.
   // Readiness is latched per issue: refetches never hide existing conversation.
@@ -2890,7 +2904,7 @@ export function TaskChatThread(props: TaskChatThreadProps) {
 
   return (
     <TaskChatExpansionState.Provider value={expansionState.current}>
-      <TaskChatScrollReady.Provider value={!historyPending}>
+      <TaskChatScrollReady.Provider value={!historyPending || historyWaitExpired}>
         <TaskChatWindowScroll
           contentKey={isMobile ? autoFollowContentKey : 0}
           enabled={isMobile && historyRevealed}
@@ -2913,15 +2927,17 @@ export function TaskChatThread(props: TaskChatThreadProps) {
               )}
               aria-busy={!historyRevealed}
             >
-              {historyError ? (
+              {historyError || (historyPending && historyWaitExpired) ? (
                 <div
                   role="status"
                   className="absolute inset-x-0 top-0 z-20 mx-auto flex w-full max-w-(--tc-shell-max-w) items-center gap-2 border border-border bg-background px-4 py-2 text-sm text-muted-foreground"
                 >
-                  Some task history could not be loaded.
-                  <Button variant="ghost" size="sm" onClick={retryHistory}>
-                    Retry
-                  </Button>
+                  {historyError ? "Some task history could not be loaded." : "Some task history is still loading."}
+                  {historyError ? (
+                    <Button variant="ghost" size="sm" onClick={retryHistory}>
+                      Retry
+                    </Button>
+                  ) : null}
                 </div>
               ) : null}
               {!historyRevealed ? (
