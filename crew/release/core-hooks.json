@@ -60,6 +60,30 @@
       "description": "claude_local runs in the authoritative root and skips workspace upload/restore for in_place realization, like codex_local.",
       "upstreamPr": null,
       "tests": ["packages/adapters/claude-local/src/server/execute.remote.crew.test.ts"]
+    },
+    {
+      "id": "P3",
+      "kind": "adapter-patch",
+      "file": "packages/adapters/claude-local/src/server/index.ts",
+      "symbol": "sessionCodec.serialize/deserialize",
+      "anchor": "      ...(remoteExecution ? { remoteExecution } : {}),",
+      "occurrences": 2,
+      "description": "Session codec keeps remoteExecution so SSH runs can resume their Claude session.",
+      "upstreamPr": null,
+      "tests": [
+        "packages/adapters/claude-local/src/server/session-codec.crew.test.ts",
+        "packages/adapters/claude-local/src/server/execute.remote.crew.test.ts"
+      ]
+    },
+    {
+      "id": "P4",
+      "kind": "adapter-patch",
+      "file": "packages/adapters/claude-local/src/server/execute.ts",
+      "symbol": "execute (session resume log)",
+      "anchor": "  } else if (\n    !canResumeSession &&\n    runtimeSessionId &&\n    isValidUuid &&\n    runtimeSessionCwd.length > 0 &&",
+      "description": "Do not log the cwd mismatch / fresh session notice when the session is actually resumed.",
+      "upstreamPr": null,
+      "tests": ["packages/adapters/claude-local/src/server/execute.remote.crew.test.ts"]
     }
   ]
 }

@@ -65,6 +65,7 @@ vi.mock("@paperclipai/adapter-utils/execution-target", async () => {
 });
 
 import { execute } from "./execute.js";
+import { sessionCodec } from "./index.js";
 import { resetClaudeCliCapabilitiesCacheForTests } from "./cli-capabilities.js";
 
 const IN_PLACE_ROOT = "/Users/agent/worktrees/a";
@@ -145,5 +146,53 @@ describe("claude_local in_place on SSH (Crew)", () => {
       | undefined;
     expect(call?.[3].remoteExecution?.remoteCwd).toBe(IN_PLACE_ROOT);
     expect(call?.[3].env.PAPERCLIP_WORKSPACE_CWD).toBe(IN_PLACE_ROOT);
+  });
+
+  async function runResumed(workspaceDir: string, logs: string[]) {
+    const sessionId = "12345678-1234-4abc-9def-123456789012";
+    const stored = sessionCodec.serialize({
+      sessionId,
+      cwd: workspaceDir,
+      remoteExecution: {
+        transport: "ssh",
+        host: "127.0.0.1",
+        port: 2222,
+        username: "fixture",
+        remoteCwd: IN_PLACE_ROOT,
+      },
+    });
+    await execute({
+      runId: "run-in-place-resume",
+      agent,
+      runtime: {
+        sessionId,
+        sessionParams: sessionCodec.deserialize(stored),
+        sessionDisplayId: sessionId,
+        taskKey: null,
+      },
+      config: { engine: "cli", command: "claude" },
+      context: { paperclipWorkspace: { cwd: workspaceDir, source: "task_session" } },
+      executionTarget: inPlaceTarget(IN_PLACE_ROOT),
+      onLog: async (_stream: string, chunk: string) => {
+        logs.push(chunk);
+      },
+    });
+    return sessionId;
+  }
+
+  it("resumes an in-place SSH session whose params went through the session codec", async () => {
+    const workspaceDir = await workspace("crew-claude-in-place-resume-");
+    const sessionId = await runResumed(workspaceDir, []);
+    const call = runChildProcess.mock.calls.find((entry) => !(entry[2] as string[]).includes("--version")) as unknown as
+      | [string, string, string[]]
+      | undefined;
+    expect(call?.[2]).toEqual(expect.arrayContaining(["--resume", sessionId]));
+  });
+
+  it("does not log a fresh-session notice when the session is resumed", async () => {
+    const workspaceDir = await workspace("crew-claude-in-place-resume-log-");
+    const logs: string[] = [];
+    await runResumed(workspaceDir, logs);
+    expect(logs.join("")).not.toContain("will not be resumed");
   });
 });
