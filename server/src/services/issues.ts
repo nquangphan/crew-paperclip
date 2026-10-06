@@ -10775,6 +10775,7 @@ export function issueService(db: Db) {
       }
 
       const runUpdate = async (tx: any) => {
+        await crewCoreHooks.beforeIssueWrite({ tx, issueId: id, existing, patch, actorAgentId, actorUserId });
         // The receipt baseline must be read under the same row lock as the
         // write. Otherwise a concurrent update can be mistaken for a change
         // made by this request.
@@ -13225,3 +13226,4 @@ export function issueService(db: Db) {
 
   return serviceApi;
 }
+import { crewCoreHooks } from "../crew/core-hooks.js";

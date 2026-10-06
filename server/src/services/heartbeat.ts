@@ -17125,6 +17125,7 @@ export function heartbeatService(
     run: typeof heartbeatRuns.$inferSelect,
     companyAgents?: AgentOrgRow[],
   ) {
+    if (await crewCoreHooks.beforeClaim({ db, run })) return null;
     if (run.status !== "queued") return run;
     const agent = await getAgent(run.agentId);
     if (!agent) {
@@ -29639,3 +29640,4 @@ export function heartbeatService(
     },
   };
 }
+import { crewCoreHooks } from "../crew/core-hooks.js";

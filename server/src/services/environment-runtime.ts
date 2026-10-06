@@ -1205,6 +1205,7 @@ function createSshEnvironmentDriver(db: Db): EnvironmentRuntimeDriver {
     },
 
     async releaseRunLease(input) {
+      await crewCoreHooks.onRunLeaseReleased({ db, ...input });
       return await environmentsSvc.releaseLease(input.lease.id, input.status);
     },
 
@@ -4228,3 +4229,4 @@ export function environmentRuntimeService(
 }
 
 export type EnvironmentRuntimeService = ReturnType<typeof environmentRuntimeService>;
+import { crewCoreHooks } from "../crew/core-hooks.js";
