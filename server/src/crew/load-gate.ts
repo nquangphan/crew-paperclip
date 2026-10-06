@@ -1,4 +1,4 @@
-import { and, eq } from "drizzle-orm";
+import { and, asc, eq } from "drizzle-orm";
 import { activityLog, agents, type Db, type heartbeatRuns } from "@paperclipai/db";
 import { runSshCommand } from "@paperclipai/adapter-utils/ssh";
 import { logger } from "../middleware/logger.js";
@@ -65,7 +65,8 @@ export type GateDecision =
 export function decideGate(input: {
   settings: LoadGateSettings;
   probe: HostProbe;
-  queuedSince: Date;
+  /** When the run first had to wait (first waiting notice), or now when it is waiting for the first time. */
+  waitingSince: Date;
   now: Date;
 }): GateDecision {
   const { settings, probe } = input;
@@ -74,7 +75,7 @@ export function decideGate(input: {
   const detail = probe.ok
     ? `tải 1 phút ${probe.load1} vượt ngưỡng ${settings.maxLoad1}`
     : `không kết nối được (${probe.error.slice(0, 160)})`;
-  const deadline = new Date(input.queuedSince.getTime() + settings.maxWaitMinutes * 60_000);
+  const deadline = new Date(input.waitingSince.getTime() + settings.maxWaitMinutes * 60_000);
   if (input.now.getTime() >= deadline.getTime()) return { action: "expire", reason, detail };
   return { action: "wait", reason, detail, deadline };
 }
@@ -94,7 +95,8 @@ export interface BeforeClaimDeps {
     settings: LoadGateSettings;
   } | null>;
   probeHost(environmentId: string, run: BeforeClaimInput["run"]): Promise<HostProbe>;
-  hasWaitingNotice(runId: string): Promise<boolean>;
+  /** Time of the first notice of this kind for the run (persisted, survives restarts), or null. */
+  firstNoticeAt(runId: string, kind: "waiting" | "expired"): Promise<Date | null>;
   postNotice(notice: {
     run: BeforeClaimInput["run"];
     issueId: string | null;
@@ -102,7 +104,12 @@ export interface BeforeClaimDeps {
     body: string;
     details: Record<string, unknown>;
   }): Promise<void>;
-  cancelRun(runId: string, reason: string): Promise<void>;
+  /**
+   * Cancels the run after the current claim has returned. claimQueuedRun runs under the agent start
+   * lock and cancelling re-enters that lock, so the cancel must not be awaited from inside the hook.
+   * Failures are only logged; the gate stays closed for the run either way.
+   */
+  scheduleCancel(runId: string, reason: string): void;
   blockIssue(issueId: string): Promise<void>;
   now(): Date;
 }
@@ -118,16 +125,25 @@ export async function evaluateBeforeClaim(input: BeforeClaimInput, deps: BeforeC
   if (run.status !== "queued") return false;
   const target = await deps.loadTarget(run);
   if (!target) return false;
+  const expiredReason = `Crew: hết ${target.settings.maxWaitMinutes} phút chờ máy ${target.environmentName}`;
+
+  // Once the wait expired the run is on its way out: keep it queued and retry the cancel.
+  if (await deps.firstNoticeAt(run.id, "expired")) {
+    deps.scheduleCancel(run.id, expiredReason);
+    return true;
+  }
 
   const probe = await deps.probeHost(target.environmentId, run);
-  const decision = decideGate({ settings: target.settings, probe, queuedSince: run.createdAt, now: deps.now() });
+  const now = deps.now();
+  const waitingSince = (await deps.firstNoticeAt(run.id, "waiting")) ?? null;
+  const decision = decideGate({ settings: target.settings, probe, waitingSince: waitingSince ?? now, now });
   if (decision.action === "claim") return false;
 
   const issueId = readIssueId(run.contextSnapshot);
   const details = { environmentId: target.environmentId, reason: decision.reason, detail: decision.detail };
 
   if (decision.action === "wait") {
-    if (!(await deps.hasWaitingNotice(run.id))) {
+    if (!waitingSince) {
       await deps.postNotice({
         run,
         issueId,
@@ -142,10 +158,6 @@ export async function evaluateBeforeClaim(input: BeforeClaimInput, deps: BeforeC
     return true;
   }
 
-  await deps.cancelRun(
-    run.id,
-    `Crew: hết ${target.settings.maxWaitMinutes} phút chờ máy ${target.environmentName} (${decision.detail})`,
-  );
   if (issueId) await deps.blockIssue(issueId);
   await deps.postNotice({
     run,
@@ -153,16 +165,17 @@ export async function evaluateBeforeClaim(input: BeforeClaimInput, deps: BeforeC
     kind: "expired",
     body:
       `Run \`${run.id}\` đã chờ máy \`${target.environmentName}\` quá ${target.settings.maxWaitMinutes} phút ` +
-      `(${decision.detail}). Crew đã hủy run và chuyển issue sang \`blocked\`. ` +
+      `(${decision.detail}). Crew hủy run và chuyển issue sang \`blocked\`. ` +
       "Kiểm máy bằng `crew-mac doctor`, rồi chuyển issue về `todo` để chạy lại.",
     details,
   });
+  deps.scheduleCancel(run.id, `${expiredReason} (${decision.detail})`);
   return true;
 }
 
 const probeCache = createProbeCache(LOAD_GATE_PROBE_TTL_MS);
 
-function defaultDeps(db: Db): BeforeClaimDeps {
+export function defaultBeforeClaimDeps(db: Db): BeforeClaimDeps {
   return {
     async loadTarget(run) {
       const [agent] = await db
@@ -196,15 +209,20 @@ function defaultDeps(db: Db): BeforeClaimDeps {
         }
       });
     },
-    async hasWaitingNotice(runId) {
-      const rows = await db
-        .select({ id: activityLog.id })
+    async firstNoticeAt(runId, kind) {
+      const [row] = await db
+        .select({ createdAt: activityLog.createdAt })
         .from(activityLog)
-        .where(and(eq(activityLog.runId, runId), eq(activityLog.action, "crew.load_gate.waiting")))
+        .where(and(eq(activityLog.runId, runId), eq(activityLog.action, `crew.load_gate.${kind}`)))
+        .orderBy(asc(activityLog.createdAt))
         .limit(1);
-      return rows.length > 0;
+      return row?.createdAt ?? null;
     },
     async postNotice(notice) {
+      // Comment first: the activity row is what marks the notice as done, so a failed comment is retried.
+      if (notice.issueId) {
+        await issueService(db).addComment(notice.issueId, notice.body, {}, { authorType: "system" });
+      }
       await logActivity(db, {
         companyId: notice.run.companyId,
         actorType: "system",
@@ -217,13 +235,13 @@ function defaultDeps(db: Db): BeforeClaimDeps {
         issueId: notice.issueId,
         details: notice.details,
       });
-      if (notice.issueId) {
-        await issueService(db).addComment(notice.issueId, notice.body, {}, { authorType: "system" });
-      }
     },
-    async cancelRun(runId, reason) {
-      const { heartbeatService } = await import("../services/heartbeat.js");
-      await heartbeatService(db).cancelRun(runId, reason);
+    scheduleCancel(runId, reason) {
+      setImmediate(() => {
+        void import("../services/heartbeat.js")
+          .then(({ heartbeatService }) => heartbeatService(db).cancelRun(runId, reason))
+          .catch((err) => logger.warn({ err, runId }, "crew-load-gate: cancelling an expired run failed; retried next tick"));
+      });
     },
     async blockIssue(issueId) {
       await issueService(db).update(issueId, { status: "blocked" });
@@ -234,7 +252,7 @@ function defaultDeps(db: Db): BeforeClaimDeps {
 
 export async function crewBeforeClaim(input: BeforeClaimInput): Promise<boolean> {
   try {
-    return await evaluateBeforeClaim(input, defaultDeps(input.db));
+    return await evaluateBeforeClaim(input, defaultBeforeClaimDeps(input.db));
   } catch (err) {
     logger.warn({ err, runId: input.run.id }, "crew-load-gate: failed open, run may be claimed");
     return false;

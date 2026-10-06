@@ -69,15 +69,15 @@ describe("createProbeCache", () => {
 
 describe("decideGate", () => {
   it("claims when the load is at or below the threshold", () => {
-    expect(decideGate({ settings: SETTINGS, probe: { ok: true, load1: 8 }, queuedSince: T0, now: T0 })).toEqual({ action: "claim" });
+    expect(decideGate({ settings: SETTINGS, probe: { ok: true, load1: 8 }, waitingSince: T0, now: T0 })).toEqual({ action: "claim" });
   });
 
   it("waits while overloaded or unreachable before the deadline", () => {
-    expect(decideGate({ settings: SETTINGS, probe: { ok: true, load1: 9.5 }, queuedSince: T0, now: T0 })).toMatchObject({
+    expect(decideGate({ settings: SETTINGS, probe: { ok: true, load1: 9.5 }, waitingSince: T0, now: T0 })).toMatchObject({
       action: "wait",
       reason: "overloaded",
     });
-    expect(decideGate({ settings: SETTINGS, probe: { ok: false, error: "timeout" }, queuedSince: T0, now: T0 })).toMatchObject({
+    expect(decideGate({ settings: SETTINGS, probe: { ok: false, error: "timeout" }, waitingSince: T0, now: T0 })).toMatchObject({
       action: "wait",
       reason: "unreachable",
     });
@@ -85,7 +85,7 @@ describe("decideGate", () => {
 
   it("expires once maxWaitMinutes has passed", () => {
     const now = new Date(T0.getTime() + 60 * 60_000);
-    expect(decideGate({ settings: SETTINGS, probe: { ok: false, error: "x" }, queuedSince: T0, now })).toMatchObject({
+    expect(decideGate({ settings: SETTINGS, probe: { ok: false, error: "x" }, waitingSince: T0, now })).toMatchObject({
       action: "expire",
       reason: "unreachable",
     });
@@ -104,16 +104,18 @@ function run(overrides: Record<string, unknown> = {}): BeforeClaimInput["run"] {
   } as unknown as BeforeClaimInput["run"];
 }
 
-function harness(probe: HostProbe, now: Date, hasNotice = false) {
+type Notices = { waiting?: Date; expired?: Date };
+
+function harness(probe: HostProbe, now: Date, notices: Notices = {}) {
   const events: string[] = [];
   const deps: BeforeClaimDeps = {
     loadTarget: async () => ({ environmentId: "env-1", environmentName: "mac-mini", settings: SETTINGS }),
     probeHost: async () => probe,
-    hasWaitingNotice: async () => hasNotice,
+    firstNoticeAt: async (_runId, kind) => notices[kind] ?? null,
     postNotice: async (n) => {
       events.push(`${n.kind}:${n.issueId ?? "-"}:${n.body}`);
     },
-    cancelRun: async (runId, reason) => {
+    scheduleCancel: (runId, reason) => {
       events.push(`cancel:${runId}:${reason}`);
     },
     blockIssue: async (issueId) => {
@@ -141,17 +143,43 @@ describe("evaluateBeforeClaim", () => {
   });
 
   it("does not repeat the waiting notice", async () => {
-    const h = harness({ ok: false, error: "timeout" }, T0, true);
+    const h = harness({ ok: false, error: "timeout" }, T0, { waiting: T0 });
     expect(await evaluateBeforeClaim(h.input, h.deps)).toBe(true);
     expect(h.events).toEqual([]);
   });
 
-  it("cancels the run and blocks the issue after maxWaitMinutes", async () => {
-    const h = harness({ ok: false, error: "timeout" }, new Date(T0.getTime() + 61 * 60_000));
+  it("counts the deadline from the first waiting notice, not from run creation", async () => {
+    // The run was queued 70 minutes ago (behind a long run or a scheduled retry) and is blocked now for the first time.
+    const now = new Date(T0.getTime() + 70 * 60_000);
+    const h = harness({ ok: false, error: "timeout" }, now);
     expect(await evaluateBeforeClaim(h.input, h.deps)).toBe(true);
-    expect(h.events[0]).toMatch(/^cancel:run-1:Crew: hết 60 phút chờ máy mac-mini/);
-    expect(h.events[1]).toBe("blocked:issue-1");
-    expect(h.events[2]).toMatch(/^expired:issue-1:/);
+    expect(h.events).toHaveLength(1);
+    expect(h.events[0]).toMatch(/^waiting:issue-1:/);
+    expect(h.events[0]).toContain("15:10");
+  });
+
+  it("after maxWaitMinutes blocks the issue, posts the notice, keeps the run queued and schedules the cancel", async () => {
+    const h = harness({ ok: false, error: "timeout" }, new Date(T0.getTime() + 61 * 60_000), { waiting: T0 });
+    expect(await evaluateBeforeClaim(h.input, h.deps)).toBe(true);
+    expect(h.events[0]).toBe("blocked:issue-1");
+    expect(h.events[1]).toMatch(/^expired:issue-1:/);
+    expect(h.events[2]).toMatch(/^cancel:run-1:Crew: hết 60 phút chờ máy mac-mini/);
+    expect(h.events).toHaveLength(3);
+  });
+
+  it("only retries the cancel once the expiry was already handled", async () => {
+    const later = new Date(T0.getTime() + 62 * 60_000);
+    const h = harness({ ok: false, error: "timeout" }, later, { waiting: T0, expired: new Date(T0.getTime() + 61 * 60_000) });
+    expect(await evaluateBeforeClaim(h.input, h.deps)).toBe(true);
+    expect(h.events).toHaveLength(1);
+    expect(h.events[0]).toMatch(/^cancel:run-1:/);
+  });
+
+  it("stays closed after expiry even if the host is healthy again", async () => {
+    const later = new Date(T0.getTime() + 62 * 60_000);
+    const h = harness({ ok: true, load1: 1 }, later, { waiting: T0, expired: new Date(T0.getTime() + 61 * 60_000) });
+    expect(await evaluateBeforeClaim(h.input, h.deps)).toBe(true);
+    expect(h.events[0]).toMatch(/^cancel:run-1:/);
   });
 
   it("is a no-op for runs that are not queued or have no gated environment", async () => {

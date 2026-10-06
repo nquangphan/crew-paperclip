@@ -1,8 +1,10 @@
 import { randomUUID } from "node:crypto";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
+import { eq } from "drizzle-orm";
 import { agents, companies, createDb, heartbeatRuns, issues } from "@paperclipai/db";
 import { getEmbeddedPostgresTestSupport, startEmbeddedPostgresTestDatabase } from "./helpers/embedded-postgres.js";
 import { overrideCrewCoreHooksForTests } from "../crew/core-hooks.ts";
+import { defaultBeforeClaimDeps, evaluateBeforeClaim } from "../crew/load-gate.ts";
 import { heartbeatService } from "../services/heartbeat.js";
 
 // Behaviour of hook H1 (first line of claimQueuedRun): a `true` from beforeClaim keeps the run
@@ -50,7 +52,7 @@ suite("crew beforeClaim hook in claimQueuedRun", () => {
     await db.insert(heartbeatRuns).values({
       id: runId, companyId, agentId, status: "queued", invocationSource: "on_demand", responsibleUserId: "owner", contextSnapshot: { issueId },
     });
-    return { runId };
+    return { runId, issueId };
   }
 
   it("keeps the run queued and does not execute it while beforeClaim returns true", async () => {
@@ -80,6 +82,34 @@ suite("crew beforeClaim hook in claimQueuedRun", () => {
     expect((await heartbeat.getRun(runId))?.status).not.toBe("queued");
     // The run left queued by the previous test is in the same database and is claimed too.
     expect(execute.mock.calls.filter(([context]) => context.runId === runId)).toHaveLength(1);
+  }, 30_000);
+
+  it("cancels an expired run without deadlocking on the agent start lock", async () => {
+    restore = overrideCrewCoreHooksForTests({
+      beforeClaim: (input) =>
+        evaluateBeforeClaim(input, {
+          ...defaultBeforeClaimDeps(input.db),
+          loadTarget: async () => ({ environmentId: "env-1", environmentName: "mac-mini", settings: { maxLoad1: 8, maxWaitMinutes: 60 } }),
+          probeHost: async () => ({ ok: false, error: "Connection timed out during banner exchange" }),
+          firstNoticeAt: async (_runId, kind) => (kind === "waiting" ? new Date(Date.now() - 2 * 60 * 60_000) : null),
+        }),
+    });
+    const { runId, issueId } = await queuedRun();
+    const heartbeat = heartbeatService(db);
+    const started = Date.now();
+    await heartbeat.resumeQueuedRuns();
+    expect(Date.now() - started).toBeLessThan(5_000);
+    let status: string | undefined;
+    for (let i = 0; i < 50; i += 1) {
+      status = (await heartbeat.getRun(runId))?.status;
+      if (status === "cancelled") break;
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    }
+    expect(status).toBe("cancelled");
+    expect(Date.now() - started).toBeLessThan(5_000);
+    const [issue] = await db.select({ status: issues.status }).from(issues).where(eq(issues.id, issueId));
+    expect(issue?.status).toBe("blocked");
+    expect(execute.mock.calls.filter(([context]) => context.runId === runId)).toHaveLength(0);
   }, 30_000);
 
   it("leaves claims unchanged with the real Crew gate when the agent has no gated environment", async () => {
