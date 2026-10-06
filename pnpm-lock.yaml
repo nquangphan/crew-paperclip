@@ -391,6 +391,19 @@ importers:
         specifier: ^7.0.2
         version: 7.0.2
 
+  packages/crew-plugin:
+    dependencies:
+      '@paperclipai/plugin-sdk':
+        specifier: workspace:*
+        version: link:../plugins/sdk
+    devDependencies:
+      '@types/node':
+        specifier: ^24.0.0
+        version: 24.13.3
+      typescript:
+        specifier: ^7.0.2
+        version: 7.0.2
+
   packages/db:
     dependencies:
       '@paperclipai/shared':
