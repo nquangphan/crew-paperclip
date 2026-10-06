@@ -108,7 +108,7 @@ describe.skipIf(process.platform !== "darwin")("crew-claude-run wrapper and stop
     const root = newRoot();
     const pgid = startViaWrapper(root, RUN_A, "sleep 300 & exec sleep 301");
     await sleep(400);
-    expect(parseRemoteStopOutput(runScript(RUN_A, root))).toEqual({ matched: 2, killed: 0, remaining: 0 });
+    expect(parseRemoteStopOutput(runScript(RUN_A, root))).toEqual({ matched: 2, killed: 0, remaining: 0, via: "fallback" });
     await sleep(300);
     expect(groupAlive(pgid)).toBe(false);
     expect(existsSync(path.join(root, ".paperclip-runtime", "runs", RUN_A))).toBe(false);
@@ -135,7 +135,7 @@ describe.skipIf(process.platform !== "darwin")("crew-claude-run wrapper and stop
     child.unref();
     groups.push(child.pid as number);
     await sleep(400);
-    expect(parseRemoteStopOutput(runScript(RUN_A, root))).toEqual({ matched: 1, killed: 0, remaining: 0 });
+    expect(parseRemoteStopOutput(runScript(RUN_A, root))).toEqual({ matched: 1, killed: 0, remaining: 0, via: "fallback" });
     await sleep(300);
     expect(groupAlive(child.pid as number)).toBe(false);
   });
@@ -144,7 +144,7 @@ describe.skipIf(process.platform !== "darwin")("crew-claude-run wrapper and stop
     const root = newRoot();
     const other = startViaWrapper(root, RUN_B, "exec sleep 301");
     await sleep(400);
-    expect(parseRemoteStopOutput(runScript(RUN_A, root))).toEqual({ matched: 0, killed: 0, remaining: 0 });
+    expect(parseRemoteStopOutput(runScript(RUN_A, root))).toEqual({ matched: 0, killed: 0, remaining: 0, via: "fallback" });
     expect(groupAlive(other)).toBe(true);
   });
 
@@ -156,7 +156,7 @@ describe.skipIf(process.platform !== "darwin")("crew-claude-run wrapper and stop
     mkdirSync(dir, { recursive: true });
     writeFileSync(path.join(dir, "pgid"), `${unrelated}\n`);
     writeFileSync(path.join(dir, "started"), `${Math.floor(Date.now() / 1000) + 120}\n`);
-    expect(parseRemoteStopOutput(runScript(RUN_A, root))).toEqual({ matched: 0, killed: 0, remaining: 0 });
+    expect(parseRemoteStopOutput(runScript(RUN_A, root))).toEqual({ matched: 0, killed: 0, remaining: 0, via: "fallback" });
     expect(groupAlive(unrelated)).toBe(true);
   });
 
@@ -169,7 +169,7 @@ describe.skipIf(process.platform !== "darwin")("crew-claude-run wrapper and stop
     mkdirSync(dir, { recursive: true });
     writeFileSync(path.join(dir, "pgid"), `${reused}\n`);
     writeFileSync(path.join(dir, "started"), `${Math.floor(Date.now() / 1000) - 600}\n`);
-    expect(parseRemoteStopOutput(runScript(RUN_A, root))).toEqual({ matched: 0, killed: 0, remaining: 0 });
+    expect(parseRemoteStopOutput(runScript(RUN_A, root))).toEqual({ matched: 0, killed: 0, remaining: 0, via: "fallback" });
     expect(groupAlive(reused)).toBe(true);
   });
 });
@@ -208,6 +208,14 @@ describe.skipIf(process.platform !== "darwin")("CREW_REMOTE_STOP_SCRIPT launcher
     expect(existsSync(argsFile)).toBe(false);
   });
 
+  it("falls back to the built-in script when the launcher cannot run (exit 126 or 127)", () => {
+    for (const code of [126, 127]) {
+      const { home, argsFile } = homeWithLauncher("", code);
+      expect(runScript(RUN_A, newRoot(), home)).toMatch(/^crew-stop matched=0 killed=0 remaining=0 via=fallback$/m);
+      expect(existsSync(argsFile)).toBe(true);
+    }
+  });
+
   it("validates the run id before choosing a path", () => {
     const { home, argsFile } = homeWithLauncher("crew-stop matched=0 killed=0 remaining=0", 0);
     const r = spawnSync("/bin/sh", ["-c", CREW_REMOTE_STOP_SCRIPT, "crew-stop", "x;id", newRoot()], {
@@ -237,6 +245,18 @@ describe("buildRemoteStopCommand", () => {
 });
 
 describe("parseRemoteStopOutput", () => {
+  it("reads only the last line, anchored, with the optional via suffix", () => {
+    expect(parseRemoteStopOutput("crew-stop matched=1 killed=0 remaining=0 via=fallback\n")).toEqual({
+      matched: 1,
+      killed: 0,
+      remaining: 0,
+      via: "fallback",
+    });
+    expect(parseRemoteStopOutput("crew-stop matched=1 killed=0 remaining=0\nnoise after\n")).toBeNull();
+    expect(parseRemoteStopOutput("xcrew-stop matched=1 killed=0 remaining=0\n")).toBeNull();
+    expect(parseRemoteStopOutput("crew-stop matched=1 killed=0 remaining=0 extra\n")).toBeNull();
+  });
+
   it("reads the summary line and ignores noise", () => {
     expect(parseRemoteStopOutput("motd\ncrew-stop matched=3 killed=1 remaining=0\n")).toEqual({
       matched: 3,
@@ -364,6 +384,24 @@ describe("stopRemoteRunOnRelease", () => {
       });
       expect(result.outcome).toBe("unreachable");
     }
+  });
+
+  it("reports failed, not stopped, when the output has no valid summary line", async () => {
+    const result = await stopRemoteRunOnRelease(releaseInput(), {
+      resolveSshConfig: async () => ({ host: "mac" }) as never,
+      runSsh: async () => ({ stdout: "something else\n" }),
+      recordActivity: async () => {},
+    });
+    expect(result.outcome).toBe("failed");
+  });
+
+  it("keeps the via marker in the result for the activity record", async () => {
+    const result = await stopRemoteRunOnRelease(releaseInput(), {
+      resolveSshConfig: async () => ({ host: "mac" }) as never,
+      runSsh: async () => ({ stdout: "crew-stop matched=2 killed=0 remaining=0 via=fallback\n" }),
+      recordActivity: async () => {},
+    });
+    expect(result).toEqual({ outcome: "stopped", matched: 2, killed: 0, remaining: 0, via: "fallback" });
   });
 
   it("reports incomplete when processes survive KILL", async () => {

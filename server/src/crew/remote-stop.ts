@@ -21,10 +21,11 @@ const RUN_ID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}
 export const REMOTE_STOP_TIMEOUT_MS = 12_000;
 
 // Runs on the Mac with macOS /bin/sh. $1 = run id, $2 = worktree root ("" = token only).
-// When crew-mac is installed (~/.crew/bin/crew-mac) and the root is known, the script execs
+// When crew-mac is installed (~/.crew/bin/crew-mac) and the root is known, the script runs
 // `crew-mac stop-run --run-id <id> --root <root> --term-wait-seconds 3`, which prints the same
 // summary line (exit 0) or fails with exit 1 (internal) / 2 (bad input). Otherwise it uses the
-// built-in fallback below, whose summary line ends with "via=fallback".
+// built-in fallback below, whose summary line ends with "via=fallback". A launcher that cannot run
+// (exit 126/127) also falls through to the fallback in the same SSH command.
 // started = birth time of the wrapper process (epoch seconds), so the leader check below allows ±2 s.
 // Targets: (a) the process group recorded by crew-claude-run in
 // $2/.paperclip-runtime/runs/$1/pgid, limited to processes started at or after the
@@ -40,7 +41,11 @@ export const CREW_REMOTE_STOP_SCRIPT = [
   'run_id="$1"; root="$2"',
   'case "$run_id" in ""|*[!0-9a-fA-F-]*) echo "crew-stop: invalid run id" >&2; exit 2;; esac',
   'launcher="$HOME/.crew/bin/crew-mac"',
-  'if [ -n "$root" ] && [ -x "$launcher" ]; then exec "$launcher" stop-run --run-id "$run_id" --root "$root" --term-wait-seconds 3; fi',
+  'if [ -n "$root" ] && [ -x "$launcher" ]; then',
+  '  "$launcher" stop-run --run-id "$run_id" --root "$root" --term-wait-seconds 3; rc=$?',
+  '  # 126/127: the launcher itself could not run; anything else is its real answer.',
+  '  if [ "$rc" -ne 126 ] && [ "$rc" -ne 127 ]; then exit "$rc"; fi',
+  "fi",
   'self_pgid=$(ps -o pgid= -p $$ | tr -d " ")',
   'dir="$root/.paperclip-runtime/runs/$run_id"',
   'file_pg=""; started=0',
@@ -89,18 +94,27 @@ export function buildRemoteStopCommand(runId: string, root: string): string {
   return `sh -c ${shellQuote(CREW_REMOTE_STOP_SCRIPT)} crew-stop ${shellQuote(runId)} ${shellQuote(root)}`;
 }
 
+/** Reads the last non-empty line only; it must be exactly the summary line (optional `via=` suffix). */
 export function parseRemoteStopOutput(
   stdout: string,
-): { matched: number; killed: number; remaining: number } | null {
-  const match = /crew-stop matched=(\d+) killed=(\d+) remaining=(\d+)/.exec(stdout);
+): { matched: number; killed: number; remaining: number; via?: string } | null {
+  const last = stdout.split("\n").map((line) => line.trim()).filter(Boolean).at(-1) ?? "";
+  const match = /^crew-stop matched=(\d+) killed=(\d+) remaining=(\d+)(?: via=(\w+))?$/.exec(last);
   if (!match) return null;
-  return { matched: Number(match[1]), killed: Number(match[2]), remaining: Number(match[3]) };
+  return {
+    matched: Number(match[1]),
+    killed: Number(match[2]),
+    remaining: Number(match[3]),
+    ...(match[4] ? { via: match[4] } : {}),
+  };
 }
 
 export type RemoteStopResult = {
   /** failed: the stop command ran on the Mac but exited non-zero, so nothing is known to be stopped. */
   outcome: "skipped" | "stopped" | "incomplete" | "unreachable" | "failed";
   exitCode?: number;
+  /** "fallback" when the built-in script answered instead of crew-mac stop-run. */
+  via?: string;
   matched?: number;
   killed?: number;
   remaining?: number;
@@ -179,7 +193,7 @@ export async function stopRemoteRunOnRelease(
     const parsed = parseRemoteStopOutput(stdout);
     result = parsed
       ? { outcome: parsed.remaining > 0 ? "incomplete" : "stopped", ...parsed }
-      : { outcome: "incomplete", error: `unexpected output: ${stdout.slice(0, 200)}` };
+      : { outcome: "failed", error: `unexpected output: ${stdout.slice(-200)}` };
   } catch (err) {
     result = classifyStopError(err);
   }
