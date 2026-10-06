@@ -1,0 +1,196 @@
+import type { Db } from "@paperclipai/db";
+import { runSshCommand, shellQuote } from "@paperclipai/adapter-utils/ssh";
+import { logger } from "../middleware/logger.js";
+import { logActivity } from "../services/activity-log.js";
+import { resolveEnvironmentDriverConfigForRuntime } from "../services/environment-config.js";
+import type { EnvironmentDriverReleaseInput } from "../services/environment-runtime.js";
+
+/** Same shape as RunLeaseReleasedInput in core-hooks.ts (not imported: implementations must not import the registry). */
+export type RunLeaseReleasedInput = EnvironmentDriverReleaseInput & { db: Db };
+type SshConfig = Parameters<typeof runSshCommand>[0];
+
+const RUN_ID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * Upper bound for the whole SSH stop command. It stays below the registry's 15 s wait
+ * (CREW_RUN_LEASE_RELEASE_HOOK_TIMEOUT_MS) so the ssh client is killed by its own timeout
+ * before the registry gives up, and no stale stop command keeps running next to a new lease.
+ * Budget: ssh ConnectTimeout 10 s is the worst case; on Tailscale the connect takes ~1 s and the
+ * remote script needs at most ~5 s (4 s TERM grace, KILL, final check).
+ */
+export const REMOTE_STOP_TIMEOUT_MS = 12_000;
+
+// Runs on the Mac with macOS /bin/sh. $1 = run id, $2 = worktree root ("" = token only).
+// When crew-mac is installed (~/.crew/bin/crew-mac) and the root is known, the script execs
+// `crew-mac stop-run --run-id <id> --root <root> --term-wait-seconds 3`, which prints the same
+// summary line (exit 0) or fails with exit 1 (internal) / 2 (bad input). Otherwise it uses the
+// built-in fallback below, whose summary line ends with "via=fallback".
+// started = birth time of the wrapper process (epoch seconds), so the leader check below allows ±2 s.
+// Targets: (a) the process group recorded by crew-claude-run in
+// $2/.paperclip-runtime/runs/$1/pgid, limited to processes started at or after the
+// recorded start time minus 2 s, and skipped entirely when the group's live leader (pid == pgid)
+// did not start within 2 s of the recorded time (guards against PGID reuse before or after the run
+// started; the wrapper execs into claude, so the real leader keeps the recorded PID); (b) any process whose
+// environment, as shown by `ps -E`, has the exact token PAPERCLIP_RUN_ID=$1 (ps -E cannot
+// read the environment of Apple binaries such as zsh or sleep, so (a) is the main path).
+// Zombies are skipped (already dead, waiting for their parent to reap them).
+// Sends TERM to the groups and pids, waits up to 4 s, then KILLs survivors.
+// Prints: crew-stop matched=N killed=N remaining=N
+export const CREW_REMOTE_STOP_SCRIPT = [
+  'run_id="$1"; root="$2"',
+  'case "$run_id" in ""|*[!0-9a-fA-F-]*) echo "crew-stop: invalid run id" >&2; exit 2;; esac',
+  'launcher="$HOME/.crew/bin/crew-mac"',
+  'if [ -n "$root" ] && [ -x "$launcher" ]; then exec "$launcher" stop-run --run-id "$run_id" --root "$root" --term-wait-seconds 3; fi',
+  'self_pgid=$(ps -o pgid= -p $$ | tr -d " ")',
+  'dir="$root/.paperclip-runtime/runs/$run_id"',
+  'file_pg=""; started=0',
+  'if [ -n "$root" ] && [ -r "$dir/pgid" ]; then',
+  '  file_pg=$(tr -dc "0-9" < "$dir/pgid")',
+  '  started=$(tr -dc "0-9" < "$dir/started" 2>/dev/null)',
+  '  [ -n "$started" ] || started=0',
+  "fi",
+  "list() {",
+  '  ps -E -ww -U "$(id -u)" -o pid= -o pgid= -o stat= -o etime= -o command= | awk -v tag="PAPERCLIP_RUN_ID=$run_id" -v selfpg="$self_pgid" -v fpg="$file_pg" -v started="$started" -v now="$(date +%s)" \'',
+  '    function secs(e,  a, n, d) { d = 0; if (index(e, "-")) { split(e, a, "-"); d = a[1]; e = a[2] } n = split(e, a, ":"); return d * 86400 + (n == 3 ? a[1] * 3600 + a[2] * 60 + a[3] : a[1] * 60 + a[2]) }',
+  "    $2 == selfpg || $3 ~ /^Z/ { next }",
+  '    fpg != "" && fpg > 1 && $1 == fpg { leader = now - secs($4) }',
+  '    fpg != "" && fpg > 1 && $2 == fpg && now - secs($4) >= started - 2 { group[$1] = $2; next }',
+  "    { for (i = 5; i <= NF; i++) if ($i == tag) { print $1, $2; break } }",
+  "    END {",
+  "      # A live leader (pid == pgid) that did not start with the run means the PGID was reused.",
+  '      if (leader != "" && (leader - started > 2 || started - leader > 2)) exit',
+  "      for (p in group) print p, group[p]",
+  "    }'",
+  "}",
+  "signal_all() {",
+  '  for pg in $(printf "%s\\n" "$1" | awk \'{print $2}\' | sort -u); do',
+  '    if [ "$pg" -gt 1 ]; then kill -s "$2" -- "-$pg" 2>/dev/null || true; fi',
+  "  done",
+  '  for p in $(printf "%s\\n" "$1" | awk \'{print $1}\'); do kill -s "$2" "$p" 2>/dev/null || true; done',
+  "}",
+  "targets=$(list)",
+  'if [ -z "$targets" ]; then echo "crew-stop matched=0 killed=0 remaining=0 via=fallback"; exit 0; fi',
+  'matched=$(printf "%s\\n" "$targets" | wc -l | tr -d " ")',
+  'signal_all "$targets" TERM',
+  'left="$targets"; i=0',
+  'while [ -n "$left" ] && [ "$i" -lt 8 ]; do sleep 0.5; left=$(list); i=$((i + 1)); done',
+  "killed=0",
+  'if [ -n "$left" ]; then killed=$(printf "%s\\n" "$left" | wc -l | tr -d " "); signal_all "$left" KILL; sleep 0.5; fi',
+  "remaining=$(list | grep -c . || true)",
+  'if [ "$remaining" = 0 ] && [ -n "$root" ] && [ -d "$dir" ]; then rm -rf "$dir"; fi',
+  'echo "crew-stop matched=$matched killed=$killed remaining=$remaining via=fallback"',
+].join("\n");
+
+export function buildRemoteStopCommand(runId: string, root: string): string {
+  if (!RUN_ID_RE.test(runId)) throw new Error(`crew remote stop: invalid run id "${runId}"`);
+  if (root !== "" && (!root.startsWith("/") || /[\n\r]/.test(root))) {
+    throw new Error(`crew remote stop: invalid worktree root "${root}"`);
+  }
+  return `sh -c ${shellQuote(CREW_REMOTE_STOP_SCRIPT)} crew-stop ${shellQuote(runId)} ${shellQuote(root)}`;
+}
+
+export function parseRemoteStopOutput(
+  stdout: string,
+): { matched: number; killed: number; remaining: number } | null {
+  const match = /crew-stop matched=(\d+) killed=(\d+) remaining=(\d+)/.exec(stdout);
+  if (!match) return null;
+  return { matched: Number(match[1]), killed: Number(match[2]), remaining: Number(match[3]) };
+}
+
+export type RemoteStopResult = {
+  /** failed: the stop command ran on the Mac but exited non-zero, so nothing is known to be stopped. */
+  outcome: "skipped" | "stopped" | "incomplete" | "unreachable" | "failed";
+  exitCode?: number;
+  matched?: number;
+  killed?: number;
+  remaining?: number;
+  error?: string;
+};
+
+export interface RemoteStopDeps {
+  resolveSshConfig(input: RunLeaseReleasedInput): Promise<SshConfig | null>;
+  runSsh(config: SshConfig, command: string, options: { timeoutMs: number }): Promise<{ stdout: string }>;
+  recordActivity(input: RunLeaseReleasedInput, result: RemoteStopResult): Promise<void>;
+}
+
+const defaultDeps: RemoteStopDeps = {
+  async resolveSshConfig(input) {
+    const parsed = await resolveEnvironmentDriverConfigForRuntime(input.db, input.lease.companyId, input.environment, {
+      issueId: input.lease.issueId,
+      heartbeatRunId: input.lease.heartbeatRunId,
+    });
+    return parsed.driver === "ssh" ? parsed.config : null;
+  },
+  async runSsh(config, command, options) {
+    // runSshCommand passes timeoutMs to execFile, which kills the ssh client when it expires.
+    return await runSshCommand(config, command, { timeoutMs: options.timeoutMs });
+  },
+  async recordActivity(input, result) {
+    if (result.outcome === "stopped" && (result.matched ?? 0) === 0) return;
+    await logActivity(input.db, {
+      companyId: input.lease.companyId,
+      actorType: "system",
+      actorId: "crew",
+      action: "crew.remote_stop",
+      entityType: "heartbeat_run",
+      entityId: input.lease.heartbeatRunId as string,
+      runId: input.lease.heartbeatRunId,
+      issueId: input.lease.issueId,
+      details: { ...result, leaseStatus: input.status, environmentId: input.environment.id },
+    });
+  },
+};
+
+/** ssh exits 255 on its own failures and is killed on timeout; any other exit code came from the Mac side. */
+function classifyStopError(err: unknown): RemoteStopResult {
+  const e = (err ?? {}) as { code?: unknown; stderr?: unknown; message?: unknown };
+  const stderr = typeof e.stderr === "string" ? e.stderr.trim() : "";
+  const message = stderr || (typeof e.message === "string" ? e.message : String(err));
+  if (typeof e.code === "number" && e.code !== 255) {
+    return { outcome: "failed", exitCode: e.code, error: message.slice(0, 300) };
+  }
+  return { outcome: "unreachable", error: message.slice(0, 300) };
+}
+
+function readRemoteCwd(metadata: Record<string, unknown> | null | undefined): string {
+  const value = metadata?.remoteCwd;
+  return typeof value === "string" ? value.trim() : "";
+}
+
+/**
+ * H3 implementation: stops the run's processes on the SSH host when its lease is released
+ * (run finished, cancelled, reaped after restart, or failed). Returns at once for leases that
+ * are not tied to a run (probe, device-login, setup-token) and for non-SSH drivers. Never throws.
+ */
+export async function stopRemoteRunOnRelease(
+  input: RunLeaseReleasedInput,
+  deps: Partial<RemoteStopDeps> = {},
+): Promise<RemoteStopResult> {
+  const runId = input.lease.heartbeatRunId;
+  if (runId === null || runId === undefined || input.environment.driver !== "ssh") return { outcome: "skipped" };
+  const d: RemoteStopDeps = { ...defaultDeps, ...deps };
+
+  let result: RemoteStopResult;
+  try {
+    const config = await d.resolveSshConfig(input);
+    if (!config) return { outcome: "skipped" };
+    const command = buildRemoteStopCommand(runId, readRemoteCwd(input.lease.metadata));
+    const { stdout } = await d.runSsh(config, command, { timeoutMs: REMOTE_STOP_TIMEOUT_MS });
+    const parsed = parseRemoteStopOutput(stdout);
+    result = parsed
+      ? { outcome: parsed.remaining > 0 ? "incomplete" : "stopped", ...parsed }
+      : { outcome: "incomplete", error: `unexpected output: ${stdout.slice(0, 200)}` };
+  } catch (err) {
+    result = classifyStopError(err);
+  }
+
+  const fields = { runId, leaseStatus: input.status, ...result };
+  if (result.outcome === "stopped") logger.info(fields, "crew: remote stop on lease release");
+  else logger.warn(fields, "crew: remote stop on lease release");
+  try {
+    await d.recordActivity(input, result);
+  } catch (err) {
+    logger.warn({ err, runId }, "crew: failed to record remote stop activity");
+  }
+  return result;
+}

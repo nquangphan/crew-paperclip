@@ -1,6 +1,8 @@
 import type { Db, heartbeatRuns, issues } from "@paperclipai/db";
 import { logger } from "../middleware/logger.js";
 import type { EnvironmentDriverReleaseInput } from "../services/environment-runtime.js";
+import { crewBeforeClaim } from "./load-gate.js";
+import { stopRemoteRunOnRelease } from "./remote-stop.js";
 
 /** H1: gọi ở dòng đầu `claimQueuedRun` trong `heartbeatService(db)`. */
 export interface BeforeClaimInput {
@@ -48,9 +50,11 @@ export interface CrewCoreHooks {
 export const CREW_RUN_LEASE_RELEASE_HOOK_TIMEOUT_MS = 15_000;
 
 const implementations: CrewCoreHooks = {
-  beforeClaim: async () => false,
+  beforeClaim: crewBeforeClaim,
   beforeIssueWrite: async () => {},
-  onRunLeaseReleased: async () => {},
+  onRunLeaseReleased: async (input) => {
+    await stopRemoteRunOnRelease(input);
+  },
 };
 
 export const crewCoreHooks: CrewCoreHooks = {
