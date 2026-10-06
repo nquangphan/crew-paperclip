@@ -21,6 +21,11 @@ const RUN_ID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}
 export const REMOTE_STOP_TIMEOUT_MS = 12_000;
 
 // Runs on the Mac with macOS /bin/sh. $1 = run id, $2 = worktree root ("" = token only).
+// When crew-mac is installed (~/.crew/bin/crew-mac) and the root is known, the script execs
+// `crew-mac stop-run --run-id <id> --root <root> --term-wait-seconds 3`, which prints the same
+// summary line (exit 0) or fails with exit 1 (internal) / 2 (bad input). Otherwise it uses the
+// built-in fallback below, whose summary line ends with "via=fallback".
+// started = birth time of the wrapper process (epoch seconds), so the leader check below allows ±2 s.
 // Targets: (a) the process group recorded by crew-claude-run in
 // $2/.paperclip-runtime/runs/$1/pgid, limited to processes started at or after the
 // recorded start time minus 2 s, and skipped entirely when the group's live leader (pid == pgid)
@@ -34,6 +39,8 @@ export const REMOTE_STOP_TIMEOUT_MS = 12_000;
 export const CREW_REMOTE_STOP_SCRIPT = [
   'run_id="$1"; root="$2"',
   'case "$run_id" in ""|*[!0-9a-fA-F-]*) echo "crew-stop: invalid run id" >&2; exit 2;; esac',
+  'launcher="$HOME/.crew/bin/crew-mac"',
+  'if [ -n "$root" ] && [ -x "$launcher" ]; then exec "$launcher" stop-run --run-id "$run_id" --root "$root" --term-wait-seconds 3; fi',
   'self_pgid=$(ps -o pgid= -p $$ | tr -d " ")',
   'dir="$root/.paperclip-runtime/runs/$run_id"',
   'file_pg=""; started=0',
@@ -62,7 +69,7 @@ export const CREW_REMOTE_STOP_SCRIPT = [
   '  for p in $(printf "%s\\n" "$1" | awk \'{print $1}\'); do kill -s "$2" "$p" 2>/dev/null || true; done',
   "}",
   "targets=$(list)",
-  'if [ -z "$targets" ]; then echo "crew-stop matched=0 killed=0 remaining=0"; exit 0; fi',
+  'if [ -z "$targets" ]; then echo "crew-stop matched=0 killed=0 remaining=0 via=fallback"; exit 0; fi',
   'matched=$(printf "%s\\n" "$targets" | wc -l | tr -d " ")',
   'signal_all "$targets" TERM',
   'left="$targets"; i=0',
@@ -71,7 +78,7 @@ export const CREW_REMOTE_STOP_SCRIPT = [
   'if [ -n "$left" ]; then killed=$(printf "%s\\n" "$left" | wc -l | tr -d " "); signal_all "$left" KILL; sleep 0.5; fi',
   "remaining=$(list | grep -c . || true)",
   'if [ "$remaining" = 0 ] && [ -n "$root" ] && [ -d "$dir" ]; then rm -rf "$dir"; fi',
-  'echo "crew-stop matched=$matched killed=$killed remaining=$remaining"',
+  'echo "crew-stop matched=$matched killed=$killed remaining=$remaining via=fallback"',
 ].join("\n");
 
 export function buildRemoteStopCommand(runId: string, root: string): string {
@@ -91,7 +98,9 @@ export function parseRemoteStopOutput(
 }
 
 export type RemoteStopResult = {
-  outcome: "skipped" | "stopped" | "incomplete" | "unreachable";
+  /** failed: the stop command ran on the Mac but exited non-zero, so nothing is known to be stopped. */
+  outcome: "skipped" | "stopped" | "incomplete" | "unreachable" | "failed";
+  exitCode?: number;
   matched?: number;
   killed?: number;
   remaining?: number;
@@ -132,6 +141,17 @@ const defaultDeps: RemoteStopDeps = {
   },
 };
 
+/** ssh exits 255 on its own failures and is killed on timeout; any other exit code came from the Mac side. */
+function classifyStopError(err: unknown): RemoteStopResult {
+  const e = (err ?? {}) as { code?: unknown; stderr?: unknown; message?: unknown };
+  const stderr = typeof e.stderr === "string" ? e.stderr.trim() : "";
+  const message = stderr || (typeof e.message === "string" ? e.message : String(err));
+  if (typeof e.code === "number" && e.code !== 255) {
+    return { outcome: "failed", exitCode: e.code, error: message.slice(0, 300) };
+  }
+  return { outcome: "unreachable", error: message.slice(0, 300) };
+}
+
 function readRemoteCwd(metadata: Record<string, unknown> | null | undefined): string {
   const value = metadata?.remoteCwd;
   return typeof value === "string" ? value.trim() : "";
@@ -161,7 +181,7 @@ export async function stopRemoteRunOnRelease(
       ? { outcome: parsed.remaining > 0 ? "incomplete" : "stopped", ...parsed }
       : { outcome: "incomplete", error: `unexpected output: ${stdout.slice(0, 200)}` };
   } catch (err) {
-    result = { outcome: "unreachable", error: err instanceof Error ? err.message : String(err) };
+    result = classifyStopError(err);
   }
 
   const fields = { runId, leaseStatus: input.status, ...result };

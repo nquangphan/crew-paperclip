@@ -1,4 +1,4 @@
-import { execFileSync, spawn } from "node:child_process";
+import { execFileSync, spawn, spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -51,8 +51,28 @@ function groupAlive(pgid: number): boolean {
   }
 }
 
-function runScript(runId: string, root: string): string {
-  return execFileSync("/bin/sh", ["-c", CREW_REMOTE_STOP_SCRIPT, "crew-stop", runId, root], { encoding: "utf8" });
+/** HOME without ~/.crew/bin/crew-mac, so the script takes its built-in fallback path. */
+const NO_LAUNCHER_HOME = mkdtempSync(path.join(tmpdir(), "crew-home-empty-"));
+
+function runScript(runId: string, root: string, home = NO_LAUNCHER_HOME): string {
+  return execFileSync("/bin/sh", ["-c", CREW_REMOTE_STOP_SCRIPT, "crew-stop", runId, root], {
+    encoding: "utf8",
+    env: { ...process.env, HOME: home },
+  });
+}
+
+/** HOME with a stub crew-mac launcher that records its arguments and answers like stop-run. */
+function homeWithLauncher(stdout: string, exitCode: number): { home: string; argsFile: string } {
+  const home = newRoot();
+  const bin = path.join(home, ".crew", "bin");
+  mkdirSync(bin, { recursive: true });
+  const argsFile = path.join(home, "args.txt");
+  writeFileSync(
+    path.join(bin, "crew-mac"),
+    `#!/bin/sh\nprintf '%s\\n' "$@" > ${JSON.stringify(argsFile)}\n${stdout ? `echo ${JSON.stringify(stdout)}\n` : ""}echo "stub stderr" >&2\nexit ${exitCode}\n`,
+    { mode: 0o755 },
+  );
+  return { home, argsFile };
 }
 
 afterEach(() => {
@@ -151,6 +171,51 @@ describe.skipIf(process.platform !== "darwin")("crew-claude-run wrapper and stop
     writeFileSync(path.join(dir, "started"), `${Math.floor(Date.now() / 1000) - 600}\n`);
     expect(parseRemoteStopOutput(runScript(RUN_A, root))).toEqual({ matched: 0, killed: 0, remaining: 0 });
     expect(groupAlive(reused)).toBe(true);
+  });
+});
+
+describe.skipIf(process.platform !== "darwin")("CREW_REMOTE_STOP_SCRIPT launcher selection", () => {
+  it("delegates to crew-mac stop-run when the launcher exists and a root is given", () => {
+    const root = newRoot();
+    const { home, argsFile } = homeWithLauncher("crew-stop matched=4 killed=1 remaining=0", 0);
+    const out = runScript(RUN_A, root, home);
+    expect(parseRemoteStopOutput(out)).toEqual({ matched: 4, killed: 1, remaining: 0 });
+    expect(readFileSync(argsFile, "utf8").trim().split("\n")).toEqual([
+      "stop-run",
+      "--run-id",
+      RUN_A,
+      "--root",
+      root,
+      "--term-wait-seconds",
+      "3",
+    ]);
+  });
+
+  it("passes the launcher's failure exit code through", () => {
+    const { home } = homeWithLauncher("", 1);
+    const r = spawnSync("/bin/sh", ["-c", CREW_REMOTE_STOP_SCRIPT, "crew-stop", RUN_A, newRoot()], {
+      encoding: "utf8",
+      env: { ...process.env, HOME: home },
+    });
+    expect(r.status).toBe(1);
+    expect(r.stdout).toBe("");
+  });
+
+  it("uses the built-in fallback when the launcher is missing or no root is known", () => {
+    const { home, argsFile } = homeWithLauncher("crew-stop matched=9 killed=9 remaining=9", 0);
+    expect(runScript(RUN_A, newRoot())).toMatch(/crew-stop matched=0 killed=0 remaining=0 via=fallback/);
+    expect(runScript(RUN_A, "", home)).toMatch(/via=fallback/);
+    expect(existsSync(argsFile)).toBe(false);
+  });
+
+  it("validates the run id before choosing a path", () => {
+    const { home, argsFile } = homeWithLauncher("crew-stop matched=0 killed=0 remaining=0", 0);
+    const r = spawnSync("/bin/sh", ["-c", CREW_REMOTE_STOP_SCRIPT, "crew-stop", "x;id", newRoot()], {
+      encoding: "utf8",
+      env: { ...process.env, HOME: home },
+    });
+    expect(r.status).toBe(2);
+    expect(existsSync(argsFile)).toBe(false);
   });
 });
 
@@ -268,6 +333,37 @@ describe("stopRemoteRunOnRelease", () => {
     });
     expect(result.outcome).toBe("unreachable");
     expect(result.error).toContain("banner exchange");
+  });
+
+  it("reports failed with the exit code when stop-run exits non-zero, without claiming a stop", async () => {
+    const recorded: unknown[] = [];
+    const result = await stopRemoteRunOnRelease(releaseInput(), {
+      resolveSshConfig: async () => ({ host: "mac" }) as never,
+      runSsh: async () => {
+        throw Object.assign(new Error("Command failed"), { code: 1, stdout: "", stderr: "crew-mac: ps failed" });
+      },
+      recordActivity: async (_input, r) => {
+        recorded.push(r);
+      },
+    });
+    expect(result).toEqual({ outcome: "failed", exitCode: 1, error: "crew-mac: ps failed" });
+    expect(recorded).toEqual([result]);
+  });
+
+  it("treats ssh's own exit 255 and a killed ssh as unreachable", async () => {
+    for (const err of [
+      Object.assign(new Error("Command failed"), { code: 255, stderr: "Connection timed out" }),
+      Object.assign(new Error("Command failed"), { code: null, killed: true, signal: "SIGTERM", stderr: "" }),
+    ]) {
+      const result = await stopRemoteRunOnRelease(releaseInput(), {
+        resolveSshConfig: async () => ({ host: "mac" }) as never,
+        runSsh: async () => {
+          throw err;
+        },
+        recordActivity: async () => {},
+      });
+      expect(result.outcome).toBe("unreachable");
+    }
   });
 
   it("reports incomplete when processes survive KILL", async () => {
