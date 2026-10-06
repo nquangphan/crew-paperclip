@@ -12,7 +12,7 @@
       "importLine": "import { crewCoreHooks } from \"../crew/core-hooks.js\";",
       "description": "Keep a queued run queued while its environment is overloaded or unreachable.",
       "upstreamPr": null,
-      "tests": ["server/src/__tests__/crew-core-hooks.test.ts"]
+      "tests": ["server/src/__tests__/crew-before-claim.test.ts"]
     },
     {
       "id": "H2",
