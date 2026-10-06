@@ -139,6 +139,19 @@ describe.skipIf(process.platform !== "darwin")("crew-claude-run wrapper and stop
     expect(parseRemoteStopOutput(runScript(RUN_A, root))).toEqual({ matched: 0, killed: 0, remaining: 0 });
     expect(groupAlive(unrelated)).toBe(true);
   });
+
+  it("ignores a recorded group whose leader started after the run (PGID reused later)", async () => {
+    const root = newRoot();
+    // An unrelated owner app that happens to get the recorded PGID after the run started.
+    const reused = startViaWrapper(root, RUN_B, "sleep 300 & exec sleep 301");
+    await sleep(400);
+    const dir = path.join(root, ".paperclip-runtime", "runs", RUN_A);
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(path.join(dir, "pgid"), `${reused}\n`);
+    writeFileSync(path.join(dir, "started"), `${Math.floor(Date.now() / 1000) - 600}\n`);
+    expect(parseRemoteStopOutput(runScript(RUN_A, root))).toEqual({ matched: 0, killed: 0, remaining: 0 });
+    expect(groupAlive(reused)).toBe(true);
+  });
 });
 
 describe("buildRemoteStopCommand", () => {

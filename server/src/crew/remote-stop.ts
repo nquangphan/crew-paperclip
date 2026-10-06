@@ -23,7 +23,9 @@ export const REMOTE_STOP_TIMEOUT_MS = 12_000;
 // Runs on the Mac with macOS /bin/sh. $1 = run id, $2 = worktree root ("" = token only).
 // Targets: (a) the process group recorded by crew-claude-run in
 // $2/.paperclip-runtime/runs/$1/pgid, limited to processes started at or after the
-// recorded start time minus 2 s (guards against PGID reuse); (b) any process whose
+// recorded start time minus 2 s, and skipped entirely when the group's live leader (pid == pgid)
+// did not start within 2 s of the recorded time (guards against PGID reuse before or after the run
+// started; the wrapper execs into claude, so the real leader keeps the recorded PID); (b) any process whose
 // environment, as shown by `ps -E`, has the exact token PAPERCLIP_RUN_ID=$1 (ps -E cannot
 // read the environment of Apple binaries such as zsh or sleep, so (a) is the main path).
 // Zombies are skipped (already dead, waiting for their parent to reap them).
@@ -44,8 +46,14 @@ export const CREW_REMOTE_STOP_SCRIPT = [
   '  ps -E -ww -U "$(id -u)" -o pid= -o pgid= -o stat= -o etime= -o command= | awk -v tag="PAPERCLIP_RUN_ID=$run_id" -v selfpg="$self_pgid" -v fpg="$file_pg" -v started="$started" -v now="$(date +%s)" \'',
   '    function secs(e,  a, n, d) { d = 0; if (index(e, "-")) { split(e, a, "-"); d = a[1]; e = a[2] } n = split(e, a, ":"); return d * 86400 + (n == 3 ? a[1] * 3600 + a[2] * 60 + a[3] : a[1] * 60 + a[2]) }',
   "    $2 == selfpg || $3 ~ /^Z/ { next }",
-  '    fpg != "" && fpg > 1 && $2 == fpg && now - secs($4) >= started - 2 { print $1, $2; next }',
-  "    { for (i = 5; i <= NF; i++) if ($i == tag) { print $1, $2; break } }'",
+  '    fpg != "" && fpg > 1 && $1 == fpg { leader = now - secs($4) }',
+  '    fpg != "" && fpg > 1 && $2 == fpg && now - secs($4) >= started - 2 { group[$1] = $2; next }',
+  "    { for (i = 5; i <= NF; i++) if ($i == tag) { print $1, $2; break } }",
+  "    END {",
+  "      # A live leader (pid == pgid) that did not start with the run means the PGID was reused.",
+  '      if (leader != "" && (leader - started > 2 || started - leader > 2)) exit',
+  "      for (p in group) print p, group[p]",
+  "    }'",
   "}",
   "signal_all() {",
   '  for pg in $(printf "%s\\n" "$1" | awk \'{print $2}\' | sort -u); do',
