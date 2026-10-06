@@ -1,0 +1,43 @@
+{
+  "schemaVersion": 1,
+  "base": "v2026.1001.0",
+  "entries": [
+    {
+      "id": "H1",
+      "kind": "hook",
+      "file": "server/src/services/heartbeat.ts",
+      "symbol": "heartbeatService.claimQueuedRun",
+      "head": "async function claimQueuedRun(",
+      "anchor": "    if (await crewCoreHooks.beforeClaim({ db, run })) return null;",
+      "importLine": "import { crewCoreHooks } from \"../crew/core-hooks.js\";",
+      "description": "Keep a queued run queued while its environment is overloaded or unreachable.",
+      "upstreamPr": null,
+      "tests": ["server/src/__tests__/crew-core-hooks.test.ts"]
+    },
+    {
+      "id": "H2",
+      "kind": "hook",
+      "file": "server/src/services/issues.ts",
+      "symbol": "issueService.update.runUpdate",
+      "head": "const runUpdate = async (tx: any) => {",
+      "anchor": "        await crewCoreHooks.beforeIssueWrite({ tx, issueId: id, existing, patch, actorAgentId, actorUserId });",
+      "importLine": "import { crewCoreHooks } from \"../crew/core-hooks.js\";",
+      "description": "Reject issue writes that skip execution-policy stages or let an agent change executionPolicy.",
+      "upstreamPr": null,
+      "tests": ["server/src/__tests__/crew-core-hooks.test.ts"]
+    },
+    {
+      "id": "H3",
+      "kind": "hook",
+      "file": "server/src/services/environment-runtime.ts",
+      "symbol": "createSshEnvironmentDriver.releaseRunLease",
+      "scope": "function createSshEnvironmentDriver(",
+      "head": "async releaseRunLease(input) {",
+      "anchor": "      await crewCoreHooks.onRunLeaseReleased({ db, ...input });",
+      "importLine": "import { crewCoreHooks } from \"../crew/core-hooks.js\";",
+      "description": "Stop the run's remote work when an SSH run lease is released (cancel, failed, expired).",
+      "upstreamPr": null,
+      "tests": ["server/src/__tests__/crew-core-hooks.test.ts"]
+    }
+  ]
+}
