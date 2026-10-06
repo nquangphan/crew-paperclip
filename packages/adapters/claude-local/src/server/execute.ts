@@ -608,11 +608,14 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
   const claudeConfigSeedDir = useManagedRemoteClaudeConfig
     ? config.managedAiConnection ? sharedClaudeConfigDir : await prepareClaudeConfigSeed(process.env, onLog, agent.companyId)
     : null;
+  const inPlaceRoot = executionTarget?.workspaceRealization?.mode === "in_place"
+    ? executionTarget.workspaceRealization.authoritativeRoot
+    : null;
   const preparedExecutionTargetRuntime = executionTargetIsRemote
     ? await (async () => {
         await onLog(
           "stdout",
-          `[paperclip] Syncing workspace and Claude runtime assets to ${describeAdapterExecutionTarget(executionTarget)}.\n`,
+          `[paperclip] Syncing ${inPlaceRoot ? "Claude runtime assets" : "workspace and Claude runtime assets"} to ${describeAdapterExecutionTarget(executionTarget)}.\n`,
         );
         return await prepareAdapterExecutionTargetRuntime({
           runId,
@@ -620,6 +623,8 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
           adapterKey: "claude",
           timeoutSec,
           workspaceLocalDir: cwd,
+          workspaceRemoteDir: inPlaceRoot ?? undefined,
+          syncWorkspace: inPlaceRoot === null,
           installCommand: SANDBOX_INSTALL_COMMAND,
           detectCommand: command,
           onProgress: (line) => onLog("stdout", line),

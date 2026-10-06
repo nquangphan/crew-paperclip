@@ -38,6 +38,28 @@
       "description": "Stop the run's remote work when an SSH run lease is released (cancel, failed, expired).",
       "upstreamPr": null,
       "tests": ["server/src/__tests__/crew-core-hooks.test.ts"]
+    },
+    {
+      "id": "P1",
+      "kind": "driver-patch",
+      "file": "server/src/services/environment-runtime.ts",
+      "symbol": "createSshEnvironmentDriver.acquireRunLease",
+      "scope": "function createSshEnvironmentDriver(",
+      "anchor": "          ...sshLeaseWorkspaceRealization(input.environment),",
+      "importLine": "import { sshLeaseWorkspaceRealization } from \"../crew/ssh-in-place.js\";",
+      "description": "SSH lease metadata opts the run into in_place realization when environment metadata sets workspaceRealizationMode to in_place.",
+      "upstreamPr": null,
+      "tests": ["server/src/__tests__/crew-ssh-in-place.test.ts"]
+    },
+    {
+      "id": "P2",
+      "kind": "adapter-patch",
+      "file": "packages/adapters/claude-local/src/server/execute.ts",
+      "symbol": "execute (inPlaceRoot)",
+      "anchor": "  const inPlaceRoot = executionTarget?.workspaceRealization?.mode === \"in_place\"",
+      "description": "claude_local runs in the authoritative root and skips workspace upload/restore for in_place realization, like codex_local.",
+      "upstreamPr": null,
+      "tests": ["packages/adapters/claude-local/src/server/execute.remote.crew.test.ts"]
     }
   ]
 }

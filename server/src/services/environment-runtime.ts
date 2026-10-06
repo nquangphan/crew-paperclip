@@ -1200,6 +1200,7 @@ function createSshEnvironmentDriver(db: Db): EnvironmentRuntimeDriver {
           username: parsed.config.username,
           remoteWorkspacePath: parsed.config.remoteWorkspacePath,
           remoteCwd,
+          ...sshLeaseWorkspaceRealization(input.environment),
         },
       });
     },
@@ -4230,3 +4231,4 @@ export function environmentRuntimeService(
 
 export type EnvironmentRuntimeService = ReturnType<typeof environmentRuntimeService>;
 import { crewCoreHooks } from "../crew/core-hooks.js";
+import { sshLeaseWorkspaceRealization } from "../crew/ssh-in-place.js";
