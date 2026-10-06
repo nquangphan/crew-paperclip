@@ -12,7 +12,11 @@ vi.mock("../services/environments.ts", async (importOriginal) => ({
 }));
 
 import { environmentRuntimeService } from "../services/environment-runtime.ts";
-import { crewCoreHooks, overrideCrewCoreHooksForTests } from "../crew/core-hooks.ts";
+import {
+  CREW_RUN_LEASE_RELEASE_HOOK_TIMEOUT_MS,
+  crewCoreHooks,
+  overrideCrewCoreHooksForTests,
+} from "../crew/core-hooks.ts";
 
 let restore: (() => void) | null = null;
 
@@ -98,5 +102,28 @@ describe("H3 trong SSH driver", () => {
       status: "expired",
     });
     expect(releaseLease).toHaveBeenCalledWith("lease-1", "expired");
+  });
+
+  it("vẫn trả lease khi implementation treo quá thời hạn", async () => {
+    vi.useFakeTimers();
+    try {
+      restore = overrideCrewCoreHooksForTests({
+        onRunLeaseReleased: () => new Promise<void>(() => {}),
+      });
+
+      const pending = sshDriver().releaseRunLease({ environment, lease, status: "failed", cancelActiveWork: true });
+      await vi.advanceTimersByTimeAsync(CREW_RUN_LEASE_RELEASE_HOOK_TIMEOUT_MS - 1);
+      expect(releaseLease).not.toHaveBeenCalled();
+
+      await vi.advanceTimersByTimeAsync(1);
+      await expect(pending).resolves.toEqual({ id: "lease-1", status: "failed" });
+      expect(releaseLease).toHaveBeenCalledWith("lease-1", "failed");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("thời hạn chờ hook là 15 giây", () => {
+    expect(CREW_RUN_LEASE_RELEASE_HOOK_TIMEOUT_MS).toBe(15_000);
   });
 });

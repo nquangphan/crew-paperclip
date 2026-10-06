@@ -25,6 +25,9 @@ export interface BeforeIssueWriteInput {
  * H3: gọi ở dòng đầu `releaseRunLease` của SSH driver, trước `environmentsSvc.releaseLease`.
  * `db` là tham số `db` của `createSshEnvironmentDriver(db: Db)`; implementation cần nó để giải private key SSH
  * từ secret của Paperclip (server không có `db` dùng chung).
+ * Hook nhận mọi lease SSH được trả, kể cả lease không gắn run (`lease.heartbeatRunId === null`): lease của probe
+ * (`environment-probe.ts`), device-login và setup-token transport binding. Implementation phải trả về ngay khi
+ * lease không gắn run.
  */
 export type RunLeaseReleasedInput = EnvironmentDriverReleaseInput & { db: Db };
 
@@ -33,9 +36,16 @@ export interface CrewCoreHooks {
   beforeClaim(input: BeforeClaimInput): Promise<boolean>;
   /** Ném `HttpError` (ví dụ `unprocessable(...)` từ `server/src/errors.ts`) để chặn lệnh ghi; transaction rollback. Trả bình thường để cho ghi. */
   beforeIssueWrite(input: BeforeIssueWriteInput): Promise<void>;
-  /** Dừng phần việc còn chạy phía remote. Lỗi bị nuốt và ghi log để lease vẫn được trả. */
+  /**
+   * Dừng phần việc còn chạy phía remote của run gắn với lease. Trả về ngay khi `lease.heartbeatRunId` là `null`.
+   * Lỗi bị nuốt và ghi log; quá `CREW_RUN_LEASE_RELEASE_HOOK_TIMEOUT_MS` thì wrapper bỏ chờ, ghi log và trả về,
+   * để lease vẫn được trả.
+   */
   onRunLeaseReleased(input: RunLeaseReleasedInput): Promise<void>;
 }
+
+/** Thời hạn chờ `onRunLeaseReleased` trước khi bỏ chờ và trả lease (Mac ngủ, TCP không RST). */
+export const CREW_RUN_LEASE_RELEASE_HOOK_TIMEOUT_MS = 15_000;
 
 const implementations: CrewCoreHooks = {
   beforeClaim: async () => false,
@@ -47,13 +57,35 @@ export const crewCoreHooks: CrewCoreHooks = {
   beforeClaim: (input) => implementations.beforeClaim(input),
   beforeIssueWrite: (input) => implementations.beforeIssueWrite(input),
   async onRunLeaseReleased(input) {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const timedOut = new Promise<"timeout">((resolve) => {
+      timer = setTimeout(() => resolve("timeout"), CREW_RUN_LEASE_RELEASE_HOOK_TIMEOUT_MS);
+    });
     try {
-      await implementations.onRunLeaseReleased(input);
+      const outcome = await Promise.race([
+        Promise.resolve()
+          .then(() => implementations.onRunLeaseReleased(input))
+          .then(() => "done" as const),
+        timedOut,
+      ]);
+      if (outcome === "timeout") {
+        logger.warn(
+          {
+            leaseId: input.lease.id,
+            environmentId: input.environment.id,
+            status: input.status,
+            timeoutMs: CREW_RUN_LEASE_RELEASE_HOOK_TIMEOUT_MS,
+          },
+          "crew onRunLeaseReleased timed out; releasing the lease anyway",
+        );
+      }
     } catch (error) {
       logger.warn(
         { err: error, leaseId: input.lease.id, environmentId: input.environment.id, status: input.status },
         "crew onRunLeaseReleased failed; releasing the lease anyway",
       );
+    } finally {
+      clearTimeout(timer);
     }
   },
 };
