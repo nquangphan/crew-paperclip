@@ -161,9 +161,9 @@ describe("evaluateBeforeClaim", () => {
   it("after maxWaitMinutes blocks the issue, posts the notice, keeps the run queued and schedules the cancel", async () => {
     const h = harness({ ok: false, error: "timeout" }, new Date(T0.getTime() + 61 * 60_000), { waiting: T0 });
     expect(await evaluateBeforeClaim(h.input, h.deps)).toBe(true);
-    expect(h.events[0]).toBe("blocked:issue-1");
-    expect(h.events[1]).toMatch(/^expired:issue-1:/);
-    expect(h.events[2]).toMatch(/^cancel:run-1:Crew: hết 60 phút chờ máy mac-mini/);
+    expect(h.events[0]).toMatch(/^cancel:run-1:Crew: hết 60 phút chờ máy mac-mini/);
+    expect(h.events[1]).toBe("blocked:issue-1");
+    expect(h.events[2]).toMatch(/^expired:issue-1:/);
     expect(h.events).toHaveLength(3);
   });
 
@@ -179,6 +179,24 @@ describe("evaluateBeforeClaim", () => {
     const later = new Date(T0.getTime() + 62 * 60_000);
     const h = harness({ ok: true, load1: 1 }, later, { waiting: T0, expired: new Date(T0.getTime() + 61 * 60_000) });
     expect(await evaluateBeforeClaim(h.input, h.deps)).toBe(true);
+    expect(h.events[0]).toMatch(/^cancel:run-1:/);
+  });
+
+  it("keeps the run queued when writing the waiting notice fails", async () => {
+    const h = harness({ ok: false, error: "timeout" }, T0);
+    const deps = { ...h.deps, postNotice: async () => { throw new Error("db down"); } };
+    expect(await evaluateBeforeClaim(h.input, deps)).toBe(true);
+  });
+
+  it("still schedules the cancel and keeps the run queued when blocking or the notice fails after expiry", async () => {
+    const h = harness({ ok: false, error: "timeout" }, new Date(T0.getTime() + 61 * 60_000), { waiting: T0 });
+    const deps = {
+      ...h.deps,
+      blockIssue: async () => { throw new Error("issue locked"); },
+      postNotice: async () => { throw new Error("db down"); },
+    };
+    expect(await evaluateBeforeClaim(h.input, deps)).toBe(true);
+    expect(h.events).toHaveLength(1);
     expect(h.events[0]).toMatch(/^cancel:run-1:/);
   });
 

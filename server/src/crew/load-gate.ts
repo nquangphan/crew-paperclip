@@ -142,9 +142,10 @@ export async function evaluateBeforeClaim(input: BeforeClaimInput, deps: BeforeC
   const issueId = readIssueId(run.contextSnapshot);
   const details = { environmentId: target.environmentId, reason: decision.reason, detail: decision.detail };
 
+  // From here on the run is held: a failed notice or issue update is logged, never a reason to open the gate.
   if (decision.action === "wait") {
     if (!waitingSince) {
-      await deps.postNotice({
+      await logFailure(run.id, "waiting notice", () => deps.postNotice({
         run,
         issueId,
         kind: "waiting",
@@ -153,13 +154,14 @@ export async function evaluateBeforeClaim(input: BeforeClaimInput, deps: BeforeC
           `Run sẽ tự chạy khi máy ổn. Nếu tới ${TIME_FORMAT.format(decision.deadline)} vẫn chưa chạy được, ` +
           "Crew sẽ hủy run và chuyển issue sang `blocked`.",
         details: { ...details, deadline: decision.deadline.toISOString() },
-      });
+      }));
     }
     return true;
   }
 
-  if (issueId) await deps.blockIssue(issueId);
-  await deps.postNotice({
+  deps.scheduleCancel(run.id, `${expiredReason} (${decision.detail})`);
+  if (issueId) await logFailure(run.id, "block issue", () => deps.blockIssue(issueId));
+  await logFailure(run.id, "expired notice", () => deps.postNotice({
     run,
     issueId,
     kind: "expired",
@@ -168,9 +170,16 @@ export async function evaluateBeforeClaim(input: BeforeClaimInput, deps: BeforeC
       `(${decision.detail}). Crew hủy run và chuyển issue sang \`blocked\`. ` +
       "Kiểm máy bằng `crew-mac doctor`, rồi chuyển issue về `todo` để chạy lại.",
     details,
-  });
-  deps.scheduleCancel(run.id, `${expiredReason} (${decision.detail})`);
+  }));
   return true;
+}
+
+async function logFailure(runId: string, what: string, action: () => Promise<void>): Promise<void> {
+  try {
+    await action();
+  } catch (err) {
+    logger.warn({ err, runId }, `crew-load-gate: ${what} failed; the run stays held`);
+  }
 }
 
 const probeCache = createProbeCache(LOAD_GATE_PROBE_TTL_MS);
