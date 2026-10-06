@@ -1,0 +1,11 @@
+# Daily backup of the crew-v3-spike Paperclip stack (started by crew-v3-spike-backup.timer).
+# Install: copy both units to /etc/systemd/system, then systemctl daemon-reload && systemctl enable --now crew-v3-spike-backup.timer
+# Remove: systemctl disable --now crew-v3-spike-backup.timer && rm /etc/systemd/system/crew-v3-spike-backup.{service,timer} && systemctl daemon-reload
+[Unit]
+Description=crew-v3-spike daily Paperclip backup
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+ExecStart=/bin/sh -c '/opt/crew-v3-spike/ops/backup.sh >> /opt/crew-v3-spike/backups/backup.log 2>&1'
