@@ -1,0 +1,10 @@
+# 03:30 every day in the VPS local time (+07, Asia/Ho_Chi_Minh). Persistent catches up after downtime.
+[Unit]
+Description=crew-v3-spike daily Paperclip backup at 03:30
+
+[Timer]
+OnCalendar=*-*-* 03:30:00
+Persistent=true
+
+[Install]
+WantedBy=timers.target
