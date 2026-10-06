@@ -9,6 +9,9 @@ SHORT=${COMMIT:0:9}
 WORK=$(mktemp -d)
 trap 'rm -rf "$WORK"' EXIT
 cd "$FORK"
+# Build only what is committed: the worktree must sit exactly on the requested commit, with no local changes.
+[ "$(git rev-parse HEAD)" = "$COMMIT" ] || { echo "overlay: worktree HEAD is not $COMMIT" >&2; exit 3; }
+[ -z "$(git status --porcelain)" ] || { echo "overlay: worktree has uncommitted changes" >&2; exit 3; }
 
 CHANGED=$(git diff --name-only --diff-filter=ACMR "$BASE" "$COMMIT")
 UNKNOWN=$(printf '%s\n' "$CHANGED" | grep -v -E '^(server/src/|packages/adapters/claude-local/src/|packages/crew-plugin/|crew/|pnpm-lock\.yaml$|.*\.md$)' || true)

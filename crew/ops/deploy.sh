@@ -7,20 +7,14 @@ cd "$ROOT"
 ACTIVE=$("$ROOT/ops/active-runs.sh")
 [ -z "$ACTIVE" ] || { echo "deploy: active runs, refusing to restart:" >&2; echo "$ACTIVE" >&2; exit 2; }
 docker image inspect "$NEW" >/dev/null
+INSPECT=$("$ROOT/ops/inspect-image.sh" "$NEW" 2>&1)
+echo "$INSPECT"
+if printf '%s\n' "$INSPECT" | grep -q -E 'MISSING|FAIL'; then echo "deploy: image check failed, refusing to deploy" >&2; exit 4; fi
 "$ROOT/ops/backup.sh"
 TS=$(date +%Y%m%d-%H%M%S)
 cp docker-compose.yml "docker-compose.yml.bak-$TS"
 docker inspect crew-v3-spike-server-1 --format '{{.Config.Image}}' > "ops/previous-image-$TS"
-python3 - "$NEW" <<'PY'
-import re, sys
-path = "docker-compose.yml"
-text = open(path).read()
-block = re.search(r"(?ms)^  server:\n(.*?)(?=^  \S|\Z)", text).group(0)
-new_block = re.sub(r"(?m)^(    image:\s*).*$", r"\g<1>" + sys.argv[1], block, count=1)
-if "stop_grace_period" not in new_block:
-    new_block = new_block.replace("  server:\n", "  server:\n    stop_grace_period: 60s\n", 1)
-open(path, "w").write(text.replace(block, new_block))
-PY
+python3 "$ROOT/ops/compose-set-image.py" docker-compose.yml "$NEW" || { echo "deploy: could not set the server image" >&2; exit 5; }
 docker compose config --quiet
 docker compose up -d --no-deps server
 S=""
