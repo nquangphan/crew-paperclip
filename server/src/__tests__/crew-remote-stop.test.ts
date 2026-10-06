@@ -16,7 +16,7 @@ import {
   type RunLeaseReleasedInput,
 } from "../crew/remote-stop.ts";
 
-// Fixture copy of the MS-1 wrapper (apps/crew-mac/assets/crew-claude-run.sh in the Crew repo).
+// Fixture copy of the crew-mac wrapper (apps/crew-mac/assets/crew-claude-run.sh in the Crew repo).
 const WRAPPER = fileURLToPath(new URL("./fixtures/crew-claude-run.sh", import.meta.url));
 const RUN_A = "11111111-2222-4333-8444-555555555555";
 const RUN_B = "99999999-2222-4333-8444-555555555555";

@@ -1,8 +1,8 @@
 #!/bin/sh
-# TEST FIXTURE. Copy of apps/crew-mac/assets/crew-claude-run.sh in the Crew repo (crew-mac worktree, f0533f8f).
+# TEST FIXTURE. Copy of apps/crew-mac/assets/crew-claude-run.sh in the Crew repo (branch r1-1/crew-mac, 2f0f5c5d).
 # Keep it in sync: $PWD/.paperclip-runtime/runs/<runId>/{pgid,started}, started = birth time of this process.
 # Crew wrapper for claude_local on the Mac (adapterConfig.command).
-# Records this run's process group so the server (H3) and crew-mac (MS-2) can stop
+# Records this run's process group so the server (H3) and the crew-mac orphan reaper can stop
 # the whole run later, then becomes the agent CLI. The SSH session already gives
 # this process its own group, and every exec in the chain keeps the same PID.
 if [ -n "${PAPERCLIP_RUN_ID:-}" ]; then
