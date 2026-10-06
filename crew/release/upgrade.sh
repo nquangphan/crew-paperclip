@@ -28,6 +28,10 @@ REPO="$(git -C "$SCRIPT_DIR" rev-parse --show-toplevel)"
 LABEL="$(printf '%s' "$REF" | sed 's#^refs/##; s#[^A-Za-z0-9._-]#-#g')"
 BRANCH="sync/paperclip-$LABEL"
 WT="${WT:-${TMPDIR:-/tmp}/crew-upgrade/$LABEL}"
+case "$WT" in
+  /*) ;;
+  *) WT="$PWD/$WT" ;;
+esac
 
 if [ "${CREW_UPGRADE_SKIP_FETCH:-0}" != "1" ]; then
   git -C "$REPO" fetch upstream --tags
@@ -44,6 +48,14 @@ if git -C "$REPO" show-ref --verify --quiet "refs/heads/$BRANCH"; then
   echo "Nhánh đã tồn tại: $BRANCH" >&2
   exit 66
 fi
+if ! git -C "$REPO" rev-parse --verify --quiet "$BASE^{commit}" >/dev/null; then
+  echo "Không tìm thấy nhánh base: $BASE" >&2
+  exit 65
+fi
+if ! git -C "$REPO" cat-file -e "$BASE:crew/release/verify.sh" 2>/dev/null; then
+  echo "Base $BASE không có crew/release/verify.sh" >&2
+  exit 65
+fi
 
 mkdir -p "$(dirname "$WT")"
 git -C "$REPO" worktree add -b "$BRANCH" "$WT" "$BASE"
@@ -59,7 +71,12 @@ check_toplevel
 echo "== Merge $REF ($TARGET) vào $BRANCH (từ $BASE), worktree $WT"
 if ! git -C "$WT" merge --no-ff -m "chore(sync): merge Paperclip $REF into $BASE" "$TARGET"; then
   CONFLICTS="$(git -C "$WT" diff --name-only --diff-filter=U)"
-  if [ "$CONFLICTS" = "pnpm-lock.yaml" ]; then
+  if [ -z "$CONFLICTS" ]; then
+    check_toplevel
+    git -C "$WT" merge --abort 2>/dev/null || true
+    echo "Merge lỗi nhưng không có file conflict (xem lỗi git ở trên); đã hủy merge trong $WT" >&2
+    exit 67
+  elif [ "$CONFLICTS" = "pnpm-lock.yaml" ]; then
     echo "Chỉ pnpm-lock.yaml conflict: lấy bản upstream, verify.sh sẽ cài lại importer của Crew"
     check_toplevel
     git -C "$WT" checkout --theirs pnpm-lock.yaml
@@ -68,7 +85,11 @@ if ! git -C "$WT" merge --no-ff -m "chore(sync): merge Paperclip $REF into $BASE
   else
     echo "Conflict (file: số hunk):" >&2
     while IFS= read -r file; do
-      printf '  %s: %s\n' "$file" "$(grep -c '^<<<<<<< ' "$WT/$file" || true)" >&2
+      if [ -f "$WT/$file" ]; then
+        printf '  %s: %s\n' "$file" "$(grep -c '^<<<<<<< ' "$WT/$file" || true)" >&2
+      else
+        printf '  %s: (file bị xóa ở một phía)\n' "$file" >&2
+      fi
     done <<< "$CONFLICTS"
     echo "Giải conflict trong $WT, commit, rồi chạy: (cd $WT && bash crew/release/verify.sh)" >&2
     exit 2
@@ -77,6 +98,11 @@ fi
 
 check_toplevel
 (cd "$WT" && bash crew/release/verify.sh)
+if ! git -C "$WT" diff --quiet -- pnpm-lock.yaml; then
+  check_toplevel
+  git -C "$WT" add pnpm-lock.yaml
+  git -C "$WT" commit -m "chore(sync): restore Crew lockfile importer"
+fi
 echo "XANH: $BRANCH tại $(git -C "$WT" rev-parse --short HEAD)"
 git -C "$WT" status --short
 if [ "$CLEANUP" = "1" ]; then
