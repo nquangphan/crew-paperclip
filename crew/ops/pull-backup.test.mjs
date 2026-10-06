@@ -4,6 +4,7 @@ import { execFileSync, spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import {
   chmodSync,
+  symlinkSync,
   existsSync,
   mkdirSync,
   mkdtempSync,
@@ -47,7 +48,7 @@ function writeSet(dir, ts, seed = ts) {
 }
 
 /** Fake ssh that behaves like the forced command: the remote words become SSH_ORIGINAL_COMMAND. */
-function fakeSsh(serverDir, { corrupt = null } = {}) {
+function fakeSsh(serverDir, { corrupt = null, manifestRewrite = null } = {}) {
   const bin = path.join(tmp("crew-fake-ssh-"), "ssh");
   const filter = corrupt ? `| sed 's/^/X/'` : "";
   writeFileSync(
@@ -58,6 +59,9 @@ function fakeSsh(serverDir, { corrupt = null } = {}) {
       'export SSH_ORIGINAL_COMMAND="$*"',
       corrupt
         ? `if [ "$*" = "get ${corrupt}" ]; then bash ${JSON.stringify(SERVE)} ${filter}; exit \${PIPESTATUS[0]}; fi`
+        : "",
+      manifestRewrite
+        ? `case "$*" in "manifest "*) bash ${JSON.stringify(SERVE)} | sed ${JSON.stringify(manifestRewrite)}; exit \${PIPESTATUS[0]};; esac`
         : "",
       `exec bash ${JSON.stringify(SERVE)}`,
     ].join("\n"),
@@ -100,6 +104,16 @@ test("serve lists only complete sets and refuses anything else", () => {
   const db = lines.find((l) => l.startsWith("db-20261006-0330.dump "));
   assert.equal(db.split(" ")[2], sha(path.join(server, "db-20261006-0330.dump")));
 
+  // A symlink that looks like a backup file must never be served or listed.
+  const outside = path.join(tmp("crew-outside-"), "secret");
+  writeFileSync(outside, "secret");
+  writeSet(server, "20261008-0330");
+  rmSync(path.join(server, "issues-20261008-0330.txt"));
+  symlinkSync(outside, path.join(server, "issues-20261008-0330.txt"));
+  assert.equal(serve(server, "get issues-20261008-0330.txt").stdout, "");
+  assert.notEqual(serve(server, "get issues-20261008-0330.txt").status, 0);
+  assert.equal(serve(server, "list").stdout.includes("20261008-0330"), false);
+
   for (const bad of ["get ../../etc/passwd", "get .env", "manifest ../x", "rm -rf /", "", "list; id"]) {
     const r = serve(server, bad);
     assert.notEqual(r.status, 0, `must refuse: ${JSON.stringify(bad)}`);
@@ -109,21 +123,23 @@ test("serve lists only complete sets and refuses anything else", () => {
 
 test("pull copies every complete set inside the retention window and verifies it", () => {
   const server = tmp("crew-serve-");
+  writeSet(server, "20260901-0330");
   writeSet(server, "20261001-0330");
   writeSet(server, "20261005-0330");
   writeSet(server, "20261006-0330");
   const dest = tmp("crew-dest-");
 
-  const r = pull(dest, fakeSsh(server), "20261016");
+  const r = pull(dest, fakeSsh(server), "20261007");
   assert.equal(r.status, 0, r.stderr);
-  // 20261001 is older than 14 days before 20261016, so it is not pulled.
-  assert.deepEqual(readdirSync(dest).filter((n) => /^\d/.test(n)).sort(), ["20261005-0330", "20261006-0330"]);
+  assert.match(r.stdout, /stale=0/);
+  // 20260901 is older than 14 days and not among the 3 newest sets, so it is not pulled.
+  assert.deepEqual(readdirSync(dest).filter((n) => /^\d/.test(n)).sort(), ["20261001-0330", "20261005-0330", "20261006-0330"]);
   for (const name of readdirSync(path.join(dest, "20261006-0330"))) {
     assert.equal(sha(path.join(dest, "20261006-0330", name)), sha(path.join(server, name)));
   }
   assert.equal(statSync(path.join(dest, "20261006-0330")).mode & 0o777, 0o700);
 
-  const again = pull(dest, fakeSsh(server), "20261016");
+  const again = pull(dest, fakeSsh(server), "20261007");
   assert.equal(again.status, 0, again.stderr);
   assert.match(again.stdout, /pulled=0/);
 });
@@ -142,6 +158,7 @@ test("pull rejects a corrupted transfer and leaves no partial set behind", () =>
 
 test("pull rotates local sets older than 14 days and keeps everything else", () => {
   const server = tmp("crew-serve-");
+  writeSet(server, "20261016-0330");
   const dest = tmp("crew-dest-");
   for (const ts of ["20260920-0330", "20261001-0330", "20261002-0330", "20261015-0330"]) {
     mkdirSync(path.join(dest, ts));
@@ -151,6 +168,33 @@ test("pull rotates local sets older than 14 days and keeps everything else", () 
 
   const r = pull(dest, fakeSsh(server), "20261016");
   assert.equal(r.status, 0, r.stderr);
-  assert.deepEqual(readdirSync(dest).sort(), ["20261002-0330", "20261015-0330", "keep-me"]);
+  assert.deepEqual(readdirSync(dest).sort(), ["20261002-0330", "20261015-0330", "20261016-0330", "keep-me"]);
   assert.match(r.stdout, /removed=2/);
+});
+
+test("pull always keeps the 3 newest sets and reports stale when the VPS has no fresh backup", () => {
+  const server = tmp("crew-serve-");
+  for (const ts of ["20260901-0330", "20260902-0330", "20260903-0330", "20260904-0330", "20260905-0330"]) writeSet(server, ts);
+  const dest = tmp("crew-dest-");
+
+  const r = pull(dest, fakeSsh(server), "20261016");
+  assert.notEqual(r.status, 0);
+  assert.match(r.stdout, /stale=1/);
+  assert.deepEqual(readdirSync(dest).sort(), ["20260903-0330", "20260904-0330", "20260905-0330"]);
+
+  // Old local sets are not aged out while no set younger than 2 days exists.
+  for (const ts of ["20260801-0330", "20260802-0330"]) mkdirSync(path.join(dest, ts));
+  const again = pull(dest, fakeSsh(server), "20261016");
+  assert.notEqual(again.status, 0);
+  assert.match(again.stdout, /removed=0/);
+  assert.equal(readdirSync(dest).length, 5);
+});
+
+test("pull rejects a manifest whose names do not match the requested set", () => {
+  const server = tmp("crew-serve-");
+  writeSet(server, "20261006-0330");
+  const dest = tmp("crew-dest-");
+  const r = pull(dest, fakeSsh(server, { manifestRewrite: "1s/^db-20261006-0330/db-20261005-0330/" }), "20261006");
+  assert.notEqual(r.status, 0);
+  assert.equal(existsSync(path.join(dest, "20261006-0330")), false);
 });

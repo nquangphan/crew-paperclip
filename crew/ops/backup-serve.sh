@@ -1,6 +1,7 @@
 #!/bin/bash
 # Forced command for the Mac mini backup-pull key (root authorized_keys on the VPS).
 # Read-only access to complete daily backup sets; every other request is refused.
+# Symlinks are never listed or served, even when their name looks like a backup file.
 #   list               -> timestamps (YYYYMMDD-HHMM) of complete sets, oldest first
 #   manifest <TS>      -> "<name> <bytes> <sha256>" for the 4 files of that set
 #   get <name>         -> raw bytes of one file of a set
@@ -21,7 +22,7 @@ set_files() {
 
 complete() {
   local f
-  for f in $(set_files "$1"); do [ -f "$DIR/$f" ] || return 1; done
+  for f in $(set_files "$1"); do [ -f "$DIR/$f" ] && [ ! -L "$DIR/$f" ] || return 1; done
 }
 
 sha256() {
@@ -47,7 +48,7 @@ case "$CMD" in
   "get "*)
     name=${CMD#get }
     [[ "$name" =~ $NAME_RE ]] || refuse
-    [ -f "$DIR/$name" ] || refuse
+    [ -f "$DIR/$name" ] && [ ! -L "$DIR/$name" ] || refuse
     cat "$DIR/$name"
     ;;
   *)

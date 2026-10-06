@@ -1,13 +1,14 @@
 #!/bin/bash
-# Restores a daily backup into a throwaway compose project (crew-v3-restore), checks the data,
+# Restores a daily backup into a throwaway compose project (crew-v3-spike-restore, files under
+# /opt/crew-v3-spike/restore-drill), checks the data,
 # also restores the newest built-in .sql.gz into a scratch DB, then removes everything.
 # Usage: restore-drill.sh <TS>   (TS from /opt/crew-v3-spike/backups/daily/LATEST)
 set -euo pipefail
 ROOT=/opt/crew-v3-spike
 SRC=$ROOT/backups/daily
 TS=$1
-DRILL=/opt/crew-v3-restore-drill
-P=crew-v3-restore
+DRILL=$ROOT/restore-drill
+P=crew-v3-spike-restore
 
 [ ! -e "$DRILL" ] || { echo "drill: $DRILL exists, remove it first" >&2; exit 2; }
 AV=$(awk '/MemAvailable/ {print int($2/1024)}' /proc/meminfo)
@@ -54,8 +55,9 @@ fi
 RUNS=$($C exec -T db sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -tAc "select count(*) from heartbeat_runs"')
 echo "drill: issues match ($(wc -l < "$DRILL/issues-restored.txt")), heartbeat_runs=$RUNS"
 
-# Quarantine before the server boots: no environment may reach a Mac, no agent may run.
-$C exec -T db sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -v ON_ERROR_STOP=1 -c "update environments set status = '"'"'archived'"'"' where driver <> '"'"'local'"'"'; update agents set status = '"'"'paused'"'"';"'
+# Quarantine before the server boots: no environment may reach a Mac, no agent may run,
+# and no copied queued/running run may be picked up.
+$C exec -T db sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -v ON_ERROR_STOP=1 -c "update environments set status = '"'"'archived'"'"' where driver <> '"'"'local'"'"'; update agents set status = '"'"'paused'"'"'; update heartbeat_runs set status = '"'"'cancelled'"'"' where status in ('"'"'queued'"'"', '"'"'running'"'"', '"'"'scheduled_retry'"'"');"'
 
 # The server only answers its configured public host (private exposure), so requests carry that Host header.
 PUBLIC_HOST=100.105.105.12:3100
