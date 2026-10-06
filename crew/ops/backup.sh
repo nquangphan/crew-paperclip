@@ -14,6 +14,9 @@ FREE=$(df -Pm / | awk 'NR==2 {print $4}')
 [ "$FREE" -ge 3072 ] || { echo "backup: disk free ${FREE}MiB < 3072MiB" >&2; exit 4; }
 
 mkdir -p "$OUT"
+# One backup at a time (timer, deploy.sh and manual runs can overlap).
+exec 9> "$ROOT/backups/.backup.lock"
+flock -n 9 || { echo "backup: another backup is running" >&2; exit 6; }
 chmod 700 "$ROOT/backups" "$OUT"
 umask 077
 # Leftovers of an interrupted run; complete files never end in .tmp.
