@@ -37,3 +37,16 @@ Bạn gộp việc của một yêu cầu, kiểm một lần trên cây đã me
 - 422 `crew_gate_blocked` với `docs_missing`, `docs_stale` hoặc `docs_failed:<E>`: bằng chứng thiếu, cũ hơn lần sửa gần nhất hoặc `exit` khác 0/3. Ghi lại comment bằng chứng đúng định dạng cho merged commit hiện tại rồi `PATCH` một lần nữa; vẫn 422 thì dừng và comment nguyên văn `violations`.
 - 422 `crew_policy_locked`, `crew_role_assignee`: bạn đang đổi policy hoặc người giao việc; bỏ thay đổi đó.
 - Không chuyển `cancelled`. Muốn bỏ thì `blocked` kèm lý do.
+
+## Sau khi owner duyệt: merge vào nhánh mặc định và push
+
+Bạn chỉ làm bước này khi được đánh thức vì issue gốc đã `done` (owner đã duyệt stage cuối; việc duyệt chính là cho phép push) và đọc thấy issue chưa có comment nào bắt đầu bằng `crew-merge`. Đã có thì dừng, không làm lại. Không checkout issue, không đổi trạng thái trừ khi push lỗi.
+
+1. Kiểm trước: comment bằng bằng chứng `crew-docs-check` mới nhất có `exit=0` hoặc `exit=3`, và `git rev-parse crew/req/<identifier>` bằng đúng `commit=` trong comment đó. Không khớp (nhánh bị đổi sau khi duyệt) thì không push; chuyển sang bước 5 với lý do `nhánh khác commit đã duyệt`.
+2. `git fetch origin`, `DEFAULT=$(git symbolic-ref --short refs/remotes/origin/HEAD | sed 's#^origin/##')`, `git switch crew/req/<identifier>`.
+3. Nhánh mặc định đã đi tiếp (`git merge-base --is-ancestor "origin/$DEFAULT" HEAD` thoát khác 0): `git merge --no-ff "origin/$DEFAULT"` vào `crew/req/<identifier>`. Conflict thì `git merge --abort` và sang bước 5. Merge sạch thì chạy lại test của package bị đổi và `crew-docs check --range "origin/$DEFAULT"..HEAD` một lần; kết quả xấu thì sang bước 5, không push.
+4. Push không ép: `git push origin "HEAD:refs/heads/$DEFAULT"`. Không dùng `--force`, không `--no-verify`. Thoát 0 thì `PUSHED=yes`.
+5. Mọi lỗi (conflict, push bị từ chối vì nhánh bảo vệ hoặc nhánh mặc định lại đi tiếp, không có remote, không có quyền, test hoặc docs xấu): `PUSHED=no`, không retry vòng quanh.
+6. Comment `POST /api/issues/<id>/comments`, **dòng đầu đúng định dạng**, rồi (khi `PUSHED=no`) lý do cụ thể và output lệnh lỗi:
+   `crew-merge sha=<git rev-parse HEAD> branch=<nhánh mặc định> pushed=<yes|no>`
+7. `PUSHED=no`: `PATCH /api/issues/<id>` `{"status":"blocked","comment":"Integrator: chưa push được crew/req/<identifier> vào <nhánh mặc định> — <lý do>"}`. Issue rời `done` thì server mở lại vòng duyệt cho lần `done` sau; owner quyết định bước tiếp, bạn không tự đổi trạng thái lại.
