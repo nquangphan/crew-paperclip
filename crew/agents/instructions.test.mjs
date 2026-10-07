@@ -63,6 +63,17 @@ test("dòng mẫu crew-fix khớp định dạng và cả ba vai trò dùng nó"
   assert.match(read("integrator"), /tác giả của `crew-commit` đó, không mặc định executor của issue gốc/);
 });
 
+test("integrator nhận diện stage chỉ theo executionState, không đòi status in_review", () => {
+  const text = read("integrator");
+  assert.doesNotMatch(text, /`status` là `in_review`/);
+  assert.doesNotMatch(text, /(?<!đòi )`status=in_review`/);
+  assert.match(text, /\*\*Không đòi `status=in_review`\*\*/);
+  assert.match(text, /`in_review`, `blocked` hoặc `todo`/);
+  assert.match(text, /recovery stock/);
+  assert.match(text, /không xét `status` của nó/);
+  assert.match(text, /LUẬT CỨNG/);
+});
+
 test("yêu cầu sửa code issue gốc đi qua issue con mới", () => {
   const text = read("integrator");
   assert.match(text, /## Yêu cầu sửa/);
@@ -205,14 +216,14 @@ test("executor không nêu mã 78 mà bắt chạy workflow-check", () => {
   assert.doesNotMatch(text, /git status --porcelain/);
 });
 
-test("reviewer có mục issue gốc và integrator nhận việc của issue gốc đang in_review", () => {
+test("reviewer có mục issue gốc và integrator nhận việc của issue gốc theo executionState", () => {
   const reviewer = read("reviewer");
   assert.match(reviewer, /## Issue gốc/);
   assert.match(reviewer, /không đòi `crew-commit` trên issue gốc/);
   assert.match(reviewer, /crew-review root children=/);
   const merge = read("integrator");
-  assert.match(merge, /`status=in_review`, `executionState\.currentParticipant\.agentId` là ME/);
-  assert.match(merge, /không đòi `done` cho issue gốc/);
+  assert.match(merge, /`currentStageId` là id stage integrator thứ nhất/);
+  assert.match(merge, /[Kk]hông đòi `done` cho issue gốc/);
 });
 
 test("mọi lệnh API có tiền tố /api/ và curl có -f", () => {
