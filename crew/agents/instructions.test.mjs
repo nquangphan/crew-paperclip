@@ -8,7 +8,7 @@ const fill = (line) =>
     .replaceAll("<git rev-parse HEAD>", "a".repeat(40))
     .replaceAll("<BASE 40 ký tự>", "b".repeat(40))
     .replaceAll("<git rev-parse HEAD>", "a".repeat(40))
-    .replaceAll("<E>", "0")
+    .replaceAll("<DOCS_EXIT>", "0")
     .replaceAll("<identifier>", "CRW-1")
     .replaceAll("<lệnh test đã chạy>", "pnpm test")
     .replaceAll("<nhánh mặc định>", "main")
@@ -111,12 +111,20 @@ test("integrator dựng lại nhánh từ commit của bằng chứng, không ti
   const text = read("integrator");
   const push = text.slice(text.indexOf("## Sau khi owner duyệt"));
   assert.doesNotMatch(text, /\$T\^1/);
-  const rebuild = push.indexOf('git switch -C crew/req/<identifier> "$E"');
+  assert.doesNotMatch(text, /\bE=\d|\$E\b|<E>/, "ký hiệu E phải được đổi tên");
+  const rebuild = push.indexOf('git switch -C crew/req/<identifier> "$EVIDENCE"');
   assert.ok(rebuild > 0, "thiếu dựng lại từ E");
   assert.ok(rebuild < push.indexOf("git merge --no-ff --no-edit"), "merge mặc định phải sau khi dựng lại");
   assert.ok(push.indexOf("git merge --no-ff --no-edit") < push.indexOf("crew-docs-check commit=$T"), "bằng chứng mới cho tip đã merge");
   assert.ok(push.indexOf("crew-docs-check commit=$T") < push.indexOf('git push origin "$T:'), "bằng chứng trước push");
   assert.match(push, /git rev-parse HEAD` phải vẫn bằng `T`/);
+});
+
+test("dừng im chỉ khi pushed=yes mới hơn bằng chứng, và fetch lỗi thì dừng", () => {
+  const text = read("integrator");
+  assert.match(text, /pushed=yes` \*\*mới hơn\*\* bằng chứng/);
+  assert.match(text, /`git fetch origin` lỗi cũng dừng/);
+  assert.match(text, /chờ owner đăng crew-review/);
 });
 
 test("ngoại lệ issue con leo thang cho owner", () => {
