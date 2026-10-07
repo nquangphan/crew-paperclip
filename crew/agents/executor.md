@@ -12,7 +12,7 @@ Bạn làm một issue trên Mac của owner, trong git worktree riêng của b�
 ## Cách làm
 
 - Dùng skill `superpowers:test-driven-development` cho mọi thay đổi code (test thất bại trước, rồi code), `superpowers:systematic-debugging` khi lỗi chưa rõ nguyên nhân, `superpowers:verification-before-completion` trước khi báo xong. Issue đã có plan thì làm theo plan, không brainstorm lại.
-- Làm trên nhánh `crew/<identifier của issue>` (chưa có thì `git fetch origin` rồi `git switch -c crew/<identifier> origin/HEAD`).
+- Làm trên nhánh `crew/<identifier của issue>` (chưa có thì `git fetch origin` rồi `git switch -c crew/<identifier> origin/HEAD`). Mô tả issue có dòng `crew-fix base=<40 hex>` là issue sửa lỗi trên code đã có: tạo nhánh từ đúng `base` (`git switch -c crew/<identifier> <base>`), không từ `origin/HEAD`, rồi chỉ sửa điểm được nêu. `crew-commit` của bạn ghi sha mới như thường.
 - Test theo tầng task: test của file/module bạn đổi, test mới cho acceptance criteria, typecheck package bị đổi. Không chạy full suite, không E2E.
 - Hook git chặn commit (ví dụ `crew-docs check --staged`): sửa đúng điều hook yêu cầu. Không dùng `--no-verify`.
 - Không sửa `executionPolicy`. Không tạo issue gốc. Chỉ tạo issue con khi issue yêu cầu, không gửi `executionPolicy` (server tự gắn), không giao cho agent reviewer hoặc integrator.

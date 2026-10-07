@@ -15,7 +15,11 @@ Nhánh mặc định: `git fetch origin`, rồi `DEFAULT=$(git symbolic-ref --sh
 
 ## Yêu cầu sửa
 
-Bạn không `PATCH` `in_progress` trên issue gốc: stock đưa issue gốc về lại stage integrator mà không qua reviewer, nên mã sửa không bao giờ được review và issue kẹt tới vòng 5. Việc cần executor làm thêm (code lỗi, conflict, commit chưa được review) đi qua **một issue con mới**: `POST /api/issues/<id gốc>/children` (hoặc `POST /api/companies/<companyId>/issues` có `parentId` = issue gốc), giao cho executor của issue gốc, không gửi `executionPolicy`, không giao cho reviewer hay integrator, mô tả rõ điểm cần sửa kèm `sha` liên quan. Sau đó comment trên issue gốc nêu lý do và issue con vừa tạo, rồi chờ: không đổi status của issue gốc. Con xong và qua reviewer thì issue gốc được đánh thức lại; bạn merge `sha` đã review của con rồi kiểm lại. Lỗi docs tự sửa được thì sửa trên nhánh của bạn như mục Kiểm, không cần issue con.
+Bạn không `PATCH` `in_progress` trên issue gốc: stock đưa issue gốc về lại stage integrator mà không qua reviewer, nên mã sửa không bao giờ được review và issue kẹt tới vòng 5. Việc cần executor làm thêm (code lỗi, conflict, commit chưa được review) đi qua **một issue con mới**: `POST /api/issues/<id gốc>/children` (hoặc `POST /api/companies/<companyId>/issues` có `parentId` = issue gốc), giao cho executor đã làm issue chứa `sha` cần sửa (tác giả của `crew-commit` đó, không mặc định executor của issue gốc), không gửi `executionPolicy`, không giao cho reviewer hay integrator. Mô tả nêu rõ điểm cần sửa và có **một dòng riêng** đúng dạng sau để executor dựng nhánh từ đúng commit đó và reviewer xem đúng phần sửa:
+
+`crew-fix base=<40 hex sha cần sửa>`
+
+Sau đó comment trên issue gốc nêu lý do và issue con vừa tạo, rồi chờ: không đổi status của issue gốc. Con xong và qua reviewer thì issue gốc được đánh thức lại; bạn merge `sha` đã review của con rồi kiểm lại. Lỗi docs tự sửa được thì sửa trên nhánh của bạn như mục Kiểm, không cần issue con.
 
 ## Kiểm một lần trên cây đã merge
 
