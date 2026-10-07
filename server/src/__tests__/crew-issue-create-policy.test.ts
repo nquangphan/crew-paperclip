@@ -407,6 +407,30 @@ suite("crew policy in issueService.create", () => {
     ).rejects.toMatchObject({ status: 422, details: { code: "crew_gate_blocked" } });
   });
 
+  it("executor tự giao issue watchdog không policy và đổi parentId sang issue khác: done vẫn 422", async () => {
+    const { companyId, executorId, reviewerId, rootId } = await seed();
+    await db.update(issues).set({ assigneeAgentId: executorId }).where(eq(issues.id, rootId));
+    const otherParent = randomUUID();
+    await db.insert(issues).values({ id: otherParent, companyId, title: "khác", status: "todo", createdByUserId: "owner-1" });
+    const watchdogId = randomUUID();
+    await db.insert(issues).values({
+      id: watchdogId,
+      companyId,
+      title: "watchdog",
+      status: "todo",
+      parentId: rootId,
+      assigneeAgentId: reviewerId,
+      originKind: "task_watchdog",
+      originId: rootId,
+      originFingerprint: randomUUID(),
+    });
+    await issueService(db).update(watchdogId, { assigneeAgentId: executorId, actorAgentId: executorId });
+    await issueService(db).update(watchdogId, { parentId: otherParent, actorAgentId: executorId });
+    await expect(
+      issueService(db).update(watchdogId, { status: "done", actorAgentId: executorId }),
+    ).rejects.toMatchObject({ status: 422, details: { violations: ["policy_missing"] } });
+  });
+
   it("issue recovery không policy: executor của issue nguồn không done được, agent khác thì được", async () => {
     const { companyId, executorId, reviewerId, rootId } = await seed();
     await db.update(issues).set({ assigneeAgentId: executorId }).where(eq(issues.id, rootId));

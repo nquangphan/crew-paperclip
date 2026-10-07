@@ -98,13 +98,16 @@ export function isCrewHousekeepingIssue(issue: {
   return isCrewHousekeepingOrigin(issue.originKind) && !issue.createdByAgentId && !issue.createdByUserId;
 }
 
-/** Issue nguồn của issue watchdog/recovery: `parentId`, không có thì `originId` (khi là uuid). */
+/**
+ * Issue nguồn của issue watchdog/recovery: `originId` (khi là uuid) trước, vì agent không PATCH được trường này;
+ * chỉ rơi về `parentId` (agent đổi được) khi không có `originId`.
+ */
 export function housekeepingSourceIssueId(issue: {
   parentId?: string | null;
   originId?: string | null;
 }): string | null {
-  if (issue.parentId) return issue.parentId;
-  return issue.originId && UUID_RE.test(issue.originId) ? issue.originId : null;
+  if (issue.originId && UUID_RE.test(issue.originId)) return issue.originId;
+  return issue.parentId ?? null;
 }
 
 /**
