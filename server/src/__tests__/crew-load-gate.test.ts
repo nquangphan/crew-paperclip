@@ -10,6 +10,7 @@ import {
   parseLoadAvg,
   readLoadGateSettings,
 } from "../crew/load-gate.ts";
+import type { RetryProgress } from "../crew/retry-progress.ts";
 
 const SETTINGS = { maxLoad1: 8, maxWaitMinutes: 60 };
 // 06:00 UTC = 13:00 Asia/Ho_Chi_Minh, so a 60-minute deadline shows as 14:00.
@@ -128,9 +129,29 @@ function harness(probe: HostProbe, now: Date, notices: Notices = {}, failComment
       events.push(`blocked:${issueId}`);
     },
     now: () => now,
+    retryChecked: async () => true,
+    checkRetryProgress: async () => ({ kind: "none" }),
+    recordRetryProgress: async () => {},
   };
   const input: BeforeClaimInput = { db: {} as Db, run: run() };
   return { deps, input, events, notices };
+}
+
+function retryHarness(progress: RetryProgress, opts: { checked?: boolean; failRecord?: boolean } = {}) {
+  const h = harness({ ok: true, load1: 1 }, T0);
+  const recorded: RetryProgress[] = [];
+  const checks: string[] = [];
+  h.deps.retryChecked = async () => opts.checked ?? false;
+  h.deps.checkRetryProgress = async (r) => {
+    checks.push(r.id);
+    return progress;
+  };
+  h.deps.recordRetryProgress = async (_run, _issueId, p) => {
+    if (opts.failRecord) throw new Error("comment store down");
+    recorded.push(p);
+  };
+  h.input.run = run({ retryOfRunId: "prev-1" });
+  return { ...h, recorded, checks };
 }
 
 describe("evaluateBeforeClaim", () => {
@@ -253,5 +274,63 @@ describe("evaluateBeforeClaim", () => {
     expect(await evaluateBeforeClaim({ ...h.input, run: run({ status: "running" }) }, h.deps)).toBe(false);
     expect(await evaluateBeforeClaim(h.input, { ...h.deps, loadTarget: async () => null })).toBe(false);
     expect(h.events).toEqual([]);
+  });
+});
+
+describe("evaluateBeforeClaim on a retried run", () => {
+  it("records the previous run's commits, then lets the retry claim", async () => {
+    const progress: RetryProgress = {
+      kind: "checked",
+      previousRunId: "prev-1",
+      previousStartedAt: T0,
+      cwd: "/w",
+      commits: [{ sha: "c".repeat(40), committedAt: "x", subject: "s" }],
+    };
+    const h = retryHarness(progress);
+    expect(await evaluateBeforeClaim(h.input, h.deps)).toBe(false);
+    expect(h.recorded).toEqual([progress]);
+    expect(h.events).toEqual([]);
+  });
+
+  it("does not check over SSH again once the retry was checked", async () => {
+    const h = retryHarness({ kind: "error", error: "must not be called" }, { checked: true });
+    expect(await evaluateBeforeClaim(h.input, h.deps)).toBe(false);
+    expect(h.checks).toEqual([]);
+    expect(h.recorded).toEqual([]);
+  });
+
+  it("holds the run and records the waiting marker when git fails on the Mac", async () => {
+    const h = retryHarness({ kind: "error", error: "fatal: cannot change to '/w'" });
+    expect(await evaluateBeforeClaim(h.input, h.deps)).toBe(true);
+    expect(h.events[0]).toBe("mark:waiting");
+    expect(h.events[1]).toMatch(/kiểm tiến độ/);
+    expect(h.recorded).toEqual([]);
+  });
+
+  it("expires a retry whose progress check keeps failing past maxWaitMinutes", async () => {
+    const h = retryHarness({ kind: "error", error: "fatal: not a git repository" });
+    h.notices.waiting = T0;
+    h.notices.waiting_comment = T0;
+    h.deps.now = () => new Date(T0.getTime() + 61 * 60_000);
+    expect(await evaluateBeforeClaim(h.input, h.deps)).toBe(true);
+    expect(h.events[0]).toMatch(/^cancel:run-1:.*kiểm tiến độ/);
+    expect(h.events).toContain("mark:expired");
+    expect(h.events).toContain("blocked:issue-1");
+  });
+
+  it("holds the run to retry when writing the progress comment fails", async () => {
+    const h = retryHarness(
+      { kind: "checked", previousRunId: "prev-1", previousStartedAt: T0, cwd: "/w", commits: [] },
+      { failRecord: true },
+    );
+    expect(await evaluateBeforeClaim(h.input, h.deps)).toBe(true);
+    expect(h.events[0]).toBe("mark:waiting");
+  });
+
+  it("does not check progress for a run that is not a retry", async () => {
+    const h = retryHarness({ kind: "error", error: "x" });
+    h.input.run = run();
+    expect(await evaluateBeforeClaim(h.input, h.deps)).toBe(false);
+    expect(h.checks).toEqual([]);
   });
 });

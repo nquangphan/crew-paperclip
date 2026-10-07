@@ -6,6 +6,7 @@ import { logActivity } from "../services/activity-log.js";
 import { resolveEnvironmentDriverConfigForRuntime } from "../services/environment-config.js";
 import { environmentService } from "../services/environments.js";
 import { issueService } from "../services/issues.js";
+import { type RetryProgress, createRetryProgressChecker, retryProgressComment } from "./retry-progress.js";
 
 /** Same shape as BeforeClaimInput in core-hooks.ts (not imported: implementations must not import the registry). */
 export interface BeforeClaimInput {
@@ -122,6 +123,11 @@ export interface BeforeClaimDeps {
   scheduleCancel(runId: string, reason: string): void;
   blockIssue(issueId: string): Promise<void>;
   now(): Date;
+  /** True once `crew.retry_progress.checked` exists for this run (the check runs once per run). */
+  retryChecked(runId: string): Promise<boolean>;
+  checkRetryProgress(run: BeforeClaimInput["run"]): Promise<RetryProgress>;
+  /** Comments the previous run's commits (when there are any), then persists `crew.retry_progress.checked`. */
+  recordRetryProgress(run: BeforeClaimInput["run"], issueId: string | null, progress: RetryProgress): Promise<void>;
 }
 
 function readIssueId(contextSnapshot: unknown): string | null {
@@ -171,10 +177,31 @@ export async function evaluateBeforeClaim(input: BeforeClaimInput, deps: BeforeC
   const probe = await deps.probeHost(target.environmentId, run);
   const now = deps.now();
   const waitingSince = (await deps.firstNoticeAt(run.id, "waiting")) ?? null;
-  const decision = decideGate({ settings: target.settings, probe, waitingSince: waitingSince ?? now, now });
-  if (decision.action === "claim") return false;
-
+  let decision = decideGate({ settings: target.settings, probe, waitingSince: waitingSince ?? now, now });
   const issueId = readIssueId(run.contextSnapshot);
+  if (decision.action === "claim") {
+    // A retry first learns what its lost predecessor already committed. When that cannot be checked
+    // the run is held like an unreachable host (same deadline), never rerun blind.
+    if (!run.retryOfRunId || (await deps.retryChecked(run.id))) return false;
+    const progress = await deps.checkRetryProgress(run);
+    let failure = progress.kind === "error" ? progress.error : null;
+    if (!failure) {
+      try {
+        await deps.recordRetryProgress(run, issueId, progress);
+        return false;
+      } catch (err) {
+        failure = err instanceof Error ? err.message : String(err);
+      }
+    }
+    decision = decideGate({
+      settings: target.settings,
+      probe: { ok: false, error: `kiểm tiến độ lần chạy trước lỗi: ${failure}` },
+      waitingSince: waitingSince ?? now,
+      now,
+    });
+    if (decision.action === "claim") return false; // unreachable: a failed probe never claims
+  }
+
   const details = { environmentId: target.environmentId, reason: decision.reason, detail: decision.detail };
 
   // From here on the run is held: a failed marker, comment or issue update is logged, never a reason
@@ -299,6 +326,35 @@ export function defaultBeforeClaimDeps(db: Db): BeforeClaimDeps {
       await issueService(db).update(issueId, { status: "blocked" });
     },
     now: () => new Date(),
+    async retryChecked(runId) {
+      const [row] = await db
+        .select({ id: activityLog.id })
+        .from(activityLog)
+        .where(and(eq(activityLog.runId, runId), eq(activityLog.action, "crew.retry_progress.checked")))
+        .limit(1);
+      return Boolean(row);
+    },
+    checkRetryProgress: createRetryProgressChecker(db),
+    async recordRetryProgress(run, issueId, progress) {
+      if (progress.kind === "checked" && progress.commits.length > 0 && issueId) {
+        await issueService(db).addComment(issueId, retryProgressComment(progress), {}, { authorType: "system" });
+      }
+      await logActivity(db, {
+        companyId: run.companyId,
+        actorType: "system",
+        actorId: "crew",
+        action: "crew.retry_progress.checked",
+        entityType: "heartbeat_run",
+        entityId: run.id,
+        agentId: run.agentId,
+        runId: run.id,
+        issueId,
+        details:
+          progress.kind === "checked"
+            ? { previousRunId: progress.previousRunId, cwd: progress.cwd, commits: progress.commits.map((c) => c.sha) }
+            : { previousRunId: run.retryOfRunId, skipped: true },
+      });
+    },
   };
 }
 
