@@ -80,6 +80,11 @@ const MESSAGES: Record<Extract<CreatePolicyDecision, { kind: "reject" }>["code"]
   crew_gate_blocked: "Crew: agent không được tạo issue ở trạng thái done, cancelled hoặc in_review.",
 };
 
+/**
+ * `db` là handle chung của `issueService(db)`, không phải transaction của bên gọi (dòng hook không nhận `dbOrTx`):
+ * issue nguồn được đọc ở bản đã commit. Một đường stock đổi assignee của issue nguồn rồi tạo issue recovery trong
+ * cùng transaction sẽ được so với assignee cũ; H2 vẫn so lại lúc `done` bằng transaction của lệnh ghi.
+ */
 export async function crewBeforeIssueCreate<T extends IssueCreateFields>(input: {
   db: Db;
   companyId: string;

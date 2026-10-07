@@ -157,7 +157,11 @@ export async function loadCrewCompanyConfig(
   return config;
 }
 
-/** Template policy của Crew, đã normalize (có id stage/participant). */
+/**
+ * Template policy của Crew, đã normalize (có id stage/participant).
+ * - con: `[review reviewer]`.
+ * - gốc: `[review reviewer, review integrator (merge + docs), approval owner, review integrator (push)]`.
+ */
 export function buildCrewPolicy(
   kind: "root" | "child",
   roles: CrewRoles,
@@ -171,6 +175,7 @@ export function buildCrewPolicy(
       reviewer,
       { type: "review", participants: [{ type: "agent", agentId: roles.integratorAgentId }] },
       { type: "approval", participants: [{ type: "user", userId: ownerUserId }] },
+      { type: "review", participants: [{ type: "agent", agentId: roles.integratorAgentId }] },
     ];
   }
   const policy = normalizeIssueExecutionPolicy({ stages, maxReviewRounds: CREW_MAX_REVIEW_ROUNDS });
@@ -201,6 +206,21 @@ export function policyGateFingerprint(policy: unknown): string {
       };
     }),
   );
+}
+
+export const CREW_MERGE_RE = /^crew-merge sha=([0-9a-f]{40}) branch=(\S+) pushed=yes$/;
+
+export interface CrewMergeEvidence {
+  sha: string;
+  branch: string;
+}
+
+/** Báo push của integrator ở stage push: chỉ dòng đầu, `pushed=yes`. */
+export function parseCrewMergeEvidence(body: string): CrewMergeEvidence | null {
+  const first = body.split("\n", 1)[0]?.trim() ?? "";
+  const match = CREW_MERGE_RE.exec(first);
+  if (!match) return null;
+  return { sha: match[1] as string, branch: match[2] as string };
 }
 
 export const CREW_DOCS_CHECK_RE =
