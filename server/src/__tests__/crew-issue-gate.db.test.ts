@@ -630,23 +630,90 @@ suite("crew issue gate in issueService.update", () => {
     expect((await act(c, issueId, { agentId: c.integratorId }, "done"))?.status).toBe("done");
   });
 
-  it("owner comment mở lại issue gốc đã done (assignee là integrator): integrator thành người làm của vòng mới và luồng kẹt ở stage 2", async () => {
+  it("owner comment mở lại issue gốc đã done (assignee là integrator): giao lại executor, luồng chạy lại từ reviewer", async () => {
     const c = await company();
     const issueId = await runRootToPush(c);
     await postComment(c, issueId, c.integratorId, `crew-merge sha=${SHA_HEAD} branch=main pushed=yes`);
     await act(c, issueId, { agentId: c.integratorId }, "done");
+    // Như comment route: svc.update({ status: "todo" }) không actor, rồi đánh thức assignee đọc lại sau khi ghi.
     const reopened = await issueService(db).update(issueId, { status: "todo" });
-    expect(reopened).toMatchObject({ status: "todo", assigneeAgentId: c.integratorId, executionState: null });
-    // Stock bắt đầu lại từ stage 1 với returnAssignee = integrator: không lách gate, nhưng stage 2/4 không còn ai làm.
-    expect(await act(c, issueId, { agentId: c.integratorId }, "done")).toMatchObject({
+    expect(reopened).toMatchObject({ status: "todo", assigneeAgentId: c.executorId, executionState: null });
+    const [reset] = await db
+      .select()
+      .from(activityLog)
+      .where(and(eq(activityLog.entityId, issueId), eq(activityLog.action, "crew.gate.cycle_reset")));
+    expect(reset!.details).toMatchObject({ reassignedFromAgentId: c.integratorId, reassignedToAgentId: c.executorId });
+
+    const [sReview, sIntegrator] = c.root.stages.map((s) => s.id) as [string, string];
+    expect(await act(c, issueId, { agentId: c.executorId }, "done")).toMatchObject({
       status: "in_review",
       assigneeAgentId: c.reviewerId,
-      executionState: { currentStageId: c.root.stages[0]!.id, returnAssignee: { agentId: c.integratorId } },
+      executionState: { currentStageId: sReview, returnAssignee: { agentId: c.executorId } },
     });
-    await expect(act(c, issueId, { agentId: c.reviewerId }, "done")).rejects.toMatchObject({
-      status: 422,
-      message: expect.stringMatching(/No eligible review participant/),
+    expect(await act(c, issueId, { agentId: c.reviewerId }, "done")).toMatchObject({
+      assigneeAgentId: c.integratorId,
+      executionState: { currentStageId: sIntegrator },
     });
-    expect(await statusOf(issueId)).toBe("in_review");
+  });
+
+  it("mở lại khi không còn returnAssignee: lấy tác giả crew-commit mới nhất của vòng trước", async () => {
+    const c = await company();
+    const issueId = await issue(c, {
+      status: "done",
+      assigneeAgentId: c.integratorId,
+      executionPolicy: c.root,
+      executionState: null,
+    });
+    await postComment(c, issueId, c.reviewerId, `crew-commit sha=${SHA_BASE} branch=x tests=t result=pass`);
+    await postComment(c, issueId, c.executorId, `crew-commit sha=${SHA_HEAD} branch=crew/x tests=pnpm result=pass`);
+    expect(await issueService(db).update(issueId, { status: "todo" })).toMatchObject({ assigneeAgentId: c.executorId });
+  });
+
+  it("mở lại mà không xác định được executor: giữ assignee và ghi activity", async () => {
+    const c = await company();
+    const issueId = await issue(c, {
+      status: "done",
+      assigneeAgentId: c.integratorId,
+      executionPolicy: c.root,
+      executionState: null,
+    });
+    expect(await issueService(db).update(issueId, { status: "todo" })).toMatchObject({ assigneeAgentId: c.integratorId });
+    const rows = await db
+      .select()
+      .from(activityLog)
+      .where(and(eq(activityLog.entityId, issueId), eq(activityLog.action, "crew.gate.reopen_executor_unknown")));
+    expect(rows).toHaveLength(1);
+  });
+
+  it("mở lại với assignee không phải participant (executor) hoặc lệnh ghi tự đặt assignee: không đổi assignee", async () => {
+    const c = await company();
+    const stageId = c.child.stages[0]!.id;
+    const own = await issue(c, {
+      status: "done",
+      assigneeAgentId: c.executorId,
+      executionPolicy: c.child,
+      executionState: state(c, "completed", null, null, [stageId]),
+    });
+    expect(await issueService(db).update(own, { status: "todo" })).toMatchObject({ assigneeAgentId: c.executorId });
+    const explicit = await issue(c, {
+      status: "done",
+      assigneeAgentId: c.reviewerId,
+      executionPolicy: c.child,
+      executionState: state(c, "completed", null, null, [stageId]),
+    });
+    const other = randomUUID();
+    await db.insert(agents).values({
+      id: other,
+      companyId: c.companyId,
+      name: "Trợ Lý",
+      role: "engineer",
+      status: "idle",
+      adapterType: "process",
+      adapterConfig: {},
+      permissions: {},
+    });
+    expect(
+      await issueService(db).update(explicit, { status: "todo", assigneeAgentId: other, actorUserId: "owner-1" }),
+    ).toMatchObject({ assigneeAgentId: other });
   });
 });

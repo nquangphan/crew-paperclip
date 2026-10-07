@@ -1,5 +1,5 @@
-import { and, desc, eq, inArray, isNull, like } from "drizzle-orm";
-import { activityLog, type Db, issueComments, issueExecutionDecisions, issues } from "@paperclipai/db";
+import { and, desc, eq, gt, inArray, isNotNull, isNull, like, sql } from "drizzle-orm";
+import { activityLog, agents, type Db, issueComments, issueExecutionDecisions, issues } from "@paperclipai/db";
 import type { IssueExecutionPolicy, IssueExecutionStage, IssueExecutionStagePrincipal } from "@paperclipai/shared";
 import { unprocessable } from "../errors.js";
 import { persistActivity } from "../services/activity-log.js";
@@ -396,13 +396,31 @@ export async function crewBeforeIssueWrite(input: IssueWriteHookInput): Promise<
   const nextStatus = has(patch, "status") ? String(patch.status) : locked.status;
   if (TERMINAL_STATUSES.has(locked.status) && !TERMINAL_STATUSES.has(nextStatus)) {
     // Mở lại issue Crew: xóa state cũ để stock chạy lại các stage của policy đã ghim từ đầu ở lần done sau.
-    const crewIssue = policyGateFingerprint(effectivePolicy(locked, patch)) !== "none";
-    if (crewIssue) input.patch.executionState = null;
+    const crewIssue = policyGateFingerprint(pinnedPolicy) !== "none";
+    let handBack: ReopenHandBack = { kind: "none" };
+    if (crewIssue) {
+      input.patch.executionState = null;
+      handBack = await reopenHandBack(tx, locked, patch, pinnedPolicy, cycle?.createdAt ?? null);
+      if (handBack.kind === "executor") {
+        input.patch.assigneeAgentId = handBack.agentId;
+        // Như runUpdate làm khi đổi owner: vô hiệu phiên bản handoff đã quan sát.
+        input.patch.statusVersion ??= sql`${issues.statusVersion} + 1` as unknown as number;
+      }
+    }
     await activity(CREW_CYCLE_RESET_ACTION, {
       fromStatus: locked.status,
       toStatus: nextStatus,
       executionStateCleared: crewIssue,
+      ...(handBack.kind === "executor"
+        ? { reassignedFromAgentId: locked.assigneeAgentId, reassignedToAgentId: handBack.agentId }
+        : {}),
     });
+    if (handBack.kind === "unknown") {
+      await activity("crew.gate.reopen_executor_unknown", {
+        assigneeAgentId: locked.assigneeAgentId,
+        reason: handBack.reason,
+      });
+    }
   }
   if (verdict.kind === "override") {
     await activity("crew.policy.board_override", { violations: verdict.violations, toStatus: patch.status ?? null });
@@ -410,4 +428,57 @@ export async function crewBeforeIssueWrite(input: IssueWriteHookInput): Promise<
   if (verdict.kind === "allow" && verdict.notes.includes("docs_uninitialized")) {
     await activity("crew.docs_gate.uninitialized", { note: "repo chưa crew-docs init; docs gate cho qua" });
   }
+}
+
+type ReopenHandBack = { kind: "none" } | { kind: "executor"; agentId: string } | { kind: "unknown"; reason: string };
+
+/**
+ * Issue Crew mở lại mà assignee là participant agent của một stage (reviewer/integrator): giao lại cho executor
+ * của vòng trước để vòng mới chạy đủ các stage. Executor = `returnAssignee` của state cũ, không có thì tác giả
+ * agent của comment `crew-commit` mới nhất kể từ mốc vòng trước.
+ */
+async function reopenHandBack(
+  tx: Db,
+  locked: typeof issues.$inferSelect,
+  patch: Readonly<Record<string, unknown>>,
+  policy: IssueExecutionPolicy | null,
+  previousCycleAt: Date | null,
+): Promise<ReopenHandBack> {
+  if (has(patch, "assigneeAgentId") || has(patch, "assigneeUserId")) return { kind: "none" };
+  const current = locked.assigneeAgentId;
+  if (!current || !policy) return { kind: "none" };
+  const participantAgents = new Set(
+    policy.stages.flatMap((s) => s.participants.flatMap((p) => (p.type === "agent" && p.agentId ? [p.agentId] : []))),
+  );
+  if (!participantAgents.has(current)) return { kind: "none" };
+
+  let candidate: string | null = null;
+  const returnAssignee = parseIssueExecutionState(locked.executionState)?.returnAssignee;
+  if (returnAssignee?.type === "agent" && returnAssignee.agentId) candidate = returnAssignee.agentId;
+  if (!candidate) {
+    const [commit] = await tx
+      .select({ authorAgentId: issueComments.authorAgentId })
+      .from(issueComments)
+      .where(
+        and(
+          eq(issueComments.issueId, locked.id),
+          isNotNull(issueComments.authorAgentId),
+          isNull(issueComments.deletedAt),
+          like(issueComments.body, "crew-commit %"),
+          previousCycleAt ? gt(issueComments.createdAt, previousCycleAt) : undefined,
+        ),
+      )
+      .orderBy(desc(issueComments.createdAt))
+      .limit(1);
+    candidate = commit?.authorAgentId ?? null;
+  }
+  if (!candidate) return { kind: "unknown", reason: "no_return_assignee_or_crew_commit" };
+  if (candidate === current) return { kind: "unknown", reason: "executor_is_current_assignee" };
+  const [agent] = await tx
+    .select({ status: agents.status })
+    .from(agents)
+    .where(and(eq(agents.id, candidate), eq(agents.companyId, locked.companyId)))
+    .limit(1);
+  if (!agent || agent.status === "terminated") return { kind: "unknown", reason: "executor_unavailable" };
+  return { kind: "executor", agentId: candidate };
 }
