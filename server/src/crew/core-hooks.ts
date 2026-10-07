@@ -4,7 +4,7 @@ import type { EnvironmentDriverReleaseInput } from "../services/environment-runt
 import { crewBeforeIssueCreate } from "./issue-create-policy.js";
 import { crewBeforeIssueWrite } from "./issue-gate.js";
 import { crewBeforeClaim } from "./load-gate.js";
-import { stopRemoteRunOnRelease } from "./remote-stop.js";
+import { startRemoteStopOnRelease } from "./remote-stop.js";
 
 /** H1: gọi ở dòng đầu `claimQueuedRun` trong `heartbeatService(db)`. */
 export interface BeforeClaimInput {
@@ -65,8 +65,9 @@ export interface CrewCoreHooks {
   beforeIssueCreate<T extends IssueCreateLike>(input: BeforeIssueCreateInput<T>): Promise<T>;
   /**
    * Dừng phần việc còn chạy phía remote của run gắn với lease. Trả về ngay khi `lease.heartbeatRunId` là `null`.
-   * Lỗi bị nuốt và ghi log; quá `CREW_RUN_LEASE_RELEASE_HOOK_TIMEOUT_MS` thì wrapper bỏ chờ, ghi log và trả về,
-   * để lease vẫn được trả.
+   * Bản Crew ghi dấu `crew.remote_stop.started`, khởi động lệnh dừng chạy nền rồi trả về, để lease được nhả trước khi SSH xong (xem
+   * `startRemoteStopOnRelease`). Lỗi bị nuốt và ghi log; quá `CREW_RUN_LEASE_RELEASE_HOOK_TIMEOUT_MS` thì wrapper
+   * bỏ chờ, ghi log và trả về, để lease vẫn được trả.
    */
   onRunLeaseReleased(input: RunLeaseReleasedInput): Promise<void>;
 }
@@ -79,7 +80,7 @@ const implementations: CrewCoreHooks = {
   beforeIssueWrite: crewBeforeIssueWrite,
   beforeIssueCreate: crewBeforeIssueCreate,
   onRunLeaseReleased: async (input) => {
-    await stopRemoteRunOnRelease(input);
+    await startRemoteStopOnRelease(input);
   },
 };
 
