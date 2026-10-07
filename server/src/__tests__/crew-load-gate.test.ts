@@ -104,16 +104,22 @@ function run(overrides: Record<string, unknown> = {}): BeforeClaimInput["run"] {
   } as unknown as BeforeClaimInput["run"];
 }
 
-type Notices = { waiting?: Date; expired?: Date };
+type Notices = Partial<Record<"waiting" | "expired" | "waiting_comment" | "expired_comment", Date>>;
 
-function harness(probe: HostProbe, now: Date, notices: Notices = {}) {
+function harness(probe: HostProbe, now: Date, notices: Notices = {}, failComment = false) {
   const events: string[] = [];
   const deps: BeforeClaimDeps = {
     loadTarget: async () => ({ environmentId: "env-1", environmentName: "mac-mini", settings: SETTINGS }),
     probeHost: async () => probe,
     firstNoticeAt: async (_runId, kind) => notices[kind] ?? null,
-    postNotice: async (n) => {
-      events.push(`${n.kind}:${n.issueId ?? "-"}:${n.body}`);
+    recordNotice: async (n) => {
+      events.push(`mark:${n.kind}`);
+      notices[n.kind] = now;
+    },
+    postComment: async (n) => {
+      if (failComment) throw new Error("comment store down");
+      events.push(`${n.kind}:${n.issueId}:${n.body}`);
+      notices[`${n.kind}_comment`] = now;
     },
     scheduleCancel: (runId, reason) => {
       events.push(`cancel:${runId}:${reason}`);
@@ -124,7 +130,7 @@ function harness(probe: HostProbe, now: Date, notices: Notices = {}) {
     now: () => now,
   };
   const input: BeforeClaimInput = { db: {} as Db, run: run() };
-  return { deps, input, events };
+  return { deps, input, events, notices };
 }
 
 describe("evaluateBeforeClaim", () => {
@@ -134,16 +140,17 @@ describe("evaluateBeforeClaim", () => {
     expect(h.events).toEqual([]);
   });
 
-  it("keeps the run queued and posts one waiting notice with the reason and deadline", async () => {
+  it("keeps the run queued, records the waiting marker, then posts one waiting comment with the reason and deadline", async () => {
     const h = harness({ ok: true, load1: 9.5 }, T0);
     expect(await evaluateBeforeClaim(h.input, h.deps)).toBe(true);
-    expect(h.events).toHaveLength(1);
-    expect(h.events[0]).toMatch(/^waiting:issue-1:.*mac-mini.*9\.5.*8/);
-    expect(h.events[0]).toContain("14:00");
+    expect(h.events).toHaveLength(2);
+    expect(h.events[0]).toBe("mark:waiting");
+    expect(h.events[1]).toMatch(/^waiting:issue-1:.*mac-mini.*9\.5.*8/);
+    expect(h.events[1]).toContain("14:00");
   });
 
   it("does not repeat the waiting notice", async () => {
-    const h = harness({ ok: false, error: "timeout" }, T0, { waiting: T0 });
+    const h = harness({ ok: false, error: "timeout" }, T0, { waiting: T0, waiting_comment: T0 });
     expect(await evaluateBeforeClaim(h.input, h.deps)).toBe(true);
     expect(h.events).toEqual([]);
   });
@@ -153,23 +160,26 @@ describe("evaluateBeforeClaim", () => {
     const now = new Date(T0.getTime() + 70 * 60_000);
     const h = harness({ ok: false, error: "timeout" }, now);
     expect(await evaluateBeforeClaim(h.input, h.deps)).toBe(true);
-    expect(h.events).toHaveLength(1);
-    expect(h.events[0]).toMatch(/^waiting:issue-1:/);
-    expect(h.events[0]).toContain("15:10");
+    expect(h.events).toHaveLength(2);
+    expect(h.events[0]).toBe("mark:waiting");
+    expect(h.events[1]).toMatch(/^waiting:issue-1:/);
+    expect(h.events[1]).toContain("15:10");
   });
 
-  it("after maxWaitMinutes blocks the issue, posts the notice, keeps the run queued and schedules the cancel", async () => {
+  it("after maxWaitMinutes schedules the cancel, records the expiry, blocks the issue and comments, keeping the run queued", async () => {
     const h = harness({ ok: false, error: "timeout" }, new Date(T0.getTime() + 61 * 60_000), { waiting: T0 });
     expect(await evaluateBeforeClaim(h.input, h.deps)).toBe(true);
     expect(h.events[0]).toMatch(/^cancel:run-1:Crew: hết 60 phút chờ máy mac-mini/);
-    expect(h.events[1]).toBe("blocked:issue-1");
-    expect(h.events[2]).toMatch(/^expired:issue-1:/);
-    expect(h.events).toHaveLength(3);
+    expect(h.events[1]).toBe("mark:expired");
+    expect(h.events[2]).toBe("blocked:issue-1");
+    expect(h.events[3]).toMatch(/^expired:issue-1:/);
+    expect(h.events).toHaveLength(4);
   });
 
   it("only retries the cancel once the expiry was already handled", async () => {
     const later = new Date(T0.getTime() + 62 * 60_000);
-    const h = harness({ ok: false, error: "timeout" }, later, { waiting: T0, expired: new Date(T0.getTime() + 61 * 60_000) });
+    const expired = new Date(T0.getTime() + 61 * 60_000);
+    const h = harness({ ok: false, error: "timeout" }, later, { waiting: T0, expired, expired_comment: expired });
     expect(await evaluateBeforeClaim(h.input, h.deps)).toBe(true);
     expect(h.events).toHaveLength(1);
     expect(h.events[0]).toMatch(/^cancel:run-1:/);
@@ -177,15 +187,52 @@ describe("evaluateBeforeClaim", () => {
 
   it("stays closed after expiry even if the host is healthy again", async () => {
     const later = new Date(T0.getTime() + 62 * 60_000);
-    const h = harness({ ok: true, load1: 1 }, later, { waiting: T0, expired: new Date(T0.getTime() + 61 * 60_000) });
+    const expired = new Date(T0.getTime() + 61 * 60_000);
+    const h = harness({ ok: true, load1: 1 }, later, { waiting: T0, expired, expired_comment: expired });
     expect(await evaluateBeforeClaim(h.input, h.deps)).toBe(true);
     expect(h.events[0]).toMatch(/^cancel:run-1:/);
   });
 
-  it("keeps the run queued when writing the waiting notice fails", async () => {
+  it("keeps the run queued when writing the waiting comment fails", async () => {
+    const h = harness({ ok: false, error: "timeout" }, T0, {}, true);
+    expect(await evaluateBeforeClaim(h.input, h.deps)).toBe(true);
+    expect(h.events).toEqual(["mark:waiting"]);
+  });
+
+  it("keeps the run queued when writing the waiting marker fails", async () => {
     const h = harness({ ok: false, error: "timeout" }, T0);
-    const deps = { ...h.deps, postNotice: async () => { throw new Error("db down"); } };
+    const deps = { ...h.deps, recordNotice: async () => { throw new Error("db down"); } };
     expect(await evaluateBeforeClaim(h.input, deps)).toBe(true);
+  });
+
+  it("records the waiting marker before the comment: a comment that keeps failing still expires on time", async () => {
+    const notices: Notices = {};
+    const first = harness({ ok: false, error: "timeout" }, T0, notices, true);
+    expect(await evaluateBeforeClaim(first.input, first.deps)).toBe(true);
+    expect(first.events).toEqual(["mark:waiting"]);
+    const later = harness({ ok: false, error: "timeout" }, new Date(T0.getTime() + 61 * 60_000), notices, true);
+    expect(await evaluateBeforeClaim(later.input, later.deps)).toBe(true);
+    expect(later.events.some((e) => e.startsWith("cancel:run-1:"))).toBe(true);
+    expect(later.events).toContain("blocked:issue-1");
+  });
+
+  it("retries a failed waiting comment on the next tick without moving the marker", async () => {
+    const notices: Notices = { waiting: T0 };
+    const h = harness({ ok: false, error: "timeout" }, new Date(T0.getTime() + 60_000), notices);
+    expect(await evaluateBeforeClaim(h.input, h.deps)).toBe(true);
+    expect(h.events).toHaveLength(1);
+    expect(h.events[0]).toMatch(/^waiting:issue-1:/);
+    expect(notices.waiting).toEqual(T0);
+  });
+
+  it("retries a failed expiry comment while retrying the cancel", async () => {
+    const later = new Date(T0.getTime() + 62 * 60_000);
+    const h = harness({ ok: false, error: "timeout" }, later, { waiting: T0, expired: new Date(T0.getTime() + 61 * 60_000) });
+    expect(await evaluateBeforeClaim(h.input, h.deps)).toBe(true);
+    expect(h.events).toHaveLength(2);
+    expect(h.events[0]).toMatch(/^cancel:run-1:/);
+    expect(h.events[1]).toMatch(/^expired:issue-1:.*quá 60 phút/);
+    expect(h.events[1]).not.toContain("()");
   });
 
   it("still schedules the cancel and keeps the run queued when blocking or the notice fails after expiry", async () => {
@@ -193,7 +240,8 @@ describe("evaluateBeforeClaim", () => {
     const deps = {
       ...h.deps,
       blockIssue: async () => { throw new Error("issue locked"); },
-      postNotice: async () => { throw new Error("db down"); },
+      recordNotice: async () => { throw new Error("db down"); },
+      postComment: async () => { throw new Error("db down"); },
     };
     expect(await evaluateBeforeClaim(h.input, deps)).toBe(true);
     expect(h.events).toHaveLength(1);

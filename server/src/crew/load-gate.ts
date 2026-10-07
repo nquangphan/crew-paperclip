@@ -88,6 +88,9 @@ const TIME_FORMAT = new Intl.DateTimeFormat("vi-VN", {
   month: "2-digit",
 });
 
+/** Activity `crew.load_gate.<kind>`: the bare kinds are the durable markers, `_comment` marks a posted comment. */
+export type NoticeKind = "waiting" | "expired" | "waiting_comment" | "expired_comment";
+
 export interface BeforeClaimDeps {
   loadTarget(run: BeforeClaimInput["run"]): Promise<{
     environmentId: string;
@@ -95,14 +98,21 @@ export interface BeforeClaimDeps {
     settings: LoadGateSettings;
   } | null>;
   probeHost(environmentId: string, run: BeforeClaimInput["run"]): Promise<HostProbe>;
-  /** Time of the first notice of this kind for the run (persisted, survives restarts), or null. */
-  firstNoticeAt(runId: string, kind: "waiting" | "expired"): Promise<Date | null>;
-  postNotice(notice: {
+  /** Time of the first activity of this kind for the run (persisted, survives restarts), or null. */
+  firstNoticeAt(runId: string, kind: NoticeKind): Promise<Date | null>;
+  /** Persists the durable marker `crew.load_gate.<kind>`; the wait deadline is counted from the first one. */
+  recordNotice(notice: {
     run: BeforeClaimInput["run"];
     issueId: string | null;
     kind: "waiting" | "expired";
-    body: string;
     details: Record<string, unknown>;
+  }): Promise<void>;
+  /** Comments on the issue, then persists `crew.load_gate.<kind>_comment`. A failure is retried next tick. */
+  postComment(notice: {
+    run: BeforeClaimInput["run"];
+    issueId: string;
+    kind: "waiting" | "expired";
+    body: string;
   }): Promise<void>;
   /**
    * Cancels the run after the current claim has returned. claimQueuedRun runs under the agent start
@@ -120,6 +130,24 @@ function readIssueId(contextSnapshot: unknown): string | null {
   return typeof value === "string" && value.length > 0 ? value : null;
 }
 
+type GateTarget = NonNullable<Awaited<ReturnType<BeforeClaimDeps["loadTarget"]>>>;
+
+function waitingBody(runId: string, target: GateTarget, decision: Extract<GateDecision, { action: "wait" }>): string {
+  return (
+    `Run \`${runId}\` đang chờ máy \`${target.environmentName}\`: ${decision.detail}. ` +
+    `Run sẽ tự chạy khi máy ổn. Nếu tới ${TIME_FORMAT.format(decision.deadline)} vẫn chưa chạy được, ` +
+    "Crew sẽ hủy run và chuyển issue sang `blocked`."
+  );
+}
+
+function expiredBody(runId: string, target: GateTarget, detail?: string): string {
+  return (
+    `Run \`${runId}\` đã chờ máy \`${target.environmentName}\` quá ${target.settings.maxWaitMinutes} phút` +
+    `${detail ? ` (${detail})` : ""}. Crew hủy run và chuyển issue sang \`blocked\`. ` +
+    "Kiểm máy bằng `crew-mac doctor`, rồi chuyển issue về `todo` để chạy lại."
+  );
+}
+
 export async function evaluateBeforeClaim(input: BeforeClaimInput, deps: BeforeClaimDeps): Promise<boolean> {
   const { run } = input;
   if (run.status !== "queued") return false;
@@ -127,9 +155,16 @@ export async function evaluateBeforeClaim(input: BeforeClaimInput, deps: BeforeC
   if (!target) return false;
   const expiredReason = `Crew: hết ${target.settings.maxWaitMinutes} phút chờ máy ${target.environmentName}`;
 
-  // Once the wait expired the run is on its way out: keep it queued and retry the cancel.
+  // Once the wait expired the run is on its way out: keep it queued, retry the cancel and a missing comment.
   if (await deps.firstNoticeAt(run.id, "expired")) {
     deps.scheduleCancel(run.id, expiredReason);
+    const issueId = readIssueId(run.contextSnapshot);
+    if (issueId) {
+      await logFailure(run.id, "expired comment", async () => {
+        if (await deps.firstNoticeAt(run.id, "expired_comment")) return;
+        await deps.postComment({ run, issueId, kind: "expired", body: expiredBody(run.id, target) });
+      });
+    }
     return true;
   }
 
@@ -142,35 +177,32 @@ export async function evaluateBeforeClaim(input: BeforeClaimInput, deps: BeforeC
   const issueId = readIssueId(run.contextSnapshot);
   const details = { environmentId: target.environmentId, reason: decision.reason, detail: decision.detail };
 
-  // From here on the run is held: a failed notice or issue update is logged, never a reason to open the gate.
+  // From here on the run is held: a failed marker, comment or issue update is logged, never a reason
+  // to open the gate. The marker is written before the comment so a failing comment cannot keep the
+  // deadline moving; the comment has its own marker and is retried on the next tick.
   if (decision.action === "wait") {
     if (!waitingSince) {
-      await logFailure(run.id, "waiting notice", () => deps.postNotice({
-        run,
-        issueId,
-        kind: "waiting",
-        body:
-          `Run \`${run.id}\` đang chờ máy \`${target.environmentName}\`: ${decision.detail}. ` +
-          `Run sẽ tự chạy khi máy ổn. Nếu tới ${TIME_FORMAT.format(decision.deadline)} vẫn chưa chạy được, ` +
-          "Crew sẽ hủy run và chuyển issue sang `blocked`.",
-        details: { ...details, deadline: decision.deadline.toISOString() },
-      }));
+      await logFailure(run.id, "waiting marker", () =>
+        deps.recordNotice({ run, issueId, kind: "waiting", details: { ...details, deadline: decision.deadline.toISOString() } }),
+      );
+    }
+    if (issueId) {
+      await logFailure(run.id, "waiting comment", async () => {
+        if (await deps.firstNoticeAt(run.id, "waiting_comment")) return;
+        await deps.postComment({ run, issueId, kind: "waiting", body: waitingBody(run.id, target, decision) });
+      });
     }
     return true;
   }
 
   deps.scheduleCancel(run.id, `${expiredReason} (${decision.detail})`);
-  if (issueId) await logFailure(run.id, "block issue", () => deps.blockIssue(issueId));
-  await logFailure(run.id, "expired notice", () => deps.postNotice({
-    run,
-    issueId,
-    kind: "expired",
-    body:
-      `Run \`${run.id}\` đã chờ máy \`${target.environmentName}\` quá ${target.settings.maxWaitMinutes} phút ` +
-      `(${decision.detail}). Crew hủy run và chuyển issue sang \`blocked\`. ` +
-      "Kiểm máy bằng `crew-mac doctor`, rồi chuyển issue về `todo` để chạy lại.",
-    details,
-  }));
+  await logFailure(run.id, "expired marker", () => deps.recordNotice({ run, issueId, kind: "expired", details }));
+  if (issueId) {
+    await logFailure(run.id, "block issue", () => deps.blockIssue(issueId));
+    await logFailure(run.id, "expired comment", () =>
+      deps.postComment({ run, issueId, kind: "expired", body: expiredBody(run.id, target, decision.detail) }),
+    );
+  }
   return true;
 }
 
@@ -227,11 +259,7 @@ export function defaultBeforeClaimDeps(db: Db): BeforeClaimDeps {
         .limit(1);
       return row?.createdAt ?? null;
     },
-    async postNotice(notice) {
-      // Comment first: the activity row is what marks the notice as done, so a failed comment is retried.
-      if (notice.issueId) {
-        await issueService(db).addComment(notice.issueId, notice.body, {}, { authorType: "system" });
-      }
+    async recordNotice(notice) {
       await logActivity(db, {
         companyId: notice.run.companyId,
         actorType: "system",
@@ -243,6 +271,21 @@ export function defaultBeforeClaimDeps(db: Db): BeforeClaimDeps {
         runId: notice.run.id,
         issueId: notice.issueId,
         details: notice.details,
+      });
+    },
+    async postComment(notice) {
+      await issueService(db).addComment(notice.issueId, notice.body, {}, { authorType: "system" });
+      await logActivity(db, {
+        companyId: notice.run.companyId,
+        actorType: "system",
+        actorId: "crew",
+        action: `crew.load_gate.${notice.kind}_comment`,
+        entityType: "heartbeat_run",
+        entityId: notice.run.id,
+        agentId: notice.run.agentId,
+        runId: notice.run.id,
+        issueId: notice.issueId,
+        details: {},
       });
     },
     scheduleCancel(runId, reason) {

@@ -208,8 +208,8 @@ describe.skipIf(process.platform !== "darwin")("CREW_REMOTE_STOP_SCRIPT launcher
     expect(existsSync(argsFile)).toBe(false);
   });
 
-  it("falls back to the built-in script when the launcher cannot run (exit 126 or 127)", () => {
-    for (const code of [126, 127]) {
+  it("falls back to the built-in script when the launcher refuses the root or cannot run (exit 2, 126, 127)", () => {
+    for (const code of [2, 126, 127]) {
       const { home, argsFile } = homeWithLauncher("", code);
       expect(runScript(RUN_A, newRoot(), home)).toMatch(/^crew-stop matched=0 killed=0 remaining=0 via=fallback$/m);
       expect(existsSync(argsFile)).toBe(true);

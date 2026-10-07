@@ -24,8 +24,8 @@ export const REMOTE_STOP_TIMEOUT_MS = 12_000;
 // When crew-mac is installed (~/.crew/bin/crew-mac) and the root is known, the script runs
 // `crew-mac stop-run --run-id <id> --root <root> --term-wait-seconds 3`, which prints the same
 // summary line (exit 0) or fails with exit 1 (internal) / 2 (bad input). Otherwise it uses the
-// built-in fallback below, whose summary line ends with "via=fallback". A launcher that cannot run
-// (exit 126/127) also falls through to the fallback in the same SSH command.
+// built-in fallback below, whose summary line ends with "via=fallback". A launcher that refuses the
+// input (exit 2) or cannot run (exit 126/127) also falls through to the fallback in the same SSH command.
 // started = birth time of the wrapper process (epoch seconds), so the leader check below allows ±2 s.
 // Targets: (a) the process group recorded by crew-claude-run in
 // $2/.paperclip-runtime/runs/$1/pgid, limited to processes started at or after the
@@ -43,8 +43,9 @@ export const CREW_REMOTE_STOP_SCRIPT = [
   'launcher="$HOME/.crew/bin/crew-mac"',
   'if [ -n "$root" ] && [ -x "$launcher" ]; then',
   '  "$launcher" stop-run --run-id "$run_id" --root "$root" --term-wait-seconds 3; rc=$?',
-  '  # 126/127: the launcher itself could not run; anything else is its real answer.',
-  '  if [ "$rc" -ne 126 ] && [ "$rc" -ne 127 ]; then exit "$rc"; fi',
+  '  # 2: crew-mac refused the input (root outside its worktree root, or not set up yet) - the fallback',
+  '  # still finds the run by its pgid file and PAPERCLIP_RUN_ID. 126/127: the launcher could not run.',
+  '  if [ "$rc" -ne 2 ] && [ "$rc" -ne 126 ] && [ "$rc" -ne 127 ]; then exit "$rc"; fi',
   "fi",
   'self_pgid=$(ps -o pgid= -p $$ | tr -d " ")',
   'dir="$root/.paperclip-runtime/runs/$run_id"',
@@ -166,7 +167,7 @@ function classifyStopError(err: unknown): RemoteStopResult {
   return { outcome: "unreachable", error: message.slice(0, 300) };
 }
 
-function readRemoteCwd(metadata: Record<string, unknown> | null | undefined): string {
+export function readRemoteCwd(metadata: Record<string, unknown> | null | undefined): string {
   const value = metadata?.remoteCwd;
   return typeof value === "string" ? value.trim() : "";
 }
