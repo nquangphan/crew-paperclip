@@ -10,6 +10,8 @@ import { CONVERSATION_CONTINUATION_POLICY, isConversationAdapter } from "../serv
 import { issueService } from "../services/issues.js";
 import { buildHeartbeatRunStatusLiveEventPayload } from "../services/heartbeat-run-status-payload.js";
 import { publishLiveEvent } from "../services/live-events.js";
+import { emitAgentTaskRunById } from "../services/agent-task-run-telemetry.js";
+import { clearHeartbeatRunRuntimeStatus } from "../services/heartbeat-run-runtime-status.js";
 import { REMOTE_STOP_STARTED_ACTION, isRemoteStopPending } from "./remote-stop.js";
 import {
   type RetryProgress,
@@ -124,9 +126,10 @@ export interface BeforeClaimDeps {
   /**
    * True while the stop of an earlier run (lease release, hook H3) may still be running on this
    * environment: a `crew.remote_stop.started` activity without a result, at most
-   * REMOTE_STOP_PENDING_WINDOW_MS old (survives a server restart).
+   * REMOTE_STOP_PENDING_WINDOW_MS old (survives a server restart). Scoped to the run's company: the
+   * stop activities carry the lease's company, and the lookup then uses activity_log_company_created_idx.
    */
-  remoteStopPending(environmentId: string): Promise<boolean>;
+  remoteStopPending(environmentId: string, companyId: string): Promise<boolean>;
   /** Time of the first activity of this kind for the run (persisted, survives restarts), or null. */
   firstNoticeAt(runId: string, kind: NoticeKind): Promise<Date | null>;
   /** Persists the durable marker `crew.load_gate.<kind>`; the wait deadline is counted from the first one. */
@@ -294,7 +297,7 @@ async function decideBeforeClaim(input: BeforeClaimInput, deps: BeforeClaimDeps)
   const expiredReason = `Crew: hết ${target.settings.maxWaitMinutes} phút chờ máy ${target.environmentName}`;
   // The previous run's processes may still be alive in the same worktree: wait for its stop (a few
   // seconds, bounded) before letting another run start there. No marker: this is not a host problem.
-  if (await deps.remoteStopPending(target.environmentId)) return true;
+  if (await deps.remoteStopPending(target.environmentId, run.companyId)) return true;
 
   // Once the wait expired the run is on its way out: keep it queued, retry the cancel and a missing comment.
   if (await deps.firstNoticeAt(run.id, "expired")) {
@@ -410,6 +413,11 @@ async function cancelIfStale(db: Db, run: BeforeClaimInput["run"]): Promise<bool
       }),
     });
   }
+  // Same telemetry and runtime-status cleanup as applyRunDispatchPostCommitEffects for a terminal run.
+  // Its plugin lifecycle event (publishRunLifecyclePluginEventData) is private to heartbeatService and
+  // is not published for this cancel.
+  clearHeartbeatRunRuntimeStatus(run.id);
+  void emitAgentTaskRunById(db, { runId: run.id, companyId: run.companyId });
   logger.info({ runId: run.id, errorCode: outcome.errorCode }, "crew-load-gate: stock cancelled a stale run the gate held");
   return true;
 }
@@ -547,7 +555,7 @@ export function defaultBeforeClaimDeps(db: Db): BeforeClaimDeps {
         details: {},
       });
     },
-    async remoteStopPending(environmentId) {
+    async remoteStopPending(environmentId, companyId) {
       if (isRemoteStopPending(environmentId)) return true;
       const since = new Date(Date.now() - REMOTE_STOP_PENDING_WINDOW_MS);
       const result = alias(activityLog, "crew_remote_stop_result");
@@ -556,8 +564,12 @@ export function defaultBeforeClaimDeps(db: Db): BeforeClaimDeps {
         .from(activityLog)
         .where(
           and(
-            eq(activityLog.action, REMOTE_STOP_STARTED_ACTION),
+            // (company_id, created_at) index; the started marker and its result are written with the
+            // lease's company and entity heartbeat_run/<run id> (remote-stop.ts).
+            eq(activityLog.companyId, companyId),
             gte(activityLog.createdAt, since),
+            eq(activityLog.action, REMOTE_STOP_STARTED_ACTION),
+            eq(activityLog.entityType, "heartbeat_run"),
             sql`${activityLog.details}->>'environmentId' = ${environmentId}`,
             notExists(
               db
@@ -565,8 +577,11 @@ export function defaultBeforeClaimDeps(db: Db): BeforeClaimDeps {
                 .from(result)
                 .where(
                   and(
-                    eq(result.action, "crew.remote_stop"),
+                    // (entity_type, entity_id) index.
+                    eq(result.entityType, "heartbeat_run"),
                     eq(result.entityId, activityLog.entityId),
+                    eq(result.companyId, activityLog.companyId),
+                    eq(result.action, "crew.remote_stop"),
                     gte(result.createdAt, activityLog.createdAt),
                   ),
                 ),
