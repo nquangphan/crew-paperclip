@@ -106,6 +106,13 @@ export interface BeforeClaimDeps {
     settings: LoadGateSettings;
   } | null>;
   probeHost(environmentId: string, run: BeforeClaimInput["run"]): Promise<HostProbe>;
+  /**
+   * Marks a run the gate holds as never started (`resultJson.executionRecovery`, see NEVER_STARTED),
+   * so a stock path that cancels it while queued does not ask for a stop proof it can never have.
+   */
+  markHeld(run: BeforeClaimInput["run"]): Promise<void>;
+  /** Removes that marker before the run is claimed; a failure keeps the run queued. */
+  clearHeld(run: BeforeClaimInput["run"]): Promise<void>;
   /** True while the stop of an earlier run (lease release, hook H3) is still running on this environment. */
   remoteStopPending(environmentId: string): boolean;
   /** Time of the first activity of this kind for the run (persisted, survives restarts), or null. */
@@ -223,7 +230,41 @@ async function retryCheckFailure(
   }
 }
 
+/**
+ * Stock evidence for "provider work never started" (legacy-execution-recovery.ts). The stale queued
+ * run gate cancels a queued run keeping its resultJson but, unlike cancelRun, adds no such evidence,
+ * so recovery would treat a run the gate held as an attempt with unknown outcome and hold the issue
+ * for a stop proof (process identity) that a never-started run cannot have. `heldBy` marks it as
+ * ours, so only this marker is removed when the run is finally claimed.
+ */
+export const NEVER_STARTED = { kind: "bootstrap", providerWorkStarted: false, heldBy: "crew_load_gate" } as const;
+
+export function hasNeverStartedMarker(resultJson: unknown): boolean {
+  if (!resultJson || typeof resultJson !== "object") return false;
+  const evidence = (resultJson as Record<string, unknown>).executionRecovery;
+  return Boolean(evidence && typeof evidence === "object" && (evidence as Record<string, unknown>).heldBy === NEVER_STARTED.heldBy);
+}
+
 export async function evaluateBeforeClaim(input: BeforeClaimInput, deps: BeforeClaimDeps): Promise<boolean> {
+  const hold = await decideBeforeClaim(input, deps);
+  const { run } = input;
+  if (run.status !== "queued") return hold;
+  if (hold) {
+    if (!hasNeverStartedMarker(run.resultJson)) await logFailure(run.id, "never-started marker", () => deps.markHeld(run));
+    return true;
+  }
+  if (!hasNeverStartedMarker(run.resultJson)) return false;
+  // A claimed run with the marker would look unstarted to stock recovery after a real failure.
+  try {
+    await deps.clearHeld(run);
+    return false;
+  } catch (err) {
+    logger.warn({ err, runId: run.id }, "crew-load-gate: clearing the never-started marker failed; the run stays held");
+    return true;
+  }
+}
+
+async function decideBeforeClaim(input: BeforeClaimInput, deps: BeforeClaimDeps): Promise<boolean> {
   const { run } = input;
   if (run.status !== "queued") return false;
   const target = await deps.loadTarget(run);
@@ -441,6 +482,33 @@ export function defaultBeforeClaimDeps(db: Db): BeforeClaimDeps {
       });
     },
     remoteStopPending: isRemoteStopPending,
+    async markHeld(run) {
+      await db
+        .update(heartbeatRuns)
+        .set({
+          resultJson: sql`coalesce(${heartbeatRuns.resultJson}, '{}'::jsonb) || ${JSON.stringify({ executionRecovery: NEVER_STARTED })}::jsonb`,
+        })
+        .where(
+          and(
+            eq(heartbeatRuns.id, run.id),
+            eq(heartbeatRuns.status, "queued"),
+            isNull(heartbeatRuns.startedAt),
+            isNull(heartbeatRuns.processPid),
+            sql`${heartbeatRuns.resultJson}->'executionRecovery' is null`,
+          ),
+        );
+    },
+    async clearHeld(run) {
+      await db
+        .update(heartbeatRuns)
+        .set({ resultJson: sql`${heartbeatRuns.resultJson} - 'executionRecovery'` })
+        .where(
+          and(
+            eq(heartbeatRuns.id, run.id),
+            sql`${heartbeatRuns.resultJson}->'executionRecovery'->>'heldBy' = ${NEVER_STARTED.heldBy}`,
+          ),
+        );
+    },
     scheduleCancel(runId, reason) {
       setImmediate(() => {
         void (async () => {
@@ -525,7 +593,8 @@ export async function crewBeforeClaim(input: BeforeClaimInput): Promise<boolean>
   } catch (err) {
     // A retry claimed blind may redo committed work, so it is held (retried next tick, where the
     // marker and deadline are written as soon as the database answers). Other runs fail open.
-    const hold = input.run.status === "queued" && Boolean(input.run.retryOfRunId);
+    // A run still carrying the never-started marker must not be claimed with it either.
+    const hold = input.run.status === "queued" && (Boolean(input.run.retryOfRunId) || hasNeverStartedMarker(input.run.resultJson));
     logger.warn(
       { err, runId: input.run.id },
       hold ? "crew-load-gate: failed closed for a retry, run stays queued" : "crew-load-gate: failed open, run may be claimed",

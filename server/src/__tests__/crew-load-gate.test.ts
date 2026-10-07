@@ -131,6 +131,8 @@ function harness(probe: HostProbe, now: Date, notices: Notices = {}, failComment
     },
     now: () => now,
     remoteStopPending: () => false,
+    markHeld: async () => {},
+    clearHeld: async () => {},
     retryState: async () => ({ checked: true, pendingComment: null }),
     checkRetryProgress: async () => ({ kind: "none" }),
     recordRetryProgress: async () => null,
@@ -405,7 +407,68 @@ describe("evaluateBeforeClaim on a retried run", () => {
   });
 });
 
+describe("never-started marker of a held run", () => {
+  const marked = { executionRecovery: { kind: "bootstrap", providerWorkStarted: false, heldBy: "crew_load_gate" } };
+
+  it("marks a run when the gate holds it, once", async () => {
+    const h = harness({ ok: false, error: "timeout" }, T0);
+    const marks: string[] = [];
+    h.deps.markHeld = async (r) => {
+      marks.push(r.id);
+    };
+    expect(await evaluateBeforeClaim(h.input, h.deps)).toBe(true);
+    h.input.run = run({ resultJson: marked });
+    expect(await evaluateBeforeClaim(h.input, h.deps)).toBe(true);
+    expect(marks).toEqual(["run-1"]);
+  });
+
+  it("keeps holding when the marker cannot be written", async () => {
+    const h = harness({ ok: false, error: "timeout" }, T0);
+    h.deps.markHeld = async () => {
+      throw new Error("db down");
+    };
+    expect(await evaluateBeforeClaim(h.input, h.deps)).toBe(true);
+  });
+
+  it("clears the marker before letting the run be claimed", async () => {
+    const h = harness({ ok: true, load1: 1 }, T0);
+    const cleared: string[] = [];
+    h.deps.clearHeld = async (r) => {
+      cleared.push(r.id);
+    };
+    h.input.run = run({ resultJson: marked });
+    expect(await evaluateBeforeClaim(h.input, h.deps)).toBe(false);
+    expect(cleared).toEqual(["run-1"]);
+  });
+
+  it("holds the run when the marker cannot be cleared", async () => {
+    const h = harness({ ok: true, load1: 1 }, T0);
+    h.deps.clearHeld = async () => {
+      throw new Error("db down");
+    };
+    h.input.run = run({ resultJson: marked });
+    expect(await evaluateBeforeClaim(h.input, h.deps)).toBe(true);
+  });
+
+  it("clears the marker even when the environment is no longer gated", async () => {
+    const h = harness({ ok: true, load1: 1 }, T0);
+    const cleared: string[] = [];
+    h.deps.loadTarget = async () => null;
+    h.deps.clearHeld = async (r) => {
+      cleared.push(r.id);
+    };
+    h.input.run = run({ resultJson: marked });
+    expect(await evaluateBeforeClaim(h.input, h.deps)).toBe(false);
+    expect(cleared).toEqual(["run-1"]);
+  });
+});
+
 describe("crewBeforeClaim when the gate itself fails", () => {
+  it("holds a marked run that cannot be cleared (fails closed)", async () => {
+    const marked = { executionRecovery: { kind: "bootstrap", providerWorkStarted: false, heldBy: "crew_load_gate" } };
+    expect(await crewBeforeClaim({ db: {} as Db, run: run({ resultJson: marked }) })).toBe(true);
+  });
+
   // `{}` is not a database: the first query throws inside the default deps.
   it("holds a queued retry (fails closed)", async () => {
     expect(await crewBeforeClaim({ db: {} as Db, run: run({ retryOfRunId: "prev-1" }) })).toBe(true);
