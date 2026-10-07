@@ -4,6 +4,7 @@ import path from "node:path";
 import { afterAll, describe, expect, it, vi } from "vitest";
 import { TASK_WATCHDOG_PRODUCT_BUG_ORIGIN_KIND } from "@paperclipai/shared";
 import { evaluateIssueGate, type IssueGateFacts } from "../crew/issue-gate.ts";
+import { normalizeIssueExecutionPolicy } from "../services/issue-execution-policy.ts";
 import { RECOVERY_ORIGIN_KINDS } from "../services/recovery/origins.ts";
 import { TASK_WATCHDOG_ORIGIN_KIND } from "../services/task-watchdog-scope.ts";
 import {
@@ -15,6 +16,7 @@ import {
   loadCrewCompanyConfig,
   reportCrewPolicyConfigAtStartup,
   parseCrewPolicyConfig,
+  parseCrewMergeEvidence,
   parseDocsCheckEvidence,
   policyGateFingerprint,
 } from "../crew/issue-policy.ts";
@@ -145,13 +147,16 @@ describe("buildCrewPolicy", () => {
     expect(policy.stages[0]!.id).toMatch(/^[0-9a-f-]{36}$/);
   });
 
-  it("issue gốc có reviewer, integrator rồi owner", () => {
+  it("issue gốc có reviewer, integrator (merge + docs), owner rồi integrator (push), 5 vòng", () => {
     const policy = buildCrewPolicy("root", roles, "owner-1");
+    expect(policy.maxReviewRounds).toBe(CREW_MAX_REVIEW_ROUNDS);
     expect(policy.stages.map((s) => [s.type, s.participants.map((p) => p.agentId ?? p.userId)])).toEqual([
       ["review", [REVIEWER]],
       ["review", [INTEGRATOR]],
       ["approval", ["owner-1"]],
+      ["review", [INTEGRATOR]],
     ]);
+    expect(new Set(policy.stages.map((s) => s.id)).size).toBe(4);
   });
 
   it("issue gốc thiếu owner thì báo lỗi", () => {
@@ -175,6 +180,15 @@ describe("policyGateFingerprint", () => {
   });
 });
 
+describe("parseCrewMergeEvidence", () => {
+  it("chỉ nhận dòng đầu pushed=yes", () => {
+    expect(parseCrewMergeEvidence(`crew-merge sha=${SHA_HEAD} branch=main pushed=yes\nlog`)).toEqual({ sha: SHA_HEAD, branch: "main" });
+    expect(parseCrewMergeEvidence(`crew-merge sha=${SHA_HEAD} branch=main pushed=no`)).toBeNull();
+    expect(parseCrewMergeEvidence(`ghi chú\ncrew-merge sha=${SHA_HEAD} branch=main pushed=yes`)).toBeNull();
+    expect(parseCrewMergeEvidence(`crew-merge sha=${SHA_HEAD.slice(1)} branch=main pushed=yes`)).toBeNull();
+  });
+});
+
 describe("parseDocsCheckEvidence", () => {
   it("đọc dòng đầu đúng định dạng", () => {
     const body = `crew-docs-check commit=${SHA_HEAD} range=${SHA_BASE}..${SHA_HEAD} exit=0\n\n\`\`\`\nok\n\`\`\``;
@@ -193,8 +207,18 @@ describe("parseDocsCheckEvidence", () => {
 });
 
 const child = buildCrewPolicy("child", roles);
-const root = buildCrewPolicy("root", roles, "owner-1");
+// Template gốc 3 stage của issue tạo trước khi có stage push: vẫn phải chạy như cũ.
+const root = normalizeIssueExecutionPolicy({
+  stages: [
+    { type: "review", participants: [{ type: "agent", agentId: REVIEWER }] },
+    { type: "review", participants: [{ type: "agent", agentId: INTEGRATOR }] },
+    { type: "approval", participants: [{ type: "user", userId: "owner-1" }] },
+  ],
+  maxReviewRounds: 5,
+})!;
 const [sReview, sIntegrator, sOwner] = root.stages.map((s) => s.id) as [string, string, string];
+const root4 = buildCrewPolicy("root", roles, "owner-1");
+const [r4Review, r4Integrator, r4Owner, r4Push] = root4.stages.map((s) => s.id) as [string, string, string, string];
 const executorPrincipal = { type: "agent", agentId: EXECUTOR, userId: null };
 const T0 = new Date("2026-10-07T09:00:00Z");
 const T1 = new Date("2026-10-07T10:00:00Z");
@@ -255,6 +279,7 @@ function facts(over: Partial<IssueGateFacts>): IssueGateFacts {
     cycleStartedAt: null,
     lastChangesRequestedAt: null,
     docsEvidence: null,
+    pushEvidence: null,
     ...over,
   };
 }
@@ -502,6 +527,102 @@ describe("evaluateIssueGate", () => {
         }),
       ),
     ).toMatchObject({ kind: "block", violations: ["docs_missing"] });
+  });
+
+  describe("template gốc 4 stage", () => {
+    const integratorP = { type: "agent", agentId: INTEGRATOR, userId: null };
+    const atPush = {
+      status: "in_review",
+      executionPolicy: root4,
+      executionState: pending(root4, r4Push, integratorP, [r4Review, r4Integrator, r4Owner]),
+      assigneeAgentId: INTEGRATOR,
+      assigneeUserId: null,
+    };
+    const pushWrite = { status: "done", executionState: completed([r4Review, r4Integrator, r4Owner, r4Push]) };
+    const stored = [
+      approval(r4Review, REVIEWER, T0),
+      approval(r4Integrator, INTEGRATOR, T0),
+      approval(r4Owner, null, T1, "owner-1"),
+    ];
+    const base = {
+      actor: { kind: "agent" as const, agentId: INTEGRATOR },
+      locked: atPush,
+      patch: pushWrite,
+      approvals: stored,
+      docsEvidence: { ...docsOk, createdAt: T0 },
+    };
+    const push = (createdAt: Date, sha = SHA_HEAD) => ({ sha, branch: "main", createdAt });
+
+    it("integrator hoàn tất stage push với crew-merge mới hơn owner và đúng sha: done", () => {
+      expect(evaluateIssueGate(facts({ ...base, pushEvidence: push(T2) }))).toEqual({ kind: "allow", notes: [] });
+    });
+
+    it("thiếu, cũ hơn quyết định owner, hoặc lệch sha bằng chứng docs: 422", () => {
+      expect(evaluateIssueGate(facts(base))).toMatchObject({ kind: "block", code: "crew_gate_blocked", violations: ["push_missing"] });
+      expect(evaluateIssueGate(facts({ ...base, pushEvidence: push(T0) }))).toMatchObject({ violations: ["push_stale"] });
+      expect(evaluateIssueGate(facts({ ...base, pushEvidence: push(T2, SHA_BASE) }))).toMatchObject({
+        violations: ["push_sha_mismatch"],
+      });
+    });
+
+    it("stage 2 vẫn cần bằng chứng docs; stage push không đòi docs riêng khi stage 2 chưa xong", () => {
+      expect(
+        evaluateIssueGate(
+          facts({
+            actor: { kind: "agent", agentId: INTEGRATOR },
+            locked: {
+              status: "in_review",
+              executionPolicy: root4,
+              executionState: pending(root4, r4Integrator, integratorP, [r4Review]),
+              assigneeAgentId: INTEGRATOR,
+              assigneeUserId: null,
+            },
+            patch: {
+              status: "in_review",
+              executionState: { ...pending(root4, r4Owner, { type: "user", agentId: null, userId: "owner-1" }, [r4Review, r4Integrator]), lastDecisionOutcome: "approved" },
+            },
+            approvals: [approval(r4Review, REVIEWER, T0)],
+          }),
+        ),
+      ).toMatchObject({ kind: "block", violations: ["docs_missing"] });
+    });
+
+    it("owner duyệt stage 3 không phải done và không đòi crew-merge", () => {
+      expect(
+        evaluateIssueGate(
+          facts({
+            actor: { kind: "board", userId: "owner-1" },
+            locked: {
+              status: "in_review",
+              executionPolicy: root4,
+              executionState: pending(root4, r4Owner, { type: "user", agentId: null, userId: "owner-1" }, [r4Review, r4Integrator]),
+              assigneeAgentId: null,
+              assigneeUserId: "owner-1",
+            },
+            patch: {
+              status: "in_review",
+              assigneeAgentId: INTEGRATOR,
+              executionState: { ...pending(root4, r4Push, integratorP, [r4Review, r4Integrator, r4Owner]), lastDecisionOutcome: "approved" },
+            },
+            approvals: [approval(r4Review, REVIEWER, T0), approval(r4Integrator, INTEGRATOR, T0)],
+          }),
+        ),
+      ).toEqual({ kind: "allow", notes: [] });
+    });
+
+    it("executor không ký thay được: approval do executor ký và executor tự done đều bị chặn", () => {
+      expect(
+        evaluateIssueGate(
+          facts({
+            ...base,
+            actor: { kind: "agent", agentId: EXECUTOR },
+            approvals: [...stored, approval(r4Push, EXECUTOR, T2)],
+            patch: { status: "done" },
+            pushEvidence: push(T2),
+          }),
+        ),
+      ).toMatchObject({ kind: "block", violations: [`stage_unapproved:${r4Push}`] });
+    });
   });
 
   it("board ép done khi còn stage chờ: cho qua dưới dạng override", () => {

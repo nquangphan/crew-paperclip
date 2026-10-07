@@ -238,13 +238,13 @@ suite("crew policy in issueService.create", () => {
     expect(children).toHaveLength(0);
   });
 
-  it("board tạo issue gốc không policy: template ba stage, owner theo file cấu hình", async () => {
+  it("board tạo issue gốc không policy: template bốn stage, owner theo file cấu hình", async () => {
     const { companyId, integratorId } = await seed();
     const created = await issueService(db).create(companyId, { title: "yêu cầu", createdByUserId: "board-2" });
     const policy = created.executionPolicy as {
       stages: Array<{ type: string; participants: Array<{ agentId: string | null; userId: string | null }> }>;
     };
-    expect(policy.stages.map((s) => s.type)).toEqual(["review", "review", "approval"]);
+    expect(policy.stages.map((s) => s.type)).toEqual(["review", "review", "approval", "review"]);
     expect(policy.stages[1]!.participants[0]!.agentId).toBe(integratorId);
     expect(policy.stages[2]!.participants[0]!.userId).toBe("owner-1");
   });
@@ -269,7 +269,7 @@ suite("crew policy in issueService.create", () => {
   const principals = (policy: unknown) =>
     (policy as StagePolicy).stages.map((s) => [s.type, s.participants[0]!.agentId ?? s.participants[0]!.userId]);
 
-  it("hệ thống tạo issue routine cấp gốc: template gốc ba stage, agent không done thẳng được", async () => {
+  it("hệ thống tạo issue routine cấp gốc: template gốc bốn stage, agent không done thẳng được", async () => {
     const { companyId, executorId, reviewerId, integratorId } = await seed();
     const created = await issueService(db).create(companyId, {
       title: "routine",
@@ -281,6 +281,7 @@ suite("crew policy in issueService.create", () => {
       ["review", reviewerId],
       ["review", integratorId],
       ["approval", "owner-1"],
+      ["review", integratorId],
     ]);
     await expect(
       issueService(db).update(created.id, { status: "done", actorAgentId: executorId }),
@@ -302,7 +303,7 @@ suite("crew policy in issueService.create", () => {
   it("hệ thống tạo issue nguồn không nhận diện được (manual) cấp gốc: template gốc", async () => {
     const { companyId } = await seed();
     const created = await issueService(db).create(companyId, { title: "khác" });
-    expect((created.executionPolicy as StagePolicy).stages.map((s) => s.type)).toEqual(["review", "review", "approval"]);
+    expect((created.executionPolicy as StagePolicy).stages.map((s) => s.type)).toEqual(["review", "review", "approval", "review"]);
   });
 
   it("agent tạo routine giao cho chính mình: issue routine sinh ra cần integrator và owner", async () => {
@@ -334,6 +335,7 @@ suite("crew policy in issueService.create", () => {
       ["review", reviewerId],
       ["review", integratorId],
       ["approval", "owner-1"],
+      ["review", integratorId],
     ]);
     await expect(
       issueService(db).update(row!.id, { status: "done", actorAgentId: executorId }),

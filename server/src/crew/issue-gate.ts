@@ -5,12 +5,14 @@ import { unprocessable } from "../errors.js";
 import { persistActivity } from "../services/activity-log.js";
 import { normalizeIssueExecutionPolicy, parseIssueExecutionState } from "../services/issue-execution-policy.js";
 import {
+  type CrewMergeEvidence,
   type CrewRoles,
   type DocsCheckEvidence,
   housekeepingSourceIssueId,
   isCrewHousekeepingIssue,
   loadCrewCompanyConfig,
   loadSourceExecutorAgentIds,
+  parseCrewMergeEvidence,
   parseDocsCheckEvidence,
   policyGateFingerprint,
 } from "./issue-policy.js";
@@ -47,8 +49,10 @@ export interface IssueGateFacts {
   /** Lần gần nhất issue rời `done`/`cancelled` (activity `crew.gate.cycle_reset`); approval/bằng chứng cũ hơn không tính. */
   cycleStartedAt: Date | null;
   lastChangesRequestedAt: Date | null;
-  /** Comment `crew-docs-check` mới nhất (chưa xóa) của participant stage integrator. */
+  /** Comment `crew-docs-check` mới nhất (chưa xóa) của participant stage docs. */
   docsEvidence: { evidence: DocsCheckEvidence; createdAt: Date } | null;
+  /** Comment `crew-merge … pushed=yes` mới nhất (chưa xóa) của participant stage push. */
+  pushEvidence: (CrewMergeEvidence & { createdAt: Date }) | null;
 }
 
 export type IssueGateVerdict =
@@ -101,14 +105,27 @@ export function effectivePolicy(
   return safePolicy(patched ? (patch.executionPolicy ?? null) : locked.executionPolicy);
 }
 
+function firstApprovalIndex(policy: IssueExecutionPolicy): number {
+  const index = policy.stages.findIndex((s) => s.type === "approval");
+  return index === -1 ? policy.stages.length : index;
+}
+
 /**
- * Stage cần bằng chứng docs: mọi stage `review` trừ stage `review` đầu tiên (template gốc: stage integrator).
- * Xác định theo policy đã ghim trên issue, không theo vai trò hiện tại trong file cấu hình.
+ * Stage cần bằng chứng docs: stage `review` thứ hai, đứng trước stage `approval` đầu (template gốc: stage 2,
+ * integrator merge + docs). Xác định theo policy đã ghim trên issue, không theo vai trò trong file cấu hình.
  */
 export function docsGateStages(policy: IssueExecutionPolicy | null): IssueExecutionStage[] {
   if (!policy) return [];
-  const firstReview = policy.stages.findIndex((s) => s.type === "review");
-  return policy.stages.filter((s, index) => s.type === "review" && index !== firstReview);
+  const beforeApproval = firstApprovalIndex(policy);
+  const reviews = policy.stages.filter((s, index) => s.type === "review" && index < beforeApproval);
+  return reviews.length >= 2 ? [reviews[1] as IssueExecutionStage] : [];
+}
+
+/** Stage push: mọi stage `review` đứng sau stage `approval` đầu (template gốc: stage 4, integrator push). */
+export function pushGateStages(policy: IssueExecutionPolicy | null): IssueExecutionStage[] {
+  if (!policy) return [];
+  const afterApproval = firstApprovalIndex(policy);
+  return policy.stages.filter((s, index) => s.type === "review" && index > afterApproval);
 }
 
 export function evaluateIssueGate(f: IssueGateFacts): IssueGateVerdict {
@@ -158,24 +175,38 @@ export function evaluateIssueGate(f: IssueGateFacts): IssueGateVerdict {
   if (f.locked.housekeeping && !policy?.stages.length) return { kind: "allow", notes };
 
   const enteringDone = nextStatus === "done" && f.locked.status !== "done";
+  const newlyCompleted = (stage: IssueExecutionStage) =>
+    (nextState?.completedStageIds ?? []).includes(stage.id) &&
+    !(lockedState?.completedStageIds ?? []).includes(stage.id);
   const docsStages = docsGateStages(policy);
-  const completingDocsStage = docsStages.some(
-    (stage) =>
-      (nextState?.completedStageIds ?? []).includes(stage.id) &&
-      !(lockedState?.completedStageIds ?? []).includes(stage.id),
-  );
-  if (!enteringDone && !completingDocsStage) return { kind: "allow", notes };
+  const pushStages = pushGateStages(policy);
+  const completingDocsStage = docsStages.some(newlyCompleted);
+  const completingPushStage = pushStages.some(newlyCompleted);
+  if (!enteringDone && !completingDocsStage && !completingPushStage) return { kind: "allow", notes };
 
   const violations: string[] = [];
   if (!f.roles) violations.push("roles_unconfigured");
   if (!policy || policy.stages.length === 0) violations.push("policy_missing");
 
-  // Người làm việc của vòng hiện tại không ký duyệt cho chính mình.
+  // Người làm việc của vòng hiện tại không ký duyệt cho chính mình. Assignee hiện tại chỉ được coi là participant
+  // (không bị loại) khi workflow đang chờ đúng nó ở một stage, ví dụ integrator ở stage push.
+  const assignee: IssueExecutionStagePrincipal | null = f.locked.assigneeAgentId
+    ? { type: "agent", agentId: f.locked.assigneeAgentId }
+    : f.locked.assigneeUserId
+      ? { type: "user", userId: f.locked.assigneeUserId }
+      : null;
+  const assigneeIsPendingParticipant =
+    lockedState?.status === "pending" &&
+    !!assignee &&
+    !!lockedState.currentParticipant &&
+    lockedState.currentParticipant.type === assignee.type &&
+    (assignee.type === "agent"
+      ? lockedState.currentParticipant.agentId === assignee.agentId
+      : lockedState.currentParticipant.userId === assignee.userId);
   const workers: IssueExecutionStagePrincipal[] = [
     lockedState?.returnAssignee,
     nextState?.returnAssignee,
-    f.locked.assigneeAgentId ? { type: "agent", agentId: f.locked.assigneeAgentId } : null,
-    f.locked.assigneeUserId ? { type: "user", userId: f.locked.assigneeUserId } : null,
+    assigneeIsPendingParticipant ? null : assignee,
   ].filter((p): p is IssueExecutionStagePrincipal => Boolean(p));
   const returnAssignees = [lockedState?.returnAssignee, nextState?.returnAssignee];
   const cycleStart = f.cycleStartedAt?.getTime() ?? null;
@@ -188,7 +219,9 @@ export function evaluateIssueGate(f: IssueGateFacts): IssueGateVerdict {
     actorIs(lockedState.currentParticipant, f.actor) &&
     !returnAssignees.some((p) => actorIs(p, f.actor));
 
-  const stagesToCheck = enteringDone ? (policy?.stages ?? []) : docsStages;
+  const stagesToCheck = enteringDone
+    ? (policy?.stages ?? [])
+    : [...(completingDocsStage ? docsStages : []), ...(completingPushStage ? pushStages : [])];
   for (const stage of stagesToCheck) {
     const stored = f.approvals.some(
       (a) =>
@@ -199,13 +232,29 @@ export function evaluateIssueGate(f: IssueGateFacts): IssueGateVerdict {
     if (!stored && !approvedInThisWrite(stage)) violations.push(`stage_unapproved:${stage.id}`);
   }
 
-  if (docsStages.length > 0) {
+  const checkDocs = docsStages.length > 0 && (enteringDone || completingDocsStage);
+  if (checkDocs) {
     const docs = f.docsEvidence;
     const freshAfter = Math.max(cycleStart ?? -Infinity, f.lastChangesRequestedAt?.getTime() ?? -Infinity);
     if (!docs) violations.push("docs_missing");
     else if (docs.createdAt.getTime() <= freshAfter) violations.push("docs_stale");
     else if (docs.evidence.exit === 3) notes.push("docs_uninitialized");
     else if (docs.evidence.exit !== 0) violations.push(`docs_failed:${docs.evidence.exit}`);
+  }
+
+  if (pushStages.length > 0 && (enteringDone || completingPushStage)) {
+    // Push phải sau quyết định duyệt của owner (cùng vòng) và đúng merged commit của bằng chứng docs.
+    const pushStageIndex = policy?.stages.findIndex((s) => s.id === pushStages[0]?.id) ?? -1;
+    const ownerStageIds = new Set(
+      (policy?.stages ?? []).filter((s, index) => s.type === "approval" && index < pushStageIndex).map((s) => s.id),
+    );
+    const ownerApprovedAt = f.approvals
+      .filter((a) => ownerStageIds.has(a.stageId) && (cycleStart === null || a.createdAt.getTime() > cycleStart))
+      .reduce<number | null>((latest, a) => Math.max(latest ?? -Infinity, a.createdAt.getTime()), null);
+    const push = f.pushEvidence;
+    if (!push) violations.push("push_missing");
+    else if (ownerApprovedAt === null || push.createdAt.getTime() <= ownerApprovedAt) violations.push("push_stale");
+    else if (push.sha !== f.docsEvidence?.evidence.commit) violations.push("push_sha_mismatch");
   }
 
   if (violations.length === 0) return { kind: "allow", notes };
@@ -263,31 +312,36 @@ export async function crewBeforeIssueWrite(input: IssueWriteHookInput): Promise<
     .orderBy(desc(activityLog.createdAt))
     .limit(1);
 
-  const docsAuthors = [
-    ...new Set(
-      docsGateStages(effectivePolicy(locked, patch)).flatMap((stage) =>
-        stage.participants.flatMap((p) => (p.type === "agent" && p.agentId ? [p.agentId] : [])),
-      ),
-    ),
+  const pinnedPolicy = effectivePolicy(locked, patch);
+  const agentsOf = (stages: IssueExecutionStage[]) => [
+    ...new Set(stages.flatMap((stage) => stage.participants.flatMap((p) => (p.type === "agent" && p.agentId ? [p.agentId] : [])))),
   ];
-  let docsEvidence: IssueGateFacts["docsEvidence"] = null;
-  if (docsAuthors.length > 0) {
+  // Comment mới nhất (chưa xóa) của các tác giả, dòng đầu bắt đầu bằng `prefix`.
+  const latestComment = async (authors: string[], prefix: string) => {
+    if (authors.length === 0) return null;
     const [comment] = await tx
       .select({ body: issueComments.body, createdAt: issueComments.createdAt })
       .from(issueComments)
       .where(
         and(
           eq(issueComments.issueId, issueId),
-          inArray(issueComments.authorAgentId, docsAuthors),
+          inArray(issueComments.authorAgentId, authors),
           isNull(issueComments.deletedAt),
-          like(issueComments.body, "crew-docs-check %"),
+          like(issueComments.body, `${prefix} %`),
         ),
       )
       .orderBy(desc(issueComments.createdAt))
       .limit(1);
-    const evidence = comment ? parseDocsCheckEvidence(comment.body) : null;
-    if (comment && evidence) docsEvidence = { evidence, createdAt: comment.createdAt };
-  }
+    return comment ?? null;
+  };
+  let docsEvidence: IssueGateFacts["docsEvidence"] = null;
+  const docsComment = await latestComment(agentsOf(docsGateStages(pinnedPolicy)), "crew-docs-check");
+  const docsParsed = docsComment ? parseDocsCheckEvidence(docsComment.body) : null;
+  if (docsComment && docsParsed) docsEvidence = { evidence: docsParsed, createdAt: docsComment.createdAt };
+  let pushEvidence: IssueGateFacts["pushEvidence"] = null;
+  const pushComment = await latestComment(agentsOf(pushGateStages(pinnedPolicy)), "crew-merge");
+  const pushParsed = pushComment ? parseCrewMergeEvidence(pushComment.body) : null;
+  if (pushComment && pushParsed) pushEvidence = { ...pushParsed, createdAt: pushComment.createdAt };
 
   // Issue watchdog/recovery chỉ được miễn khi người ghi không phải agent đang làm issue nguồn.
   let housekeeping = isCrewHousekeepingIssue(locked);
@@ -312,6 +366,7 @@ export async function crewBeforeIssueWrite(input: IssueWriteHookInput): Promise<
     cycleStartedAt: cycle?.createdAt ?? null,
     lastChangesRequestedAt: changes.length > 0 ? new Date(Math.max(...changes)) : null,
     docsEvidence,
+    pushEvidence,
   });
   if (verdict.kind === "block") {
     const message =

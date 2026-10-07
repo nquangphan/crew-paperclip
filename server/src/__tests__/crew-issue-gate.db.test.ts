@@ -8,6 +8,7 @@ import {
   activityLog,
   agents,
   companies,
+  companyMemberships,
   createDb,
   issueComments,
   issueExecutionDecisions,
@@ -84,10 +85,21 @@ suite("crew issue gate in issueService.update", () => {
     await db
       .insert(agents)
       .values([agent(executorId, "Executor"), agent(reviewerId, "Reviewer"), agent(integratorId, "Integrator")]);
+    await db.insert(companyMemberships).values({
+      companyId,
+      principalType: "user",
+      principalId: "owner-1",
+      status: "active",
+      membershipRole: "owner",
+    });
     if (config === "ok") configured[companyId] = { reviewerAgentId: reviewerId, integratorAgentId: integratorId, ownerUserId: "owner-1" };
     if (config === "invalid") configured[companyId] = { reviewerAgentId: reviewerId };
     writeConfig();
     const roles = { reviewerAgentId: reviewerId, integratorAgentId: integratorId };
+    const legacyRoot = normalizeIssueExecutionPolicy({
+      stages: buildCrewPolicy("root", roles, "owner-1").stages.slice(0, 3),
+      maxReviewRounds: 5,
+    })!;
     const agentP = (agentId: string): Principal => ({ type: "agent", agentId, userId: null });
     return {
       companyId,
@@ -95,6 +107,7 @@ suite("crew issue gate in issueService.update", () => {
       reviewerId,
       integratorId,
       root: buildCrewPolicy("root", roles, "owner-1"),
+      legacyRoot,
       child: buildCrewPolicy("child", roles),
       executor: agentP(executorId),
       reviewer: agentP(reviewerId),
@@ -195,7 +208,7 @@ suite("crew issue gate in issueService.update", () => {
       issueService(db).update(issueId, { executionPolicy: null, actorAgentId: c.executorId }),
     ).rejects.toMatchObject({ status: 422, details: { code: "crew_policy_locked" } });
     const [row] = await db.select().from(issues).where(eq(issues.id, issueId));
-    expect((row!.executionPolicy as { stages: unknown[] }).stages).toHaveLength(3);
+    expect((row!.executionPolicy as { stages: unknown[] }).stages).toHaveLength(4);
   });
 
   it("system ghi blocked vẫn được", async () => {
@@ -339,7 +352,7 @@ suite("crew issue gate in issueService.update", () => {
 
   it("issue gốc mở lại kèm docs cũ: executor done bị 422 ở mọi stage", async () => {
     const c = await company();
-    const [sReview, sIntegrator, sOwner] = c.root.stages.map((s) => s.id) as [string, string, string];
+    const [sReview, sIntegrator, sOwner, sPush] = c.root.stages.map((s) => s.id) as [string, string, string, string];
     const issueId = await issue(c, {
       status: "done",
       assigneeUserId: "owner-1",
@@ -357,7 +370,14 @@ suite("crew issue gate in issueService.update", () => {
     ).rejects.toMatchObject({
       status: 422,
       details: {
-        violations: [`stage_unapproved:${sReview}`, `stage_unapproved:${sIntegrator}`, `stage_unapproved:${sOwner}`, "docs_stale"],
+        violations: [
+          `stage_unapproved:${sReview}`,
+          `stage_unapproved:${sIntegrator}`,
+          `stage_unapproved:${sOwner}`,
+          `stage_unapproved:${sPush}`,
+          "docs_stale",
+          "push_missing",
+        ],
       },
     });
   });
@@ -438,5 +458,143 @@ suite("crew issue gate in issueService.update", () => {
     await db.update(issueComments).set({ deletedAt: new Date(), body: "[deleted]" }).where(eq(issueComments.id, failedId));
     const updated = await issueService(db).update(issueId, integratorWrite);
     expect((updated?.executionState as { completedStageIds: string[] }).completedStageIds).toEqual([sReview, sIntegrator]);
+  });
+
+  // Như route PATCH: transition stock, updateIssue rồi chèn decision trong cùng transaction.
+  async function act(
+    c: Company,
+    issueId: string,
+    actor: { agentId: string } | { userId: string },
+    requestedStatus: string,
+  ) {
+    const [row] = await db.select().from(issues).where(eq(issues.id, issueId));
+    const policy = normalizeIssueExecutionPolicy(row!.executionPolicy);
+    const agentId = "agentId" in actor ? actor.agentId : null;
+    const userId = "userId" in actor ? actor.userId : null;
+    const transition = applyIssueExecutionPolicyTransition({
+      issue: row as never,
+      policy,
+      previousPolicy: policy,
+      requestedStatus,
+      requestedAssigneePatch: {},
+      actor: { agentId, userId },
+      allowBoardOverride: userId !== null,
+      commentBody: "ok",
+    });
+    const decisionId = transition.decision ? randomUUID() : null;
+    if (decisionId) {
+      transition.patch.executionState = { ...(transition.patch.executionState as object), lastDecisionId: decisionId };
+    }
+    return db.transaction(async (tx) => {
+      const updated = await issueService(db).update(
+        issueId,
+        { status: requestedStatus as never, ...transition.patch, actorAgentId: agentId, actorUserId: userId },
+        tx,
+        [],
+        [],
+      );
+      if (transition.decision && decisionId) {
+        await tx.insert(issueExecutionDecisions).values({
+          id: decisionId,
+          companyId: c.companyId,
+          issueId,
+          stageId: transition.decision.stageId,
+          stageType: transition.decision.stageType,
+          actorAgentId: agentId,
+          actorUserId: userId,
+          outcome: transition.decision.outcome,
+          body: transition.decision.body,
+        });
+      }
+      return updated;
+    });
+  }
+
+  async function postComment(c: Company, issueId: string, authorAgentId: string, body: string) {
+    await db.insert(issueComments).values({ companyId: c.companyId, issueId, authorAgentId, body });
+  }
+
+  async function runRootToPush(c: Company, opts: { mergeBeforeOwner?: boolean } = {}) {
+    const issueId = await issue(c, { status: "in_progress", assigneeAgentId: c.executorId, executionPolicy: c.root });
+    const [sReview, sIntegrator, sOwner, sPush] = c.root.stages.map((s) => s.id) as [string, string, string, string];
+    expect(await act(c, issueId, { agentId: c.executorId }, "done")).toMatchObject({
+      status: "in_review",
+      assigneeAgentId: c.reviewerId,
+      executionState: { currentStageId: sReview },
+    });
+    expect(await act(c, issueId, { agentId: c.reviewerId }, "done")).toMatchObject({
+      assigneeAgentId: c.integratorId,
+      executionState: { currentStageId: sIntegrator },
+    });
+    await postComment(c, issueId, c.integratorId, docsLine(0));
+    expect(await act(c, issueId, { agentId: c.integratorId }, "done")).toMatchObject({
+      assigneeUserId: "owner-1",
+      executionState: { currentStageId: sOwner },
+    });
+    if (opts.mergeBeforeOwner) await postComment(c, issueId, c.integratorId, `crew-merge sha=${SHA_HEAD} branch=main pushed=yes`);
+    expect(await act(c, issueId, { userId: "owner-1" }, "done")).toMatchObject({
+      status: "in_review",
+      assigneeAgentId: c.integratorId,
+      executionState: { status: "pending", currentStageId: sPush, currentParticipant: { agentId: c.integratorId } },
+    });
+    return issueId;
+  }
+
+  it("luồng gốc 4 stage: reviewer → integrator docs → owner → integrator crew-merge pushed=yes → done", async () => {
+    const c = await company();
+    const issueId = await runRootToPush(c);
+    await postComment(c, issueId, c.integratorId, `crew-merge sha=${SHA_HEAD} branch=main pushed=yes`);
+    expect((await act(c, issueId, { agentId: c.integratorId }, "done"))?.status).toBe("done");
+    const overrides = await db
+      .select()
+      .from(activityLog)
+      .where(and(eq(activityLog.entityId, issueId), eq(activityLog.action, "crew.policy.board_override")));
+    expect(overrides).toHaveLength(0);
+  });
+
+  it("luồng gốc 4 stage: integrator thiếu docs ở stage 2 bị 422 docs_missing", async () => {
+    const c = await company();
+    const issueId = await issue(c, { status: "in_progress", assigneeAgentId: c.executorId, executionPolicy: c.root });
+    await act(c, issueId, { agentId: c.executorId }, "done");
+    await act(c, issueId, { agentId: c.reviewerId }, "done");
+    await expect(act(c, issueId, { agentId: c.integratorId }, "done")).rejects.toMatchObject({
+      status: 422,
+      details: { violations: ["docs_missing"] },
+    });
+  });
+
+  it("luồng gốc 4 stage: stage push thiếu, cũ hơn owner, lệch sha hoặc pushed=no đều 422", async () => {
+    const c = await company();
+    const expectPush = async (issueId: string, violation: string) =>
+      expect(act(c, issueId, { agentId: c.integratorId }, "done")).rejects.toMatchObject({
+        status: 422,
+        details: { code: "crew_gate_blocked", violations: [violation] },
+      });
+
+    await expectPush(await runRootToPush(c), "push_missing");
+
+    await expectPush(await runRootToPush(c, { mergeBeforeOwner: true }), "push_stale");
+
+    const mismatch = await runRootToPush(c);
+    await postComment(c, mismatch, c.integratorId, `crew-merge sha=${SHA_BASE} branch=main pushed=yes`);
+    await expectPush(mismatch, "push_sha_mismatch");
+
+    const failed = await runRootToPush(c);
+    await postComment(c, failed, c.integratorId, `crew-merge sha=${SHA_HEAD} branch=main pushed=no`);
+    await expectPush(failed, "push_missing");
+
+    const byOther = await runRootToPush(c);
+    await postComment(c, byOther, c.executorId, `crew-merge sha=${SHA_HEAD} branch=main pushed=yes`);
+    await expectPush(byOther, "push_missing");
+  });
+
+  it("issue gốc cũ 3 stage vẫn chạy như trước: owner duyệt là done", async () => {
+    const c = await company();
+    const issueId = await issue(c, { status: "in_progress", assigneeAgentId: c.executorId, executionPolicy: c.legacyRoot });
+    await act(c, issueId, { agentId: c.executorId }, "done");
+    await act(c, issueId, { agentId: c.reviewerId }, "done");
+    await postComment(c, issueId, c.integratorId, docsLine(0));
+    await act(c, issueId, { agentId: c.integratorId }, "done");
+    expect((await act(c, issueId, { userId: "owner-1" }, "done"))?.status).toBe("done");
   });
 });
