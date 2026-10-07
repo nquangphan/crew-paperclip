@@ -61,7 +61,8 @@ mkdir -p "$(dirname "$WT")"
 git -C "$REPO" worktree add -b "$BRANCH" "$WT" "$BASE"
 WT="$(cd "$WT" && pwd -P)"
 check_toplevel() {
-  if [ "$(git -C "$WT" rev-parse --show-toplevel)" != "$WT" ]; then
+  # Compare by inode: path case may differ on a case-insensitive filesystem.
+  if ! [ "$(git -C "$WT" rev-parse --show-toplevel)" -ef "$WT" ]; then
     echo "Sai worktree: $WT" >&2
     exit 70
   fi

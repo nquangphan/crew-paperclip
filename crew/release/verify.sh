@@ -4,10 +4,13 @@
 set -euo pipefail
 
 ROOT="$(git rev-parse --show-toplevel 2>/dev/null || true)"
-if [ -z "$ROOT" ] || [ "$ROOT" != "$(pwd -P)" ]; then
+# Same directory by inode, not by string: on a case-insensitive filesystem the path as typed
+# (pwd -P keeps its case) can differ in case from the one git reports.
+if [ -z "$ROOT" ] || ! [ "$ROOT" -ef . ]; then
   echo "Chạy verify.sh từ gốc worktree (đang ở $(pwd -P))" >&2
   exit 70
 fi
+cd "$ROOT"
 
 run() {
   local code="$1"
