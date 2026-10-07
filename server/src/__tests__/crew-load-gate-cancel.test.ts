@@ -186,17 +186,19 @@ suite("cổng tải hủy run đã chờ quá hạn", () => {
         companyId: f.companyId, actorType: "system", actorId: "crew", action: "crew.remote_stop.started",
         entityType: "heartbeat_run", entityId: previousRunId, details: { environmentId, runId: previousRunId }, createdAt,
       });
-    expect(await deps.remoteStopPending(environmentId)).toBe(false);
+    expect(await deps.remoteStopPending(environmentId, f.companyId)).toBe(false);
     await started(new Date(Date.now() - 150_000));
-    expect(await deps.remoteStopPending(environmentId)).toBe(false);
+    expect(await deps.remoteStopPending(environmentId, f.companyId)).toBe(false);
     await started(new Date(Date.now() - 5_000));
-    expect(await deps.remoteStopPending(environmentId)).toBe(true);
-    expect(await deps.remoteStopPending(randomUUID())).toBe(false);
+    expect(await deps.remoteStopPending(environmentId, f.companyId)).toBe(true);
+    expect(await deps.remoteStopPending(randomUUID(), f.companyId)).toBe(false);
+    // Scoped to the run's company, so the lookup stays on activity_log_company_created_idx.
+    expect(await deps.remoteStopPending(environmentId, randomUUID())).toBe(false);
     await db.insert(activityLog).values({
       companyId: f.companyId, actorType: "system", actorId: "crew", action: "crew.remote_stop",
       entityType: "heartbeat_run", entityId: previousRunId, details: { environmentId, outcome: "stopped" },
     });
-    expect(await deps.remoteStopPending(environmentId)).toBe(false);
+    expect(await deps.remoteStopPending(environmentId, f.companyId)).toBe(false);
   }, 30_000);
 
   it("run được cổng tải cho chạy thì bỏ dấu chưa bắt đầu trước khi claim", async () => {

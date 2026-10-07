@@ -307,7 +307,7 @@ describe("evaluateBeforeClaim", () => {
       probed = true;
       return { ok: true, load1: 1 };
     };
-    h.deps.remoteStopPending = async (environmentId) => environmentId === "env-1";
+    h.deps.remoteStopPending = async (environmentId, companyId) => environmentId === "env-1" && companyId === "company-1";
     expect(await evaluateBeforeClaim(h.input, h.deps)).toBe(true);
     expect(probed).toBe(false);
     expect(h.events).toEqual([]);
