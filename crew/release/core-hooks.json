@@ -44,6 +44,18 @@
       "tests": ["server/src/__tests__/crew-core-hooks.test.ts"]
     },
     {
+      "id": "H4",
+      "kind": "hook",
+      "file": "server/src/services/issues.ts",
+      "symbol": "issueService.create",
+      "head": "    create: async (",
+      "anchor": "      data = await crewCoreHooks.beforeIssueCreate({ db, companyId, data });",
+      "importLine": "import { crewCoreHooks } from \"../crew/core-hooks.js\";",
+      "description": "Attach the Crew execution-policy template to new issues and refuse agent-created root issues.",
+      "upstreamPr": null,
+      "tests": ["server/src/__tests__/crew-issue-create-policy.test.ts"]
+    },
+    {
       "id": "P1",
       "kind": "driver-patch",
       "file": "server/src/services/environment-runtime.ts",

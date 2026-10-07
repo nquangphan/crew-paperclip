@@ -1,6 +1,7 @@
 import type { Db, heartbeatRuns, issues } from "@paperclipai/db";
 import { logger } from "../middleware/logger.js";
 import type { EnvironmentDriverReleaseInput } from "../services/environment-runtime.js";
+import { crewBeforeIssueCreate } from "./issue-create-policy.js";
 import { crewBeforeIssueWrite } from "./issue-gate.js";
 import { crewBeforeClaim } from "./load-gate.js";
 import { stopRemoteRunOnRelease } from "./remote-stop.js";
@@ -24,6 +25,21 @@ export interface BeforeIssueWriteInput {
   actorUserId: string | null | undefined;
 }
 
+/** H4: gọi ở dòng đầu `issueService(db).create`, trước mọi kiểm tra; giá trị trả về thay cho `data`. */
+export interface IssueCreateLike {
+  parentId?: string | null;
+  createdByAgentId?: string | null;
+  createdByUserId?: string | null;
+  assigneeAgentId?: string | null;
+  executionPolicy?: unknown;
+}
+
+export interface BeforeIssueCreateInput<T extends IssueCreateLike> {
+  db: Db;
+  companyId: string;
+  data: T;
+}
+
 /**
  * H3: gọi ở dòng đầu `releaseRunLease` của SSH driver, trước `environmentsSvc.releaseLease`.
  * `db` là tham số `db` của `createSshEnvironmentDriver(db: Db)`; implementation cần nó để giải private key SSH
@@ -39,6 +55,8 @@ export interface CrewCoreHooks {
   beforeClaim(input: BeforeClaimInput): Promise<boolean>;
   /** Ném `HttpError` (ví dụ `unprocessable(...)` từ `server/src/errors.ts`) để chặn lệnh ghi; transaction rollback. Trả bình thường để cho ghi. */
   beforeIssueWrite(input: BeforeIssueWriteInput): Promise<void>;
+  /** Trả `data` (có thể đã gắn `executionPolicy` template Crew); ném `HttpError` để từ chối tạo issue. */
+  beforeIssueCreate<T extends IssueCreateLike>(input: BeforeIssueCreateInput<T>): Promise<T>;
   /**
    * Dừng phần việc còn chạy phía remote của run gắn với lease. Trả về ngay khi `lease.heartbeatRunId` là `null`.
    * Lỗi bị nuốt và ghi log; quá `CREW_RUN_LEASE_RELEASE_HOOK_TIMEOUT_MS` thì wrapper bỏ chờ, ghi log và trả về,
@@ -53,6 +71,7 @@ export const CREW_RUN_LEASE_RELEASE_HOOK_TIMEOUT_MS = 15_000;
 const implementations: CrewCoreHooks = {
   beforeClaim: crewBeforeClaim,
   beforeIssueWrite: crewBeforeIssueWrite,
+  beforeIssueCreate: crewBeforeIssueCreate,
   onRunLeaseReleased: async (input) => {
     await stopRemoteRunOnRelease(input);
   },
@@ -61,6 +80,7 @@ const implementations: CrewCoreHooks = {
 export const crewCoreHooks: CrewCoreHooks = {
   beforeClaim: (input) => implementations.beforeClaim(input),
   beforeIssueWrite: (input) => implementations.beforeIssueWrite(input),
+  beforeIssueCreate: (input) => implementations.beforeIssueCreate(input),
   async onRunLeaseReleased(input) {
     let timer: ReturnType<typeof setTimeout> | undefined;
     const timedOut = new Promise<"timeout">((resolve) => {
