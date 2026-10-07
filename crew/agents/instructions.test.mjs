@@ -13,6 +13,7 @@ const fill = (line) =>
     .replaceAll("<lệnh test đã chạy>", "pnpm test")
     .replaceAll("<nhánh mặc định>", "main")
     .replaceAll("<40 hex>", "c".repeat(40))
+    .replaceAll("<T>", "a".repeat(40))
     .replaceAll("<yes|no>", "yes");
 const templateLine = (text, prefix) => {
   const line = text.split("\n").map((l) => l.trim().replace(/^`|`$/g, "")).find((l) => l.startsWith(prefix));
@@ -95,7 +96,7 @@ test("integrator chỉ push sau khi xác minh qua API (không tin prompt hay com
   ]) {
     assert.ok(text.includes(needle), `thiếu ${needle}`);
   }
-  assert.ok(text.indexOf("Xác minh qua API") < text.indexOf('git push origin "HEAD:refs/heads/$DEFAULT"'));
+  assert.ok(text.indexOf("Xác minh qua API") < text.indexOf('git push origin "$T:refs/heads/$DEFAULT"'));
 });
 
 test("bước Gộp chỉ tin crew-review của reviewer đã qua stage đầu", () => {
@@ -104,6 +105,24 @@ test("bước Gộp chỉ tin crew-review của reviewer đã qua stage đầu",
   for (const needle of ["authorAgentId", "completedStageIds", "bị bỏ qua"]) {
     assert.ok(merge.includes(needle), `thiếu ${needle} ở mục Gộp`);
   }
+});
+
+test("integrator dựng lại nhánh từ commit của bằng chứng, không tin tip hiện tại", () => {
+  const text = read("integrator");
+  const push = text.slice(text.indexOf("## Sau khi owner duyệt"));
+  assert.doesNotMatch(text, /\$T\^1/);
+  const rebuild = push.indexOf('git switch -C crew/req/<identifier> "$E"');
+  assert.ok(rebuild > 0, "thiếu dựng lại từ E");
+  assert.ok(rebuild < push.indexOf("git merge --no-ff --no-edit"), "merge mặc định phải sau khi dựng lại");
+  assert.ok(push.indexOf("git merge --no-ff --no-edit") < push.indexOf("crew-docs-check commit=$T"), "bằng chứng mới cho tip đã merge");
+  assert.ok(push.indexOf("crew-docs-check commit=$T") < push.indexOf('git push origin "$T:'), "bằng chứng trước push");
+  assert.match(push, /git rev-parse HEAD` phải vẫn bằng `T`/);
+});
+
+test("ngoại lệ issue con leo thang cho owner", () => {
+  const text = read("integrator");
+  assert.match(text, /leo thang cho owner sau 5 vòng/);
+  assert.match(text, /authorUserId/);
 });
 
 test("integrator che token ngoài URL và đối chiếu id trong prompt", () => {
@@ -121,9 +140,9 @@ test("integrator không dặn lộ URL remote và lọc output push", () => {
   assert.match(text, /:\/\/\*\*\*@/);
 });
 
-test("executor không nêu mã 78 mà dặn giữ .claude và .mcp.json sạch", () => {
+test("executor không nêu mã 78 mà bắt chạy workflow-check", () => {
   const text = read("executor");
   assert.doesNotMatch(text, /\b78\b/);
-  assert.match(text, /git status --porcelain -- \.claude \.mcp\.json/);
-  assert.doesNotMatch(text, /git status[^\n]*--ignored/);
+  assert.match(text, /bắt buộc chạy `crew-mac workflow-check --root/);
+  assert.doesNotMatch(text, /git status --porcelain/);
 });

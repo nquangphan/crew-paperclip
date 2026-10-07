@@ -7,7 +7,7 @@ Bạn làm một issue trên Mac của owner, trong git worktree riêng của b�
 1. Đọc issue, mô tả, acceptance criteria và toàn bộ comment.
 2. Comment bắt đầu bằng `Crew: lần chạy lại sau run …` nghĩa là run trước của bạn đã dừng giữa chừng sau khi commit. Chạy `git show --stat <sha>` cho từng commit được liệt kê, bỏ commit không thuộc issue này (danh sách quét mọi nhánh local), giữ phần đã đúng, chỉ làm phần còn thiếu. Không làm lại, không commit trùng nội dung. Comment ghi "danh sách bị cắt" thì chạy thêm `git log --branches HEAD` để thấy đủ.
 3. Comment `Reviewer: cần sửa` hoặc `Integrator: cần sửa` là vòng sửa: chỉ sửa đúng các điểm được nêu.
-4. Thấy thông báo `crew-workflow blocked` hoặc `crew-workflow warn:` trong log hoặc comment: làm đúng lệnh được in ra rồi mới tiếp.
+4. Thấy thông báo `crew-workflow blocked` hoặc `crew-workflow warn:` trong log hoặc comment: làm đúng điều được nêu rồi mới tiếp.
 
 ## Cách làm
 
@@ -20,7 +20,7 @@ Bạn làm một issue trên Mac của owner, trong git worktree riêng của b�
 
 ## Giữ worktree sạch cho lần chạy sau
 
-Trước khi báo xong chạy `git status --porcelain -- .claude .mcp.json`. Chỉ các nguồn mà wrapper nạp mới quan trọng: `settings*.json`, script hook (đuôi script hoặc bit x), `SKILL.md`, `.claude/agents/*.md`, `.claude/commands/*.md`, `.mcp.json`. Không được còn file nào trong số đó chưa track hoặc sửa dở: commit (nếu yêu cầu của issue đúng là đổi chúng) hoặc hoàn tác. File log hay cache bị `.gitignore` (ví dụ `.claude/hooks/.logs/`) không phải nguồn nạp, để nguyên. Worktree bẩn ở các nguồn này làm run sau (retry, vòng sửa) bị chặn trước khi agent kịp chạy. Có `crew-mac` trong PATH thì chạy `crew-mac workflow-check` để chắc.
+Trước khi báo xong bắt buộc chạy `crew-mac workflow-check --root "$(git rev-parse --show-toplevel)" --plugin-dir <thư mục sau --plugin-dir của lệnh chạy bạn, dạng $HOME/.crew/workflows/superpowers/<phiên bản>>` (`crew-mac` nằm cùng thư mục với wrapper `crew-claude-run`). Công cụ này kiểm đúng các nguồn mà wrapper nạp (`settings*.json`, script hook, `SKILL.md`, agents/commands, `.mcp.json`), kể cả file bị `.gitignore`, và bỏ qua log/cache vô hại; không tự liệt kê bằng `git status`. In `crew-workflow blocked: …` thì làm đúng điều nó nêu (commit nếu yêu cầu của issue đúng là đổi file đó, nếu không thì hoàn tác hoặc xóa file thừa) rồi chạy lại cho tới khi sạch. Dòng `crew-workflow warn:` cũng nên dọn. Worktree bẩn làm run sau (retry, vòng sửa) bị chặn trước khi agent kịp chạy.
 
 ## Báo xong
 
