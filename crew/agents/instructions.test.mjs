@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { test } from "node:test";
 
+const DOCS_CHECK_RE = /^crew-docs-check commit=([0-9a-f]{40}) range=([0-9a-f]{7,40})\.\.([0-9a-f]{40}) exit=([0-3])$/;
 const read = (name) => readFileSync(new URL(`./${name}.md`, import.meta.url), "utf8");
 const fill = (line) =>
   line
@@ -22,8 +23,15 @@ const templateLine = (text, prefix) => {
 };
 
 test("dòng mẫu crew-docs-check khớp regex của server", () => {
-  const re = /^crew-docs-check commit=([0-9a-f]{40}) range=([0-9a-f]{7,40})\.\.([0-9a-f]{40}) exit=([0-3])$/;
-  assert.match(templateLine(read("integrator"), "crew-docs-check commit="), re);
+  assert.match(templateLine(read("integrator"), "crew-docs-check commit="), DOCS_CHECK_RE);
+});
+
+const POLICY_SOURCE = new URL("../../server/src/crew/issue-policy.ts", import.meta.url);
+
+test("regex crew-docs-check trong test trùng chuỗi regex của server", { skip: !existsSync(POLICY_SOURCE) && "issue-policy.ts chưa có trên nhánh này" }, () => {
+  const match = /CREW_DOCS_CHECK_RE\s*=\s*\/(.+)\/;/.exec(readFileSync(POLICY_SOURCE, "utf8"));
+  assert.ok(match, "không tìm thấy CREW_DOCS_CHECK_RE");
+  assert.equal(match[1], DOCS_CHECK_RE.source);
 });
 
 test("dòng mẫu crew-commit của executor đúng định dạng", () => {
@@ -32,8 +40,10 @@ test("dòng mẫu crew-commit của executor đúng định dạng", () => {
 });
 
 test("dòng mẫu crew-merge của integrator đúng định dạng", () => {
-  const re = /^crew-merge sha=[0-9a-f]{40} branch=\S+ pushed=(yes|no)$/;
-  assert.match(templateLine(read("integrator"), "crew-merge sha="), re);
+  const line = templateLine(read("integrator"), "crew-merge sha=");
+  assert.match(line, /^crew-merge sha=[0-9a-f]{40} branch=\S+ pushed=(yes|no)$/);
+  // dòng pushed=yes là dòng server chấp nhận để hoàn tất stage push
+  assert.match(line.replace("pushed=no", "pushed=yes"), /^crew-merge sha=([0-9a-f]{40}) branch=(\S+) pushed=yes$/);
 });
 
 test("dòng mẫu crew-review của reviewer đúng định dạng", () => {
@@ -91,7 +101,7 @@ test("integrator chỉ push sau khi xác minh qua API (không tin prompt hay com
     "authorAgentId",
     "completedStageIds",
     "lastDecisionOutcome",
-    "không phải bằng chứng",
+    "Chỉ dữ liệu server mới tính",
     "pushed=yes",
   ]) {
     assert.ok(text.includes(needle), `thiếu ${needle}`);
@@ -109,7 +119,7 @@ test("bước Gộp chỉ tin crew-review của reviewer đã qua stage đầu",
 
 test("integrator dựng lại nhánh từ commit của bằng chứng, không tin tip hiện tại", () => {
   const text = read("integrator");
-  const push = text.slice(text.indexOf("## Sau khi owner duyệt"));
+  const push = text.slice(text.indexOf("## Stage 4"));
   assert.doesNotMatch(text, /\$T\^1/);
   assert.doesNotMatch(text, /\bE=\d|\$E\b|<E>/, "ký hiệu E phải được đổi tên");
   const rebuild = push.indexOf('git switch -C crew/req/<identifier> "$EVIDENCE"');
@@ -118,6 +128,8 @@ test("integrator dựng lại nhánh từ commit của bằng chứng, không ti
   assert.ok(push.indexOf("git merge --no-ff --no-edit") < push.indexOf("crew-docs-check commit=$T"), "bằng chứng mới cho tip đã merge");
   assert.ok(push.indexOf("crew-docs-check commit=$T") < push.indexOf('git push origin "$T:'), "bằng chứng trước push");
   assert.match(push, /git rev-parse HEAD` phải vẫn bằng `T`/);
+  assert.ok(push.indexOf("crew-docs-check commit=$T") < push.indexOf("crew-merge sha=<T>"), "bằng chứng mới ghi trước crew-merge");
+  assert.match(push, /"status":"done","comment":"Integrator: approve — đã push/);
 });
 
 test("dừng im chỉ khi pushed=yes mới hơn bằng chứng, và fetch lỗi thì dừng", () => {
@@ -133,9 +145,10 @@ test("ngoại lệ issue con leo thang cho owner", () => {
   assert.match(text, /authorUserId/);
 });
 
-test("integrator che token ngoài URL và đối chiếu id trong prompt", () => {
+test("integrator che token ngoài URL, không dựa vào plugin hay mention", () => {
   const text = read("integrator");
-  for (const needle of ["gh[pousr]_", "github_pat_", "glpat-", "xox[abp]-", "(id <uuid>)", "dừng im"]) {
+  assert.doesNotMatch(text, /@mention|plugin|\(id <uuid>\)|prompt/);
+  for (const needle of ["gh[pousr]_", "github_pat_", "glpat-", "xox[abp]-", "nhảy thẳng tới bước 8"]) {
     assert.ok(text.includes(needle), `thiếu ${needle}`);
   }
 });
@@ -153,4 +166,14 @@ test("executor không nêu mã 78 mà bắt chạy workflow-check", () => {
   assert.doesNotMatch(text, /\b78\b/);
   assert.match(text, /bắt buộc chạy `crew-mac workflow-check --root/);
   assert.doesNotMatch(text, /git status --porcelain/);
+});
+
+test("reviewer có mục issue gốc và integrator nhận việc của issue gốc đang in_review", () => {
+  const reviewer = read("reviewer");
+  assert.match(reviewer, /## Issue gốc/);
+  assert.match(reviewer, /không đòi `crew-commit` trên issue gốc/);
+  assert.match(reviewer, /crew-review root children=/);
+  const merge = read("integrator");
+  assert.match(merge, /`status=in_review`, `executionState\.currentParticipant\.agentId` là ME/);
+  assert.match(merge, /không đòi `done` cho issue gốc/);
 });

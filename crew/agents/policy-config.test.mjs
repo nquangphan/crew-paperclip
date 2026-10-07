@@ -32,6 +32,23 @@ test("từ chối reviewer trùng integrator, id không phải uuid, owner rỗn
   assert.throws(() => buildPolicyConfig(null, COMPANY, { ...ok, reviewerAgentId: "abc" }), /uuid/);
   assert.throws(() => buildPolicyConfig(null, COMPANY, { ...ok, ownerUserId: " " }), /ownerUserId/);
   assert.throws(() => buildPolicyConfig(null, "", ok), /companyId/);
+  assert.throws(() => buildPolicyConfig(null, "company-1", ok), /companyId/);
+});
+
+test("companyId viết thường; key cũ khác hoa thường được thay, không sinh hai key", () => {
+  const ok = { reviewerAgentId: REVIEWER, integratorAgentId: INTEGRATOR, ownerUserId: "o" };
+  const upper = COMPANY.toUpperCase();
+  const existing = JSON.stringify({ companies: { [COMPANY]: { reviewerAgentId: "old", integratorAgentId: "old", ownerUserId: "old" } } });
+  const out = buildPolicyConfig(existing, upper, ok);
+  assert.deepEqual(Object.keys(out.companies), [COMPANY]);
+  assert.equal(out.companies[COMPANY].reviewerAgentId, REVIEWER);
+});
+
+test("từ chối file cũ đã có hai key trùng khi bỏ hoa thường", () => {
+  const ok = { reviewerAgentId: REVIEWER, integratorAgentId: INTEGRATOR, ownerUserId: "o" };
+  const entry = { reviewerAgentId: "a", integratorAgentId: "b", ownerUserId: "c" };
+  const existing = JSON.stringify({ companies: { [COMPANY]: entry, [COMPANY.toUpperCase()]: entry } });
+  assert.throws(() => buildPolicyConfig(existing, COMPANY, ok), /trùng/);
 });
 
 test("từ chối file cũ hỏng thay vì ghi đè", () => {
