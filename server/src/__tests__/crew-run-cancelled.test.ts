@@ -43,6 +43,23 @@ describe("registerRunCancelledHandler", () => {
     expect(comments.at(-1)?.body).toContain("run-1");
   });
 
+  it("blocks when a person or the control plane cancelled the run (errorCode cancelled)", async () => {
+    const { harness, issueId } = await setup();
+    await harness.emit("agent.run.cancelled", cancelled(issueId, { errorCode: "cancelled" }), { companyId: COMPANY });
+    expect((await harness.ctx.issues.get(issueId, COMPANY))?.status).toBe("blocked");
+  });
+
+  // Stock cancels the run itself on a handoff or stage change; the issue write that follows decides the status.
+  it.each(["issue_reassigned", "lock_released_on_reassignment", "queued_comment_discarded", "issue_execution_lock_changed", "agent_chat_disabled"])(
+    "leaves the issue alone when stock cancelled the run with errorCode %s",
+    async (errorCode) => {
+      const { harness, issueId } = await setup();
+      await harness.emit("agent.run.cancelled", cancelled(issueId, { errorCode }), { companyId: COMPANY });
+      expect((await harness.ctx.issues.get(issueId, COMPANY))?.status).toBe("in_progress");
+      expect(await harness.ctx.issues.listComments(issueId, COMPANY)).toHaveLength(0);
+    },
+  );
+
   it("ignores a run cancelled while still queued", async () => {
     const { harness, issueId } = await setup();
     await harness.emit("agent.run.cancelled", cancelled(issueId, { startedAt: null }), { companyId: COMPANY });

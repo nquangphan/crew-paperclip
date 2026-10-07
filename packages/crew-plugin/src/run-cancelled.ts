@@ -5,7 +5,19 @@ type RunCancelledPayload = {
   agentId?: string;
   issueId?: string | null;
   startedAt?: string | null;
+  errorCode?: string | null;
 };
+
+/**
+ * `cancelRunInternal` (server/src/services/heartbeat.ts) records `errorCode: "cancelled"` for a cancel requested
+ * by a person or the control plane. Stock gives every automatic cancel its own code: issue_reassigned (handoff
+ * and stage change, routes/issues.ts), lock_released_on_reassignment, queued_comment_discarded,
+ * agent_chat_disabled, and so on. Those are followed by the write that moves the issue, so stepping in
+ * with `blocked` would race it. Only the plain cancel (or an event without a code) is handled.
+ */
+function isRequestedCancel(errorCode: string | null | undefined): boolean {
+  return errorCode == null || errorCode === "cancelled";
+}
 
 const TIME_FORMAT = new Intl.DateTimeFormat("vi-VN", {
   timeZone: "Asia/Ho_Chi_Minh",
@@ -28,6 +40,7 @@ export function registerRunCancelledHandler(ctx: PluginContext): void {
     const payload = (event.payload ?? {}) as RunCancelledPayload;
     const companyId = event.companyId;
     if (!companyId || !payload.issueId || !payload.runId || !payload.startedAt) return;
+    if (!isRequestedCancel(payload.errorCode)) return;
 
     const issue = await ctx.issues.get(payload.issueId, companyId);
     if (!issue || issue.status !== "in_progress") return;
