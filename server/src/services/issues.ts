@@ -9636,6 +9636,7 @@ export function issueService(db: Db) {
       data: IssueCreateInput,
       dbOrTx: Db | DbTransaction = db,
     ) => {
+      data = await crewCoreHooks.beforeIssueCreate({ db, companyId, data });
       const {
         initialPlan,
         labelIds: inputLabelIds,

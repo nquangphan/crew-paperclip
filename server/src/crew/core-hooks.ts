@@ -1,6 +1,8 @@
 import type { Db, heartbeatRuns, issues } from "@paperclipai/db";
 import { logger } from "../middleware/logger.js";
 import type { EnvironmentDriverReleaseInput } from "../services/environment-runtime.js";
+import { crewBeforeIssueCreate } from "./issue-create-policy.js";
+import { crewBeforeIssueWrite } from "./issue-gate.js";
 import { crewBeforeClaim } from "./load-gate.js";
 import { stopRemoteRunOnRelease } from "./remote-stop.js";
 
@@ -17,10 +19,31 @@ export interface BeforeIssueWriteInput {
   issueId: string;
   /** Bản issue đọc trước khi khóa dòng. Cần số liệu chắc chắn thì đọc lại qua `tx` với `.for("update")`. */
   existing: typeof issues.$inferSelect;
-  /** Các cột sắp ghi, kể cả `status` và `executionPolicy` nếu request gửi lên. Không được sửa. */
-  patch: Readonly<Partial<typeof issues.$inferInsert>>;
+  /**
+   * Các cột sắp ghi, kể cả `status` và `executionPolicy` nếu request gửi lên. Chính object này được ghi xuống DB.
+   * Ngoại lệ duy nhất được sửa: Crew đặt `executionState = null` khi issue có policy rời `done`/`cancelled`.
+   */
+  patch: Partial<typeof issues.$inferInsert>;
   actorAgentId: string | null | undefined;
   actorUserId: string | null | undefined;
+}
+
+/** H4: gọi ở dòng đầu `issueService(db).create`, trước mọi kiểm tra; giá trị trả về thay cho `data`. */
+export interface IssueCreateLike {
+  parentId?: string | null;
+  createdByAgentId?: string | null;
+  createdByUserId?: string | null;
+  assigneeAgentId?: string | null;
+  status?: string | null;
+  originKind?: string | null;
+  originId?: string | null;
+  executionPolicy?: unknown;
+}
+
+export interface BeforeIssueCreateInput<T extends IssueCreateLike> {
+  db: Db;
+  companyId: string;
+  data: T;
 }
 
 /**
@@ -38,6 +61,8 @@ export interface CrewCoreHooks {
   beforeClaim(input: BeforeClaimInput): Promise<boolean>;
   /** Ném `HttpError` (ví dụ `unprocessable(...)` từ `server/src/errors.ts`) để chặn lệnh ghi; transaction rollback. Trả bình thường để cho ghi. */
   beforeIssueWrite(input: BeforeIssueWriteInput): Promise<void>;
+  /** Trả `data` (có thể đã gắn `executionPolicy` template Crew); ném `HttpError` để từ chối tạo issue. */
+  beforeIssueCreate<T extends IssueCreateLike>(input: BeforeIssueCreateInput<T>): Promise<T>;
   /**
    * Dừng phần việc còn chạy phía remote của run gắn với lease. Trả về ngay khi `lease.heartbeatRunId` là `null`.
    * Lỗi bị nuốt và ghi log; quá `CREW_RUN_LEASE_RELEASE_HOOK_TIMEOUT_MS` thì wrapper bỏ chờ, ghi log và trả về,
@@ -51,7 +76,8 @@ export const CREW_RUN_LEASE_RELEASE_HOOK_TIMEOUT_MS = 15_000;
 
 const implementations: CrewCoreHooks = {
   beforeClaim: crewBeforeClaim,
-  beforeIssueWrite: async () => {},
+  beforeIssueWrite: crewBeforeIssueWrite,
+  beforeIssueCreate: crewBeforeIssueCreate,
   onRunLeaseReleased: async (input) => {
     await stopRemoteRunOnRelease(input);
   },
@@ -60,6 +86,7 @@ const implementations: CrewCoreHooks = {
 export const crewCoreHooks: CrewCoreHooks = {
   beforeClaim: (input) => implementations.beforeClaim(input),
   beforeIssueWrite: (input) => implementations.beforeIssueWrite(input),
+  beforeIssueCreate: (input) => implementations.beforeIssueCreate(input),
   async onRunLeaseReleased(input) {
     let timer: ReturnType<typeof setTimeout> | undefined;
     const timedOut = new Promise<"timeout">((resolve) => {
