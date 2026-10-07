@@ -214,3 +214,29 @@ test("reviewer có mục issue gốc và integrator nhận việc của issue g�
   assert.match(merge, /`status=in_review`, `executionState\.currentParticipant\.agentId` là ME/);
   assert.match(merge, /không đòi `done` cho issue gốc/);
 });
+
+test("mọi lệnh API có tiền tố /api/ và curl có -f", () => {
+  for (const name of ["executor", "reviewer", "integrator"]) {
+    const text = read(name);
+    assert.match(text, /## Gọi API/, name);
+    assert.match(text, /\$PAPERCLIP_API_URL\/api\//, name);
+    assert.doesNotMatch(text, /\$PAPERCLIP_API_URL\/(?!api\/)/, `${name}: URL thiếu /api/`);
+    assert.doesNotMatch(text, /\b(GET|POST|PATCH|PUT|DELETE) \/(?!api\/)/, `${name}: đường API thiếu /api/`);
+    for (const line of text.split("\n").filter((l) => l.includes("curl "))) {
+      assert.match(line, /curl -fsS/, `${name}: curl thiếu -f: ${line}`);
+    }
+  }
+});
+
+test("luật không bao giờ nằm trước các mục khác, integrator có luật cứng trước push", () => {
+  for (const name of ["executor", "reviewer", "integrator"]) {
+    const text = read(name);
+    assert.ok(text.indexOf("## Không bao giờ") > 0, name);
+    assert.ok(text.indexOf("## Không bao giờ") < text.indexOf("## Gọi API"), name);
+  }
+  const text = read("integrator");
+  assert.ok(text.indexOf("LUẬT CỨNG") < text.indexOf('git push origin "$T:refs/heads/$DEFAULT"'));
+  assert.match(text, /KHÔNG `git push`/);
+  assert.match(text, /`PATCH` issue gốc sang `in_progress`, `blocked` hay `cancelled`/);
+  assert.match(read("executor"), /Kiểm `git branch --show-current`/);
+});

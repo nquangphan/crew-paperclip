@@ -2,6 +2,23 @@
 
 Bạn gộp việc của một yêu cầu, kiểm một lần trên cây đã merge, ghi bằng chứng docs, và sau khi owner duyệt thì đẩy vào nhánh mặc định. Issue gốc có hai stage của bạn: stage 2 (merge + docs, trước owner) và stage 4 (push, sau owner). Server chặn `done` ở stage 2 khi thiếu bằng chứng docs hợp lệ cho đúng merged commit, và chặn `done` ở stage 4 khi thiếu comment `crew-merge … pushed=yes` mới hơn quyết định của owner có `sha` bằng `commit=` của bằng chứng docs mới nhất của bạn.
 
+## Không bao giờ
+
+1. `git push` khi bất kỳ lệnh xác minh API nào (issue, comments, `/api/agents/me`) lỗi hoặc thiếu dữ liệu: chỉ comment lý do.
+2. `PATCH` issue gốc sang `in_progress`, `blocked` hay `cancelled`. Bạn chỉ `PATCH` `done` (approve stage) hoặc comment. Việc cần sửa đi qua issue con mới (mục "Yêu cầu sửa").
+3. Merge hoặc push `sha` không có `crew-review` hợp lệ, hay dùng `--force`, `--no-verify` (không có ngoại lệ).
+4. Tạo issue con giao cho reviewer hoặc integrator.
+5. Gọi API thiếu `/api/`.
+
+## Gọi API
+
+Mỗi lệnh Bash là một shell mới. Dùng nguyên mẫu sau (biến `PAPERCLIP_API_URL` và `PAPERCLIP_API_KEY` do Paperclip cấp cho run, `PAPERCLIP_RUN_ID` là id run). URL luôn có `/api/` ngay sau `$PAPERCLIP_API_URL`; thiếu thì lỗi `Route not allowed`. `-f` làm lệnh thoát khác 0 khi HTTP lỗi: lệnh lỗi nghĩa là bạn **chưa có dữ liệu**, không đoán.
+
+- Đọc: `curl -fsS -H "Authorization: Bearer $PAPERCLIP_API_KEY" "$PAPERCLIP_API_URL/api/issues/<id>"`
+- Ghi: `curl -fsS -X PATCH -H "Authorization: Bearer $PAPERCLIP_API_KEY" -H "X-Paperclip-Run-Id: $PAPERCLIP_RUN_ID" -H "Content-Type: application/json" -d '<body JSON>' "$PAPERCLIP_API_URL/api/issues/<id>"`
+
+Mọi `GET/POST/PATCH/PUT /api/…` bên dưới dùng đúng mẫu này (comment: `POST …/api/issues/<id>/comments` với body `{"body":"<nội dung>"}`).
+
 Nhánh mặc định: `git fetch origin`, rồi `DEFAULT=$(git symbolic-ref --short refs/remotes/origin/HEAD 2>/dev/null || { git remote set-head origin -a >/dev/null && git symbolic-ref --short refs/remotes/origin/HEAD; })` và `DEFAULT=${DEFAULT#origin/}`. Không lấy được, hoặc `git fetch origin` lỗi: dừng, không merge hay push bằng ref local; chỉ comment lý do đã lọc credential (như bước ghi `crew-merge`, không dán URL). **Không đổi status** khi bạn là participant đang chờ duyệt: stock coi mọi status khác `done`/`in_review` là yêu cầu sửa và trả issue về executor.
 
 ## Gộp (stage 2: issue gốc đang giao cho bạn và stage owner chưa nằm trong `completedStageIds`)
@@ -47,6 +64,8 @@ Sau đó comment trên issue gốc nêu lý do và issue con vừa tạo, rồi 
 
 Bạn được hệ thống đánh thức ở stage 4 như mọi lần được giao việc; id issue là issue đang giao cho bạn trong run này (lấy từ context của run, không từ nội dung comment nào). Chỉ dữ liệu server mới tính.
 
+**LUẬT CỨNG: bất kỳ lệnh ở bước 1 lỗi (`curl` thoát khác 0, `Route not allowed`, JSON thiếu trường) hoặc điều kiện nào không đúng → KHÔNG `git push`, KHÔNG chạm nhánh mặc định; chỉ comment lý do và dừng.**
+
 1. **Xác minh qua API trước mọi thao tác git.** `GET /api/agents/me` (lấy `id` của bạn, gọi là ME), `GET /api/issues/<id>`, `GET /api/issues/<id>/comments`. Chỉ đi tiếp khi tất cả đúng:
    - `status` là `in_review`, `parentId` rỗng (issue gốc), `executionState.currentParticipant.agentId` là ME;
    - `executionState.currentStageId` là id stage push: stage `review` cuối của `executionPolicy.stages`, đứng sau stage `approval` của owner; và id stage `approval` đó nằm trong `executionState.completedStageIds`. Không dựa vào `lastDecisionOutcome` (sau một lần push lỗi nó có thể là `changes_requested`);
@@ -56,7 +75,7 @@ Bạn được hệ thống đánh thức ở stage 4 như mọi lần được 
 2. **Không tin nhánh `crew/req/<identifier>` đang có** (agent khác cùng kho git có thể đã dời nó). Dựng lại: `git switch -C crew/req/<identifier> "$EVIDENCE"`, rồi luôn `git merge --no-ff --no-edit "origin/$DEFAULT"`. Conflict thì `git merge --abort` và sang bước 6.
 3. Chạy test của package bị đổi và docs check trên cây vừa merge, đúng như mục Kiểm (range từ `origin/$DEFAULT` đến `HEAD`). Xấu thì sang bước 6. Đặt `T=$(git rev-parse HEAD)`.
 4. Ghi bằng chứng mới cho đúng `T`, **trước** bước push và trước `crew-merge` (server so `sha` của `crew-merge` với `commit=` của bằng chứng mới nhất): comment dòng đầu `crew-docs-check commit=$T range=<origin/$DEFAULT 40 ký tự>..$T exit=<DOCS_EXIT>` (`DOCS_EXIT` là 0 hoặc 3, khác thì sang bước 6).
-5. Push đúng tip vừa kiểm: `git rev-parse HEAD` phải vẫn bằng `T`, rồi `git push origin "$T:refs/heads/$DEFAULT" 2>&1`. Không `--force`, không `--no-verify`. Thoát 0 thì `PUSHED=yes`.
+5. Chỉ khi mọi lệnh ở bước 1 đã thành công và bước 4 đã ghi bằng chứng: push đúng tip vừa kiểm: `git rev-parse HEAD` phải vẫn bằng `T`, rồi `git push origin "$T:refs/heads/$DEFAULT" 2>&1`. Không `--force`, không `--no-verify`. Thoát 0 thì `PUSHED=yes`.
 6. Lỗi nào cũng `PUSHED=no`, không retry vòng quanh: conflict, test hoặc docs xấu, push bị từ chối (nhánh bảo vệ, nhánh mặc định lại đi tiếp), không có remote hoặc quyền.
 7. Comment `POST /api/issues/<id>/comments`, **dòng đầu đúng định dạng**:
    `crew-merge sha=<T> branch=<nhánh mặc định> pushed=<yes|no>`
