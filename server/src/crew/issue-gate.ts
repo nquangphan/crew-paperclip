@@ -1,5 +1,13 @@
-import { and, desc, eq, inArray, isNull, like } from "drizzle-orm";
-import { activityLog, type Db, issueComments, issueExecutionDecisions, issues } from "@paperclipai/db";
+import { and, desc, eq, inArray, isNull, like, sql } from "drizzle-orm";
+import {
+  activityLog,
+  agents,
+  chatConversations,
+  type Db,
+  issueComments,
+  issueExecutionDecisions,
+  issues,
+} from "@paperclipai/db";
 import type { IssueExecutionPolicy, IssueExecutionStage, IssueExecutionStagePrincipal } from "@paperclipai/shared";
 import { unprocessable } from "../errors.js";
 import { persistActivity } from "../services/activity-log.js";
@@ -396,13 +404,31 @@ export async function crewBeforeIssueWrite(input: IssueWriteHookInput): Promise<
   const nextStatus = has(patch, "status") ? String(patch.status) : locked.status;
   if (TERMINAL_STATUSES.has(locked.status) && !TERMINAL_STATUSES.has(nextStatus)) {
     // Mở lại issue Crew: xóa state cũ để stock chạy lại các stage của policy đã ghim từ đầu ở lần done sau.
-    const crewIssue = policyGateFingerprint(effectivePolicy(locked, patch)) !== "none";
-    if (crewIssue) input.patch.executionState = null;
+    const crewIssue = policyGateFingerprint(pinnedPolicy) !== "none";
+    let handBack: ReopenHandBack = { kind: "none" };
+    if (crewIssue) {
+      input.patch.executionState = null;
+      handBack = await reopenHandBack(tx, locked, patch, pinnedPolicy);
+      if (handBack.kind === "executor") {
+        input.patch.assigneeAgentId = handBack.agentId;
+        // Như runUpdate làm khi đổi owner: vô hiệu phiên bản handoff đã quan sát.
+        input.patch.statusVersion ??= sql`${issues.statusVersion} + 1` as unknown as number;
+      }
+    }
     await activity(CREW_CYCLE_RESET_ACTION, {
       fromStatus: locked.status,
       toStatus: nextStatus,
       executionStateCleared: crewIssue,
+      ...(handBack.kind === "executor"
+        ? { reassignedFromAgentId: locked.assigneeAgentId, reassignedToAgentId: handBack.agentId }
+        : {}),
     });
+    if (handBack.kind === "unknown") {
+      await activity("crew.gate.reopen_executor_unknown", {
+        assigneeAgentId: locked.assigneeAgentId,
+        reason: handBack.reason,
+      });
+    }
   }
   if (verdict.kind === "override") {
     await activity("crew.policy.board_override", { violations: verdict.violations, toStatus: patch.status ?? null });
@@ -410,4 +436,50 @@ export async function crewBeforeIssueWrite(input: IssueWriteHookInput): Promise<
   if (verdict.kind === "allow" && verdict.notes.includes("docs_uninitialized")) {
     await activity("crew.docs_gate.uninitialized", { note: "repo chưa crew-docs init; docs gate cho qua" });
   }
+}
+
+type ReopenHandBack = { kind: "none" } | { kind: "executor"; agentId: string } | { kind: "unknown"; reason: string };
+
+/** Trạng thái agent mà stock không cho nhận việc (`agent-assignability.ts`); `paused` được chấp nhận theo ruling. */
+const UNASSIGNABLE_AGENT_STATUSES = new Set(["terminated", "pending_approval"]);
+
+/**
+ * Issue Crew mở lại mà assignee là participant agent của một stage (reviewer/integrator): giao lại cho executor
+ * của vòng trước để vòng mới chạy đủ các stage. Executor chỉ lấy từ `returnAssignee` của state cũ (do transition
+ * stock ghi); không lấy từ comment, vì agent bất kỳ viết được comment.
+ */
+async function reopenHandBack(
+  tx: Db,
+  locked: typeof issues.$inferSelect,
+  patch: Readonly<Record<string, unknown>>,
+  policy: IssueExecutionPolicy | null,
+): Promise<ReopenHandBack> {
+  if (has(patch, "assigneeAgentId") || has(patch, "assigneeUserId")) return { kind: "none" };
+  const current = locked.assigneeAgentId;
+  if (!current || !policy) return { kind: "none" };
+  const participantAgents = new Set(
+    policy.stages.flatMap((s) => s.participants.flatMap((p) => (p.type === "agent" && p.agentId ? [p.agentId] : []))),
+  );
+  if (!participantAgents.has(current)) return { kind: "none" };
+
+  const returnAssignee = parseIssueExecutionState(locked.executionState)?.returnAssignee;
+  const candidate = returnAssignee?.type === "agent" ? (returnAssignee.agentId ?? null) : null;
+  if (!candidate) return { kind: "unknown", reason: "no_return_assignee" };
+  if (participantAgents.has(candidate)) return { kind: "unknown", reason: "executor_is_stage_participant" };
+
+  // Stock cấm đổi agent khi task gắn kênh ngoài (`chat_binding_agent_locked` trong issueService.update).
+  const [binding] = await tx
+    .select({ id: chatConversations.id })
+    .from(chatConversations)
+    .where(and(eq(chatConversations.companyId, locked.companyId), eq(chatConversations.issueId, locked.id)))
+    .limit(1);
+  if (binding) return { kind: "unknown", reason: "chat_bound" };
+
+  const [agent] = await tx
+    .select({ status: agents.status })
+    .from(agents)
+    .where(and(eq(agents.id, candidate), eq(agents.companyId, locked.companyId)))
+    .limit(1);
+  if (!agent || UNASSIGNABLE_AGENT_STATUSES.has(agent.status)) return { kind: "unknown", reason: "executor_unavailable" };
+  return { kind: "executor", agentId: candidate };
 }
