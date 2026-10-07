@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { test } from "node:test";
 
+const DOCS_CHECK_RE = /^crew-docs-check commit=([0-9a-f]{40}) range=([0-9a-f]{7,40})\.\.([0-9a-f]{40}) exit=([0-3])$/;
 const read = (name) => readFileSync(new URL(`./${name}.md`, import.meta.url), "utf8");
 const fill = (line) =>
   line
@@ -22,8 +23,15 @@ const templateLine = (text, prefix) => {
 };
 
 test("dòng mẫu crew-docs-check khớp regex của server", () => {
-  const re = /^crew-docs-check commit=([0-9a-f]{40}) range=([0-9a-f]{7,40})\.\.([0-9a-f]{40}) exit=([0-3])$/;
-  assert.match(templateLine(read("integrator"), "crew-docs-check commit="), re);
+  assert.match(templateLine(read("integrator"), "crew-docs-check commit="), DOCS_CHECK_RE);
+});
+
+const POLICY_SOURCE = new URL("../../server/src/crew/issue-policy.ts", import.meta.url);
+
+test("regex crew-docs-check trong test trùng chuỗi regex của server", { skip: !existsSync(POLICY_SOURCE) && "issue-policy.ts chưa có trên nhánh này" }, () => {
+  const match = /CREW_DOCS_CHECK_RE\s*=\s*\/(.+)\/;/.exec(readFileSync(POLICY_SOURCE, "utf8"));
+  assert.ok(match, "không tìm thấy CREW_DOCS_CHECK_RE");
+  assert.equal(match[1], DOCS_CHECK_RE.source);
 });
 
 test("dòng mẫu crew-commit của executor đúng định dạng", () => {
@@ -153,4 +161,14 @@ test("executor không nêu mã 78 mà bắt chạy workflow-check", () => {
   assert.doesNotMatch(text, /\b78\b/);
   assert.match(text, /bắt buộc chạy `crew-mac workflow-check --root/);
   assert.doesNotMatch(text, /git status --porcelain/);
+});
+
+test("reviewer có mục issue gốc và integrator nhận việc của issue gốc đang in_review", () => {
+  const reviewer = read("reviewer");
+  assert.match(reviewer, /## Issue gốc/);
+  assert.match(reviewer, /không đòi `crew-commit` trên issue gốc/);
+  assert.match(reviewer, /crew-review root children=/);
+  const merge = read("integrator");
+  assert.match(merge, /`status=in_review`, `executionState\.currentParticipant\.agentId` là ME/);
+  assert.match(merge, /không đòi `done` cho issue gốc/);
 });

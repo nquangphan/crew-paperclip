@@ -6,6 +6,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 const OWNED_FLAGS = new Set(["--setting-sources", "--plugin-dir"]);
+const WRAPPER_RE = /^\/.+\/\.crew\/bin\/crew-claude-run$/;
 const PIN_RE = /^\/.+\/\.crew\/workflows\/superpowers\/(?!\.\.?$)[^/]+$/;
 
 function isOwnedFlag(arg) {
@@ -31,6 +32,9 @@ export function mergeAgentConfig(agent, pinDir) {
   const config = agent.adapterConfig;
   if (!config || typeof config !== "object" || Array.isArray(config) || typeof config.command !== "string" || config.command === "") {
     throw new Error("agent has no adapterConfig.command: refusing to replace its adapterConfig");
+  }
+  if (!WRAPPER_RE.test(config.command)) {
+    throw new Error(`adapterConfig.command must be the absolute <home>/.crew/bin/crew-claude-run wrapper, got ${config.command}: pinning Superpowers without the wrapper skips its checks`);
   }
   const redacted = findRedacted(config, "adapterConfig");
   if (redacted) throw new Error(`${redacted} is redacted by the server and would be overwritten: refusing to patch`);

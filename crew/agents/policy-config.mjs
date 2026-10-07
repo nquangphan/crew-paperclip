@@ -9,7 +9,8 @@ import { fileURLToPath } from "node:url";
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export function buildPolicyConfig(existingText, companyId, roles) {
-  if (typeof companyId !== "string" || companyId.trim() === "") throw new Error("companyId is required");
+  if (typeof companyId !== "string" || !UUID_RE.test(companyId)) throw new Error(`companyId phải là uuid: ${companyId}`);
+  const companyKey = companyId.toLowerCase();
   const { reviewerAgentId, integratorAgentId, ownerUserId } = roles;
   for (const [name, value] of [["reviewerAgentId", reviewerAgentId], ["integratorAgentId", integratorAgentId]]) {
     if (typeof value !== "string" || !UUID_RE.test(value)) throw new Error(`${name} phải là uuid: ${value}`);
@@ -30,12 +31,18 @@ export function buildPolicyConfig(existingText, companyId, roles) {
     if (!parsed || typeof parsed !== "object" || typeof parsed.companies !== "object" || parsed.companies === null) {
       throw new Error("file cấu hình cũ thiếu object companies");
     }
-    companies = parsed.companies;
+    const seen = new Set();
+    for (const key of Object.keys(parsed.companies)) {
+      if (seen.has(key.toLowerCase())) throw new Error(`file cấu hình cũ có key company trùng khi bỏ hoa thường: ${key}`);
+      seen.add(key.toLowerCase());
+    }
+    // Replace any existing entry for this company whatever the case of its key, so one company never has two keys.
+    companies = Object.fromEntries(Object.entries(parsed.companies).filter(([key]) => key.toLowerCase() !== companyKey));
   }
   return {
     companies: {
       ...companies,
-      [companyId]: { reviewerAgentId, integratorAgentId, ownerUserId: ownerUserId.trim() },
+      [companyKey]: { reviewerAgentId, integratorAgentId, ownerUserId: ownerUserId.trim() },
     },
   };
 }

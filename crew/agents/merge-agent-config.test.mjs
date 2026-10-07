@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { mergeAgentConfig } from "./merge-agent-config.mjs";
 
-const agent = (adapterConfig) => ({ id: "a1", adapterConfig: { command: "/x/crew-claude-run", ...adapterConfig } });
+const agent = (adapterConfig) => ({ id: "a1", adapterConfig: { command: "/Users/a/.crew/bin/crew-claude-run", ...adapterConfig } });
 const PIN = "/Users/a/.crew/workflows/superpowers/6.4.1-5bf4e7801107";
 
 test("thay cờ setting-sources/plugin-dir cũ, giữ cấu hình khác", () => {
@@ -41,6 +41,12 @@ test("từ chối đầu vào không phải agent hợp lệ (thân lỗi, thi�
   assert.throws(() => mergeAgentConfig({ id: "a1" }, PIN), /adapterConfig\.command/);
   assert.throws(() => mergeAgentConfig({ id: "a1", adapterConfig: null }, PIN), /adapterConfig\.command/);
   assert.throws(() => mergeAgentConfig({ id: "a1", adapterConfig: { command: 5 } }, PIN), /adapterConfig\.command/);
+});
+
+test("từ chối command không phải wrapper crew-claude-run tuyệt đối", () => {
+  for (const command of ["claude", "/usr/local/bin/claude", ".crew/bin/crew-claude-run", "/x/crew-claude-run"]) {
+    assert.throws(() => mergeAgentConfig({ id: "a1", adapterConfig: { command } }, PIN), /wrapper/, command);
+  }
 });
 
 test("từ chối giá trị bị che ngoài env, cho phép trong env", () => {
