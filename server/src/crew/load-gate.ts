@@ -1,4 +1,5 @@
-import { and, asc, desc, eq, isNull, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gte, isNull, notExists, sql } from "drizzle-orm";
+import { alias } from "drizzle-orm/pg-core";
 import { activityLog, agents, type Db, heartbeatRuns, issueComments } from "@paperclipai/db";
 import { runSshCommand } from "@paperclipai/adapter-utils/ssh";
 import { logger } from "../middleware/logger.js";
@@ -7,7 +8,9 @@ import { resolveEnvironmentDriverConfigForRuntime } from "../services/environmen
 import { environmentService } from "../services/environments.js";
 import { CONVERSATION_CONTINUATION_POLICY, isConversationAdapter } from "../services/conversation-continuation.js";
 import { issueService } from "../services/issues.js";
-import { isRemoteStopPending } from "./remote-stop.js";
+import { buildHeartbeatRunStatusLiveEventPayload } from "../services/heartbeat-run-status-payload.js";
+import { publishLiveEvent } from "../services/live-events.js";
+import { REMOTE_STOP_STARTED_ACTION, isRemoteStopPending } from "./remote-stop.js";
 import {
   type RetryProgress,
   createRetryProgressChecker,
@@ -111,10 +114,19 @@ export interface BeforeClaimDeps {
    * so a stock path that cancels it while queued does not ask for a stop proof it can never have.
    */
   markHeld(run: BeforeClaimInput["run"]): Promise<void>;
-  /** Removes that marker before the run is claimed; a failure keeps the run queued. */
-  clearHeld(run: BeforeClaimInput["run"]): Promise<void>;
-  /** True while the stop of an earlier run (lease release, hook H3) is still running on this environment. */
-  remoteStopPending(environmentId: string): boolean;
+  /**
+   * Called whenever the gate would let a run be claimed. When the database still has the marker, the
+   * stock stale queued run gate runs first, so a run that went stale while held is cancelled with
+   * the marker in place ("cancelled"); otherwise the marker is removed with a conditional UPDATE
+   * ("claim"). A failure keeps the run queued.
+   */
+  releaseHeld(run: BeforeClaimInput["run"]): Promise<"claim" | "cancelled">;
+  /**
+   * True while the stop of an earlier run (lease release, hook H3) may still be running on this
+   * environment: a `crew.remote_stop.started` activity without a result, at most
+   * REMOTE_STOP_PENDING_WINDOW_MS old (survives a server restart).
+   */
+  remoteStopPending(environmentId: string): Promise<boolean>;
   /** Time of the first activity of this kind for the run (persisted, survives restarts), or null. */
   firstNoticeAt(runId: string, kind: NoticeKind): Promise<Date | null>;
   /** Persists the durable marker `crew.load_gate.<kind>`; the wait deadline is counted from the first one. */
@@ -246,20 +258,30 @@ export function hasNeverStartedMarker(resultJson: unknown): boolean {
 }
 
 export async function evaluateBeforeClaim(input: BeforeClaimInput, deps: BeforeClaimDeps): Promise<boolean> {
-  const hold = await decideBeforeClaim(input, deps);
+  let gated = false;
+  const hold = await decideBeforeClaim(input, {
+    ...deps,
+    loadTarget: async (run) => {
+      const target = await deps.loadTarget(run);
+      gated = target !== null;
+      return target;
+    },
+  });
   const { run } = input;
   if (run.status !== "queued") return hold;
   if (hold) {
     if (!hasNeverStartedMarker(run.resultJson)) await logFailure(run.id, "never-started marker", () => deps.markHeld(run));
     return true;
   }
-  if (!hasNeverStartedMarker(run.resultJson)) return false;
+  // The caller's copy of the run can predate a marker written by a concurrent evaluation, so the
+  // release always goes to the database. Runs the gate never looked at (no gated environment and no
+  // marker in their copy) skip it and keep the stock fail-open behaviour.
+  if (!gated && !hasNeverStartedMarker(run.resultJson)) return false;
   // A claimed run with the marker would look unstarted to stock recovery after a real failure.
   try {
-    await deps.clearHeld(run);
-    return false;
+    return (await deps.releaseHeld(run)) === "cancelled";
   } catch (err) {
-    logger.warn({ err, runId: run.id }, "crew-load-gate: clearing the never-started marker failed; the run stays held");
+    logger.warn({ err, runId: run.id }, "crew-load-gate: releasing the never-started marker failed; the run stays held");
     return true;
   }
 }
@@ -272,7 +294,7 @@ async function decideBeforeClaim(input: BeforeClaimInput, deps: BeforeClaimDeps)
   const expiredReason = `Crew: hết ${target.settings.maxWaitMinutes} phút chờ máy ${target.environmentName}`;
   // The previous run's processes may still be alive in the same worktree: wait for its stop (a few
   // seconds, bounded) before letting another run start there. No marker: this is not a host problem.
-  if (deps.remoteStopPending(target.environmentId)) return true;
+  if (await deps.remoteStopPending(target.environmentId)) return true;
 
   // Once the wait expired the run is on its way out: keep it queued, retry the cancel and a missing comment.
   if (await deps.firstNoticeAt(run.id, "expired")) {
@@ -347,6 +369,50 @@ async function logFailure(runId: string, what: string, action: () => Promise<voi
 }
 
 const probeCache = createProbeCache(LOAD_GATE_PROBE_TTL_MS);
+
+/**
+ * How long an unfinished `crew.remote_stop.started` keeps claims on its environment queued. Covers
+ * the 20 s background limit and, after a server restart killed the stop half way, the Mac reaper
+ * (60 s grace plus its launchd interval).
+ */
+export const REMOTE_STOP_PENDING_WINDOW_MS = 120_000;
+
+/**
+ * Runs the stock stale queued run gate (the same call claimQueuedRun makes right after this hook)
+ * while the never-started marker is still on the run, and publishes its status events like
+ * heartbeat does. Returns true when the run was cancelled.
+ */
+async function cancelIfStale(db: Db, run: BeforeClaimInput["run"]): Promise<boolean> {
+  const { createRunDispatch } = await import("../modules/run-dispatch/index.js");
+  const outcome = await createRunDispatch(db).cancelStaleQueuedRun({
+    runId: run.id,
+    companyId: run.companyId,
+    expectedStatus: "queued",
+  });
+  if (outcome.outcome !== "cancelled") return false;
+  for (const effect of outcome.postCommitEffects) {
+    if (effect.kind !== "run_status_published") continue;
+    publishLiveEvent({
+      companyId: effect.companyId,
+      type: "heartbeat.run.status",
+      payload: buildHeartbeatRunStatusLiveEventPayload({
+        id: effect.runId,
+        agentId: effect.agentId,
+        status: effect.status,
+        invocationSource: effect.invocationSource,
+        triggerDetail: effect.triggerDetail,
+        error: effect.error,
+        errorCode: effect.errorCode,
+        startedAt: effect.startedAt,
+        finishedAt: effect.finishedAt,
+        resultJson: effect.result,
+        contextSnapshot: { source: effect.contextSource },
+      }),
+    });
+  }
+  logger.info({ runId: run.id, errorCode: outcome.errorCode }, "crew-load-gate: stock cancelled a stale run the gate held");
+  return true;
+}
 
 /**
  * Cancel options for a run the gate held and is giving up on. It is still queued and never had a
@@ -481,7 +547,35 @@ export function defaultBeforeClaimDeps(db: Db): BeforeClaimDeps {
         details: {},
       });
     },
-    remoteStopPending: isRemoteStopPending,
+    async remoteStopPending(environmentId) {
+      if (isRemoteStopPending(environmentId)) return true;
+      const since = new Date(Date.now() - REMOTE_STOP_PENDING_WINDOW_MS);
+      const result = alias(activityLog, "crew_remote_stop_result");
+      const [row] = await db
+        .select({ id: activityLog.id })
+        .from(activityLog)
+        .where(
+          and(
+            eq(activityLog.action, REMOTE_STOP_STARTED_ACTION),
+            gte(activityLog.createdAt, since),
+            sql`${activityLog.details}->>'environmentId' = ${environmentId}`,
+            notExists(
+              db
+                .select({ id: result.id })
+                .from(result)
+                .where(
+                  and(
+                    eq(result.action, "crew.remote_stop"),
+                    eq(result.entityId, activityLog.entityId),
+                    gte(result.createdAt, activityLog.createdAt),
+                  ),
+                ),
+            ),
+          ),
+        )
+        .limit(1);
+      return Boolean(row);
+    },
     async markHeld(run) {
       await db
         .update(heartbeatRuns)
@@ -498,7 +592,13 @@ export function defaultBeforeClaimDeps(db: Db): BeforeClaimDeps {
           ),
         );
     },
-    async clearHeld(run) {
+    async releaseHeld(run) {
+      const [marked] = await db
+        .select({ id: heartbeatRuns.id })
+        .from(heartbeatRuns)
+        .where(and(eq(heartbeatRuns.id, run.id), sql`${heartbeatRuns.resultJson}->'executionRecovery'->>'heldBy' = ${NEVER_STARTED.heldBy}`))
+        .limit(1);
+      if (marked && (await cancelIfStale(db, run))) return "cancelled";
       await db
         .update(heartbeatRuns)
         .set({ resultJson: sql`${heartbeatRuns.resultJson} - 'executionRecovery'` })
@@ -508,6 +608,7 @@ export function defaultBeforeClaimDeps(db: Db): BeforeClaimDeps {
             sql`${heartbeatRuns.resultJson}->'executionRecovery'->>'heldBy' = ${NEVER_STARTED.heldBy}`,
           ),
         );
+      return "claim";
     },
     scheduleCancel(runId, reason) {
       setImmediate(() => {

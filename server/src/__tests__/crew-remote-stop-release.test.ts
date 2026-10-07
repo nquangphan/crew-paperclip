@@ -33,6 +33,7 @@ vi.mock("@paperclipai/adapter-utils/ssh", async (importOriginal) => ({
 vi.mock("../services/activity-log.js", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../services/activity-log.js")>()),
   logActivity: async (_db: unknown, entry: Record<string, unknown>) => {
+    if (entry.action === "crew.remote_stop.started") events.push("started");
     activities.push(entry);
   },
 }));
@@ -92,6 +93,13 @@ describe("H3 dừng run sau khi lease đã nhả", () => {
 
     expect(events).toContain("release");
     expect(events).not.toContain("ssh-end");
+    // The durable "stop in progress" marker is written before the SSH call and before the lease is released.
+    expect(activities[0]).toMatchObject({
+      action: "crew.remote_stop.started",
+      runId: RUN,
+      details: { environmentId: environment.id, runId: RUN },
+    });
+    expect(events.indexOf("started")).toBeLessThan(events.indexOf("release"));
     await vi.waitFor(() => expect(events).toContain("ssh-start"));
     expect(isRemoteStopPending(environment.id)).toBe(true);
 
@@ -99,9 +107,16 @@ describe("H3 dừng run sau khi lease đã nhả", () => {
     await vi.waitFor(() => expect(isRemoteStopPending(environment.id)).toBe(false));
     events.push("ssh-end");
     expect(events.indexOf("release")).toBeLessThan(events.indexOf("ssh-end"));
-    expect(activities).toEqual([
-      expect.objectContaining({ action: "crew.remote_stop", runId: RUN, details: expect.objectContaining({ outcome: "stopped", matched: 2 }) }),
+    expect(activities.slice(1)).toEqual([
+      expect.objectContaining({ action: "crew.remote_stop", runId: RUN, details: expect.objectContaining({ outcome: "stopped", matched: 2, environmentId: environment.id }) }),
     ]);
+  });
+
+  it("ghi kết quả cả khi không còn process nào để dừng, để dấu đang dừng trong DB được đóng", async () => {
+    runSsh.mockResolvedValue({ stdout: "crew-stop matched=0 killed=0 remaining=0 via=fallback\n" });
+    await sshDriver().releaseRunLease({ environment, lease, status: "released" });
+    await settleRemoteStopsForTests();
+    expect(activities.map((a) => a.action)).toEqual(["crew.remote_stop.started", "crew.remote_stop"]);
   });
 
   it("SSH lỗi thì ghi activity unreachable và bỏ dấu đang dừng", async () => {
@@ -111,7 +126,7 @@ describe("H3 dừng run sau khi lease đã nhả", () => {
 
     expect(releaseLease).toHaveBeenCalledWith("lease-1", "failed");
     await vi.waitFor(() => expect(isRemoteStopPending(environment.id)).toBe(false));
-    expect(activities).toEqual([
+    expect(activities.slice(1)).toEqual([
       expect.objectContaining({ action: "crew.remote_stop", details: expect.objectContaining({ outcome: "unreachable" }) }),
     ]);
   });
@@ -126,7 +141,7 @@ describe("H3 dừng run sau khi lease đã nhả", () => {
 
     await vi.advanceTimersByTimeAsync(1);
     expect(isRemoteStopPending(environment.id)).toBe(false);
-    expect(activities).toEqual([
+    expect(activities.slice(1)).toEqual([
       expect.objectContaining({
         action: "crew.remote_stop",
         details: expect.objectContaining({ outcome: "unreachable", error: expect.stringMatching(/20 giây/) }),

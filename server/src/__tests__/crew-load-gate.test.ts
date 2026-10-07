@@ -130,9 +130,9 @@ function harness(probe: HostProbe, now: Date, notices: Notices = {}, failComment
       events.push(`blocked:${issueId}`);
     },
     now: () => now,
-    remoteStopPending: () => false,
+    remoteStopPending: async () => false,
     markHeld: async () => {},
-    clearHeld: async () => {},
+    releaseHeld: async () => "claim",
     retryState: async () => ({ checked: true, pendingComment: null }),
     checkRetryProgress: async () => ({ kind: "none" }),
     recordRetryProgress: async () => null,
@@ -307,7 +307,7 @@ describe("evaluateBeforeClaim", () => {
       probed = true;
       return { ok: true, load1: 1 };
     };
-    h.deps.remoteStopPending = (environmentId) => environmentId === "env-1";
+    h.deps.remoteStopPending = async (environmentId) => environmentId === "env-1";
     expect(await evaluateBeforeClaim(h.input, h.deps)).toBe(true);
     expect(probed).toBe(false);
     expect(h.events).toEqual([]);
@@ -430,36 +430,45 @@ describe("never-started marker of a held run", () => {
     expect(await evaluateBeforeClaim(h.input, h.deps)).toBe(true);
   });
 
-  it("clears the marker before letting the run be claimed", async () => {
+  it("always releases the marker in the database before a claim, whatever its own copy of the run says", async () => {
     const h = harness({ ok: true, load1: 1 }, T0);
-    const cleared: string[] = [];
-    h.deps.clearHeld = async (r) => {
-      cleared.push(r.id);
+    const released: string[] = [];
+    h.deps.releaseHeld = async (r) => {
+      released.push(r.id);
+      return "claim";
     };
+    expect(await evaluateBeforeClaim(h.input, h.deps)).toBe(false);
     h.input.run = run({ resultJson: marked });
     expect(await evaluateBeforeClaim(h.input, h.deps)).toBe(false);
-    expect(cleared).toEqual(["run-1"]);
+    expect(released).toEqual(["run-1", "run-1"]);
   });
 
-  it("holds the run when the marker cannot be cleared", async () => {
+  it("does not claim a run the stock stale gate cancelled while it still carried the marker", async () => {
     const h = harness({ ok: true, load1: 1 }, T0);
-    h.deps.clearHeld = async () => {
-      throw new Error("db down");
-    };
-    h.input.run = run({ resultJson: marked });
+    h.deps.releaseHeld = async () => "cancelled";
     expect(await evaluateBeforeClaim(h.input, h.deps)).toBe(true);
   });
 
-  it("clears the marker even when the environment is no longer gated", async () => {
+  it("holds the run when the marker cannot be released", async () => {
     const h = harness({ ok: true, load1: 1 }, T0);
-    const cleared: string[] = [];
-    h.deps.loadTarget = async () => null;
-    h.deps.clearHeld = async (r) => {
-      cleared.push(r.id);
+    h.deps.releaseHeld = async () => {
+      throw new Error("db down");
     };
+    expect(await evaluateBeforeClaim(h.input, h.deps)).toBe(true);
+  });
+
+  it("releases a marker even when the environment is no longer gated", async () => {
+    const h = harness({ ok: true, load1: 1 }, T0);
+    const released: string[] = [];
+    h.deps.loadTarget = async () => null;
+    h.deps.releaseHeld = async (r) => {
+      released.push(r.id);
+      return "claim";
+    };
+    expect(await evaluateBeforeClaim(h.input, h.deps)).toBe(false);
     h.input.run = run({ resultJson: marked });
     expect(await evaluateBeforeClaim(h.input, h.deps)).toBe(false);
-    expect(cleared).toEqual(["run-1"]);
+    expect(released).toEqual(["run-1"]);
   });
 });
 
