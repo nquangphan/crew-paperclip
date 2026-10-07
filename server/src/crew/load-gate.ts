@@ -1,12 +1,17 @@
-import { and, asc, eq } from "drizzle-orm";
-import { activityLog, agents, type Db, type heartbeatRuns } from "@paperclipai/db";
+import { and, asc, desc, eq, sql } from "drizzle-orm";
+import { activityLog, agents, type Db, type heartbeatRuns, issueComments } from "@paperclipai/db";
 import { runSshCommand } from "@paperclipai/adapter-utils/ssh";
 import { logger } from "../middleware/logger.js";
 import { logActivity } from "../services/activity-log.js";
 import { resolveEnvironmentDriverConfigForRuntime } from "../services/environment-config.js";
 import { environmentService } from "../services/environments.js";
 import { issueService } from "../services/issues.js";
-import { type RetryProgress, createRetryProgressChecker, retryProgressComment } from "./retry-progress.js";
+import {
+  type RetryProgress,
+  createRetryProgressChecker,
+  retryProgressComment,
+  retryProgressCommentPrefix,
+} from "./retry-progress.js";
 
 /** Same shape as BeforeClaimInput in core-hooks.ts (not imported: implementations must not import the registry). */
 export interface BeforeClaimInput {
@@ -108,7 +113,10 @@ export interface BeforeClaimDeps {
     kind: "waiting" | "expired";
     details: Record<string, unknown>;
   }): Promise<void>;
-  /** Comments on the issue, then persists `crew.load_gate.<kind>_comment`. A failure is retried next tick. */
+  /**
+   * Comments on the issue (unless a comment for this run and kind is already there), then persists
+   * `crew.load_gate.<kind>_comment`. A failure is retried next tick.
+   */
   postComment(notice: {
     run: BeforeClaimInput["run"];
     issueId: string;
@@ -123,11 +131,19 @@ export interface BeforeClaimDeps {
   scheduleCancel(runId: string, reason: string): void;
   blockIssue(issueId: string): Promise<void>;
   now(): Date;
-  /** True once `crew.retry_progress.checked` exists for this run (the check runs once per run). */
-  retryChecked(runId: string): Promise<boolean>;
+  /**
+   * Whether `crew.retry_progress.checked` exists for this run (the SSH check runs once per run) and,
+   * when it does, the comment it recorded that still has no `crew.retry_progress.comment` marker.
+   */
+  retryState(runId: string): Promise<{ checked: false } | { checked: true; pendingComment: string | null }>;
   checkRetryProgress(run: BeforeClaimInput["run"]): Promise<RetryProgress>;
-  /** Comments the previous run's commits (when there are any), then persists `crew.retry_progress.checked`. */
-  recordRetryProgress(run: BeforeClaimInput["run"], issueId: string | null, progress: RetryProgress): Promise<void>;
+  /**
+   * Persists `crew.retry_progress.checked` with the result and, when the previous run left commits
+   * and the run has an issue, the comment to post. Returns that comment (or null).
+   */
+  recordRetryProgress(run: BeforeClaimInput["run"], issueId: string | null, progress: RetryProgress): Promise<string | null>;
+  /** Comments on the issue (unless already there), then persists `crew.retry_progress.comment`. */
+  postRetryComment(run: BeforeClaimInput["run"], issueId: string, body: string): Promise<void>;
 }
 
 function readIssueId(contextSnapshot: unknown): string | null {
@@ -138,20 +154,69 @@ function readIssueId(contextSnapshot: unknown): string | null {
 
 type GateTarget = NonNullable<Awaited<ReturnType<BeforeClaimDeps["loadTarget"]>>>;
 
+/** Start of the load gate comment of this kind for the run; also used to find an already posted comment. */
+export function noticeCommentPrefix(runId: string, kind: "waiting" | "expired"): string {
+  return kind === "waiting" ? `Run \`${runId}\` đang chờ máy` : `Run \`${runId}\` đã chờ máy`;
+}
+
 function waitingBody(runId: string, target: GateTarget, decision: Extract<GateDecision, { action: "wait" }>): string {
   return (
-    `Run \`${runId}\` đang chờ máy \`${target.environmentName}\`: ${decision.detail}. ` +
+    `${noticeCommentPrefix(runId, "waiting")} \`${target.environmentName}\`: ${decision.detail}. ` +
     `Run sẽ tự chạy khi máy ổn. Nếu tới ${TIME_FORMAT.format(decision.deadline)} vẫn chưa chạy được, ` +
     "Crew sẽ hủy run và chuyển issue sang `blocked`."
   );
 }
 
-function expiredBody(runId: string, target: GateTarget, detail?: string): string {
+function expiredBody(run: BeforeClaimInput["run"], target: GateTarget, detail?: string): string {
+  // A retry that never got through the gate never had its predecessor's commits checked, and the run
+  // created by moving the issue back to `todo` is not a retry, so it would not check them either.
+  const unchecked = run.retryOfRunId
+    ? ` Run này là lần chạy lại của run \`${run.retryOfRunId}\` nhưng Crew chưa kiểm và báo được các commit ` +
+      "run đó đã làm: chạy `git log --branches` trong worktree của agent và ghi lại phần đã xong trước khi " +
+      "chuyển issue về `todo`."
+    : "";
   return (
-    `Run \`${runId}\` đã chờ máy \`${target.environmentName}\` quá ${target.settings.maxWaitMinutes} phút` +
+    `${noticeCommentPrefix(run.id, "expired")} \`${target.environmentName}\` quá ${target.settings.maxWaitMinutes} phút` +
     `${detail ? ` (${detail})` : ""}. Crew hủy run và chuyển issue sang \`blocked\`. ` +
-    "Kiểm máy bằng `crew-mac doctor`, rồi chuyển issue về `todo` để chạy lại."
+    "Kiểm máy bằng `crew-mac doctor`, rồi chuyển issue về `todo` để chạy lại." +
+    unchecked
   );
+}
+
+function errorMessage(err: unknown): string {
+  return err instanceof Error ? err.message : String(err);
+}
+
+/**
+ * Runs the retry progress check once per run and returns null when the retry may be claimed, or the
+ * reason it must be held. The `checked` marker (with the comment to post) is written before the
+ * comment, so a failing comment is retried next tick without another SSH round trip.
+ */
+async function retryCheckFailure(
+  run: BeforeClaimInput["run"],
+  issueId: string | null,
+  deps: BeforeClaimDeps,
+): Promise<string | null> {
+  let comment: string | null;
+  try {
+    const state = await deps.retryState(run.id);
+    if (state.checked) {
+      comment = state.pendingComment;
+    } else {
+      const progress = await deps.checkRetryProgress(run);
+      if (progress.kind === "error") return progress.error;
+      comment = await deps.recordRetryProgress(run, issueId, progress);
+    }
+  } catch (err) {
+    return `không ghi hoặc đọc được kết quả kiểm: ${errorMessage(err)}`;
+  }
+  if (!comment || !issueId) return null;
+  try {
+    await deps.postRetryComment(run, issueId, comment);
+    return null;
+  } catch (err) {
+    return `không ghi được comment tiến độ: ${errorMessage(err)}`;
+  }
 }
 
 export async function evaluateBeforeClaim(input: BeforeClaimInput, deps: BeforeClaimDeps): Promise<boolean> {
@@ -168,7 +233,7 @@ export async function evaluateBeforeClaim(input: BeforeClaimInput, deps: BeforeC
     if (issueId) {
       await logFailure(run.id, "expired comment", async () => {
         if (await deps.firstNoticeAt(run.id, "expired_comment")) return;
-        await deps.postComment({ run, issueId, kind: "expired", body: expiredBody(run.id, target) });
+        await deps.postComment({ run, issueId, kind: "expired", body: expiredBody(run, target) });
       });
     }
     return true;
@@ -180,19 +245,11 @@ export async function evaluateBeforeClaim(input: BeforeClaimInput, deps: BeforeC
   let decision = decideGate({ settings: target.settings, probe, waitingSince: waitingSince ?? now, now });
   const issueId = readIssueId(run.contextSnapshot);
   if (decision.action === "claim") {
-    // A retry first learns what its lost predecessor already committed. When that cannot be checked
-    // the run is held like an unreachable host (same deadline), never rerun blind.
-    if (!run.retryOfRunId || (await deps.retryChecked(run.id))) return false;
-    const progress = await deps.checkRetryProgress(run);
-    let failure = progress.kind === "error" ? progress.error : null;
-    if (!failure) {
-      try {
-        await deps.recordRetryProgress(run, issueId, progress);
-        return false;
-      } catch (err) {
-        failure = err instanceof Error ? err.message : String(err);
-      }
-    }
+    // A retry first learns what its predecessor already committed. When that cannot be checked the
+    // run is held like an unreachable host (same marker and deadline), never rerun blind.
+    if (!run.retryOfRunId) return false;
+    const failure = await retryCheckFailure(run, issueId, deps);
+    if (!failure) return false;
     decision = decideGate({
       settings: target.settings,
       probe: { ok: false, error: `kiểm tiến độ lần chạy trước lỗi: ${failure}` },
@@ -227,7 +284,7 @@ export async function evaluateBeforeClaim(input: BeforeClaimInput, deps: BeforeC
   if (issueId) {
     await logFailure(run.id, "block issue", () => deps.blockIssue(issueId));
     await logFailure(run.id, "expired comment", () =>
-      deps.postComment({ run, issueId, kind: "expired", body: expiredBody(run.id, target, decision.detail) }),
+      deps.postComment({ run, issueId, kind: "expired", body: expiredBody(run, target, decision.detail) }),
     );
   }
   return true;
@@ -242,6 +299,20 @@ async function logFailure(runId: string, what: string, action: () => Promise<voi
 }
 
 const probeCache = createProbeCache(LOAD_GATE_PROBE_TTL_MS);
+
+/**
+ * The comment marker activity is written after the comment, so a comment that was stored while its
+ * marker failed would be posted again next tick. Comments of the gate start with a prefix unique to
+ * the run, which is checked before posting.
+ */
+async function hasCommentWithPrefix(db: Db, issueId: string, prefix: string): Promise<boolean> {
+  const [row] = await db
+    .select({ id: issueComments.id })
+    .from(issueComments)
+    .where(and(eq(issueComments.issueId, issueId), sql`left(${issueComments.body}, ${prefix.length}) = ${prefix}`))
+    .limit(1);
+  return Boolean(row);
+}
 
 export function defaultBeforeClaimDeps(db: Db): BeforeClaimDeps {
   return {
@@ -301,7 +372,9 @@ export function defaultBeforeClaimDeps(db: Db): BeforeClaimDeps {
       });
     },
     async postComment(notice) {
-      await issueService(db).addComment(notice.issueId, notice.body, {}, { authorType: "system" });
+      if (!(await hasCommentWithPrefix(db, notice.issueId, noticeCommentPrefix(notice.run.id, notice.kind)))) {
+        await issueService(db).addComment(notice.issueId, notice.body, {}, { authorType: "system" });
+      }
       await logActivity(db, {
         companyId: notice.run.companyId,
         actorType: "system",
@@ -326,19 +399,27 @@ export function defaultBeforeClaimDeps(db: Db): BeforeClaimDeps {
       await issueService(db).update(issueId, { status: "blocked" });
     },
     now: () => new Date(),
-    async retryChecked(runId) {
-      const [row] = await db
-        .select({ id: activityLog.id })
+    async retryState(runId) {
+      const [checked] = await db
+        .select({ details: activityLog.details })
         .from(activityLog)
         .where(and(eq(activityLog.runId, runId), eq(activityLog.action, "crew.retry_progress.checked")))
+        .orderBy(desc(activityLog.createdAt))
         .limit(1);
-      return Boolean(row);
+      if (!checked) return { checked: false };
+      const comment = (checked.details as Record<string, unknown> | null)?.comment;
+      if (typeof comment !== "string" || !comment) return { checked: true, pendingComment: null };
+      const [posted] = await db
+        .select({ id: activityLog.id })
+        .from(activityLog)
+        .where(and(eq(activityLog.runId, runId), eq(activityLog.action, "crew.retry_progress.comment")))
+        .limit(1);
+      return { checked: true, pendingComment: posted ? null : comment };
     },
     checkRetryProgress: createRetryProgressChecker(db),
     async recordRetryProgress(run, issueId, progress) {
-      if (progress.kind === "checked" && progress.commits.length > 0 && issueId) {
-        await issueService(db).addComment(issueId, retryProgressComment(progress), {}, { authorType: "system" });
-      }
+      const comment =
+        progress.kind === "checked" && progress.commits.length > 0 && issueId ? retryProgressComment(progress) : null;
       await logActivity(db, {
         companyId: run.companyId,
         actorType: "system",
@@ -351,8 +432,32 @@ export function defaultBeforeClaimDeps(db: Db): BeforeClaimDeps {
         issueId,
         details:
           progress.kind === "checked"
-            ? { previousRunId: progress.previousRunId, cwd: progress.cwd, commits: progress.commits.map((c) => c.sha) }
+            ? {
+                previousRunId: progress.previousRunId,
+                cwd: progress.cwd,
+                commits: progress.commits.map((c) => ({ sha: c.sha, branch: c.branch })),
+                ...(comment ? { comment } : {}),
+              }
             : { previousRunId: run.retryOfRunId, skipped: true },
+      });
+      return comment;
+    },
+    async postRetryComment(run, issueId, body) {
+      const prefix = retryProgressCommentPrefix(run.retryOfRunId ?? "");
+      if (!(await hasCommentWithPrefix(db, issueId, prefix))) {
+        await issueService(db).addComment(issueId, body, {}, { authorType: "system" });
+      }
+      await logActivity(db, {
+        companyId: run.companyId,
+        actorType: "system",
+        actorId: "crew",
+        action: "crew.retry_progress.comment",
+        entityType: "heartbeat_run",
+        entityId: run.id,
+        agentId: run.agentId,
+        runId: run.id,
+        issueId,
+        details: {},
       });
     },
   };
@@ -362,7 +467,13 @@ export async function crewBeforeClaim(input: BeforeClaimInput): Promise<boolean>
   try {
     return await evaluateBeforeClaim(input, defaultBeforeClaimDeps(input.db));
   } catch (err) {
-    logger.warn({ err, runId: input.run.id }, "crew-load-gate: failed open, run may be claimed");
-    return false;
+    // A retry claimed blind may redo committed work, so it is held (retried next tick, where the
+    // marker and deadline are written as soon as the database answers). Other runs fail open.
+    const hold = input.run.status === "queued" && Boolean(input.run.retryOfRunId);
+    logger.warn(
+      { err, runId: input.run.id },
+      hold ? "crew-load-gate: failed closed for a retry, run stays queued" : "crew-load-gate: failed open, run may be claimed",
+    );
+    return hold;
   }
 }
