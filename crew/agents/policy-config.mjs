@@ -1,6 +1,7 @@
 #!/usr/bin/env node
-// Prints the CREW_POLICY_CONFIG JSON with one company's Crew roles set. Never touches the server:
-// copy the output to the file the server's CREW_POLICY_CONFIG points at, then restart the server.
+// Prints the CREW_POLICY_CONFIG JSON with one company's Crew roles set. Never touches the server.
+// Without a config file argument the output holds only that company: copying it over the live file drops the
+// other companies. Pass the live file to merge into it. The server rereads the file on every gated write.
 // Usage: policy-config.mjs <companyId> <reviewerAgentId> <integratorAgentId> <ownerUserId> [existing config file]
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";

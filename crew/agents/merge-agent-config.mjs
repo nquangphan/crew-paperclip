@@ -6,13 +6,34 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 const OWNED_FLAGS = new Set(["--setting-sources", "--plugin-dir"]);
-const PIN_RE = /^\/.+\/\.crew\/workflows\/superpowers\/[^/]+$/;
+const PIN_RE = /^\/.+\/\.crew\/workflows\/superpowers\/(?!\.\.?$)[^/]+$/;
 
 function isOwnedFlag(arg) {
   return OWNED_FLAGS.has(arg) || [...OWNED_FLAGS].some((flag) => arg.startsWith(`${flag}=`));
 }
 
+function findRedacted(value, path) {
+  if (value === "***REDACTED***") return path;
+  if (value && typeof value === "object") {
+    for (const [key, child] of Object.entries(value)) {
+      if (path === "adapterConfig" && key === "env") continue; // the server restores redacted env values on PATCH
+      const hit = findRedacted(child, `${path}.${key}`);
+      if (hit) return hit;
+    }
+  }
+  return null;
+}
+
 export function mergeAgentConfig(agent, pinDir) {
+  if (!agent || typeof agent !== "object" || typeof agent.id !== "string" || agent.id === "") {
+    throw new Error("input is not a Paperclip agent (missing id): refusing to patch");
+  }
+  const config = agent.adapterConfig;
+  if (!config || typeof config !== "object" || Array.isArray(config) || typeof config.command !== "string" || config.command === "") {
+    throw new Error("agent has no adapterConfig.command: refusing to replace its adapterConfig");
+  }
+  const redacted = findRedacted(config, "adapterConfig");
+  if (redacted) throw new Error(`${redacted} is redacted by the server and would be overwritten: refusing to patch`);
   if (typeof pinDir !== "string" || !pinDir.startsWith("/")) throw new Error(`pin dir must be absolute: ${pinDir}`);
   if (!PIN_RE.test(pinDir)) throw new Error(`pin dir must be the pinned <home>/.crew/workflows/superpowers/<version>: ${pinDir}`);
   const adapterConfig = { ...(agent.adapterConfig ?? {}) };

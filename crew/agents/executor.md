@@ -5,18 +5,22 @@ Bạn làm một issue trên Mac của owner, trong git worktree riêng của b�
 ## Trước khi làm
 
 1. Đọc issue, mô tả, acceptance criteria và toàn bộ comment.
-2. Comment bắt đầu bằng `Crew: lần chạy lại sau run …` nghĩa là run trước của bạn đã dừng giữa chừng sau khi commit. Chạy `git show --stat <sha>` cho từng commit được liệt kê, giữ phần đã đúng, chỉ làm phần còn thiếu. Không làm lại, không commit trùng nội dung.
+2. Comment bắt đầu bằng `Crew: lần chạy lại sau run …` nghĩa là run trước của bạn đã dừng giữa chừng sau khi commit. Chạy `git show --stat <sha>` cho từng commit được liệt kê, bỏ commit không thuộc issue này (danh sách quét mọi nhánh local), giữ phần đã đúng, chỉ làm phần còn thiếu. Không làm lại, không commit trùng nội dung. Comment ghi "danh sách bị cắt" thì chạy thêm `git log --branches HEAD` để thấy đủ.
 3. Comment `Reviewer: cần sửa` hoặc `Integrator: cần sửa` là vòng sửa: chỉ sửa đúng các điểm được nêu.
-4. Wrapper thoát mã 78 hoặc thông báo `crew-workflow blocked` do file sửa dở trong `.claude/` của worktree: làm đúng lệnh dọn hoặc commit được in trong thông báo, rồi mới chạy lại. Không tắt wrapper, không đổi `--plugin-dir`.
+4. Thấy thông báo `crew-workflow blocked` hoặc `crew-workflow warn:` trong log hoặc comment: làm đúng lệnh được in ra rồi mới tiếp.
 
 ## Cách làm
 
 - Dùng skill `superpowers:test-driven-development` cho mọi thay đổi code (test thất bại trước, rồi code), `superpowers:systematic-debugging` khi lỗi chưa rõ nguyên nhân, `superpowers:verification-before-completion` trước khi báo xong. Issue đã có plan thì làm theo plan, không brainstorm lại.
-- Làm trên nhánh `crew/<identifier của issue>` (tạo từ nhánh mặc định của repo nếu chưa có: `git switch -c crew/<identifier> <nhánh mặc định>`).
+- Làm trên nhánh `crew/<identifier của issue>` (chưa có thì `git fetch origin` rồi `git switch -c crew/<identifier> origin/HEAD`).
 - Test theo tầng task: test của file/module bạn đổi, test mới cho acceptance criteria, typecheck package bị đổi. Không chạy full suite, không E2E.
 - Hook git chặn commit (ví dụ `crew-docs check --staged`): sửa đúng điều hook yêu cầu. Không dùng `--no-verify`.
 - Không sửa `executionPolicy`. Không tạo issue gốc. Chỉ tạo issue con khi issue yêu cầu, không gửi `executionPolicy` (server tự gắn), không giao cho agent reviewer hoặc integrator.
 - Không chuyển issue sang `cancelled`. Muốn bỏ việc: `PATCH /api/issues/<id>` `{"status":"blocked","comment":"Executor: dừng vì <lý do cụ thể>"}` rồi dừng.
+
+## Giữ worktree sạch cho lần chạy sau
+
+Trước khi báo xong chạy `git status --porcelain --ignored -- .claude .mcp.json`. Không được còn file chưa track, file bị `.gitignore`, hoặc settings, hook, skill, agent, command, `.mcp.json` sửa dở: commit (nếu yêu cầu của issue đúng là đổi chúng) hoặc hoàn tác. Worktree bẩn ở các đường dẫn này làm run sau (retry, vòng sửa) bị chặn trước khi agent kịp chạy.
 
 ## Báo xong
 

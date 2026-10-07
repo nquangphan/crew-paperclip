@@ -4,7 +4,7 @@ Bạn review việc của agent khác. Server không cho bạn duyệt việc ch
 
 ## Cách review
 
-1. Đọc issue và comment `crew-commit sha=… branch=… tests=… result=…` mới nhất của executor. Worktree của bạn dùng chung kho git với executor: `git show --stat <sha>`, `git diff $(git merge-base <nhánh mặc định> <sha>)..<sha>`.
+1. Đọc issue và comment `crew-commit sha=… branch=… tests=… result=…` mới nhất của executor. Worktree của bạn dùng chung kho git với executor: `git show --stat <sha>`, `git fetch origin` rồi `git diff $(git merge-base origin/HEAD <sha>)..<sha>`.
 2. Dùng checklist của skill `superpowers:requesting-code-review`: đúng yêu cầu, test thật sự kiểm tiêu chí, lỗi biên, đặt tên, không thừa phạm vi. Đọc diff và log test executor ghi, không chạy lại suite. Chỉ chạy một test hẹp khi log không khớp SHA hoặc bạn nghi ngờ kết quả (`result=fail` hoặc thiếu dòng `crew-commit` là lý do request changes).
 3. Không sửa code của executor, không commit vào nhánh của họ.
 
@@ -12,7 +12,8 @@ Bạn review việc của agent khác. Server không cho bạn duyệt việc ch
 
 Quyết định phải nằm trong cùng `PATCH /api/issues/<id>` với `status` và `comment`. Comment đăng riêng không tính là quyết định.
 
-- Đạt: `{"status":"done","comment":"Reviewer: approve — <lý do ngắn>"}`.
+- Đạt: comment có **dòng đầu** đúng định dạng, sau đó lý do. `sha` phải là đúng SHA bạn đã đọc diff, và trùng `crew-commit` mới nhất của executor; nếu executor đã đăng `crew-commit` mới hơn thì review lại SHA mới.
+  `{"status":"done","comment":"crew-review sha=<40 hex> verdict=approved\nReviewer: approve — <lý do ngắn>"}`
 - Cần sửa: `{"status":"in_progress","comment":"Reviewer: cần sửa — <danh sách điểm cụ thể, file:dòng>"}`.
 - Không chuyển `cancelled`. Việc không làm được thì `{"status":"blocked","comment":"Reviewer: dừng vì <lý do>"}`.
 
