@@ -4,11 +4,13 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { eq } from "drizzle-orm";
-import { agents, companies, createDb, issues } from "@paperclipai/db";
+import { agents, companies, createDb, issues, projects } from "@paperclipai/db";
 import { getEmbeddedPostgresTestSupport, startEmbeddedPostgresTestDatabase } from "./helpers/embedded-postgres.js";
 import { decideCreatePolicy } from "../crew/issue-create-policy.ts";
-import { CREW_POLICY_CONFIG_ENV } from "../crew/issue-policy.ts";
+import { buildCrewPolicy, CREW_POLICY_CONFIG_ENV } from "../crew/issue-policy.ts";
+import { heartbeatService } from "../services/heartbeat.ts";
 import { issueService } from "../services/issues.js";
+import { routineService } from "../services/routines.ts";
 
 const roles = { reviewerAgentId: "r", integratorAgentId: "i" };
 
@@ -73,6 +75,24 @@ describe("decideCreatePolicy", () => {
       }),
     ).toEqual({ kind: "keep" });
   });
+  it("issue watchdog/recovery giao cho chính executor của issue nguồn: template con", () => {
+    expect(
+      decideCreatePolicy({
+        data: { parentId: "p", originKind: "stranded_issue_recovery", assigneeAgentId: "e" },
+        roles,
+        ownerUserId: "owner-1",
+        sourceExecutorAgentIds: ["e"],
+      }),
+    ).toEqual({ kind: "set", template: "child" });
+    expect(
+      decideCreatePolicy({
+        data: { parentId: "p", originKind: "task_watchdog", assigneeAgentId: "w" },
+        roles,
+        ownerUserId: "owner-1",
+        sourceExecutorAgentIds: ["e"],
+      }),
+    ).toEqual({ kind: "keep" });
+  });
   it("hệ thống tạo issue watchdog/recovery: giữ hành vi stock, không policy", () => {
     for (const originKind of ["task_watchdog", "stale_active_run_evaluation", "stranded_issue_recovery"]) {
       expect(decideCreatePolicy({ data: { parentId: "p", originKind }, roles, ownerUserId: "owner-1" })).toEqual({
@@ -83,11 +103,18 @@ describe("decideCreatePolicy", () => {
       });
     }
   });
-  it("hệ thống tạo issue routine hoặc nguồn không nhận diện được: template con như agent tạo", () => {
+  it("hệ thống tạo issue routine hoặc nguồn không nhận diện được: con → template con, gốc → template gốc", () => {
     for (const originKind of ["routine_execution", "manual", "plugin:x", undefined]) {
       expect(
-        decideCreatePolicy({ data: { originKind, executionPolicy: { stages: [] } }, roles, ownerUserId: "owner-1" }),
+        decideCreatePolicy({
+          data: { originKind, parentId: "p", executionPolicy: { stages: [] } },
+          roles,
+          ownerUserId: "owner-1",
+        }),
       ).toEqual({ kind: "set", template: "child" });
+      expect(
+        decideCreatePolicy({ data: { originKind, executionPolicy: { stages: [] } }, roles, ownerUserId: "owner-1" }),
+      ).toEqual({ kind: "set", template: "root", ownerUserId: "owner-1" });
     }
     expect(decideCreatePolicy({ data: { originKind: "routine_execution" }, roles: null, ownerUserId: null })).toEqual({
       kind: "reject",
@@ -238,25 +265,175 @@ suite("crew policy in issueService.create", () => {
     expect((await issueService(db).update(byAgent.id, { status: "done", actorAgentId: executorId }))?.status).toBe("done");
   });
 
-  it("hệ thống tạo issue routine: template con, agent không done thẳng được", async () => {
-    const { companyId, executorId, reviewerId } = await seed();
+  type StagePolicy = { stages: Array<{ type: string; participants: Array<{ agentId: string | null; userId: string | null }> }> };
+  const principals = (policy: unknown) =>
+    (policy as StagePolicy).stages.map((s) => [s.type, s.participants[0]!.agentId ?? s.participants[0]!.userId]);
+
+  it("hệ thống tạo issue routine cấp gốc: template gốc ba stage, agent không done thẳng được", async () => {
+    const { companyId, executorId, reviewerId, integratorId } = await seed();
     const created = await issueService(db).create(companyId, {
       title: "routine",
       originKind: "routine_execution",
       originId: randomUUID(),
       assigneeAgentId: executorId,
     });
-    const policy = created.executionPolicy as { stages: Array<{ participants: Array<{ agentId: string | null }> }> };
-    expect(policy.stages.map((s) => s.participants[0]!.agentId)).toEqual([reviewerId]);
+    expect(principals(created.executionPolicy)).toEqual([
+      ["review", reviewerId],
+      ["review", integratorId],
+      ["approval", "owner-1"],
+    ]);
     await expect(
       issueService(db).update(created.id, { status: "done", actorAgentId: executorId }),
     ).rejects.toMatchObject({ status: 422, details: { code: "crew_gate_blocked" } });
   });
 
-  it("hệ thống tạo issue nguồn không nhận diện được (manual): template con", async () => {
+  it("hệ thống tạo issue con nguồn routine: template con", async () => {
+    const { companyId, executorId, reviewerId, rootId } = await seed();
+    const created = await issueService(db).create(companyId, {
+      title: "routine con",
+      parentId: rootId,
+      originKind: "routine_execution",
+      originId: randomUUID(),
+      assigneeAgentId: executorId,
+    });
+    expect(principals(created.executionPolicy)).toEqual([["review", reviewerId]]);
+  });
+
+  it("hệ thống tạo issue nguồn không nhận diện được (manual) cấp gốc: template gốc", async () => {
     const { companyId } = await seed();
     const created = await issueService(db).create(companyId, { title: "khác" });
-    expect((created.executionPolicy as { stages: unknown[] }).stages).toHaveLength(1);
+    expect((created.executionPolicy as StagePolicy).stages.map((s) => s.type)).toEqual(["review", "review", "approval"]);
+  });
+
+  it("agent tạo routine giao cho chính mình: issue routine sinh ra cần integrator và owner", async () => {
+    const { companyId, executorId, reviewerId, integratorId } = await seed();
+    const projectId = randomUUID();
+    await db.insert(projects).values({ id: projectId, companyId, name: "Routines", status: "in_progress" });
+    const routines = routineService(db, { heartbeat: { wakeup: async () => null } });
+    const routine = await routines.create(
+      companyId,
+      {
+        projectId,
+        goalId: null,
+        parentIssueId: null,
+        title: "tự làm hằng ngày",
+        description: "routine của executor",
+        assigneeAgentId: executorId,
+        priority: "medium",
+        status: "active",
+        concurrencyPolicy: "coalesce_if_active",
+        catchUpPolicy: "skip_missed",
+      },
+      { agentId: executorId },
+    );
+    const run = await routines.runRoutine(routine.id, { source: "schedule" });
+    expect(run.linkedIssueId).toBeTruthy();
+    const [row] = await db.select().from(issues).where(eq(issues.id, run.linkedIssueId!));
+    expect(row!.createdByAgentId).toBeNull();
+    expect(principals(row!.executionPolicy)).toEqual([
+      ["review", reviewerId],
+      ["review", integratorId],
+      ["approval", "owner-1"],
+    ]);
+    await expect(
+      issueService(db).update(row!.id, { status: "done", actorAgentId: executorId }),
+    ).rejects.toMatchObject({ status: 422 });
+  });
+
+  it("monitor create_recovery_issue do executor đặt: issue recovery giao lại executor nhận template con", async () => {
+    const { companyId, executorId, reviewerId, integratorId } = await seed();
+    const sourceId = randomUUID();
+    const nextCheckAt = new Date("2026-04-11T12:30:00.000Z");
+    const monitor = {
+      nextCheckAt: nextCheckAt.toISOString(),
+      notes: "Check deploy",
+      scheduledBy: "assignee",
+      timeoutAt: "2026-04-11T12:00:00.000Z",
+      recoveryPolicy: "create_recovery_issue",
+    };
+    const crewChild = {
+      ...buildCrewPolicy("child", { reviewerAgentId: reviewerId, integratorAgentId: integratorId }),
+      monitor,
+    };
+    await db.insert(issues).values({
+      id: sourceId,
+      companyId,
+      title: "Việc có monitor",
+      status: "in_progress",
+      priority: "medium",
+      assigneeAgentId: executorId,
+      createdByUserId: "owner-1",
+      responsibleUserId: "owner-1",
+      executionPolicy: crewChild,
+      executionState: {
+        status: "idle",
+        currentStageId: null,
+        currentStageIndex: null,
+        currentStageType: null,
+        currentParticipant: null,
+        returnAssignee: null,
+        completedStageIds: [],
+        lastDecisionId: null,
+        lastDecisionOutcome: null,
+        monitor: {
+          status: "scheduled",
+          nextCheckAt: nextCheckAt.toISOString(),
+          lastTriggeredAt: null,
+          attemptCount: 0,
+          notes: "Check deploy",
+          scheduledBy: "assignee",
+          serviceName: null,
+          externalRef: null,
+          timeoutAt: monitor.timeoutAt,
+          maxAttempts: null,
+          recoveryPolicy: "create_recovery_issue",
+          clearedAt: null,
+          clearReason: null,
+        },
+      },
+      monitorNextCheckAt: nextCheckAt,
+      monitorAttemptCount: 0,
+      monitorNotes: "Check deploy",
+      monitorScheduledBy: "assignee",
+    });
+
+    await heartbeatService(db).tickTimers(new Date("2026-04-11T12:31:00.000Z"));
+
+    const [recovery] = await db.select().from(issues).where(eq(issues.originId, sourceId));
+    expect(recovery).toMatchObject({ originKind: "stranded_issue_recovery", parentId: sourceId, assigneeAgentId: executorId });
+    expect(principals(recovery!.executionPolicy)).toEqual([["review", reviewerId]]);
+    await expect(
+      issueService(db).update(recovery!.id, { status: "done", actorAgentId: executorId }),
+    ).rejects.toMatchObject({ status: 422, details: { code: "crew_gate_blocked" } });
+  });
+
+  it("issue recovery không policy: executor của issue nguồn không done được, agent khác thì được", async () => {
+    const { companyId, executorId, reviewerId, rootId } = await seed();
+    await db.update(issues).set({ assigneeAgentId: executorId }).where(eq(issues.id, rootId));
+    const insertRecovery = async () => {
+      const id = randomUUID();
+      await db.insert(issues).values({
+        id,
+        companyId,
+        title: "recovery",
+        status: "todo",
+        parentId: rootId,
+        assigneeAgentId: executorId,
+        originKind: "stranded_issue_recovery",
+        originId: rootId,
+        originFingerprint: randomUUID(),
+      });
+      return id;
+    };
+    const mine = await insertRecovery();
+    await expect(
+      issueService(db).update(mine, { status: "done", actorAgentId: executorId }),
+    ).rejects.toMatchObject({ status: 422, details: { violations: ["policy_missing"] } });
+    // Mỗi issue nguồn chỉ có một issue recovery đang mở (unique index stock).
+    await db.update(issues).set({ status: "cancelled" }).where(eq(issues.id, mine));
+    const other = await insertRecovery();
+    await db.update(issues).set({ assigneeAgentId: reviewerId }).where(eq(issues.id, other));
+    expect((await issueService(db).update(other, { status: "done", actorAgentId: reviewerId }))?.status).toBe("done");
   });
 
   it("company không có trong file cấu hình: agent tạo issue gốc như stock", async () => {

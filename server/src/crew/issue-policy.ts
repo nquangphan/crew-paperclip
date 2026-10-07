@@ -1,7 +1,9 @@
 import { readFile } from "node:fs/promises";
+import { eq } from "drizzle-orm";
+import { type Db, issues } from "@paperclipai/db";
 import type { IssueExecutionPolicy } from "@paperclipai/shared";
 import { logger } from "../middleware/logger.js";
-import { normalizeIssueExecutionPolicy } from "../services/issue-execution-policy.js";
+import { normalizeIssueExecutionPolicy, parseIssueExecutionState } from "../services/issue-execution-policy.js";
 
 /** Vòng review agent↔agent tối đa của mọi issue Crew; tới vòng này stage được giao cho owner. */
 export const CREW_MAX_REVIEW_ROUNDS = 5;
@@ -94,6 +96,33 @@ export function isCrewHousekeepingIssue(issue: {
   createdByUserId: string | null | undefined;
 }): boolean {
   return isCrewHousekeepingOrigin(issue.originKind) && !issue.createdByAgentId && !issue.createdByUserId;
+}
+
+/** Issue nguồn của issue watchdog/recovery: `parentId`, không có thì `originId` (khi là uuid). */
+export function housekeepingSourceIssueId(issue: {
+  parentId?: string | null;
+  originId?: string | null;
+}): string | null {
+  if (issue.parentId) return issue.parentId;
+  return issue.originId && UUID_RE.test(issue.originId) ? issue.originId : null;
+}
+
+/**
+ * Agent đang làm issue nguồn: assignee và `returnAssignee` (khi issue nguồn đang chờ review). Issue
+ * watchdog/recovery giao cho chính những agent này không được miễn policy (không tự đẩy việc ra ngoài review).
+ */
+export async function loadSourceExecutorAgentIds(db: Db, sourceIssueId: string | null): Promise<string[]> {
+  if (!sourceIssueId) return [];
+  const [source] = await db
+    .select({ assigneeAgentId: issues.assigneeAgentId, executionState: issues.executionState })
+    .from(issues)
+    .where(eq(issues.id, sourceIssueId))
+    .limit(1);
+  if (!source) return [];
+  const returnAssignee = parseIssueExecutionState(source.executionState)?.returnAssignee;
+  return [source.assigneeAgentId, returnAssignee?.type === "agent" ? returnAssignee.agentId : null].filter(
+    (id): id is string => typeof id === "string" && id.length > 0,
+  );
 }
 
 const loggedProblems = new Set<string>();

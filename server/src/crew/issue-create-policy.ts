@@ -1,6 +1,13 @@
 import type { Db } from "@paperclipai/db";
 import { unprocessable } from "../errors.js";
-import { buildCrewPolicy, type CrewRoles, isCrewHousekeepingOrigin, loadCrewCompanyConfig } from "./issue-policy.js";
+import {
+  buildCrewPolicy,
+  type CrewRoles,
+  housekeepingSourceIssueId,
+  isCrewHousekeepingOrigin,
+  loadCrewCompanyConfig,
+  loadSourceExecutorAgentIds,
+} from "./issue-policy.js";
 
 /** Cùng shape với IssueCreateLike trong core-hooks.ts (không import registry). */
 export interface IssueCreateFields {
@@ -10,6 +17,7 @@ export interface IssueCreateFields {
   assigneeAgentId?: string | null;
   status?: string | null;
   originKind?: string | null;
+  originId?: string | null;
   executionPolicy?: unknown;
 }
 
@@ -29,13 +37,16 @@ const AGENT_CREATE_FORBIDDEN_STATUSES = new Set(["done", "cancelled", "in_review
  * Chỉ gọi cho company có trong file cấu hình Crew (`roles` null = cấu hình lỗi).
  * Agent chỉ tạo được issue con và luôn nhận template con (mọi policy agent gửi bị thay). Board gửi policy riêng
  * thì giữ; không gửi thì nhận template theo loại issue, owner của template gốc lấy từ file cấu hình.
- * Hệ thống (không người tạo): issue watchdog/recovery giữ hành vi stock; routine và mọi nguồn khác (kể cả nguồn
- * không nhận diện được) nhận template con như agent tạo, tức là phải qua reviewer.
+ * Hệ thống (không người tạo): issue watchdog/recovery giữ hành vi stock, trừ khi giao lại cho agent đang làm issue
+ * nguồn (khi đó nhận template con); routine và mọi nguồn khác (kể cả không nhận diện được) nhận template con nếu có
+ * `parentId`, template gốc (owner từ file cấu hình) nếu không.
  */
 export function decideCreatePolicy(input: {
   data: IssueCreateFields;
   roles: CrewRoles | null;
   ownerUserId: string | null;
+  /** Agent đang làm issue nguồn (assignee, `returnAssignee`) của issue watchdog/recovery. */
+  sourceExecutorAgentIds?: readonly string[];
 }): CreatePolicyDecision {
   const { data, roles } = input;
   if (data.createdByAgentId) {
@@ -50,9 +61,12 @@ export function decideCreatePolicy(input: {
     return { kind: "set", template: "child" };
   }
   if (!data.createdByUserId?.trim()) {
-    if (isCrewHousekeepingOrigin(data.originKind)) return { kind: "keep" };
+    const handedBackToExecutor =
+      !!data.assigneeAgentId && (input.sourceExecutorAgentIds ?? []).includes(data.assigneeAgentId);
+    if (isCrewHousekeepingOrigin(data.originKind) && !handedBackToExecutor) return { kind: "keep" };
     if (!roles) return { kind: "reject", code: "crew_roles_unconfigured" };
-    return { kind: "set", template: "child" };
+    if (data.parentId || !input.ownerUserId) return { kind: "set", template: "child" };
+    return { kind: "set", template: "root", ownerUserId: input.ownerUserId };
   }
   if (data.executionPolicy != null || !roles) return { kind: "keep" };
   if (data.parentId) return { kind: "set", template: "child" };
@@ -75,7 +89,13 @@ export async function crewBeforeIssueCreate<T extends IssueCreateFields>(input: 
   if (config.kind === "absent") return input.data;
   const roles = config.kind === "ok" ? config.roles : null;
   const ownerUserId = config.kind === "ok" ? config.ownerUserId : null;
-  const decision = decideCreatePolicy({ data: input.data, roles, ownerUserId });
+  const { data } = input;
+  const needsSource =
+    !data.createdByAgentId && !data.createdByUserId?.trim() && !!data.assigneeAgentId && isCrewHousekeepingOrigin(data.originKind);
+  const sourceExecutorAgentIds = needsSource
+    ? await loadSourceExecutorAgentIds(input.db, housekeepingSourceIssueId(data))
+    : [];
+  const decision = decideCreatePolicy({ data, roles, ownerUserId, sourceExecutorAgentIds });
   if (decision.kind === "keep") return input.data;
   if (decision.kind === "reject") throw unprocessable(MESSAGES[decision.code], { code: decision.code });
   // `roles` khác null ở mọi nhánh `set` của decideCreatePolicy.

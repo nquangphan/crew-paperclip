@@ -7,8 +7,10 @@ import { normalizeIssueExecutionPolicy, parseIssueExecutionState } from "../serv
 import {
   type CrewRoles,
   type DocsCheckEvidence,
+  housekeepingSourceIssueId,
   isCrewHousekeepingIssue,
   loadCrewCompanyConfig,
+  loadSourceExecutorAgentIds,
   parseDocsCheckEvidence,
   policyGateFingerprint,
 } from "./issue-policy.js";
@@ -287,6 +289,13 @@ export async function crewBeforeIssueWrite(input: IssueWriteHookInput): Promise<
     if (comment && evidence) docsEvidence = { evidence, createdAt: comment.createdAt };
   }
 
+  // Issue watchdog/recovery chỉ được miễn khi người ghi không phải agent đang làm issue nguồn.
+  let housekeeping = isCrewHousekeepingIssue(locked);
+  if (housekeeping && actor.kind === "agent") {
+    const sourceExecutors = await loadSourceExecutorAgentIds(tx, housekeepingSourceIssueId(locked));
+    housekeeping = !sourceExecutors.includes(actor.agentId);
+  }
+
   const verdict = evaluateIssueGate({
     locked: {
       status: locked.status,
@@ -294,7 +303,7 @@ export async function crewBeforeIssueWrite(input: IssueWriteHookInput): Promise<
       executionState: locked.executionState,
       assigneeAgentId: locked.assigneeAgentId,
       assigneeUserId: locked.assigneeUserId,
-      housekeeping: isCrewHousekeepingIssue(locked),
+      housekeeping,
     },
     patch,
     actor,
