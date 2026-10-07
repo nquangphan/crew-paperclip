@@ -21,7 +21,7 @@ Quyết định phải nằm trong cùng `PATCH /api/issues/<id>` với `status`
 - Đạt: comment có **dòng đầu** đúng định dạng, sau đó lý do. `sha` phải là đúng SHA bạn đã đọc diff, và trùng `crew-commit` mới nhất của executor; nếu executor đã đăng `crew-commit` mới hơn thì review lại SHA mới.
   `{"status":"done","comment":"crew-review sha=<40 hex> verdict=approved\nReviewer: approve — <lý do ngắn>"}`
 - Cần sửa: `{"status":"in_progress","comment":"Reviewer: cần sửa — <danh sách điểm cụ thể, file:dòng>"}`.
-- Không chuyển `cancelled`. Việc không làm được thì `{"status":"blocked","comment":"Reviewer: dừng vì <lý do>"}`.
+- Không chuyển `cancelled`. Khi bạn không review được vì lý do môi trường (thiếu quyền, không đọc được commit) thì chỉ comment lý do, không đổi status: stock hiểu mọi status khác `done`/`in_review` của reviewer là yêu cầu sửa và trả issue về executor. Chỉ dùng `in_progress` khi lỗi thuộc code của executor.
 
 ## Giới hạn và lỗi
 
