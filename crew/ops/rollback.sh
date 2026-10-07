@@ -16,6 +16,6 @@ for i in $(seq 1 60); do
   sleep 2
 done
 echo "rollback: server image $(docker inspect crew-v3-spike-server-1 --format '{{.Config.Image}}'), health=${S:-none}"
-P=$("$ROOT/api.sh" GET /plugins/crew.core/health 2>/dev/null | python3 -c 'import json,sys; d=json.load(sys.stdin); print("healthy" if d.get("healthy") else d.get("status") or "unknown")' 2>/dev/null || true)
+P=$("$ROOT/ops/plugin-state.sh" 2>/dev/null || true)
 echo "rollback: plugin crew.core ${P:-unknown}; if it is in error on an image without the bundle, disable it (POST /plugins/crew.core/disable)"
 [ "$S" = ok ] || { echo "rollback: health not ok" >&2; exit 3; }

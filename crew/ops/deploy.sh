@@ -28,7 +28,7 @@ done
 [ "$S" = ok ] || { echo "deploy: health not ok, run ops/rollback.sh $TS" >&2; exit 3; }
 P=""
 for i in $(seq 1 30); do
-  P=$("$ROOT/api.sh" GET /plugins/crew.core/health 2>/dev/null | python3 -c 'import json,sys; d=json.load(sys.stdin); print("healthy" if d.get("healthy") else d.get("status") or "unknown")' 2>/dev/null || true)
+  P=$("$ROOT/ops/plugin-state.sh" 2>/dev/null || true)
   [ "$P" = healthy ] && break
   sleep 2
 done

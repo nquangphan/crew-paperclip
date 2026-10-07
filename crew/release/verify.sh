@@ -21,6 +21,7 @@ run() {
 
 run 3 node crew/release/check-core-hooks.mjs
 run 3 node --test crew/release/check-core-hooks.test.mjs
+run 3 node --test crew/ops/plugin-state.test.mjs
 run 4 corepack pnpm install
 run 4 corepack pnpm --filter @paperclipai/plugin-sdk ensure-build-deps
 run 4 corepack pnpm --filter @paperclipai/paperclip-runner run build:typescript
