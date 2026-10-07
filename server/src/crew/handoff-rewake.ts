@@ -14,6 +14,7 @@ import { getExecutionBlocker } from "../services/execution-blocker.js";
  * right after Crew released the lease, so the replay is ordered after the release, not timed.
  */
 export const HANDOFF_REWAKE_ACTION = "crew.handoff_rewake";
+export const HANDOFF_REWAKE_FAILED_ACTION = "crew.handoff_rewake.failed";
 /** Issue states a person or the policy set on purpose; no replay into them. */
 const NO_REWAKE_ISSUE_STATUSES = ["done", "cancelled", "blocked"];
 const SKIPPED_REASON = "execution_reconciliation_required";
@@ -124,34 +125,45 @@ export async function rewakeAfterLeaseRelease(input: HandoffRewakeInput, wakeup?
     const payload = { ...((skipped.payload as Record<string, unknown> | null) ?? {}) };
     delete payload.executionWait;
     const marker = { skippedWakeId: skipped.id, previousRunId: runId };
-    await logActivity(db, {
-      companyId,
-      actorType: "system",
-      actorId: "crew",
-      action: HANDOFF_REWAKE_ACTION,
-      entityType: "agent_wakeup_request",
-      entityId: skipped.id,
-      agentId: assignee,
-      runId,
-      issueId,
-      details: { ...marker, reason },
-    });
-    await (wakeup ?? stockWakeup(db))(assignee, {
-      source: skipped.source as HeartbeatWakeupOptions["source"],
-      triggerDetail: (skipped.triggerDetail ?? "system") as HeartbeatWakeupOptions["triggerDetail"],
-      reason,
-      payload: { ...payload, issueId, crewHandoffRewake: marker },
-      requestedByActorType: (skipped.requestedByActorType ?? "system") as HeartbeatWakeupOptions["requestedByActorType"],
-      requestedByActorId: skipped.requestedByActorId ?? "crew",
-      contextSnapshot: {
+    const activity = (action: string, details: Record<string, unknown>) =>
+      logActivity(db, {
+        companyId,
+        actorType: "system",
+        actorId: "crew",
+        action,
+        entityType: "agent_wakeup_request",
+        entityId: skipped.id,
+        agentId: assignee,
+        runId,
         issueId,
-        taskId: issueId,
-        wakeReason: reason,
-        source: "crew.handoff_rewake",
-        ...(payload.executionStage ? { executionStage: payload.executionStage } : {}),
-        crewHandoffRewake: marker,
-      },
-    });
+        details: { ...marker, reason, ...details },
+      });
+    // The marker is written only after the wake was accepted: a failed replay leaves no marker, so the
+    // next release of a lease for this issue tries again.
+    try {
+      await (wakeup ?? stockWakeup(db))(assignee, {
+        source: skipped.source as HeartbeatWakeupOptions["source"],
+        triggerDetail: (skipped.triggerDetail ?? "system") as HeartbeatWakeupOptions["triggerDetail"],
+        reason,
+        payload: { ...payload, issueId, crewHandoffRewake: marker },
+        requestedByActorType: (skipped.requestedByActorType ?? "system") as HeartbeatWakeupOptions["requestedByActorType"],
+        requestedByActorId: skipped.requestedByActorId ?? "crew",
+        contextSnapshot: {
+          issueId,
+          taskId: issueId,
+          wakeReason: reason,
+          source: "crew.handoff_rewake",
+          ...(payload.executionStage ? { executionStage: payload.executionStage } : {}),
+          crewHandoffRewake: marker,
+        },
+      });
+    } catch (err) {
+      const error = err instanceof Error ? err.message : String(err);
+      logger.warn({ err, runId, skippedWakeId: skipped.id }, "crew: replaying a skipped wake failed; retried on the next lease release");
+      await activity(HANDOFF_REWAKE_FAILED_ACTION, { error: error.slice(0, 300) }).catch(() => undefined);
+      return 0;
+    }
+    await activity(HANDOFF_REWAKE_ACTION, {});
     return 1;
   } catch (err) {
     logger.warn({ err, runId }, "crew: replaying a wake skipped while the lease was held failed");

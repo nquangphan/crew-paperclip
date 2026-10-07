@@ -16,6 +16,7 @@ import type { Environment, EnvironmentLease } from "@paperclipai/shared";
 import { getEmbeddedPostgresTestSupport, startEmbeddedPostgresTestDatabase } from "./helpers/embedded-postgres.js";
 import { overrideCrewCoreHooksForTests } from "../crew/core-hooks.ts";
 import { settleRemoteStopsForTests, startRemoteStopOnRelease } from "../crew/remote-stop.ts";
+import { rewakeAfterLeaseRelease } from "../crew/handoff-rewake.ts";
 import { heartbeatService } from "../services/heartbeat.js";
 
 // Stock order on a stage handoff: the route cancels the executor's run and wakes the reviewer at once,
@@ -140,6 +141,28 @@ suite("đánh thức lại participant sau khi lease nhả", () => {
 
     // A second release of the same lease (core releases it again) does not wake twice.
     await release(f);
+    expect(await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.agentId, f.reviewerId))).toHaveLength(1);
+  }, 30_000);
+
+  it("wakeup lỗi thì không ghi dấu, ghi activity lỗi, và lần nhả lease sau thử lại được", async () => {
+    const f = await handoff();
+    expect(await heartbeatService(db).wakeup(f.reviewerId, reviewWake(f))).toBeNull();
+    await db.update(environmentLeases).set({ releasedAt: new Date(), status: "failed" }).where(eq(environmentLeases.id, f.lease.id));
+    const input = { db, companyId: f.companyId, runId: f.runId, issueId: f.issueId };
+
+    expect(await rewakeAfterLeaseRelease(input, async () => {
+      throw new Error("admission temporarily unavailable");
+    })).toBe(0);
+    const actions = async (action: string) =>
+      db.select().from(activityLog).where(and(eq(activityLog.action, action), eq(activityLog.runId, f.runId)));
+    expect(await actions("crew.handoff_rewake")).toHaveLength(0);
+    expect(await actions("crew.handoff_rewake.failed")).toEqual([
+      expect.objectContaining({ details: expect.objectContaining({ error: "admission temporarily unavailable" }) }),
+    ]);
+    expect(await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.agentId, f.reviewerId))).toHaveLength(0);
+
+    expect(await rewakeAfterLeaseRelease(input)).toBe(1);
+    expect(await actions("crew.handoff_rewake")).toHaveLength(1);
     expect(await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.agentId, f.reviewerId))).toHaveLength(1);
   }, 30_000);
 
