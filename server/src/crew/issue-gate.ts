@@ -17,7 +17,8 @@ export interface IssueWriteHookInput {
   tx: Db;
   issueId: string;
   existing: typeof issues.$inferSelect;
-  patch: Readonly<Partial<typeof issues.$inferInsert>>;
+  /** Chỉ được sửa một chỗ: `executionState = null` khi issue Crew rời `done`/`cancelled`. */
+  patch: Partial<typeof issues.$inferInsert>;
   actorAgentId: string | null | undefined;
   actorUserId: string | null | undefined;
 }
@@ -323,7 +324,14 @@ export async function crewBeforeIssueWrite(input: IssueWriteHookInput): Promise<
 
   const nextStatus = has(patch, "status") ? String(patch.status) : locked.status;
   if (TERMINAL_STATUSES.has(locked.status) && !TERMINAL_STATUSES.has(nextStatus)) {
-    await activity(CREW_CYCLE_RESET_ACTION, { fromStatus: locked.status, toStatus: nextStatus });
+    // Mở lại issue Crew: xóa state cũ để stock chạy lại các stage của policy đã ghim từ đầu ở lần done sau.
+    const crewIssue = policyGateFingerprint(effectivePolicy(locked, patch)) !== "none";
+    if (crewIssue) input.patch.executionState = null;
+    await activity(CREW_CYCLE_RESET_ACTION, {
+      fromStatus: locked.status,
+      toStatus: nextStatus,
+      executionStateCleared: crewIssue,
+    });
   }
   if (verdict.kind === "override") {
     await activity("crew.policy.board_override", { violations: verdict.violations, toStatus: patch.status ?? null });

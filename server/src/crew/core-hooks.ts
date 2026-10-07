@@ -19,8 +19,11 @@ export interface BeforeIssueWriteInput {
   issueId: string;
   /** Bản issue đọc trước khi khóa dòng. Cần số liệu chắc chắn thì đọc lại qua `tx` với `.for("update")`. */
   existing: typeof issues.$inferSelect;
-  /** Các cột sắp ghi, kể cả `status` và `executionPolicy` nếu request gửi lên. Không được sửa. */
-  patch: Readonly<Partial<typeof issues.$inferInsert>>;
+  /**
+   * Các cột sắp ghi, kể cả `status` và `executionPolicy` nếu request gửi lên. Chính object này được ghi xuống DB.
+   * Ngoại lệ duy nhất được sửa: Crew đặt `executionState = null` khi issue có policy rời `done`/`cancelled`.
+   */
+  patch: Partial<typeof issues.$inferInsert>;
   actorAgentId: string | null | undefined;
   actorUserId: string | null | undefined;
 }

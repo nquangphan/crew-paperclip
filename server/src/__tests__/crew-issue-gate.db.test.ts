@@ -15,6 +15,10 @@ import {
 } from "@paperclipai/db";
 import { getEmbeddedPostgresTestSupport, startEmbeddedPostgresTestDatabase } from "./helpers/embedded-postgres.js";
 import { buildCrewPolicy, CREW_POLICY_CONFIG_ENV } from "../crew/issue-policy.ts";
+import {
+  applyIssueExecutionPolicyTransition,
+  normalizeIssueExecutionPolicy,
+} from "../services/issue-execution-policy.js";
 import { issueService } from "../services/issues.js";
 
 // Hook H2 (first line of runUpdate) through the real issue service: every caller of
@@ -287,6 +291,50 @@ suite("crew issue gate in issueService.update", () => {
       issueService(db).update(issueId, { status: "done", actorAgentId: c.executorId }),
     ).rejects.toMatchObject({ status: 422, details: { code: "crew_gate_blocked", violations: [`stage_unapproved:${stageId}`] } });
     expect(await statusOf(issueId)).toBe("todo");
+  });
+
+  it("mở lại để giao thêm việc: executor PATCH done lại đi vào stage reviewer, approval cũ vẫn không tính", async () => {
+    const c = await company();
+    const stageId = c.child.stages[0]!.id;
+    const issueId = await issue(c, {
+      status: "done",
+      assigneeAgentId: c.reviewerId,
+      executionPolicy: c.child,
+      executionState: state(c, "completed", null, null, [stageId]),
+    });
+    await approve(c, issueId, stageId, c.reviewerId, minutesAgo(30));
+
+    const reopened = await issueService(db).update(issueId, { status: "todo" });
+    expect(reopened?.executionState).toBeNull();
+    await issueService(db).update(issueId, {
+      status: "in_progress",
+      assigneeAgentId: c.executorId,
+      actorUserId: "owner-1",
+    });
+
+    // Như route PATCH: transition stock rồi updateIssue.
+    const [row] = await db.select().from(issues).where(eq(issues.id, issueId));
+    const policy = normalizeIssueExecutionPolicy(row!.executionPolicy);
+    const transition = applyIssueExecutionPolicyTransition({
+      issue: row as never,
+      policy,
+      previousPolicy: policy,
+      requestedStatus: "done",
+      requestedAssigneePatch: {},
+      actor: { agentId: c.executorId, userId: null },
+    });
+    const handedOff = await issueService(db).update(issueId, {
+      status: "done",
+      ...transition.patch,
+      actorAgentId: c.executorId,
+    });
+    expect(handedOff?.status).toBe("in_review");
+    expect(handedOff?.assigneeAgentId).toBe(c.reviewerId);
+    expect(handedOff?.executionState).toMatchObject({ status: "pending", currentStageId: stageId });
+
+    await expect(
+      issueService(db).update(issueId, { status: "done", actorAgentId: c.executorId }),
+    ).rejects.toMatchObject({ status: 422, details: { violations: [`stage_unapproved:${stageId}`] } });
   });
 
   it("issue gốc mở lại kèm docs cũ: executor done bị 422 ở mọi stage", async () => {
