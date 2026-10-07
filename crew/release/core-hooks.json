@@ -24,7 +24,11 @@
       "importLine": "import { crewCoreHooks } from \"../crew/core-hooks.js\";",
       "description": "Reject issue writes that skip execution-policy stages or let an agent change executionPolicy.",
       "upstreamPr": null,
-      "tests": ["server/src/__tests__/crew-core-hooks.test.ts"]
+      "tests": [
+        "server/src/__tests__/crew-core-hooks.test.ts",
+        "server/src/__tests__/crew-issue-gate.test.ts",
+        "server/src/__tests__/crew-issue-gate.db.test.ts"
+      ]
     },
     {
       "id": "H3",

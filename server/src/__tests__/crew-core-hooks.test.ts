@@ -11,6 +11,13 @@ vi.mock("../services/environments.ts", async (importOriginal) => ({
   environmentService: () => ({ releaseLease }),
 }));
 
+const { gateCalls } = vi.hoisted(() => ({ gateCalls: [] as unknown[] }));
+vi.mock("../crew/issue-gate.ts", () => ({
+  crewBeforeIssueWrite: async (input: unknown) => {
+    gateCalls.push(input);
+  },
+}));
+
 import { environmentRuntimeService } from "../services/environment-runtime.ts";
 import {
   CREW_RUN_LEASE_RELEASE_HOOK_TIMEOUT_MS,
@@ -38,20 +45,10 @@ function sshDriver() {
 }
 
 describe("crewCoreHooks mặc định", () => {
-  it("không giữ run nào và không chặn lệnh ghi nào", async () => {
+  it("mặc định không giữ run nào", async () => {
     await expect(
       crewCoreHooks.beforeClaim({ db: {} as Db, run: { id: "run-1", status: "queued" } as never }),
     ).resolves.toBe(false);
-    await expect(
-      crewCoreHooks.beforeIssueWrite({
-        tx: {} as Db,
-        issueId: "issue-1",
-        existing: { id: "issue-1" } as never,
-        patch: { status: "done" },
-        actorAgentId: "agent-1",
-        actorUserId: null,
-      }),
-    ).resolves.toBeUndefined();
     await expect(
       crewCoreHooks.onRunLeaseReleased({ db: {} as Db, environment, lease, status: "released" }),
     ).resolves.toBeUndefined();
@@ -63,6 +60,21 @@ describe("crewCoreHooks mặc định", () => {
     restore();
     restore = null;
     await expect(crewCoreHooks.beforeClaim({ db: {} as Db, run: { id: "run-1" } as never })).resolves.toBe(false);
+  });
+});
+
+describe("H2 registry", () => {
+  it("chuyển nguyên input cho crewBeforeIssueWrite", async () => {
+    const input = {
+      tx: {} as Db,
+      issueId: "issue-1",
+      existing: { id: "issue-1" } as never,
+      patch: { status: "done" as const },
+      actorAgentId: "agent-1",
+      actorUserId: null,
+    };
+    await crewCoreHooks.beforeIssueWrite(input);
+    expect(gateCalls).toEqual([input]);
   });
 });
 
