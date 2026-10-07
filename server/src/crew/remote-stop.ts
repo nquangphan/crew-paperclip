@@ -4,6 +4,8 @@ import { logger } from "../middleware/logger.js";
 import { logActivity } from "../services/activity-log.js";
 import { resolveEnvironmentDriverConfigForRuntime } from "../services/environment-config.js";
 import type { EnvironmentDriverReleaseInput } from "../services/environment-runtime.js";
+import { environmentService } from "../services/environments.js";
+import { rewakeAfterLeaseRelease } from "./handoff-rewake.js";
 
 /** Same shape as RunLeaseReleasedInput in core-hooks.ts (not imported: implementations must not import the registry). */
 export type RunLeaseReleasedInput = EnvironmentDriverReleaseInput & { db: Db };
@@ -235,6 +237,7 @@ export async function stopRemoteRunOnRelease(
 export const REMOTE_STOP_BACKGROUND_LIMIT_MS = 20_000;
 
 const pendingStops = new Map<symbol, { environmentId: string; done: Promise<void> }>();
+const pendingRewakes = new Set<Promise<void>>();
 
 /** True while a stop started by a lease release is still running on this environment's host. */
 export function isRemoteStopPending(environmentId: string): boolean {
@@ -260,6 +263,25 @@ export async function startRemoteStopOnRelease(
     await defaultDeps.recordStarted(input);
   } catch (err) {
     logger.warn({ err, runId: input.lease.heartbeatRunId }, "crew: failed to record remote stop start");
+  }
+  // Release the lease here, with the same call the SSH driver makes right after this hook (repeating
+  // it is harmless), so the wake replay below is ordered after the release instead of guessing.
+  let released = false;
+  try {
+    await environmentService(input.db).releaseLease(input.lease.id, input.status);
+    released = true;
+  } catch (err) {
+    logger.warn({ err, leaseId: input.lease.id }, "crew: early lease release failed; the driver releases it next");
+  }
+  if (released) {
+    const rewake = rewakeAfterLeaseRelease({
+      db: input.db,
+      companyId: input.lease.companyId,
+      runId: input.lease.heartbeatRunId,
+      issueId: input.lease.issueId,
+    }).then(() => undefined);
+    pendingRewakes.add(rewake);
+    void rewake.finally(() => pendingRewakes.delete(rewake));
   }
   const key = Symbol(input.lease.heartbeatRunId);
   let timer: ReturnType<typeof setTimeout> | undefined;
@@ -293,4 +315,5 @@ export async function startRemoteStopOnRelease(
 /** Waits for every background stop (tests only; the server never awaits them). */
 export async function settleRemoteStopsForTests(): Promise<void> {
   await Promise.all([...pendingStops.values()].map((stop) => stop.done));
+  await Promise.all([...pendingRewakes]);
 }
