@@ -5,11 +5,13 @@ import {
   type BeforeClaimInput,
   type HostProbe,
   createProbeCache,
+  crewBeforeClaim,
   decideGate,
   evaluateBeforeClaim,
   parseLoadAvg,
   readLoadGateSettings,
 } from "../crew/load-gate.ts";
+import type { RetryProgress } from "../crew/retry-progress.ts";
 
 const SETTINGS = { maxLoad1: 8, maxWaitMinutes: 60 };
 // 06:00 UTC = 13:00 Asia/Ho_Chi_Minh, so a 60-minute deadline shows as 14:00.
@@ -104,16 +106,22 @@ function run(overrides: Record<string, unknown> = {}): BeforeClaimInput["run"] {
   } as unknown as BeforeClaimInput["run"];
 }
 
-type Notices = { waiting?: Date; expired?: Date };
+type Notices = Partial<Record<"waiting" | "expired" | "waiting_comment" | "expired_comment", Date>>;
 
-function harness(probe: HostProbe, now: Date, notices: Notices = {}) {
+function harness(probe: HostProbe, now: Date, notices: Notices = {}, failComment = false) {
   const events: string[] = [];
   const deps: BeforeClaimDeps = {
     loadTarget: async () => ({ environmentId: "env-1", environmentName: "mac-mini", settings: SETTINGS }),
     probeHost: async () => probe,
     firstNoticeAt: async (_runId, kind) => notices[kind] ?? null,
-    postNotice: async (n) => {
-      events.push(`${n.kind}:${n.issueId ?? "-"}:${n.body}`);
+    recordNotice: async (n) => {
+      events.push(`mark:${n.kind}`);
+      notices[n.kind] = now;
+    },
+    postComment: async (n) => {
+      if (failComment) throw new Error("comment store down");
+      events.push(`${n.kind}:${n.issueId}:${n.body}`);
+      notices[`${n.kind}_comment`] = now;
     },
     scheduleCancel: (runId, reason) => {
       events.push(`cancel:${runId}:${reason}`);
@@ -122,10 +130,57 @@ function harness(probe: HostProbe, now: Date, notices: Notices = {}) {
       events.push(`blocked:${issueId}`);
     },
     now: () => now,
+    retryState: async () => ({ checked: true, pendingComment: null }),
+    checkRetryProgress: async () => ({ kind: "none" }),
+    recordRetryProgress: async () => null,
+    postRetryComment: async () => {},
   };
   const input: BeforeClaimInput = { db: {} as Db, run: run() };
-  return { deps, input, events };
+  return { deps, input, events, notices };
 }
+
+type RetryOptions = {
+  state?: { checked: false } | { checked: true; pendingComment: string | null };
+  failState?: boolean;
+  failRecord?: boolean;
+  failComment?: boolean;
+};
+
+function retryHarness(progress: RetryProgress, opts: RetryOptions = {}) {
+  const h = harness({ ok: true, load1: 1 }, T0);
+  const recorded: RetryProgress[] = [];
+  const checks: string[] = [];
+  const posted: string[] = [];
+  h.deps.retryState = async () => {
+    if (opts.failState) throw new Error("activity store down");
+    return opts.state ?? { checked: false };
+  };
+  h.deps.checkRetryProgress = async (r) => {
+    checks.push(r.id);
+    return progress;
+  };
+  h.deps.recordRetryProgress = async (_run, _issueId, p) => {
+    if (opts.failRecord) throw new Error("activity store down");
+    recorded.push(p);
+    return p.kind === "checked" && p.commits.length > 0 ? `Crew: lần chạy lại sau run \`${p.previousRunId}\`` : null;
+  };
+  h.deps.postRetryComment = async (_run, issueId, body) => {
+    if (opts.failComment) throw new Error("comment store down");
+    posted.push(`${issueId}:${body}`);
+  };
+  h.input.run = run({ retryOfRunId: "prev-1" });
+  return { ...h, recorded, checks, posted };
+}
+
+const WITH_COMMIT: RetryProgress = {
+  kind: "checked",
+  previousRunId: "prev-1",
+  previousStartedAt: T0,
+  retryReason: "transient_failure",
+  cwd: "/w",
+  truncated: false,
+  commits: [{ sha: "c".repeat(40), committedAt: "x", branch: "crew/ABC-1", subject: "s" }],
+};
 
 describe("evaluateBeforeClaim", () => {
   it("lets a healthy host claim without notices", async () => {
@@ -134,16 +189,17 @@ describe("evaluateBeforeClaim", () => {
     expect(h.events).toEqual([]);
   });
 
-  it("keeps the run queued and posts one waiting notice with the reason and deadline", async () => {
+  it("keeps the run queued, records the waiting marker, then posts one waiting comment with the reason and deadline", async () => {
     const h = harness({ ok: true, load1: 9.5 }, T0);
     expect(await evaluateBeforeClaim(h.input, h.deps)).toBe(true);
-    expect(h.events).toHaveLength(1);
-    expect(h.events[0]).toMatch(/^waiting:issue-1:.*mac-mini.*9\.5.*8/);
-    expect(h.events[0]).toContain("14:00");
+    expect(h.events).toHaveLength(2);
+    expect(h.events[0]).toBe("mark:waiting");
+    expect(h.events[1]).toMatch(/^waiting:issue-1:.*mac-mini.*9\.5.*8/);
+    expect(h.events[1]).toContain("14:00");
   });
 
   it("does not repeat the waiting notice", async () => {
-    const h = harness({ ok: false, error: "timeout" }, T0, { waiting: T0 });
+    const h = harness({ ok: false, error: "timeout" }, T0, { waiting: T0, waiting_comment: T0 });
     expect(await evaluateBeforeClaim(h.input, h.deps)).toBe(true);
     expect(h.events).toEqual([]);
   });
@@ -153,23 +209,26 @@ describe("evaluateBeforeClaim", () => {
     const now = new Date(T0.getTime() + 70 * 60_000);
     const h = harness({ ok: false, error: "timeout" }, now);
     expect(await evaluateBeforeClaim(h.input, h.deps)).toBe(true);
-    expect(h.events).toHaveLength(1);
-    expect(h.events[0]).toMatch(/^waiting:issue-1:/);
-    expect(h.events[0]).toContain("15:10");
+    expect(h.events).toHaveLength(2);
+    expect(h.events[0]).toBe("mark:waiting");
+    expect(h.events[1]).toMatch(/^waiting:issue-1:/);
+    expect(h.events[1]).toContain("15:10");
   });
 
-  it("after maxWaitMinutes blocks the issue, posts the notice, keeps the run queued and schedules the cancel", async () => {
+  it("after maxWaitMinutes schedules the cancel, records the expiry, blocks the issue and comments, keeping the run queued", async () => {
     const h = harness({ ok: false, error: "timeout" }, new Date(T0.getTime() + 61 * 60_000), { waiting: T0 });
     expect(await evaluateBeforeClaim(h.input, h.deps)).toBe(true);
     expect(h.events[0]).toMatch(/^cancel:run-1:Crew: hết 60 phút chờ máy mac-mini/);
-    expect(h.events[1]).toBe("blocked:issue-1");
-    expect(h.events[2]).toMatch(/^expired:issue-1:/);
-    expect(h.events).toHaveLength(3);
+    expect(h.events[1]).toBe("mark:expired");
+    expect(h.events[2]).toBe("blocked:issue-1");
+    expect(h.events[3]).toMatch(/^expired:issue-1:/);
+    expect(h.events).toHaveLength(4);
   });
 
   it("only retries the cancel once the expiry was already handled", async () => {
     const later = new Date(T0.getTime() + 62 * 60_000);
-    const h = harness({ ok: false, error: "timeout" }, later, { waiting: T0, expired: new Date(T0.getTime() + 61 * 60_000) });
+    const expired = new Date(T0.getTime() + 61 * 60_000);
+    const h = harness({ ok: false, error: "timeout" }, later, { waiting: T0, expired, expired_comment: expired });
     expect(await evaluateBeforeClaim(h.input, h.deps)).toBe(true);
     expect(h.events).toHaveLength(1);
     expect(h.events[0]).toMatch(/^cancel:run-1:/);
@@ -177,15 +236,52 @@ describe("evaluateBeforeClaim", () => {
 
   it("stays closed after expiry even if the host is healthy again", async () => {
     const later = new Date(T0.getTime() + 62 * 60_000);
-    const h = harness({ ok: true, load1: 1 }, later, { waiting: T0, expired: new Date(T0.getTime() + 61 * 60_000) });
+    const expired = new Date(T0.getTime() + 61 * 60_000);
+    const h = harness({ ok: true, load1: 1 }, later, { waiting: T0, expired, expired_comment: expired });
     expect(await evaluateBeforeClaim(h.input, h.deps)).toBe(true);
     expect(h.events[0]).toMatch(/^cancel:run-1:/);
   });
 
-  it("keeps the run queued when writing the waiting notice fails", async () => {
+  it("keeps the run queued when writing the waiting comment fails", async () => {
+    const h = harness({ ok: false, error: "timeout" }, T0, {}, true);
+    expect(await evaluateBeforeClaim(h.input, h.deps)).toBe(true);
+    expect(h.events).toEqual(["mark:waiting"]);
+  });
+
+  it("keeps the run queued when writing the waiting marker fails", async () => {
     const h = harness({ ok: false, error: "timeout" }, T0);
-    const deps = { ...h.deps, postNotice: async () => { throw new Error("db down"); } };
+    const deps = { ...h.deps, recordNotice: async () => { throw new Error("db down"); } };
     expect(await evaluateBeforeClaim(h.input, deps)).toBe(true);
+  });
+
+  it("records the waiting marker before the comment: a comment that keeps failing still expires on time", async () => {
+    const notices: Notices = {};
+    const first = harness({ ok: false, error: "timeout" }, T0, notices, true);
+    expect(await evaluateBeforeClaim(first.input, first.deps)).toBe(true);
+    expect(first.events).toEqual(["mark:waiting"]);
+    const later = harness({ ok: false, error: "timeout" }, new Date(T0.getTime() + 61 * 60_000), notices, true);
+    expect(await evaluateBeforeClaim(later.input, later.deps)).toBe(true);
+    expect(later.events.some((e) => e.startsWith("cancel:run-1:"))).toBe(true);
+    expect(later.events).toContain("blocked:issue-1");
+  });
+
+  it("retries a failed waiting comment on the next tick without moving the marker", async () => {
+    const notices: Notices = { waiting: T0 };
+    const h = harness({ ok: false, error: "timeout" }, new Date(T0.getTime() + 60_000), notices);
+    expect(await evaluateBeforeClaim(h.input, h.deps)).toBe(true);
+    expect(h.events).toHaveLength(1);
+    expect(h.events[0]).toMatch(/^waiting:issue-1:/);
+    expect(notices.waiting).toEqual(T0);
+  });
+
+  it("retries a failed expiry comment while retrying the cancel", async () => {
+    const later = new Date(T0.getTime() + 62 * 60_000);
+    const h = harness({ ok: false, error: "timeout" }, later, { waiting: T0, expired: new Date(T0.getTime() + 61 * 60_000) });
+    expect(await evaluateBeforeClaim(h.input, h.deps)).toBe(true);
+    expect(h.events).toHaveLength(2);
+    expect(h.events[0]).toMatch(/^cancel:run-1:/);
+    expect(h.events[1]).toMatch(/^expired:issue-1:.*quá 60 phút/);
+    expect(h.events[1]).not.toContain("()");
   });
 
   it("still schedules the cancel and keeps the run queued when blocking or the notice fails after expiry", async () => {
@@ -193,7 +289,8 @@ describe("evaluateBeforeClaim", () => {
     const deps = {
       ...h.deps,
       blockIssue: async () => { throw new Error("issue locked"); },
-      postNotice: async () => { throw new Error("db down"); },
+      recordNotice: async () => { throw new Error("db down"); },
+      postComment: async () => { throw new Error("db down"); },
     };
     expect(await evaluateBeforeClaim(h.input, deps)).toBe(true);
     expect(h.events).toHaveLength(1);
@@ -205,5 +302,102 @@ describe("evaluateBeforeClaim", () => {
     expect(await evaluateBeforeClaim({ ...h.input, run: run({ status: "running" }) }, h.deps)).toBe(false);
     expect(await evaluateBeforeClaim(h.input, { ...h.deps, loadTarget: async () => null })).toBe(false);
     expect(h.events).toEqual([]);
+  });
+});
+
+describe("evaluateBeforeClaim on a retried run", () => {
+  it("records the previous run's commits, posts the comment, then lets the retry claim", async () => {
+    const h = retryHarness(WITH_COMMIT);
+    expect(await evaluateBeforeClaim(h.input, h.deps)).toBe(false);
+    expect(h.recorded).toEqual([WITH_COMMIT]);
+    expect(h.posted).toEqual(["issue-1:Crew: lần chạy lại sau run `prev-1`"]);
+    expect(h.events).toEqual([]);
+  });
+
+  it("does not check over SSH again once the retry was checked", async () => {
+    const h = retryHarness({ kind: "error", error: "must not be called" }, { state: { checked: true, pendingComment: null } });
+    expect(await evaluateBeforeClaim(h.input, h.deps)).toBe(false);
+    expect(h.checks).toEqual([]);
+    expect(h.recorded).toEqual([]);
+    expect(h.posted).toEqual([]);
+  });
+
+  it("holds the run and records the waiting marker when git fails on the Mac", async () => {
+    const h = retryHarness({ kind: "error", error: "fatal: cannot change to '/w'" });
+    expect(await evaluateBeforeClaim(h.input, h.deps)).toBe(true);
+    expect(h.events[0]).toBe("mark:waiting");
+    expect(h.events[1]).toMatch(/kiểm tiến độ/);
+    expect(h.recorded).toEqual([]);
+  });
+
+  it("holds the run with a waiting marker when the checked marker cannot be read", async () => {
+    const h = retryHarness(WITH_COMMIT, { failState: true });
+    expect(await evaluateBeforeClaim(h.input, h.deps)).toBe(true);
+    expect(h.checks).toEqual([]);
+    expect(h.events[0]).toBe("mark:waiting");
+    expect(h.events[1]).toMatch(/kiểm tiến độ.*không ghi hoặc đọc được kết quả kiểm/);
+  });
+
+  it("expires a retry whose progress check keeps failing and asks to check its commits by hand", async () => {
+    const h = retryHarness({ kind: "error", error: "fatal: not a git repository" });
+    h.notices.waiting = T0;
+    h.notices.waiting_comment = T0;
+    h.deps.now = () => new Date(T0.getTime() + 61 * 60_000);
+    expect(await evaluateBeforeClaim(h.input, h.deps)).toBe(true);
+    expect(h.events[0]).toMatch(/^cancel:run-1:.*kiểm tiến độ/);
+    expect(h.events).toContain("mark:expired");
+    expect(h.events).toContain("blocked:issue-1");
+    const comment = h.events.find((e) => e.startsWith("expired:issue-1:"));
+    expect(comment).toContain("lần chạy lại của run `prev-1`");
+    expect(comment).toContain("git log --branches");
+  });
+
+  it("does not add the commit note to the expiry comment of a run that is not a retry", async () => {
+    const h = harness({ ok: false, error: "timeout" }, new Date(T0.getTime() + 61 * 60_000), { waiting: T0 });
+    expect(await evaluateBeforeClaim(h.input, h.deps)).toBe(true);
+    expect(h.events.find((e) => e.startsWith("expired:"))).not.toContain("git log");
+  });
+
+  it("holds the run when the checked marker cannot be written", async () => {
+    const h = retryHarness(WITH_COMMIT, { failRecord: true });
+    expect(await evaluateBeforeClaim(h.input, h.deps)).toBe(true);
+    expect(h.posted).toEqual([]);
+    expect(h.events[0]).toBe("mark:waiting");
+  });
+
+  it("holds the run when the progress comment fails", async () => {
+    const h = retryHarness(WITH_COMMIT, { failComment: true });
+    expect(await evaluateBeforeClaim(h.input, h.deps)).toBe(true);
+    expect(h.recorded).toEqual([WITH_COMMIT]);
+    expect(h.events[0]).toBe("mark:waiting");
+    expect(h.events[1]).toMatch(/không ghi được comment tiến độ/);
+  });
+
+  it("only retries a pending progress comment, without checking over SSH again", async () => {
+    const h = retryHarness(
+      { kind: "error", error: "must not be called" },
+      { state: { checked: true, pendingComment: "Crew: lần chạy lại sau run `prev-1`" } },
+    );
+    expect(await evaluateBeforeClaim(h.input, h.deps)).toBe(false);
+    expect(h.checks).toEqual([]);
+    expect(h.posted).toEqual(["issue-1:Crew: lần chạy lại sau run `prev-1`"]);
+  });
+
+  it("does not check progress for a run that is not a retry", async () => {
+    const h = retryHarness({ kind: "error", error: "x" });
+    h.input.run = run();
+    expect(await evaluateBeforeClaim(h.input, h.deps)).toBe(false);
+    expect(h.checks).toEqual([]);
+  });
+});
+
+describe("crewBeforeClaim when the gate itself fails", () => {
+  // `{}` is not a database: the first query throws inside the default deps.
+  it("holds a queued retry (fails closed)", async () => {
+    expect(await crewBeforeClaim({ db: {} as Db, run: run({ retryOfRunId: "prev-1" }) })).toBe(true);
+  });
+
+  it("lets a run that is not a retry be claimed (fails open)", async () => {
+    expect(await crewBeforeClaim({ db: {} as Db, run: run() })).toBe(false);
   });
 });
