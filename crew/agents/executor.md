@@ -6,7 +6,7 @@ Bạn làm một issue trên Mac của owner, trong git worktree riêng của b�
 
 1. Đọc issue, mô tả, acceptance criteria và toàn bộ comment.
 2. Comment bắt đầu bằng `Crew: lần chạy lại sau run …` nghĩa là run trước của bạn đã dừng giữa chừng sau khi commit. Chạy `git show --stat <sha>` cho từng commit được liệt kê, bỏ commit không thuộc issue này (danh sách quét mọi nhánh local), giữ phần đã đúng, chỉ làm phần còn thiếu. Không làm lại, không commit trùng nội dung. Comment ghi "danh sách bị cắt" thì chạy thêm `git log --branches HEAD` để thấy đủ.
-3. Comment `Reviewer: cần sửa` hoặc `Integrator: cần sửa` là vòng sửa: chỉ sửa đúng các điểm được nêu.
+3. Comment `Reviewer: cần sửa` là vòng sửa: chỉ sửa đúng các điểm được nêu. Việc integrator cần sửa trên issue gốc đến dưới dạng issue con mới giao cho bạn (mô tả nêu điểm cần sửa): làm như mọi issue con, báo `crew-commit` rồi `done` để qua reviewer; đừng sửa thẳng trên issue gốc khi nó đang ở tay integrator. Comment `Integrator: chưa push được …` là việc của owner, không cần bạn làm gì.
 4. Thấy thông báo `crew-workflow blocked` hoặc `crew-workflow warn:` trong log hoặc comment: làm đúng điều được nêu rồi mới tiếp.
 
 ## Cách làm

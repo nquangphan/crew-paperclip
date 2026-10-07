@@ -26,12 +26,39 @@ test("dòng mẫu crew-docs-check khớp regex của server", () => {
   assert.match(templateLine(read("integrator"), "crew-docs-check commit="), DOCS_CHECK_RE);
 });
 
+const MERGE_CHECK_RE = /^crew-merge sha=([0-9a-f]{40}) branch=(\S+) pushed=yes$/;
 const POLICY_SOURCE = new URL("../../server/src/crew/issue-policy.ts", import.meta.url);
 
 test("regex crew-docs-check trong test trùng chuỗi regex của server", { skip: !existsSync(POLICY_SOURCE) && "issue-policy.ts chưa có trên nhánh này" }, () => {
   const match = /CREW_DOCS_CHECK_RE\s*=\s*\/(.+)\/;/.exec(readFileSync(POLICY_SOURCE, "utf8"));
   assert.ok(match, "không tìm thấy CREW_DOCS_CHECK_RE");
   assert.equal(match[1], DOCS_CHECK_RE.source);
+});
+
+test("regex crew-merge trong test trùng chuỗi regex của server", { skip: !existsSync(POLICY_SOURCE) && "issue-policy.ts chưa có trên nhánh này" }, () => {
+  const match = /CREW_MERGE_RE\s*=\s*\/(.+)\/;/.exec(readFileSync(POLICY_SOURCE, "utf8"));
+  assert.ok(match, "không tìm thấy CREW_MERGE_RE");
+  assert.equal(match[1], MERGE_CHECK_RE.source);
+});
+
+test("stage 4 nhận diện bằng currentStageId, push lỗi không đổi status, không PATCH blocked khi là participant duyệt", () => {
+  const text = read("integrator");
+  const stage4 = text.slice(text.indexOf("## Stage 4"));
+  assert.match(stage4, /executionState\.currentStageId/);
+  assert.doesNotMatch(stage4, /`lastDecisionOutcome` là `approved`/);
+  assert.doesNotMatch(text, /"status":"blocked"/);
+  assert.doesNotMatch(text, /"status":"in_progress"/);
+  assert.match(stage4, /9\. `PUSHED=no`: không đổi status/);
+  assert.doesNotMatch(text, /mở lại vòng duyệt/);
+  assert.doesNotMatch(read("reviewer"), /"status":"blocked"/);
+});
+
+test("yêu cầu sửa code issue gốc đi qua issue con mới", () => {
+  const text = read("integrator");
+  assert.match(text, /## Yêu cầu sửa/);
+  assert.match(text, /issue con mới/);
+  assert.match(text, /không `PATCH` `in_progress` trên issue gốc/);
+  assert.match(read("executor"), /issue con mới giao cho bạn/);
 });
 
 test("dòng mẫu crew-commit của executor đúng định dạng", () => {
@@ -72,7 +99,7 @@ test("không vai trò nào chuyển cancelled; cả ba có đường blocked", (
   for (const name of ["executor", "reviewer", "integrator"]) {
     const text = read(name);
     assert.doesNotMatch(text, /"status":"cancelled"/, name);
-    assert.match(text, /"status":"blocked"/, name);
+    if (name === "executor") assert.match(text, /"status":"blocked"/, name);
   }
 });
 
@@ -135,8 +162,8 @@ test("integrator dựng lại nhánh từ commit của bằng chứng, không ti
 test("dừng im chỉ khi pushed=yes mới hơn bằng chứng, và fetch lỗi thì dừng", () => {
   const text = read("integrator");
   assert.match(text, /pushed=yes` \*\*mới hơn\*\* bằng chứng/);
-  assert.match(text, /`git fetch origin` lỗi cũng dừng/);
-  assert.match(text, /chờ owner đăng crew-review/);
+  assert.match(text, /`git fetch origin` lỗi: dừng, không merge hay push bằng ref local/);
+  assert.match(text, /chỉ comment nhờ owner đăng `crew-review/);
 });
 
 test("ngoại lệ issue con leo thang cho owner", () => {
