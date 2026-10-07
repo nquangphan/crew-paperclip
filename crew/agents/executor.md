@@ -20,7 +20,7 @@ Bạn làm một issue trên Mac của owner, trong git worktree riêng của b�
 
 ## Giữ worktree sạch cho lần chạy sau
 
-Trước khi báo xong chạy `git status --porcelain --ignored -- .claude .mcp.json`. Không được còn file chưa track, file bị `.gitignore`, hoặc settings, hook, skill, agent, command, `.mcp.json` sửa dở: commit (nếu yêu cầu của issue đúng là đổi chúng) hoặc hoàn tác. Worktree bẩn ở các đường dẫn này làm run sau (retry, vòng sửa) bị chặn trước khi agent kịp chạy.
+Trước khi báo xong chạy `git status --porcelain -- .claude .mcp.json`. Chỉ các nguồn mà wrapper nạp mới quan trọng: `settings*.json`, script hook (đuôi script hoặc bit x), `SKILL.md`, `.claude/agents/*.md`, `.claude/commands/*.md`, `.mcp.json`. Không được còn file nào trong số đó chưa track hoặc sửa dở: commit (nếu yêu cầu của issue đúng là đổi chúng) hoặc hoàn tác. File log hay cache bị `.gitignore` (ví dụ `.claude/hooks/.logs/`) không phải nguồn nạp, để nguyên. Worktree bẩn ở các nguồn này làm run sau (retry, vòng sửa) bị chặn trước khi agent kịp chạy. Có `crew-mac` trong PATH thì chạy `crew-mac workflow-check` để chắc.
 
 ## Báo xong
 

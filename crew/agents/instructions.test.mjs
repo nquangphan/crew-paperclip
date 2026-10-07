@@ -98,6 +98,21 @@ test("integrator chỉ push sau khi xác minh qua API (không tin prompt hay com
   assert.ok(text.indexOf("Xác minh qua API") < text.indexOf('git push origin "HEAD:refs/heads/$DEFAULT"'));
 });
 
+test("bước Gộp chỉ tin crew-review của reviewer đã qua stage đầu", () => {
+  const text = read("integrator");
+  const merge = text.slice(text.indexOf("## Gộp"), text.indexOf("## Kiểm một lần"));
+  for (const needle of ["authorAgentId", "completedStageIds", "bị bỏ qua"]) {
+    assert.ok(merge.includes(needle), `thiếu ${needle} ở mục Gộp`);
+  }
+});
+
+test("integrator che token ngoài URL và đối chiếu id trong prompt", () => {
+  const text = read("integrator");
+  for (const needle of ["gh[pousr]_", "github_pat_", "glpat-", "xox[abp]-", "(id <uuid>)", "dừng im"]) {
+    assert.ok(text.includes(needle), `thiếu ${needle}`);
+  }
+});
+
 test("integrator không dặn lộ URL remote và lọc output push", () => {
   const text = read("integrator");
   assert.doesNotMatch(text, /remote\.origin\.url|git remote get-url/);
@@ -109,5 +124,6 @@ test("integrator không dặn lộ URL remote và lọc output push", () => {
 test("executor không nêu mã 78 mà dặn giữ .claude và .mcp.json sạch", () => {
   const text = read("executor");
   assert.doesNotMatch(text, /\b78\b/);
-  assert.match(text, /git status --porcelain --ignored -- \.claude \.mcp\.json/);
+  assert.match(text, /git status --porcelain -- \.claude \.mcp\.json/);
+  assert.doesNotMatch(text, /git status[^\n]*--ignored/);
 });
