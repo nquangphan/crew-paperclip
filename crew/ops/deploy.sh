@@ -31,7 +31,12 @@ for i in $(seq 1 60); do
   sleep 2
 done
 [ "$S" = ok ] || { echo "deploy: health not ok, run ops/rollback.sh $TS" >&2; exit 3; }
-docker logs crew-v3-spike-server-1 2>&1 | python3 "$ROOT/ops/policy-config.py" startup-log || { echo "deploy: server started without the Crew policy config, run ops/rollback.sh $TS" >&2; exit 8; }
+# The "enabled" log line is info level and may be filtered, so check the container itself: the env is set
+# and the file is readable by the container user. The off-warning is still treated as a failure.
+POLICY_PATH=$(docker compose exec -T server printenv CREW_POLICY_CONFIG 2>/dev/null | tr -d '\r\n' || true)
+[ -n "$POLICY_PATH" ] || { echo "deploy: server container has no CREW_POLICY_CONFIG, run ops/rollback.sh $TS" >&2; exit 8; }
+docker compose exec -T server test -r "$POLICY_PATH" || { echo "deploy: server container cannot read the Crew policy config (check file permissions), run ops/rollback.sh $TS" >&2; exit 8; }
+docker logs crew-v3-spike-server-1 2>&1 | python3 "$ROOT/ops/policy-config.py" startup-log || { echo "deploy: server started with the Crew gates off, run ops/rollback.sh $TS" >&2; exit 8; }
 P=""
 for i in $(seq 1 30); do
   P=$("$ROOT/ops/plugin-state.sh" 2>/dev/null || true)

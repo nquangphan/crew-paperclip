@@ -8,15 +8,7 @@ const manifest: PaperclipPluginManifestV1 = {
   description: "Crew plugin for Paperclip.",
   author: "2P Crew",
   categories: ["automation"],
-  capabilities: [
-    "events.subscribe",
-    "issues.read",
-    "issues.update",
-    "issue.comments.create",
-    "agents.invoke",
-    "plugin.state.read",
-    "plugin.state.write",
-  ],
+  capabilities: ["events.subscribe", "issues.read", "issues.update", "issue.comments.create"],
   entrypoints: {
     worker: "./dist/worker.js",
   },
