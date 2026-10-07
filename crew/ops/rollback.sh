@@ -4,10 +4,13 @@ set -euo pipefail
 ROOT=/opt/crew-v3-spike
 TS=$1
 cd "$ROOT"
+. "$ROOT/ops/policy-env.sh"
 [ -f "docker-compose.yml.bak-$TS" ] || { echo "rollback: no docker-compose.yml.bak-$TS" >&2; exit 2; }
 ACTIVE=$("$ROOT/ops/active-runs.sh")
 [ -z "$ACTIVE" ] || echo "rollback: WARNING active runs will be interrupted: $ACTIVE" >&2
 cp "docker-compose.yml.bak-$TS" docker-compose.yml
+# Keep the policy mount: the restored compose file predates it.
+if python3 "$ROOT/ops/policy-config.py" file "$POLICY_FILE" 2>/dev/null; then write_policy_override; else echo "rollback: WARNING Crew policy config missing or invalid, restarting without it (gates off)" >&2; fi
 docker compose up -d --no-deps server
 S=""
 for i in $(seq 1 60); do
