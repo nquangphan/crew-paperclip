@@ -1,5 +1,13 @@
-import { and, desc, eq, gt, inArray, isNotNull, isNull, like, sql } from "drizzle-orm";
-import { activityLog, agents, type Db, issueComments, issueExecutionDecisions, issues } from "@paperclipai/db";
+import { and, desc, eq, inArray, isNull, like, sql } from "drizzle-orm";
+import {
+  activityLog,
+  agents,
+  chatConversations,
+  type Db,
+  issueComments,
+  issueExecutionDecisions,
+  issues,
+} from "@paperclipai/db";
 import type { IssueExecutionPolicy, IssueExecutionStage, IssueExecutionStagePrincipal } from "@paperclipai/shared";
 import { unprocessable } from "../errors.js";
 import { persistActivity } from "../services/activity-log.js";
@@ -400,7 +408,7 @@ export async function crewBeforeIssueWrite(input: IssueWriteHookInput): Promise<
     let handBack: ReopenHandBack = { kind: "none" };
     if (crewIssue) {
       input.patch.executionState = null;
-      handBack = await reopenHandBack(tx, locked, patch, pinnedPolicy, cycle?.createdAt ?? null);
+      handBack = await reopenHandBack(tx, locked, patch, pinnedPolicy);
       if (handBack.kind === "executor") {
         input.patch.assigneeAgentId = handBack.agentId;
         // Như runUpdate làm khi đổi owner: vô hiệu phiên bản handoff đã quan sát.
@@ -432,17 +440,19 @@ export async function crewBeforeIssueWrite(input: IssueWriteHookInput): Promise<
 
 type ReopenHandBack = { kind: "none" } | { kind: "executor"; agentId: string } | { kind: "unknown"; reason: string };
 
+/** Trạng thái agent mà stock không cho nhận việc (`agent-assignability.ts`); `paused` được chấp nhận theo ruling. */
+const UNASSIGNABLE_AGENT_STATUSES = new Set(["terminated", "pending_approval"]);
+
 /**
  * Issue Crew mở lại mà assignee là participant agent của một stage (reviewer/integrator): giao lại cho executor
- * của vòng trước để vòng mới chạy đủ các stage. Executor = `returnAssignee` của state cũ, không có thì tác giả
- * agent của comment `crew-commit` mới nhất kể từ mốc vòng trước.
+ * của vòng trước để vòng mới chạy đủ các stage. Executor chỉ lấy từ `returnAssignee` của state cũ (do transition
+ * stock ghi); không lấy từ comment, vì agent bất kỳ viết được comment.
  */
 async function reopenHandBack(
   tx: Db,
   locked: typeof issues.$inferSelect,
   patch: Readonly<Record<string, unknown>>,
   policy: IssueExecutionPolicy | null,
-  previousCycleAt: Date | null,
 ): Promise<ReopenHandBack> {
   if (has(patch, "assigneeAgentId") || has(patch, "assigneeUserId")) return { kind: "none" };
   const current = locked.assigneeAgentId;
@@ -452,33 +462,24 @@ async function reopenHandBack(
   );
   if (!participantAgents.has(current)) return { kind: "none" };
 
-  let candidate: string | null = null;
   const returnAssignee = parseIssueExecutionState(locked.executionState)?.returnAssignee;
-  if (returnAssignee?.type === "agent" && returnAssignee.agentId) candidate = returnAssignee.agentId;
-  if (!candidate) {
-    const [commit] = await tx
-      .select({ authorAgentId: issueComments.authorAgentId })
-      .from(issueComments)
-      .where(
-        and(
-          eq(issueComments.issueId, locked.id),
-          isNotNull(issueComments.authorAgentId),
-          isNull(issueComments.deletedAt),
-          like(issueComments.body, "crew-commit %"),
-          previousCycleAt ? gt(issueComments.createdAt, previousCycleAt) : undefined,
-        ),
-      )
-      .orderBy(desc(issueComments.createdAt))
-      .limit(1);
-    candidate = commit?.authorAgentId ?? null;
-  }
-  if (!candidate) return { kind: "unknown", reason: "no_return_assignee_or_crew_commit" };
-  if (candidate === current) return { kind: "unknown", reason: "executor_is_current_assignee" };
+  const candidate = returnAssignee?.type === "agent" ? (returnAssignee.agentId ?? null) : null;
+  if (!candidate) return { kind: "unknown", reason: "no_return_assignee" };
+  if (participantAgents.has(candidate)) return { kind: "unknown", reason: "executor_is_stage_participant" };
+
+  // Stock cấm đổi agent khi task gắn kênh ngoài (`chat_binding_agent_locked` trong issueService.update).
+  const [binding] = await tx
+    .select({ id: chatConversations.id })
+    .from(chatConversations)
+    .where(and(eq(chatConversations.companyId, locked.companyId), eq(chatConversations.issueId, locked.id)))
+    .limit(1);
+  if (binding) return { kind: "unknown", reason: "chat_bound" };
+
   const [agent] = await tx
     .select({ status: agents.status })
     .from(agents)
     .where(and(eq(agents.id, candidate), eq(agents.companyId, locked.companyId)))
     .limit(1);
-  if (!agent || agent.status === "terminated") return { kind: "unknown", reason: "executor_unavailable" };
+  if (!agent || UNASSIGNABLE_AGENT_STATUSES.has(agent.status)) return { kind: "unknown", reason: "executor_unavailable" };
   return { kind: "executor", agentId: candidate };
 }

@@ -7,12 +7,16 @@ import { and, eq } from "drizzle-orm";
 import {
   activityLog,
   agents,
+  chatConversations,
+  chatEndpoints,
   companies,
   companyMemberships,
   createDb,
   issueComments,
   issueExecutionDecisions,
   issues,
+  toolApplications,
+  toolConnections,
 } from "@paperclipai/db";
 import { getEmbeddedPostgresTestSupport, startEmbeddedPostgresTestDatabase } from "./helpers/embedded-postgres.js";
 import { buildCrewPolicy, CREW_POLICY_CONFIG_ENV } from "../crew/issue-policy.ts";
@@ -656,17 +660,105 @@ suite("crew issue gate in issueService.update", () => {
     });
   });
 
-  it("mở lại khi không còn returnAssignee: lấy tác giả crew-commit mới nhất của vòng trước", async () => {
+  async function unknownReasons(issueId: string) {
+    const rows = await db
+      .select()
+      .from(activityLog)
+      .where(and(eq(activityLog.entityId, issueId), eq(activityLog.action, "crew.gate.reopen_executor_unknown")));
+    return rows.map((r) => (r.details as { reason?: string } | null)?.reason);
+  }
+
+  it("mở lại sau board override (không returnAssignee): comment crew-commit của agent khác không làm đổi assignee", async () => {
     const c = await company();
+    const issueId = await issue(c, { status: "done", assigneeAgentId: c.integratorId, executionPolicy: c.root, executionState: null });
+    const intruder = randomUUID();
+    await db.insert(agents).values({
+      id: intruder,
+      companyId: c.companyId,
+      name: "Agent khác",
+      role: "engineer",
+      status: "idle",
+      adapterType: "process",
+      adapterConfig: {},
+      permissions: {},
+    });
+    await postComment(c, issueId, intruder, `crew-commit sha=${SHA_HEAD} branch=crew/x tests=pnpm result=pass`);
+    expect(await issueService(db).update(issueId, { status: "todo" })).toMatchObject({ assigneeAgentId: c.integratorId });
+    expect(await unknownReasons(issueId)).toEqual(["no_return_assignee"]);
+  });
+
+  it("returnAssignee là participant agent của policy (reviewer): không giao lại", async () => {
+    const c = await company();
+    const stageId = c.child.stages[0]!.id;
     const issueId = await issue(c, {
       status: "done",
-      assigneeAgentId: c.integratorId,
-      executionPolicy: c.root,
-      executionState: null,
+      assigneeAgentId: c.reviewerId,
+      executionPolicy: c.child,
+      executionState: { ...state(c, "completed", null, null, [stageId]), returnAssignee: c.reviewer },
     });
-    await postComment(c, issueId, c.reviewerId, `crew-commit sha=${SHA_BASE} branch=x tests=t result=pass`);
-    await postComment(c, issueId, c.executorId, `crew-commit sha=${SHA_HEAD} branch=crew/x tests=pnpm result=pass`);
-    expect(await issueService(db).update(issueId, { status: "todo" })).toMatchObject({ assigneeAgentId: c.executorId });
+    expect(await issueService(db).update(issueId, { status: "todo" })).toMatchObject({ assigneeAgentId: c.reviewerId });
+    expect(await unknownReasons(issueId)).toEqual(["executor_is_stage_participant"]);
+  });
+
+  it("issue gắn kênh chat hoặc executor đang chờ duyệt: không giao lại", async () => {
+    const c = await company();
+    const stageId = c.child.stages[0]!.id;
+    const seedDone = () =>
+      issue(c, {
+        status: "done",
+        assigneeAgentId: c.reviewerId,
+        executionPolicy: c.child,
+        executionState: state(c, "completed", null, null, [stageId]),
+      });
+    const bound = await seedDone();
+    // Khung kênh tối thiểu như heartbeat-reviewed-chat-binding.integration.test.ts.
+    const endpointId = randomUUID();
+    const applicationId = randomUUID();
+    const connectionId = randomUUID();
+    await db.insert(toolApplications).values({
+      id: applicationId,
+      companyId: c.companyId,
+      applicationKey: `chat:discord:${endpointId}`,
+      name: "Discord",
+      type: "chat",
+      status: "active",
+    });
+    await db.insert(toolConnections).values({
+      id: connectionId,
+      companyId: c.companyId,
+      applicationId,
+      name: "Discord",
+      uid: `chat-discord-${endpointId}`,
+      connectionPurpose: "channel",
+      transport: "chat_sdk",
+      status: "active",
+      enabled: true,
+    });
+    await db.insert(chatEndpoints).values({
+      id: endpointId,
+      companyId: c.companyId,
+      connectionId,
+      provider: "discord",
+      publicId: randomUUID(),
+      assignedAgentId: c.reviewerId,
+      status: "active",
+      providerAccountId: "guild-1",
+      allowUnlinkedPeople: false,
+    });
+    await db.insert(chatConversations).values({
+      companyId: c.companyId,
+      endpointId,
+      issueId: bound,
+      externalConversationId: randomUUID(),
+      externalLabel: "kênh thử",
+    });
+    expect(await issueService(db).update(bound, { status: "todo" })).toMatchObject({ assigneeAgentId: c.reviewerId });
+    expect(await unknownReasons(bound)).toEqual(["chat_bound"]);
+
+    const pending = await seedDone();
+    await db.update(agents).set({ status: "pending_approval" }).where(eq(agents.id, c.executorId));
+    expect(await issueService(db).update(pending, { status: "todo" })).toMatchObject({ assigneeAgentId: c.reviewerId });
+    expect(await unknownReasons(pending)).toEqual(["executor_unavailable"]);
   });
 
   it("mở lại mà không xác định được executor: giữ assignee và ghi activity", async () => {
