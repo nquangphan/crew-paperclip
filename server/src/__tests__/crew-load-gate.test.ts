@@ -130,6 +130,7 @@ function harness(probe: HostProbe, now: Date, notices: Notices = {}, failComment
       events.push(`blocked:${issueId}`);
     },
     now: () => now,
+    remoteStopPending: () => false,
     retryState: async () => ({ checked: true, pendingComment: null }),
     checkRetryProgress: async () => ({ kind: "none" }),
     recordRetryProgress: async () => null,
@@ -295,6 +296,19 @@ describe("evaluateBeforeClaim", () => {
     expect(await evaluateBeforeClaim(h.input, deps)).toBe(true);
     expect(h.events).toHaveLength(1);
     expect(h.events[0]).toMatch(/^cancel:run-1:/);
+  });
+
+  it("holds the run without probing while a stop of the previous run is still running on that host", async () => {
+    let probed = false;
+    const h = harness({ ok: true, load1: 1 }, T0);
+    h.deps.probeHost = async () => {
+      probed = true;
+      return { ok: true, load1: 1 };
+    };
+    h.deps.remoteStopPending = (environmentId) => environmentId === "env-1";
+    expect(await evaluateBeforeClaim(h.input, h.deps)).toBe(true);
+    expect(probed).toBe(false);
+    expect(h.events).toEqual([]);
   });
 
   it("is a no-op for runs that are not queued or have no gated environment", async () => {

@@ -209,3 +209,65 @@ export async function stopRemoteRunOnRelease(
   }
   return result;
 }
+
+/**
+ * Upper bound for a stop started in the background. It stays below the 30 s cancel contract and above
+ * the SSH budget (REMOTE_STOP_TIMEOUT_MS) plus SSH config resolution, so a normal stop always finishes
+ * first; past it the stop is reported as unreachable and no longer holds claims on the host.
+ */
+export const REMOTE_STOP_BACKGROUND_LIMIT_MS = 20_000;
+
+const pendingStops = new Map<symbol, { environmentId: string; done: Promise<void> }>();
+
+/** True while a stop started by a lease release is still running on this environment's host. */
+export function isRemoteStopPending(environmentId: string): boolean {
+  for (const stop of pendingStops.values()) if (stop.environmentId === environmentId) return true;
+  return false;
+}
+
+/**
+ * H3 entry point: starts the remote stop and returns at once, so the lease is marked released right
+ * away. Stock admission treats a lease that is not released yet as a live execution owner and skips
+ * the wake of the next participant, so the SSH round trip must not happen before the release. While
+ * the stop runs, the load gate keeps claims on the same environment queued (no new run next to the
+ * old processes). The stop records its own `crew.remote_stop` activity; a stop that exceeds
+ * REMOTE_STOP_BACKGROUND_LIMIT_MS is recorded as unreachable. Never throws.
+ */
+export function startRemoteStopOnRelease(
+  input: RunLeaseReleasedInput,
+  stop: (input: RunLeaseReleasedInput) => Promise<RemoteStopResult> = stopRemoteRunOnRelease,
+): void {
+  if (!input.lease.heartbeatRunId || input.environment.driver !== "ssh") return;
+  const key = Symbol(input.lease.heartbeatRunId);
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const limit = new Promise<"timeout">((resolve) => {
+    timer = setTimeout(() => resolve("timeout"), REMOTE_STOP_BACKGROUND_LIMIT_MS);
+  });
+  const done = Promise.race([
+    Promise.resolve()
+      .then(() => stop(input))
+      .then(() => "done" as const),
+    limit,
+  ])
+    .then(async (outcome) => {
+      if (outcome !== "timeout") return;
+      logger.warn({ runId: input.lease.heartbeatRunId }, "crew: remote stop exceeded its background limit");
+      await defaultDeps.recordActivity(input, {
+        outcome: "unreachable",
+        error: `lệnh dừng chưa xong sau ${REMOTE_STOP_BACKGROUND_LIMIT_MS / 1000} giây`,
+      });
+    })
+    .catch((err) => {
+      logger.warn({ err, runId: input.lease.heartbeatRunId }, "crew: background remote stop failed");
+    })
+    .finally(() => {
+      clearTimeout(timer);
+      pendingStops.delete(key);
+    });
+  pendingStops.set(key, { environmentId: input.environment.id, done });
+}
+
+/** Waits for every background stop (tests only; the server never awaits them). */
+export async function settleRemoteStopsForTests(): Promise<void> {
+  await Promise.all([...pendingStops.values()].map((stop) => stop.done));
+}

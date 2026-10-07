@@ -1,11 +1,13 @@
 import { and, asc, desc, eq, isNull, sql } from "drizzle-orm";
-import { activityLog, agents, type Db, type heartbeatRuns, issueComments } from "@paperclipai/db";
+import { activityLog, agents, type Db, heartbeatRuns, issueComments } from "@paperclipai/db";
 import { runSshCommand } from "@paperclipai/adapter-utils/ssh";
 import { logger } from "../middleware/logger.js";
 import { logActivity } from "../services/activity-log.js";
 import { resolveEnvironmentDriverConfigForRuntime } from "../services/environment-config.js";
 import { environmentService } from "../services/environments.js";
+import { CONVERSATION_CONTINUATION_POLICY, isConversationAdapter } from "../services/conversation-continuation.js";
 import { issueService } from "../services/issues.js";
+import { isRemoteStopPending } from "./remote-stop.js";
 import {
   type RetryProgress,
   createRetryProgressChecker,
@@ -104,6 +106,8 @@ export interface BeforeClaimDeps {
     settings: LoadGateSettings;
   } | null>;
   probeHost(environmentId: string, run: BeforeClaimInput["run"]): Promise<HostProbe>;
+  /** True while the stop of an earlier run (lease release, hook H3) is still running on this environment. */
+  remoteStopPending(environmentId: string): boolean;
   /** Time of the first activity of this kind for the run (persisted, survives restarts), or null. */
   firstNoticeAt(runId: string, kind: NoticeKind): Promise<Date | null>;
   /** Persists the durable marker `crew.load_gate.<kind>`; the wait deadline is counted from the first one. */
@@ -225,6 +229,9 @@ export async function evaluateBeforeClaim(input: BeforeClaimInput, deps: BeforeC
   const target = await deps.loadTarget(run);
   if (!target) return false;
   const expiredReason = `Crew: hết ${target.settings.maxWaitMinutes} phút chờ máy ${target.environmentName}`;
+  // The previous run's processes may still be alive in the same worktree: wait for its stop (a few
+  // seconds, bounded) before letting another run start there. No marker: this is not a host problem.
+  if (deps.remoteStopPending(target.environmentId)) return true;
 
   // Once the wait expired the run is on its way out: keep it queued, retry the cancel and a missing comment.
   if (await deps.firstNoticeAt(run.id, "expired")) {
@@ -299,6 +306,41 @@ async function logFailure(runId: string, what: string, action: () => Promise<voi
 }
 
 const probeCache = createProbeCache(LOAD_GATE_PROBE_TTL_MS);
+
+/**
+ * Cancel options for a run the gate held and is giving up on. It is still queued and never had a
+ * process, so its stop is acknowledged by construction. Stock adds the conversation continuation
+ * policy to a cancelled conversation-adapter run only once its stop is acknowledged; without it a
+ * retry whose budget is spent (executionFailureRetryCount >= 2) gets a reconciliation hold whose
+ * evidence run has no process identity, which stock admission can never clear, so every later wake
+ * of the issue is skipped. Other adapters keep stock behaviour (no options).
+ */
+async function neverStartedCancelOptions(db: Db, runId: string): Promise<{ resultJson?: Record<string, unknown> }> {
+  const [row] = await db
+    .select({
+      status: heartbeatRuns.status,
+      startedAt: heartbeatRuns.startedAt,
+      processPid: heartbeatRuns.processPid,
+      processGroupId: heartbeatRuns.processGroupId,
+      adapterType: agents.adapterType,
+    })
+    .from(heartbeatRuns)
+    .innerJoin(agents, eq(agents.id, heartbeatRuns.agentId))
+    .where(eq(heartbeatRuns.id, runId))
+    .limit(1);
+  if (!row || row.status !== "queued" || row.startedAt || row.processPid || row.processGroupId) return {};
+  if (!isConversationAdapter(row.adapterType)) return {};
+  return {
+    resultJson: {
+      executionCancellation: {
+        state: "acknowledged",
+        acknowledgedAt: new Date().toISOString(),
+        proof: "crew_load_gate_never_started",
+      },
+      conversationContinuation: CONVERSATION_CONTINUATION_POLICY,
+    },
+  };
+}
 
 /**
  * The comment marker activity is written after the comment, so a comment that was stored while its
@@ -398,11 +440,14 @@ export function defaultBeforeClaimDeps(db: Db): BeforeClaimDeps {
         details: {},
       });
     },
+    remoteStopPending: isRemoteStopPending,
     scheduleCancel(runId, reason) {
       setImmediate(() => {
-        void import("../services/heartbeat.js")
-          .then(({ heartbeatService }) => heartbeatService(db).cancelRun(runId, reason))
-          .catch((err) => logger.warn({ err, runId }, "crew-load-gate: cancelling an expired run failed; retried next tick"));
+        void (async () => {
+          const options = await neverStartedCancelOptions(db, runId);
+          const { heartbeatService } = await import("../services/heartbeat.js");
+          await heartbeatService(db).cancelRun(runId, reason, options);
+        })().catch((err) => logger.warn({ err, runId }, "crew-load-gate: cancelling an expired run failed; retried next tick"));
       });
     },
     async blockIssue(issueId) {
