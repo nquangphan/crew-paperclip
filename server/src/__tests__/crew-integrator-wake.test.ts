@@ -96,6 +96,31 @@ describe("registerIntegratorWake", () => {
     expect(other.invoked).toHaveLength(0);
   });
 
+  it("PATCH done lên issue đã done (không có _previous) thì không đánh thức", async () => {
+    const { harness, invoked, issueId } = await setup();
+    await harness.emit("issue.updated", { status: "done", identifier: "CREA-9" }, { companyId: COMPANY, entityId: issueId });
+    expect(invoked).toHaveLength(0);
+  });
+
+  it("lời nhắn nêu id issue vì invoke không có trường ngữ cảnh issue", async () => {
+    const { harness, invoked, issueId } = await setup();
+    await harness.emit("issue.updated", done, { companyId: COMPANY, entityId: issueId });
+    expect(invoked[0]?.opts.prompt).toContain(issueId);
+  });
+
+  it("ghi mốc lỗi sau khi invoke thành công thì không ném và chấp nhận gọi trùng", async () => {
+    const { harness, invoked, issueId } = await setup();
+    const realSet = harness.ctx.state.set.bind(harness.ctx.state);
+    harness.ctx.state.set = async () => {
+      throw new Error("state down");
+    };
+    await expect(harness.emit("issue.updated", done, { companyId: COMPANY, entityId: issueId })).resolves.not.toThrow();
+    expect(invoked).toHaveLength(1);
+    harness.ctx.state.set = realSet;
+    await harness.emit("issue.updated", done, { companyId: COMPANY, entityId: issueId });
+    expect(invoked).toHaveLength(2);
+  });
+
   it("issue đã bị mở lại trước khi sự kiện tới thì không đánh thức", async () => {
     const { harness, invoked, issueId } = await setup({ status: "in_progress" });
     await harness.emit("issue.updated", done, { companyId: COMPANY, entityId: issueId });
