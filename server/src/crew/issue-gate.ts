@@ -7,6 +7,7 @@ import { normalizeIssueExecutionPolicy, parseIssueExecutionState } from "../serv
 import {
   type CrewRoles,
   type DocsCheckEvidence,
+  isCrewHousekeepingIssue,
   loadCrewCompanyConfig,
   parseDocsCheckEvidence,
   policyGateFingerprint,
@@ -32,6 +33,8 @@ export interface IssueGateFacts {
     executionState: unknown;
     assigneeAgentId: string | null;
     assigneeUserId: string | null;
+    /** Issue watchdog/recovery do hệ thống tạo (`isCrewHousekeepingIssue`). */
+    housekeeping?: boolean;
   };
   patch: Readonly<Record<string, unknown>>;
   actor: GateActor;
@@ -148,6 +151,9 @@ export function evaluateIssueGate(f: IssueGateFacts): IssueGateVerdict {
       return { kind: "block", code: "crew_role_assignee", violations: ["role_assignee"] };
     }
   }
+
+  // Việc nội bộ của hệ thống (watchdog, recovery) không có policy: agent được giao đóng được như stock.
+  if (f.locked.housekeeping && !policy?.stages.length) return { kind: "allow", notes };
 
   const enteringDone = nextStatus === "done" && f.locked.status !== "done";
   const docsStages = docsGateStages(policy);
@@ -288,6 +294,7 @@ export async function crewBeforeIssueWrite(input: IssueWriteHookInput): Promise<
       executionState: locked.executionState,
       assigneeAgentId: locked.assigneeAgentId,
       assigneeUserId: locked.assigneeUserId,
+      housekeeping: isCrewHousekeepingIssue(locked),
     },
     patch,
     actor,

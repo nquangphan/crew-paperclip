@@ -42,8 +42,12 @@ export function parseCrewPolicyConfig(text: string, companyId: string): CrewComp
   if (!isRecord(parsed) || !isRecord(parsed.companies)) {
     return { kind: "invalid", reason: "thiếu object `companies`" };
   }
-  if (!Object.hasOwn(parsed.companies, companyId)) return { kind: "absent" };
-  const entry = parsed.companies[companyId];
+  // uuid company có thể được ghi hoa hoặc thường trong file; so khớp không phân biệt hoa thường.
+  const wanted = companyId.toLowerCase();
+  const keys = Object.keys(parsed.companies).filter((key) => key.toLowerCase() === wanted);
+  if (keys.length === 0) return { kind: "absent" };
+  if (keys.length > 1) return { kind: "invalid", reason: `companies có ${keys.length} key trùng ${companyId} khi bỏ hoa thường` };
+  const entry = parsed.companies[keys[0] as string];
   if (!isRecord(entry)) return { kind: "invalid", reason: `companies.${companyId} không phải object` };
   const { reviewerAgentId, integratorAgentId, ownerUserId } = entry;
   if (typeof reviewerAgentId !== "string" || !UUID_RE.test(reviewerAgentId)) {
@@ -63,6 +67,33 @@ export function parseCrewPolicyConfig(text: string, companyId: string): CrewComp
     roles: { reviewerAgentId: reviewerAgentId.toLowerCase(), integratorAgentId: integratorAgentId.toLowerCase() },
     ownerUserId: ownerUserId.trim(),
   };
+}
+
+/**
+ * Issue nội bộ do hệ thống Paperclip tự sinh (watchdog, recovery, evaluation): không gắn policy Crew khi tạo,
+ * và agent được giao vẫn `done` được khi issue không có policy. Giá trị khớp `RECOVERY_ORIGIN_KINDS`,
+ * `TASK_WATCHDOG_ORIGIN_KIND`, `TASK_WATCHDOG_PRODUCT_BUG_ORIGIN_KIND` (test kiểm khớp).
+ */
+export const CREW_HOUSEKEEPING_ORIGIN_KINDS: readonly string[] = [
+  "harness_liveness_escalation",
+  "issue_productivity_review",
+  "stranded_issue_recovery",
+  "stale_active_run_evaluation",
+  "task_watchdog",
+  "task_watchdog_product_bug",
+];
+
+export function isCrewHousekeepingOrigin(originKind: string | null | undefined): boolean {
+  return typeof originKind === "string" && CREW_HOUSEKEEPING_ORIGIN_KINDS.includes(originKind);
+}
+
+/** Issue nội bộ của hệ thống: nguồn watchdog/recovery và không có người tạo (agent không tạo được loại này). */
+export function isCrewHousekeepingIssue(issue: {
+  originKind: string | null | undefined;
+  createdByAgentId: string | null | undefined;
+  createdByUserId: string | null | undefined;
+}): boolean {
+  return isCrewHousekeepingOrigin(issue.originKind) && !issue.createdByAgentId && !issue.createdByUserId;
 }
 
 const loggedProblems = new Set<string>();
@@ -159,3 +190,22 @@ export function parseDocsCheckEvidence(body: string): DocsCheckEvidence | null {
   if (commit !== head) return null;
   return { commit, base, head, exit: Number(exit) as DocsCheckEvidence["exit"] };
 }
+
+/** Báo một lần lúc nạp module (server khởi động) khi chưa đặt env: mọi gate Crew đang tắt. */
+export function reportCrewPolicyConfigAtStartup(
+  env: NodeJS.ProcessEnv = process.env,
+  log: Pick<typeof logger, "warn" | "info"> = logger,
+): boolean {
+  const file = env[CREW_POLICY_CONFIG_ENV]?.trim();
+  if (!file) {
+    log.warn(
+      { env: CREW_POLICY_CONFIG_ENV },
+      `${CREW_POLICY_CONFIG_ENV} chưa đặt: gate Crew (review, integrator, owner, docs) tắt cho mọi company`,
+    );
+    return false;
+  }
+  log.info({ file }, "crew policy config enabled");
+  return true;
+}
+
+reportCrewPolicyConfigAtStartup();

@@ -1,6 +1,6 @@
 import type { Db } from "@paperclipai/db";
 import { unprocessable } from "../errors.js";
-import { buildCrewPolicy, type CrewRoles, loadCrewCompanyConfig } from "./issue-policy.js";
+import { buildCrewPolicy, type CrewRoles, isCrewHousekeepingOrigin, loadCrewCompanyConfig } from "./issue-policy.js";
 
 /** Cùng shape với IssueCreateLike trong core-hooks.ts (không import registry). */
 export interface IssueCreateFields {
@@ -9,6 +9,7 @@ export interface IssueCreateFields {
   createdByUserId?: string | null;
   assigneeAgentId?: string | null;
   status?: string | null;
+  originKind?: string | null;
   executionPolicy?: unknown;
 }
 
@@ -28,7 +29,8 @@ const AGENT_CREATE_FORBIDDEN_STATUSES = new Set(["done", "cancelled", "in_review
  * Chỉ gọi cho company có trong file cấu hình Crew (`roles` null = cấu hình lỗi).
  * Agent chỉ tạo được issue con và luôn nhận template con (mọi policy agent gửi bị thay). Board gửi policy riêng
  * thì giữ; không gửi thì nhận template theo loại issue, owner của template gốc lấy từ file cấu hình.
- * Hệ thống (không người tạo: watchdog, recovery, evaluation) giữ hành vi stock.
+ * Hệ thống (không người tạo): issue watchdog/recovery giữ hành vi stock; routine và mọi nguồn khác (kể cả nguồn
+ * không nhận diện được) nhận template con như agent tạo, tức là phải qua reviewer.
  */
 export function decideCreatePolicy(input: {
   data: IssueCreateFields;
@@ -47,7 +49,11 @@ export function decideCreatePolicy(input: {
     }
     return { kind: "set", template: "child" };
   }
-  if (!data.createdByUserId?.trim()) return { kind: "keep" };
+  if (!data.createdByUserId?.trim()) {
+    if (isCrewHousekeepingOrigin(data.originKind)) return { kind: "keep" };
+    if (!roles) return { kind: "reject", code: "crew_roles_unconfigured" };
+    return { kind: "set", template: "child" };
+  }
   if (data.executionPolicy != null || !roles) return { kind: "keep" };
   if (data.parentId) return { kind: "set", template: "child" };
   return input.ownerUserId ? { kind: "set", template: "root", ownerUserId: input.ownerUserId } : { kind: "keep" };

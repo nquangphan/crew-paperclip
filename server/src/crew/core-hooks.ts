@@ -35,6 +35,7 @@ export interface IssueCreateLike {
   createdByUserId?: string | null;
   assigneeAgentId?: string | null;
   status?: string | null;
+  originKind?: string | null;
   executionPolicy?: unknown;
 }
 

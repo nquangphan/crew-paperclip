@@ -1,13 +1,19 @@
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { afterAll, describe, expect, it } from "vitest";
+import { afterAll, describe, expect, it, vi } from "vitest";
+import { TASK_WATCHDOG_PRODUCT_BUG_ORIGIN_KIND } from "@paperclipai/shared";
 import { evaluateIssueGate, type IssueGateFacts } from "../crew/issue-gate.ts";
+import { RECOVERY_ORIGIN_KINDS } from "../services/recovery/origins.ts";
+import { TASK_WATCHDOG_ORIGIN_KIND } from "../services/task-watchdog-scope.ts";
 import {
   buildCrewPolicy,
   CREW_MAX_REVIEW_ROUNDS,
+  CREW_HOUSEKEEPING_ORIGIN_KINDS,
   CREW_POLICY_CONFIG_ENV,
+  isCrewHousekeepingIssue,
   loadCrewCompanyConfig,
+  reportCrewPolicyConfigAtStartup,
   parseCrewPolicyConfig,
   parseDocsCheckEvidence,
   policyGateFingerprint,
@@ -52,6 +58,21 @@ describe("parseCrewPolicyConfig", () => {
     }
   });
 
+  it("key company so khớp không phân biệt hoa thường; hai key trùng khi bỏ hoa thường thì invalid", () => {
+    const lower = "abcdef12-3456-4789-8abc-def123456789";
+    const upper = lower.toUpperCase();
+    expect(parseCrewPolicyConfig(JSON.stringify({ companies: { [upper]: entry } }), lower)).toMatchObject({
+      kind: "ok",
+      roles,
+    });
+    expect(parseCrewPolicyConfig(JSON.stringify({ companies: { [lower]: entry } }), upper)).toMatchObject({
+      kind: "ok",
+    });
+    expect(
+      parseCrewPolicyConfig(JSON.stringify({ companies: { [lower]: entry, [upper]: entry } }), lower),
+    ).toMatchObject({ kind: "invalid" });
+  });
+
   it("file lỗi cú pháp hoặc sai khung thì invalid cho mọi company", () => {
     expect(parseCrewPolicyConfig("{", COMPANY)).toMatchObject({ kind: "invalid" });
     expect(parseCrewPolicyConfig(JSON.stringify({ companies: [] }), COMPANY)).toMatchObject({ kind: "invalid" });
@@ -83,6 +104,34 @@ describe("loadCrewCompanyConfig", () => {
     await expect(
       loadCrewCompanyConfig(COMPANY, { [CREW_POLICY_CONFIG_ENV]: path.join(dir, "missing.json") }),
     ).resolves.toMatchObject({ kind: "invalid" });
+  });
+});
+
+describe("reportCrewPolicyConfigAtStartup", () => {
+  it("không đặt env thì warn rằng gate Crew tắt; có env thì không warn", () => {
+    const log = { warn: vi.fn(), info: vi.fn() };
+    expect(reportCrewPolicyConfigAtStartup({}, log)).toBe(false);
+    expect(log.warn).toHaveBeenCalledTimes(1);
+    expect(String(log.warn.mock.calls[0]![1])).toContain(CREW_POLICY_CONFIG_ENV);
+    const quiet = { warn: vi.fn(), info: vi.fn() };
+    expect(reportCrewPolicyConfigAtStartup({ [CREW_POLICY_CONFIG_ENV]: "/etc/crew-policy.json" }, quiet)).toBe(true);
+    expect(quiet.warn).not.toHaveBeenCalled();
+  });
+});
+
+describe("isCrewHousekeepingIssue", () => {
+  it("issue watchdog/recovery do hệ thống tạo là việc nội bộ; routine, manual hay có người tạo thì không", () => {
+    expect([...CREW_HOUSEKEEPING_ORIGIN_KINDS].sort()).toEqual(
+      [...Object.values(RECOVERY_ORIGIN_KINDS), TASK_WATCHDOG_ORIGIN_KIND, TASK_WATCHDOG_PRODUCT_BUG_ORIGIN_KIND].sort(),
+    );
+    for (const originKind of CREW_HOUSEKEEPING_ORIGIN_KINDS) {
+      expect(isCrewHousekeepingIssue({ originKind, createdByAgentId: null, createdByUserId: null })).toBe(true);
+      expect(isCrewHousekeepingIssue({ originKind, createdByAgentId: EXECUTOR, createdByUserId: null })).toBe(false);
+      expect(isCrewHousekeepingIssue({ originKind, createdByAgentId: null, createdByUserId: "owner-1" })).toBe(false);
+    }
+    for (const originKind of ["routine_execution", "manual", "chat_channel", "plugin:x", null]) {
+      expect(isCrewHousekeepingIssue({ originKind, createdByAgentId: null, createdByUserId: null })).toBe(false);
+    }
   });
 });
 
@@ -467,6 +516,25 @@ describe("evaluateIssueGate", () => {
       kind: "block",
       violations: expect.arrayContaining(["roles_unconfigured"]),
     });
+  });
+
+  it("issue watchdog/recovery của hệ thống không có policy: agent done được, vẫn không được cancel", () => {
+    const housekeeping = {
+      status: "in_progress",
+      executionPolicy: null,
+      executionState: null,
+      assigneeAgentId: EXECUTOR,
+      assigneeUserId: null,
+      housekeeping: true,
+    };
+    expect(evaluateIssueGate(facts({ locked: housekeeping, patch: { status: "done" } }))).toEqual({ kind: "allow", notes: [] });
+    expect(evaluateIssueGate(facts({ locked: housekeeping, patch: { status: "cancelled" } }))).toMatchObject({
+      kind: "block",
+      violations: ["agent_cancel_forbidden"],
+    });
+    expect(
+      evaluateIssueGate(facts({ locked: { ...housekeeping, executionPolicy: child }, patch: { status: "done" } })),
+    ).toMatchObject({ kind: "block" });
   });
 
   it("issue không có policy: agent không done được", () => {

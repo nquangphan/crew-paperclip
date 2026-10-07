@@ -73,9 +73,26 @@ describe("decideCreatePolicy", () => {
       }),
     ).toEqual({ kind: "keep" });
   });
-  it("hệ thống tạo issue (không người tạo) thì giữ hành vi stock", () => {
-    expect(decideCreatePolicy({ data: {}, roles, ownerUserId: "owner-1" })).toEqual({ kind: "keep" });
-    expect(decideCreatePolicy({ data: { parentId: "p" }, roles, ownerUserId: "owner-1" })).toEqual({ kind: "keep" });
+  it("hệ thống tạo issue watchdog/recovery: giữ hành vi stock, không policy", () => {
+    for (const originKind of ["task_watchdog", "stale_active_run_evaluation", "stranded_issue_recovery"]) {
+      expect(decideCreatePolicy({ data: { parentId: "p", originKind }, roles, ownerUserId: "owner-1" })).toEqual({
+        kind: "keep",
+      });
+      expect(decideCreatePolicy({ data: { parentId: "p", originKind }, roles: null, ownerUserId: null })).toEqual({
+        kind: "keep",
+      });
+    }
+  });
+  it("hệ thống tạo issue routine hoặc nguồn không nhận diện được: template con như agent tạo", () => {
+    for (const originKind of ["routine_execution", "manual", "plugin:x", undefined]) {
+      expect(
+        decideCreatePolicy({ data: { originKind, executionPolicy: { stages: [] } }, roles, ownerUserId: "owner-1" }),
+      ).toEqual({ kind: "set", template: "child" });
+    }
+    expect(decideCreatePolicy({ data: { originKind: "routine_execution" }, roles: null, ownerUserId: null })).toEqual({
+      kind: "reject",
+      code: "crew_roles_unconfigured",
+    });
   });
 });
 
@@ -205,11 +222,41 @@ suite("crew policy in issueService.create", () => {
     expect(policy.stages[2]!.participants[0]!.userId).toBe("owner-1");
   });
 
-  it("hệ thống tạo issue phụ (không người tạo): không gắn template và đóng được như stock", async () => {
-    const { companyId, rootId } = await seed();
-    const created = await issueService(db).create(companyId, { title: "evaluation", parentId: rootId });
-    expect(created.executionPolicy).toBeNull();
-    expect((await issueService(db).update(created.id, { status: "done" }))?.status).toBe("done");
+  it("hệ thống tạo issue watchdog: không gắn template; hệ thống và agent được giao đều done được", async () => {
+    const { companyId, executorId, rootId } = await seed();
+    const create = (title: string) =>
+      issueService(db).create(companyId, {
+        title,
+        parentId: rootId,
+        originKind: "task_watchdog",
+        assigneeAgentId: executorId,
+      });
+    const bySystem = await create("watchdog 1");
+    expect(bySystem.executionPolicy).toBeNull();
+    expect((await issueService(db).update(bySystem.id, { status: "done" }))?.status).toBe("done");
+    const byAgent = await create("watchdog 2");
+    expect((await issueService(db).update(byAgent.id, { status: "done", actorAgentId: executorId }))?.status).toBe("done");
+  });
+
+  it("hệ thống tạo issue routine: template con, agent không done thẳng được", async () => {
+    const { companyId, executorId, reviewerId } = await seed();
+    const created = await issueService(db).create(companyId, {
+      title: "routine",
+      originKind: "routine_execution",
+      originId: randomUUID(),
+      assigneeAgentId: executorId,
+    });
+    const policy = created.executionPolicy as { stages: Array<{ participants: Array<{ agentId: string | null }> }> };
+    expect(policy.stages.map((s) => s.participants[0]!.agentId)).toEqual([reviewerId]);
+    await expect(
+      issueService(db).update(created.id, { status: "done", actorAgentId: executorId }),
+    ).rejects.toMatchObject({ status: 422, details: { code: "crew_gate_blocked" } });
+  });
+
+  it("hệ thống tạo issue nguồn không nhận diện được (manual): template con", async () => {
+    const { companyId } = await seed();
+    const created = await issueService(db).create(companyId, { title: "khác" });
+    expect((created.executionPolicy as { stages: unknown[] }).stages).toHaveLength(1);
   });
 
   it("company không có trong file cấu hình: agent tạo issue gốc như stock", async () => {
