@@ -16,8 +16,6 @@ RUN set -e; cd /app/server; OUT=dist; \
       o="$OUT/${f#src/}"; o="${o%.ts}.js"; mkdir -p "$(dirname "$o")"; \
       /app/node_modules/.bin/esbuild "$f" --format=esm --platform=node --target=node24 --outfile="$o" --log-level=warning; \
     done < /app/crew-transpile.txt; \
-    mkdir -p /app/packages/crew-plugin/node_modules/@paperclipai; \
-    ln -sfn /app/packages/plugins/sdk /app/packages/crew-plugin/node_modules/@paperclipai/plugin-sdk; \
     chown -R node:node "/app/server/$OUT" /app/packages/crew-plugin
 DOCK
 FULL=$(tr -dc '0-9a-f' < "$CTX/app/crew-commit.txt")
