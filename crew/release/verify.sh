@@ -29,4 +29,5 @@ run 5 corepack pnpm --filter @paperclipai/adapter-claude-local exec vitest run s
 run 6 corepack pnpm --filter @paperclipai/server exec tsc --noEmit
 run 6 corepack pnpm --filter @paperclipai/adapter-claude-local exec tsc --noEmit
 run 6 corepack pnpm --filter @crew/paperclip-plugin exec tsc --noEmit
+run 6 corepack pnpm --filter @crew/paperclip-plugin build
 echo "XANH: mốc hook đủ, test vá và typecheck đạt"

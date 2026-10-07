@@ -1,10 +1,10 @@
 #!/bin/bash
 # Collects the files the Crew branch changed against the upstream pin, plus the built crew plugin,
-# and uploads them to the VPS for overlay-job.sh. Usage: overlay-source.sh [<commit>] (default crew/r1-1)
+# and uploads them to the VPS for overlay-job.sh. Usage: overlay-source.sh [<commit>] (default HEAD of the fork worktree this script lives in)
 set -euo pipefail
-FORK=/Users/phannhatquang/Documents/projects/crew/.worktrees/paperclip-r1-1
+FORK=$(cd "$(dirname "$0")/../.." && pwd -P)
 BASE=v2026.1001.0
-COMMIT=$(git -C "$FORK" rev-parse "${1:-crew/r1-1}")
+COMMIT=$(git -C "$FORK" rev-parse "${1:-HEAD}")
 SHORT=${COMMIT:0:9}
 WORK=$(mktemp -d)
 trap 'rm -rf "$WORK"' EXIT
@@ -27,6 +27,8 @@ printf '%s\n' "$SHIP" | grep -E '^server/src/.*\.ts$' | sed 's#^server/##' > "$W
 echo "$COMMIT" > "$WORK/app/crew-commit.txt"
 if [ -n "$SHIP" ]; then git archive --format=tar "$COMMIT" $SHIP | tar -x -C "$WORK/app"; fi
 
+# The bundle resolves @paperclipai/plugin-sdk from its built dist.
+corepack pnpm --filter @paperclipai/plugin-sdk ensure-build-deps
 corepack pnpm --filter @crew/paperclip-plugin build
 git archive --format=tar "$COMMIT" packages/crew-plugin/package.json | tar -x -C "$WORK/app"
 OUTDIR=$(node -e 'const p=require("./packages/crew-plugin/package.json"); console.log(require("path").dirname(p.paperclipPlugin.worker))')

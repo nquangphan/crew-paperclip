@@ -13,7 +13,7 @@ async function setup(overrides: Record<string, unknown> = {}) {
     capabilities: ["events.subscribe", "issues.read", "issues.create", "issues.update", "issue.comments.create", "issue.comments.read"],
   });
   registerRunCancelledHandler(harness.ctx);
-  const created = await harness.ctx.issues.create({ companyId: COMPANY, title: "cancelled run returns the issue to todo" });
+  const created = await harness.ctx.issues.create({ companyId: COMPANY, title: "cancelled run moves the issue to blocked" });
   harness.seed({
     issues: [{ ...created, status: "in_progress", assigneeAgentId: AGENT, executionRunId: null, ...overrides }],
   });
