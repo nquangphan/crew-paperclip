@@ -178,6 +178,7 @@ const WITH_COMMIT: RetryProgress = {
   previousStartedAt: T0,
   retryReason: "transient_failure",
   cwd: "/w",
+  truncated: false,
   commits: [{ sha: "c".repeat(40), committedAt: "x", branch: "crew/ABC-1", subject: "s" }],
 };
 

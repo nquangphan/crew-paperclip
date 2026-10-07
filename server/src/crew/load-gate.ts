@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, sql } from "drizzle-orm";
+import { and, asc, desc, eq, isNull, sql } from "drizzle-orm";
 import { activityLog, agents, type Db, type heartbeatRuns, issueComments } from "@paperclipai/db";
 import { runSshCommand } from "@paperclipai/adapter-utils/ssh";
 import { logger } from "../middleware/logger.js";
@@ -303,13 +303,23 @@ const probeCache = createProbeCache(LOAD_GATE_PROBE_TTL_MS);
 /**
  * The comment marker activity is written after the comment, so a comment that was stored while its
  * marker failed would be posted again next tick. Comments of the gate start with a prefix unique to
- * the run, which is checked before posting.
+ * the run, which is checked before posting. Only live comments written by the system count, so an
+ * agent or a person quoting the prefix, or a deleted comment, does not suppress the gate's comment.
  */
 async function hasCommentWithPrefix(db: Db, issueId: string, prefix: string): Promise<boolean> {
   const [row] = await db
     .select({ id: issueComments.id })
     .from(issueComments)
-    .where(and(eq(issueComments.issueId, issueId), sql`left(${issueComments.body}, ${prefix.length}) = ${prefix}`))
+    .where(
+      and(
+        eq(issueComments.issueId, issueId),
+        eq(issueComments.authorType, "system"),
+        isNull(issueComments.authorAgentId),
+        isNull(issueComments.authorUserId),
+        isNull(issueComments.deletedAt),
+        sql`left(${issueComments.body}, ${prefix.length}) = ${prefix}`,
+      ),
+    )
     .limit(1);
   return Boolean(row);
 }
@@ -436,6 +446,7 @@ export function defaultBeforeClaimDeps(db: Db): BeforeClaimDeps {
                 previousRunId: progress.previousRunId,
                 cwd: progress.cwd,
                 commits: progress.commits.map((c) => ({ sha: c.sha, branch: c.branch })),
+                truncated: progress.truncated,
                 ...(comment ? { comment } : {}),
               }
             : { previousRunId: run.retryOfRunId, skipped: true },

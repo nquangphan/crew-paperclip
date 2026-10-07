@@ -37,6 +37,8 @@ export type RetryProgress =
       previousStartedAt: Date;
       retryReason: string | null;
       cwd: string;
+      /** True when git returned the maximum and the oldest one is still inside the window. */
+      truncated: boolean;
       commits: RetryCommit[];
     }
   | { kind: "error"; error: string };
@@ -49,17 +51,22 @@ export type RetryProgressSshRunner = (
   options: { timeoutMs: number },
 ) => Promise<{ stdout: string }>;
 
-/** Stops the previous run's leftovers, prints the Mac clock, then lists commits on all local branches. */
+/**
+ * Stops the previous run's leftovers, prints the Mac clock, then lists commits on all local branches
+ * and HEAD (a detached HEAD, e.g. an interrupted rebase, is on no branch).
+ */
 export function buildRetryProgressCommand(previousRunId: string, cwd: string): string {
   if (!cwd.startsWith("/")) throw new Error(`crew retry progress: cwd must be absolute: ${cwd}`);
   return [
     buildRemoteStopCommand(previousRunId, cwd),
     `echo "${CLOCK_MARK} $(date +%s)"`,
-    `git -C ${shellQuote(cwd)} log --branches --source --format='%H%x09%ct%x09%cI%x09%S%x09%s' -n ${MAX_COMMITS}`,
+    `git -C ${shellQuote(cwd)} log --branches HEAD --source --format='%H%x09%ct%x09%cI%x09%S%x09%s' -n ${MAX_COMMITS}`,
   ].join(" && ");
 }
 
-export type RetryProgressOutput = { ok: true; commits: RetryCommit[] } | { ok: false; error: string };
+export type RetryProgressOutput =
+  | { ok: true; commits: RetryCommit[]; truncated: boolean }
+  | { ok: false; error: string };
 
 /**
  * `window.sentAt`/`receivedAt` are the VPS clock (ms) around the SSH call; their midpoint is matched
@@ -81,14 +88,18 @@ export function parseRetryProgressOutput(
   const minSeconds = (window.startedAt.getTime() + offsetMs - RETRY_SINCE_SLACK_MS) / 1000;
 
   const commits: RetryCommit[] = [];
+  let listed = 0;
+  let oldestInWindow = false;
   for (const line of lines.slice(clockIndex + 1)) {
     const [sha, ct, committedAt, branch, ...subject] = line.split("\t");
     if (!sha || !/^[0-9a-f]{40}$/.test(sha) || !committedAt || branch === undefined) continue;
     const seconds = Number(ct);
-    if (!Number.isFinite(seconds) || seconds < minSeconds) continue;
+    listed += 1;
+    oldestInWindow = Number.isFinite(seconds) && seconds >= minSeconds;
+    if (!oldestInWindow) continue;
     commits.push({ sha, committedAt, branch, subject: subject.join("\t").trim() });
   }
-  return { ok: true, commits };
+  return { ok: true, commits, truncated: listed >= MAX_COMMITS && oldestInWindow };
 }
 
 const TIME = new Intl.DateTimeFormat("vi-VN", {
@@ -125,7 +136,10 @@ export function retryProgressComment(p: Extract<RetryProgress, { kind: "checked"
   return (
     `${retryProgressCommentPrefix(p.previousRunId)} (bắt đầu ${TIME.format(p.previousStartedAt)}), ` +
     `run đó dừng giữa chừng, lý do: ${reason}. ` +
-    `Run đó đã có ${p.commits.length} commit trong \`${p.cwd}\`:\n${list}\n\n` +
+    `Có ${p.truncated ? "ít nhất " : ""}${p.commits.length} commit trong worktree kể từ khi run trước bắt đầu ` +
+    `(\`${p.cwd}\`, mọi nhánh local, có thể gồm nhánh của việc khác)` +
+    `${p.truncated ? `; danh sách bị cắt ở ${p.commits.length} commit mới nhất, xem thêm bằng \`git log --branches HEAD\`` : ""}:` +
+    `\n${list}\n\n` +
     "Kiểm tra các commit trên rồi tiếp tục phần còn thiếu; không làm lại phần đã commit."
   );
 }
@@ -186,6 +200,7 @@ export function createRetryProgressChecker(
         previousStartedAt: previous.startedAt,
         retryReason: readRetryReason(run.contextSnapshot),
         cwd,
+        truncated: output.truncated,
         commits: output.commits,
       };
     } catch (err) {

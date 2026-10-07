@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { and, eq } from "drizzle-orm";
+import { and, eq, isNull } from "drizzle-orm";
 import {
   activityLog,
   agents,
@@ -35,7 +35,7 @@ describe("buildRetryProgressCommand", () => {
     expect(command.startsWith(`${buildRemoteStopCommand(PREV, "/Users/a/crew-agents/mac claude")} && `)).toBe(true);
     expect(command).toContain(' && echo "crew-retry-clock $(date +%s)" && ');
     expect(command.endsWith(
-      "git -C '/Users/a/crew-agents/mac claude' log --branches --source --format='%H%x09%ct%x09%cI%x09%S%x09%s' -n 50",
+      "git -C '/Users/a/crew-agents/mac claude' log --branches HEAD --source --format='%H%x09%ct%x09%cI%x09%S%x09%s' -n 50",
     )).toBe(true);
     expect(command).not.toContain("--since");
     expect(buildRetryProgressCommand(PREV, "/tmp/it's")).toContain(`-C '/tmp/it'"'"'s'`);
@@ -66,8 +66,22 @@ describe("parseRetryProgressOutput", () => {
     ].join("\n");
     expect(parseRetryProgressOutput(stdout, sameClock)).toEqual({
       ok: true,
+      truncated: false,
       commits: [{ sha: SHA_A, committedAt: "2026-10-07T16:20:00+07:00", branch: "crew/ABC-1", subject: "feat: thêm long.txt" }],
     });
+  });
+
+  it("báo danh sách bị cắt khi đủ 50 commit mà commit cũ nhất vẫn trong cửa sổ", () => {
+    const lines = (count: number, oldest: number) =>
+      Array.from({ length: count }, (_, i) => {
+        const sha = i.toString(16).padStart(40, "0");
+        const ct = i === count - 1 ? oldest : S + 500 - i;
+        return `${sha}\t${ct}\t2026-10-07T16:20:00+07:00\tcrew/ABC-1\tc${i}`;
+      });
+    const out = (body: string[]) => ["crew-stop matched=0 killed=0 remaining=0", clock(0), ...body].join("\n");
+    expect(parseRetryProgressOutput(out(lines(50, S + 1)), sameClock)).toMatchObject({ ok: true, truncated: true });
+    expect(parseRetryProgressOutput(out(lines(50, S - 3600)), sameClock)).toMatchObject({ ok: true, truncated: false });
+    expect(parseRetryProgressOutput(out(lines(49, S + 1)), sameClock)).toMatchObject({ ok: true, truncated: false });
   });
 
   it("bù lệch đồng hồ Mac khi lọc theo giờ commit", () => {
@@ -100,6 +114,7 @@ describe("retryProgressComment", () => {
     previousStartedAt: STARTED,
     retryReason: "transient_failure",
     cwd: "/Users/a/crew-agents/mac-claude",
+    truncated: false,
     commits: [{ sha: "c".repeat(40), committedAt: "2026-10-07T16:20:43+07:00", branch: "crew/ABC-1", subject: "feat: thêm long.txt" }],
   };
 
@@ -110,6 +125,15 @@ describe("retryProgressComment", () => {
     expect(body).toContain("16:15");
     expect(body).toContain("lý do: lỗi tạm thời hoặc mất process");
     expect(body).toContain("không làm lại");
+    expect(body).toContain("1 commit trong worktree kể từ khi run trước bắt đầu");
+    expect(body).not.toContain("Run đó đã có");
+    expect(body).not.toContain("bị cắt");
+  });
+
+  it("nói rõ khi danh sách commit bị cắt", () => {
+    const body = retryProgressComment({ ...checked, truncated: true });
+    expect(body).toContain("ít nhất 1 commit trong worktree kể từ khi run trước bắt đầu");
+    expect(body).toContain("danh sách bị cắt");
   });
 
   it("ghi mã lý do lạ nguyên văn, không mặc định là mất kết nối", () => {
@@ -240,6 +264,7 @@ suite("retry progress against the database", () => {
       previousStartedAt: new Date("2026-10-07T09:15:00.000Z"),
       retryReason: "transient_failure",
       cwd: "/Users/a/crew-agents/mac-claude",
+      truncated: false,
       commits: [{ sha: "c".repeat(40), committedAt: "2026-10-07T16:20:43+07:00", branch: "crew/ABC-1", subject: "feat: x" }],
     });
     expect(comment?.startsWith("Crew: lần chạy lại")).toBe(true);
@@ -261,11 +286,29 @@ suite("retry progress against the database", () => {
     const { retryRun, issueId, previousRunId } = await seed();
     const deps = defaultBeforeClaimDeps(db);
     const comment = await deps.recordRetryProgress(retryRun, issueId, {
-      kind: "checked", previousRunId, previousStartedAt: new Date(), retryReason: null, cwd: "/w", commits: [],
+      kind: "checked", previousRunId, previousStartedAt: new Date(), retryReason: null, cwd: "/w", truncated: false, commits: [],
     });
     expect(comment).toBeNull();
     expect(await deps.retryState(retryRun.id)).toEqual({ checked: true, pendingComment: null });
     expect(await db.select().from(issueComments).where(eq(issueComments.issueId, issueId))).toHaveLength(0);
+  });
+
+  it("chỉ coi comment hệ thống chưa xóa là đã đăng", async () => {
+    const { retryRun, issueId, previousRunId } = await seed();
+    const deps = defaultBeforeClaimDeps(db);
+    const body = `Crew: lần chạy lại sau run \`${previousRunId}\` (giả)`;
+    const [company] = await db.select({ id: issues.companyId }).from(issues).where(eq(issues.id, issueId));
+    await db.insert(issueComments).values([
+      { companyId: company!.id, issueId, body, authorType: "agent", authorAgentId: retryRun.agentId },
+      { companyId: company!.id, issueId, body, authorType: "system", deletedAt: new Date() },
+    ]);
+    await deps.postRetryComment(retryRun, issueId, `${body} thật`);
+    const live = await db
+      .select({ body: issueComments.body, authorType: issueComments.authorType })
+      .from(issueComments)
+      .where(and(eq(issueComments.issueId, issueId), isNull(issueComments.deletedAt)));
+    expect(live).toEqual(expect.arrayContaining([{ body: `${body} thật`, authorType: "system" }]));
+    expect(live).toHaveLength(2);
   });
 
   it("comment chờ của cổng tải không bị đăng lại khi đã có trên issue", async () => {
