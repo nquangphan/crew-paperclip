@@ -53,6 +53,16 @@ test("stage 4 nhận diện bằng currentStageId, push lỗi không đổi stat
   assert.doesNotMatch(read("reviewer"), /"status":"blocked"/);
 });
 
+test("dòng mẫu crew-fix khớp định dạng và cả ba vai trò dùng nó", () => {
+  const FIX_RE = /^crew-fix base=[0-9a-f]{40}$/;
+  const line = templateLine(read("integrator"), "crew-fix base=").replace("<40 hex sha cần sửa>", "d".repeat(40));
+  assert.match(line, FIX_RE);
+  assert.match(read("executor"), /git switch -c crew\/<identifier> <base>/);
+  assert.match(read("executor"), /không từ `origin\/HEAD`/);
+  assert.match(read("reviewer"), /git diff <base>\.\.<sha>/);
+  assert.match(read("integrator"), /tác giả của `crew-commit` đó, không mặc định executor của issue gốc/);
+});
+
 test("yêu cầu sửa code issue gốc đi qua issue con mới", () => {
   const text = read("integrator");
   assert.match(text, /## Yêu cầu sửa/);
