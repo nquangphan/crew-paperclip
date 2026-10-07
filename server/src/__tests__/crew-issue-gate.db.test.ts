@@ -597,4 +597,56 @@ suite("crew issue gate in issueService.update", () => {
     await act(c, issueId, { agentId: c.integratorId }, "done");
     expect((await act(c, issueId, { userId: "owner-1" }, "done"))?.status).toBe("done");
   });
+
+  it("push lỗi ở stage 4 → recovery chuyển blocked → owner comment mở về todo: stage 4 vẫn chờ integrator, push lại rồi done", async () => {
+    const c = await company();
+    const issueId = await runRootToPush(c);
+    const sPush = c.root.stages[3]!.id;
+    await postComment(c, issueId, c.integratorId, `crew-merge sha=${SHA_HEAD} branch=main pushed=no`);
+    // Như recovery stock (escalateStrandedAssignedIssue) rồi comment route (shouldImplicitlyMoveCommentedIssueToTodo):
+    // cả hai gọi issueService.update không actor.
+    expect((await issueService(db).update(issueId, { status: "blocked", blockedByIssueIds: [] }))?.status).toBe("blocked");
+    const reopened = await issueService(db).update(issueId, { status: "todo" });
+    expect(reopened).toMatchObject({
+      status: "todo",
+      assigneeAgentId: c.integratorId,
+      executionState: { status: "pending", currentStageId: sPush, currentParticipant: { agentId: c.integratorId } },
+    });
+    await postComment(c, issueId, c.integratorId, `crew-merge sha=${SHA_HEAD} branch=main pushed=yes`);
+    expect((await act(c, issueId, { agentId: c.integratorId }, "done"))?.status).toBe("done");
+  });
+
+  it("issue blocked ở stage 4: owner đặt lại in_review thì stock giữ stage 4 và giao integrator", async () => {
+    const c = await company();
+    const issueId = await runRootToPush(c);
+    const sPush = c.root.stages[3]!.id;
+    await issueService(db).update(issueId, { status: "blocked", blockedByIssueIds: [] });
+    expect(await act(c, issueId, { userId: "owner-1" }, "in_review")).toMatchObject({
+      status: "in_review",
+      assigneeAgentId: c.integratorId,
+      executionState: { status: "pending", currentStageId: sPush },
+    });
+    await postComment(c, issueId, c.integratorId, `crew-merge sha=${SHA_HEAD} branch=main pushed=yes`);
+    expect((await act(c, issueId, { agentId: c.integratorId }, "done"))?.status).toBe("done");
+  });
+
+  it("owner comment mở lại issue gốc đã done (assignee là integrator): integrator thành người làm của vòng mới và luồng kẹt ở stage 2", async () => {
+    const c = await company();
+    const issueId = await runRootToPush(c);
+    await postComment(c, issueId, c.integratorId, `crew-merge sha=${SHA_HEAD} branch=main pushed=yes`);
+    await act(c, issueId, { agentId: c.integratorId }, "done");
+    const reopened = await issueService(db).update(issueId, { status: "todo" });
+    expect(reopened).toMatchObject({ status: "todo", assigneeAgentId: c.integratorId, executionState: null });
+    // Stock bắt đầu lại từ stage 1 với returnAssignee = integrator: không lách gate, nhưng stage 2/4 không còn ai làm.
+    expect(await act(c, issueId, { agentId: c.integratorId }, "done")).toMatchObject({
+      status: "in_review",
+      assigneeAgentId: c.reviewerId,
+      executionState: { currentStageId: c.root.stages[0]!.id, returnAssignee: { agentId: c.integratorId } },
+    });
+    await expect(act(c, issueId, { agentId: c.reviewerId }, "done")).rejects.toMatchObject({
+      status: 422,
+      message: expect.stringMatching(/No eligible review participant/),
+    });
+    expect(await statusOf(issueId)).toBe("in_review");
+  });
 });
