@@ -1,7 +1,8 @@
-import { and, eq, inArray, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import { agentTaskSessions, agents, type Db, heartbeatRuns, issueRelations, issues } from "@paperclipai/db";
 import { logger } from "../middleware/logger.js";
 import { persistActivity, publishActivity } from "../services/activity-log.js";
+import { getRunLogStore } from "../services/run-log-store.js";
 
 /** Dòng marker gói trong mô tả issue con, do Trợ Lý ghi. */
 export const CREW_BUNDLE_RE = /^crew-bundle id=([a-z0-9][a-z0-9-]{0,39}) seq=([1-9][0-9]{0,2})$/m;
@@ -28,7 +29,7 @@ export interface BundlePredecessorCandidate {
   issueId: string;
   status: string;
   description: string | null;
-  /** Task session của chính agent của run trên issue này (null nếu agent chưa làm issue đó). */
+  /** Task session hoặc session còn lưu trên run của chính agent trên issue này. */
   session: BundleSession | null;
 }
 
@@ -54,6 +55,113 @@ export function pickBundlePredecessor(
 export interface BundleResumeTarget {
   bundle: CrewBundle;
   predecessor: BundlePredecessor;
+}
+
+function record(value: unknown): Record<string, unknown> {
+  return value !== null && typeof value === "object" && !Array.isArray(value)
+    ? value as Record<string, unknown> : {};
+}
+
+function nonEmptyString(value: unknown): string | null {
+  return typeof value === "string" && value.trim() ? value.trim() : null;
+}
+
+const SESSION_UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** Init được ghi vào stdout trước khi adapter trả kết quả; không cần log đã finalize. */
+async function sessionIdFromRunLog(run: typeof heartbeatRuns.$inferSelect, adapterType: string): Promise<string | null> {
+  if ((adapterType !== "claude_local" && adapterType !== "codex_local") ||
+      run.logStore !== "local_file" || !run.logRef) return null;
+  // Chặn việc đọc nhầm file của company/agent/run khác kể cả khi logRef hỏng.
+  if (run.logRef !== `${run.companyId}/${run.agentId}/${run.id}.ndjson`) return null;
+  // Init ở đầu stream. Giới hạn I/O trong claim; thiếu bằng chứng thì mở session mới.
+  const maxBytes = 4 * 1024 * 1024;
+  let offset = 0;
+  let records = "";
+  let stdout = "";
+  function readInit(line: string): string | null {
+    try {
+      const event = record(JSON.parse(line));
+      const id = adapterType === "claude_local"
+        ? event.type === "system" && event.subtype === "init" ? event.session_id : null
+        : event.type === "thread.started" ? event.thread_id : null;
+      return typeof id === "string" && SESSION_UUID_RE.test(id) ? id : null;
+    } catch {
+      return null;
+    }
+  }
+  try {
+    const store = getRunLogStore();
+    while (offset < maxBytes) {
+      const page = await store.read({ store: "local_file", logRef: run.logRef }, {
+        offset, limitBytes: Math.min(256_000, maxBytes - offset),
+      });
+      records += page.content;
+      let boundary: number;
+      while ((boundary = records.indexOf("\n")) >= 0) {
+        const entry = record(JSON.parse(records.slice(0, boundary)));
+        records = records.slice(boundary + 1);
+        if (entry.stream !== "stdout" || typeof entry.chunk !== "string") continue;
+        stdout += entry.chunk;
+        let lineEnd: number;
+        while ((lineEnd = stdout.indexOf("\n")) >= 0) {
+          const sessionId = readInit(stdout.slice(0, lineEnd));
+          stdout = stdout.slice(lineEnd + 1);
+          if (sessionId) return sessionId;
+        }
+      }
+      if (page.nextOffset === undefined) return records.trim() ? null : readInit(stdout);
+      if (page.nextOffset <= offset) return null;
+      offset = page.nextOffset;
+    }
+  } catch {
+    // Log thiếu/hỏng hoặc lỗi storage không được làm hỏng claim hay đoán ID.
+  }
+  return null;
+}
+
+/** Cancellation có thể giữ run nhưng bỏ qua upsertTaskSession trong executeRun. */
+async function sessionFromRun(run: typeof heartbeatRuns.$inferSelect, adapterType: string): Promise<BundleSession | null> {
+  const context = record(run.contextSnapshot);
+  const result = record(run.resultJson);
+  const resumeParams = record(context.resumeSessionParams);
+  const validId = (values: unknown[]) => values
+    .map(nonEmptyString)
+    .find((id) => id && (
+      adapterType === "claude_local" || adapterType === "codex_local"
+        ? SESSION_UUID_RE.test(id)
+        : adapterType === "hermes_local"
+          ? /^(?:\d{8}_\d{6}_[A-Za-z0-9_-]{4,}|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i.test(id)
+          : true
+    ));
+  // Kết quả đã persist vẫn ưu tiên; init hiện tại đáng tin hơn ID đầu vào khi CLI đã mở mới.
+  const sessionId = validId([run.sessionIdAfter, result.sessionId, result.session_id])
+    ?? await sessionIdFromRunLog(run, adapterType)
+    ?? validId([run.sessionIdBefore, resumeParams.sessionId]);
+  if (!sessionId) return null;
+
+  // Chỉ dùng metadata của chính session/run; runtime state toàn agent có thể thuộc task khác.
+  const params: Record<string, unknown> = {
+    ...(nonEmptyString(resumeParams.sessionId) === sessionId ? resumeParams : {}),
+    sessionId,
+  };
+  const workspace = record(context.paperclipWorkspace);
+  for (const key of ["cwd", "workspaceId", "repoUrl", "repoRef"] as const) {
+    const value = nonEmptyString(workspace[key]);
+    if (value) params[key] = value;
+  }
+  // executeRun lưu identity SSH trước dispatch. Cùng shape với
+  // buildRemoteExecutionSessionIdentity; adapter vẫn kiểm identity khi resume.
+  const environment = record(context.paperclipEnvironment);
+  const host = nonEmptyString(environment.host);
+  const username = nonEmptyString(environment.username);
+  const remoteCwd = nonEmptyString(environment.remoteCwd);
+  const port = environment.port;
+  if (environment.driver === "ssh" && host && username && remoteCwd &&
+      typeof port === "number" && Number.isInteger(port) && port > 0 && port <= 65535) {
+    params.remoteExecution = { transport: "ssh", host, port, username, remoteCwd };
+  }
+  return { lastRunId: run.id, sessionParamsJson: params, sessionDisplayId: sessionId, updatedAt: run.updatedAt };
 }
 
 /**
@@ -101,14 +209,33 @@ export async function findBundlePredecessor(
   const sessions = await db
     .select({
       taskKey: agentTaskSessions.taskKey,
+      adapterType: agentTaskSessions.adapterType,
       lastRunId: agentTaskSessions.lastRunId,
       sessionParamsJson: agentTaskSessions.sessionParamsJson,
       sessionDisplayId: agentTaskSessions.sessionDisplayId,
       updatedAt: agentTaskSessions.updatedAt,
     })
     .from(agentTaskSessions)
-    .where(and(sessionScope, inArray(agentTaskSessions.taskKey, blockers.map((b) => b.issueId))));
-  const byKey = new Map(sessions.map((s) => [s.taskKey, s]));
+    .where(and(
+      eq(agentTaskSessions.companyId, input.companyId),
+      eq(agentTaskSessions.agentId, input.agentId),
+      inArray(agentTaskSessions.taskKey, blockers.map((b) => b.issueId)),
+    ));
+  const byKey = new Map<string, BundleSession>(sessions.filter((s) => s.adapterType === agent.adapterType).map((s) => [s.taskKey, s]));
+  const hasTaskSession = new Set(sessions.map((s) => s.taskKey));
+  for (const blocker of blockers) {
+    const marker = parseCrewBundle(blocker.description);
+    if (hasTaskSession.has(blocker.issueId) || blocker.status !== "done" ||
+        !marker || marker.id !== bundle.id || marker.seq >= bundle.seq) continue;
+    // Chọn run mới nhất TRƯỚC khi tìm id: không đào lại session cũ sau một run mới không có id.
+    const [latestRun] = await db.select().from(heartbeatRuns).where(and(
+      eq(heartbeatRuns.companyId, input.companyId),
+      eq(heartbeatRuns.agentId, input.agentId),
+      sql`${heartbeatRuns.contextSnapshot}->>'issueId' = ${blocker.issueId}`,
+    )).orderBy(desc(heartbeatRuns.createdAt), desc(heartbeatRuns.id)).limit(1);
+    const session = latestRun ? await sessionFromRun(latestRun, agent.adapterType) : null;
+    if (session) byKey.set(blocker.issueId, session);
+  }
   const predecessor = pickBundlePredecessor(
     bundle,
     blockers.map((b) => ({ ...b, session: byKey.get(b.issueId) ?? null })),
