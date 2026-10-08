@@ -78,6 +78,29 @@ describe("H2 registry", () => {
   });
 });
 
+describe("agent mutation registry", () => {
+  it("chuyển nguyên input và truyền lỗi guard về router", async () => {
+    const blocked = new Error("config blocked");
+    const guard = vi.fn(async () => { throw blocked; });
+    restore = overrideCrewCoreHooksForTests({ beforeAgentMutation: guard });
+    const input = {
+      db,
+      req: { actor: { type: "agent" }, method: "PATCH", path: "/agents/agent-1" } as never,
+      resolveAgentId: async (_req: unknown, reference: string) => reference,
+    };
+    await expect(crewCoreHooks.beforeAgentMutation(input)).rejects.toBe(blocked);
+    expect(guard).toHaveBeenCalledWith(input);
+  });
+
+  it("board bỏ qua guard mặc định trước khi đọc DB", async () => {
+    await expect(crewCoreHooks.beforeAgentMutation({
+      db,
+      req: { actor: { type: "board" }, method: "PATCH", path: "/agents/agent-1" } as never,
+      resolveAgentId: async () => { throw new Error("unexpected lookup"); },
+    })).resolves.toBeUndefined();
+  });
+});
+
 describe("H3 trong SSH driver", () => {
   it("gọi onRunLeaseReleased với db của driver và nguyên input trước khi trả lease", async () => {
     const order: string[] = [];

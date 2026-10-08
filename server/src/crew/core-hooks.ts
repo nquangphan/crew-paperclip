@@ -1,4 +1,5 @@
 import type { Db, heartbeatRuns, issues } from "@paperclipai/db";
+import { crewBeforeAgentMutation, type AgentMutationInput } from "./agent-config-gate.js";
 import { logger } from "../middleware/logger.js";
 import type { EnvironmentDriverReleaseInput } from "../services/environment-runtime.js";
 import { crewBeforeIssueCreate } from "./issue-create-policy.js";
@@ -58,6 +59,8 @@ export interface BeforeIssueCreateInput<T extends IssueCreateLike> {
 export type RunLeaseReleasedInput = EnvironmentDriverReleaseInput & { db: Db };
 
 export interface CrewCoreHooks {
+  /** Ném 422 trước mutation cấu hình agent trên router; actor board và company absent giữ stock. */
+  beforeAgentMutation(input: AgentMutationInput): Promise<void>;
   /** Trả `true` để giữ run ở `queued` (`claimQueuedRun` trả `null`, scheduler thử lại ở tick sau). Run không ở `queued` thì phải trả `false`.
    * Khi trả `false`, Crew có thể ghi `resumeFromRunId`, `resumeSessionParams`, `resumeSessionDisplayId`
    * vào `run.contextSnapshot` (DB và object run) trước khi claim.
@@ -80,6 +83,7 @@ export interface CrewCoreHooks {
 export const CREW_RUN_LEASE_RELEASE_HOOK_TIMEOUT_MS = 15_000;
 
 const implementations: CrewCoreHooks = {
+  beforeAgentMutation: crewBeforeAgentMutation,
   beforeClaim: async (input) => {
     if (await crewBeforeClaim(input)) return true;
     await applyBundleResumeSafely(input);
@@ -93,6 +97,7 @@ const implementations: CrewCoreHooks = {
 };
 
 export const crewCoreHooks: CrewCoreHooks = {
+  beforeAgentMutation: (input) => implementations.beforeAgentMutation(input),
   beforeClaim: (input) => implementations.beforeClaim(input),
   beforeIssueWrite: (input) => implementations.beforeIssueWrite(input),
   beforeIssueCreate: (input) => implementations.beforeIssueCreate(input),

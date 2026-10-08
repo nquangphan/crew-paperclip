@@ -526,6 +526,7 @@ export function agentRoutes(
   const KNOWN_INSTRUCTIONS_BUNDLE_KEY_SET: ReadonlySet<string> = new Set(KNOWN_INSTRUCTIONS_BUNDLE_KEYS);
 
   const router = Router();
+  router.use((req, _res, next) => { crewCoreHooks.beforeAgentMutation({ db, req, resolveAgentId: normalizeAgentReference }).then(() => next(), next); });
   const svc = agentService(db);
   const access = accessService(db);
   const approvalsSvc = approvalService(db);
@@ -7417,3 +7418,4 @@ export function agentRoutes(
   return router;
 }
 import { listRunIdentityContexts } from "../services/run-identity.js";
+import { crewCoreHooks } from "../crew/core-hooks.js";
