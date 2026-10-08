@@ -74,6 +74,12 @@ const manifest: PaperclipPluginManifestV1 = {
       entityTypes: ["issue"],
       exportName: "CrewIssueTab",
     }, {
+      type: "taskDetailView",
+      id: "crew-issue-summary",
+      displayName: "Crew",
+      entityTypes: ["issue"],
+      exportName: "CrewIssueSummary",
+    }, {
       type: "page",
       id: "crew",
       displayName: "Crew",

@@ -58,6 +58,7 @@ describe("Crew plugin UI bundle", () => {
     try {
       const loaded = await import(dataModule(hostRewrite(bundle)));
       expect(typeof loaded.CrewIssueTab).toBe("function");
+      expect(typeof loaded.CrewIssueSummary).toBe("function");
       expect(typeof loaded.CrewPage).toBe("function");
       expect(typeof loaded.MachinesWidget).toBe("function");
     } finally {

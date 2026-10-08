@@ -16,8 +16,9 @@ function chart(points: CrewMachine["load24h"]) {
   if (!known.length) return h("p", null, "Chưa có dữ liệu tải 24 giờ.");
   const peak = Math.max(1, ...known.map((point) => point.load1));
   const coords = known.map((point, index) => `${(index / Math.max(1, known.length - 1)) * 100},${30 - (point.load1 / peak) * 28}`).join(" ");
-  return h("svg", { viewBox: "0 0 100 32", role: "img", "aria-label": "Biểu đồ tải 24 giờ", style: { width: "100%", height: "var(--spacing-16)" } },
-    h("polyline", { points: coords, fill: "none", stroke: "currentColor", strokeWidth: "1" }));
+  return h("svg", { viewBox: "0 0 100 32", role: "img", "aria-label": `Biểu đồ tải 24 giờ, lớn nhất ${peak}`, style: { width: "100%", height: "5rem" } },
+    h("text", { x: "1", y: "8", fill: "currentColor", fontSize: "6" }, `Max ${peak}`),
+    h("polyline", { points: coords, fill: "none", stroke: "currentColor", strokeWidth: "1.5" }));
 }
 
 export function MachineCard({ machine }: { machine: CrewMachine }) {
@@ -42,7 +43,7 @@ export function MachinesSection({ companyId }: { companyId: string }) {
   const { data, loading, error } = useMachines(companyId);
   if (loading && !data) return h("div", { role: "status" }, h(Spinner, null), " Đang tải trạng thái máy…");
   if (error) return h("div", { role: "alert" }, `Không tải được trạng thái máy: ${error.message}`);
-  return h("section", { "aria-label": "Máy", className: "space-y-4" }, h("h2", null, "Máy"),
+  return h("section", { "aria-label": "Máy", className: "space-y-4" },
     ...(data?.length ? data.map(machine => h(MachineCard, { key: machine.machineId, machine })) : [h("p", { key: "empty" }, "Chưa có máy gửi bản tin.")]));
 }
 

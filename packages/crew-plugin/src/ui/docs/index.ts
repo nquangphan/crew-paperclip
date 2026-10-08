@@ -18,8 +18,8 @@ export function DocsCheckContent({ result: d }: { result: DocsCheckResult }) {
     h("p",null,`Tác giả: ${d.author ?? "Không rõ"}`), h("p",null,`Lúc: ${time(d.at)}`));
 }
 
-export function DocsCheckPanel({issueId}:{issueId:string;companyId:string}) {
-  const result = usePluginData<DocsCheckResult|null>("crew.docsCheck", {issueId});
+export function DocsCheckPanel({issueId,companyId}:{issueId:string;companyId:string}) {
+  const result = usePluginData<DocsCheckResult|null>("crew.docsCheck", {issueId,companyId});
   if (result.loading) return h("p", {role:"status"}, h(Spinner,null), " Đang tải kết quả kiểm docs…");
   if (result.error) return h("p", {role:"alert"}, `Không tải được kết quả kiểm docs: ${result.error.message}`);
   const d = result.data; if (!d) return h("p", {role:"status"}, "Chưa có kết quả kiểm docs.");
