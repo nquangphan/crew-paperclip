@@ -293,8 +293,18 @@ test("assistant: chờ owner bằng blocked và hỏi trước khi tạo con", (
 
 test("assistant: tạo con có blocker, override và không gửi policy", () => {
   const text = read("assistant");
-  for (const needle of ["/api/companies/<companyId>/issues", '"parentId":"<id gốc>"', '"blockParentUntilDone":true', '"blockedByIssueIds":', '"assigneeAdapterOverrides":{"adapterConfig":{"model":"<model>","effort":"<effort>"}}', "crew_override_forbidden", "crew_role_assignee"]) assert.ok(text.includes(needle), needle);
+  for (const needle of ["/api/companies/<companyId>/issues", '"parentId":"<id gốc>"', '"blockedByIssueIds":', '"assigneeAdapterOverrides":{"adapterConfig":{"model":"<model>","effort":"<effort>"}}', "Tiêu chí nghiệm thu:", "crew_override_forbidden", "crew_role_assignee"]) assert.ok(text.includes(needle), needle);
+  assert.doesNotMatch(text, /"acceptanceCriteria":|"blockParentUntilDone":/);
   assert.doesNotMatch(text, /"executionPolicy":/);
+});
+
+test("executor và reviewer đọc tiêu chí từ description", () => {
+  for (const role of ["executor", "reviewer"]) {
+    const text = read(role);
+    assert.match(text, /Tiêu chí nghiệm thu:/, role);
+    assert.match(text, /description/, role);
+    assert.doesNotMatch(text, /acceptanceCriteria field|trường `acceptanceCriteria`/, role);
+  }
 });
 
 test("mọi vai trò tạo issue con qua route company có parentId", () => {

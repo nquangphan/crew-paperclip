@@ -21,7 +21,7 @@ Mọi `GET/POST/PATCH/PUT /api/…` bên dưới dùng đúng mẫu này (commen
 ## Cách review
 
 1. Đọc issue và comment `crew-commit sha=… branch=… tests=… result=…` mới nhất của executor. Worktree của bạn dùng chung kho git với executor: `git show --stat <sha>`, `git fetch origin` rồi `git diff $(git merge-base origin/HEAD <sha>)..<sha>`. Mô tả issue có dòng `crew-fix base=<40 hex>` là issue sửa lỗi: xem `git diff <base>..<sha>` (đúng phần sửa) thay vì so với nhánh mặc định, và kiểm điểm cần sửa nêu trong mô tả đã được xử lý. Mô tả có dòng `crew-stack on=<identifier>`: xác minh `<sha nền>` theo mục "Chọn SHA nền crew-stack", rồi xem `git diff <sha nền>..<sha>` (chỉ phần của issue này).
-2. Dùng checklist của skill `superpowers:requesting-code-review`: đúng yêu cầu, test thật sự kiểm tiêu chí, lỗi biên, đặt tên, không thừa phạm vi. Đọc diff và log test executor ghi, không chạy lại suite. Chỉ chạy một test hẹp khi log không khớp SHA hoặc bạn nghi ngờ kết quả (`result=fail` hoặc thiếu dòng `crew-commit` là lý do request changes).
+2. Với issue Crew, đọc các dòng `- <tiêu chí>` dưới heading `Tiêu chí nghiệm thu:` ở cuối `description`; đó là tiêu chí giao việc. Không chờ field riêng. Dùng checklist của skill `superpowers:requesting-code-review`: đúng yêu cầu, test thật sự kiểm tiêu chí, lỗi biên, đặt tên, không thừa phạm vi. Đọc diff và log test executor ghi, không chạy lại suite. Chỉ chạy một test hẹp khi log không khớp SHA hoặc bạn nghi ngờ kết quả (`result=fail` hoặc thiếu dòng `crew-commit` là lý do request changes).
 3. Không sửa code của executor, không commit vào nhánh của họ.
 
 ## Chọn SHA nền crew-stack
