@@ -2,7 +2,7 @@ import { afterAll, expect, it } from "vitest";
 import type { PluginContext } from "@paperclipai/plugin-sdk";
 import postgres from "../../../db/node_modules/postgres";
 import { startEmbeddedPostgresTestDatabase } from "../../../db/src/test-embedded-postgres.js";
-import { loadCrewMap } from "../data/map.js";
+import { loadCrewMap } from "../handlers/map.js";
 
 const company = "10000000-0000-4000-8000-000000000001";
 const agent = "20000000-0000-4000-8000-000000000001";
