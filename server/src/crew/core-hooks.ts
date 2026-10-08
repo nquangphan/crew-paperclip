@@ -3,6 +3,7 @@ import { logger } from "../middleware/logger.js";
 import type { EnvironmentDriverReleaseInput } from "../services/environment-runtime.js";
 import { crewBeforeIssueCreate } from "./issue-create-policy.js";
 import { crewBeforeIssueWrite } from "./issue-gate.js";
+import { applyBundleResumeSafely } from "./bundle-resume.js";
 import { crewBeforeClaim } from "./load-gate.js";
 import { startRemoteStopOnRelease } from "./remote-stop.js";
 
@@ -57,7 +58,10 @@ export interface BeforeIssueCreateInput<T extends IssueCreateLike> {
 export type RunLeaseReleasedInput = EnvironmentDriverReleaseInput & { db: Db };
 
 export interface CrewCoreHooks {
-  /** Trả `true` để giữ run ở `queued` (`claimQueuedRun` trả `null`, scheduler thử lại ở tick sau). Run không ở `queued` thì phải trả `false`. */
+  /** Trả `true` để giữ run ở `queued` (`claimQueuedRun` trả `null`, scheduler thử lại ở tick sau). Run không ở `queued` thì phải trả `false`.
+   * Khi trả `false`, Crew có thể ghi `resumeFromRunId`, `resumeSessionParams`, `resumeSessionDisplayId`
+   * vào `run.contextSnapshot` (DB và object run) trước khi claim.
+   */
   beforeClaim(input: BeforeClaimInput): Promise<boolean>;
   /** Ném `HttpError` (ví dụ `unprocessable(...)` từ `server/src/errors.ts`) để chặn lệnh ghi; transaction rollback. Trả bình thường để cho ghi. */
   beforeIssueWrite(input: BeforeIssueWriteInput): Promise<void>;
@@ -76,7 +80,11 @@ export interface CrewCoreHooks {
 export const CREW_RUN_LEASE_RELEASE_HOOK_TIMEOUT_MS = 15_000;
 
 const implementations: CrewCoreHooks = {
-  beforeClaim: crewBeforeClaim,
+  beforeClaim: async (input) => {
+    if (await crewBeforeClaim(input)) return true;
+    await applyBundleResumeSafely(input);
+    return false;
+  },
   beforeIssueWrite: crewBeforeIssueWrite,
   beforeIssueCreate: crewBeforeIssueCreate,
   onRunLeaseReleased: async (input) => {
