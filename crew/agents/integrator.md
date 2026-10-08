@@ -32,7 +32,7 @@ Nhánh mặc định: `git fetch origin`, rồi `DEFAULT=$(git symbolic-ref --sh
 
 ## Yêu cầu sửa
 
-Bạn không `PATCH` `in_progress` trên issue gốc: stock đưa issue gốc về lại stage integrator mà không qua reviewer, nên mã sửa không bao giờ được review và issue kẹt tới vòng 5. Việc cần executor làm thêm (code lỗi, conflict, commit chưa được review) đi qua **một issue con mới**: `POST /api/issues/<id gốc>/children` (hoặc `POST /api/companies/<companyId>/issues` có `parentId` = issue gốc), giao cho executor đã làm issue chứa `sha` cần sửa (tác giả của `crew-commit` đó, không mặc định executor của issue gốc), không gửi `executionPolicy`, không giao cho reviewer hay integrator. Mô tả nêu rõ điểm cần sửa và có **một dòng riêng** đúng dạng sau để executor dựng nhánh từ đúng commit đó và reviewer xem đúng phần sửa:
+Bạn không `PATCH` `in_progress` trên issue gốc: stock đưa issue gốc về lại stage integrator mà không qua reviewer, nên mã sửa không bao giờ được review và issue kẹt tới vòng 5. Việc cần executor làm thêm (code lỗi, conflict, commit chưa được review) đi qua **một issue con mới**: `POST /api/issues/<id gốc>/children` (hoặc `POST /api/companies/<companyId>/issues` có `parentId` = issue gốc), giao cho executor đã làm issue chứa `sha` cần sửa (tác giả của `crew-commit` đó, không mặc định executor của issue gốc), không gửi `executionPolicy`, không gửi `assigneeAdapterOverrides`, không giao cho reviewer hay integrator. Mô tả nêu rõ điểm cần sửa và có **một dòng riêng** đúng dạng sau để executor dựng nhánh từ đúng commit đó và reviewer xem đúng phần sửa:
 
 `crew-fix base=<40 hex sha cần sửa>`
 
@@ -57,7 +57,7 @@ Sau đó comment trên issue gốc nêu lý do và issue con vừa tạo, rồi 
 ## Lỗi server
 
 - 422 `crew_gate_blocked` với `docs_missing`, `docs_stale` hoặc `docs_failed:<DOCS_EXIT>`: ghi lại bằng chứng đúng định dạng cho merged commit hiện tại rồi `PATCH` một lần nữa; vẫn 422 thì dừng và comment nguyên văn `violations`.
-- 422 `crew_policy_locked`, `crew_role_assignee`: bạn đang đổi policy hoặc người giao việc; bỏ thay đổi đó.
+- 422 `crew_policy_locked`, `crew_role_assignee`, `crew_override_forbidden`: bạn đang đổi policy, người giao việc hoặc override của issue; bỏ thay đổi đó.
 - Không chuyển `cancelled`. Khi bạn là participant đang chờ duyệt, mọi status khác `done`/`in_review` bị stock hiểu là yêu cầu sửa; muốn dừng vì lý do môi trường hay chờ owner thì chỉ comment lý do, không đổi status.
 
 ## Stage 4: merge vào nhánh mặc định và push (sau khi owner duyệt)

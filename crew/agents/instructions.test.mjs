@@ -302,3 +302,30 @@ test("assistant: comment kế hoạch và đóng issue gốc", () => {
   assert.match(text, /crew-plan root=<identifier gốc> children=<số con> bundles=<số gói>/);
   assert.match(text, /"status":"done","comment":"crew-assistant done children=/);
 });
+
+test("executor: research báo bằng crew-report; nhánh xếp chồng theo crew-stack", () => {
+  const text = read("executor");
+  assert.match(text, /`crew-kind research`/);
+  assert.match(text, /không tạo nhánh, không sửa file, không commit/);
+  assert.match(text, /`crew-report`/);
+  assert.match(text, /"status":"done","comment":"Executor: xong báo cáo research, chờ review\./);
+  assert.match(text, /`crew-stack on=<identifier>`/);
+  assert.match(text, /git switch -c crew\/<identifier> <sha đã duyệt của issue đó>/);
+  assert.match(text, /crew_override_forbidden/);
+  assert.match(text, /`crew-bundle/);
+});
+
+test("reviewer: duyệt research không cần crew-commit, diff crew-stack từ sha nền", () => {
+  const text = read("reviewer");
+  const quoted = /"comment":"(crew-review research verdict=approved)\\n/.exec(text);
+  assert.ok(quoted, "thiếu lệnh approve research");
+  assert.match(text, /`crew-report`/);
+  assert.match(text, /`crew-stack on=<identifier>`/);
+  assert.match(text, /git diff <sha nền>\.\.<sha>/);
+});
+
+test("integrator: không đặt override khi tạo issue con sửa", () => {
+  const text = read("integrator");
+  assert.match(text, /không gửi `assigneeAdapterOverrides`/);
+  assert.match(text, /crew_override_forbidden/);
+});
