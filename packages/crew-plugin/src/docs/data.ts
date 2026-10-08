@@ -32,9 +32,9 @@ export async function loadDocsCheck(ctx: PluginContext, issueId: string, company
       const comments = await ctx.db.query<{ body: string; created_at: string; author_agent_id: string }>(`
         SELECT body, created_at, author_agent_id FROM public.issue_comments
         WHERE issue_id = $1 AND company_id = $2 AND deleted_at IS NULL
-          AND author_agent_id = ANY($3::uuid[]) AND body LIKE 'crew-docs-check %'
+          AND author_agent_id = ANY(string_to_array($3, ',')::uuid[]) AND body LIKE 'crew-docs-check %'
         ORDER BY created_at DESC, id DESC LIMIT 1
-      `, [current, companyId, authors]);
+      `, [current, companyId, authors.join(",")]);
       const comment = comments[0];
       if (!comment) return null;
       const parsed = parseCrewDocsCheck(comment.body);

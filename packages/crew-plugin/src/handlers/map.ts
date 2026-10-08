@@ -124,20 +124,21 @@ export async function loadCrewMap(ctx: Pick<PluginContext, "db">, issueId: strin
     row.parent_id && nodeIds.has(row.parent_id)
       ? [{ kind: "parent" as const, from: row.parent_id, to: row.id }] : [],
   );
-  const relations = await ctx.db.query<RelationRow>(
-    "SELECT issue_id, related_issue_id FROM public.issue_relations WHERE company_id = $1 AND type = 'blocks' AND issue_id = ANY($2::uuid[]) AND related_issue_id = ANY($2::uuid[])",
-    [companyId, [...nodeIds]],
-  );
+  const ids = [...nodeIds];
+  const relations = ids.length > 0 ? await ctx.db.query<RelationRow>(
+    "SELECT issue_id, related_issue_id FROM public.issue_relations WHERE company_id = $1 AND type = 'blocks' AND issue_id = ANY(string_to_array($2, ',')::uuid[]) AND related_issue_id = ANY(string_to_array($2, ',')::uuid[])",
+    [companyId, ids.join(",")],
+  ) : [];
   for (const relation of relations) {
     edges.push({ kind: "dependency", from: relation.issue_id, to: relation.related_issue_id });
   }
 
   const fixes = rows.filter((row) => parseCrewFixBase(row.description));
   if (fixes.length > 0) {
-    const comments = await ctx.db.query<CommentRow>(
-      "SELECT issue_id, body FROM public.issue_comments WHERE company_id = $1 AND issue_id = ANY($2::uuid[]) AND deleted_at IS NULL ORDER BY created_at DESC, id DESC",
-      [companyId, [...nodeIds]],
-    );
+    const comments = ids.length > 0 ? await ctx.db.query<CommentRow>(
+      "SELECT issue_id, body FROM public.issue_comments WHERE company_id = $1 AND issue_id = ANY(string_to_array($2, ',')::uuid[]) AND deleted_at IS NULL ORDER BY created_at DESC, id DESC",
+      [companyId, ids.join(",")],
+    ) : [];
     const commitsByIssue = new Map<string, Set<string>>();
     for (const comment of comments) {
       const sha = parseCrewCommit(comment.body);

@@ -1,11 +1,16 @@
 import { afterAll, expect, it } from "vitest";
 import type { PluginContext } from "@paperclipai/plugin-sdk";
 import postgres from "../../../db/node_modules/postgres";
+import { closeRegisteredClients, createDb, pluginDatabaseNamespaces, plugins } from "../../../db/src/index.js";
 import { startEmbeddedPostgresTestDatabase } from "../../../db/src/test-embedded-postgres.js";
+import { pluginDatabaseService } from "../../../../server/src/services/plugin-database.js";
 import { loadCrewMap } from "../handlers/map.js";
+import { loadDocsCheck } from "../docs/data.js";
+import manifest from "../manifest.js";
 
 const company = "10000000-0000-4000-8000-000000000001";
 const agent = "20000000-0000-4000-8000-000000000001";
+const hostPluginId = "60000000-0000-4000-8000-000000000001";
 const ids = {
   root: "30000000-0000-4000-8000-000000000036",
   a: "30000000-0000-4000-8000-000000000037",
@@ -37,7 +42,8 @@ afterAll(async () => { await cleanup?.(); });
 it("reads the CRE-36 dependency tree and a CRE-44 repair from embedded PostgreSQL", async () => {
   const database = await startEmbeddedPostgresTestDatabase("crew-map-");
   const sql = postgres(database.connectionString, { max: 2, onnotice: () => {} });
-  cleanup = async () => { await sql.end(); await database.cleanup(); };
+  const hostDb = createDb(database.connectionString);
+  cleanup = async () => { await closeRegisteredClients(database.connectionString); await sql.end(); await database.cleanup(); };
   await sql`INSERT INTO companies (id,name,issue_prefix) VALUES (${company},'Crew map','CRE')`;
   await sql`INSERT INTO agents (id,company_id,name) VALUES (${agent},${company},'Executor')`;
   async function issue(id: string, identifier: string, parentId: string | null, description: string, status: string, stages = 1, rounds = 0) {
@@ -49,11 +55,36 @@ it("reads the CRE-36 dependency tree and a CRE-44 repair from embedded PostgreSQ
   await issue(ids.b, "CRE-38", ids.root, "crew-bundle id=core seq=2", "todo");
   await issue(ids.c, "CRE-39", ids.root, "crew-kind research", "done", 2);
   await sql`INSERT INTO issue_relations (company_id,issue_id,related_issue_id,type) VALUES (${company},${ids.a},${ids.b},'blocks')`;
+  await sql`INSERT INTO issue_comments (company_id,issue_id,author_agent_id,body) VALUES (${company},${ids.root},${agent},${`crew-docs-check commit=${"d".repeat(40)} range=${"c".repeat(40)}..${"d".repeat(40)} exit=0`})`;
   await issue(ids.repairRoot, "CRE-44", null, "Root repair", "in_progress", 4);
   await issue(ids.original, "CRE-45", ids.repairRoot, "Original", "in_review", 1, 2);
   await issue(ids.fix, "CRE-46", ids.repairRoot, `crew-fix base=${"a".repeat(40)}`, "todo");
   await sql`INSERT INTO issue_comments (company_id,issue_id,body) VALUES (${company},${ids.original},${`crew-commit sha=${"a".repeat(40)} branch=crew/CRE-45 tests=ok result=ok`})`;
-  const ctx = { db: { query: async <T>(query: string, params: unknown[] = []) => await sql.unsafe<T[]>(query, params as never[]) } } as unknown as PluginContext;
+  await hostDb.insert(plugins).values({
+    id: hostPluginId,
+    pluginKey: manifest.id,
+    packageName: "@crew/paperclip-plugin",
+    version: manifest.version,
+    apiVersion: manifest.apiVersion,
+    categories: manifest.categories,
+    manifestJson: manifest,
+    status: "installed",
+  });
+  const namespace = "plugin_crew_core";
+  await hostDb.insert(pluginDatabaseNamespaces).values({
+    pluginId: hostPluginId,
+    pluginKey: manifest.id,
+    namespaceName: namespace,
+    namespaceMode: "schema",
+    status: "active",
+  });
+  const pluginDb = pluginDatabaseService(hostDb);
+  const ctx = {
+    db: {
+      namespace,
+      query: <T>(statement: string, params?: unknown[]) => pluginDb.query<T>(hostPluginId, statement, params),
+    },
+  } as unknown as PluginContext;
   const first = await loadCrewMap(ctx, ids.b, company);
   expect(first.root.id).toBe(ids.root);
   expect(first.nodes).toHaveLength(4);
@@ -61,6 +92,7 @@ it("reads the CRE-36 dependency tree and a CRE-44 repair from embedded PostgreSQ
   expect(first.nodes.find((node) => node.id === ids.a)?.bundle).toEqual({ id: "core", seq: 1 });
   expect(first.nodes.find((node) => node.id === ids.c)?.kind).toBe("research");
   expect(first.root.stage?.completed).toEqual(stageIds);
+  expect(await loadDocsCheck(ctx, ids.a, company)).toMatchObject({ commit: "d".repeat(40), exit: 0, author: agent });
   const second = await loadCrewMap(ctx, ids.repairRoot, company);
   expect(second.edges).toContainEqual({ kind: "repair", from: ids.original, to: ids.fix });
   expect(second.nodes.find((node) => node.id === ids.original)?.reviewRounds).toBe(2);
