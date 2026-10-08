@@ -13,6 +13,7 @@ docker run --rm --entrypoint sh "$1" -c '
   UI="$P/dist/ui/index.js"
   [ -d "$P/migrations" ] || { echo "plugin migrations MISSING"; exit 1; }
   [ -s "$UI" ] || { echo "plugin dist/ui/index.js MISSING"; exit 1; }
+  if grep -q "require(\"react" "$UI"; then echo "plugin UI bundle FAIL: contains require(\"react"; exit 1; fi
   GZIP_BYTES=$(gzip -c "$UI" | wc -c | tr -d " ")
   echo "plugin dist/ui/index.js gzip=${GZIP_BYTES} bytes"
   [ "$GZIP_BYTES" -le 1572864 ] || { echo "plugin UI bundle exceeds 1.5 MiB gzip"; exit 1; }
