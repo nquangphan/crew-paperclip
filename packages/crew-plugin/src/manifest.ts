@@ -25,6 +25,7 @@ const manifest: PaperclipPluginManifestV1 = {
     "secrets.read-ref",
     "ui.detailTab.register",
     "ui.page.register",
+    "ui.dashboardWidget.register",
   ],
   entrypoints: {
     worker: "./dist/worker.js",
@@ -78,6 +79,11 @@ const manifest: PaperclipPluginManifestV1 = {
       displayName: "Crew",
       routePath: "crew",
       exportName: "CrewPage",
+    }, {
+      type: "dashboardWidget",
+      id: "crew-machines",
+      displayName: "Máy",
+      exportName: "MachinesWidget",
     }],
   },
 };
