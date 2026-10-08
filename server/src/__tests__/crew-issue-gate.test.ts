@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterAll, describe, expect, it, vi } from "vitest";
 import { TASK_WATCHDOG_PRODUCT_BUG_ORIGIN_KIND } from "@paperclipai/shared";
-import { crewBeforeIssueWrite, evaluateIssueGate, type IssueGateFacts } from "../crew/issue-gate.ts";
+import { crewBeforeIssueWrite, docsGateStages, evaluateIssueGate, pushGateStages, type IssueGateFacts } from "../crew/issue-gate.ts";
 import { normalizeIssueExecutionPolicy } from "../services/issue-execution-policy.ts";
 import { RECOVERY_ORIGIN_KINDS } from "../services/recovery/origins.ts";
 import { TASK_WATCHDOG_ORIGIN_KIND } from "../services/task-watchdog-scope.ts";
@@ -167,6 +167,20 @@ describe("isCrewHousekeepingIssue", () => {
 });
 
 describe("buildCrewPolicy", () => {
+  it("research qua reviewer rồi owner, không có gate docs hay push", () => {
+    const policy = buildCrewPolicy("research", roles, "owner-1");
+    expect(policy.stages.map((stage) => [stage.type, stage.participants.map((p) => p.agentId ?? p.userId)])).toEqual([
+      ["review", [REVIEWER]],
+      ["approval", ["owner-1"]],
+    ]);
+    expect(policy.maxReviewRounds).toBe(CREW_MAX_REVIEW_ROUNDS);
+    expect(docsGateStages(policy)).toEqual([]);
+    expect(pushGateStages(policy)).toEqual([]);
+  });
+
+  it("research cần owner", () => {
+    expect(() => buildCrewPolicy("research", roles)).toThrow(/owner/);
+  });
   it("issue con chỉ có stage reviewer, 5 vòng", () => {
     const policy = buildCrewPolicy("child", roles);
     expect(policy.maxReviewRounds).toBe(CREW_MAX_REVIEW_ROUNDS);

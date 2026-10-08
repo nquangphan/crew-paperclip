@@ -1,8 +1,10 @@
-import type { Db } from "@paperclipai/db";
+import { labels, type Db } from "@paperclipai/db";
+import { and, eq, inArray, sql } from "drizzle-orm";
 import { unprocessable } from "../errors.js";
 import { CREW_OVERRIDE_FORBIDDEN_MESSAGE, checkAgentAdapterOverrides } from "./model-policy.js";
 import {
   buildCrewPolicy,
+  CREW_RESEARCH_LABEL,
   type CrewRoles,
   housekeepingSourceIssueId,
   isCrewHousekeepingOrigin,
@@ -21,6 +23,7 @@ export interface IssueCreateFields {
   originId?: string | null;
   executionPolicy?: unknown;
   assigneeAdapterOverrides?: unknown;
+  labelIds?: readonly string[] | null;
 }
 
 export type CreatePolicyDecision =
@@ -31,7 +34,7 @@ export type CreatePolicyDecision =
       violations?: string[];
     }
   | { kind: "set"; template: "child" }
-  | { kind: "set"; template: "root"; ownerUserId: string };
+  | { kind: "set"; template: "root" | "research"; ownerUserId: string };
 
 /** Agent không được tạo issue ở trạng thái đã kết thúc hoặc đang review (bỏ qua gate). */
 const AGENT_CREATE_FORBIDDEN_STATUSES = new Set(["done", "cancelled", "in_review"]);
@@ -40,6 +43,7 @@ const AGENT_CREATE_FORBIDDEN_STATUSES = new Set(["done", "cancelled", "in_review
  * Chỉ gọi cho company có trong file cấu hình Crew (`roles` null = cấu hình lỗi).
  * Agent chỉ tạo được issue con và luôn nhận template con (mọi policy agent gửi bị thay). Board gửi policy riêng
  * thì giữ; không gửi thì nhận template theo loại issue, owner của template gốc lấy từ file cấu hình.
+ * Board tạo issue gốc có nhãn research nhận template reviewer rồi owner.
  * Hệ thống (không người tạo): issue watchdog/recovery giữ hành vi stock, trừ khi giao lại cho agent đang làm issue
  * nguồn (khi đó nhận template con); routine và mọi nguồn khác (kể cả không nhận diện được) nhận template con nếu có
  * `parentId`, template gốc (owner từ file cấu hình) nếu không.
@@ -50,6 +54,7 @@ export function decideCreatePolicy(input: {
   ownerUserId: string | null;
   /** Agent đang làm issue nguồn (assignee, `returnAssignee`) của issue watchdog/recovery. */
   sourceExecutorAgentIds?: readonly string[];
+  researchLabel?: boolean;
 }): CreatePolicyDecision {
   const { data, roles } = input;
   if (data.createdByAgentId) {
@@ -75,7 +80,23 @@ export function decideCreatePolicy(input: {
   }
   if (data.executionPolicy != null || !roles) return { kind: "keep" };
   if (data.parentId) return { kind: "set", template: "child" };
-  return input.ownerUserId ? { kind: "set", template: "root", ownerUserId: input.ownerUserId } : { kind: "keep" };
+  return input.ownerUserId
+    ? { kind: "set", template: input.researchLabel ? "research" : "root", ownerUserId: input.ownerUserId }
+    : { kind: "keep" };
+}
+
+async function hasResearchLabel(db: Db, companyId: string, labelIds: readonly string[] | null | undefined): Promise<boolean> {
+  if (!labelIds?.length) return false;
+  const rows = await db
+    .select({ id: labels.id })
+    .from(labels)
+    .where(and(
+      eq(labels.companyId, companyId),
+      inArray(labels.id, [...labelIds]),
+      sql`lower(${labels.name}) = ${CREW_RESEARCH_LABEL}`,
+    ))
+    .limit(1);
+  return rows.length > 0;
 }
 
 const MESSAGES: Record<Extract<CreatePolicyDecision, { kind: "reject" }>["code"], string> = {
@@ -106,7 +127,9 @@ export async function crewBeforeIssueCreate<T extends IssueCreateFields>(input: 
   const sourceExecutorAgentIds = needsSource
     ? await loadSourceExecutorAgentIds(input.db, housekeepingSourceIssueId(data))
     : [];
-  const decision = decideCreatePolicy({ data, roles, ownerUserId, sourceExecutorAgentIds });
+  const boardRoot = !data.createdByAgentId && !!data.createdByUserId?.trim() && !data.parentId && data.executionPolicy == null;
+  const researchLabel = boardRoot ? await hasResearchLabel(input.db, input.companyId, data.labelIds) : false;
+  const decision = decideCreatePolicy({ data, roles, ownerUserId, sourceExecutorAgentIds, researchLabel });
   if (decision.kind === "keep") return input.data;
   if (decision.kind === "reject") throw unprocessable(MESSAGES[decision.code], {
     code: decision.code,
@@ -116,6 +139,6 @@ export async function crewBeforeIssueCreate<T extends IssueCreateFields>(input: 
   const policy =
     decision.template === "child"
       ? buildCrewPolicy("child", roles as CrewRoles)
-      : buildCrewPolicy("root", roles as CrewRoles, decision.ownerUserId);
+      : buildCrewPolicy(decision.template, roles as CrewRoles, decision.ownerUserId);
   return { ...input.data, executionPolicy: policy };
 }

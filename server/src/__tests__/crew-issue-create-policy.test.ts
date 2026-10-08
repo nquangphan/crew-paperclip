@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { eq } from "drizzle-orm";
-import { agents, companies, createDb, issues, projects } from "@paperclipai/db";
+import { agents, companies, createDb, issues, labels, projects } from "@paperclipai/db";
 import { getEmbeddedPostgresTestSupport, startEmbeddedPostgresTestDatabase } from "./helpers/embedded-postgres.js";
 import { decideCreatePolicy } from "../crew/issue-create-policy.ts";
 import { buildCrewPolicy, CREW_POLICY_CONFIG_ENV } from "../crew/issue-policy.ts";
@@ -15,6 +15,13 @@ import { routineService } from "../services/routines.ts";
 const roles = { reviewerAgentId: "r", integratorAgentId: "i" };
 
 describe("decideCreatePolicy", () => {
+  it("board tạo gốc có nhãn research nhận hai stage; con vẫn nhận template con", () => {
+    expect(decideCreatePolicy({ data: { createdByUserId: "board-2" }, roles, ownerUserId: "owner-1", researchLabel: true })).toEqual({ kind: "set", template: "research", ownerUserId: "owner-1" });
+    expect(decideCreatePolicy({ data: { createdByUserId: "board-2", parentId: "p" }, roles, ownerUserId: "owner-1", researchLabel: true })).toEqual({ kind: "set", template: "child" });
+    expect(decideCreatePolicy({ data: { createdByAgentId: "e", parentId: "p" }, roles, ownerUserId: "owner-1", researchLabel: true })).toEqual({ kind: "set", template: "child" });
+    expect(decideCreatePolicy({ data: { createdByUserId: "board-2", executionPolicy: { stages: [] } }, roles, ownerUserId: "owner-1", researchLabel: true })).toEqual({ kind: "keep" });
+    expect(decideCreatePolicy({ data: {}, roles, ownerUserId: "owner-1", researchLabel: true })).toEqual({ kind: "set", template: "root", ownerUserId: "owner-1" });
+  });
   it("agent không thể đặt command, extraArgs, env hay model ngoài bảng", () => {
     expect(decideCreatePolicy({
       data: { createdByAgentId: "e", parentId: "p", assigneeAdapterOverrides: { adapterConfig: { extraArgs: [], command: "/bin/sh", env: {}, model: "claude-fable-5" } } },
@@ -205,6 +212,26 @@ suite("crew policy in issueService.create", () => {
     });
     return { companyId, executorId, reviewerId, integratorId, rootId };
   }
+
+  it("board tạo gốc với nhãn Research nhận policy hai stage; không nhãn nhận bốn stage", async () => {
+    const { companyId } = await seed();
+    const labelId = randomUUID();
+    await db.insert(labels).values({ id: labelId, companyId, name: "Research", color: "#888888" });
+    const research = await issueService(db).create(companyId, { title: "r", createdByUserId: "owner-1", labelIds: [labelId] } as never);
+    const plain = await issueService(db).create(companyId, { title: "p", createdByUserId: "owner-1" } as never);
+    const stagesOf = async (id: string) =>
+      ((await db.select().from(issues).where(eq(issues.id, id)))[0]!.executionPolicy as { stages: { type: string }[] }).stages.map((s) => s.type);
+    expect(await stagesOf(research.id)).toEqual(["review", "approval"]);
+    expect(await stagesOf(plain.id)).toEqual(["review", "review", "approval", "review"]);
+  });
+
+  it("nhãn research của company khác không tính", async () => {
+    const { companyId } = await seed();
+    const other = await seed();
+    const labelId = randomUUID();
+    await db.insert(labels).values({ id: labelId, companyId: other.companyId, name: "research", color: "#888888" });
+    await expect(issueService(db).create(companyId, { title: "r", createdByUserId: "owner-1", labelIds: [labelId] } as never)).rejects.toMatchObject({ status: 422 });
+  });
 
   it("agent tạo con với override độc hại bị 422 và không ghi DB", async () => {
     const { companyId, executorId, rootId } = await seed();
