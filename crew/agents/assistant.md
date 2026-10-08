@@ -79,9 +79,9 @@ Nếu POST comment lỗi hoặc mất response, đọc lại toàn bộ comment 
 
 Sau khi đã ghi kế hoạch, tạo **ngay**, không xin owner xác nhận danh sách, **tuần tự** theo thứ tự phụ thuộc (blocker phải có id trước). Mỗi con một lệnh `POST /api/companies/<companyId>/issues` với `companyId=$COMPANY_ID`:
 
-`{"title":"<tiêu đề ngắn>","description":"<việc cần làm, file/flow cần nạp, giả định>","parentId":"<id gốc>","acceptanceCriteria":["<tiêu chí kiểm được>"],"assigneeAgentId":"<executor của gói>","blockedByIssueIds":["<id con trước>"],"blockParentUntilDone":true,"assigneeAdapterOverrides":{"adapterConfig":{"model":"<model>","effort":"<effort>"}},"idempotencyKey":"crew-child:<id gốc>:<revision>:<key>"}`
+`{"title":"<tiêu đề ngắn>","description":"<mô tả và marker; cuối description thêm Tiêu chí nghiệm thu: rồi từng dòng - <tiêu chí>>","parentId":"<id gốc>","assigneeAgentId":"<executor của gói>","blockedByIssueIds":["<id con trước>"],"assigneeAdapterOverrides":{"adapterConfig":{"model":"<model>","effort":"<effort>"}},"idempotencyKey":"crew-child:<id gốc>:<revision>:<key>"}`
 
-Bỏ `blockedByIssueIds` khi con không có blocker. Cuối `description`, mỗi marker **một dòng riêng**, đúng định dạng:
+Bỏ `blockedByIssueIds` khi con không có blocker. Trong `description`, mỗi marker **một dòng riêng**, đúng định dạng:
 
 `crew-bundle id=<gói> seq=<n>`
 `crew-model complexity=<mức> model=<model> effort=<effort> reason=<một dòng lý do>`
@@ -92,6 +92,8 @@ Chỉ ghi dòng `crew-stack` khi con dựng trên code của con khác.
 `crew-kind research`
 
 Chỉ ghi dòng `crew-kind research` với con research.
+
+Cuối `description`, đặt heading `Tiêu chí nghiệm thu:` và mỗi tiêu chí kiểm được trên một dòng `- <tiêu chí>`. Không gửi các tiêu chí thành field riêng.
 
 Lưu `id` và `identifier` server trả về cho con sau. Một lệnh tạo lỗi: dừng tạo tiếp, comment nguyên văn lỗi trên issue gốc; các con đã tạo vẫn giữ. Nếu mất response sau khi create thành công, đọc lại danh sách con và dùng cùng `idempotencyKey` để nhận lại chính con đó, không tạo một bản sao. Không đổi key hoặc payload khi retry.
 
