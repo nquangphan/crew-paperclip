@@ -2,6 +2,7 @@ import { createElement as h } from "react";
 import { DataTable, ErrorBoundary, Spinner, useHostNavigation, usePluginData, type PluginPageProps } from "@paperclipai/plugin-sdk/ui";
 import type { CrewRoot } from "../handlers/roots.js";
 import { getPageSections } from "./registry.js";
+import { statusLabel, stageLabel } from "./map/ticket-node.js";
 
 const alertStyle = { border: "1px solid var(--destructive)", borderRadius: "var(--radius)", padding: "0.75rem" };
 
@@ -15,17 +16,18 @@ function Requests({ companyId }: { companyId: string }) {
   if (loading) return h("div", { role: "status" }, h(Spinner, null), " Đang tải yêu cầu…");
   if (error) return h("div", { role: "alert", style: alertStyle }, `Không tải được yêu cầu: ${error.message}`);
   if (!data) return h("div", { role: "status" }, "Chưa có dữ liệu yêu cầu.");
+  const root = (row: Record<string, unknown>) => row as unknown as CrewRoot;
   return h(DataTable, {
-    rows: data,
+    rows: data as unknown as Record<string, unknown>[],
     columns: [
-      { key: "identifier", header: "Yêu cầu", render: (_: unknown, row: CrewRoot) =>
-        h("a", { ...navigation.linkProps(`/issues/${row.id}`) }, `${row.identifier} · ${row.title}`) },
-      { key: "status", header: "Trạng thái" },
-      { key: "stage", header: "Stage", render: (_: unknown, row: CrewRoot) =>
-        row.stage?.currentType ?? (row.stage?.completed.length ? "Đã xong" : "Chưa bắt đầu") },
-      { key: "doneChildren", header: "Issue con hoàn tất", render: (_: unknown, row: CrewRoot) =>
-        `${row.doneChildren}/${row.totalChildren}` },
-      { key: "updatedAt", header: "Cập nhật", render: (_: unknown, row: CrewRoot) => dateLabel(row.updatedAt) },
+      { key: "identifier", header: "Yêu cầu", render: (_: unknown, row: Record<string, unknown>) =>
+        h("a", { ...navigation.linkProps(`/issues/${root(row).id}`) }, `${root(row).identifier} · ${root(row).title}`) },
+      { key: "status", header: "Trạng thái", render: (_: unknown, row: Record<string, unknown>) => statusLabel(root(row).status) },
+      { key: "stage", header: "Giai đoạn", render: (_: unknown, row: Record<string, unknown>) =>
+        stageLabel({ kind: root(row).kind, stage: root(row).stage }) },
+      { key: "doneChildren", header: "Issue con hoàn tất", render: (_: unknown, row: Record<string, unknown>) =>
+        `${root(row).doneChildren}/${root(row).totalChildren}` },
+      { key: "updatedAt", header: "Cập nhật", render: (_: unknown, row: Record<string, unknown>) => dateLabel(root(row).updatedAt) },
     ],
     emptyMessage: "Chưa có yêu cầu Crew đang mở.",
   });
@@ -37,11 +39,9 @@ export function CrewPage({ context }: PluginPageProps) {
     h("h1", null, "Crew"),
     h("section", { "aria-label": "Yêu cầu" },
       h("h2", null, "Yêu cầu"),
-      h(ErrorBoundary, { fallback: h("div", { role: "alert", style: alertStyle }, "Không hiển thị được yêu cầu Crew.") },
-        h(Requests, { companyId: context.companyId }))),
+      h(ErrorBoundary, { fallback: h("div", { role: "alert", style: alertStyle }, "Không hiển thị được yêu cầu Crew."), children: h(Requests, { companyId: context.companyId }) })),
     ...getPageSections().map((section) => h("section", { key: section.id, "aria-label": section.title },
       h("h2", null, section.title),
-      h(ErrorBoundary, { fallback: h("div", { role: "alert", style: alertStyle }, `Không hiển thị được mục ${section.title}.`) },
-        h(section.component, { companyId: context.companyId! })))),
+      h(ErrorBoundary, { fallback: h("div", { role: "alert", style: alertStyle }, `Không hiển thị được mục ${section.title}.`), children: h(section.component, { companyId: context.companyId! }) }))),
   );
 }

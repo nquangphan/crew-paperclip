@@ -70,5 +70,5 @@ function MapContent({ map, currentIssueId }: { map: CrewMap; currentIssueId: str
 }
 
 export function TicketMap(props: { map: CrewMap; currentIssueId: string }) {
-  return h(ErrorBoundary, { fallback: h("div", { role: "alert", style: { border: "1px solid var(--destructive)", borderRadius: "var(--radius)", padding: "0.75rem" } }, "Không hiển thị được bản đồ Crew.") }, h(MapContent, props));
+  return h(ErrorBoundary, { fallback: h("div", { role: "alert", style: { border: "1px solid var(--destructive)", borderRadius: "var(--radius)", padding: "0.75rem" } }, "Không hiển thị được bản đồ Crew."), children: h(MapContent, props) });
 }

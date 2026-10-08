@@ -1,5 +1,7 @@
 import type { PluginContext } from "@paperclipai/plugin-sdk";
 import { isCrewRoot } from "./map.js";
+import { checkedId, jsonObject } from "../shared/db.js";
+import { crewPolicyKind } from "../shared/policy.js";
 
 export interface CrewRoot {
   id: string;
@@ -9,7 +11,8 @@ export interface CrewRoot {
   updatedAt: string;
   doneChildren: number;
   totalChildren: number;
-  stage: { currentStageId: string | null; currentType: string | null; completed: string[] } | null;
+  kind: "code" | "research";
+  stage: { currentStageId: string | null; currentType: string | null; completed: string[]; position: number | null } | null;
 }
 
 type RootRow = {
@@ -18,17 +21,8 @@ type RootRow = {
   done_children: number | string; total_children: number | string;
 };
 
-function jsonObject(value: unknown): Record<string, unknown> | null {
-  if (typeof value === "string") {
-    try { value = JSON.parse(value); } catch { return null; }
-  }
-  return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : null;
-}
-
 export async function loadCrewRoots(ctx: Pick<PluginContext, "db">, companyId: string, status?: string): Promise<CrewRoot[]> {
-  if (!/^[0-9a-fA-F]{8}-(?:[0-9a-fA-F]{4}-){3}[0-9a-fA-F]{12}$/.test(companyId)) {
-    throw new Error("companyId không hợp lệ");
-  }
+  checkedId(companyId);
   const rows = await ctx.db.query<RootRow>(`
     SELECT i.id, i.identifier, i.title, i.status, i.updated_at, i.execution_policy, i.execution_state,
            count(c.id)::int AS total_children,
@@ -42,15 +36,20 @@ export async function loadCrewRoots(ctx: Pick<PluginContext, "db">, companyId: s
   `, [companyId, status ?? null]);
   return rows.filter(isCrewRoot).map((row) => {
     const state = jsonObject(row.execution_state);
+    const policy = jsonObject(row.execution_policy);
+    const stages = Array.isArray(policy?.stages) ? policy.stages : [];
+    const position = stages.findIndex(stage => jsonObject(stage)?.id === state?.currentStageId);
     return {
       id: row.id, identifier: row.identifier ?? row.id, title: row.title, status: row.status,
       updatedAt: new Date(row.updated_at).toISOString(),
       doneChildren: Number(row.done_children), totalChildren: Number(row.total_children),
+      kind: crewPolicyKind(row.execution_policy) ?? "code",
       stage: state ? {
         currentStageId: typeof state.currentStageId === "string" ? state.currentStageId : null,
         currentType: typeof state.currentStageType === "string" ? state.currentStageType : null,
         completed: Array.isArray(state.completedStageIds)
           ? state.completedStageIds.filter((id): id is string => typeof id === "string") : [],
+        position: position >= 0 ? position : null,
       } : null,
     };
   });

@@ -8,7 +8,14 @@ const company = "10000000-0000-4000-8000-000000000001";
 const other = "10000000-0000-4000-8000-000000000002";
 const root = "30000000-0000-4000-8000-000000000036";
 const oldRoot = "30000000-0000-4000-8000-000000000035";
-const policy = JSON.stringify({ maxReviewRounds: 5, stages: [{}, {}, {}, {}] });
+const agent = "40000000-0000-4000-8000-000000000001";
+const owner = "50000000-0000-4000-8000-000000000001";
+const policy = JSON.stringify({ maxReviewRounds: 5, stages: [
+  { type: "review", participants: [{ type: "agent", agentId: agent }] },
+  { type: "review", participants: [{ type: "agent", agentId: agent }] },
+  { type: "approval", participants: [{ type: "user", userId: owner }] },
+  { type: "review", participants: [{ type: "agent", agentId: agent }] },
+] });
 let cleanup: (() => Promise<void>) | undefined;
 afterAll(async () => { await cleanup?.(); });
 
@@ -27,6 +34,7 @@ it("lists only company Crew roots, newest first, with direct child progress and 
   await issue("30000000-0000-4000-8000-000000000038", company, root, "CRE-38", "todo", null, "2026-10-02T00:00:00Z");
   await issue("30000000-0000-4000-8000-000000000039", company, null, "CRE-39", "todo", null, "2026-10-03T00:00:00Z");
   await issue("30000000-0000-4000-8000-000000000040", other, null, "OTH-1", "todo", policy, "2026-10-04T00:00:00Z");
+  await issue("30000000-0000-4000-8000-000000000041", company, null, "CRE-41", "todo", JSON.stringify({ maxReviewRounds: 5, stages: [{ type: "review" }, { type: "review" }, { type: "review" }, { type: "review" }] }), "2026-10-05T00:00:00Z");
   const ctx = { db: { query: async <T>(query: string, params: unknown[] = []) => await sql.unsafe<T[]>(query, params as never[]) } } as unknown as PluginContext;
   const all = await loadCrewRoots(ctx, company);
   expect(all.map((item) => item.identifier)).toEqual(["CRE-36", "CRE-35"]);

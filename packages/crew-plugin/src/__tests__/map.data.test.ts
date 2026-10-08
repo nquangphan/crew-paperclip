@@ -18,7 +18,10 @@ const ids = {
 const stageIds = [1, 2, 3, 4].map((n) => `40000000-0000-4000-8000-00000000000${n}`);
 const policy = (count: number) => ({
   mode: "approval", commentRequired: true, maxReviewRounds: 5,
-  stages: stageIds.slice(0, count).map((id) => ({ id, type: "review", approvalsNeeded: 1, participants: [{ type: "agent", agentId: agent }] })),
+  stages: stageIds.slice(0, count).map((id, index) => ({ id, type: count === 4 && index === 2 || count === 2 && index === 1 ? "approval" : "review", approvalsNeeded: 1,
+    participants: count === 4 && index === 2 || count === 2 && index === 1
+      ? [{ type: "user", userId: "50000000-0000-4000-8000-000000000001" }]
+      : [{ type: "agent", agentId: agent }] })),
 });
 const state = (count: number, rounds = 0) => ({
   status: count === 4 ? "completed" : "pending",
@@ -44,7 +47,7 @@ it("reads the CRE-36 dependency tree and a CRE-44 repair from embedded PostgreSQ
   await issue(ids.root, "CRE-36", null, "Root", "done", 4);
   await issue(ids.a, "CRE-37", ids.root, "crew-bundle id=core seq=1", "done");
   await issue(ids.b, "CRE-38", ids.root, "crew-bundle id=core seq=2", "todo");
-  await issue(ids.c, "CRE-39", ids.root, "crew-kind research", "done");
+  await issue(ids.c, "CRE-39", ids.root, "crew-kind research", "done", 2);
   await sql`INSERT INTO issue_relations (company_id,issue_id,related_issue_id,type) VALUES (${company},${ids.a},${ids.b},'blocks')`;
   await issue(ids.repairRoot, "CRE-44", null, "Root repair", "in_progress", 4);
   await issue(ids.original, "CRE-45", ids.repairRoot, "Original", "in_review", 1, 2);

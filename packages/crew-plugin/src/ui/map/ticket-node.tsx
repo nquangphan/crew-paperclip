@@ -7,18 +7,24 @@ export function statusLabel(status: string): string {
     backlog: "Chưa lên lịch", todo: "Cần làm", in_progress: "Đang làm",
     in_review: "Đang duyệt", blocked: "Bị chặn", done: "Hoàn tất", cancelled: "Đã hủy",
   };
-  return labels[status] ?? status;
+  return labels[status] ?? "Không rõ";
 }
 
-export function stageLabel(node: CrewMapNode): string {
+export function stageLabel(node: Pick<CrewMapNode, "stage" | "kind">): string {
   if (!node.stage) return "Chưa có stage";
-  return node.stage.currentType ?? (node.stage.completed.length ? "Đã xong" : "Chưa bắt đầu");
+  if (!node.stage.currentType) return node.stage.completed.length ? "Đã xong" : "Chưa bắt đầu";
+  if (node.stage.position === null) return "Không rõ";
+  const index = node.stage.position;
+  const labels = node.kind === "research"
+    ? ["Reviewer", "Owner duyệt"]
+    : ["Reviewer", "Integrator · merge + docs", "Owner duyệt", "Integrator · push"];
+  return labels[index] ?? (node.stage.currentType === "approval" ? "Owner duyệt" : "Đang duyệt");
 }
 
 export function TicketNode({ data }: { data: { issue: CrewMapNode; highlighted: boolean; link: Record<string, unknown> } }) {
   const { issue, highlighted, link } = data;
-  const kind = issue.kind === "fix" ? "Sửa" : issue.kind === "research" ? "Nghiên cứu" : "Code";
-  const meta = [kind, statusLabel(issue.status), `Stage: ${stageLabel(issue)}`].join(" · ");
+  const kind = issue.kind === "fix" ? "Sửa" : issue.kind === "research" ? "Nghiên cứu" : "Lập trình";
+  const meta = [kind, statusLabel(issue.status), `Giai đoạn: ${stageLabel(issue)}`].join(" · ");
   return h("div", {
     className: `crew-map-node${highlighted ? " crew-map-node-current" : ""}`,
     "data-issue-id": issue.id,

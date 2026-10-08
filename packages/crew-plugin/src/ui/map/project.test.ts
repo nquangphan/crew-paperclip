@@ -5,7 +5,7 @@ import { layoutHierarchy } from "./layout.js";
 
 const node = (id: string, parentId: string | null, status = "todo"): CrewMapNode => ({
   id, identifier: id, title: `${id} title`, status, parentId, assignee: null,
-  stage: { currentStageId: "review", currentType: "review", completed: [] },
+  stage: { currentStageId: "review", currentType: "review", completed: [], position: 0 },
   reviewRounds: 0, maxReviewRounds: 5, kind: "code", bundle: null,
 });
 

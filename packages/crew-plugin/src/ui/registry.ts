@@ -1,5 +1,6 @@
-/** A React function component; the plugin declares React types itself (`src/shared/react.d.ts`). */
-export type CrewComponent<P> = (props: P) => unknown;
+import type { ComponentType } from "react";
+
+export type CrewComponent<P> = ComponentType<P>;
 
 /** A panel shown under the map in the Crew tab of an issue. */
 export interface IssuePanel {

@@ -19,7 +19,6 @@ export function CrewIssueTab({ context }: PluginDetailTabProps) {
       ? h("p", null, `Đang xem ${current.identifier} trong yêu cầu ${data.root.identifier}`) : null,
     h(TicketMap, { map: data, currentIssueId: context.entityId }),
     ...getIssuePanels().map((panel) => h("section", { key: panel.id, "aria-label": panel.id },
-      h(ErrorBoundary, { fallback: h("div", { role: "alert", style: alertStyle }, "Không hiển thị được phần thông tin Crew.") },
-        h(panel.component, { issueId: data.root.id, companyId: context.companyId ?? "" })))),
+      h(ErrorBoundary, { fallback: h("div", { role: "alert", style: alertStyle }, "Không hiển thị được phần thông tin Crew."), children: h(panel.component, { issueId: data.root.id, companyId: context.companyId ?? "" }) }))),
   );
 }

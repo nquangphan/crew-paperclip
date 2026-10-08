@@ -1,5 +1,7 @@
 import type { PluginContext } from "@paperclipai/plugin-sdk";
-import { isCrewResearch, parseCrewBundle, parseCrewCommit, parseCrewFixBase } from "../shared/markers.js";
+import { parseCrewBundle, parseCrewCommit, parseCrewFixBase } from "../shared/markers.js";
+import { jsonObject, checkedId } from "../shared/db.js";
+import { crewPolicyKind } from "../shared/policy.js";
 
 export interface CrewMapNode {
   id: string;
@@ -8,7 +10,7 @@ export interface CrewMapNode {
   status: string;
   parentId: string | null;
   assignee: { id: string; name: string } | null;
-  stage: { currentStageId: string | null; currentType: string | null; completed: string[] } | null;
+  stage: { currentStageId: string | null; currentType: string | null; completed: string[]; position: number | null } | null;
   reviewRounds: number;
   maxReviewRounds: number;
   kind: "code" | "research" | "fix";
@@ -36,21 +38,15 @@ type IssueRow = LocationRow & {
 type RelationRow = { issue_id: string; related_issue_id: string };
 type CommentRow = { issue_id: string; body: string };
 
-function object(value: unknown): Record<string, unknown> | null {
-  if (typeof value === "string") {
-    try { value = JSON.parse(value); }
-    catch { return null; }
-  }
-  return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : null;
-}
-
 function nodeFrom(row: IssueRow): CrewMapNode {
-  const state = object(row.execution_state);
-  const policy = object(row.execution_policy);
+  const state = jsonObject(row.execution_state);
+  const policy = jsonObject(row.execution_policy);
   const completed = Array.isArray(state?.completedStageIds)
     ? state.completedStageIds.filter((id): id is string => typeof id === "string") : [];
   const rounds = state?.changesRequestedCount;
   const maxRounds = policy?.maxReviewRounds;
+  const policyStages = Array.isArray(policy?.stages) ? policy.stages : [];
+  const position = policyStages.findIndex(stage => jsonObject(stage)?.id === state?.currentStageId);
   return {
     id: row.id,
     identifier: row.identifier ?? row.id,
@@ -63,27 +59,23 @@ function nodeFrom(row: IssueRow): CrewMapNode {
       currentStageId: typeof state.currentStageId === "string" ? state.currentStageId : null,
       currentType: typeof state.currentStageType === "string" ? state.currentStageType : null,
       completed,
+      position: position >= 0 ? position : null,
     } : null,
     reviewRounds: typeof rounds === "number" && Number.isInteger(rounds) && rounds >= 0 ? rounds : 0,
     // Matches resolveMaxReviewRounds in the host execution-policy service.
     maxReviewRounds: typeof maxRounds === "number" && Number.isInteger(maxRounds) && maxRounds > 0 ? maxRounds : 3,
     kind: parseCrewFixBase(row.description) ? "fix"
-      : isCrewResearch(row.description) || (row.parent_id === null && Array.isArray(policy?.stages) && policy.stages.length === 2)
-        ? "research" : "code",
+      : crewPolicyKind(row.execution_policy) === "research" ? "research" : "code",
     bundle: parseCrewBundle(row.description),
   };
 }
 
 export function isCrewRoot(row: Pick<IssueRow, "execution_policy">): boolean {
-  const policy = object(row.execution_policy);
-  return policy?.maxReviewRounds === 5 && Array.isArray(policy.stages)
-    && (policy.stages.length === 2 || policy.stages.length === 4);
+  return crewPolicyKind(row.execution_policy) !== null;
 }
 
 export async function loadCrewMap(ctx: Pick<PluginContext, "db">, issueId: string, requestedCompanyId: string): Promise<CrewMap> {
-  if (!/^[0-9a-fA-F]{8}-(?:[0-9a-fA-F]{4}-){3}[0-9a-fA-F]{12}$/.test(issueId)) {
-    throw new Error("issueId không hợp lệ");
-  }
+  checkedId(issueId);
   const location = await ctx.db.query<LocationRow>(
     "SELECT id, company_id, parent_id FROM public.issues WHERE id = $1", [issueId],
   );
