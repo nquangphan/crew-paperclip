@@ -74,7 +74,7 @@ function nodeFrom(row: IssueRow): CrewMapNode {
   };
 }
 
-function isCrewRoot(row: IssueRow): boolean {
+export function isCrewRoot(row: Pick<IssueRow, "execution_policy">): boolean {
   const policy = object(row.execution_policy);
   return policy?.maxReviewRounds === 5 && Array.isArray(policy.stages)
     && (policy.stages.length === 2 || policy.stages.length === 4);

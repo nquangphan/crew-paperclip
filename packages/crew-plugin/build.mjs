@@ -23,5 +23,6 @@ await build({
   target: "es2022",
   outfile: "dist/ui/index.js",
   external: ["react", "react-dom", "react/jsx-runtime", "@paperclipai/plugin-sdk/ui"],
+  loader: { ".css": "text" },
   logLevel: "warning",
 });

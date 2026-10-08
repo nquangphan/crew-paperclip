@@ -15,10 +15,15 @@
     "test": "vitest run --config vitest.config.ts"
   },
   "dependencies": {
-    "@paperclipai/plugin-sdk": "workspace:*"
+    "@paperclipai/plugin-sdk": "workspace:*",
+    "@xyflow/react": "^12.12.0"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",
+    "@types/react": "^19.2.18",
+    "@types/react-dom": "^19.2.3",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8",
     "typescript": "^7.0.2"
   }
 }

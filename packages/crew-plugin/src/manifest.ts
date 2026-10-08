@@ -24,6 +24,7 @@ const manifest: PaperclipPluginManifestV1 = {
     "webhooks.receive",
     "secrets.read-ref",
     "ui.detailTab.register",
+    "ui.page.register",
   ],
   entrypoints: {
     worker: "./dist/worker.js",
@@ -71,6 +72,12 @@ const manifest: PaperclipPluginManifestV1 = {
       displayName: "Crew",
       entityTypes: ["issue"],
       exportName: "CrewIssueTab",
+    }, {
+      type: "page",
+      id: "crew",
+      displayName: "Crew",
+      routePath: "crew",
+      exportName: "CrewPage",
     }],
   },
 };
