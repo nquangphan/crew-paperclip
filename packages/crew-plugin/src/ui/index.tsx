@@ -7,6 +7,8 @@ import {
   type PluginDetailTabProps,
 } from "@paperclipai/plugin-sdk/ui";
 import type { CrewMap, CrewMapNode } from "../handlers/map.js";
+export { MachinesWidget } from "./machines/index.js";
+import "./machines/index.js";
 
 function statusLabel(status: string): string {
   const labels: Record<string, string> = {
