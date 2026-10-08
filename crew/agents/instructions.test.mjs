@@ -342,6 +342,7 @@ test("crew-stack: executor và reviewer chỉ nhận cùng SHA nền đã đư�
     assert.match(text, /comment giả/);
   }
   assert.match(read("reviewer"), /SHA nền đã ghi trên B/);
+  assert.match(read("reviewer"), /authorAgentId` trùng tác giả của `crew-commit` mới nhất trên B/);
 });
 
 test("assistant: lưu kế hoạch đầy đủ trước POST đầu, đối soát và tạo tiếp bằng khóa ổn định", () => {
@@ -366,4 +367,5 @@ test("assistant: yêu cầu sửa gốc được xử lý trước khi đóng l�
     "crew-correction decision=<id quyết định>", "issue con sửa", "crew-fix base=",
     "crew-stack on=", "bảng model", "không gửi lại `done` nguyên trạng",
   ]) assert.ok(text.includes(needle), `thiếu ${needle}`);
+  assert.match(text, /Trước tiên đối soát mọi kế hoạch đã ghi với mọi con đã tạo/);
 });
