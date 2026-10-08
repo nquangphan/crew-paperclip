@@ -4,7 +4,7 @@ import { fileURLToPath } from "node:url";
 export default {
   root: dirname(fileURLToPath(import.meta.url)),
   test: {
-    include: ["src/__tests__/*.test.ts", "src/ui/map/*.test.ts", "src/ui/docs/*.test.ts", "src/ui/machines/*.test.ts"],
+    include: ["src/**/*.test.ts", "src/**/*.test.tsx"],
     environment: "node",
   },
 };
