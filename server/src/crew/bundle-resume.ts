@@ -1,4 +1,4 @@
-import { and, eq, inArray, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import { agentTaskSessions, agents, type Db, heartbeatRuns, issueRelations, issues } from "@paperclipai/db";
 import { logger } from "../middleware/logger.js";
 import { persistActivity, publishActivity } from "../services/activity-log.js";
@@ -28,7 +28,7 @@ export interface BundlePredecessorCandidate {
   issueId: string;
   status: string;
   description: string | null;
-  /** Task session của chính agent của run trên issue này (null nếu agent chưa làm issue đó). */
+  /** Task session hoặc session còn lưu trên run của chính agent trên issue này. */
   session: BundleSession | null;
 }
 
@@ -54,6 +54,55 @@ export function pickBundlePredecessor(
 export interface BundleResumeTarget {
   bundle: CrewBundle;
   predecessor: BundlePredecessor;
+}
+
+function record(value: unknown): Record<string, unknown> {
+  return value !== null && typeof value === "object" && !Array.isArray(value)
+    ? value as Record<string, unknown> : {};
+}
+
+function nonEmptyString(value: unknown): string | null {
+  return typeof value === "string" && value.trim() ? value.trim() : null;
+}
+
+/** Cancellation có thể giữ run nhưng bỏ qua upsertTaskSession trong executeRun. */
+function sessionFromRun(run: typeof heartbeatRuns.$inferSelect, adapterType: string): BundleSession | null {
+  const context = record(run.contextSnapshot);
+  const result = record(run.resultJson);
+  const resumeParams = record(context.resumeSessionParams);
+  const sessionId = [run.sessionIdAfter, result.sessionId, result.session_id, run.sessionIdBefore, resumeParams.sessionId]
+    .map(nonEmptyString)
+    .find((id) => id && (
+      adapterType === "claude_local" || adapterType === "codex_local"
+        ? /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)
+        : adapterType === "hermes_local"
+          ? /^(?:\d{8}_\d{6}_[A-Za-z0-9_-]{4,}|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i.test(id)
+          : true
+    ));
+  if (!sessionId) return null;
+
+  // Chỉ dùng metadata của chính session/run; runtime state toàn agent có thể thuộc task khác.
+  const params: Record<string, unknown> = {
+    ...(nonEmptyString(resumeParams.sessionId) === sessionId ? resumeParams : {}),
+    sessionId,
+  };
+  const workspace = record(context.paperclipWorkspace);
+  for (const key of ["cwd", "workspaceId", "repoUrl", "repoRef"] as const) {
+    const value = nonEmptyString(workspace[key]);
+    if (value) params[key] = value;
+  }
+  // executeRun lưu identity SSH trước dispatch. Cùng shape với
+  // buildRemoteExecutionSessionIdentity; adapter vẫn kiểm identity khi resume.
+  const environment = record(context.paperclipEnvironment);
+  const host = nonEmptyString(environment.host);
+  const username = nonEmptyString(environment.username);
+  const remoteCwd = nonEmptyString(environment.remoteCwd);
+  const port = environment.port;
+  if (environment.driver === "ssh" && host && username && remoteCwd &&
+      typeof port === "number" && Number.isInteger(port) && port > 0 && port <= 65535) {
+    params.remoteExecution = { transport: "ssh", host, port, username, remoteCwd };
+  }
+  return { lastRunId: run.id, sessionParamsJson: params, sessionDisplayId: sessionId, updatedAt: run.updatedAt };
 }
 
 /**
@@ -101,14 +150,33 @@ export async function findBundlePredecessor(
   const sessions = await db
     .select({
       taskKey: agentTaskSessions.taskKey,
+      adapterType: agentTaskSessions.adapterType,
       lastRunId: agentTaskSessions.lastRunId,
       sessionParamsJson: agentTaskSessions.sessionParamsJson,
       sessionDisplayId: agentTaskSessions.sessionDisplayId,
       updatedAt: agentTaskSessions.updatedAt,
     })
     .from(agentTaskSessions)
-    .where(and(sessionScope, inArray(agentTaskSessions.taskKey, blockers.map((b) => b.issueId))));
-  const byKey = new Map(sessions.map((s) => [s.taskKey, s]));
+    .where(and(
+      eq(agentTaskSessions.companyId, input.companyId),
+      eq(agentTaskSessions.agentId, input.agentId),
+      inArray(agentTaskSessions.taskKey, blockers.map((b) => b.issueId)),
+    ));
+  const byKey = new Map<string, BundleSession>(sessions.filter((s) => s.adapterType === agent.adapterType).map((s) => [s.taskKey, s]));
+  const hasTaskSession = new Set(sessions.map((s) => s.taskKey));
+  for (const blocker of blockers) {
+    const marker = parseCrewBundle(blocker.description);
+    if (hasTaskSession.has(blocker.issueId) || blocker.status !== "done" ||
+        !marker || marker.id !== bundle.id || marker.seq >= bundle.seq) continue;
+    // Chọn run mới nhất TRƯỚC khi tìm id: không đào lại session cũ sau một run mới không có id.
+    const [latestRun] = await db.select().from(heartbeatRuns).where(and(
+      eq(heartbeatRuns.companyId, input.companyId),
+      eq(heartbeatRuns.agentId, input.agentId),
+      sql`${heartbeatRuns.contextSnapshot}->>'issueId' = ${blocker.issueId}`,
+    )).orderBy(desc(heartbeatRuns.createdAt), desc(heartbeatRuns.id)).limit(1);
+    const session = latestRun ? sessionFromRun(latestRun, agent.adapterType) : null;
+    if (session) byKey.set(blocker.issueId, session);
+  }
   const predecessor = pickBundlePredecessor(
     bundle,
     blockers.map((b) => ({ ...b, session: byKey.get(b.issueId) ?? null })),
