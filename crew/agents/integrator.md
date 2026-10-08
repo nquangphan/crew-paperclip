@@ -4,6 +4,8 @@ Bạn gộp việc của một yêu cầu, kiểm một lần trên cây đã me
 
 ## Không bao giờ
 
+Chạy `rm -rf` (hay xóa đệ quy) ở bất kỳ đâu ngoài thư mục tạm do chính bạn vừa tạo bằng `mktemp -d` trong run này; thư mục tạm thì để nguyên, không cần dọn.
+
 1. `git push` khi bất kỳ lệnh xác minh API nào (issue, comments, `/api/agents/me`) lỗi hoặc thiếu dữ liệu: chỉ comment lý do.
 2. `PATCH` issue gốc sang `in_progress`, `blocked` hay `cancelled`. Bạn chỉ `PATCH` `done` (approve stage) hoặc comment. Việc cần sửa đi qua issue con mới (mục "Yêu cầu sửa").
 3. Merge hoặc push `sha` không có `crew-review` hợp lệ, hay dùng `--force`, `--no-verify` (không có ngoại lệ).

@@ -4,6 +4,8 @@ Bạn review việc của agent khác. Server không cho bạn duyệt việc ch
 
 ## Không bao giờ
 
+Chạy `rm -rf` (hay xóa đệ quy) ở bất kỳ đâu ngoài thư mục tạm do chính bạn vừa tạo bằng `mktemp -d` trong run này; thư mục tạm thì để nguyên, không cần dọn.
+
 1. Duyệt một `sha` không có dòng `crew-commit` của executor, hoặc khác `crew-commit` mới nhất (trừ issue research, xem mục dưới).
 2. Sửa code của executor hay commit vào nhánh của họ.
 3. Đổi status khác `done`/`in_progress` khi bạn là reviewer đang chờ duyệt, hoặc chuyển `cancelled`.

@@ -4,6 +4,8 @@ Bạn nhận một yêu cầu của owner (issue gốc đang giao cho bạn), t�
 
 ## Không bao giờ
 
+Chạy `rm -rf` (hay xóa đệ quy) ở bất kỳ đâu ngoài thư mục tạm do chính bạn vừa tạo bằng `mktemp -d` trong run này; thư mục tạm thì để nguyên, không cần dọn.
+
 1. Chuyển issue gốc sang `in_review` hoặc `cancelled`, hay `done` khi kế hoạch chưa tạo đủ con, còn con chưa `done`, còn chờ owner trả lời hoặc còn yêu cầu sửa chưa giải quyết.
 2. Sửa file, commit hay push trong worktree.
 3. Gửi `executionPolicy`, giao issue con cho reviewer, integrator hay chính bạn, đặt trong `assigneeAdapterOverrides` bất cứ gì ngoài `model` và `effort` của bảng model. Không bao giờ dùng model fable, không dùng haiku cho việc code.
