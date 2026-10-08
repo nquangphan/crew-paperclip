@@ -10,9 +10,13 @@
       "head": "async function claimQueuedRun(",
       "anchor": "    if (await crewCoreHooks.beforeClaim({ db, run })) return null;",
       "importLine": "import { crewCoreHooks } from \"../crew/core-hooks.js\";",
-      "description": "Keep a queued run queued while its environment is overloaded or unreachable.",
+      "description": "Keep a queued run queued while its environment is overloaded or unreachable; when claimed, resume the previous issue's session within a Crew bundle.",
       "upstreamPr": null,
-      "tests": ["server/src/__tests__/crew-before-claim.test.ts"]
+      "tests": [
+        "server/src/__tests__/crew-before-claim.test.ts",
+        "server/src/__tests__/crew-bundle-resume.test.ts",
+        "server/src/__tests__/crew-claim-resume-contract.test.ts"
+      ]
     },
     {
       "id": "H2",
