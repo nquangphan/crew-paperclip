@@ -157,6 +157,7 @@ describe("nối session trong gói khi claim", () => {
   async function seed(o: SeedOptions = {}) {
     const companyId = randomUUID(), agentId = randomUUID(), otherAgentId = randomUUID();
     const issueA = randomUUID(), issueB = randomUUID(), runA = randomUUID(), runB = randomUUID();
+    const parentId = randomUUID();
     const wakeupRequestId = randomUUID();
     await db.insert(companies).values({
       id: companyId,
@@ -169,13 +170,16 @@ describe("nối session trong gói khi claim", () => {
       adapterConfig: {}, permissions: {}, runtimeConfig: { heartbeat: { enabled: false, wakeOnDemand: true, maxConcurrentRuns: 1 } },
     });
     await db.insert(agents).values([agent(agentId, "Executor 1"), agent(otherAgentId, "Executor 2")]);
+    await db.insert(issues).values({
+      id: parentId, companyId, title: "Yêu cầu gốc", status: "backlog", responsibleUserId: "owner",
+    });
     await db.insert(issues).values([
       {
-        id: issueA, companyId, title: "A", status: o.aStatus ?? "done", assigneeAgentId: agentId, responsibleUserId: "owner",
+        id: issueA, companyId, parentId, title: "A", status: o.aStatus ?? "done", assigneeAgentId: agentId, responsibleUserId: "owner",
         description: o.aDescription ?? "Việc A\ncrew-bundle id=greet seq=1",
       },
       {
-        id: issueB, companyId, title: "B", status: "todo", assigneeAgentId: agentId, responsibleUserId: "owner",
+        id: issueB, companyId, parentId, title: "B", status: "todo", assigneeAgentId: agentId, responsibleUserId: "owner",
         description: o.bDescription ?? "Việc B\ncrew-bundle id=greet seq=2",
       },
     ]);
@@ -226,7 +230,7 @@ describe("nối session trong gói khi claim", () => {
     db.select().from(activityLog).where(and(eq(activityLog.entityId, runId), eq(activityLog.action, "crew.bundle_resume")));
 
   for (const wakeReason of ["issue_blockers_resolved", "issue_assigned"]) {
-    it(`cùng gói, wake ${wakeReason}: run B resume session của A và ghi dấu`, async () => {
+    it(`cùng gốc và gói, wake ${wakeReason}: run B resume session của A và ghi dấu`, async () => {
       const s = await seed({ wakeReason });
       await claimAll();
       expect(await runtimeOf(s.runB)).toMatchObject({ sessionId: "sess-a" });
@@ -238,6 +242,31 @@ describe("nối session trong gói khi claim", () => {
       expect(await resumeActivities(s.runB)).toHaveLength(1);
     }, 30_000);
   }
+
+  it("hai gốc dùng cùng tên gói và blocker chéo: B chạy session mới", async () => {
+    const s = await seed();
+    const otherParentId = randomUUID();
+    await db.insert(issues).values({
+      id: otherParentId, companyId: s.companyId, title: "Yêu cầu độc lập", status: "backlog", responsibleUserId: "owner",
+    });
+    await db.update(issues).set({ parentId: otherParentId }).where(eq(issues.id, s.issueB));
+    await claimAll();
+    expect((await runtimeOf(s.runB)).sessionId ?? null).toBeNull();
+    const [run] = await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, s.runB));
+    expect(run!.contextSnapshot).not.toHaveProperty("resumeFromRunId");
+    expect(await resumeActivities(s.runB)).toHaveLength(0);
+  }, 30_000);
+
+  it.each(["A", "B", "cả hai"])("%s không phải issue con: không nối", async (root) => {
+    const s = await seed();
+    if (root !== "B") await db.update(issues).set({ parentId: null }).where(eq(issues.id, s.issueA));
+    if (root !== "A") await db.update(issues).set({ parentId: null }).where(eq(issues.id, s.issueB));
+    const [run] = await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, s.runB));
+    expect(await applyBundleResume({ db, run: run! })).toBe("skipped");
+    const [after] = await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, s.runB));
+    expect(after!.contextSnapshot).not.toHaveProperty("resumeFromRunId");
+    expect(await resumeActivities(s.runB)).toHaveLength(0);
+  });
 
   it("khác gói: không nối", async () => {
     const s = await seed({ bDescription: "crew-bundle id=readme seq=1" });
