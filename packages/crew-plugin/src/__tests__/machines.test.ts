@@ -6,7 +6,7 @@ import { startEmbeddedPostgresTestDatabase } from "../../../db/src/test-embedded
 import type { PluginContext, PluginWebhookInput } from "@paperclipai/plugin-sdk";
 import { handleMachineStatus } from "../machines/webhook.js";
 import { loadCrewMachines } from "../machines/data.js";
-import { validatePluginMigrationStatement } from "../../../../server/src/services/plugin-database.js";
+import { validatePluginMigrationStatement, validatePluginRuntimeExecute } from "../../../../server/src/services/plugin-database.js";
 
 const companyId = "10000000-0000-4000-8000-000000000001";
 const otherCompany = "10000000-0000-4000-8000-000000000002";
@@ -34,7 +34,10 @@ it("stores one signed report, rejects unsafe envelopes without writes, and compu
   }
   const ctx = { db: {
     namespace: "plugin_crew_core_0433ea20b6", query: async <T>(query: string, params: unknown[] = []) => await sql.unsafe<T[]>(query, params as never[]),
-    execute: async (query: string, params: unknown[] = []) => ({ rowCount: (await sql.unsafe(query, params as never[])).count }),
+    execute: async (query: string, params: unknown[] = []) => {
+      validatePluginRuntimeExecute(query, "plugin_crew_core_0433ea20b6");
+      return { rowCount: (await sql.unsafe(query, params as never[])).count };
+    },
   }, config: { get: async () => ({ companies: [companyId, otherCompany].map(companyId => ({ companyId, webhookSecretRef: { type: "secret_ref", secretId: machineId } })) }) },
     secrets: { resolve: async () => "test-secret" } } as unknown as PluginContext;
   const send = async (report: unknown, options: { signature?: string; timestamp?: number; raw?: string; receivedAt?: Date } = {}) => {
