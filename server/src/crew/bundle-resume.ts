@@ -58,17 +58,17 @@ export interface BundleResumeTarget {
 
 /**
  * Tìm session để issue `issueId` của agent nối tiếp. Null khi issue không giao cho agent, không có marker gói,
- * agent đã có session riêng trên issue này, hoặc không có tiền nhiệm hợp lệ.
+ * agent đã có session riêng trên issue này, hoặc không có tiền nhiệm hợp lệ là con cùng parent.
  */
 export async function findBundlePredecessor(
   db: Db,
   input: { companyId: string; agentId: string; issueId: string },
 ): Promise<BundleResumeTarget | null> {
   const [issue] = await db
-    .select({ assigneeAgentId: issues.assigneeAgentId, description: issues.description })
+    .select({ assigneeAgentId: issues.assigneeAgentId, description: issues.description, parentId: issues.parentId })
     .from(issues)
     .where(and(eq(issues.id, input.issueId), eq(issues.companyId, input.companyId)));
-  if (!issue || issue.assigneeAgentId !== input.agentId) return null;
+  if (!issue || issue.parentId === null || issue.assigneeAgentId !== input.agentId) return null;
   const bundle = parseCrewBundle(issue.description);
   if (!bundle) return null;
   const [agent] = await db.select({ adapterType: agents.adapterType }).from(agents).where(and(eq(agents.id, input.agentId), eq(agents.companyId, input.companyId)));
@@ -92,6 +92,7 @@ export async function findBundlePredecessor(
       and(
         eq(issueRelations.companyId, input.companyId),
         eq(issues.companyId, input.companyId),
+        eq(issues.parentId, issue.parentId),
         eq(issueRelations.type, "blocks"),
         eq(issueRelations.relatedIssueId, input.issueId),
       ),
