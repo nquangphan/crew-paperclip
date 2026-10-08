@@ -18,3 +18,10 @@ export function parseCrewCommit(body: string): string | null {
 export function isCrewResearch(description: string | null): boolean {
   return /^crew-kind research$/m.test(description ?? "");
 }
+
+const DOCS_CHECK = /^crew-docs-check commit=([0-9a-f]{40}) range=([0-9a-f]{7,40}\.\.[0-9a-f]{40}) exit=([0-3])$/;
+export function parseCrewDocsCheck(body: string): { commit: string; range: string; exit: number } | null {
+  const match = DOCS_CHECK.exec(body.split("\n", 1)[0]?.trim() ?? "");
+  if (!match || !match[2]?.endsWith(match[1]!)) return null;
+  return { commit: match[1]!, range: match[2]!, exit: Number(match[3]) };
+}

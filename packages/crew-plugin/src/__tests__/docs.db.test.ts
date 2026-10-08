@@ -1,0 +1,57 @@
+import { createHmac } from "node:crypto";
+import { readFile } from "node:fs/promises";
+import { afterAll, expect, it } from "vitest";
+import type { PluginContext, PluginWebhookInput } from "@paperclipai/plugin-sdk";
+import postgres from "../../../db/node_modules/postgres";
+import { startEmbeddedPostgresTestDatabase } from "../../../db/src/test-embedded-postgres.js";
+import { derivePluginDatabaseNamespace, validatePluginMigrationStatement, validatePluginRuntimeExecute } from "../../../../server/src/services/plugin-database.js";
+import { receiveDocsSnapshot } from "../docs/webhook.js";
+import { loadDocsCheck, loadDocsPage, loadDocsTree, searchDocs } from "../docs/data.js";
+
+const companyId = "10000000-0000-4000-8000-000000000001";
+const otherCompany = "10000000-0000-4000-8000-000000000002";
+const projectId = "20000000-0000-4000-8000-000000000001";
+const otherProject = "20000000-0000-4000-8000-000000000002";
+const issueId = "30000000-0000-4000-8000-000000000001";
+const childId = "30000000-0000-4000-8000-000000000002";
+const ns = derivePluginDatabaseNamespace("crew.core");
+const now = Math.floor(Date.now()/1000);
+let cleanup: (()=>Promise<void>)|undefined;
+afterAll(async()=>{await cleanup?.();});
+const page = (path:string,title:string,text:string) => ({path,title,parentPath:null,text,sha256:"b".repeat(64)});
+const payload = (commit="a".repeat(40)) => ({version:1,companyId,machineId:"50000000-0000-4000-8000-000000000001",projectId,repo:"repo-a",commit,auditState:"verified",checkExit:0,pages:[page("docs/index.md","Index 100%","Hello 100% world"),page("docs/other.md","Other","Second")],links:[{fromPath:"docs/index.md",occurrence:1,originalHref:"other.md",toPath:"docs/other.md",fragment:null,status:"ok"}],dropped:[{path:"docs/secret.md",reason:"secret-scan"}]});
+function signed(body:unknown, overrides:{timestamp?:number;signature?:string;headers?:Record<string,string>}={}):PluginWebhookInput {
+  const rawBody=JSON.stringify(body); const ts=overrides.timestamp ?? now;
+  return {endpointKey:"docs-snapshot",rawBody,requestId:"request-1",headers:overrides.headers ?? {"X-Crew-Timestamp":String(ts),"X-Crew-Signature":overrides.signature ?? `sha256=${createHmac("sha256","test-secret").update(`${ts}.${rawBody}`).digest("hex")}`}};
+}
+it("stores and replaces docs snapshots, rejects invalid webhooks, scopes reads and searches literal wildcards",async()=>{
+  const database=await startEmbeddedPostgresTestDatabase("crew-docs-");
+  const sql=postgres(database.connectionString,{max:2,onnotice:()=>{}});
+  cleanup=async()=>{await sql.end();await database.cleanup();};
+  await sql`INSERT INTO companies (id,name,issue_prefix) VALUES (${companyId},'Crew','CRE'),(${otherCompany},'Other','OTH')`;
+  await sql`INSERT INTO projects (id,company_id,name) VALUES (${projectId},${companyId},'Repo A'),(${otherProject},${otherCompany},'Other repo')`;
+  await sql`INSERT INTO issues (id,company_id,identifier,title,status) VALUES (${issueId},${companyId},'CRE-1','root','todo')`;
+  await sql`INSERT INTO issues (id,company_id,parent_id,identifier,title,status) VALUES (${childId},${companyId},${issueId},'CRE-2','child','todo')`;
+  await sql.unsafe(`CREATE SCHEMA ${ns}`);
+  const migration=await readFile(new URL("../../migrations/0001_docs.sql",import.meta.url),"utf8");
+  for (const statement of migration.split(";").map(x=>x.trim()).filter(Boolean)) { validatePluginMigrationStatement(statement,ns,["projects"]); await sql.unsafe(statement); }
+  const ctx={db:{namespace:ns,query:async<T>(q:string,params:unknown[]=[])=>await sql.unsafe<T[]>(q,params as never[]),execute:async(q:string,params:unknown[]=[])=>{validatePluginRuntimeExecute(q,ns);const result=await sql.unsafe(q,params as never[]);return {rowCount:result.count};}},config:{get:async()=>({companies:[{companyId,webhookSecretRef:{type:"secret_ref",secretId:"40000000-0000-4000-8000-000000000001"}}]})},secrets:{resolve:async()=>"test-secret"}} as unknown as PluginContext;
+  await receiveDocsSnapshot(ctx,signed(payload()));
+  expect((await loadDocsTree(ctx,projectId,companyId))?.pages).toHaveLength(2);
+  expect((await loadDocsPage(ctx,projectId,"docs/index.md",companyId))?.links[0]?.status).toBe("ok");
+  expect((await searchDocs(ctx,projectId,"100%",companyId)).map(x=>x.path)).toEqual(["docs/index.md"]);
+  expect(await searchDocs(ctx,projectId,"100_",companyId)).toEqual([]);
+  const count=async()=>Number((await sql.unsafe(`SELECT count(*)::int AS n FROM ${ns}.docs_snapshots`))[0]?.n);
+  for (const bad of [signed(payload(),{headers:{}}),signed(payload(),{signature:"sha256="+"0".repeat(64)}),signed(payload(),{timestamp:now-301}),signed({...payload(),companyId:otherCompany}),signed({...payload(),projectId:otherProject}),signed({...payload(),pages:[page("docs/secret.md","Bad","secret")],dropped:[{path:"docs/secret.md",reason:"secret-scan"}]}),signed({...payload(),pages:[page("docs/index.md","x","x".repeat(5*1024*1024))]})]) {
+    await expect(receiveDocsSnapshot(ctx,bad)).rejects.toThrow(); expect(await count()).toBe(1);
+  }
+  await receiveDocsSnapshot(ctx,signed({...payload("c".repeat(40)),pages:[page("docs/new.md","New","Fresh")],links:[],dropped:[]}));
+  expect(await count()).toBe(1);
+  expect((await loadDocsTree(ctx,projectId,companyId))?.commit).toBe("c".repeat(40));
+  expect(await loadDocsPage(ctx,projectId,"docs/index.md",companyId)).toBeNull();
+  await expect(loadDocsTree(ctx,projectId,otherCompany)).rejects.toThrow();
+  const sha="d".repeat(40); const base="e".repeat(40);
+  await sql`INSERT INTO issue_comments (company_id,issue_id,body,created_at) VALUES (${companyId},${issueId},${`crew-docs-check commit=${sha} range=${base}..${sha} exit=1`},now()-interval '1 hour')`;
+  await sql`INSERT INTO issue_comments (company_id,issue_id,body,created_at) VALUES (${companyId},${issueId},${`crew-docs-check commit=${sha} range=${base}..${sha} exit=0`},now())`;
+  expect((await loadDocsCheck(ctx,childId,companyId))?.exit).toBe(0);
+},90_000);
