@@ -10,6 +10,12 @@ docker run --rm --entrypoint sh "$1" -c '
   done
   P=/app/packages/crew-plugin
   for f in package.json dist/manifest.js dist/worker.js; do [ -f "$P/$f" ] && echo "plugin $f ok" || echo "plugin $f MISSING"; done
+  UI="$P/dist/ui/index.js"
+  [ -d "$P/migrations" ] || { echo "plugin migrations MISSING"; exit 1; }
+  [ -s "$UI" ] || { echo "plugin dist/ui/index.js MISSING"; exit 1; }
+  GZIP_BYTES=$(gzip -c "$UI" | wc -c | tr -d " ")
+  echo "plugin dist/ui/index.js gzip=${GZIP_BYTES} bytes"
+  [ "$GZIP_BYTES" -le 1572864 ] || { echo "plugin UI bundle exceeds 1.5 MiB gzip"; exit 1; }
   if grep -q -E "from ?[\"]@paperclipai/" "$P/dist/worker.js" "$P/dist/manifest.js" 2>/dev/null; then echo "plugin bundle FAIL: still imports @paperclipai/*"; fi
   cd "$P" && node --input-type=module -e "import(\"./dist/manifest.js\").then((m) => console.log(\"plugin bundle ok; manifest \" + m.default.id + \" \" + m.default.capabilities.join(\",\")), (e) => console.log(\"plugin bundle FAIL \" + e.message))"
 '

@@ -11,6 +11,7 @@ tar -xzf "$OPS/overlay-$SHORT.tar.gz" -C "$CTX/app"
 cat > "$CTX/Dockerfile" <<'DOCK'
 FROM ghcr.io/paperclipai/paperclip:2026.1001.0
 COPY --chown=node:node app/ /app/
+RUN test -s /app/packages/crew-plugin/dist/ui/index.js && test -d /app/packages/crew-plugin/migrations
 RUN set -e; cd /app/server; OUT=dist; \
     while read -r f; do [ -n "$f" ] || continue; \
       o="$OUT/${f#src/}"; o="${o%.ts}.js"; mkdir -p "$(dirname "$o")"; \

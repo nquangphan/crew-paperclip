@@ -30,9 +30,12 @@ if [ -n "$SHIP" ]; then git archive --format=tar "$COMMIT" $SHIP | tar -x -C "$W
 # The bundle resolves @paperclipai/plugin-sdk from its built dist.
 corepack pnpm --filter @paperclipai/plugin-sdk ensure-build-deps
 corepack pnpm --filter @crew/paperclip-plugin build
+test -s packages/crew-plugin/dist/ui/index.js || { echo "overlay: crew plugin UI bundle missing" >&2; exit 2; }
 git archive --format=tar "$COMMIT" packages/crew-plugin/package.json | tar -x -C "$WORK/app"
 OUTDIR=$(node -e 'const p=require("./packages/crew-plugin/package.json"); console.log(require("path").dirname(p.paperclipPlugin.worker))')
 cp -R "packages/crew-plugin/$OUTDIR" "$WORK/app/packages/crew-plugin/$OUTDIR"
+cp -R packages/crew-plugin/migrations "$WORK/app/packages/crew-plugin/migrations"
+test -s "$WORK/app/packages/crew-plugin/dist/ui/index.js" || { echo "overlay: UI bundle not copied" >&2; exit 2; }
 
 tar -C "$WORK/app" -czf "$WORK/overlay-$SHORT.tar.gz" .
 scp -q "$WORK/overlay-$SHORT.tar.gz" nhamoiplatform:/opt/crew-v3-spike/ops/

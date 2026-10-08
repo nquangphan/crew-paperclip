@@ -14,3 +14,14 @@ await build({
     js: "import { createRequire as __crewCreateRequire } from 'node:module'; const require = __crewCreateRequire(import.meta.url);",
   },
 });
+
+await build({
+  entryPoints: ["src/ui/index.tsx"],
+  bundle: true,
+  platform: "browser",
+  format: "esm",
+  target: "es2022",
+  outfile: "dist/ui/index.js",
+  external: ["react", "react-dom", "react/jsx-runtime", "@paperclipai/plugin-sdk/ui"],
+  logLevel: "warning",
+});
