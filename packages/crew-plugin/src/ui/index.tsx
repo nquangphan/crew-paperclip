@@ -1,3 +1,5 @@
+import "./docs/index.js";
+
 import { createElement as h } from "react";
 import {
   DataTable,
