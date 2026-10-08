@@ -1,4 +1,6 @@
 import { randomUUID } from "node:crypto";
+import { promises as fs } from "node:fs";
+import path from "node:path";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { and, eq } from "drizzle-orm";
 import { remoteExecutionSessionMatches } from "@paperclipai/adapter-utils/remote-managed-runtime";
@@ -9,6 +11,7 @@ import {
 import { getEmbeddedPostgresTestSupport, startEmbeddedPostgresTestDatabase } from "../__tests__/helpers/embedded-postgres.js";
 import { applyBundleResume, findBundlePredecessor } from "./bundle-resume.js";
 import { heartbeatService } from "../services/heartbeat.js";
+import { getRunLogStore } from "../services/run-log-store.js";
 
 const execute = vi.hoisted(() => vi.fn());
 vi.mock("../adapters/index.js", async () => {
@@ -20,6 +23,9 @@ describe("crew-bundle-resume: cancellation issue_reassigned trước task sessio
   let db: ReturnType<typeof createDb>;
   let temporary: Awaited<ReturnType<typeof startEmbeddedPostgresTestDatabase>>;
   beforeAll(async () => {
+    const logRoot = path.resolve(import.meta.dirname, "../../../tmp/br-1-4a5-2/logs");
+    await fs.mkdir(logRoot, { recursive: true });
+    vi.stubEnv("RUN_LOG_BASE_PATH", await fs.mkdtemp(path.join(logRoot, "run-")));
     const support = await getEmbeddedPostgresTestSupport();
     if (!support.supported) throw new Error(support.reason);
     temporary = await startEmbeddedPostgresTestDatabase("crew-cancelled-");
@@ -29,16 +35,17 @@ describe("crew-bundle-resume: cancellation issue_reassigned trước task sessio
   afterAll(async () => {
     await db?.$client.end({ timeout: 0 });
     await temporary?.cleanup();
+    vi.unstubAllEnvs();
   });
 
-  async function seed(patch: Partial<typeof heartbeatRuns.$inferInsert> = {}) {
+  async function seed(patch: Partial<typeof heartbeatRuns.$inferInsert> = {}, adapterType = "process") {
     const companyId = randomUUID(), agentId = randomUUID(), otherAgentId = randomUUID();
     const parentId = randomUUID(), issueA = randomUUID(), issueB = randomUUID();
     const runA = randomUUID(), runB = randomUUID(), wakeupRequestId = randomUUID();
     const sessionId = randomUUID();
     await db.insert(companies).values({ id: companyId, name: "Cancelled bundle", issuePrefix: `C${companyId.slice(0, 7)}`, defaultResponsibleUserId: "owner" });
     await db.insert(agents).values([agentId, otherAgentId].map((id) => ({
-      id, companyId, name: id, role: "engineer", status: "idle", adapterType: "process",
+      id, companyId, name: id, role: "engineer", status: "idle", adapterType,
       runtimeConfig: { heartbeat: { enabled: false, wakeOnDemand: true, maxConcurrentRuns: 1 } },
     })));
     await db.insert(issues).values({ id: parentId, companyId, title: "Root", responsibleUserId: "owner" });
@@ -71,6 +78,26 @@ describe("crew-bundle-resume: cancellation issue_reassigned trước task sessio
   }
   type Seed = Awaited<ReturnType<typeof seed>>;
   const find = (s: Seed) => findBundlePredecessor(db, { ...s, issueId: s.issueB });
+  async function seedLog(adapterType = "claude_local", chunks?: string[]) {
+    const s = await seed({ sessionIdBefore: null, sessionIdAfter: null }, adapterType);
+    const store = getRunLogStore();
+    const handle = await store.begin({ companyId: s.companyId, agentId: s.agentId, runId: s.runA });
+    const init = JSON.stringify(adapterType === "codex_local"
+      ? { type: "thread.started", thread_id: s.sessionId }
+      : { type: "system", subtype: "init", session_id: s.sessionId });
+    // stdout có thể chia giữa token JSON; stderr xen kẽ không thuộc provider stream.
+    for (const chunk of chunks ?? [init.slice(0, 30), `${init.slice(30)}\n`]) {
+      await store.append(handle, { stream: "stdout", chunk, ts: new Date().toISOString() });
+      await store.append(handle, { stream: "stderr", chunk: "diagnostic\n", ts: new Date().toISOString() });
+    }
+    await db.update(heartbeatRuns).set({ logStore: handle.store, logRef: handle.logRef }).where(eq(heartbeatRuns.id, s.runA));
+    const [run] = await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, s.runA));
+    expect(run).toMatchObject({ status: "cancelled", errorCode: "issue_reassigned", sessionIdBefore: null, sessionIdAfter: null, logBytes: null, logStore: "local_file" });
+    expect(run!.resultJson).not.toHaveProperty("sessionId");
+    expect(run!.resultJson).not.toHaveProperty("session_id");
+    expect(run!.contextSnapshot).not.toHaveProperty("resumeSessionParams");
+    return { ...s, handle };
+  }
   async function claim(s: Seed, expected: string | null) {
     execute.mockResolvedValue({ exitCode: 0, signal: null, timedOut: false, summary: "ok" });
     const heartbeat = heartbeatService(db);
@@ -91,6 +118,74 @@ describe("crew-bundle-resume: cancellation issue_reassigned trước task sessio
     const s = await seed();
     await claim(s, s.sessionId);
   }, 30_000);
+  it.each(["claude_local", "codex_local"])("%s: log chưa finalize là nguồn ID duy nhất, claim B nhận session", async (adapterType) => {
+    const s = await seedLog(adapterType);
+    await claim(s, s.sessionId);
+  }, 30_000);
+  it("log init giữ cwd và identity SSH của đúng run", async () => {
+    const s = await seedLog();
+    const remote = { transport: "ssh", host: "fixture.invalid", port: 22, username: "executor", remoteCwd: "/fixture/repo" };
+    await db.update(heartbeatRuns).set({ contextSnapshot: { issueId: s.issueA, paperclipWorkspace: { cwd: "/fixture/local" }, paperclipEnvironment: { driver: "ssh", ...remote } } }).where(eq(heartbeatRuns.id, s.runA));
+    const [run] = await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, s.runB));
+    expect(await applyBundleResume({ db, run: run! })).toBe("applied");
+    const params = run!.contextSnapshot?.resumeSessionParams as Record<string, unknown>;
+    expect(params).toEqual({ sessionId: s.sessionId, cwd: "/fixture/local", remoteExecution: remote });
+    const spec = { ...remote, remoteWorkspacePath: remote.remoteCwd, privateKey: null, knownHosts: null, strictHostKeyChecking: true };
+    expect(remoteExecutionSessionMatches(params.remoteExecution, spec)).toBe(true);
+    expect(remoteExecutionSessionMatches(params.remoteExecution, { ...spec, host: "other.invalid" })).toBe(false);
+  });
+  it.each([
+    ["không init", JSON.stringify({ type: "assistant", session_id: randomUUID() }) + "\n"],
+    ["UUID sai", '{"type":"system","subtype":"init","session_id":"not-a-uuid"}\n'],
+    ["JSON hỏng", '{"type":"system","subtype":"init","session_id":\n'],
+    ["event khác adapter", JSON.stringify({ type: "thread.started", thread_id: randomUUID() }) + "\n"],
+  ])("log %s: không nối, không throw", async (_name, chunk) => {
+    const s = await seedLog("claude_local", [chunk]);
+    expect(await find(s)).toBeNull();
+    await claim(s, null);
+  }, 30_000);
+  it.each(["hỏng", "mất"])("file log %s: không nối, không throw", async (kind) => {
+    const s = await seedLog();
+    const logPath = path.join(process.env.RUN_LOG_BASE_PATH!, s.handle.logRef);
+    if (kind === "hỏng") await fs.writeFile(logPath, '{"stream":"stdout","chunk":broken\n');
+    else await fs.unlink(logPath);
+    expect(await find(s)).toBeNull();
+    await claim(s, null);
+  }, 30_000);
+  it("log mới nhất không init: không lùi về log cũ, bỏ qua run reviewer", async () => {
+    const s = await seedLog();
+    await db.insert(heartbeatRuns).values({ companyId: s.companyId, agentId: s.otherAgentId, invocationSource: "automation", status: "succeeded", contextSnapshot: { issueId: s.issueA }, sessionIdAfter: randomUUID(), createdAt: new Date(Date.now() + 2000) });
+    expect((await find(s))?.predecessor.session.lastRunId).toBe(s.runA);
+    await db.insert(heartbeatRuns).values({ companyId: s.companyId, agentId: s.agentId, invocationSource: "automation", status: "cancelled", errorCode: "issue_reassigned", contextSnapshot: { issueId: s.issueA }, createdAt: new Date(Date.now() + 1000) });
+    expect(await find(s)).toBeNull();
+  });
+  it("đọc qua biên page và chunk, chấp nhận init hoàn chỉnh không có newline cuối", async () => {
+    const s = await seedLog("claude_local", ["x".repeat(255_950) + "\n"]);
+    const init = JSON.stringify({ type: "system", subtype: "init", session_id: s.sessionId });
+    await getRunLogStore().append(s.handle, { stream: "stdout", chunk: init, ts: new Date().toISOString() });
+    expect((await find(s))?.predecessor.session.sessionDisplayId).toBe(s.sessionId);
+  });
+  it("init hiện tại thắng before/resume cũ, kết quả cuối đã persist vẫn ưu tiên", async () => {
+    const s = await seedLog();
+    const old = randomUUID(), final = randomUUID();
+    await db.update(heartbeatRuns).set({ sessionIdBefore: old, contextSnapshot: { issueId: s.issueA, resumeSessionParams: { sessionId: old, promptBundleKey: "stale" } } }).where(eq(heartbeatRuns.id, s.runA));
+    expect((await find(s))?.predecessor.session.sessionParamsJson).toEqual({ sessionId: s.sessionId });
+    await db.update(heartbeatRuns).set({ sessionIdAfter: final }).where(eq(heartbeatRuns.id, s.runA));
+    expect((await find(s))?.predecessor.session.sessionDisplayId).toBe(final);
+  });
+  it("không đọc init từ stderr hoặc logRef của run khác", async () => {
+    const s = await seedLog("claude_local", []);
+    await getRunLogStore().append(s.handle, { stream: "stderr", chunk: JSON.stringify({ type: "system", subtype: "init", session_id: s.sessionId }) + "\n", ts: new Date().toISOString() });
+    expect(await find(s)).toBeNull();
+    const other = await seedLog();
+    await db.update(heartbeatRuns).set({ logRef: other.handle.logRef }).where(eq(heartbeatRuns.id, s.runA));
+    expect(await find(s)).toBeNull();
+  });
+  it("init vượt giới hạn đọc: mở mới thay vì đọc toàn bộ log lớn", async () => {
+    const s = await seedLog("claude_local", ["x".repeat(4 * 1024 * 1024) + "\n"]);
+    await getRunLogStore().append(s.handle, { stream: "stdout", chunk: JSON.stringify({ type: "system", subtype: "init", session_id: s.sessionId }) + "\n", ts: new Date().toISOString() });
+    expect(await find(s)).toBeNull();
+  });
   it.each(["sessionIdBefore", "resultJson.session_id", "resultJson.sessionId", "contextSnapshot.resumeSessionParams"])("cứu session từ %s khi sessionIdAfter null", async (source) => {
     const sessionId = randomUUID();
     const s = await seed({ sessionIdAfter: null, ...(source === "sessionIdBefore" ? { sessionIdBefore: sessionId } : source.startsWith("resultJson") ? { resultJson: { [source.split(".")[1]!]: sessionId } } : {}) });
@@ -152,8 +247,10 @@ describe("crew-bundle-resume: cancellation issue_reassigned trước task sessio
     await db.update(agents).set({ adapterType: "claude_local" }).where(eq(agents.id, s.agentId));
     expect(await find(s)).toBeNull();
   });
-  it.each(["parent", "bundle", "seq", "status", "blocker", "agent", "company", "own-session", "adapter-session"])("fallback giữ cổng F2: %s", async (gate) => {
-    const s = await seed();
+  it.each(["parent", "bundle", "seq", "status", "blocker", "agent", "company", "own-session", "adapter-session"]
+    .flatMap((gate) => ["columns", "log"].map((source) => ({ gate, source }))))("fallback $source giữ cổng F2: $gate", async ({ gate, source }) => {
+    const s = source === "log" ? await seedLog() : await seed();
+    const adapterType = source === "log" ? "claude_local" : "process";
     if (gate === "parent") await db.update(issues).set({ parentId: null }).where(eq(issues.id, s.issueA));
     if (gate === "bundle" || gate === "seq") await db.update(issues).set({ description: gate === "bundle" ? "crew-bundle id=other seq=1" : "crew-bundle id=greet seq=2" }).where(eq(issues.id, s.issueA));
     if (gate === "status") await db.update(issues).set({ status: "in_review" }).where(eq(issues.id, s.issueA));
@@ -164,7 +261,7 @@ describe("crew-bundle-resume: cancellation issue_reassigned trước task sessio
       await db.insert(companies).values({ id: foreign, name: "Foreign", issuePrefix: `F${foreign.slice(0, 7)}` });
       await db.update(heartbeatRuns).set({ companyId: foreign }).where(eq(heartbeatRuns.id, s.runA));
     }
-    if (gate.endsWith("session")) await db.insert(agentTaskSessions).values({ companyId: s.companyId, agentId: s.agentId, adapterType: gate === "adapter-session" ? "claude_local" : "process", taskKey: gate === "own-session" ? s.issueB : s.issueA, sessionParamsJson: { sessionId: randomUUID() } });
+    if (gate.endsWith("session")) await db.insert(agentTaskSessions).values({ companyId: s.companyId, agentId: s.agentId, adapterType: gate === "adapter-session" ? (source === "log" ? "process" : "claude_local") : adapterType, taskKey: gate === "own-session" ? s.issueB : s.issueA, sessionParamsJson: { sessionId: randomUUID() } });
     expect(await find(s)).toBeNull();
   });
 });

@@ -2,6 +2,7 @@ import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import { agentTaskSessions, agents, type Db, heartbeatRuns, issueRelations, issues } from "@paperclipai/db";
 import { logger } from "../middleware/logger.js";
 import { persistActivity, publishActivity } from "../services/activity-log.js";
+import { getRunLogStore } from "../services/run-log-store.js";
 
 /** Dòng marker gói trong mô tả issue con, do Trợ Lý ghi. */
 export const CREW_BUNDLE_RE = /^crew-bundle id=([a-z0-9][a-z0-9-]{0,39}) seq=([1-9][0-9]{0,2})$/m;
@@ -65,20 +66,78 @@ function nonEmptyString(value: unknown): string | null {
   return typeof value === "string" && value.trim() ? value.trim() : null;
 }
 
+const SESSION_UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** Init được ghi vào stdout trước khi adapter trả kết quả; không cần log đã finalize. */
+async function sessionIdFromRunLog(run: typeof heartbeatRuns.$inferSelect, adapterType: string): Promise<string | null> {
+  if ((adapterType !== "claude_local" && adapterType !== "codex_local") ||
+      run.logStore !== "local_file" || !run.logRef) return null;
+  // Chặn việc đọc nhầm file của company/agent/run khác kể cả khi logRef hỏng.
+  if (run.logRef !== `${run.companyId}/${run.agentId}/${run.id}.ndjson`) return null;
+  // Init ở đầu stream. Giới hạn I/O trong claim; thiếu bằng chứng thì mở session mới.
+  const maxBytes = 4 * 1024 * 1024;
+  let offset = 0;
+  let records = "";
+  let stdout = "";
+  function readInit(line: string): string | null {
+    try {
+      const event = record(JSON.parse(line));
+      const id = adapterType === "claude_local"
+        ? event.type === "system" && event.subtype === "init" ? event.session_id : null
+        : event.type === "thread.started" ? event.thread_id : null;
+      return typeof id === "string" && SESSION_UUID_RE.test(id) ? id : null;
+    } catch {
+      return null;
+    }
+  }
+  try {
+    const store = getRunLogStore();
+    while (offset < maxBytes) {
+      const page = await store.read({ store: "local_file", logRef: run.logRef }, {
+        offset, limitBytes: Math.min(256_000, maxBytes - offset),
+      });
+      records += page.content;
+      let boundary: number;
+      while ((boundary = records.indexOf("\n")) >= 0) {
+        const entry = record(JSON.parse(records.slice(0, boundary)));
+        records = records.slice(boundary + 1);
+        if (entry.stream !== "stdout" || typeof entry.chunk !== "string") continue;
+        stdout += entry.chunk;
+        let lineEnd: number;
+        while ((lineEnd = stdout.indexOf("\n")) >= 0) {
+          const sessionId = readInit(stdout.slice(0, lineEnd));
+          stdout = stdout.slice(lineEnd + 1);
+          if (sessionId) return sessionId;
+        }
+      }
+      if (page.nextOffset === undefined) return records.trim() ? null : readInit(stdout);
+      if (page.nextOffset <= offset) return null;
+      offset = page.nextOffset;
+    }
+  } catch {
+    // Log thiếu/hỏng hoặc lỗi storage không được làm hỏng claim hay đoán ID.
+  }
+  return null;
+}
+
 /** Cancellation có thể giữ run nhưng bỏ qua upsertTaskSession trong executeRun. */
-function sessionFromRun(run: typeof heartbeatRuns.$inferSelect, adapterType: string): BundleSession | null {
+async function sessionFromRun(run: typeof heartbeatRuns.$inferSelect, adapterType: string): Promise<BundleSession | null> {
   const context = record(run.contextSnapshot);
   const result = record(run.resultJson);
   const resumeParams = record(context.resumeSessionParams);
-  const sessionId = [run.sessionIdAfter, result.sessionId, result.session_id, run.sessionIdBefore, resumeParams.sessionId]
+  const validId = (values: unknown[]) => values
     .map(nonEmptyString)
     .find((id) => id && (
       adapterType === "claude_local" || adapterType === "codex_local"
-        ? /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)
+        ? SESSION_UUID_RE.test(id)
         : adapterType === "hermes_local"
           ? /^(?:\d{8}_\d{6}_[A-Za-z0-9_-]{4,}|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i.test(id)
           : true
     ));
+  // Kết quả đã persist vẫn ưu tiên; init hiện tại đáng tin hơn ID đầu vào khi CLI đã mở mới.
+  const sessionId = validId([run.sessionIdAfter, result.sessionId, result.session_id])
+    ?? await sessionIdFromRunLog(run, adapterType)
+    ?? validId([run.sessionIdBefore, resumeParams.sessionId]);
   if (!sessionId) return null;
 
   // Chỉ dùng metadata của chính session/run; runtime state toàn agent có thể thuộc task khác.
@@ -174,7 +233,7 @@ export async function findBundlePredecessor(
       eq(heartbeatRuns.agentId, input.agentId),
       sql`${heartbeatRuns.contextSnapshot}->>'issueId' = ${blocker.issueId}`,
     )).orderBy(desc(heartbeatRuns.createdAt), desc(heartbeatRuns.id)).limit(1);
-    const session = latestRun ? sessionFromRun(latestRun, agent.adapterType) : null;
+    const session = latestRun ? await sessionFromRun(latestRun, agent.adapterType) : null;
     if (session) byKey.set(blocker.issueId, session);
   }
   const predecessor = pickBundlePredecessor(
