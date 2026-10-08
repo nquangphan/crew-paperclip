@@ -16,6 +16,9 @@ docker run --rm --entrypoint sh "$1" -c '
   GZIP_BYTES=$(gzip -c "$UI" | wc -c | tr -d " ")
   echo "plugin dist/ui/index.js gzip=${GZIP_BYTES} bytes"
   [ "$GZIP_BYTES" -le 1572864 ] || { echo "plugin UI bundle exceeds 1.5 MiB gzip"; exit 1; }
+  # macOS AppleDouble files (._*) shipped by an overlay are read as plugin migrations and break activation.
+  APPLEDOUBLE=$(find /app -name "._*" 2>/dev/null | head -3)
+  [ -z "$APPLEDOUBLE" ] || { echo "image FAIL: AppleDouble files present: $APPLEDOUBLE"; exit 1; }
   if grep -q -E "from ?[\"]@paperclipai/" "$P/dist/worker.js" "$P/dist/manifest.js" 2>/dev/null; then echo "plugin bundle FAIL: still imports @paperclipai/*"; fi
   cd "$P" && node --input-type=module -e "import(\"./dist/manifest.js\").then((m) => console.log(\"plugin bundle ok; manifest \" + m.default.id + \" \" + m.default.capabilities.join(\",\")), (e) => console.log(\"plugin bundle FAIL \" + e.message))"
 '

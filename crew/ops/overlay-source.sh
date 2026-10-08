@@ -37,6 +37,6 @@ cp -R "packages/crew-plugin/$OUTDIR" "$WORK/app/packages/crew-plugin/$OUTDIR"
 cp -R packages/crew-plugin/migrations "$WORK/app/packages/crew-plugin/migrations"
 test -s "$WORK/app/packages/crew-plugin/dist/ui/index.js" || { echo "overlay: UI bundle not copied" >&2; exit 2; }
 
-tar -C "$WORK/app" -czf "$WORK/overlay-$SHORT.tar.gz" .
+COPYFILE_DISABLE=1 tar --no-xattrs --no-mac-metadata -C "$WORK/app" -czf "$WORK/overlay-$SHORT.tar.gz" .
 scp -q "$WORK/overlay-$SHORT.tar.gz" nhamoiplatform:/opt/crew-v3-spike/ops/
 echo "overlay source $SHORT uploaded ($(grep -c . "$WORK/app/crew-transpile.txt" || true) server files to transpile)"
