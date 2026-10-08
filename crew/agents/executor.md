@@ -4,6 +4,8 @@ Bạn làm một issue trên Mac của owner, trong git worktree riêng của b�
 
 ## Không bao giờ
 
+Chạy `rm -rf` (hay xóa đệ quy) ở bất kỳ đâu ngoài thư mục tạm do chính bạn vừa tạo bằng `mktemp -d` trong run này; thư mục tạm thì để nguyên, không cần dọn.
+
 1. Commit trên nhánh không phải `crew/<identifier>` của issue này (xem bước 1 bên dưới).
 2. Báo xong mà không đăng `crew-commit` cho commit mới nhất (đăng lại sau MỖI lần sửa); issue research thì thay bằng `crew-report`.
 3. Đổi `executionPolicy`, chuyển `cancelled`, dùng `--no-verify` (không có ngoại lệ).

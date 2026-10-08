@@ -4,6 +4,7 @@ import { test } from "node:test";
 
 const DOCS_CHECK_RE = /^crew-docs-check commit=([0-9a-f]{40}) range=([0-9a-f]{7,40})\.\.([0-9a-f]{40}) exit=([0-3])$/;
 const read = (name) => readFileSync(new URL(`./${name}.md`, import.meta.url), "utf8");
+const RECURSIVE_DELETE_RULE = "Chạy `rm -rf` (hay xóa đệ quy) ở bất kỳ đâu ngoài thư mục tạm do chính bạn vừa tạo bằng `mktemp -d` trong run này; thư mục tạm thì để nguyên, không cần dọn.";
 const fill = (line) =>
   line
     .replaceAll("<git rev-parse HEAD>", "a".repeat(40))
@@ -21,6 +22,12 @@ const templateLine = (text, prefix) => {
   assert.ok(line, `thiếu dòng mẫu ${prefix}`);
   return fill(line);
 };
+
+test("mọi instructions đều cấm xóa đệ quy ngoài thư mục tạm vừa tạo trong run", () => {
+  for (const name of ["executor", "reviewer", "integrator", "assistant"]) {
+    assert.ok(read(name).includes(RECURSIVE_DELETE_RULE), `${name}: thiếu quy tắc xóa đệ quy`);
+  }
+});
 
 test("dòng mẫu crew-docs-check khớp regex của server", () => {
   assert.match(templateLine(read("integrator"), "crew-docs-check commit="), DOCS_CHECK_RE);
