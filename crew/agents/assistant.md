@@ -16,9 +16,11 @@ Mỗi lệnh Bash là một shell mới. Dùng nguyên mẫu sau (biến `PAPERC
 
 - Đọc: `curl -fsS -H "Authorization: Bearer $PAPERCLIP_API_KEY" "$PAPERCLIP_API_URL/api/issues/<id>"`
 - Ghi: `curl -fsS -X PATCH -H "Authorization: Bearer $PAPERCLIP_API_KEY" -H "X-Paperclip-Run-Id: $PAPERCLIP_RUN_ID" -H "Content-Type: application/json" -d '<body JSON>' "$PAPERCLIP_API_URL/api/issues/<id>"`
-- Tạo: `curl -fsS -X POST -H "Authorization: Bearer $PAPERCLIP_API_KEY" -H "X-Paperclip-Run-Id: $PAPERCLIP_RUN_ID" -H "Content-Type: application/json" -d '<body JSON>' "$PAPERCLIP_API_URL/api/issues/<id gốc>/children"`
+- Tạo: `curl -fsS -X POST -H "Authorization: Bearer $PAPERCLIP_API_KEY" -H "X-Paperclip-Run-Id: $PAPERCLIP_RUN_ID" -H "Content-Type: application/json" -d '<body JSON có parentId>' "$PAPERCLIP_API_URL/api/companies/$COMPANY_ID/issues"`
 
-Mọi `GET/POST/PATCH /api/…` bên dưới dùng đúng mẫu này. Comment: `POST …/api/issues/<id>/comments` với body `{"body":"<nội dung>"}`. Liệt kê con: `GET …/api/companies/$PAPERCLIP_COMPANY_ID/issues?parentId=<id gốc>`. `<id>` nhận cả identifier (ví dụ `CRE-31`). Body JSON nhiều dòng thì ghi ra file tạm bằng `cat > /tmp/crew-body.json <<'EOF'` rồi dùng `-d @/tmp/crew-body.json`.
+Mọi `GET/POST/PATCH /api/…` bên dưới dùng đúng mẫu này. Trước mỗi lệnh dùng company, lấy `COMPANY_ID` từ `PAPERCLIP_COMPANY_ID` nếu có; nếu thiếu, `GET /api/issues/<id gốc>` rồi lấy trường `companyId` của issue gốc. Mỗi lệnh Bash là shell mới nên phải đặt lại `COMPANY_ID` trong shell đó. Nếu GET lỗi hoặc thiếu `companyId`, dừng; không đoán. Comment: `POST …/api/issues/<id>/comments` với body `{"body":"<nội dung>"}`. Liệt kê con: `GET …/api/companies/$COMPANY_ID/issues?parentId=<id gốc>`. `<id>` nhận cả identifier (ví dụ `CRE-31`). Body JSON nhiều dòng thì ghi ra file tạm bằng `cat > /tmp/crew-body.json <<'EOF'` rồi dùng `-d @/tmp/crew-body.json`.
+
+Đặt biến ngay trước lệnh tạo/liệt kê trong **cùng shell**: `COMPANY_ID=${PAPERCLIP_COMPANY_ID:-}; if [ -z "$COMPANY_ID" ]; then COMPANY_ID=$(curl -fsS -H "Authorization: Bearer $PAPERCLIP_API_KEY" "$PAPERCLIP_API_URL/api/issues/<id gốc>" | node -e 'const x=JSON.parse(require("fs").readFileSync(0,"utf8")); if (!x.companyId) process.exit(2); process.stdout.write(x.companyId)') || exit 1; fi`.
 
 ## Mỗi lần được đánh thức
 
@@ -75,9 +77,9 @@ Nếu POST comment lỗi hoặc mất response, đọc lại toàn bộ comment 
 
 ## Tạo issue con
 
-Sau khi đã ghi kế hoạch, tạo **ngay**, không xin owner xác nhận danh sách, **tuần tự** theo thứ tự phụ thuộc (blocker phải có id trước). Mỗi con một lệnh `POST /api/issues/<id gốc>/children`:
+Sau khi đã ghi kế hoạch, tạo **ngay**, không xin owner xác nhận danh sách, **tuần tự** theo thứ tự phụ thuộc (blocker phải có id trước). Mỗi con một lệnh `POST /api/companies/<companyId>/issues` với `companyId=$COMPANY_ID`:
 
-`{"title":"<tiêu đề ngắn>","description":"<việc cần làm, file/flow cần nạp, giả định>","acceptanceCriteria":["<tiêu chí kiểm được>"],"assigneeAgentId":"<executor của gói>","blockedByIssueIds":["<id con trước>"],"blockParentUntilDone":true,"assigneeAdapterOverrides":{"adapterConfig":{"model":"<model>","effort":"<effort>"}},"idempotencyKey":"crew-child:<id gốc>:<revision>:<key>"}`
+`{"title":"<tiêu đề ngắn>","description":"<việc cần làm, file/flow cần nạp, giả định>","parentId":"<id gốc>","acceptanceCriteria":["<tiêu chí kiểm được>"],"assigneeAgentId":"<executor của gói>","blockedByIssueIds":["<id con trước>"],"blockParentUntilDone":true,"assigneeAdapterOverrides":{"adapterConfig":{"model":"<model>","effort":"<effort>"}},"idempotencyKey":"crew-child:<id gốc>:<revision>:<key>"}`
 
 Bỏ `blockedByIssueIds` khi con không có blocker. Cuối `description`, mỗi marker **một dòng riêng**, đúng định dạng:
 
@@ -97,7 +99,7 @@ Xong cả lô: đối soát lại kế hoạch với các con; comment tình tr�
 
 ## Đối soát và tạo nốt
 
-Đọc **mọi** comment `crew-plan` trên gốc theo thứ tự revision và **mọi trang** danh sách con. Với từng `child-key=<key>` của từng revision, tìm đúng một con có `crew-child key=<key> revision=<revision>` trong description, đúng `parentId`, title, gói, executor và blocker. Nếu không thấy, retry POST từ payload đã lưu với `idempotencyKey` cũ; stock trả lại issue đã tạo nếu response cũ bị mất. Đọc lại con trả về và gắn id đó với key trước khi tạo con phụ thuộc. Có hai con cho cùng key hoặc payload lệch: comment lỗi, dừng và nhờ owner xử lý; không tự chọn một con. Lặp tới khi tạo nốt mọi con thiếu. Không suy ra "xong" từ riêng các con hiện thấy hay `PAPERCLIP_WAKE_REASON`.
+Đọc **mọi** comment `crew-plan` trên gốc theo thứ tự revision và **mọi trang** danh sách con. Với từng `child-key=<key>` của từng revision, tìm đúng một con có `crew-child key=<key> revision=<revision>` trong description, đúng `parentId`, title, gói, executor và blocker. Nếu không thấy, retry `POST /api/companies/<companyId>/issues` từ payload đã lưu (gồm `"parentId":"<id gốc>"`) với `idempotencyKey` cũ; stock trả lại issue đã tạo nếu response cũ bị mất. Đọc lại con trả về và gắn id đó với key trước khi tạo con phụ thuộc. Có hai con cho cùng key hoặc payload lệch: comment lỗi, dừng và nhờ owner xử lý; không tự chọn một con. Lặp tới khi tạo nốt mọi con thiếu. Không suy ra "xong" từ riêng các con hiện thấy hay `PAPERCLIP_WAKE_REASON`.
 
 Không đổi status issue gốc. Dừng.
 
@@ -125,7 +127,7 @@ Server chuyển issue gốc sang reviewer (rồi integrator và owner với yêu
 |---|---|---|
 | `crew_override_forbidden` | `assigneeAdapterOverrides` có key hoặc model/effort ngoài bảng | Tạo lại con với đúng `{"adapterConfig":{"model","effort"}}` của bảng |
 | `crew_role_assignee` | Giao con cho reviewer hoặc integrator | Giao cho executor trong danh sách |
-| `crew_agent_root_issue` | Tạo issue không có cha | Luôn tạo qua `/api/issues/<id gốc>/children` |
+| `crew_agent_root_issue` | Tạo issue không có cha | Luôn `POST /api/companies/<companyId>/issues` với `"parentId":"<id gốc>"` |
 | `crew_gate_blocked` | Chưa đủ điều kiện (`done` khi stage chưa duyệt, tạo con ở `done`/`in_review`) | Không tự duyệt; chờ con xong |
 | `crew_policy_locked` | Đổi `executionPolicy` | Bỏ thay đổi đó |
 | `crew_roles_unconfigured` | Server chưa cấu hình vai trò | `PATCH` gốc `{"status":"blocked","comment":"Trợ Lý: server chưa cấu hình vai trò Crew, nhờ owner kiểm."}` rồi dừng |
