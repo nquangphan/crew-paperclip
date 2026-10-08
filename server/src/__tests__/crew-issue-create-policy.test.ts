@@ -15,6 +15,21 @@ import { routineService } from "../services/routines.ts";
 const roles = { reviewerAgentId: "r", integratorAgentId: "i" };
 
 describe("decideCreatePolicy", () => {
+  it("agent không thể đặt command, extraArgs, env hay model ngoài bảng", () => {
+    expect(decideCreatePolicy({
+      data: { createdByAgentId: "e", parentId: "p", assigneeAdapterOverrides: { adapterConfig: { extraArgs: [], command: "/bin/sh", env: {}, model: "claude-fable-5" } } },
+      roles,
+      ownerUserId: null,
+    })).toEqual({ kind: "reject", code: "crew_override_forbidden", violations: ["adapterConfig.extraArgs", "adapterConfig.command", "adapterConfig.env", "adapterConfig.model:claude-fable-5"] });
+  });
+  it("agent dùng model/effort hợp lệ, board được đặt override khác", () => {
+    expect(decideCreatePolicy({
+      data: { createdByAgentId: "e", parentId: "p", assigneeAdapterOverrides: { adapterConfig: { model: "claude-opus-5", effort: "high" } } }, roles, ownerUserId: null,
+    })).toEqual({ kind: "set", template: "child" });
+    expect(decideCreatePolicy({
+      data: { createdByUserId: "owner-1", parentId: "p", assigneeAdapterOverrides: { adapterConfig: { extraArgs: [] } } }, roles, ownerUserId: "owner-1",
+    })).toEqual({ kind: "set", template: "child" });
+  });
   it("agent tạo issue gốc bị từ chối", () => {
     expect(decideCreatePolicy({ data: { createdByAgentId: "e" }, roles, ownerUserId: "owner-1" })).toEqual({
       kind: "reject",
@@ -190,6 +205,34 @@ suite("crew policy in issueService.create", () => {
     });
     return { companyId, executorId, reviewerId, integratorId, rootId };
   }
+
+  it("agent tạo con với override độc hại bị 422 và không ghi DB", async () => {
+    const { companyId, executorId, rootId } = await seed();
+    const before = await db.select().from(issues).where(eq(issues.companyId, companyId));
+    await expect(issueService(db).createChild(rootId, {
+      title: "con", createdByAgentId: executorId, assigneeAgentId: executorId,
+      assigneeAdapterOverrides: { adapterConfig: { command: "/bin/sh", model: "claude-fable-5" } },
+    } as never)).rejects.toMatchObject({ status: 422, details: { code: "crew_override_forbidden", violations: ["adapterConfig.command", "adapterConfig.model:claude-fable-5"] } });
+    expect(await db.select().from(issues).where(eq(issues.companyId, companyId))).toHaveLength(before.length);
+  });
+
+  it("agent tạo con với model/effort hợp lệ được lưu", async () => {
+    const { executorId, rootId } = await seed();
+    const { issue } = await issueService(db).createChild(rootId, {
+      title: "con", createdByAgentId: executorId, assigneeAgentId: executorId,
+      assigneeAdapterOverrides: { adapterConfig: { model: "claude-opus-5", effort: "high" } },
+    } as never);
+    const [row] = await db.select().from(issues).where(eq(issues.id, issue.id));
+    expect(row!.assigneeAdapterOverrides).toEqual({ adapterConfig: { model: "claude-opus-5", effort: "high" } });
+  });
+
+  it("company ngoài cấu hình giữ cách tạo stock", async () => {
+    const { executorId, rootId } = await seed("absent");
+    await expect(issueService(db).createChild(rootId, {
+      title: "con", createdByAgentId: executorId, assigneeAgentId: executorId,
+      assigneeAdapterOverrides: { adapterConfig: { extraArgs: [] } },
+    } as never)).resolves.toBeDefined();
+  });
 
   it("agent tạo issue gốc qua service bị 422", async () => {
     const { companyId, executorId } = await seed();

@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterAll, describe, expect, it, vi } from "vitest";
 import { TASK_WATCHDOG_PRODUCT_BUG_ORIGIN_KIND } from "@paperclipai/shared";
-import { evaluateIssueGate, type IssueGateFacts } from "../crew/issue-gate.ts";
+import { crewBeforeIssueWrite, evaluateIssueGate, type IssueGateFacts } from "../crew/issue-gate.ts";
 import { normalizeIssueExecutionPolicy } from "../services/issue-execution-policy.ts";
 import { RECOVERY_ORIGIN_KINDS } from "../services/recovery/origins.ts";
 import { TASK_WATCHDOG_ORIGIN_KIND } from "../services/task-watchdog-scope.ts";
@@ -31,6 +31,35 @@ const SHA_BASE = "a".repeat(40);
 const SHA_HEAD = "b".repeat(40);
 
 const entry = { reviewerAgentId: REVIEWER, integratorAgentId: INTEGRATOR, ownerUserId: "owner-1" };
+
+describe("crewBeforeIssueWrite override", () => {
+  const dir = mkdtempSync(path.join(tmpdir(), "crew-override-config-"));
+  const file = path.join(dir, "crew-policy.json");
+  afterAll(() => rmSync(dir, { recursive: true, force: true }));
+
+  it("chặn override của agent trước đường trả về sớm", async () => {
+    writeFileSync(file, JSON.stringify({ companies: { [COMPANY]: entry } }));
+    const previous = process.env[CREW_POLICY_CONFIG_ENV];
+    process.env[CREW_POLICY_CONFIG_ENV] = file;
+    try {
+      const input = {
+        tx: {} as never,
+        issueId: "issue",
+        existing: { companyId: COMPANY } as never,
+        patch: { assigneeAdapterOverrides: { adapterConfig: { command: "/bin/sh" } } },
+        actorAgentId: EXECUTOR,
+        actorUserId: null,
+      };
+      await expect(crewBeforeIssueWrite(input)).rejects.toMatchObject({
+        status: 422,
+        details: { code: "crew_override_forbidden", violations: ["adapterConfig.command"] },
+      });
+    } finally {
+      if (previous === undefined) delete process.env[CREW_POLICY_CONFIG_ENV];
+      else process.env[CREW_POLICY_CONFIG_ENV] = previous;
+    }
+  });
+});
 
 describe("parseCrewPolicyConfig", () => {
   it("company có trong file và đủ trường thì trả vai trò và owner", () => {

@@ -1,5 +1,6 @@
 import type { Db } from "@paperclipai/db";
 import { unprocessable } from "../errors.js";
+import { CREW_OVERRIDE_FORBIDDEN_MESSAGE, checkAgentAdapterOverrides } from "./model-policy.js";
 import {
   buildCrewPolicy,
   type CrewRoles,
@@ -19,13 +20,15 @@ export interface IssueCreateFields {
   originKind?: string | null;
   originId?: string | null;
   executionPolicy?: unknown;
+  assigneeAdapterOverrides?: unknown;
 }
 
 export type CreatePolicyDecision =
   | { kind: "keep" }
   | {
       kind: "reject";
-      code: "crew_agent_root_issue" | "crew_roles_unconfigured" | "crew_role_assignee" | "crew_gate_blocked";
+      code: "crew_agent_root_issue" | "crew_roles_unconfigured" | "crew_role_assignee" | "crew_gate_blocked" | "crew_override_forbidden";
+      violations?: string[];
     }
   | { kind: "set"; template: "child" }
   | { kind: "set"; template: "root"; ownerUserId: string };
@@ -58,6 +61,8 @@ export function decideCreatePolicy(input: {
     if (data.assigneeAgentId && [roles.reviewerAgentId, roles.integratorAgentId].includes(data.assigneeAgentId)) {
       return { kind: "reject", code: "crew_role_assignee" };
     }
+    const violations = checkAgentAdapterOverrides(data.assigneeAdapterOverrides);
+    if (violations.length > 0) return { kind: "reject", code: "crew_override_forbidden", violations };
     return { kind: "set", template: "child" };
   }
   if (!data.createdByUserId?.trim()) {
@@ -78,6 +83,7 @@ const MESSAGES: Record<Extract<CreatePolicyDecision, { kind: "reject" }>["code"]
   crew_roles_unconfigured: "Crew: company chưa có đúng một agent reviewer và một agent integrator.",
   crew_role_assignee: "Crew: không giao việc thực thi cho agent reviewer hoặc integrator.",
   crew_gate_blocked: "Crew: agent không được tạo issue ở trạng thái done, cancelled hoặc in_review.",
+  crew_override_forbidden: CREW_OVERRIDE_FORBIDDEN_MESSAGE,
 };
 
 /**
@@ -102,7 +108,10 @@ export async function crewBeforeIssueCreate<T extends IssueCreateFields>(input: 
     : [];
   const decision = decideCreatePolicy({ data, roles, ownerUserId, sourceExecutorAgentIds });
   if (decision.kind === "keep") return input.data;
-  if (decision.kind === "reject") throw unprocessable(MESSAGES[decision.code], { code: decision.code });
+  if (decision.kind === "reject") throw unprocessable(MESSAGES[decision.code], {
+    code: decision.code,
+    ...(decision.violations ? { violations: decision.violations } : {}),
+  });
   // `roles` khác null ở mọi nhánh `set` của decideCreatePolicy.
   const policy =
     decision.template === "child"
