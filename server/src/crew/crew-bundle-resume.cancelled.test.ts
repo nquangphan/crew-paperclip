@@ -179,6 +179,14 @@ describe("crew-bundle-resume: cancellation issue_reassigned trước task sessio
     await seedMcpSession(s, { adapterType: "codex_local", sessionParamsJson: { mcpServerIdentity: "other-adapter" } });
     expect((await find(s))?.predecessor.session.sessionParamsJson).toEqual({ sessionId: s.sessionId, mcpServerIdentity: mcpIdentity });
   });
+  it("executor không có task session nhận identity từ agent cùng company/adapter, không lấy company khác", async () => {
+    const s = await seedLog();
+    const foreign = await seedLog();
+    await seedMcpSession(s, { agentId: s.otherAgentId, updatedAt: new Date(1000), sessionParamsJson: { mcpServerIdentity: "same-company-identity" } });
+    await seedMcpSession(s, { companyId: foreign.companyId, agentId: foreign.agentId, updatedAt: new Date(2000), sessionParamsJson: { mcpServerIdentity: "foreign-company-identity" } });
+    const target = await find(s);
+    expect(target?.predecessor.session.sessionParamsJson).toEqual({ sessionId: s.sessionId, mcpServerIdentity: "same-company-identity" });
+  });
   it("MCP fallback không ghi đè identity đã có của session A", async () => {
     const s = await seedLog();
     await seedMcpSession(s);

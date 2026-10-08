@@ -165,19 +165,26 @@ async function sessionFromRun(db: Db, run: typeof heartbeatRuns.$inferSelect, ad
     // MCP identity là JSON.stringify({name,url,connectionId}[]) do adapter lưu,
     // không chứa token hay UUID/cwd của task. Heartbeat chỉ dựng đủ runtimeMcp
     // tại dispatch (kèm tạo gateway/token), không có resolver thuần ở claim.
-    // Mượn đúng trường này từ session gần nhất của cùng company/agent/adapter;
-    // guard Claude vẫn từ chối nếu tập MCP hiện tại đã đổi. Không mượn prompt,
+    // MCP identity là cấp company; ưu tiên session của agent này, rồi dùng agent
+    // bất kỳ cùng company/adapter. Guard Claude vẫn từ chối nếu MCP đổi. Không mượn prompt,
     // cwd hay remoteExecution của task khác để ép vượt các guard còn lại.
-    const [saved] = await db.select({
-      identity: sql<string>`${agentTaskSessions.sessionParamsJson}->>'mcpServerIdentity'`,
-    }).from(agentTaskSessions).where(and(
+    const identityFilter = and(
       eq(agentTaskSessions.companyId, run.companyId),
-      eq(agentTaskSessions.agentId, run.agentId),
       eq(agentTaskSessions.adapterType, adapterType),
       sql`jsonb_typeof(${agentTaskSessions.sessionParamsJson}->'mcpServerIdentity') = 'string'`,
       sql`${agentTaskSessions.sessionParamsJson}->>'mcpServerIdentity' ~ '[^[:space:]]'`,
+    );
+    const [saved] = await db.select({
+      identity: sql<string>`${agentTaskSessions.sessionParamsJson}->>'mcpServerIdentity'`,
+    }).from(agentTaskSessions).where(and(
+      eq(agentTaskSessions.agentId, run.agentId),
+      identityFilter,
     )).orderBy(desc(agentTaskSessions.updatedAt), desc(agentTaskSessions.id)).limit(1);
-    if (saved) params.mcpServerIdentity = saved.identity;
+    const [companySaved] = saved ? [] : await db.select({
+      identity: sql<string>`${agentTaskSessions.sessionParamsJson}->>'mcpServerIdentity'`,
+    }).from(agentTaskSessions).where(identityFilter)
+      .orderBy(desc(agentTaskSessions.updatedAt), desc(agentTaskSessions.id)).limit(1);
+    if (saved ?? companySaved) params.mcpServerIdentity = (saved ?? companySaved)!.identity;
   }
   return { lastRunId: run.id, sessionParamsJson: params, sessionDisplayId: sessionId, updatedAt: run.updatedAt };
 }
