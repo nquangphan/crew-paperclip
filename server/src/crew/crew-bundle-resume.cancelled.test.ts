@@ -4,6 +4,8 @@ import path from "node:path";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { and, eq } from "drizzle-orm";
 import { remoteExecutionSessionMatches } from "@paperclipai/adapter-utils/remote-managed-runtime";
+import { adapterExecutionTargetSessionMatches } from "@paperclipai/adapter-utils/execution-target";
+import { claudeSessionCwdMatchesExecutionTarget, execute as executeClaude } from "@paperclipai/adapter-claude-local/server";
 import {
   activityLog, agentRuntimeState, agentTaskSessions, agentWakeupRequests, agents,
   companies, createDb, heartbeatRuns, issueRelations, issues,
@@ -23,7 +25,7 @@ describe("crew-bundle-resume: cancellation issue_reassigned trước task sessio
   let db: ReturnType<typeof createDb>;
   let temporary: Awaited<ReturnType<typeof startEmbeddedPostgresTestDatabase>>;
   beforeAll(async () => {
-    const logRoot = path.resolve(import.meta.dirname, "../../../tmp/br-1-4a5-2/logs");
+    const logRoot = path.resolve(import.meta.dirname, "../../../tmp/br-1-4a5-3/logs");
     await fs.mkdir(logRoot, { recursive: true });
     vi.stubEnv("RUN_LOG_BASE_PATH", await fs.mkdtemp(path.join(logRoot, "run-")));
     const support = await getEmbeddedPostgresTestSupport();
@@ -134,6 +136,114 @@ describe("crew-bundle-resume: cancellation issue_reassigned trước task sessio
     expect(remoteExecutionSessionMatches(params.remoteExecution, spec)).toBe(true);
     expect(remoteExecutionSessionMatches(params.remoteExecution, { ...spec, host: "other.invalid" })).toBe(false);
   });
+
+  const mcpServers = [
+    { name: "Paperclip projects", url: "http://fixture.invalid/api/mcp/project-tools", connectionId: "paperclip-project-tools", token: "fixture-run-token" },
+    { name: "Paperclip connections", url: "http://fixture.invalid/api/mcp/runtime-tools", connectionId: "paperclip-runtime-tools", token: "fixture-tools-token" },
+  ];
+  const mcpIdentity = JSON.stringify(mcpServers.map(({ name, url, connectionId }) => ({ name, url, connectionId })));
+  async function seedMcpSession(s: Seed, patch: Partial<typeof agentTaskSessions.$inferInsert> = {}) {
+    await db.insert(agentTaskSessions).values({
+      companyId: s.companyId, agentId: s.agentId, adapterType: "claude_local", taskKey: randomUUID(),
+      sessionParamsJson: { sessionId: randomUUID(), mcpServerIdentity: mcpIdentity,
+        cwd: "/other/task", promptBundleKey: "unrelated-prompt", remoteExecution: { transport: "ssh", host: "other.invalid" } },
+      ...patch,
+    });
+  }
+  it.each(["log", "columns"])("%s: claim B bổ sung MCP từ task khác của executor, giữ UUID/cwd/SSH của A", async (source) => {
+    const s = source === "log" ? await seedLog() : await seed({}, "claude_local");
+    const remote = { transport: "ssh" as const, host: "fixture.invalid", port: 22, username: "executor", remoteCwd: "/fixture/repo" };
+    await seedMcpSession(s);
+    await db.update(heartbeatRuns).set({ contextSnapshot: { issueId: s.issueA, paperclipWorkspace: { cwd: "/fixture/local" }, paperclipEnvironment: { driver: "ssh", ...remote } } }).where(eq(heartbeatRuns.id, s.runA));
+    await claim(s, s.sessionId);
+    const [run] = await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, s.runB));
+    const params = run!.contextSnapshot?.resumeSessionParams as Record<string, unknown>;
+    expect(params).toEqual({ sessionId: s.sessionId, cwd: "/fixture/local", remoteExecution: remote, mcpServerIdentity: mcpIdentity });
+    expect(claudeSessionCwdMatchesExecutionTarget({ runtimeSessionCwd: params.cwd as string, effectiveExecutionCwd: remote.remoteCwd, executionTargetIsRemote: true })).toBe(true);
+    const target = { kind: "remote" as const, transport: "ssh" as const, remoteCwd: remote.remoteCwd,
+      spec: { ...remote, remoteWorkspacePath: remote.remoteCwd, privateKey: null, knownHosts: null, strictHostKeyChecking: true } };
+    expect(adapterExecutionTargetSessionMatches(params.remoteExecution, target)).toBe(true);
+    expect(adapterExecutionTargetSessionMatches(params.remoteExecution, { ...target, spec: { ...target.spec, host: "other.invalid" } })).toBe(false);
+  }, 30_000);
+
+  it("MCP fallback chọn chuỗi không rỗng mới nhất, không lấy company/agent/adapter khác", async () => {
+    const s = await seedLog();
+    await seedMcpSession(s, { updatedAt: new Date(1000), sessionParamsJson: { mcpServerIdentity: "old" } });
+    await seedMcpSession(s, { updatedAt: new Date(2000) });
+    for (const value of [null, "", "  ", 123, {}, []]) {
+      await seedMcpSession(s, { updatedAt: new Date(3000), sessionParamsJson: { mcpServerIdentity: value } });
+    }
+    const foreign = await seedLog();
+    await seedMcpSession(s, { companyId: foreign.companyId, sessionParamsJson: { mcpServerIdentity: "foreign-company" } });
+    await seedMcpSession(s, { agentId: s.otherAgentId, sessionParamsJson: { mcpServerIdentity: "other-agent" } });
+    await seedMcpSession(s, { adapterType: "codex_local", sessionParamsJson: { mcpServerIdentity: "other-adapter" } });
+    expect((await find(s))?.predecessor.session.sessionParamsJson).toEqual({ sessionId: s.sessionId, mcpServerIdentity: mcpIdentity });
+  });
+  it("executor không có task session nhận identity từ agent cùng company/adapter, không lấy company khác", async () => {
+    const s = await seedLog();
+    const foreign = await seedLog();
+    await seedMcpSession(s, { agentId: s.otherAgentId, updatedAt: new Date(1000), sessionParamsJson: { mcpServerIdentity: "same-company-identity" } });
+    await seedMcpSession(s, { companyId: foreign.companyId, agentId: foreign.agentId, updatedAt: new Date(2000), sessionParamsJson: { mcpServerIdentity: "foreign-company-identity" } });
+    const target = await find(s);
+    expect(target?.predecessor.session.sessionParamsJson).toEqual({ sessionId: s.sessionId, mcpServerIdentity: "same-company-identity" });
+  });
+  it("MCP fallback không ghi đè identity đã có của session A", async () => {
+    const s = await seedLog();
+    await seedMcpSession(s);
+    const params = { sessionId: s.sessionId, mcpServerIdentity: "saved-identity", promptBundleKey: "saved-prompt" };
+    await db.update(heartbeatRuns).set({ contextSnapshot: { issueId: s.issueA, resumeSessionParams: params } }).where(eq(heartbeatRuns.id, s.runA));
+    expect((await find(s))?.predecessor.session.sessionParamsJson).toEqual(params);
+  });
+
+  it("Claude execute thật chấp nhận params dựng từ log với 2 MCP và truyền --resume; guard vẫn từ chối identity khác", async () => {
+    const s = await seedLog();
+    await seedMcpSession(s);
+    const workspace = await fs.mkdtemp(path.join(process.env.RUN_LOG_BASE_PATH!, "claude-"));
+    const command = path.join(workspace, "claude.cjs");
+    // Chỉ giả CLI provider; execute/canResumeSession/buildClaudeArgs chạy nguyên bản.
+    await fs.writeFile(command, `#!/usr/bin/env node
+const args = process.argv.slice(2);
+const index = args.indexOf("--resume");
+const sessionId = index >= 0 ? args[index + 1] : "11111111-1111-4111-8111-111111111111";
+process.stdin.resume();
+process.stdin.on("end", () => {
+  console.log(JSON.stringify({ type: "system", subtype: "init", session_id: sessionId }));
+  console.log(JSON.stringify({ type: "result", session_id: sessionId, result: "ok", usage: { input_tokens: 1, output_tokens: 1 } }));
+});
+`, { mode: 0o755 });
+    await db.update(heartbeatRuns).set({ contextSnapshot: { issueId: s.issueA, paperclipWorkspace: { cwd: workspace } } }).where(eq(heartbeatRuns.id, s.runA));
+    const [run] = await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, s.runB));
+    expect(await applyBundleResume({ db, run: run! })).toBe("applied");
+    const params = run!.contextSnapshot?.resumeSessionParams as Record<string, unknown>;
+    for (const guard of ["matching", "missing-mcp", "changed-mcp", "changed-cwd", "changed-prompt", "changed-remote"] as const) {
+      const sessionParams = { ...params };
+      if (guard === "missing-mcp") delete sessionParams.mcpServerIdentity;
+      if (guard === "changed-mcp") sessionParams.mcpServerIdentity = "[]";
+      if (guard === "changed-cwd") sessionParams.cwd = path.join(workspace, "other");
+      if (guard === "changed-prompt") sessionParams.promptBundleKey = "different-prompt";
+      if (guard === "changed-remote") sessionParams.remoteExecution = { transport: "ssh", host: "other.invalid" };
+      const invocations: string[][] = [];
+      const result = await executeClaude({
+        runId: randomUUID(),
+        agent: { id: s.agentId, companyId: s.companyId, name: "Fixture", adapterType: "claude_local", adapterConfig: { engine: "cli" } },
+        runtime: { sessionId: s.sessionId, sessionParams, sessionDisplayId: s.sessionId, taskKey: s.issueB },
+        config: { engine: "cli", command, cwd: workspace, promptTemplate: "Fixture", managedAiConnection: true,
+          env: { CLAUDE_CONFIG_DIR: path.join(workspace, "config") }, paperclipSkillSync: { desiredSkills: [] } },
+        context: {},
+        runtimeMcp: { getServers: () => mcpServers.map((server) => ({ ...server, token: "rotated-token" })) },
+        onLog: async () => {}, onMeta: async (meta) => { invocations.push(meta.commandArgs ?? []); },
+      });
+      expect(result.exitCode).toBe(0);
+      expect(invocations).toHaveLength(1);
+      if (guard === "matching") {
+        expect(invocations[0]).toContain("--resume");
+        expect(invocations[0]![invocations[0]!.indexOf("--resume") + 1]).toBe(s.sessionId);
+        expect(result.sessionId).toBe(s.sessionId);
+      } else {
+        expect(invocations[0], guard).not.toContain("--resume");
+      }
+    }
+  }, 30_000);
   it.each([
     ["không init", JSON.stringify({ type: "assistant", session_id: randomUUID() }) + "\n"],
     ["UUID sai", '{"type":"system","subtype":"init","session_id":"not-a-uuid"}\n'],
