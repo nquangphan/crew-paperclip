@@ -60,6 +60,18 @@
       "tests": ["server/src/__tests__/crew-issue-create-policy.test.ts"]
     },
     {
+      "id": "H5",
+      "kind": "hook",
+      "file": "server/src/routes/agents.ts",
+      "symbol": "agentRoutes mutation middleware",
+      "head": "router.use((req, _res, next) => {",
+      "anchor": "crewCoreHooks.beforeAgentMutation({ db, req, resolveAgentId: normalizeAgentReference }).then(() => next(), next);",
+      "importLine": "import { crewCoreHooks } from \"../crew/core-hooks.js\";",
+      "description": "Block agent-authored changes to pinned execution configuration, adapter replacement, and revision rollback across the agent create, hire, and update routes in Crew companies.",
+      "upstreamPr": null,
+      "tests": ["server/src/__tests__/crew-agent-config.test.ts", "server/src/__tests__/crew-core-hooks.test.ts"]
+    },
+    {
       "id": "P1",
       "kind": "driver-patch",
       "file": "server/src/services/environment-runtime.ts",
