@@ -329,3 +329,43 @@ test("integrator: không đặt override khi tạo issue con sửa", () => {
   assert.match(text, /không gửi `assigneeAdapterOverrides`/);
   assert.match(text, /crew_override_forbidden/);
 });
+
+test("crew-stack: executor và reviewer chỉ nhận cùng SHA nền đã được duyệt", () => {
+  for (const role of ["executor", "reviewer"]) {
+    const text = read(role);
+    for (const needle of [
+      "cùng `parentId`", "cùng `crew-bundle id=`", "blocker trực tiếp",
+      "executionPolicy.stages", "authorAgentId", "authorUserId", "completedStageIds",
+      "crew-commit", "responsibleUserId", "git merge-base --is-ancestor",
+      "crew-stack-base sha=<40 hex> issue=<identifier>",
+    ]) assert.ok(text.includes(needle), `${role}: thiếu ${needle}`);
+    assert.match(text, /comment giả/);
+  }
+  assert.match(read("reviewer"), /SHA nền đã ghi trên B/);
+  assert.match(read("reviewer"), /authorAgentId` trùng tác giả của `crew-commit` mới nhất trên B/);
+});
+
+test("assistant: lưu kế hoạch đầy đủ trước POST đầu, đối soát và tạo tiếp bằng khóa ổn định", () => {
+  const text = read("assistant");
+  const plan = text.indexOf("## Ghi kế hoạch trước khi tạo con");
+  const create = text.indexOf("## Tạo issue con");
+  assert.ok(plan > 0 && plan < create);
+  for (const needle of [
+    "crew-plan root=<identifier gốc> children=<số con> bundles=<số gói>",
+    "child-key=<key>", '"idempotencyKey":"crew-child:<id gốc>:<revision>:<key>"',
+    "POST đầu tiên", "mất response", "tạo nốt", "mọi con trong mọi kế hoạch",
+  ]) assert.ok(text.includes(needle), `thiếu ${needle}`);
+  assert.match(text, /đối soát.*trước.*Đóng issue gốc/s);
+});
+
+test("assistant: yêu cầu sửa gốc được xử lý trước khi đóng lại", () => {
+  const text = read("assistant");
+  const dispatch = text.slice(text.indexOf("## Mỗi lần được đánh thức"), text.indexOf("## Hiểu yêu cầu"));
+  assert.ok(dispatch.indexOf("changes_requested") < dispatch.indexOf("mọi con `done`"));
+  for (const needle of [
+    "lastDecisionId", "lastDecisionOutcome", "Reviewer: cần sửa", "owner",
+    "crew-correction decision=<id quyết định>", "issue con sửa", "crew-fix base=",
+    "crew-stack on=", "bảng model", "không gửi lại `done` nguyên trạng",
+  ]) assert.ok(text.includes(needle), `thiếu ${needle}`);
+  assert.match(text, /Trước tiên đối soát mọi kế hoạch đã ghi với mọi con đã tạo/);
+});
