@@ -121,7 +121,7 @@ async function sessionIdFromRunLog(run: typeof heartbeatRuns.$inferSelect, adapt
 }
 
 /** Cancellation có thể giữ run nhưng bỏ qua upsertTaskSession trong executeRun. */
-async function sessionFromRun(run: typeof heartbeatRuns.$inferSelect, adapterType: string): Promise<BundleSession | null> {
+async function sessionFromRun(db: Db, run: typeof heartbeatRuns.$inferSelect, adapterType: string): Promise<BundleSession | null> {
   const context = record(run.contextSnapshot);
   const result = record(run.resultJson);
   const resumeParams = record(context.resumeSessionParams);
@@ -140,7 +140,7 @@ async function sessionFromRun(run: typeof heartbeatRuns.$inferSelect, adapterTyp
     ?? validId([run.sessionIdBefore, resumeParams.sessionId]);
   if (!sessionId) return null;
 
-  // Chỉ dùng metadata của chính session/run; runtime state toàn agent có thể thuộc task khác.
+  // UUID, workspace và execution identity phải thuộc chính session/run.
   const params: Record<string, unknown> = {
     ...(nonEmptyString(resumeParams.sessionId) === sessionId ? resumeParams : {}),
     sessionId,
@@ -160,6 +160,24 @@ async function sessionFromRun(run: typeof heartbeatRuns.$inferSelect, adapterTyp
   if (environment.driver === "ssh" && host && username && remoteCwd &&
       typeof port === "number" && Number.isInteger(port) && port > 0 && port <= 65535) {
     params.remoteExecution = { transport: "ssh", host, port, username, remoteCwd };
+  }
+  if (adapterType === "claude_local" && !nonEmptyString(params.mcpServerIdentity)) {
+    // MCP identity là JSON.stringify({name,url,connectionId}[]) do adapter lưu,
+    // không chứa token hay UUID/cwd của task. Heartbeat chỉ dựng đủ runtimeMcp
+    // tại dispatch (kèm tạo gateway/token), không có resolver thuần ở claim.
+    // Mượn đúng trường này từ session gần nhất của cùng company/agent/adapter;
+    // guard Claude vẫn từ chối nếu tập MCP hiện tại đã đổi. Không mượn prompt,
+    // cwd hay remoteExecution của task khác để ép vượt các guard còn lại.
+    const [saved] = await db.select({
+      identity: sql<string>`${agentTaskSessions.sessionParamsJson}->>'mcpServerIdentity'`,
+    }).from(agentTaskSessions).where(and(
+      eq(agentTaskSessions.companyId, run.companyId),
+      eq(agentTaskSessions.agentId, run.agentId),
+      eq(agentTaskSessions.adapterType, adapterType),
+      sql`jsonb_typeof(${agentTaskSessions.sessionParamsJson}->'mcpServerIdentity') = 'string'`,
+      sql`${agentTaskSessions.sessionParamsJson}->>'mcpServerIdentity' ~ '[^[:space:]]'`,
+    )).orderBy(desc(agentTaskSessions.updatedAt), desc(agentTaskSessions.id)).limit(1);
+    if (saved) params.mcpServerIdentity = saved.identity;
   }
   return { lastRunId: run.id, sessionParamsJson: params, sessionDisplayId: sessionId, updatedAt: run.updatedAt };
 }
@@ -233,7 +251,7 @@ export async function findBundlePredecessor(
       eq(heartbeatRuns.agentId, input.agentId),
       sql`${heartbeatRuns.contextSnapshot}->>'issueId' = ${blocker.issueId}`,
     )).orderBy(desc(heartbeatRuns.createdAt), desc(heartbeatRuns.id)).limit(1);
-    const session = latestRun ? await sessionFromRun(latestRun, agent.adapterType) : null;
+    const session = latestRun ? await sessionFromRun(db, latestRun, agent.adapterType) : null;
     if (session) byKey.set(blocker.issueId, session);
   }
   const predecessor = pickBundlePredecessor(
