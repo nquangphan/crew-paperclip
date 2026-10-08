@@ -6,9 +6,12 @@ import { startEmbeddedPostgresTestDatabase } from "../../../db/src/test-embedded
 import type { PluginContext, PluginWebhookInput } from "@paperclipai/plugin-sdk";
 import { handleMachineStatus } from "../machines/webhook.js";
 import { loadCrewMachines } from "../machines/data.js";
+import { validatePluginMigrationStatement } from "../../../../server/src/services/plugin-database.js";
 
 const companyId = "10000000-0000-4000-8000-000000000001";
+const otherCompany = "10000000-0000-4000-8000-000000000002";
 const machineId = "20000000-0000-4000-8000-000000000001";
+const machineB = "20000000-0000-4000-8000-000000000002";
 const now = new Date("2026-10-08T14:00:00.000Z");
 const base = { version: 1, companyId, machineId, hostname: "mac-mini", sentAt: now.toISOString(), load1: 2.2, cpuCount: 10, memFreePct: 52,
   tccPending: [{ service: "kTCCServiceSystemPolicyAppData", client: "/Applications/Claude.app", since: now.toISOString() }],
@@ -22,19 +25,26 @@ it("stores one signed report, rejects unsafe envelopes without writes, and compu
   const sql = postgres(database.connectionString, { max: 2, onnotice: () => {} });
   cleanup = async () => { await sql.end(); await database.cleanup(); };
   await sql`CREATE SCHEMA plugin_crew_core_0433ea20b6`;
+  await sql.unsafe(await readFile(new URL("../../migrations/0001_docs.sql", import.meta.url), "utf8"));
   await sql.unsafe(await readFile(new URL("../../migrations/0002_machines.sql", import.meta.url), "utf8"));
+  const migration = await readFile(new URL("../../migrations/0003_machine_latest.sql", import.meta.url), "utf8");
+  for (const statement of migration.split(";").map(part => part.trim()).filter(Boolean)) {
+    validatePluginMigrationStatement(statement, "plugin_crew_core_0433ea20b6");
+    await sql.unsafe(statement);
+  }
   const ctx = { db: {
     namespace: "plugin_crew_core_0433ea20b6", query: async <T>(query: string, params: unknown[] = []) => await sql.unsafe<T[]>(query, params as never[]),
     execute: async (query: string, params: unknown[] = []) => ({ rowCount: (await sql.unsafe(query, params as never[])).count }),
-  }, config: { get: async () => ({ companies: [{ companyId, webhookSecretRef: { type: "secret_ref", secretId: machineId } }] }) },
+  }, config: { get: async () => ({ companies: [companyId, otherCompany].map(companyId => ({ companyId, webhookSecretRef: { type: "secret_ref", secretId: machineId } })) }) },
     secrets: { resolve: async () => "test-secret" } } as unknown as PluginContext;
-  const send = async (report: unknown, options: { signature?: string; timestamp?: number; raw?: string } = {}) => {
+  const send = async (report: unknown, options: { signature?: string; timestamp?: number; raw?: string; receivedAt?: Date } = {}) => {
     const rawBody = options.raw ?? JSON.stringify(report);
-    const timestamp = options.timestamp ?? Math.floor(now.getTime() / 1000);
+    const receivedAt = options.receivedAt ?? now;
+    const timestamp = options.timestamp ?? Math.floor(receivedAt.getTime() / 1000);
     const signature = options.signature ?? `sha256=${createHmac("sha256", "test-secret").update(`${timestamp}.${rawBody}`).digest("hex")}`;
     const input: PluginWebhookInput = { endpointKey: "machine-status", requestId: "test", rawBody,
       headers: { "X-Crew-Timestamp": String(timestamp), "X-Crew-Signature": signature } };
-    await handleMachineStatus(ctx, input, now);
+    await handleMachineStatus(ctx, input, receivedAt);
   };
   await send(base);
   expect((await sql`SELECT * FROM plugin_crew_core_0433ea20b6.machine_reports`)).toHaveLength(1);
@@ -56,4 +66,26 @@ it("stores one signed report, rejects unsafe envelopes without writes, and compu
   expect((await loadCrewMachines(ctx, companyId, new Date(now.getTime() + 180_000)))[0]?.online).toBe(true);
   expect((await loadCrewMachines(ctx, companyId, new Date(now.getTime() + 180_001)))[0]?.online).toBe(false);
   expect((await loadCrewMachines(ctx, companyId, new Date(now.getTime() + 86_400_001)))[0]?.load24h).toHaveLength(0);
+  const unknown = { ...base, claude: { version: null, loggedIn: false, plan: null }, superpowers: { pinned: null, ownerInstalled: null }, load1: null, cpuCount: null, memFreePct: null };
+  await send(unknown);
+  expect((await loadCrewMachines(ctx, companyId, now))[0]?.latest.claude.plan).toBeNull();
+  for (const report of [
+    { ...base, load1: 1001 }, { ...base, cpuCount: 1025 },
+    { ...base, hostname: "x".repeat(201) }, { ...base, hostname: "bad\0host" },
+    { ...base, checks: [{ ...base.checks[0], title: "x".repeat(201) }] },
+  ]) {
+    const historyBefore = (await sql`SELECT count(*)::int AS n FROM plugin_crew_core_0433ea20b6.machine_reports`)[0]?.n;
+    const latestBefore = (await sql`SELECT count(*)::int AS n FROM plugin_crew_core_0433ea20b6.machine_latest`)[0]?.n;
+    await expect(send(report)).rejects.toThrow();
+    expect((await sql`SELECT count(*)::int AS n FROM plugin_crew_core_0433ea20b6.machine_reports`)[0]?.n).toBe(historyBefore);
+    expect((await sql`SELECT count(*)::int AS n FROM plugin_crew_core_0433ea20b6.machine_latest`)[0]?.n).toBe(latestBefore);
+  }
+  await send({ ...base, companyId: otherCompany });
+  const later = new Date(now.getTime() + 25 * 3_600_000);
+  await send({ ...base, machineId: machineB, sentAt: later.toISOString() }, { receivedAt: later });
+  const machines = await loadCrewMachines(ctx, companyId, later);
+  expect(machines.map(machine => machine.machineId)).toEqual([machineId, machineB]);
+  expect(machines.find(machine => machine.machineId === machineId)).toMatchObject({ online: false, load24h: [] });
+  expect((await loadCrewMachines(ctx, otherCompany, later)).map(machine => machine.machineId)).toEqual([machineId]);
+  expect((await sql`SELECT count(*)::int AS n FROM plugin_crew_core_0433ea20b6.machine_reports WHERE company_id=${otherCompany}`)[0]?.n).toBe(1);
 }, 90_000);
