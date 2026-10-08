@@ -18,7 +18,7 @@ const ns = derivePluginDatabaseNamespace("crew.core");
 const now = Math.floor(Date.now()/1000);
 let cleanup: (()=>Promise<void>)|undefined;
 afterAll(async()=>{await cleanup?.();});
-const page = (path:string,title:string,text:string) => ({path,title,parentPath:null,text,sha256:"b".repeat(64)});
+const page = (path:string,title:string,text:string) => ({path,title,parentPath:path.slice(0,path.lastIndexOf("/")),text,sha256:"b".repeat(64)});
 const payload = (commit="a".repeat(40)) => ({version:1,companyId,machineId:"50000000-0000-4000-8000-000000000001",projectId,repo:"repo-a",commit,auditState:"verified",checkExit:0,pages:[page("docs/index.md","Index 100%","Hello 100% world"),page("docs/other.md","Other","Second")],links:[{fromPath:"docs/index.md",occurrence:1,originalHref:"other.md",toPath:"docs/other.md",fragment:null,status:"ok"}],dropped:[{path:"docs/secret.md",reason:"secret-scan"}]});
 function signed(body:unknown, overrides:{timestamp?:number;signature?:string;headers?:Record<string,string>}={}):PluginWebhookInput {
   const rawBody=JSON.stringify(body); const ts=overrides.timestamp ?? now;
@@ -32,6 +32,16 @@ it("stores and replaces docs snapshots, rejects invalid webhooks, scopes reads a
   await sql`INSERT INTO projects (id,company_id,name) VALUES (${projectId},${companyId},'Repo A'),(${otherProject},${otherCompany},'Other repo')`;
   await sql`INSERT INTO issues (id,company_id,identifier,title,status) VALUES (${issueId},${companyId},'CRE-1','root','todo')`;
   await sql`INSERT INTO issues (id,company_id,parent_id,identifier,title,status) VALUES (${childId},${companyId},${issueId},'CRE-2','child','todo')`;
+  const integrator = "40000000-0000-4000-8000-000000000001";
+  const executor = "40000000-0000-4000-8000-000000000002";
+  await sql`INSERT INTO agents (id,company_id,name) VALUES (${integrator},${companyId},'Integrator'),(${executor},${companyId},'Executor')`;
+  const policy = { stages: [
+    { type: "review", participants: [{ type: "agent", agentId: executor }] },
+    { type: "review", participants: [{ type: "agent", agentId: integrator }] },
+    { type: "approval", participants: [{ type: "user", userId: "50000000-0000-4000-8000-000000000001" }] },
+    { type: "review", participants: [{ type: "agent", agentId: integrator }] },
+  ] };
+  await sql`UPDATE issues SET execution_policy = ${JSON.stringify(policy)}::jsonb WHERE id = ${issueId}`;
   await sql.unsafe(`CREATE SCHEMA ${ns}`);
   const migration=await readFile(new URL("../../migrations/0001_docs.sql",import.meta.url),"utf8");
   for (const statement of migration.split(";").map(x=>x.trim()).filter(Boolean)) { validatePluginMigrationStatement(statement,ns,["projects"]); await sql.unsafe(statement); }
@@ -51,7 +61,28 @@ it("stores and replaces docs snapshots, rejects invalid webhooks, scopes reads a
   expect(await loadDocsPage(ctx,projectId,"docs/index.md",companyId)).toBeNull();
   await expect(loadDocsTree(ctx,projectId,otherCompany)).rejects.toThrow();
   const sha="d".repeat(40); const base="e".repeat(40);
-  await sql`INSERT INTO issue_comments (company_id,issue_id,body,created_at) VALUES (${companyId},${issueId},${`crew-docs-check commit=${sha} range=${base}..${sha} exit=1`},now()-interval '1 hour')`;
-  await sql`INSERT INTO issue_comments (company_id,issue_id,body,created_at) VALUES (${companyId},${issueId},${`crew-docs-check commit=${sha} range=${base}..${sha} exit=0`},now())`;
-  expect((await loadDocsCheck(ctx,childId,companyId))?.exit).toBe(0);
+  await sql`INSERT INTO issue_comments (company_id,issue_id,author_agent_id,body,created_at) VALUES (${companyId},${issueId},${integrator},${`crew-docs-check commit=${sha} range=${base}..${sha} exit=1`},now()-interval '1 hour')`;
+  await sql`INSERT INTO issue_comments (company_id,issue_id,author_agent_id,body,created_at) VALUES (${companyId},${issueId},${executor},${`crew-docs-check commit=${sha} range=${base}..${sha} exit=0`},now())`;
+  expect((await loadDocsCheck(ctx,childId,companyId))?.exit).toBe(1);
+  const nextSha = "c".repeat(40);
+  await sql`INSERT INTO issue_comments (company_id,issue_id,author_agent_id,body,created_at) VALUES (${companyId},${issueId},${integrator},${`crew-docs-check commit=${nextSha} range=${base}..${nextSha} exit=0`},now()+interval '20 seconds')`;
+  await sql`INSERT INTO issue_comments (company_id,issue_id,body,created_at) VALUES (${companyId},${issueId},${`crew-docs-check commit=${sha} range=${base}..${sha} exit=3`},now()+interval '30 seconds')`;
+  expect(await loadDocsCheck(ctx,childId,companyId)).toMatchObject({ commit: nextSha, exit: 0, author: integrator });
+  await sql`INSERT INTO issue_comments (company_id,issue_id,author_agent_id,body,created_at) VALUES (${companyId},${issueId},${integrator},'crew-docs-check malformed',now()+interval '1 minute')`;
+  expect(await loadDocsCheck(ctx,childId,companyId)).toMatchObject({ invalid: true, author: integrator });
+  const failing = { ...ctx, db: { ...ctx.db, execute: async (query:string, params:unknown[]=[]) => {
+    if (query.includes(".docs_pages")) throw new Error("injected page insert failure");
+    return ctx.db.execute(query, params);
+  } } } as PluginContext;
+  await expect(receiveDocsSnapshot(failing,signed(payload("f".repeat(40))))).rejects.toThrow("injected page insert failure");
+  expect(await count()).toBe(2);
+  await sql.unsafe(`UPDATE ${ns}.docs_snapshots SET received_at = now() - interval '11 minutes' WHERE id NOT IN (SELECT snapshot_id FROM ${ns}.docs_current)`);
+  const nested = ["docs/flows/a.md", "docs/guide/sub/b.md", "docs/index.md"]
+    .map(path => page(path, path, "body"));
+  await receiveDocsSnapshot(ctx,signed({ ...payload("e".repeat(40)), pages: nested, links: [] }));
+  expect(await count()).toBe(1);
+  expect((await loadDocsTree(ctx,projectId,companyId))?.commit).toBe("e".repeat(40));
+  expect((await loadDocsTree(ctx,projectId,companyId))?.pages.map(page => [page.path,page.parentPath])).toEqual([
+    ["docs/flows/a.md","docs/flows"], ["docs/guide/sub/b.md","docs/guide/sub"], ["docs/index.md","docs"],
+  ]);
 },90_000);
