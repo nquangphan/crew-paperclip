@@ -7,6 +7,7 @@ import { normalizeIssueExecutionPolicy, parseIssueExecutionState } from "../serv
 
 /** Vòng review agent↔agent tối đa của mọi issue Crew; tới vòng này stage được giao cho owner. */
 export const CREW_MAX_REVIEW_ROUNDS = 5;
+export const CREW_RESEARCH_LABEL = "research";
 
 export interface CrewRoles {
   reviewerAgentId: string;
@@ -161,22 +162,20 @@ export async function loadCrewCompanyConfig(
  * Template policy của Crew, đã normalize (có id stage/participant).
  * - con: `[review reviewer]`.
  * - gốc: `[review reviewer, review integrator (merge + docs), approval owner, review integrator (push)]`.
+ * - research: `[review reviewer, approval owner]`.
  */
 export function buildCrewPolicy(
-  kind: "root" | "child",
+  kind: "root" | "child" | "research",
   roles: CrewRoles,
   ownerUserId: string | null = null,
 ): IssueExecutionPolicy {
   const reviewer = { type: "review", participants: [{ type: "agent", agentId: roles.reviewerAgentId }] };
   let stages: unknown[] = [reviewer];
-  if (kind === "root") {
-    if (!ownerUserId) throw new Error("buildCrewPolicy: root policy needs an owner user id");
-    stages = [
-      reviewer,
-      { type: "review", participants: [{ type: "agent", agentId: roles.integratorAgentId }] },
-      { type: "approval", participants: [{ type: "user", userId: ownerUserId }] },
-      { type: "review", participants: [{ type: "agent", agentId: roles.integratorAgentId }] },
-    ];
+  if (kind !== "child") {
+    if (!ownerUserId) throw new Error(`buildCrewPolicy: ${kind} policy needs an owner user id`);
+    const owner = { type: "approval", participants: [{ type: "user", userId: ownerUserId }] };
+    const integrator = { type: "review", participants: [{ type: "agent", agentId: roles.integratorAgentId }] };
+    stages = kind === "root" ? [reviewer, integrator, owner, integrator] : [reviewer, owner];
   }
   const policy = normalizeIssueExecutionPolicy({ stages, maxReviewRounds: CREW_MAX_REVIEW_ROUNDS });
   if (!policy) throw new Error("buildCrewPolicy: template normalized to null");

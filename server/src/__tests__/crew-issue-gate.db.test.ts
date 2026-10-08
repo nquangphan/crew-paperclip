@@ -195,6 +195,33 @@ suite("crew issue gate in issueService.update", () => {
     return row!.status;
   }
 
+  it("agent PATCH override độc hại bị 422 và DB không đổi", async () => {
+    const c = await company();
+    const issueId = await issue(c, { status: "in_progress", assigneeAgentId: c.executorId });
+    await expect(issueService(db).update(issueId, {
+      assigneeAdapterOverrides: { useProjectWorkspace: true, adapterConfig: { extraArgs: ["--plugin-dir", "/tmp/x"], env: {}, command: "/bin/sh", model: "other-provider-model" } },
+      actorAgentId: c.executorId,
+    } as never)).rejects.toMatchObject({ status: 422, details: { code: "crew_override_forbidden", violations: ["useProjectWorkspace", "adapterConfig.extraArgs", "adapterConfig.env", "adapterConfig.command", "adapterConfig.model:other-provider-model"] } });
+    const [row] = await db.select().from(issues).where(eq(issues.id, issueId));
+    expect(row!.assigneeAdapterOverrides ?? null).toBeNull();
+  });
+
+  it("agent PATCH model/effort hợp lệ hoặc null, board đặt override khác", async () => {
+    const c = await company();
+    const issueId = await issue(c, { status: "in_progress", assigneeAgentId: c.executorId });
+    await issueService(db).update(issueId, { assigneeAdapterOverrides: { adapterConfig: { model: "claude-sonnet-5", effort: "medium" } }, actorAgentId: c.executorId } as never);
+    await issueService(db).update(issueId, { assigneeAdapterOverrides: null, actorAgentId: c.executorId } as never);
+    await issueService(db).update(issueId, { assigneeAdapterOverrides: { adapterConfig: { extraArgs: ["--verbose"] } }, actorUserId: "owner-1" } as never);
+    const [row] = await db.select().from(issues).where(eq(issues.id, issueId));
+    expect(row!.assigneeAdapterOverrides).toEqual({ adapterConfig: { extraArgs: ["--verbose"] } });
+  });
+
+  it("company ngoài cấu hình giữ cách PATCH stock", async () => {
+    const c = await company("absent");
+    const issueId = await issue(c, { status: "in_progress", assigneeAgentId: c.executorId });
+    await expect(issueService(db).update(issueId, { assigneeAdapterOverrides: { adapterConfig: { extraArgs: [] } }, actorAgentId: c.executorId } as never)).resolves.toBeDefined();
+  });
+
   it("system done khi stage reviewer còn chờ bị 422 và issue giữ nguyên", async () => {
     const c = await company();
     const issueId = await rootAtReviewer(c);

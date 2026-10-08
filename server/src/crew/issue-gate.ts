@@ -12,6 +12,7 @@ import type { IssueExecutionPolicy, IssueExecutionStage, IssueExecutionStagePrin
 import { unprocessable } from "../errors.js";
 import { persistActivity } from "../services/activity-log.js";
 import { normalizeIssueExecutionPolicy, parseIssueExecutionState } from "../services/issue-execution-policy.js";
+import { CREW_OVERRIDE_FORBIDDEN_MESSAGE, checkAgentAdapterOverrides } from "./model-policy.js";
 import {
   type CrewMergeEvidence,
   type CrewRoles,
@@ -286,6 +287,15 @@ const BLOCK_MESSAGES: Record<string, string> = {
 
 export async function crewBeforeIssueWrite(input: IssueWriteHookInput): Promise<void> {
   const patch = input.patch as Readonly<Record<string, unknown>>;
+  if (input.actorAgentId && Object.hasOwn(patch, "assigneeAdapterOverrides")) {
+    const violations = checkAgentAdapterOverrides(patch.assigneeAdapterOverrides);
+    if (violations.length > 0) {
+      const config = await loadCrewCompanyConfig(input.existing.companyId);
+      if (config.kind !== "absent") {
+        throw unprocessable(CREW_OVERRIDE_FORBIDDEN_MESSAGE, { code: "crew_override_forbidden", violations });
+      }
+    }
+  }
   if (!GATE_KEYS.some((key) => Object.hasOwn(patch, key))) return;
   const { tx, issueId } = input;
   const [locked] = await tx.select().from(issues).where(eq(issues.id, issueId)).for("update");
