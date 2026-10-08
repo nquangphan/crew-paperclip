@@ -5,7 +5,7 @@ Bạn làm một issue trên Mac của owner, trong git worktree riêng của b�
 ## Không bao giờ
 
 1. Commit trên nhánh không phải `crew/<identifier>` của issue này (xem bước 1 bên dưới).
-2. Báo xong mà không đăng `crew-commit` cho commit mới nhất (đăng lại sau MỖI lần sửa).
+2. Báo xong mà không đăng `crew-commit` cho commit mới nhất (đăng lại sau MỖI lần sửa); issue research thì thay bằng `crew-report`.
 3. Đổi `executionPolicy`, chuyển `cancelled`, dùng `--no-verify` (không có ngoại lệ).
 4. Gọi API thiếu `/api/` hoặc bỏ qua lỗi lệnh `curl`.
 
@@ -20,10 +20,11 @@ Mọi `GET/POST/PATCH/PUT /api/…` bên dưới dùng đúng mẫu này (commen
 
 ## Trước khi làm
 
-1. **Nhánh trước tiên**, trước khi sửa bất cứ file nào: `git fetch origin`, rồi `git switch -c crew/<identifier> origin/HEAD` (nếu nhánh đã có thì `git switch crew/<identifier>`; mô tả có dòng `crew-fix base=<40 hex>` thì dùng `<base>` thay `origin/HEAD`). Kiểm `git branch --show-current` in đúng `crew/<identifier>`. Rồi đọc issue, mô tả, acceptance criteria và toàn bộ comment.
+1. Đọc issue, mô tả, acceptance criteria và toàn bộ comment. Issue research theo mục riêng bên dưới, không tạo nhánh. Với issue code, **nhánh trước tiên**, trước khi sửa bất cứ file nào: `git fetch origin`, rồi chọn nền theo thứ tự: dòng `crew-fix base=<40 hex>` thì dùng `<base>`; dòng `crew-stack on=<identifier>` thì `GET /api/issues/<identifier>` và comment của nó, lấy `sha` trong dòng `crew-review sha=<sha> verdict=approved` mới nhất do reviewer viết (issue đó phải `done`; thiếu thì `PATCH` `{"status":"blocked","comment":"Executor: dừng vì issue nền chưa có commit đã duyệt"}` rồi dừng); không có dòng nào thì dùng `origin/HEAD`. Tạo nhánh bằng `git switch -c crew/<identifier> <sha đã duyệt của issue đó>` khi có `crew-stack`, bằng `git switch -c crew/<identifier> <base>` khi có `crew-fix`, hoặc bằng `git switch -c crew/<identifier> origin/HEAD` khi không có marker nền. Nhánh đã có thì `git switch crew/<identifier>`. Kiểm `git branch --show-current` in đúng `crew/<identifier>`.
 2. Comment bắt đầu bằng `Crew: lần chạy lại sau run …` nghĩa là run trước của bạn đã dừng giữa chừng sau khi commit. Chạy `git show --stat <sha>` cho từng commit được liệt kê, bỏ commit không thuộc issue này (danh sách quét mọi nhánh local), giữ phần đã đúng, chỉ làm phần còn thiếu. Không làm lại, không commit trùng nội dung. Comment ghi "danh sách bị cắt" thì chạy thêm `git log --branches HEAD` để thấy đủ.
 3. Comment `Reviewer: cần sửa` là vòng sửa: chỉ sửa đúng các điểm được nêu. Việc integrator cần sửa trên issue gốc đến dưới dạng issue con mới giao cho bạn (mô tả nêu điểm cần sửa): làm như mọi issue con, báo `crew-commit` rồi `done` để qua reviewer; đừng sửa thẳng trên issue gốc khi nó đang ở tay integrator. Comment `Integrator: chưa push được …` là việc của owner, không cần bạn làm gì.
 4. Thấy thông báo `crew-workflow blocked` hoặc `crew-workflow warn:` trong log hoặc comment: làm đúng điều được nêu rồi mới tiếp.
+5. Mô tả có dòng `crew-bundle id=… seq=…`: issue này nối tiếp các issue cùng gói, nên session có thể còn ngữ cảnh của issue trước (cùng gói, cùng bạn làm). Dùng lại hiểu biết đó, nhưng chỉ làm việc của issue hiện tại và đọc lại mô tả, acceptance criteria của nó.
 
 ## Cách làm
 
@@ -31,8 +32,12 @@ Mọi `GET/POST/PATCH/PUT /api/…` bên dưới dùng đúng mẫu này (commen
 - Mô tả issue có dòng `crew-fix base=<40 hex>` là issue sửa lỗi trên code đã có: tạo nhánh từ đúng `base` (`git switch -c crew/<identifier> <base>`), không từ `origin/HEAD`, rồi chỉ sửa điểm được nêu. `crew-commit` của bạn ghi sha mới như thường.
 - Test theo tầng task: test của file/module bạn đổi, test mới cho acceptance criteria, typecheck package bị đổi. Không chạy full suite, không E2E.
 - Hook git chặn commit (ví dụ `crew-docs check --staged`): sửa đúng điều hook yêu cầu. Không dùng `--no-verify` (không có ngoại lệ).
-- Không sửa `executionPolicy`. Không tạo issue gốc. Chỉ tạo issue con khi issue yêu cầu, không gửi `executionPolicy` (server tự gắn), không giao cho agent reviewer hoặc integrator.
+- Không sửa `executionPolicy`. Không tạo issue gốc. Chỉ tạo issue con khi issue yêu cầu, không gửi `executionPolicy` (server tự gắn), không giao cho agent reviewer hoặc integrator, không gửi `assigneeAdapterOverrides`.
 - Không chuyển issue sang `cancelled`. Muốn bỏ việc: `PATCH /api/issues/<id>` `{"status":"blocked","comment":"Executor: dừng vì <lý do cụ thể>"}` rồi dừng.
+
+## Issue research (`crew-kind research`)
+
+Mô tả có dòng `crew-kind research`: không tạo nhánh, không sửa file, không commit. Đọc docs và code cần thiết, dùng `superpowers:brainstorming` để so các phương án, rồi viết một comment, **dòng đầu** đúng `crew-report`, sau đó: câu hỏi được giao, các phương án, đề xuất và lý do, nguồn (`file:dòng`, lệnh đã chạy). Rồi `PATCH /api/issues/<id>` với `{"status":"done","comment":"Executor: xong báo cáo research, chờ review."}`. Không đăng `crew-commit` cho issue research.
 
 ## Giữ worktree sạch cho lần chạy sau
 
@@ -55,4 +60,5 @@ Trước khi báo xong bắt buộc chạy `crew-mac workflow-check --root "$(gi
 | `crew_policy_locked` | Bạn đổi stage hoặc người duyệt của policy | Bỏ thay đổi đó; chỉ được đổi `monitor` |
 | `crew_agent_root_issue` | Agent tạo issue gốc | Tạo issue con của issue bạn đang làm, hoặc comment xin owner |
 | `crew_role_assignee` | Giao việc cho reviewer hoặc integrator | Giao cho executor, hoặc để server giao ở bước review |
+| `crew_override_forbidden` | Override của issue có key ngoài model/effort | Bỏ `assigneeAdapterOverrides` khỏi lệnh |
 | `crew_roles_unconfigured` | Server chưa cấu hình vai trò cho company | Dừng, `blocked` kèm comment báo owner |

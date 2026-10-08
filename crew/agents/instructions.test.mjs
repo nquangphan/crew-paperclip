@@ -108,7 +108,7 @@ test("integrator merge đúng sha của crew-review, không lấy crew-commit m�
 });
 
 test("mọi file instructions nhắc đúng các mã lỗi server", () => {
-  for (const name of ["executor", "reviewer", "integrator"]) {
+  for (const name of ["executor", "reviewer", "integrator", "assistant"]) {
     assert.match(read(name), /crew_gate_blocked/, name);
   }
   assert.match(read("executor"), /crew_agent_root_issue/);
@@ -117,15 +117,15 @@ test("mọi file instructions nhắc đúng các mã lỗi server", () => {
 });
 
 test("không vai trò nào chuyển cancelled; cả ba có đường blocked", () => {
-  for (const name of ["executor", "reviewer", "integrator"]) {
+  for (const name of ["executor", "reviewer", "integrator", "assistant"]) {
     const text = read(name);
     assert.doesNotMatch(text, /"status":"cancelled"/, name);
-    if (name === "executor") assert.match(text, /"status":"blocked"/, name);
+    if (name === "executor" || name === "assistant") assert.match(text, /"status":"blocked"/, name);
   }
 });
 
 test("mọi PATCH trong instructions mang comment", () => {
-  for (const name of ["executor", "reviewer", "integrator"]) {
+  for (const name of ["executor", "reviewer", "integrator", "assistant"]) {
     for (const [, body] of read(name).matchAll(/`(\{"status":[^`]*\})`/g)) {
       assert.match(body, /"comment":/, `${name}: ${body}`);
     }
@@ -133,7 +133,7 @@ test("mọi PATCH trong instructions mang comment", () => {
 });
 
 test("không file nào dặn push cưỡng bức hoặc bỏ hook ngoài câu cấm", () => {
-  for (const name of ["executor", "reviewer", "integrator"]) {
+  for (const name of ["executor", "reviewer", "integrator", "assistant"]) {
     const text = read(name);
     assert.doesNotMatch(text, /`git push[^`]*(--force|\s-f\b)[^`]*`/, name);
     for (const line of text.split("\n").filter((l) => l.includes("--no-verify"))) {
@@ -227,7 +227,7 @@ test("reviewer có mục issue gốc và integrator nhận việc của issue g�
 });
 
 test("mọi lệnh API có tiền tố /api/ và curl có -f", () => {
-  for (const name of ["executor", "reviewer", "integrator"]) {
+  for (const name of ["executor", "reviewer", "integrator", "assistant"]) {
     const text = read(name);
     assert.match(text, /## Gọi API/, name);
     assert.match(text, /\$PAPERCLIP_API_URL\/api\//, name);
@@ -240,7 +240,7 @@ test("mọi lệnh API có tiền tố /api/ và curl có -f", () => {
 });
 
 test("luật không bao giờ nằm trước các mục khác, integrator có luật cứng trước push", () => {
-  for (const name of ["executor", "reviewer", "integrator"]) {
+  for (const name of ["executor", "reviewer", "integrator", "assistant"]) {
     const text = read(name);
     assert.ok(text.indexOf("## Không bao giờ") > 0, name);
     assert.ok(text.indexOf("## Không bao giờ") < text.indexOf("## Gọi API"), name);
@@ -250,4 +250,82 @@ test("luật không bao giờ nằm trước các mục khác, integrator có lu
   assert.match(text, /KHÔNG `git push`/);
   assert.match(text, /`PATCH` issue gốc sang `in_progress`, `blocked` hay `cancelled`/);
   assert.match(read("executor"), /Kiểm `git branch --show-current`/);
+});
+
+const MODEL_POLICY_SOURCE = new URL("../../server/src/crew/model-policy.ts", import.meta.url);
+const BUNDLE_SOURCE = new URL("../../server/src/crew/bundle-resume.ts", import.meta.url);
+const BUNDLE_RE = /^crew-bundle id=([a-z0-9][a-z0-9-]{0,39}) seq=([1-9][0-9]{0,2})$/;
+const MODEL_LINE_RE = /^crew-model complexity=(trivial|small|medium|large) model=(claude-sonnet-5|claude-opus-5) effort=(low|medium|high) reason=(.+)$/;
+const STACK_RE = /^crew-stack on=([A-Z][A-Z0-9]*-[0-9]+)$/;
+const fillAssistant = (line) => line.replaceAll("<gói>", "greet").replaceAll("<n>", "2")
+  .replaceAll("<mức>", "small").replaceAll("<model>", "claude-sonnet-5")
+  .replaceAll("<effort>", "medium").replaceAll("<một dòng lý do>", "bám khuôn greet.js")
+  .replaceAll("<identifier>", "CRE-31");
+
+test("assistant: dòng mẫu marker khớp regex", () => {
+  const text = read("assistant");
+  assert.match(fillAssistant(templateLine(text, "crew-bundle id=")), BUNDLE_RE);
+  assert.match(fillAssistant(templateLine(text, "crew-model complexity=")), MODEL_LINE_RE);
+  assert.match(fillAssistant(templateLine(text, "crew-stack on=")), STACK_RE);
+  assert.ok(text.split("\n").some((l) => l.trim().replace(/^`|`$/g, "") === "crew-kind research"));
+});
+
+test("regex crew-bundle trong test trùng chuỗi regex của server", { skip: !existsSync(BUNDLE_SOURCE) && "bundle-resume.ts chưa có trên nhánh này" }, () => {
+  const match = /CREW_BUNDLE_RE\s*=\s*\/(.+)\/m;/.exec(readFileSync(BUNDLE_SOURCE, "utf8"));
+  assert.ok(match);
+  assert.equal(match[1], BUNDLE_RE.source);
+});
+
+test("bảng model trong assistant.md trùng CREW_COMPLEXITY_MODEL của server", { skip: !existsSync(MODEL_POLICY_SOURCE) && "model-policy.ts chưa có trên nhánh này" }, () => {
+  const source = readFileSync(MODEL_POLICY_SOURCE, "utf8");
+  const server = [...source.matchAll(/(trivial|small|medium|large): \{ model: "([^"]+)", effort: "([^"]+)" \}/g)].map((m) => m.slice(1).join(" "));
+  const doc = [...read("assistant").matchAll(/^\| `(trivial|small|medium|large)` \| `([^`]+)` \| `([^`]+)` \|/gm)].map((m) => m.slice(1).join(" "));
+  assert.equal(server.length, 4);
+  assert.deepEqual(doc, server);
+});
+
+test("assistant: chờ owner bằng blocked và hỏi trước khi tạo con", () => {
+  const text = read("assistant");
+  for (const line of text.split("\n").filter((l) => /fable|haiku/i.test(l))) assert.match(line, /[Kk]hông/);
+  assert.doesNotMatch(text, /"status":"in_review"|"status":"cancelled"/);
+  for (const needle of ['"status":"blocked"', '"kind":"ask_user_questions"', '"continuationPolicy":"wake_assignee"', '"resolverPolicy":"human_only"', "trước khi tạo issue con"]) assert.ok(text.includes(needle), needle);
+});
+
+test("assistant: tạo con có blocker, override và không gửi policy", () => {
+  const text = read("assistant");
+  for (const needle of ["/api/issues/<id gốc>/children", '"blockParentUntilDone":true', '"blockedByIssueIds":', '"assigneeAdapterOverrides":{"adapterConfig":{"model":"<model>","effort":"<effort>"}}', "crew_override_forbidden", "crew_role_assignee"]) assert.ok(text.includes(needle), needle);
+  assert.doesNotMatch(text, /"executionPolicy":/);
+});
+
+test("assistant: comment kế hoạch và đóng issue gốc", () => {
+  const text = read("assistant");
+  assert.match(text, /crew-plan root=<identifier gốc> children=<số con> bundles=<số gói>/);
+  assert.match(text, /"status":"done","comment":"crew-assistant done children=/);
+});
+
+test("executor: research báo bằng crew-report; nhánh xếp chồng theo crew-stack", () => {
+  const text = read("executor");
+  assert.match(text, /`crew-kind research`/);
+  assert.match(text, /không tạo nhánh, không sửa file, không commit/);
+  assert.match(text, /`crew-report`/);
+  assert.match(text, /"status":"done","comment":"Executor: xong báo cáo research, chờ review\./);
+  assert.match(text, /`crew-stack on=<identifier>`/);
+  assert.match(text, /git switch -c crew\/<identifier> <sha đã duyệt của issue đó>/);
+  assert.match(text, /crew_override_forbidden/);
+  assert.match(text, /`crew-bundle/);
+});
+
+test("reviewer: duyệt research không cần crew-commit, diff crew-stack từ sha nền", () => {
+  const text = read("reviewer");
+  const quoted = /"comment":"(crew-review research verdict=approved)\\n/.exec(text);
+  assert.ok(quoted, "thiếu lệnh approve research");
+  assert.match(text, /`crew-report`/);
+  assert.match(text, /`crew-stack on=<identifier>`/);
+  assert.match(text, /git diff <sha nền>\.\.<sha>/);
+});
+
+test("integrator: không đặt override khi tạo issue con sửa", () => {
+  const text = read("integrator");
+  assert.match(text, /không gửi `assigneeAdapterOverrides`/);
+  assert.match(text, /crew_override_forbidden/);
 });

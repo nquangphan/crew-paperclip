@@ -2,7 +2,9 @@
 # Applies Crew roles on the crew-v3-spike server. Run on the VPS.
 #
 #   apply-roles.sh agent <agentId> <executor|reviewer|integrator> <pinned plugin dir on the Mac>
+#   apply-roles.sh agent <agentId> assistant <pinned plugin dir on the Mac> <executorId,executorId>
 #       Pins Superpowers in adapterConfig.extraArgs and uploads the role's instructions as AGENTS.md.
+#       The assistant's AGENTS.md gets the executor list appended by render-instructions.mjs.
 #       Exits non-zero when the server's answer to either write does not match what was sent.
 #   apply-roles.sh policy-config <companyId> <reviewerAgentId> <integratorAgentId> <ownerUserId> [config file]
 #       Prints the CREW_POLICY_CONFIG JSON holding only that company (copying it over the live file drops the
@@ -39,20 +41,22 @@ cmd=${1:-}
 [ -n "$cmd" ] && shift
 case "$cmd" in
   agent)
-    [ $# -eq 3 ] || die "usage: agent <agentId> <executor|reviewer|integrator> <pinned plugin dir>"
-    AGENT=$1; ROLE=$2; PIN=$3
-    case "$ROLE" in executor|reviewer|integrator) ;; *) die "role must be executor, reviewer or integrator";; esac
+    [ $# -eq 3 ] || [ $# -eq 4 ] || die "usage: agent <agentId> <executor|reviewer|integrator|assistant> <pinned plugin dir> [executorId,executorId for assistant]"
+    AGENT=$1; ROLE=$2; PIN=$3; EXECUTORS=${4:-}
+    case "$ROLE" in executor|reviewer|integrator|assistant) ;; *) die "role must be executor, reviewer, integrator or assistant";; esac
+    if [ "$ROLE" = assistant ] && [ -z "$EXECUTORS" ]; then die "assistant needs the executor agent ids (comma-separated)"; fi
+    if [ "$ROLE" != assistant ] && [ -n "$EXECUTORS" ]; then die "only assistant takes an executor list"; fi
     case "$PIN" in */..|*/../*|*/.) die "pin dir must not contain . or .. segments";; esac
     case "$PIN" in /*/.crew/workflows/superpowers/*) ;; *) die "pin dir must be <home>/.crew/workflows/superpowers/<version>-<rev>";; esac
     [ -f "$HERE/$ROLE.md" ] || die "missing $HERE/$ROLE.md"
     need_node
+    FILE=$(node "$HERE/render-instructions.mjs" "$ROLE" "$HERE/$ROLE.md" "$AGENT" "$EXECUTORS") || die "cannot render $ROLE.md for agent $AGENT; nothing was uploaded"
     CURRENT=$("$ROOT/api.sh" GET "/agents/$AGENT")
     BODY=$(printf '%s' "$CURRENT" | node "$HERE/merge-agent-config.mjs" "$PIN") || die "refusing to patch agent $AGENT (see the message above); nothing was written"
     EXPECTED=$(printf '%s' "$BODY" | node -e 'process.stdout.write(JSON.stringify(JSON.parse(require("fs").readFileSync(0, "utf8")).adapterConfig.extraArgs))')
     "$ROOT/api.sh" PATCH "/agents/$AGENT" "$BODY" | node "$HERE/verify-result.mjs" patch "$EXPECTED" || die "PATCH of agent $AGENT did not take effect"
-    FILE=$(node -e 'process.stdout.write(JSON.stringify({ path: "AGENTS.md", content: require("fs").readFileSync(process.argv[1], "utf8") }))' "$HERE/$ROLE.md")
     "$ROOT/api.sh" PUT "/agents/$AGENT/instructions-bundle/file" "$FILE" | node "$HERE/verify-result.mjs" write || die "upload of $ROLE.md for agent $AGENT failed"
-    echo "apply-roles: $AGENT role=$ROLE extraArgs=$EXPECTED"
+    echo "apply-roles: $AGENT role=$ROLE extraArgs=$EXPECTED${EXECUTORS:+ executors=$EXECUTORS}"
     ;;
   policy-config)
     [ $# -ge 4 ] && [ $# -le 5 ] || die "usage: policy-config <companyId> <reviewerAgentId> <integratorAgentId> <ownerUserId> [config file]"
