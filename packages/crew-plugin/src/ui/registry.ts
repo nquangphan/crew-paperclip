@@ -1,10 +1,11 @@
-import type { ComponentType } from "react";
+/** A React function component; the plugin declares React types itself (`src/shared/react.d.ts`). */
+export type CrewComponent<P> = (props: P) => unknown;
 
 /** A panel shown under the map in the Crew tab of an issue. */
 export interface IssuePanel {
   id: string;
   order: number;
-  component: ComponentType<{ issueId: string; companyId: string }>;
+  component: CrewComponent<{ issueId: string; companyId: string }>;
 }
 
 /** A section of the Crew page (requests, machines, docs). */
@@ -12,7 +13,7 @@ export interface PageSection {
   id: string;
   title: string;
   order: number;
-  component: ComponentType<{ companyId: string }>;
+  component: CrewComponent<{ companyId: string }>;
 }
 
 const issuePanels: IssuePanel[] = [];
