@@ -3,6 +3,7 @@ import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest
 import { and, eq } from "drizzle-orm";
 import {
   agentTaskSessions,
+  agentWakeupRequests,
   agents,
   companies,
   createDb,
@@ -46,7 +47,7 @@ suite("resume fields set before claim reach the adapter", () => {
 
   async function seed(wakeReason: string) {
     const companyId = randomUUID(), agentId = randomUUID(), issueA = randomUUID(), issueB = randomUUID();
-    const runA = randomUUID(), runB = randomUUID();
+    const runA = randomUUID(), runB = randomUUID(), wakeupRequestId = randomUUID();
     await db.insert(companies).values({
       id: companyId,
       name: "Crew resume",
@@ -70,17 +71,33 @@ suite("resume fields set before claim reach the adapter", () => {
       companyId, agentId, adapterType: "process", taskKey: issueA,
       sessionParamsJson: { sessionId: "sess-a" }, sessionDisplayId: "sess-a", lastRunId: runA,
     });
+    // Automatic runs need a linked wake request for admission at both claim and dispatch.
+    await db.insert(agentWakeupRequests).values({
+      id: wakeupRequestId, companyId, agentId, source: "automation", triggerDetail: "system",
+      reason: wakeReason, payload: { issueId: issueB }, status: "queued", runId: runB,
+      requestedByActorType: "system",
+    });
     await db.insert(heartbeatRuns).values({
       id: runB, companyId, agentId, status: "queued", invocationSource: "automation", responsibleUserId: "owner",
+      triggerDetail: "system", wakeupRequestId,
       contextSnapshot: { issueId: issueB, taskKey: issueB, wakeReason },
     });
     return { companyId, agentId, issueA, issueB, runA, runB };
   }
 
-  async function claimAll() {
+  async function claimAndGetRuntime(runId: string) {
     const heartbeat = heartbeatService(db);
     await heartbeat.resumeQueuedRuns();
     await heartbeat.drainActiveRunExecutions();
+    const run = await heartbeat.getRun(runId);
+    const diagnostic = JSON.stringify({
+      runId, status: run?.status, errorCode: run?.errorCode, error: run?.error,
+      executionStage: run?.executionStage,
+    });
+    const calls = execute.mock.calls.filter(([ctx]) => ctx.runId === runId);
+    expect(calls, `Run phải gọi adapter đúng một lần: ${diagnostic}`).toHaveLength(1);
+    expect(run?.status, diagnostic).toBe("succeeded");
+    return calls[0]![0].runtime;
   }
 
   function setResumeBeforeClaim(runId: string, sourceRunId: string) {
@@ -105,10 +122,8 @@ suite("resume fields set before claim reach the adapter", () => {
       execute.mockResolvedValue({ exitCode: 0, signal: null, timedOut: false, summary: "ok", sessionId: "sess-a" });
       const s = await seed(wakeReason);
       setResumeBeforeClaim(s.runB, s.runA);
-      await claimAll();
-      const call = execute.mock.calls.find(([ctx]) => ctx.runId === s.runB);
-      expect(call, "run B không được thực thi").toBeDefined();
-      expect(call![0].runtime).toMatchObject({ sessionId: "sess-a" });
+      const runtime = await claimAndGetRuntime(s.runB);
+      expect(runtime).toMatchObject({ sessionId: "sess-a" });
       const [session] = await db
         .select()
         .from(agentTaskSessions)
@@ -121,9 +136,7 @@ suite("resume fields set before claim reach the adapter", () => {
     execute.mockResolvedValue({ exitCode: 0, signal: null, timedOut: false, summary: "ok" });
     const s = await seed("issue_blockers_resolved");
     restore = overrideCrewCoreHooksForTests({ beforeClaim: async () => false });
-    await claimAll();
-    const call = execute.mock.calls.find(([ctx]) => ctx.runId === s.runB);
-    expect(call).toBeDefined();
-    expect(call![0].runtime.sessionId ?? null).toBeNull();
+    const runtime = await claimAndGetRuntime(s.runB);
+    expect(runtime.sessionId ?? null).toBeNull();
   }, 30_000);
 });
