@@ -293,8 +293,22 @@ test("assistant: chờ owner bằng blocked và hỏi trước khi tạo con", (
 
 test("assistant: tạo con có blocker, override và không gửi policy", () => {
   const text = read("assistant");
-  for (const needle of ["/api/issues/<id gốc>/children", '"blockParentUntilDone":true', '"blockedByIssueIds":', '"assigneeAdapterOverrides":{"adapterConfig":{"model":"<model>","effort":"<effort>"}}', "crew_override_forbidden", "crew_role_assignee"]) assert.ok(text.includes(needle), needle);
+  for (const needle of ["/api/companies/<companyId>/issues", '"parentId":"<id gốc>"', '"blockParentUntilDone":true', '"blockedByIssueIds":', '"assigneeAdapterOverrides":{"adapterConfig":{"model":"<model>","effort":"<effort>"}}', "crew_override_forbidden", "crew_role_assignee"]) assert.ok(text.includes(needle), needle);
   assert.doesNotMatch(text, /"executionPolicy":/);
+});
+
+test("mọi vai trò tạo issue con qua route company có parentId", () => {
+  for (const role of ["assistant", "executor", "reviewer", "integrator"]) {
+    assert.doesNotMatch(read(role), /\/children\b/, role);
+  }
+  for (const role of ["assistant", "executor", "integrator"]) {
+    const text = read(role);
+    assert.match(text, /POST \/api\/companies\/<companyId>\/issues/);
+    assert.match(text, /"parentId":"<id gốc>"/);
+    assert.match(text, /PAPERCLIP_COMPANY_ID/);
+    assert.match(text, /GET \/api\/issues\/<id gốc>/);
+    assert.match(text, /COMPANY_ID=\$\{PAPERCLIP_COMPANY_ID:-\}/);
+  }
 });
 
 test("assistant: comment kế hoạch và đóng issue gốc", () => {

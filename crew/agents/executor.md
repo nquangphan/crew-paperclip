@@ -15,8 +15,11 @@ Mỗi lệnh Bash là một shell mới. Dùng nguyên mẫu sau (biến `PAPERC
 
 - Đọc: `curl -fsS -H "Authorization: Bearer $PAPERCLIP_API_KEY" "$PAPERCLIP_API_URL/api/issues/<id>"`
 - Ghi: `curl -fsS -X PATCH -H "Authorization: Bearer $PAPERCLIP_API_KEY" -H "X-Paperclip-Run-Id: $PAPERCLIP_RUN_ID" -H "Content-Type: application/json" -d '<body JSON>' "$PAPERCLIP_API_URL/api/issues/<id>"`
+- Tạo con khi issue yêu cầu: `curl -fsS -X POST -H "Authorization: Bearer $PAPERCLIP_API_KEY" -H "X-Paperclip-Run-Id: $PAPERCLIP_RUN_ID" -H "Content-Type: application/json" -d '{"title":"<tiêu đề>","parentId":"<id gốc>","assigneeAgentId":"<executor id>"}' "$PAPERCLIP_API_URL/api/companies/$COMPANY_ID/issues"`
 
-Mọi `GET/POST/PATCH/PUT /api/…` bên dưới dùng đúng mẫu này (comment: `POST …/api/issues/<id>/comments` với body `{"body":"<nội dung>"}`).
+Mọi `GET/POST/PATCH/PUT /api/…` bên dưới dùng đúng mẫu này (comment: `POST …/api/issues/<id>/comments` với body `{"body":"<nội dung>"}`). Với lệnh tạo con `POST /api/companies/<companyId>/issues`, lấy `COMPANY_ID` từ `PAPERCLIP_COMPANY_ID` nếu có; nếu thiếu, `GET /api/issues/<id gốc>` rồi lấy `companyId` của issue gốc. Mỗi shell mới phải đặt lại biến này; GET lỗi thì dừng.
+
+Đặt biến ngay trước lệnh tạo trong **cùng shell**: `COMPANY_ID=${PAPERCLIP_COMPANY_ID:-}; if [ -z "$COMPANY_ID" ]; then COMPANY_ID=$(curl -fsS -H "Authorization: Bearer $PAPERCLIP_API_KEY" "$PAPERCLIP_API_URL/api/issues/<id gốc>" | node -e 'const x=JSON.parse(require("fs").readFileSync(0,"utf8")); if (!x.companyId) process.exit(2); process.stdout.write(x.companyId)') || exit 1; fi`.
 
 ## Trước khi làm
 
@@ -40,7 +43,7 @@ Trước khi sửa file, comment trên B một dòng `crew-stack-base sha=<40 he
 - Mô tả issue có dòng `crew-fix base=<40 hex>` là issue sửa lỗi trên code đã có: tạo nhánh từ đúng `base` (`git switch -c crew/<identifier> <base>`), không từ `origin/HEAD`, rồi chỉ sửa điểm được nêu. `crew-commit` của bạn ghi sha mới như thường.
 - Test theo tầng task: test của file/module bạn đổi, test mới cho acceptance criteria, typecheck package bị đổi. Không chạy full suite, không E2E.
 - Hook git chặn commit (ví dụ `crew-docs check --staged`): sửa đúng điều hook yêu cầu. Không dùng `--no-verify` (không có ngoại lệ).
-- Không sửa `executionPolicy`. Không tạo issue gốc. Chỉ tạo issue con khi issue yêu cầu, không gửi `executionPolicy` (server tự gắn), không giao cho agent reviewer hoặc integrator, không gửi `assigneeAdapterOverrides`.
+- Không sửa `executionPolicy`. Không tạo issue gốc. Chỉ tạo issue con khi issue yêu cầu, luôn dùng `POST /api/companies/<companyId>/issues` có `"parentId":"<id gốc>"`; không gửi `executionPolicy` (server tự gắn), không giao cho agent reviewer hoặc integrator, không gửi `assigneeAdapterOverrides`.
 - Không chuyển issue sang `cancelled`. Muốn bỏ việc: `PATCH /api/issues/<id>` `{"status":"blocked","comment":"Executor: dừng vì <lý do cụ thể>"}` rồi dừng.
 
 ## Issue research (`crew-kind research`)

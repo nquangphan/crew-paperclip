@@ -16,8 +16,11 @@ Mỗi lệnh Bash là một shell mới. Dùng nguyên mẫu sau (biến `PAPERC
 
 - Đọc: `curl -fsS -H "Authorization: Bearer $PAPERCLIP_API_KEY" "$PAPERCLIP_API_URL/api/issues/<id>"`
 - Ghi: `curl -fsS -X PATCH -H "Authorization: Bearer $PAPERCLIP_API_KEY" -H "X-Paperclip-Run-Id: $PAPERCLIP_RUN_ID" -H "Content-Type: application/json" -d '<body JSON>' "$PAPERCLIP_API_URL/api/issues/<id>"`
+- Tạo issue con sửa: `curl -fsS -X POST -H "Authorization: Bearer $PAPERCLIP_API_KEY" -H "X-Paperclip-Run-Id: $PAPERCLIP_RUN_ID" -H "Content-Type: application/json" -d '{"title":"<điểm cần sửa>","description":"<mô tả và crew-fix base>","parentId":"<id gốc>","assigneeAgentId":"<executor id>"}' "$PAPERCLIP_API_URL/api/companies/$COMPANY_ID/issues"`
 
-Mọi `GET/POST/PATCH/PUT /api/…` bên dưới dùng đúng mẫu này (comment: `POST …/api/issues/<id>/comments` với body `{"body":"<nội dung>"}`).
+Mọi `GET/POST/PATCH/PUT /api/…` bên dưới dùng đúng mẫu này (comment: `POST …/api/issues/<id>/comments` với body `{"body":"<nội dung>"}`). Với lệnh tạo con `POST /api/companies/<companyId>/issues`, lấy `COMPANY_ID` từ `PAPERCLIP_COMPANY_ID` nếu có; nếu thiếu, `GET /api/issues/<id gốc>` rồi lấy `companyId` của issue gốc. Mỗi shell mới phải đặt lại biến này; GET lỗi thì dừng.
+
+Đặt biến ngay trước lệnh tạo trong **cùng shell**: `COMPANY_ID=${PAPERCLIP_COMPANY_ID:-}; if [ -z "$COMPANY_ID" ]; then COMPANY_ID=$(curl -fsS -H "Authorization: Bearer $PAPERCLIP_API_KEY" "$PAPERCLIP_API_URL/api/issues/<id gốc>" | node -e 'const x=JSON.parse(require("fs").readFileSync(0,"utf8")); if (!x.companyId) process.exit(2); process.stdout.write(x.companyId)') || exit 1; fi`.
 
 Nhánh mặc định: `git fetch origin`, rồi `DEFAULT=$(git symbolic-ref --short refs/remotes/origin/HEAD 2>/dev/null || { git remote set-head origin -a >/dev/null && git symbolic-ref --short refs/remotes/origin/HEAD; })` và `DEFAULT=${DEFAULT#origin/}`. Không lấy được, hoặc `git fetch origin` lỗi: dừng, không merge hay push bằng ref local; chỉ comment lý do đã lọc credential (như bước ghi `crew-merge`, không dán URL). **Không đổi status** khi bạn là participant đang chờ duyệt: stock coi mọi status khác `done`/`in_review` là yêu cầu sửa và trả issue về executor.
 
@@ -32,7 +35,7 @@ Nhánh mặc định: `git fetch origin`, rồi `DEFAULT=$(git symbolic-ref --sh
 
 ## Yêu cầu sửa
 
-Bạn không `PATCH` `in_progress` trên issue gốc: stock đưa issue gốc về lại stage integrator mà không qua reviewer, nên mã sửa không bao giờ được review và issue kẹt tới vòng 5. Việc cần executor làm thêm (code lỗi, conflict, commit chưa được review) đi qua **một issue con mới**: `POST /api/issues/<id gốc>/children` (hoặc `POST /api/companies/<companyId>/issues` có `parentId` = issue gốc), giao cho executor đã làm issue chứa `sha` cần sửa (tác giả của `crew-commit` đó, không mặc định executor của issue gốc), không gửi `executionPolicy`, không gửi `assigneeAdapterOverrides`, không giao cho reviewer hay integrator. Mô tả nêu rõ điểm cần sửa và có **một dòng riêng** đúng dạng sau để executor dựng nhánh từ đúng commit đó và reviewer xem đúng phần sửa:
+Bạn không `PATCH` `in_progress` trên issue gốc: stock đưa issue gốc về lại stage integrator mà không qua reviewer, nên mã sửa không bao giờ được review và issue kẹt tới vòng 5. Việc cần executor làm thêm (code lỗi, conflict, commit chưa được review) đi qua **một issue con mới**: `POST /api/companies/<companyId>/issues` với `"parentId":"<id gốc>"`, giao cho executor đã làm issue chứa `sha` cần sửa (tác giả của `crew-commit` đó, không mặc định executor của issue gốc), không gửi `executionPolicy`, không gửi `assigneeAdapterOverrides`, không giao cho reviewer hay integrator. Mô tả nêu rõ điểm cần sửa và có **một dòng riêng** đúng dạng sau để executor dựng nhánh từ đúng commit đó và reviewer xem đúng phần sửa:
 
 `crew-fix base=<40 hex sha cần sửa>`
 
