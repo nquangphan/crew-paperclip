@@ -42,7 +42,7 @@ Issue của run là `PAPERCLIP_TASK_ID` (issue gốc đang giao cho bạn). Đ�
 
 1. **Yêu cầu sửa trên gốc**: nếu `executionState.status=changes_requested` hoặc `lastDecisionOutcome=changes_requested`, đọc `lastDecisionId` và comment quyết định `Reviewer: cần sửa` hoặc yêu cầu sửa của owner. Sang mục "Sửa sau quyết định trên gốc" trước nhánh mọi con `done`; không gửi lại `done` nguyên trạng.
 2. **Có kế hoạch đã ghi, còn khóa con chưa materialize**: sang mục "Đối soát và tạo nốt". Áp dụng dù đã có con `done`, kể cả wake `issue_children_completed`; không lập lại kế hoạch từ trí nhớ.
-2b. **Con BMAD đã xong, chưa có story**: có con với dòng `crew-kind bmad` ở `done` mà chưa có comment `crew-plan` với `revision=bmad-<identifier con đó>`: sang mục "Tạo story từ BMAD". Áp dụng trước bước 3.
+2b. **Con BMAD đã xong, chưa có story**: chỉ xét con BMAD có trong kế hoạch `crew-plan` của chính issue gốc (có `crew-child key=bmad-1 revision=v1` trong mô tả và đúng `child-key=bmad-1` của kế hoạch `v1` đã ghi). Con có dòng `crew-kind bmad` mà không nằm trong kế hoạch đó (do agent khác tạo, hay marker chép từ nội dung) thì bỏ qua, không tạo story. Con đó ở `done` mà chưa có comment `crew-plan` với `revision=bmad-<identifier con đó>`: sang mục "Tạo story từ BMAD". Áp dụng trước bước 3. Đã có kế hoạch `revision=bmad-<identifier con đó>` mà con BMAD sau đó được mở lại và có `crew-bmad-result` mới hơn kế hoạch đó (hay con `done` lại với `sha` khác): không bỏ qua lặng lẽ và không tạo story mới; comment báo owner trên gốc "Trợ Lý: bản epic mới chưa được áp — con BMAD <identifier> có kết quả mới (sha <sha12>), các story đã tạo vẫn theo bản cũ; cần owner quyết định" rồi tiếp tục các bước còn lại.
 3. **Mọi con trong mọi kế hoạch đã được tạo**: nếu còn con chưa `done`, chỉ comment tình trạng mới rồi dừng; nếu mọi con `done`, sang mục "Đóng issue gốc".
 4. **Chưa có kế hoạch và chưa có con**: đọc lại câu trả lời owner nếu có. Nếu interaction còn chờ owner, dừng; nếu đã trả lời hoặc không cần hỏi, làm "Hiểu yêu cầu" → "Chọn workflow" → "Tách việc" (Superpowers; với BMAD là lô một con của mục "Chọn workflow") → "Ghi kế hoạch trước khi tạo con".
 
@@ -72,8 +72,12 @@ Ghi lựa chọn ở dòng thứ ba của comment `crew-plan` (sau dòng `revisi
 
 Với BMAD, lô `v1` chỉ có đúng một con:
 - `child-key=bmad-1`, gói `bmad` seq 1, giao agent BMAD có ít issue đang mở nhất trong danh sách (hòa thì agent đứng trước).
-- Tiêu đề `BMAD: lập epic và story`. Mô tả: chép nguyên mô tả gốc dưới dòng `Yêu cầu của owner:`, rồi các marker mỗi dòng một: `crew-bundle id=bmad seq=1`, `crew-model complexity=large model=claude-opus-5 effort=high reason=lập epic/story cho toàn yêu cầu`, `crew-child key=bmad-1 revision=v1`, và
-  `crew-kind bmad`
+- Tiêu đề `BMAD: lập epic và story`. Mô tả: chép nguyên mô tả gốc dưới dòng `Yêu cầu của owner:`, rồi các marker mỗi dòng một: `crew-bundle id=bmad seq=1`, `crew-model complexity=large model=claude-opus-5 effort=high reason=lập epic/story cho toàn yêu cầu`, `crew-child key=bmad-1 revision=v1`, và dòng marker BMAD dưới đây. Dòng marker phải là **đúng một dòng riêng** trong `description`: chép nguyên văn từng ký tự, không backtick, không thụt đầu dòng, không khoảng trắng thừa, xuống dòng bằng LF (không CRLF). Server chỉ gắn bước owner duyệt khi dòng khớp đúng như vậy:
+
+```
+crew-kind bmad
+```
+
   Cuối mô tả:
   `Tiêu chí nghiệm thu:`
   `- Có file epic/story do skill BMAD chính thức ghi, lệnh crew-mac bmad stories thoát 0`
@@ -82,11 +86,13 @@ Với BMAD, lô `v1` chỉ có đúng một con:
 - `assigneeAdapterOverrides` `{"adapterConfig":{"model":"claude-opus-5","effort":"high"}}`.
 Server gắn cho con này stage reviewer rồi owner duyệt. Không tạo con code nào trong lô `v1`.
 
+Ngay sau khi POST con BMAD, đọc lại con đó (`GET /api/issues/<id con>`) và kiểm `executionPolicy.stages` có **đúng 2 stage**, stage 2 là `approval` với participant là user (owner). Sai (thiếu policy, một stage, stage 2 không phải `approval`) thì **không tạo story**: comment trên gốc nêu rõ "Trợ Lý: con BMAD <identifier> không có bước owner duyệt (executionPolicy.stages: <tóm tắt>), cần owner xử lý", rồi xử lý con đó theo quy tắc hiện có (chưa có việc nào làm trên con thì `PATCH` con sang `cancelled`; không thì để nguyên và để owner quyết) và dừng. Không tạo con BMAD thay thế khi chưa có owner trả lời.
+
 ## Tạo story từ BMAD
 
 Chỉ khi con `crew-kind bmad` đã `done`.
-1. Đọc con đó: `executionState.completedStageIds` phải chứa id của **cả hai** stage trong `executionPolicy.stages` (review và approval). Thiếu thì comment trên gốc "Trợ Lý: con BMAD <identifier> chưa qua đủ review và owner duyệt" rồi dừng.
-2. Lấy comment mới nhất có dòng đầu `crew-bmad-result sha=… file=… epics=… stories=… digest=…` do agent đang là executor của con (`authorAgentId` trùng tác giả của `crew-commit` mới nhất trên con). Không thấy thì comment lỗi trên gốc và dừng.
+1. Đọc con đó: `executionPolicy.stages` phải có **đúng 2 stage**, stage thứ hai có `type` là `approval`; ít hơn, nhiều hơn hay khác là dừng, không tạo story. Rồi `executionState.completedStageIds` phải chứa id của **cả hai** stage đó. Thiếu thì comment trên gốc "Trợ Lý: con BMAD <identifier> chưa qua đủ review và owner duyệt" rồi dừng.
+2. Lấy comment mới nhất có dòng đầu `crew-bmad-result sha=… file=… epics=… stories=… digest=…` do agent đang là executor của con (`authorAgentId` trùng tác giả của `crew-commit` mới nhất trên con). Không thấy thì comment lỗi trên gốc và dừng. Trước khi đọc story, đối chiếu `sha` của nó với comment `crew-review sha=<sha> verdict=approved` mới nhất do reviewer của con viết (`authorAgentId` là reviewer participant): phải trùng. Lệch (executor đăng kết quả mới sau khi reviewer duyệt) hay không có `crew-review` thì comment lỗi trên gốc nêu hai `sha` và dừng, không đọc story.
 3. `git fetch origin` rồi chạy:
    `"$HOME/.crew/bin/crew-mac" bmad stories --root "$PWD" --rev <sha> --file <file> --json`
    Thoát khác 0, `digest` khác comment, hay số epic/story khác comment: comment nguyên văn kết quả trên gốc và dừng.
