@@ -27,6 +27,7 @@ const manifest: PaperclipPluginManifestV1 = {
     "ui.page.register",
     "ui.sidebar.register",
     "ui.dashboardWidget.register",
+    "api.routes.register",
   ],
   entrypoints: {
     worker: "./dist/worker.js",
@@ -62,6 +63,14 @@ const manifest: PaperclipPluginManifestV1 = {
   webhooks: [
     { endpointKey: "machine-status", displayName: "Crew machine status" },
     { endpointKey: "docs-snapshot", displayName: "Crew docs snapshot" },
+  ],
+  apiRoutes: [
+    { routeKey: "roles.get", method: "GET", path: "/projects/:projectId/roles", auth: "board",
+      capability: "api.routes.register", companyResolution: { from: "query", key: "companyId" } },
+    { routeKey: "roles.set", method: "POST", path: "/projects/:projectId/roles", auth: "board",
+      capability: "api.routes.register", companyResolution: { from: "body", key: "companyId" } },
+    { routeKey: "roles.delete", method: "DELETE", path: "/projects/:projectId/roles", auth: "board",
+      capability: "api.routes.register", companyResolution: { from: "query", key: "companyId" } },
   ],
   database: {
     migrationsDir: "migrations",
