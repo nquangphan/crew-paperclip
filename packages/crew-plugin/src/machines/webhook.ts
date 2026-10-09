@@ -10,7 +10,11 @@ export interface MachineReport {
   superpowers: { pinned: string | null; ownerInstalled: string | null };
   checks: Array<{ id: string; status: "ok" | "warn" | "error"; title: string }>;
   app?: AppReport;
+  attachmentCache?: AttachmentCache;
 }
+
+/** Cache file đính kèm trên Mac: `bytes` là mọi file dưới gốc cache, `blobBytes` là phần blobs/ mà GC so với trần. */
+export interface AttachmentCache { bytes: number; blobBytes: number; blobs: number; runs: number; limitBytes: number; measuredAt: string }
 
 export const UPDATE_STATES = ["idle", "downloading", "waiting-idle", "installing", "probation", "rolled-back"] as const;
 export type UpdateState = (typeof UPDATE_STATES)[number];
@@ -33,14 +37,26 @@ function appReport(value: unknown): value is AppReport {
     && UPDATE_STATES.includes(value.updateState as UpdateState);
 }
 
-/** `app` là tùy chọn; sai dạng thì bỏ riêng trường đó, phần còn lại của bản tin vẫn được nhận. */
+const count = (value: unknown): value is number => typeof value === "number" && Number.isInteger(value) && value >= 0 && value <= Number.MAX_SAFE_INTEGER;
+function attachmentCacheReport(value: unknown): value is AttachmentCache {
+  return fields(value, ["bytes", "blobBytes", "blobs", "runs", "limitBytes", "measuredAt"])
+    && count(value.bytes) && count(value.blobBytes) && value.blobBytes <= value.bytes
+    && count(value.blobs) && count(value.runs) && count(value.limitBytes) && iso(value.measuredAt);
+}
+
+/** `app` và `attachmentCache` là tùy chọn; sai dạng thì bỏ riêng trường đó, phần còn lại của bản tin vẫn được nhận. */
 export function parseMachineReport(input: unknown): MachineReport {
   let value = input;
   let app: AppReport | undefined;
-  if (object(input) && "app" in input) {
-    const { app: candidate, ...rest } = input;
+  let cache: AttachmentCache | undefined;
+  if (object(input) && ("app" in input || "attachmentCache" in input)) {
+    const { app: candidate, attachmentCache: cacheCandidate, ...rest } = input;
     value = rest;
-    if (appReport(candidate)) app = { version: candidate.version, sshdOwner: candidate.sshdOwner, updateState: candidate.updateState };
+    if ("app" in input && appReport(candidate)) app = { version: candidate.version, sshdOwner: candidate.sshdOwner, updateState: candidate.updateState };
+    if (attachmentCacheReport(cacheCandidate)) {
+      cache = { bytes: cacheCandidate.bytes, blobBytes: cacheCandidate.blobBytes, blobs: cacheCandidate.blobs, runs: cacheCandidate.runs,
+        limitBytes: cacheCandidate.limitBytes, measuredAt: cacheCandidate.measuredAt };
+    }
   }
   if (!fields(value, ["version", "companyId", "machineId", "hostname", "sentAt", "load1", "cpuCount", "memFreePct", "tccPending", "claude", "superpowers", "checks"])
     || value.version !== 1 || typeof value.companyId !== "string" || !UUID.test(value.companyId)
@@ -57,7 +73,7 @@ export function parseMachineReport(input: unknown): MachineReport {
     throw new Error("Bản tin máy không hợp lệ");
   }
   const parsed = value as unknown as MachineReport;
-  return app ? { ...parsed, app } : parsed;
+  return { ...parsed, ...(app ? { app } : {}), ...(cache ? { attachmentCache: cache } : {}) };
 }
 
 export async function handleMachineStatus(ctx: PluginContext, input: PluginWebhookInput, now = new Date()): Promise<void> {

@@ -86,7 +86,7 @@ const manifest: PaperclipPluginManifestV1 = {
   ],
   database: {
     migrationsDir: "migrations",
-    coreReadTables: ["issues", "issue_relations", "issue_comments", "heartbeat_runs", "agents", "projects"],
+    coreReadTables: ["issues", "issue_relations", "issue_comments", "heartbeat_runs", "agents", "projects", "cost_events"],
   },
   ui: {
     slots: [{

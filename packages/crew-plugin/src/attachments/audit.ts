@@ -44,11 +44,17 @@ interface Upload {
   /** `undefined` when the activity has no file metadata (runner-protocol uploads). */
   filename: string | null | undefined;
   contentType: string | undefined;
+  /** From the activity details; `null` when the activity does not carry a valid size. */
+  byteSize: number | null;
 }
 
 interface Retry { attempts: number; nextAt: number }
 interface RetryState { reads: Map<string, Retry>; comments: Map<string, Retry> }
 const retryStates = new WeakMap<object, RetryState>();
+/** Issues whose attachment list was already read for missing sizes, per worker context. */
+const sizeLookups = new WeakMap<object, Set<string>>();
+const SIZE_BATCH_ROWS = 200;
+const SIZE_BATCH_ISSUES = 20;
 
 function retryStateOf(ctx: Ctx): RetryState {
   let state = retryStates.get(ctx);
@@ -85,6 +91,7 @@ function toUpload(entry: PluginAuthorizationAuditEntry): Upload | null {
     createdAt,
     filename: hasMetadata ? (typeof details.originalFilename === "string" ? details.originalFilename : null) : undefined,
     contentType: hasMetadata ? (typeof details.contentType === "string" ? details.contentType : "") : undefined,
+    byteSize: Number.isSafeInteger(details.byteSize) && (details.byteSize as number) >= 0 ? details.byteSize as number : null,
   };
 }
 
@@ -174,9 +181,9 @@ async function auditCompany(ctx: Ctx, companyId: string, now: Date): Promise<{ c
     retry.reads.delete(upload.attachmentId);
     checked++;
     await ctx.db.execute(
-      `INSERT INTO ${table(ctx)} (attachment_id, company_id, issue_id, verdict, reason)
-       VALUES ($1, $2, $3, $4, $5) ON CONFLICT (attachment_id) DO NOTHING`,
-      [upload.attachmentId, companyId, upload.issueId, result.verdict, result.verdict === "blocked" ? result.reason : null],
+      `INSERT INTO ${table(ctx)} (attachment_id, company_id, issue_id, verdict, reason, byte_size)
+       VALUES ($1, $2, $3, $4, $5, $6) ON CONFLICT (attachment_id) DO NOTHING`,
+      [upload.attachmentId, companyId, upload.issueId, result.verdict, result.verdict === "blocked" ? result.reason : null, upload.byteSize],
     );
   }
   const seen = new Set(uploads.map((upload) => upload.attachmentId));
@@ -228,7 +235,39 @@ async function auditCompany(ctx: Ctx, companyId: string, now: Date): Promise<{ c
       }
     }
   }
+  await fillSizes(ctx, companyId);
   return { checked, warned };
+}
+
+/**
+ * Rows recorded without a size (older rows, runner-protocol uploads) get it from the issue's attachment list.
+ * An issue is read at most once per worker while some of its files stay unsized (deleted, or the list has no
+ * size), so a missing file does not cost a host call every minute.
+ */
+async function fillSizes(ctx: Ctx, companyId: string): Promise<void> {
+  const looked = sizeLookups.get(ctx) ?? new Set<string>();
+  sizeLookups.set(ctx, looked);
+  const rows = await ctx.db.query<{ attachment_id: string; issue_id: string }>(
+    `SELECT attachment_id::text, issue_id::text FROM ${table(ctx)}
+     WHERE company_id = $1 AND byte_size IS NULL ORDER BY checked_at DESC LIMIT ${SIZE_BATCH_ROWS}`, [companyId]);
+  const byIssue = new Map<string, string[]>();
+  for (const row of rows) {
+    if (looked.has(`${companyId}:${row.issue_id}`)) continue;
+    byIssue.set(row.issue_id, [...(byIssue.get(row.issue_id) ?? []), row.attachment_id]);
+  }
+  for (const [issueId, ids] of [...byIssue].slice(0, SIZE_BATCH_ISSUES)) {
+    let items: Awaited<ReturnType<Ctx["issues"]["listAttachments"]>>;
+    try { items = await ctx.issues.listAttachments(issueId, companyId); } catch { continue; }
+    const sizes = new Map(items.map((item) => [item.id.toLowerCase(), item.byteSize]));
+    let unresolved = false;
+    for (const id of ids) {
+      const size = sizes.get(id);
+      if (typeof size === "number" && Number.isSafeInteger(size) && size >= 0) {
+        await ctx.db.execute(`UPDATE ${table(ctx)} SET byte_size = $1 WHERE attachment_id = $2 AND byte_size IS NULL`, [size, id]);
+      } else unresolved = true;
+    }
+    if (unresolved) looked.add(`${companyId}:${issueId}`);
+  }
 }
 
 export async function runAttachmentsAudit(ctx: Ctx, now: Date): Promise<{ checked: number; warned: number }> {

@@ -4,7 +4,7 @@ import { afterAll, expect, it } from "vitest";
 import postgres from "../../../db/node_modules/postgres";
 import { startEmbeddedPostgresTestDatabase } from "../../../db/src/test-embedded-postgres.js";
 import type { PluginContext, PluginWebhookInput } from "@paperclipai/plugin-sdk";
-import { handleMachineStatus } from "../machines/webhook.js";
+import { handleMachineStatus, parseMachineReport } from "../machines/webhook.js";
 import { loadCrewMachines } from "../machines/data.js";
 import { validatePluginMigrationStatement, validatePluginRuntimeExecute } from "../../../../server/src/services/plugin-database.js";
 
@@ -99,3 +99,15 @@ it("stores one signed report, rejects unsafe envelopes without writes, and compu
   expect((await loadCrewMachines(ctx, otherCompany, later)).map(machine => machine.machineId)).toEqual([machineId]);
   expect((await sql`SELECT count(*)::int AS n FROM plugin_crew_core_0433ea20b6.machine_reports WHERE company_id=${otherCompany}`)[0]?.n).toBe(1);
 }, 90_000);
+
+it("keeps a valid attachmentCache and drops a malformed one", () => {
+  const cache = { bytes: 1234, blobBytes: 1000, blobs: 3, runs: 2, limitBytes: 2147483648, measuredAt: "2026-10-10T01:00:00.000Z" };
+  expect(parseMachineReport({ ...base, attachmentCache: cache }).attachmentCache).toEqual(cache);
+  expect(parseMachineReport(base)).not.toHaveProperty("attachmentCache");
+  for (const bad of [{ ...cache, bytes: -1 }, { ...cache, extra: 1 }, { ...cache, measuredAt: "hôm qua" }, { ...cache, blobBytes: 2000 },
+    { ...cache, runs: 1.5 }, { bytes: 1 }, "x", null]) {
+    const parsed = parseMachineReport({ ...base, attachmentCache: bad });
+    expect(parsed).not.toHaveProperty("attachmentCache");
+    expect(parsed.machineId).toBe(base.machineId);
+  }
+});

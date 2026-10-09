@@ -33,6 +33,10 @@ type Upload = {
   id: string; issueId: string; name: string | null; type: string; bytes?: Buffer | "throw" | null; at: number;
   /** Activity written by the runner protocol: no file name or content type in its details. */
   bare?: boolean;
+  /** `byteSize` of the activity details (default 10); `null` leaves it out. */
+  size?: number | null;
+  /** `byteSize` that `listAttachments` reports (default: none). */
+  listed?: number;
 };
 
 it("cảnh báo file đính kèm agent sẽ không đọc, mỗi file một lần, không đánh thức assignee", async () => {
@@ -49,10 +53,12 @@ it("cảnh báo file đính kèm agent sẽ không đọc, mỗi file một lầ
   const sql = postgres(database.connectionString, { max: 2, onnotice: () => {} });
   cleanup = async () => { await sql.end(); await database.cleanup(); };
   await sql.unsafe(`CREATE SCHEMA ${ns}`);
-  const migration = await readFile(new URL("../../migrations/0005_attachment_audit.sql", import.meta.url), "utf8");
-  for (const statement of migration.split(";").map((part) => part.trim()).filter(Boolean)) {
-    validatePluginMigrationStatement(statement, ns, manifest.database!.coreReadTables);
-    await sql.unsafe(statement);
+  for (const file of ["0001_docs", "0005_attachment_audit", "0008_docs_storage"]) {
+    const migration = await readFile(new URL(`../../migrations/${file}.sql`, import.meta.url), "utf8");
+    for (const statement of migration.split(";").map((part) => part.trim()).filter(Boolean)) {
+      validatePluginMigrationStatement(statement, ns, manifest.database!.coreReadTables);
+      await sql.unsafe(statement);
+    }
   }
 
   const now = new Date();
@@ -64,10 +70,11 @@ it("cảnh báo file đính kèm agent sẽ không đọc, mỗi file một lầ
     entityType: "issue", entityId: u.issueId, createdAt: new Date(u.at).toISOString(),
     details: u.bare
       ? { attachmentId: u.id, source: "paperclip_runner_protocol" }
-      : { attachmentId: u.id, originalFilename: u.name, contentType: u.type, byteSize: 10 },
+      : { attachmentId: u.id, originalFilename: u.name, contentType: u.type, ...(u.size === null ? {} : { byteSize: u.size ?? 10 }) },
   });
   const searches: { companyId: string; offset: number }[] = [];
   const contentReads: string[] = [];
+  const listCalls: string[] = [];
   const comments: unknown[][] = [];
   let failComment: string | null = null;
   const logs: unknown[] = [];
@@ -109,8 +116,9 @@ it("cảnh báo file đính kèm agent sẽ không đọc, mỗi file một lầ
       },
       listAttachments: async (issueId: string, company: string) => {
         expect(company).toBe(companyId);
+        listCalls.push(issueId);
         return uploads.filter((u) => u.issueId === issueId)
-          .map((u) => ({ id: u.id, issueId, originalFilename: u.name, contentType: u.type }));
+          .map((u) => ({ id: u.id, issueId, originalFilename: u.name, contentType: u.type, ...(u.listed === undefined ? {} : { byteSize: u.listed }) }));
       },
       createComment: async (...args: unknown[]) => {
         if (failComment === args[0]) throw new Error("issue locked");
@@ -260,6 +268,28 @@ it("cảnh báo file đính kèm agent sẽ không đọc, mỗi file một lầ
   expect(await runAttachmentsAudit(ctx, laterMs(300_000))).toEqual({ checked: 0, warned: 0 });
   expect(comments).toHaveLength(2);
   expect((await rows()).some((r) => r.attachment_id === attId(0x401))).toBe(false);
+
+  // File sizes: the activity's byteSize is stored with the verdict.
+  const sizeOf = async (id: string) =>
+    (await sql.unsafe<{ byte_size: string | null }[]>(`SELECT byte_size::text FROM ${ns}.crew_attachment_audit WHERE attachment_id = $1`, [id]))[0]?.byte_size;
+  expect(await sizeOf(attId(1))).toBe("10");
+  uploads.push({ id: attId(0x500), issueId: issueA, name: "big.md", type: "text/markdown", at: at(-700), size: 4096 });
+  await runAttachmentsAudit(ctx, laterMs(700_000));
+  expect(await sizeOf(attId(0x500))).toBe("4096");
+
+  // A row without size is filled from the attachment list once; a file the list no longer has stays NULL and
+  // its issue is not listed again by later runs of the same worker.
+  uploads.push({ id: attId(0x501), issueId: issueA, name: "late.md", type: "text/markdown", at: at(-710), size: null, listed: 777 });
+  await runAttachmentsAudit(ctx, laterMs(710_000));
+  expect(await sizeOf(attId(0x501))).toBe("777");
+  await sql.unsafe(`INSERT INTO ${ns}.crew_attachment_audit (attachment_id, company_id, issue_id, verdict) VALUES ($1, $2, $3, 'allowed')`,
+    [attId(0x502), companyId, issueB]);
+  listCalls.length = 0;
+  await runAttachmentsAudit(ctx, laterMs(720_000));
+  expect(await sizeOf(attId(0x502))).toBeNull();
+  expect(listCalls.filter((id) => id === issueB)).toHaveLength(1);
+  await runAttachmentsAudit(ctx, laterMs(730_000));
+  expect(listCalls.filter((id) => id === issueB)).toHaveLength(1);
 
   // The registered job handler runs the same audit and never throws on a failing company.
   (ctx.authorization.audit as { search: unknown }).search = async () => { throw new Error("db down tool.zip"); };
