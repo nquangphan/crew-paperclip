@@ -3,6 +3,7 @@ import { registerRunCancelledHandler } from "./run-cancelled.js";
 import { registerFeatures } from "./features.js";
 import { dispatchCrewWebhook } from "./shared/webhook.js";
 import { handleRolesApi } from "./roles/api.js";
+import { registerAttachmentsAudit } from "./attachments/audit.js";
 
 // onApiRequest receives no context, so keep the one handed to setup.
 let pluginCtx: PluginContext | undefined;
@@ -12,6 +13,7 @@ const plugin = definePlugin({
     pluginCtx = ctx;
     registerRunCancelledHandler(ctx);
     registerFeatures(ctx);
+    registerAttachmentsAudit(ctx);
   },
   onWebhook: dispatchCrewWebhook,
   onApiRequest: async (input) => {

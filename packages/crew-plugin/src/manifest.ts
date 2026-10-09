@@ -28,6 +28,10 @@ const manifest: PaperclipPluginManifestV1 = {
     "ui.sidebar.register",
     "ui.dashboardWidget.register",
     "api.routes.register",
+    "companies.read",
+    "issue.attachments.read",
+    "jobs.schedule",
+    "authorization.audit.read",
   ],
   entrypoints: {
     worker: "./dist/worker.js",
@@ -60,6 +64,12 @@ const manifest: PaperclipPluginManifestV1 = {
       },
     },
   },
+  jobs: [{
+    jobKey: "attachments-audit",
+    displayName: "Kiểm file đính kèm",
+    description: "Cảnh báo file đính kèm agent sẽ không đọc",
+    schedule: "* * * * *",
+  }],
   webhooks: [
     { endpointKey: "machine-status", displayName: "Crew machine status" },
     { endpointKey: "docs-snapshot", displayName: "Crew docs snapshot" },
