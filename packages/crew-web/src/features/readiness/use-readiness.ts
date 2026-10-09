@@ -1,7 +1,7 @@
 // Ghép dữ liệu REST Paperclip và plugin crew.core rồi tính trạng thái sẵn sàng cho mọi project của một company.
 import { type UseQueryResult, useQuery } from '@tanstack/react-query';
 import { INSTRUCTIONS_PATH, sha256Hex } from '@/lib/instructions';
-import { matchesAssistantTemplate } from './assistant-instructions';
+import { matchesAssistantTemplate, matchesRoleTemplate } from './assistant-instructions';
 import {
   type AgentReadiness,
   computeAgentReadiness,
@@ -14,7 +14,7 @@ import {
   type ReadinessSetupRun,
 } from './compute';
 
-type SetupRunRow = ReadinessSetupRun & { machineId?: string; updatedAt?: string };
+type SetupRunRow = ReadinessSetupRun & { machineId?: string; updatedAt?: string; projectId?: string | null };
 type IssueRow = { id: string; parentId?: string | null; assigneeAgentId?: string | null };
 
 /** Phần của `api` (src/api) mà readiness đọc; `api` của web khớp kiểu này. */
@@ -132,10 +132,12 @@ export async function loadProjectReadiness(source: ReadinessSource, companyId: s
         try {
           const file = await source.agents.instructionsFile(agent.id, INSTRUCTIONS_PATH, companyId);
           instructionsHash = file.contentHash ?? (await sha256Hex(file.content));
-          // Sửa vai trò render lại AGENTS.md của Trợ Lý nhưng hash trong setup run giữ nguyên: so với bản render kỳ vọng.
+          // Hash trong setup run lỗi thời sau khi sửa vai trò (Trợ Lý) hay "Render lại" theo template mới: so với bản
+          // render kỳ vọng.
           const roles = perProject.find((p) => p.roles?.assistantAgentId === agent.id)?.roles;
-          instructionsRendered =
-            roles != null && matchesAssistantTemplate(file.content, agent.id, roles.executorAgentIds);
+          instructionsRendered = roles
+            ? matchesAssistantTemplate(file.content, agent.id, roles.executorAgentIds)
+            : matchesRoleTemplate(file.content, agent.id, roleOf.get(agent.id) ?? '');
         } catch (error) {
           if (statusOf(error) !== 404) throw error;
         }
@@ -166,6 +168,9 @@ export async function loadProjectReadiness(source: ReadinessSource, companyId: s
       project,
       roles: entry?.roles ?? null,
       fileRoles: entry?.fileRoles ?? false,
+      settingUp: setupRuns.some(
+        (run) => run.kind === 'add-project' && run.projectId === project.id && run.status !== 'done',
+      ),
       agents: agentsOf,
     });
   });

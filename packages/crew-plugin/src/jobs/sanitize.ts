@@ -25,12 +25,22 @@ const ANSI = /\x1b\[[0-9;?]*[ -/]*[@-~]/g;
 // Control characters except tab and newline, which keep multi-line git output readable.
 // biome-ignore lint/suspicious/noControlCharactersInRegex: control characters are what is removed
 const CONTROL = /[\x00-\x08\x0b-\x1f\x7f]/g;
+/**
+ * `scheme://user:pass@` in a URL (git prints a remote with its credentials to stderr). The userinfo runs to the LAST
+ * `@` before the first `/`, since a password may itself contain `@`. scp-style `git@host:path` has no `://` and stays.
+ */
+const URL_USERINFO = /\b([a-z][a-z0-9+.-]*:\/\/)[^/\s'"]*@/gi;
 export const REDACTED = "[ĐÃ CHE]";
+
+/** Masks the userinfo part of every URL in the text. */
+export function maskUrlUserinfo(text: string): string {
+  return text.replace(URL_USERINFO, `$1${REDACTED}@`);
+}
 export const JOB_ERROR_MAX = 300;
 
 /** Makes an error text from a Mac safe to store and show: no terminal codes, no credentials, at most 300 characters. */
 export function sanitizeJobError(text: string): string {
-  let clean = text.replace(ANSI, "").replace(CONTROL, "");
+  let clean = maskUrlUserinfo(text.replace(ANSI, "").replace(CONTROL, ""));
   for (const pattern of SECRET_PATTERNS) clean = clean.replace(pattern, REDACTED);
   const chars = Array.from(clean.trim());
   return chars.length > JOB_ERROR_MAX ? chars.slice(0, JOB_ERROR_MAX).join("") : chars.join("");

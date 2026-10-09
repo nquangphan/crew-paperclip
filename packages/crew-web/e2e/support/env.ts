@@ -23,8 +23,11 @@ export function baseUrl(): string {
   return process.env.CREW_E2E_BASE_URL ?? (tier() === 't1' ? T1_BASE_URL : PROD_BASE_URL);
 }
 
+const LOCAL_HOSTS = new Set(['localhost', '127.0.0.1', '[::1]']);
+
+/** Mọi địa chỉ không phải máy cục bộ coi là prod (alias, dấu chấm cuối, IP không làm tắt các chặn ghi). */
 export function isProd(): boolean {
-  return new URL(baseUrl()).hostname === new URL(PROD_BASE_URL).hostname;
+  return !LOCAL_HOSTS.has(new URL(baseUrl()).hostname.toLowerCase());
 }
 
 function required(name: string): string {

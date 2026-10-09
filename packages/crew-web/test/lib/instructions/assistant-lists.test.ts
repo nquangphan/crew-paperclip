@@ -22,3 +22,13 @@ describe('assistantListsOf', () => {
     expect(assistantListsOf('')).toEqual({ executorIds: [], bmadIds: [] });
   });
 });
+
+describe('bmadIdsOf của readiness', () => {
+  it('đọc giống assistantListsOf khi tiêu đề mục BMAD xuất hiện cả trong thân file', async () => {
+    const { bmadIdsOf } = await import('@/features/readiness/assistant-instructions');
+    const rendered = renderInstructions('assistant', { agentId: A, executorIds: [E1], bmadIds: [B1] });
+    const content = `Ghi chú: mục "## Agent BMAD của company" ở cuối, ví dụ ${E2}.\n${rendered}`;
+    expect(bmadIdsOf(content)).toEqual(assistantListsOf(content).bmadIds);
+    expect(bmadIdsOf(content)).toEqual([B1]);
+  });
+});

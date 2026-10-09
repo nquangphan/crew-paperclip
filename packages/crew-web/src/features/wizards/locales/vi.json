@@ -37,7 +37,15 @@
     "continue": "Chạy tiếp",
     "done": "Đã thêm project xong.",
     "openProject": "Mở project",
-    "environmentDescription": "Checkout {{role}} của project {{project}} trên Mac"
+    "environmentDescription": "Checkout {{role}} của project {{project}} trên Mac",
+    "abandon": {
+      "button": "Bỏ lần dở",
+      "title": "Bỏ lần thêm project này?",
+      "body": "Lần này chưa tạo project nên không có gì để dọn. Sau khi bỏ, khóa {{key}} dùng lại được để thêm project với máy hoặc folder khác. Không xóa gì.",
+      "failed": "Không bỏ được lần thêm project"
+    },
+    "abandoned": "Lần thêm project này đã bỏ. Thêm lại project từ đầu.",
+    "startOver": "Thêm project"
   },
   "addAgent": {
     "title": "Tạo agent",
@@ -60,6 +68,7 @@
       "noMachines": "Chưa có máy nào báo về company này.",
       "key": "Khóa project",
       "keyHint": "Khóa của project trên máy (tên thư mục trong ~/crew-agents).",
+      "keyLocked": "Lấy từ project đã chọn, không sửa được: checkout và environment của agent dựng theo khóa này.",
       "folder": "Folder repo trên máy",
       "folderHint": "Repo gốc của project trên máy; checkout của agent tạo từ repo này.",
       "submit": "Bắt đầu",

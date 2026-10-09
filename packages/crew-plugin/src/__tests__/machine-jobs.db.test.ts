@@ -275,6 +275,58 @@ describe("machine job queue on the real host database", () => {
     expect(listed?.result).toEqual(checkResult);
   });
 
+  it("result kiểm dạng theo loại việc", async () => {
+    const job = await create();
+    await call(request("jobs.claim", { body: { companyId, machineId: machine1 } }));
+    const send = (result: unknown) => call(request("jobs.result", { jobId: job.id, body: { companyId, machineId: machine1, status: "done", result } }));
+    expect(await send({ kind: "inspect-folder", root: "/Users/a/repo" })).toEqual({ status: 400, body: { error: "result không hợp lệ" } });
+    const ok = await send({ kind: "inspect-folder", root: "/Users/a/repo", branch: null, remote: "https://u:p@h.com/r.git", docsBundle: null, clean: false });
+    expect(ok.body).toMatchObject({ status: "done", result: { remote: "https://[ĐÃ CHE]@h.com/r.git" } });
+    expect(JSON.stringify(await row(job.id))).not.toContain("u:p@");
+
+    const check = await call(request("jobs.create", { body: { companyId, machineId: machine1, kind: "check", payload: { projectKey: "demo" } } }));
+    await call(request("jobs.claim", { body: { companyId, machineId: machine1 } }));
+    expect(await call(request("jobs.result", { jobId: (check.body as MachineJob).id, body: {
+      companyId, machineId: machine1, status: "failed", errorCode: "check_failed", result: { kind: "check", items: "x" },
+    } }))).toEqual({ status: 400, body: { error: "result không hợp lệ" } });
+  });
+
+  it("kết quả của lần nhận cũ tới sau khi việc đã được nhận lại thì bị từ chối", async () => {
+    const job = await create();
+    const t0 = new Date(Date.now() - 20 * 60_000);
+    const firstClaim = await claimNextJob(host.ctx, companyId, machine1, t0);
+    await expireLease(job.id);
+    const second = (await call(request("jobs.claim", { body: { companyId, machineId: machine1 } }))).body as MachineJob;
+    expect(second.claimedAt).not.toBe(firstClaim!.claimedAt);
+    const done = { status: "done", result: { kind: "inspect-folder", root: "/r", branch: null, remote: null, docsBundle: null, clean: true } };
+    const send = (extra: Record<string, unknown>) =>
+      call(request("jobs.result", { jobId: job.id, body: { companyId, machineId: machine1, ...done, ...extra } }));
+    expect(await send({ claimedAt: firstClaim!.claimedAt })).toEqual({ status: 409, body: { error: "Việc đã được nhận lại" } });
+    expect(await send({ claimedAt: "hôm qua" })).toEqual({ status: 400, body: { error: "claimedAt không hợp lệ" } });
+    expect((await row(job.id)).status).toBe("claimed");
+    expect((await send({ claimedAt: second.claimedAt })).body).toMatchObject({ status: "done" });
+  });
+
+  it("app cũ không gửi claimedAt vẫn báo được kết quả", async () => {
+    const job = await create();
+    await call(request("jobs.claim", { body: { companyId, machineId: machine1 } }));
+    expect((await call(request("jobs.result", { jobId: job.id, body: {
+      companyId, machineId: machine1, status: "done",
+      result: { kind: "inspect-folder", root: "/r", branch: null, remote: null, docsBundle: null, clean: true },
+    } }))).status).toBe(200);
+  });
+
+  it("việc gắn lần cài đặt phải dùng đúng khóa project của lần đó", async () => {
+    const runId = "60000000-0000-4000-8000-0000000000bb";
+    await host.sql.unsafe(`INSERT INTO ${host.ns}.crew_setup_runs (id, company_id, kind, project_key, machine_id, input, created_by_user_id)
+      VALUES ($1, $2, 'add-project', 'demo', $3, '{"name":"Demo","key":"demo","folder":"/r","executors":1}'::jsonb, 'u')`, [runId, companyId, machine1]);
+    const body = (projectKey: string) => ({ companyId, machineId: machine1, kind: "check", payload: { projectKey }, setupRunId: runId });
+    expect(await call(request("jobs.create", { body: body("demo-b") }))).toEqual({ status: 400, body: { error: "projectKey không khớp lần cài đặt" } });
+    expect((await call(request("jobs.create", { body: body("demo") }))).status).toBe(201);
+    // Jobs without a project key are not tied to it.
+    expect((await call(request("jobs.create", { body: inspectBody({ setupRunId: runId }) }))).status).toBe(201);
+  });
+
   it("retry chỉ nhận việc failed, cancel chỉ nhận việc chưa xong", async () => {
     const job = await create();
     const retry = (id: string, company = companyId) => call(request("jobs.retry", { jobId: id, company, body: { companyId: company } }));

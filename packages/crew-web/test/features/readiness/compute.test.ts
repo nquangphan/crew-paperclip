@@ -166,7 +166,7 @@ describe('computeAgentReadiness', () => {
         input({ setupRun: run({ agent_executor: AGENT, instructions_executor: 'c'.repeat(64) }) }),
       );
       expect(r.failed).toEqual([
-        { id: 'A3', detail: 'detail.A3', resume: { wizard: 'add-agent', step: 'pin', agentId: AGENT } },
+        { id: 'A3', detail: 'detail.A3', resume: { wizard: 'add-agent', step: 'pin', agentId: AGENT, rewrite: true } },
       ]);
     });
 
@@ -196,6 +196,19 @@ describe('computeAgentReadiness', () => {
     it('không có file AGENTS.md → A3', () => {
       expect(ids(computeAgentReadiness(input({ instructionsHash: null })))).toEqual(['A3']);
     });
+  });
+
+  it('agent của vai trò file: báo mục hỏng nhưng không có lối "Làm tiếp" (wizard không sửa được vai trò file)', () => {
+    const a = agent();
+    const r = computeAgentReadiness(
+      input({
+        roleOf: 'file',
+        instructionsHash: null,
+        agent: { ...a, adapterConfig: { ...a.adapterConfig, engine: 'acp' } },
+      }),
+    );
+    expect(ids(r)).toEqual(['A1', 'A3']);
+    expect(r.failed.every((f) => 'none' in f.resume)).toBe(true);
   });
 
   describe('A4 environment', () => {
@@ -358,10 +371,16 @@ describe('computeProjectReadiness', () => {
     expect(r).toEqual({ projectId: 'p1', state: 'ready', failed: [], agents: [ready('x1'), ready('x2')] });
   });
 
-  it('không có vai trò và không có vai trò file → not_ready P1', () => {
-    const r = computeProjectReadiness({ project, roles: null, fileRoles: false, agents: [] });
+  it('đang thêm bằng wizard (lần thêm project dở) mà chưa có vai trò → not_ready P1', () => {
+    const r = computeProjectReadiness({ project, roles: null, fileRoles: false, settingUp: true, agents: [] });
     expect(r.state).toBe('not_ready');
     expect(r.failed).toEqual([{ id: 'P1', detail: 'detail.P1' }]);
+  });
+
+  it('không có vai trò, không có yêu cầu Crew, không đang thêm → untracked (project vai trò file chưa có việc)', () => {
+    const r = computeProjectReadiness({ project, roles: null, fileRoles: false, agents: [] });
+    expect(r.state).toBe('untracked');
+    expect(r.failed).toEqual([]);
   });
 
   it('project đã lưu trữ → untracked', () => {

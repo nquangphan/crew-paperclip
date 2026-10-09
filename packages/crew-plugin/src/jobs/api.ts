@@ -3,7 +3,8 @@ import { UUID } from "../shared/db.js";
 import { cancelJob, claimNextJob, finishJob, getJob, insertJob, type JobOutcome, listJobs, retryJob } from "./data.js";
 import { sanitizeJobError } from "./sanitize.js";
 import { JOB_ERROR_CODES, type JobErrorCode, type JobResult, MACHINE_JOB_STATUSES, type MachineJobKind, type MachineJobStatus } from "./types.js";
-import { unknownKeyError, validateJobPayload } from "./validate.js";
+import { getSetupRun } from "../setup/data.js";
+import { unknownKeyError, validateJobPayload, validateJobResult } from "./validate.js";
 
 type Ctx = Pick<PluginContext, "db" | "logger">;
 const JOBS_ERROR = "Không đọc/ghi được việc trên máy";
@@ -112,6 +113,11 @@ async function createRoute(ctx: Ctx, input: PluginApiRequestInput, company: stri
   if (setupRunId !== null && !uuid(setupRunId)) return bad("setupRunId phải là uuid");
   const payload = validateJobPayload(body.kind as MachineJobKind, body.payload);
   if (typeof payload === "string") return bad(payload);
+  if (setupRunId !== null && "projectKey" in payload) {
+    // A wizard job works on the project its setup run is for: the key decides where checkouts land on the Mac.
+    const run = await getSetupRun(ctx, company, setupRunId.toLowerCase());
+    if (run && run.projectKey !== payload.projectKey) return bad("projectKey không khớp lần cài đặt");
+  }
   const job = await insertJob(ctx, {
     companyId: company, machineId: body.machineId.toLowerCase(), payload,
     setupRunId: setupRunId?.toLowerCase() ?? null, createdByUserId: actorUser(input),
@@ -123,10 +129,18 @@ async function createRoute(ctx: Ctx, input: PluginApiRequestInput, company: stri
 async function resultRoute(
   ctx: Ctx, input: PluginApiRequestInput, company: string, id: string, now: Date,
 ): Promise<PluginApiResponse> {
-  const body = parseBody(input, ["companyId", "machineId", "status", "result", "errorCode", "errorText"]);
+  const body = parseBody(input, ["companyId", "machineId", "claimedAt", "status", "result", "errorCode", "errorText"]);
   if (typeof body === "string") return bad(body);
   if (!uuid(body.machineId)) return bad("machineId phải là uuid");
   const machineId = body.machineId.toLowerCase();
+  // Optional so an app that predates it still reports; when sent, a result from an earlier claim of a job that was
+  // claimed again after its lease expired is refused.
+  let claimedAt: string | null = null;
+  if (body.claimedAt !== undefined) {
+    const time = typeof body.claimedAt === "string" ? Date.parse(body.claimedAt) : Number.NaN;
+    if (Number.isNaN(time)) return bad("claimedAt không hợp lệ");
+    claimedAt = new Date(time).toISOString();
+  }
   let outcome: JobOutcome;
   if (body.status === "done") {
     if (body.errorCode !== undefined || body.errorText !== undefined) return bad("errorCode chỉ gửi khi status là failed");
@@ -155,11 +169,19 @@ async function resultRoute(
   if (!job) return NOT_FOUND;
   if (job.status !== "claimed") return conflict("Việc không ở trạng thái đang nhận");
   if (job.machineId !== machineId) return conflict("Việc đang do máy khác nhận");
+  if (claimedAt !== null && job.claimedAt !== claimedAt) return conflict("Việc đã được nhận lại");
   if (outcome.status === "done" && outcome.result.kind !== job.kind) return bad("result không khớp loại việc");
   if (outcome.status === "failed" && outcome.result) {
     if (job.kind !== "check") return bad("result chỉ gửi khi status là done, hoặc failed của việc check");
     if (outcome.result.kind !== "check") return bad("result không khớp loại việc");
   }
-  if (!await finishJob(ctx, company, id, machineId, outcome, now)) return conflict("Việc không ở trạng thái đang nhận");
+  if (outcome.result) {
+    const result = validateJobResult(job.kind, outcome.result as unknown as Record<string, unknown>);
+    if (typeof result === "string") return bad(result);
+    outcome.result = result;
+  }
+  if (!await finishJob(ctx, company, id, machineId, outcome, now, claimedAt)) {
+    return conflict(claimedAt === null ? "Việc không ở trạng thái đang nhận" : "Việc đã được nhận lại");
+  }
   return { status: 200, body: await getJob(ctx, company, id) };
 }

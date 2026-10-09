@@ -8,7 +8,8 @@ export type ProjectCheckId = 'P1' | 'P2';
 /** Bước wizard để "Làm tiếp" (cùng tên bước với tiến độ wizard của plugin). */
 export type ReadinessStep = 'agent' | 'pin' | 'environment' | 'workspace' | 'role';
 export type ResumeTarget =
-  | { wizard: 'add-agent'; step: ReadinessStep; agentId: string }
+  /** `rewrite`: AGENTS.md lệch (A3), wizard ghi lại file của agent có sẵn; không có thì giữ phần owner sửa tay. */
+  | { wizard: 'add-agent'; step: ReadinessStep; agentId: string; rewrite?: true }
   | { wizard: 'add-project'; setupRunId: string }
   | { none: true };
 
@@ -76,7 +77,10 @@ export interface AgentReadinessInput {
   environment: ReadinessEnvironment | null;
   /** Bản tin mới nhất của máy chạy agent; null khi chưa có bản tin nào. */
   report: ReadinessReport | null;
-  /** Ô vai trò agent đang giữ (`assistant`, `executor-2`, …, `file` cho vai trò trong file); null nếu không giữ. */
+  /**
+   * Ô vai trò agent đang giữ (`assistant`, `executor-2`, …, `file` cho vai trò trong file); null nếu không giữ. Agent
+   * vai trò file không có lối "Làm tiếp": wizard tạo agent cần dòng vai trò của project.
+   */
   roleOf: string | null;
   /** Setup run gần nhất đã tạo agent này; null với agent do app tạo. */
   setupRun: ReadinessSetupRun | null;
@@ -167,10 +171,11 @@ export function computeAgentReadiness(input: AgentReadinessInput): AgentReadines
     };
   }
   const unfinishedRun = setupRun && setupRun.kind === 'add-project' && setupRun.status !== 'done' ? setupRun : null;
-  const resumeFor = (id: Exclude<AgentCheckId, 'A7'>): ResumeTarget =>
-    unfinishedRun
-      ? { wizard: 'add-project', setupRunId: unfinishedRun.id }
-      : { wizard: 'add-agent', step: RESUME_STEP[id], agentId: agent.id };
+  const resumeFor = (id: Exclude<AgentCheckId, 'A7'>): ResumeTarget => {
+    if (unfinishedRun) return { wizard: 'add-project', setupRunId: unfinishedRun.id };
+    if (roleOf === 'file') return { none: true };
+    return { wizard: 'add-agent', step: RESUME_STEP[id], agentId: agent.id, ...(id === 'A3' ? { rewrite: true } : {}) };
+  };
   const failed: AgentCheckFailure[] = [];
   const fail = (id: Exclude<AgentCheckId, 'A7'>) => failed.push({ id, detail: `detail.${id}`, resume: resumeFor(id) });
 
@@ -212,11 +217,16 @@ export function computeProjectReadiness(input: {
   project: { id: string; archivedAt?: string | Date | null };
   roles: ReadinessProjectRoles | null;
   fileRoles: boolean;
+  /** Có lần thêm project (wizard) chưa xong trỏ tới project. */
+  settingUp?: boolean;
   agents: AgentReadiness[];
 }): ProjectReadiness {
   const { project, roles, fileRoles, agents } = input;
   if (project.archivedAt) return { projectId: project.id, state: 'untracked', failed: [], agents };
   if (!roles && !fileRoles) {
+    // Chưa có vai trò: đang thêm bằng wizard thì là chưa xong (P1); còn lại (project vai trò file chưa có yêu cầu Crew
+    // nào, project ngoài Crew) web không biết vai trò nên không theo dõi.
+    if (!input.settingUp) return { projectId: project.id, state: 'untracked', failed: [], agents };
     return { projectId: project.id, state: 'not_ready', failed: [{ id: 'P1', detail: 'detail.P1' }], agents };
   }
   const byId = new Map(agents.map((a) => [a.agentId, a]));
