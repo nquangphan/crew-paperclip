@@ -1,5 +1,5 @@
 import { expect, it } from "vitest";
-import { DOCS_STATE_LABEL, filterGraph, flowsOfFile, layoutGraph, manifestNotice, nodeLabel } from "./model.js";
+import { DOCS_STATE_LABEL, filterGraph, flowOptions, flowsOfFile, layoutGraph, manifestNotice, nodeLabel } from "./model.js";
 
 const graph = { nodes: [
   { id: "project:p", kind: "project", label: "P", ref: {} }, { id: "flow:a", kind: "flow", label: "A", ref: {} },
@@ -37,4 +37,18 @@ it("explains each manifest state except ok", () => {
 it("lists the flows a file belongs to", () => {
   expect(flowsOfFile(graph, "file:f")).toEqual(["A"]);
   expect(flowsOfFile(graph, "file:none")).toEqual([]);
+});
+
+it("keeps every flow of the snapshot in the picker after narrowing to one flow", () => {
+  const flow = (id: string, label: string) => ({ id: `flow:${id}`, kind: "flow", label, ref: { flowId: id } });
+  const view = (snapshotId: string, flowId: string | null, flows: ReturnType<typeof flow>[]) =>
+    ({ snapshot: { snapshotId }, flowId, nodes: [{ id: "project:p", kind: "project", label: "P", ref: {} }, ...flows] }) as never;
+  const all = flowOptions(null, view("s1", null, [flow("a", "A"), flow("b", "B")]));
+  expect(all.options).toEqual([{ flowId: "a", label: "A" }, { flowId: "b", label: "B" }]);
+  const narrowed = flowOptions(all, view("s1", "a", [flow("a", "A")]));
+  expect(narrowed.options.map((o) => o.flowId)).toEqual(["a", "b"]);
+  // Another snapshot, or a narrowed first load, only knows what the server sent.
+  expect(flowOptions(all, view("s2", "a", [flow("a", "A")])).options.map((o) => o.flowId)).toEqual(["a"]);
+  expect(flowOptions(null, view("s1", "c", [flow("c", "C")])).options.map((o) => o.flowId)).toEqual(["c"]);
+  expect(flowOptions(narrowed, view("s1", "c", [flow("c", "C")])).options.map((o) => o.flowId)).toEqual(["a", "b", "c"]);
 });

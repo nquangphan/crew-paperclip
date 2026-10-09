@@ -4,6 +4,8 @@ import { loadDocsGraph } from "./graph-data.js";
 
 const one = (value: unknown): unknown => (Array.isArray(value) ? value[0] : value);
 const text = (value: unknown) => (typeof value === "string" && value !== "" ? value : undefined);
+/** Errors this route raises on bad input or scope; anything else is internal (may carry SQL) and stays in the log. */
+const CALLER_ERRORS = new Set(["ID không hợp lệ", "flowId không hợp lệ", "Snapshot không thuộc dự án", "Dự án không thuộc company hiện tại"]);
 
 /**
  * Agent and board route for the docs graph. The host resolved the company from the actor; a `companyId` query
@@ -27,7 +29,9 @@ export async function handleDocsApi(
     });
     return graph ? { status: 200, body: graph } : { status: 404, body: { error: "Dự án chưa có tài liệu" } };
   } catch (error) {
-    ctx.logger.warn("crew docs graph request failed", { err: error instanceof Error ? error.message : String(error) });
-    return { status: 400, body: { error: String((error as Error)?.message ?? error).slice(0, 200) } };
+    const message = error instanceof Error ? error.message : String(error);
+    if (CALLER_ERRORS.has(message)) return { status: 400, body: { error: message } };
+    ctx.logger.warn("crew docs graph request failed", { err: message });
+    return { status: 500, body: { error: "Không đọc được đồ thị docs" } };
   }
 }

@@ -149,6 +149,18 @@ describe("docs graph and status on the real host database", () => {
     expect((await handleDocsApi(host.ctx, request({ companyId, projectId: sameCompanyProject, snapshotId: String(foreign[0]?.id) })))?.status).toBe(400);
     expect(await loadDocsGraph(host.ctx, companyId, emptyProject)).toBeNull();
     expect((await handleDocsApi(host.ctx, request({ companyId, projectId: emptyProject })))?.status).toBe(404);
+    expect((await handleDocsApi(host.ctx, request({ companyId, projectId: sameCompanyProject, snapshotId: String(foreign[0]?.id) })))?.body)
+      .toEqual({ error: "Snapshot không thuộc dự án" });
+  });
+
+  it("answers a generic message for an internal database error and keeps the detail in the server log", async () => {
+    const internal = `Failed query: SELECT s.id FROM ${host.ns}.docs_snapshots s WHERE s.company_id = $1`;
+    const broken = { ...host.ctx, db: { ...host.ctx.db, query: async () => { throw new Error(internal); } } } as unknown as PluginContext;
+    host.warnings.length = 0;
+    const response = await handleDocsApi(broken, request({ companyId, projectId }));
+    expect(response).toEqual({ status: 500, body: { error: "Không đọc được đồ thị docs" } });
+    expect(JSON.stringify(response)).not.toContain(host.ns);
+    expect(JSON.stringify(host.warnings)).toContain(internal);
   });
 
   it("marks the docs stale only for an agent's pushed commit that no snapshot has seen", async () => {

@@ -56,3 +56,19 @@ export function flowsOfFile(graph: Pick<DocsGraph, "nodes" | "edges">, fileId: s
   const flows = new Map(graph.nodes.filter((node) => node.kind === "flow").map((node) => [node.id, node.label]));
   return graph.edges.filter((edge) => edge.to === fileId && flows.has(edge.from)).map((edge) => flows.get(edge.from) as string);
 }
+
+export interface FlowOption { flowId: string; label: string }
+export interface FlowOptions { snapshotId: string; options: FlowOption[] }
+
+/**
+ * Lựa chọn của ô Flow. Server chỉ trả flow đang chọn khi đã thu hẹp, nên giữ danh sách của lần xem "Tất cả flow"
+ * cùng ảnh chụp; đổi ảnh chụp thì chỉ tin những gì server vừa trả.
+ */
+export function flowOptions(previous: FlowOptions | null, graph: Pick<DocsGraph, "snapshot" | "flowId" | "nodes">): FlowOptions {
+  const current = graph.nodes.filter((node) => node.kind === "flow" && node.ref.flowId)
+    .map((node) => ({ flowId: node.ref.flowId as string, label: node.label }));
+  const snapshotId = graph.snapshot.snapshotId;
+  if (graph.flowId === null || !previous || previous.snapshotId !== snapshotId) return { snapshotId, options: current };
+  const known = new Set(previous.options.map((option) => option.flowId));
+  return { snapshotId, options: [...previous.options, ...current.filter((option) => !known.has(option.flowId))] };
+}

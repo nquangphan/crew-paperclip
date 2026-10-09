@@ -245,6 +245,33 @@ describe("content-addressed docs snapshots", () => {
     expect(await n("docs_snapshots", `commit = '${A}' AND project_id = '${projectId}'`)).toBe(1);
   });
 
+  it("lets the previous plugin's webhook delete an old snapshot that docs_commits still points at", async () => {
+    await reset();
+    await receive(v2(A));
+    await receive(v2(B, editedB()));
+    const snapshotA = await idOf(A);
+    await host.sql.unsafe(`UPDATE ${host.ns}.docs_snapshots SET received_at = now() - interval '1 day' WHERE id = $1`, [snapshotA]);
+    // Verbatim cleanup of the webhook shipped before 0008: every non-current snapshot older than 10 minutes goes.
+    const ns = host.ns;
+    await expect(host.ctx.db.execute(`
+    DELETE FROM ${ns}.docs_snapshots s
+    WHERE s.company_id = $1 AND s.project_id = $2
+      AND s.received_at < now() - interval '10 minutes'
+      AND NOT EXISTS (SELECT 1 FROM ${ns}.docs_current c WHERE c.snapshot_id = s.id)
+  `, [companyId, projectId])).resolves.toBeDefined();
+    expect(await n("docs_snapshots", `id = '${snapshotA}'`)).toBe(0);
+    const rows = await host.sql.unsafe(`SELECT sha, first_snapshot_id FROM ${host.ns}.docs_commits WHERE project_id = $1 ORDER BY sha`, [projectId]);
+    expect(rows.map((r) => [r.sha, r.first_snapshot_id])).toEqual([[A, null], [B, await idOf(B)]]);
+    expect(await n("docs_commit_files", `sha = '${A}'`)).toBe(2);
+    // The current plugin keeps working on top of a commit row whose first snapshot is gone.
+    await receive(v2(C, editedB(), { commits: { base: B, truncated: false, items: [
+      { sha: C, merge: false, paths: [] }, { sha: A, merge: false, paths: ["src/c.ts"] }] } }));
+    expect((await loadDocsTree(host.ctx, projectId, companyId))?.commit).toBe(C);
+    expect((await loadDocsHistory(host.ctx, projectId, companyId)).map((item) => item.commit)).toEqual([C, B]);
+    expect(await n("docs_commits", `sha = '${A}' AND first_snapshot_id IS NULL`)).toBe(1);
+    expect(await n("docs_commit_files", `sha = '${A}'`)).toBe(3);
+  });
+
   it("keeps physical storage far below logical storage over 200 snapshots", async () => {
     await reset();
     const filler = "x".repeat(600);

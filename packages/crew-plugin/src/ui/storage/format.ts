@@ -12,7 +12,12 @@ export function formatBytes(bytes: number): string {
 
 const KIND_LABEL = { logic: "logic", vat_ly: "vật lý" } as const;
 
-/** Mỗi số ghi rõ đo kiểu nào; số chưa đo không bao giờ thành 0. */
-export function formatMeasured(value: Measured): string {
-  return value.kind === "chua_do" ? "Chưa đo" : `${formatBytes(value.bytes)} (${KIND_LABEL[value.kind]})`;
+/**
+ * Mỗi số ghi rõ đo kiểu nào; số chưa đo không bao giờ thành 0. `lowerBound` khi tổng bỏ sót mục chưa có cỡ.
+ */
+export function formatMeasured(value: Measured, opts: { lowerBound?: boolean } = {}): string {
+  if (value.kind === "chua_do") return "Chưa đo";
+  return opts.lowerBound
+    ? `≥ ${formatBytes(value.bytes)} (${KIND_LABEL[value.kind]}, cận dưới)`
+    : `${formatBytes(value.bytes)} (${KIND_LABEL[value.kind]})`;
 }

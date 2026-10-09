@@ -1,9 +1,9 @@
-import { createElement as h, useState } from "react";
+import { createElement as h, useRef, useState } from "react";
 import { Background, Controls, ReactFlow } from "@xyflow/react";
 import { ErrorBoundary, Spinner, useHostNavigation, usePluginData } from "@paperclipai/plugin-sdk/ui";
 import css from "@xyflow/react/dist/style.css";
 import type { DocsGraph, GraphNodeKind } from "../../docs/graph.js";
-import { EDGE_KIND_LABEL, filterGraph, flowsOfFile, layoutGraph, manifestNotice, NODE_KIND_LABEL, nodeLabel, TRUNCATED_NOTICE } from "./model.js";
+import { EDGE_KIND_LABEL, filterGraph, type FlowOptions, flowOptions, flowsOfFile, layoutGraph, manifestNotice, NODE_KIND_LABEL, nodeLabel, TRUNCATED_NOTICE } from "./model.js";
 
 const KINDS = Object.keys(NODE_KIND_LABEL) as GraphNodeKind[];
 const graphCss = `
@@ -18,6 +18,7 @@ function GraphContent({ projectId, snapshotId, onOpenPage }: { projectId: string
   const [flowId, setFlowId] = useState<string>("");
   const [kinds, setKinds] = useState<ReadonlySet<GraphNodeKind>>(new Set(KINDS));
   const [fileId, setFileId] = useState<string | null>(null);
+  const knownFlows = useRef<FlowOptions | null>(null);
   const result = usePluginData<DocsGraph | null>("crew.docs.graph", { projectId, snapshotId, flowId: flowId || undefined });
   if (result.loading) return h("p", { role: "status" }, h(Spinner, null), " Đang tải đồ thị docs…");
   if (result.error) return h("p", { role: "alert" }, `Không tải được đồ thị docs: ${result.error.message}`);
@@ -35,7 +36,8 @@ function GraphContent({ projectId, snapshotId, onOpenPage }: { projectId: string
     id: edge.id, source: edge.from, target: edge.to,
     label: edge.kind === "ticket-flow" && edge.files ? `${EDGE_KIND_LABEL[edge.kind]} (${edge.files} file)` : EDGE_KIND_LABEL[edge.kind],
   }));
-  const flows = graph.nodes.filter((node) => node.kind === "flow");
+  knownFlows.current = flowOptions(knownFlows.current, graph);
+  const flows = knownFlows.current.options;
   const notice = manifestNotice(graph.snapshot.manifestState);
   const picked = fileId ? byId.get(fileId) : undefined;
 
@@ -60,7 +62,7 @@ function GraphContent({ projectId, snapshotId, onOpenPage }: { projectId: string
         } }), ` ${NODE_KIND_LABEL[kind]}`))),
     h("label", null, "Flow ", h("select", { value: flowId, onChange: (e: { target: { value: string } }) => { setFlowId(e.target.value); setFileId(null); } },
       h("option", { value: "" }, "Tất cả flow"),
-      ...flows.map((flow) => h("option", { key: flow.id, value: flow.ref.flowId ?? "" }, flow.label)))),
+      ...flows.map((flow) => h("option", { key: flow.flowId, value: flow.flowId }, flow.label)))),
     notice ? h("p", { role: "status" }, notice) : null,
     h("div", { className: "crew-docs-graph" },
       h(ReactFlow, { nodes, edges, onNodeClick, nodesConnectable: false, nodesDraggable: false, zoomOnDoubleClick: false, minZoom: 0.2, maxZoom: 2, fitView: true },

@@ -3,7 +3,7 @@ import { DataTable, Spinner, usePluginData } from "@paperclipai/plugin-sdk/ui";
 import { registerIssuePanel } from "../registry.js";
 import type { IssueUsage } from "../../usage/data.js";
 import type { UsageTotals } from "../../usage/rollup.js";
-import { COMPLETENESS_LABEL, formatTokens, formatUsd, ROLE_LABEL } from "./format.js";
+import { COMPLETENESS_LABEL, formatTokens, formatUsd, formatUsdTotal, ROLE_LABEL } from "./format.js";
 
 const time = (value: string | null) => value ? new Intl.DateTimeFormat("vi-VN", { timeZone: "Asia/Ho_Chi_Minh", dateStyle: "short", timeStyle: "short" }).format(new Date(value)) : "—";
 const SOURCE_LABEL = { model_usage: "theo model", run_model: "model chính của lượt" } as const;
@@ -16,14 +16,14 @@ function totalsCard(title: string, t: UsageTotals) {
   return h("article", { key: title, "aria-label": title, className: "rounded-lg border p-4 space-y-1" },
     h("h4", null, title),
     h("p", null, `Input: ${formatTokens(t.inputTokens)} · Cache đọc: ${formatTokens(t.cachedInputTokens)} · Output: ${formatTokens(t.outputTokens)}`),
-    h("p", null, `USD ước tính, không phải hóa đơn: ${formatUsd(t.estimatedUsd)}`),
+    h("p", null, `USD ước tính, không phải hóa đơn: ${formatUsdTotal(t)}`),
     h("p", null, `Mức đầy đủ: ${COMPLETENESS_LABEL[t.completeness]} · ${t.runsWithUsage}/${t.runs} lượt có số liệu${t.runsMissing ? ` · ${t.runsMissing} lượt thiếu` : ""}${t.runsRunning ? ` · ${t.runsRunning} lượt đang chạy` : ""}`));
 }
 
 const totalsColumns = (get: (r: never) => UsageTotals): Column[] => [
   { key: "in", header: "Input", render: (_, r) => formatTokens(get(r as never).inputTokens) },
   { key: "out", header: "Output", render: (_, r) => formatTokens(get(r as never).outputTokens) },
-  { key: "usd", header: "USD ước tính", render: (_, r) => formatUsd(get(r as never).estimatedUsd) },
+  { key: "usd", header: "USD ước tính", render: (_, r) => formatUsdTotal(get(r as never)) },
   { key: "c", header: "Mức đầy đủ", render: (_, r) => COMPLETENESS_LABEL[get(r as never).completeness] },
 ];
 

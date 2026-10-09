@@ -11,3 +11,8 @@ it("labels measured values and never shows 0 for unmeasured", () => {
   expect(formatMeasured({ kind: "vat_ly", bytes: 0 })).toBe("0 B (vật lý)");
   expect(formatMeasured({ kind: "chua_do", reason: "x" })).toBe("Chưa đo");
 });
+it("labels a logical size as a lower bound when some items have no size yet", () => {
+  expect(formatMeasured({ kind: "logic", bytes: 1536 }, { lowerBound: true })).toBe("≥ 1,5 KB (logic, cận dưới)");
+  expect(formatMeasured({ kind: "logic", bytes: 1536 }, { lowerBound: false })).toBe("1,5 KB (logic)");
+  expect(formatMeasured({ kind: "chua_do", reason: "x" }, { lowerBound: true })).toBe("Chưa đo");
+});

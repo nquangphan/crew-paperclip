@@ -247,12 +247,16 @@ async function auditCompany(ctx: Ctx, companyId: string, now: Date): Promise<{ c
 async function fillSizes(ctx: Ctx, companyId: string): Promise<void> {
   const looked = sizeLookups.get(ctx) ?? new Set<string>();
   sizeLookups.set(ctx, looked);
+  const prefix = `${companyId}:`;
+  const skip = [...looked].filter((key) => key.startsWith(prefix)).map((key) => key.slice(prefix.length));
+  // Issues already looked up are excluded in SQL, so their unsized rows never fill the batch and hide older ones.
   const rows = await ctx.db.query<{ attachment_id: string; issue_id: string }>(
     `SELECT attachment_id::text, issue_id::text FROM ${table(ctx)}
-     WHERE company_id = $1 AND byte_size IS NULL ORDER BY checked_at DESC LIMIT ${SIZE_BATCH_ROWS}`, [companyId]);
+     WHERE company_id = $1 AND byte_size IS NULL
+       AND issue_id::text NOT IN (SELECT jsonb_array_elements_text($2::text::jsonb))
+     ORDER BY checked_at DESC LIMIT ${SIZE_BATCH_ROWS}`, [companyId, JSON.stringify(skip)]);
   const byIssue = new Map<string, string[]>();
   for (const row of rows) {
-    if (looked.has(`${companyId}:${row.issue_id}`)) continue;
     byIssue.set(row.issue_id, [...(byIssue.get(row.issue_id) ?? []), row.attachment_id]);
   }
   for (const [issueId, ids] of [...byIssue].slice(0, SIZE_BATCH_ISSUES)) {

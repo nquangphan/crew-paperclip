@@ -27,7 +27,7 @@ CREATE TABLE plugin_crew_core_0433ea20b6.docs_commits (
   project_id uuid NOT NULL,
   sha text NOT NULL CHECK (sha ~ '^[0-9a-f]{40}$'),
   is_merge boolean NOT NULL,
-  first_snapshot_id uuid NOT NULL REFERENCES plugin_crew_core_0433ea20b6.docs_snapshots(id),
+  first_snapshot_id uuid REFERENCES plugin_crew_core_0433ea20b6.docs_snapshots(id) ON DELETE SET NULL,
   PRIMARY KEY (company_id, project_id, sha)
 );
 CREATE TABLE plugin_crew_core_0433ea20b6.docs_commit_files (

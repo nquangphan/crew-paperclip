@@ -22,7 +22,7 @@ export function StorageSection({ companyId }: { companyId: string }) {
       col("docs", "Docs (logic / vật lý / bản cũ)", (p) => `${p.docs.snapshots} ảnh chụp, ${p.docs.pages} trang · ${formatMeasured(p.docs.logical)} · ${formatMeasured(p.docs.physical)} · ${formatMeasured(p.docs.legacy)}`),
       col("index", "Index", (p) => `${p.index.links} liên kết, ${p.index.commits} commit · ${formatMeasured(p.index.logical)}`),
       col("tickets", "Ticket/event", (p) => `${p.tickets.issues} issue, ${p.tickets.comments} comment, ${p.tickets.runs} run · comment ${formatMeasured(p.tickets.commentBytes)} · ${formatMeasured(p.tickets.physical)}`),
-      col("attachments", "File đính kèm", (p) => `${p.attachments.count} file (${p.attachments.unsized} chưa có cỡ)${p.attachments.since ? ` từ ${time(p.attachments.since)}` : ""} · ${formatMeasured(p.attachments.logical)} · ${formatMeasured(p.attachments.physical)}`),
+      col("attachments", "File đính kèm", (p) => `${p.attachments.count} file (${p.attachments.unsized} chưa có cỡ)${p.attachments.since ? ` từ ${time(p.attachments.since)}` : ""} · ${formatMeasured(p.attachments.logical, { lowerBound: p.attachments.unsized > 0 })} · ${formatMeasured(p.attachments.physical)}`),
     ] }),
     h("h3", null, "Tổng company"),
     h("ul", null,

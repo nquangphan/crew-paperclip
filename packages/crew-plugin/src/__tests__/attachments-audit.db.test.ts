@@ -291,6 +291,19 @@ it("cảnh báo file đính kèm agent sẽ không đọc, mỗi file một lầ
   await runAttachmentsAudit(ctx, laterMs(730_000));
   expect(listCalls.filter((id) => id === issueB)).toHaveLength(1);
 
+  // An older unsized row is still reached when more than a batch of newer unsized rows belong to issues
+  // already looked up without success.
+  await sql.unsafe(`INSERT INTO ${ns}.crew_attachment_audit (attachment_id, company_id, issue_id, verdict, checked_at)
+    VALUES ($1, $2, $3, 'allowed', now() - interval '1 day')`, [attId(0x503), companyId, issueA]);
+  uploads.push({ id: attId(0x503), issueId: issueA, name: "old.md", type: "text/markdown", at: at(-740), size: null, listed: 555 });
+  for (let i = 0; i < 200; i++) {
+    await sql.unsafe(`INSERT INTO ${ns}.crew_attachment_audit (attachment_id, company_id, issue_id, verdict) VALUES ($1, $2, $3, 'allowed')`,
+      [attId(0x600 + i), companyId, issueB]);
+  }
+  await runAttachmentsAudit(ctx, laterMs(740_000));
+  expect(await sizeOf(attId(0x503))).toBe("555");
+  expect(listCalls.filter((id) => id === issueB)).toHaveLength(1);
+
   // The registered job handler runs the same audit and never throws on a failing company.
   (ctx.authorization.audit as { search: unknown }).search = async () => { throw new Error("db down tool.zip"); };
   await expect(registered!.fn()).resolves.toBeUndefined();
