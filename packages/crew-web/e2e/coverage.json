@@ -1,0 +1,8 @@
+{
+  "F9": {
+    "spec": null,
+    "tests": [],
+    "tier": "T3",
+    "skip": "Máy quá tải (H1, tải > 8) không dựng được an toàn trên Mac mini dùng chung; BA ghi PW-F9 là tùy chọn. H1 đã nghiệm thu ở spike S5 R1."
+  }
+}
