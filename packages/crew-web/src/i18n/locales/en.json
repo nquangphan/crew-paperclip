@@ -1,0 +1,93 @@
+{
+  "status": {
+    "backlog": "Backlog",
+    "todo": "To do",
+    "in_progress": "In progress",
+    "in_review": "In review",
+    "done": "Done",
+    "blocked": "Blocked",
+    "cancelled": "Cancelled",
+    "active": "Active",
+    "paused": "Paused",
+    "idle": "Idle",
+    "running": "Running",
+    "error": "Error",
+    "pending_approval": "Pending approval",
+    "terminated": "Terminated",
+    "queued": "Queued",
+    "scheduled_retry": "Retry scheduled",
+    "succeeded": "Succeeded",
+    "interrupted": "Interrupted",
+    "failed": "Failed",
+    "timed_out": "Timed out"
+  },
+  "stage": {
+    "none": "No stage",
+    "notStarted": "Not started",
+    "reviewer": "Reviewer",
+    "integratorMerge": "Integrator · merge + docs",
+    "owner": "Owner approval",
+    "integratorPush": "Integrator · push",
+    "done": "Finished",
+    "unknown": "Unknown",
+    "round": "Revision {{round}}/{{max}}"
+  },
+  "wizard": {
+    "resume": "Resume",
+    "state": {
+      "pending": "Pending",
+      "running": "Running",
+      "done": "Done",
+      "failed": "Failed",
+      "waiting": "Waiting"
+    }
+  },
+  "attachment": {
+    "choose": "Attach files",
+    "warnTitle": "Check before sending",
+    "fileWarning": "{{name}}: {{warning}}",
+    "proceed": "Send anyway",
+    "discard": "Discard"
+  },
+  "confirm": {
+    "typeToConfirm": "Type \"{{text}}\" to confirm"
+  },
+  "filter": {
+    "reset": "Clear filters"
+  },
+  "transcript": {
+    "show": "Show run output",
+    "hide": "Collapse",
+    "empty": "No output yet",
+    "role": {
+      "assistant": "Agent",
+      "user": "User",
+      "tool": "Tool",
+      "system": "System"
+    }
+  },
+  "run": {
+    "label": "Run {{id}}",
+    "by": "by {{name}}"
+  },
+  "action": {
+    "save": "Save",
+    "cancel": "Cancel",
+    "close": "Close",
+    "retry": "Retry",
+    "confirm": "Confirm",
+    "delete": "Delete",
+    "back": "Back",
+    "next": "Next"
+  },
+  "error": {
+    "generic": "Something went wrong",
+    "network": "Cannot reach the server",
+    "unauthorized": "Your session has expired",
+    "notFound": "Not found"
+  },
+  "time": {
+    "never": "None yet",
+    "unknown": "Unknown"
+  }
+}

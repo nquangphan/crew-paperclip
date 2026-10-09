@@ -1,0 +1,93 @@
+{
+  "status": {
+    "backlog": "Tồn đọng",
+    "todo": "Cần làm",
+    "in_progress": "Đang làm",
+    "in_review": "Đang duyệt",
+    "done": "Hoàn thành",
+    "blocked": "Bị chặn",
+    "cancelled": "Đã hủy",
+    "active": "Hoạt động",
+    "paused": "Tạm dừng",
+    "idle": "Rảnh",
+    "running": "Đang chạy",
+    "error": "Lỗi",
+    "pending_approval": "Chờ duyệt",
+    "terminated": "Đã dừng hẳn",
+    "queued": "Đang xếp hàng",
+    "scheduled_retry": "Chờ thử lại",
+    "succeeded": "Thành công",
+    "interrupted": "Bị ngắt",
+    "failed": "Lỗi",
+    "timed_out": "Quá giờ"
+  },
+  "stage": {
+    "none": "Chưa có giai đoạn",
+    "notStarted": "Chưa bắt đầu",
+    "reviewer": "Reviewer",
+    "integratorMerge": "Integrator · merge + docs",
+    "owner": "Owner duyệt",
+    "integratorPush": "Integrator · push",
+    "done": "Đã xong",
+    "unknown": "Không rõ",
+    "round": "Vòng sửa {{round}}/{{max}}"
+  },
+  "wizard": {
+    "resume": "Chạy tiếp",
+    "state": {
+      "pending": "Chờ",
+      "running": "Đang chạy",
+      "done": "Xong",
+      "failed": "Lỗi",
+      "waiting": "Đang đợi"
+    }
+  },
+  "attachment": {
+    "choose": "Đính kèm file",
+    "warnTitle": "Kiểm tra trước khi gửi",
+    "fileWarning": "{{name}}: {{warning}}",
+    "proceed": "Gửi vẫn tiếp tục",
+    "discard": "Bỏ chọn"
+  },
+  "confirm": {
+    "typeToConfirm": "Gõ \"{{text}}\" để xác nhận"
+  },
+  "filter": {
+    "reset": "Xóa bộ lọc"
+  },
+  "transcript": {
+    "show": "Xem nội dung chạy",
+    "hide": "Thu gọn",
+    "empty": "Chưa có nội dung",
+    "role": {
+      "assistant": "Agent",
+      "user": "Người dùng",
+      "tool": "Công cụ",
+      "system": "Hệ thống"
+    }
+  },
+  "run": {
+    "label": "Run {{id}}",
+    "by": "bởi {{name}}"
+  },
+  "action": {
+    "save": "Lưu",
+    "cancel": "Hủy",
+    "close": "Đóng",
+    "retry": "Thử lại",
+    "confirm": "Xác nhận",
+    "delete": "Xóa",
+    "back": "Quay lại",
+    "next": "Tiếp"
+  },
+  "error": {
+    "generic": "Đã có lỗi xảy ra",
+    "network": "Không kết nối được máy chủ",
+    "unauthorized": "Phiên đăng nhập đã hết hạn",
+    "notFound": "Không tìm thấy"
+  },
+  "time": {
+    "never": "Chưa có",
+    "unknown": "Không rõ"
+  }
+}
