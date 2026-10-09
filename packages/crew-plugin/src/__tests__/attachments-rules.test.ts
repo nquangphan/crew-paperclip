@@ -2,7 +2,9 @@ import { describe, expect, it } from "vitest";
 import {
   ALLOWED_EXTENSIONS,
   judgeBytes,
+  EXTENSION_LABELS,
   judgeByName,
+  labelForExtension,
   MACRO_EXTENSIONS,
   sanitizeFilename,
   SNIFF_CHECKED,
@@ -31,6 +33,37 @@ describe("bảng kiểu file (giống bản crew-mac)", () => {
   });
 });
 
+// Bản chép bảng EXTENSION_LABELS của apps/crew-mac/src/files/policy.ts: đổi một bên thì đổi bên kia.
+const MAC_EXTENSION_LABELS = {
+  zip: "zip 7z rar gz tgz tar bz2 xz",
+  exe: "exe msi dmg pkg app bat cmd com scr dll dylib jar apk",
+  docm: "docm dotm",
+  xlsm: "xlsm xltm",
+  "office-cu": "doc xls ppt dot xlt pot",
+  pptx: "pptx pptm ppsx potx",
+  media: "mp3 mp4 m4a m4v mov wav avi mkv webm aac flac ogg aiff",
+};
+
+describe("bảng đuôi → nhãn (giống bản crew-mac)", () => {
+  it("đúng nguyên văn từng nhãn", () => {
+    expect(Object.fromEntries(Object.entries(EXTENSION_LABELS).map(([label, exts]) => [label, exts.join(" ")])))
+      .toEqual(MAC_EXTENSION_LABELS);
+  });
+
+  it("đuôi lệch trước đây giờ ra đúng nhãn của Mac", () => {
+    for (const ext of ["ps1", "vbs", "deb", "rpm", "so", "pps", "wmv"]) expect(labelForExtension(ext)).toBe("khac");
+    expect(labelForExtension("aiff")).toBe("media");
+    for (const ext of Object.values(MAC_EXTENSION_LABELS).join(" ").split(" ")) {
+      expect(labelForExtension(ext)).not.toBe("khac");
+    }
+    expect(judgeByName("x.pptm", "")).toEqual(blocked("tài liệu Office có macro (pptx)"));
+    expect(judgeByName("x.dotm", "")).toEqual(blocked("tài liệu Office có macro (docm)"));
+    expect(judgeByName("x.xltm", "")).toEqual(blocked("tài liệu Office có macro (xlsm)"));
+    expect(judgeByName("x.ps1", "")).toEqual(blocked("kiểu file không được phép (khac)"));
+    expect(judgeByName("x.aiff", "")).toEqual(blocked("kiểu file không được phép (media)"));
+  });
+});
+
 describe("judgeByName", () => {
   it("chặn theo đuôi với lý do cố định", () => {
     expect(judgeByName("tool.zip", "application/zip")).toEqual(blocked("kiểu file không được phép (zip)"));
@@ -56,13 +89,23 @@ describe("judgeByName", () => {
     expect(judgeByName("a.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")).toBe("needs-bytes");
   });
 
-  it("contentType khai báo là file thực thi, nén hoặc có macro thì chặn dù đuôi được phép", () => {
-    expect(judgeByName("run.sh", "application/x-msdownload")).toEqual(blocked("kiểu file không được phép (exe)"));
-    expect(judgeByName("notes.txt", "application/zip")).toEqual(blocked("kiểu file không được phép (zip)"));
-    expect(judgeByName("report.docx", "application/vnd.ms-word.document.macroEnabled.12"))
-      .toEqual(blocked("tài liệu Office có macro (docm)"));
-    expect(judgeByName("data.xlsx", "application/vnd.ms-excel.sheet.macroEnabled.12"))
+  it("contentType khai báo không chặn đuôi được phép: để Mac quyết theo byte", () => {
+    expect(judgeByName("run.sh", "application/x-msdownload")).toEqual(allowed);
+    expect(judgeByName("notes.txt", "application/zip")).toEqual(allowed);
+    expect(judgeByName("report.docx", "application/vnd.ms-word.document.macroEnabled.12")).toBe("needs-bytes");
+    expect(judgeByName("data.xlsx", "application/vnd.ms-excel.sheet.macroEnabled.12")).toBe("needs-bytes");
+    expect(judgeByName("a.docx", "application/zip")).toBe("needs-bytes");
+  });
+
+  it("contentType chỉ làm rõ nhãn khi đuôi không được phép và không có nhãn", () => {
+    expect(judgeByName("blob.bin", "application/zip")).toEqual(blocked("kiểu file không được phép (zip)"));
+    expect(judgeByName("blob.bin", "application/x-msdownload")).toEqual(blocked("kiểu file không được phép (exe)"));
+    expect(judgeByName("blob.bin", "application/vnd.ms-excel.sheet.macroEnabled.12"))
       .toEqual(blocked("tài liệu Office có macro (xlsm)"));
+    expect(judgeByName("blob.bin", "application/vnd.ms-powerpoint.presentation.macroEnabled.12"))
+      .toEqual(blocked("tài liệu Office có macro (pptx)"));
+    // Đuôi đã có nhãn thì giữ nhãn theo đuôi.
+    expect(judgeByName("a.mp4", "application/zip")).toEqual(blocked("kiểu file không được phép (media)"));
   });
 });
 

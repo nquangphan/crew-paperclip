@@ -169,14 +169,37 @@ it("cảnh báo file đính kèm agent sẽ không đọc, mỗi file một lầ
   expect(contentReads).toHaveLength(2);
   expect(searches).toEqual([{ companyId, offset: 0 }]);
 
-  // 4. Content that cannot be read (over maxBytes throws, unknown returns null) is `unreadable`, never warned.
+  // 4. Unknown content (null) is `unreadable` at once. A read that throws (over maxBytes, host hiccup) is
+  // retried with a growing delay and only becomes `unreadable` on the third failure; nothing is warned.
   uploads.push(
     { id: attId(4), issueId: issueB, name: "huge.png", type: "image/png", bytes: "throw", at: at(20) },
     { id: attId(5), issueId: issueB, name: "gone.pdf", type: "application/pdf", bytes: null, at: at(19) },
   );
-  expect(await runAttachmentsAudit(ctx, now)).toEqual({ checked: 2, warned: 0 });
+  const afterMs = (ms: number) => new Date(now.getTime() + ms);
+  expect(await runAttachmentsAudit(ctx, now)).toEqual({ checked: 1, warned: 0 });
+  expect((await rows()).filter((r) => r.issue_id === issueB).map((r) => r.verdict)).toEqual(["unreadable"]);
+  const readsBefore = contentReads.length;
+  expect(await runAttachmentsAudit(ctx, afterMs(30_000))).toEqual({ checked: 0, warned: 0 });
+  expect(contentReads).toHaveLength(readsBefore); // still inside the first delay: not read again
+  expect(await runAttachmentsAudit(ctx, afterMs(61_000))).toEqual({ checked: 0, warned: 0 });
+  expect(contentReads).toHaveLength(readsBefore + 1);
+  expect(await runAttachmentsAudit(ctx, afterMs(100_000))).toEqual({ checked: 0, warned: 0 });
+  expect(contentReads).toHaveLength(readsBefore + 1); // second delay is 2 minutes
+  expect(await runAttachmentsAudit(ctx, afterMs(190_000))).toEqual({ checked: 1, warned: 0 });
+  expect(contentReads).toHaveLength(readsBefore + 2);
   expect(comments).toHaveLength(1);
   expect((await rows()).filter((r) => r.issue_id === issueB).map((r) => r.verdict)).toEqual(["unreadable", "unreadable"]);
+  expect(await runAttachmentsAudit(ctx, afterMs(400_000))).toEqual({ checked: 0, warned: 0 });
+  expect(contentReads).toHaveLength(readsBefore + 2); // decided: never read again
+
+  // A transient read error that clears: the file is judged normally on the retry.
+  uploads.push({ id: attId(9), issueId: issueB, name: "flaky.png", type: "image/png", bytes: "throw", at: at(21) });
+  expect(await runAttachmentsAudit(ctx, afterMs(500_000))).toEqual({ checked: 0, warned: 0 });
+  uploads.find((u) => u.id === attId(9))!.bytes = MACHO;
+  expect(await runAttachmentsAudit(ctx, afterMs(570_000))).toEqual({ checked: 1, warned: 1 });
+  expect(comments).toHaveLength(2);
+  expect(comments[1]).toEqual([issueB, line("flaky.png", "kiểu file không được phép (exe)"), companyId]);
+  comments.pop();
 
   // 8. Activities that are not about an issue or carry no attachment id are skipped.
   extraActivities.push(
@@ -186,7 +209,7 @@ it("cảnh báo file đính kèm agent sẽ không đọc, mỗi file một lầ
       details: { attachmentId: "not-a-uuid", originalFilename: "z.zip", contentType: "application/zip" } },
   );
   expect(await runAttachmentsAudit(ctx, now)).toEqual({ checked: 0, warned: 0 });
-  expect(await rows()).toHaveLength(5);
+  expect(await rows()).toHaveLength(6);
 
   // 5. A first page full of new ids is followed by offset=100; a page with a known id ends the scan.
   for (let i = 0; i < 150; i++) {
@@ -200,27 +223,41 @@ it("cảnh báo file đính kèm agent sẽ không đọc, mỗi file một lầ
   expect(await runAttachmentsAudit(ctx, now)).toEqual({ checked: 1, warned: 0 });
   expect(searches.map((s) => s.offset)).toEqual([0]);
 
-  // A failed comment is retried on the next run (the name comes from the attachment list), then never again.
-  // Uploads older than the 24 h look-back are ignored, and an activity without name/type is judged from the list.
-  const later = new Date(now.getTime() + 5_000);
+  // A failed comment is retried after a delay that grows (1, 2 minutes ...), logs one warning for the whole
+  // streak, and the name comes from the attachment list. Uploads older than the 24 h look-back are ignored,
+  // and an activity without name/type is judged from the list. An attachment deleted before the warning is
+  // marked as handled instead of being looked up every minute.
+  const later = new Date(now.getTime() + 600_000);
+  const laterMs = (ms: number) => new Date(later.getTime() + ms);
   uploads.push(
-    { id: attId(0x400), issueId: issueD, name: "setup.exe", type: "application/x-msdownload", at: at(-1) },
+    { id: attId(0x400), issueId: issueD, name: "setup.exe", type: "application/x-msdownload", at: at(-601) },
     { id: attId(0x401), issueId: issueD, name: "old.zip", type: "application/zip", at: at(25 * 3600) },
+    { id: attId(0x403), issueId: issueD, name: "gone.zip", type: "application/zip", at: at(-602) },
   );
   uploads.push({
-    id: attId(0x402), issueId: issueD, name: "slides.pptx", bare: true, at: at(-2),
+    id: attId(0x402), issueId: issueD, name: "slides.pptx", bare: true, at: at(-603),
     type: "application/vnd.openxmlformats-officedocument.presentationml.presentation",
   });
   failComment = issueD;
-  expect(await runAttachmentsAudit(ctx, later)).toEqual({ checked: 2, warned: 0 });
+  const commentWarnings = () => logs.filter((l) => (l as { message: string }).message.includes("warning comment failed")).length;
+  expect(await runAttachmentsAudit(ctx, later)).toEqual({ checked: 3, warned: 0 });
   expect(comments).toHaveLength(1);
+  expect(commentWarnings()).toBe(1);
+  uploads.splice(uploads.findIndex((u) => u.id === attId(0x403)), 1); // deleted after it was judged
+  const listsBefore = searches.length;
+  expect(await runAttachmentsAudit(ctx, laterMs(30_000))).toEqual({ checked: 0, warned: 0 }); // inside the delay
+  expect(await runAttachmentsAudit(ctx, laterMs(61_000))).toEqual({ checked: 0, warned: 0 }); // fails again
+  expect(await runAttachmentsAudit(ctx, laterMs(100_000))).toEqual({ checked: 0, warned: 0 }); // 2 minute delay
+  expect(commentWarnings()).toBe(1); // the streak is logged once
+  expect(searches.length).toBeGreaterThan(listsBefore);
   failComment = null;
-  expect(await runAttachmentsAudit(ctx, later)).toEqual({ checked: 0, warned: 2 });
+  expect(await runAttachmentsAudit(ctx, laterMs(190_000))).toEqual({ checked: 0, warned: 2 });
   expect(comments[1]).toEqual([issueD, [
     line("setup.exe", "kiểu file không được phép (exe)"),
     line("slides.pptx", "kiểu file không được phép (pptx)"),
   ].join("\n"), companyId]);
-  expect(await runAttachmentsAudit(ctx, later)).toEqual({ checked: 0, warned: 0 });
+  expect((await rows()).find((r) => r.attachment_id === attId(0x403))?.warned).toBe(true);
+  expect(await runAttachmentsAudit(ctx, laterMs(300_000))).toEqual({ checked: 0, warned: 0 });
   expect(comments).toHaveLength(2);
   expect((await rows()).some((r) => r.attachment_id === attId(0x401))).toBe(false);
 
