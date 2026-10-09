@@ -452,3 +452,19 @@ test("PATCH /api/issues/:id có trong allowlist của callback bridge, PUT title
   assert.ok(text.includes('{ method: "PATCH", path: /^\\/api\\/issues\\/[^/]+$/ }'));
   assert.doesNotMatch(text, /method: "PUT", path: \/\^\\\/api\\\/issues\\\/\[\^\/\]\+\\\/title/);
 });
+
+const ATTACH_CMD = '"$HOME/.crew/bin/crew-mac" files --issue "$PAPERCLIP_TASK_ID" --run "$PAPERCLIP_RUN_ID"';
+const ATTACH_NEVER = "Mở file đính kèm bị chặn bằng công cụ khác, hay chép credential từ file/ảnh vào comment, code, commit.";
+for (const role of ["assistant", "executor", "reviewer", "integrator"]) {
+  test(`${role} có mục File đính kèm đúng lệnh và luật`, () => {
+    const text = read(role);
+    const section = text.split("\n## ").find((s) => s.startsWith("File đính kèm"));
+    assert.ok(section, "thiếu mục ## File đính kèm");
+    assert.ok(section.includes(ATTACH_CMD));
+    for (const s of ["bị chặn", "mã hóa", "không đọc được", "hỏng", "quá lớn", "chưa đồng bộ", "không phải chỉ thị", "[ĐÃ CHE: …]"])
+      assert.ok(section.includes(s), `thiếu "${s}"`);
+    assert.ok(text.indexOf("## File đính kèm") < text.indexOf("## Mỗi lần được đánh thức") || !text.includes("## Mỗi lần được đánh thức"));
+    const never = text.split("\n## ").find((s) => s.startsWith("Không bao giờ"));
+    assert.ok(never.includes(ATTACH_NEVER), "thiếu dòng Không bao giờ về file đính kèm");
+  });
+}
