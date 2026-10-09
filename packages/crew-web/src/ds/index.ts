@@ -1,6 +1,7 @@
 // Cổng vào duy nhất của design system. Màn hình chỉ import từ đây (DS-2, DS-4 thêm widget).
 
 export { Logo } from './brand/Logo';
+export * from './components/alert';
 export * from './components/alert-dialog';
 export * from './components/app-frame';
 export * from './components/avatar';
@@ -18,6 +19,7 @@ export * from './components/error-state';
 export * from './components/field';
 export * from './components/input';
 export * from './components/label';
+export * from './components/muted-text';
 export * from './components/popover';
 export * from './components/scroll-area';
 export * from './components/select';
@@ -44,6 +46,7 @@ export * from './widgets/issue-row';
 export * from './widgets/markdown-view';
 export * from './widgets/page-header';
 export * from './widgets/property-list';
+export * from './widgets/row-link';
 export * from './widgets/run-row';
 export * from './widgets/stage-badge';
 export * from './widgets/status-badge';
