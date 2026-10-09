@@ -2,7 +2,8 @@ import type { CrewRoleSlot } from "../jobs/types.js";
 
 /** Progress of a web wizard, kept on the server so "Chạy tiếp" resumes from the last finished step. */
 export type SetupRunKind = "add-project" | "add-agent";
-export type SetupRunStatus = "running" | "failed" | "done";
+/** `abandoned`: the owner gave up a failed add-project run that never created a project, freeing its key. Final. */
+export type SetupRunStatus = "running" | "failed" | "done" | "abandoned";
 
 /** Steps in order; finishing the last one with `done` finishes the run. */
 export const SETUP_STEPS = {
@@ -12,9 +13,12 @@ export const SETUP_STEPS = {
 export type SetupStepId = (typeof SETUP_STEPS)[SetupRunKind][number];
 
 export const SETUP_RUN_KINDS: readonly SetupRunKind[] = ["add-project", "add-agent"];
-export const SETUP_RUN_STATUSES: readonly SetupRunStatus[] = ["running", "failed", "done"];
-/** A step lock older than this is treated as abandoned (closed tab, crashed browser). */
-export const SETUP_LOCK_MINUTES = 5;
+export const SETUP_RUN_STATUSES: readonly SetupRunStatus[] = ["running", "failed", "done", "abandoned"];
+/**
+ * A step lock older than this is treated as dead (closed tab, crashed browser). It must outlast the longest step:
+ * a step waits up to 10 minutes for a machine job, and a takeover before that would run the step twice.
+ */
+export const SETUP_LOCK_MINUTES = 15;
 export const SETUP_LIST_LIMIT = 100;
 
 export interface SetupStepState { status: "done" | "failed"; at: string; refs?: Record<string, string>; error?: string }
