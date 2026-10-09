@@ -94,6 +94,49 @@ describe("decideCreatePolicy", () => {
       { kind: "set", template: "child" },
     );
   });
+  it("agent tạo con có dòng crew-kind bmad nhận template bmad (review rồi owner)", () => {
+    const description = "Lập epic/story\ncrew-bundle id=bmad seq=1\ncrew-kind bmad\nTiêu chí nghiệm thu:\n- có file";
+    expect(decideCreatePolicy({ data: { createdByAgentId: "e", parentId: "p", description }, roles, ownerUserId: "owner-1" }))
+      .toEqual({ kind: "set", template: "bmad", ownerUserId: "owner-1" });
+    expect(decideCreatePolicy({ data: { createdByAgentId: "e", parentId: "p", description: "crew-kind bmad  \nx" }, roles, ownerUserId: "owner-1" }))
+      .toEqual({ kind: "set", template: "bmad", ownerUserId: "owner-1" });
+  });
+  it("marker phải đứng riêng một dòng; research và con thường không đổi", () => {
+    for (const description of ["xcrew-kind bmad", "crew-kind bmadx", "crew-kind research", "ghi chú: crew-kind bmad ở giữa dòng", " crew-kind bmad", "crew-kind  bmad", null, undefined]) {
+      expect(decideCreatePolicy({ data: { createdByAgentId: "e", parentId: "p", description }, roles, ownerUserId: "owner-1" }))
+        .toEqual({ kind: "set", template: "child" });
+    }
+  });
+  it("luật từ chối đứng trước marker bmad", () => {
+    const description = "crew-kind bmad";
+    expect(decideCreatePolicy({ data: { createdByAgentId: "e", description }, roles, ownerUserId: "owner-1" })).toEqual({ kind: "reject", code: "crew_agent_root_issue" });
+    expect(decideCreatePolicy({ data: { createdByAgentId: "e", parentId: "p", description }, roles: null, ownerUserId: null })).toEqual({ kind: "reject", code: "crew_roles_unconfigured" });
+    expect(decideCreatePolicy({ data: { createdByAgentId: "e", parentId: "p", description, status: "done" }, roles, ownerUserId: "owner-1" })).toEqual({ kind: "reject", code: "crew_gate_blocked" });
+    expect(decideCreatePolicy({ data: { createdByAgentId: "e", parentId: "p", description, assigneeAgentId: "r" }, roles, ownerUserId: "owner-1" })).toEqual({ kind: "reject", code: "crew_role_assignee" });
+    expect(decideCreatePolicy({
+      data: { createdByAgentId: "e", parentId: "p", description, assigneeAdapterOverrides: { adapterConfig: { command: "/bin/sh" } } }, roles, ownerUserId: "owner-1",
+    })).toEqual({ kind: "reject", code: "crew_override_forbidden", violations: ["adapterConfig.command"] });
+  });
+  it("marker bmad mà thiếu owner trong cấu hình thì từ chối, không gắn template thiếu stage", () => {
+    expect(decideCreatePolicy({ data: { createdByAgentId: "e", parentId: "p", description: "crew-kind bmad" }, roles, ownerUserId: null }))
+      .toEqual({ kind: "reject", code: "crew_roles_unconfigured" });
+  });
+  it("board hay hệ thống tạo con có marker bmad vẫn nhận template con (board tự gửi policy nếu muốn)", () => {
+    expect(decideCreatePolicy({ data: { createdByUserId: "owner-1", parentId: "p", description: "crew-kind bmad" }, roles, ownerUserId: "owner-1" }))
+      .toEqual({ kind: "set", template: "child" });
+    expect(decideCreatePolicy({ data: { originKind: "routine_execution", parentId: "p", description: "crew-kind bmad" }, roles, ownerUserId: "owner-1" }))
+      .toEqual({ kind: "set", template: "child" });
+  });
+  it("buildCrewPolicy bmad cùng hình dạng research", () => {
+    const r = { reviewerAgentId: randomUUID(), integratorAgentId: randomUUID() };
+    const owner = "owner-1";
+    const shape = (p: ReturnType<typeof buildCrewPolicy>) => ({
+      maxReviewRounds: p.maxReviewRounds,
+      stages: p.stages.map((s) => [s.type, s.participants.map((x) => `${x.type}:${x.agentId ?? x.userId}`)]),
+    });
+    expect(shape(buildCrewPolicy("bmad", r, owner))).toEqual(shape(buildCrewPolicy("research", r, owner)));
+    expect(() => buildCrewPolicy("bmad", r)).toThrow(/owner/);
+  });
   it("board gửi policy riêng thì giữ nguyên", () => {
     expect(
       decideCreatePolicy({
@@ -321,6 +364,39 @@ suite("crew policy in issueService.create", () => {
     expect(policy.stages[0]!.participants.map((p) => p.agentId)).toEqual([reviewerId]);
     expect(policy.maxReviewRounds).toBe(5);
     expect(row!.responsibleUserId).toBe("owner-1");
+  });
+
+  it("agent tạo con có dòng crew-kind bmad: policy reviewer rồi owner duyệt; con thường vẫn một stage", async () => {
+    const { companyId, executorId, reviewerId, rootId } = await seed();
+    type Stored = { stages: Array<{ type: string; participants: Array<{ type: string; agentId: string | null; userId: string | null }> }>; maxReviewRounds: number };
+    const policyOf = async (id: string) => (await db.select().from(issues).where(eq(issues.id, id)))[0]!.executionPolicy as Stored;
+    const { issue: bmad } = await issueService(db).createChild(rootId, {
+      title: "BMAD: lập epic và story",
+      createdByAgentId: executorId,
+      assigneeAgentId: executorId,
+      description: "Yêu cầu của owner:\nx\ncrew-bundle id=bmad seq=1\ncrew-kind bmad",
+      acceptanceCriteria: ["Có file epic/story"],
+      executionPolicy: { stages: [] },
+    } as never);
+    const policy = await policyOf(bmad.id);
+    expect(policy.stages.map((s) => [s.type, s.participants.map((p) => [p.type, p.agentId ?? p.userId])])).toEqual([
+      ["review", [["agent", reviewerId]]],
+      ["approval", [["user", "owner-1"]]],
+    ]);
+    expect(policy.maxReviewRounds).toBe(5);
+    const viaCreate = await issueService(db).create(companyId, {
+      title: "BMAD qua POST",
+      parentId: rootId,
+      createdByAgentId: executorId,
+      description: "crew-kind bmad",
+    } as never);
+    expect((await policyOf(viaCreate.id)).stages.map((s) => s.type)).toEqual(["review", "approval"]);
+    const { issue: plain } = await issueService(db).createChild(rootId, {
+      title: "con thường",
+      createdByAgentId: executorId,
+      description: "ghi chú: crew-kind bmad ở giữa dòng",
+    } as never);
+    expect((await policyOf(plain.id)).stages.map((s) => s.type)).toEqual(["review"]);
   });
 
   it("agent giao issue con cho reviewer bị 422 crew_role_assignee", async () => {

@@ -721,6 +721,89 @@ describe("evaluateIssueGate", () => {
     });
   });
 
+  describe("template bmad (reviewer rồi owner)", () => {
+    const bmad = buildCrewPolicy("bmad", roles, "owner-1");
+    const [bReview, bOwner] = bmad.stages.map((s) => s.id) as [string, string];
+    const ownerP = { type: "user", agentId: null, userId: "owner-1" };
+    const executing = { status: "in_progress", executionPolicy: bmad, executionState: null, assigneeAgentId: EXECUTOR, assigneeUserId: null };
+    const atReview = {
+      status: "in_review",
+      executionPolicy: bmad,
+      executionState: pending(bmad, bReview, reviewerParticipant),
+      assigneeAgentId: REVIEWER,
+      assigneeUserId: null,
+    };
+    const atOwner = {
+      status: "in_review",
+      executionPolicy: bmad,
+      executionState: pending(bmad, bOwner, ownerP, [bReview]),
+      assigneeAgentId: null,
+      assigneeUserId: "owner-1",
+    };
+
+    it("không có stage docs hay push", () => {
+      expect(bmad.stages.map((s) => [s.type, s.participants.map((p) => p.agentId ?? p.userId)])).toEqual([
+        ["review", [REVIEWER]],
+        ["approval", ["owner-1"]],
+      ]);
+      expect(docsGateStages(bmad)).toEqual([]);
+      expect(pushGateStages(bmad)).toEqual([]);
+    });
+
+    it("executor done chuyển sang reviewer", () => {
+      const handoff = { status: "in_review", assigneeAgentId: REVIEWER, executionState: pending(bmad, bReview, reviewerParticipant) };
+      expect(evaluateIssueGate(facts({ locked: executing, patch: handoff }))).toEqual({ kind: "allow", notes: [] });
+    });
+
+    it("reviewer duyệt thì sang stage owner, không đòi bằng chứng docs hay push", () => {
+      const toOwner = {
+        status: "in_review",
+        assigneeAgentId: null,
+        assigneeUserId: "owner-1",
+        executionState: { ...pending(bmad, bOwner, ownerP, [bReview]), lastDecisionOutcome: "approved" },
+      };
+      expect(evaluateIssueGate(facts({ actor: { kind: "agent", agentId: REVIEWER }, locked: atReview, patch: toOwner }))).toEqual({
+        kind: "allow",
+        notes: [],
+      });
+    });
+
+    it("agent không duyệt thay owner: reviewer hay executor tự done đều bị chặn", () => {
+      const ownerDone = { status: "done", executionState: { ...completed([bReview, bOwner]) } };
+      for (const agentId of [REVIEWER, EXECUTOR]) {
+        expect(
+          evaluateIssueGate(
+            facts({ actor: { kind: "agent", agentId }, locked: atOwner, patch: ownerDone, approvals: [approval(bReview, REVIEWER)] }),
+          ),
+        ).toEqual({ kind: "block", code: "crew_gate_blocked", violations: [`stage_unapproved:${bOwner}`] });
+      }
+      expect(
+        evaluateIssueGate(facts({ actor: { kind: "agent", agentId: REVIEWER }, locked: atOwner, patch: { status: "done" }, approvals: [approval(bReview, REVIEWER)] })),
+      ).toEqual({ kind: "block", code: "crew_gate_blocked", violations: [`stage_unapproved:${bOwner}`] });
+    });
+
+    it("owner duyệt stage approval thì done", () => {
+      expect(
+        evaluateIssueGate(
+          facts({
+            actor: { kind: "board", userId: "owner-1" },
+            locked: atOwner,
+            patch: { status: "done", executionState: completed([bReview, bOwner]) },
+            approvals: [approval(bReview, REVIEWER)],
+          }),
+        ),
+      ).toEqual({ kind: "allow", notes: [] });
+    });
+
+    it("agent gửi executionPolicy khác (bỏ stage owner) bị khóa", () => {
+      for (const actorId of [EXECUTOR, REVIEWER]) {
+        expect(
+          evaluateIssueGate(facts({ actor: { kind: "agent", agentId: actorId }, locked: executing, patch: { executionPolicy: child } })),
+        ).toEqual({ kind: "block", code: "crew_policy_locked", violations: ["policy_changed"] });
+      }
+    });
+  });
+
   it("board ép done khi còn stage chờ: cho qua dưới dạng override", () => {
     const v = evaluateIssueGate(
       facts({ actor: { kind: "board", userId: "owner-1" }, patch: { status: "done", executionState: null } }),
