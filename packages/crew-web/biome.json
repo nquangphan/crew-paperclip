@@ -1,0 +1,58 @@
+{
+  "$schema": "https://biomejs.dev/schemas/2.5.14/schema.json",
+  "root": false,
+  "extends": "//",
+  "formatter": {
+    "indentStyle": "space",
+    "indentWidth": 2,
+    "lineWidth": 120
+  },
+  "javascript": {
+    "formatter": {
+      "quoteStyle": "single"
+    }
+  },
+  "files": {
+    "includes": [
+      "**",
+      "!dist",
+      "!public",
+      "!src/ds/tokens.css",
+      "!src/ds/components/button.tsx",
+      "!src/ds/components/input.tsx",
+      "!src/ds/components/textarea.tsx",
+      "!src/ds/components/label.tsx",
+      "!src/ds/components/select.tsx",
+      "!src/ds/components/checkbox.tsx",
+      "!src/ds/components/toggle-switch.tsx",
+      "!src/ds/components/dialog.tsx",
+      "!src/ds/components/alert-dialog.tsx",
+      "!src/ds/components/sheet.tsx",
+      "!src/ds/components/popover.tsx",
+      "!src/ds/components/dropdown-menu.tsx",
+      "!src/ds/components/tooltip.tsx",
+      "!src/ds/components/tabs.tsx",
+      "!src/ds/components/badge.tsx",
+      "!src/ds/components/card.tsx",
+      "!src/ds/components/avatar.tsx",
+      "!src/ds/components/separator.tsx",
+      "!src/ds/components/skeleton.tsx",
+      "!src/ds/components/scroll-area.tsx",
+      "!src/ds/components/command.tsx",
+      "!src/ds/components/breadcrumb.tsx",
+      "!src/ds/components/collapsible.tsx"
+    ]
+  },
+  "overrides": [
+    {
+      "includes": ["test/guards/**"],
+      "linter": {
+        "rules": {
+          "suspicious": {
+            "noExportsInTest": "off"
+          }
+        }
+      }
+    }
+  ]
+}
