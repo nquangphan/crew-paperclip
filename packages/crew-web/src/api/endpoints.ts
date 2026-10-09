@@ -45,6 +45,7 @@ export const ENDPOINTS = {
     method: 'GET',
     path: '/api/companies/:companyId/issues',
   },
+  'labels.list': { ids: ['S5.2'], method: 'GET', path: '/api/companies/:companyId/labels' },
   'issues.get': { ids: ['S6.13'], method: 'GET', path: '/api/issues/:id' },
   'issues.create': { ids: ['S5.5', 'S5.6'], method: 'POST', path: '/api/companies/:companyId/issues' },
   'issues.update': { ids: ['S6.7', 'S6.8', 'S6.10', 'S6.11', 'S6.12'], method: 'PATCH', path: '/api/issues/:id' },
