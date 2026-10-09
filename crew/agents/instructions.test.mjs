@@ -24,7 +24,7 @@ const templateLine = (text, prefix) => {
 };
 
 test("mọi instructions đều cấm xóa đệ quy ngoài thư mục tạm vừa tạo trong run", () => {
-  for (const name of ["executor", "reviewer", "integrator", "assistant"]) {
+  for (const name of ["executor", "reviewer", "integrator", "assistant", "bmad"]) {
     assert.ok(read(name).includes(RECURSIVE_DELETE_RULE), `${name}: thiếu quy tắc xóa đệ quy`);
   }
 });
@@ -124,7 +124,7 @@ test("integrator merge đúng sha của crew-review, không lấy crew-commit m�
 });
 
 test("mọi file instructions nhắc đúng các mã lỗi server", () => {
-  for (const name of ["executor", "reviewer", "integrator", "assistant"]) {
+  for (const name of ["executor", "reviewer", "integrator", "assistant", "bmad"]) {
     assert.match(read(name), /crew_gate_blocked/, name);
   }
   assert.match(read("executor"), /crew_agent_root_issue/);
@@ -133,15 +133,15 @@ test("mọi file instructions nhắc đúng các mã lỗi server", () => {
 });
 
 test("không vai trò nào chuyển cancelled; cả ba có đường blocked", () => {
-  for (const name of ["executor", "reviewer", "integrator", "assistant"]) {
+  for (const name of ["executor", "reviewer", "integrator", "assistant", "bmad"]) {
     const text = read(name);
     assert.doesNotMatch(text, /"status":"cancelled"/, name);
-    if (name === "executor" || name === "assistant") assert.match(text, /"status":"blocked"/, name);
+    if (name !== "reviewer" && name !== "integrator") assert.match(text, /"status":"blocked"/, name);
   }
 });
 
 test("mọi PATCH trong instructions mang comment", () => {
-  for (const name of ["executor", "reviewer", "integrator", "assistant"]) {
+  for (const name of ["executor", "reviewer", "integrator", "assistant", "bmad"]) {
     for (const [, body] of read(name).matchAll(/`(\{"status":[^`]*\})`/g)) {
       assert.match(body, /"comment":/, `${name}: ${body}`);
     }
@@ -149,7 +149,7 @@ test("mọi PATCH trong instructions mang comment", () => {
 });
 
 test("không file nào dặn push cưỡng bức hoặc bỏ hook ngoài câu cấm", () => {
-  for (const name of ["executor", "reviewer", "integrator", "assistant"]) {
+  for (const name of ["executor", "reviewer", "integrator", "assistant", "bmad"]) {
     const text = read(name);
     assert.doesNotMatch(text, /`git push[^`]*(--force|\s-f\b)[^`]*`/, name);
     for (const line of text.split("\n").filter((l) => l.includes("--no-verify"))) {
@@ -243,7 +243,7 @@ test("reviewer có mục issue gốc và integrator nhận việc của issue g�
 });
 
 test("mọi lệnh API có tiền tố /api/ và curl có -f", () => {
-  for (const name of ["executor", "reviewer", "integrator", "assistant"]) {
+  for (const name of ["executor", "reviewer", "integrator", "assistant", "bmad"]) {
     const text = read(name);
     assert.match(text, /## Gọi API/, name);
     assert.match(text, /\$PAPERCLIP_API_URL\/api\//, name);
@@ -256,7 +256,7 @@ test("mọi lệnh API có tiền tố /api/ và curl có -f", () => {
 });
 
 test("luật không bao giờ nằm trước các mục khác, integrator có luật cứng trước push", () => {
-  for (const name of ["executor", "reviewer", "integrator", "assistant"]) {
+  for (const name of ["executor", "reviewer", "integrator", "assistant", "bmad"]) {
     const text = read(name);
     assert.ok(text.indexOf("## Không bao giờ") > 0, name);
     assert.ok(text.indexOf("## Không bao giờ") < text.indexOf("## Gọi API"), name);
@@ -324,7 +324,7 @@ test("executor và reviewer đọc tiêu chí từ description", () => {
 });
 
 test("mọi vai trò tạo issue con qua route company có parentId", () => {
-  for (const role of ["assistant", "executor", "reviewer", "integrator"]) {
+  for (const role of ["assistant", "executor", "reviewer", "integrator", "bmad"]) {
     assert.doesNotMatch(read(role), /\/children\b/, role);
   }
   for (const role of ["assistant", "executor", "integrator"]) {
@@ -411,7 +411,7 @@ test("assistant: yêu cầu sửa gốc được xử lý trước khi đóng l�
 });
 
 test("mọi vai trò cấm ghi sau PATCH chuyển stage và dừng khi PATCH trả 422", () => {
-  for (const name of ["executor", "reviewer", "integrator", "assistant"]) {
+  for (const name of ["executor", "reviewer", "integrator", "assistant", "bmad"]) {
     const text = read(name);
     assert.match(text, /Ghi thêm bất cứ gì \(comment, `PATCH`, `POST`\) sau một `PATCH` chuyển stage/, name);
     assert.match(text, /agent_run_cancelled/, name);
@@ -434,11 +434,11 @@ test("integrator không bảo ghi bằng chứng rồi PATCH lại sau 422", () 
 test("vai trò khác không bảo comment sau PATCH 422 của quyết định", () => {
   assert.doesNotMatch(read("reviewer"), /đọc `violations`, comment lại nguyên văn, dừng/);
   assert.match(read("reviewer"), /run đã bị hủy, không comment hay `PATCH` lại được/);
-  for (const name of ["executor", "assistant"]) assert.match(read(name), /422 của chính `PATCH done` \(lệnh ghi cuối\) thì run đã bị hủy/, name);
+  for (const name of ["executor", "assistant", "bmad"]) assert.match(read(name), /422 của chính `PATCH done` \(lệnh ghi cuối\) thì run đã bị hủy/, name);
 });
 
 test("mọi vai trò cấm PUT /api/issues/:id/title và chỉ dùng PATCH title", () => {
-  for (const name of ["executor", "reviewer", "integrator", "assistant"]) {
+  for (const name of ["executor", "reviewer", "integrator", "assistant", "bmad"]) {
     const text = read(name);
     assert.match(text, /Gọi `PUT \/api\/issues\/<id>\/title`/, name);
     assert.match(text, /dùng `PATCH \/api\/issues\/<id>` với `title`/, name);
@@ -456,7 +456,7 @@ test("PATCH /api/issues/:id có trong allowlist của callback bridge, PUT title
 const ATTACH_CMD = '"$HOME/.crew/bin/crew-mac" files --issue "$PAPERCLIP_TASK_ID" --run "$PAPERCLIP_RUN_ID"';
 const ATTACH_CHILD = "Nếu issue là issue con (có `parentId`) thì luôn chạy một lần khi bắt đầu, dù context không có gì, vì file có thể nằm ở issue cha.";
 const ATTACH_NEVER = "Mở file đính kèm bị chặn bằng công cụ khác, hay chép credential từ file/ảnh vào comment, code, commit.";
-for (const role of ["assistant", "executor", "reviewer", "integrator"]) {
+for (const role of ["assistant", "executor", "reviewer", "integrator", "bmad"]) {
   test(`${role} có mục File đính kèm đúng lệnh và luật`, () => {
     const text = read(role);
     const section = text.split("\n## ").find((s) => s.startsWith("File đính kèm"));
@@ -470,3 +470,124 @@ for (const role of ["assistant", "executor", "reviewer", "integrator"]) {
     assert.ok(never.includes(ATTACH_NEVER), "thiếu dòng Không bao giờ về file đính kèm");
   });
 }
+
+const section = (text, heading) => {
+  const start = text.indexOf(`\n${heading}\n`);
+  assert.ok(start >= 0, `thiếu mục ${heading}`);
+  const next = text.indexOf("\n## ", start + heading.length + 2);
+  return text.slice(start + 1, next < 0 ? undefined : next);
+};
+const BMAD_RESULT_RE = /^crew-bmad-result sha=[0-9a-f]{40} file=\S+\.md epics=\d+ stories=\d+ digest=[0-9a-f]{64}$/;
+const fillBmad = (line) => fill(line)
+  .replaceAll("<64 hex>", "d".repeat(64))
+  .replaceAll("<đường dẫn>", "_bmad-output/planning-artifacts/epics.md")
+  .replaceAll("<n>", "2")
+  .replaceAll("<m>", "3");
+
+test("bmad: dòng mẫu crew-bmad-result và crew-commit khớp định dạng", () => {
+  const text = read("bmad");
+  assert.match(fillBmad(templateLine(text, "crew-bmad-result sha=")), BMAD_RESULT_RE);
+  assert.match(fillBmad(templateLine(text, "crew-commit sha=")), /^crew-commit sha=[0-9a-f]{40} branch=\S+ tests=.+ result=pass$/);
+});
+
+test("bmad: kiểm file bằng crew-mac bmad stories, dựng repo bằng setup-project, giữ worktree sạch", () => {
+  const text = read("bmad");
+  assert.ok(text.includes('"$HOME/.crew/bin/crew-mac" bmad stories --root "$(git rev-parse --show-toplevel)" --file'));
+  assert.ok(text.includes('"$HOME/.crew/bin/crew-mac" bmad setup-project --root "$(git rev-parse --show-toplevel)"'));
+  assert.ok(text.includes("chore(bmad): dựng BMAD cho dự án"));
+  assert.match(text, /bắt buộc chạy `crew-mac workflow-check --root/);
+  assert.match(text, /\$HOME\/\.crew\/workflows\/bmad\//);
+});
+
+test("bmad: khối File đính kèm giống hệt executor", () => {
+  assert.equal(section(read("bmad"), "## File đính kèm"), section(read("executor"), "## File đính kèm"));
+});
+
+test("bmad: cấm skill superpowers và cấm tạo issue trong mục Không bao giờ", () => {
+  const never = section(read("bmad"), "## Không bao giờ");
+  assert.ok(never.split("\n").some((l) => /^\d+\. Tạo issue \(kể cả issue con\)/.test(l)), "thiếu dòng cấm tạo issue");
+  assert.ok(never.split("\n").some((l) => l.includes("Gọi skill `superpowers:…`")), "thiếu câu cấm skill superpowers");
+  const text = read("bmad");
+  assert.doesNotMatch(text, /POST \/api\/companies/);
+  assert.doesNotMatch(text, /"parentId":/);
+  assert.doesNotMatch(text, /COMPANY_ID/);
+});
+
+test("bmad: không gọi skill trợ giúp bmad:bmad, gọi thẳng chuỗi PRD → architecture → epic/story", () => {
+  const text = read("bmad");
+  assert.doesNotMatch(text, /`bmad:bmad`/, "không được gọi skill trợ giúp bmad:bmad");
+  const how = section(text, "## Cách làm");
+  const prd = how.indexOf("`bmad:bmad-prd`");
+  const arch = how.indexOf("`bmad:bmad-architecture`", prd);
+  const epics = how.indexOf("`bmad:bmad-create-epics-and-stories`", arch);
+  assert.ok(prd > 0 && prd < arch && arch < epics, "thứ tự PRD → architecture → epic/story");
+  assert.match(how, /headless/);
+  assert.match(how, /`C`/);
+  assert.match(how, /30 story/);
+  assert.match(how, /"idempotencyKey":"crew-ask:<id>:1"/);
+  assert.match(how, /"status":"blocked","comment":"BMAD: chờ owner trả lời/);
+});
+
+test("bmad: tài liệu viết tiếng Việt nhưng giữ heading khuôn mà parser đọc", () => {
+  const how = section(read("bmad"), "## Cách làm");
+  assert.match(how, /tiếng Việt/);
+  for (const needle of ["`## Epic <N>: <tên>`", "`### Story <N>.<M>: <tên>`", "`**Acceptance Criteria:**`", "`**Given**`", "`**When**`", "`**Then**`"]) {
+    assert.ok(how.includes(needle), `thiếu ${needle}`);
+  }
+});
+
+const fillWorkflow = (line) => line.replaceAll("<superpowers|bmad>", "bmad").replaceAll("<một dòng>", "nhãn bmad");
+const BMAD_STORY_RE = /^crew-bmad story=\d+\.\d+ source=[0-9a-f]{12}:\S+\.md$/;
+
+test("assistant: chọn workflow, con BMAD và tạo story từ BMAD", () => {
+  const text = read("assistant");
+  const choose = section(text, "## Chọn workflow");
+  assert.match(fillWorkflow(templateLine(text, "crew-workflow id=")), /^crew-workflow id=(superpowers|bmad) reason=.+$/);
+  assert.ok(text.split("\n").some((l) => l.trim().replace(/^`|`$/g, "") === "crew-kind bmad"), "thiếu dòng crew-kind bmad");
+  assert.match(choose, /Superpowers là mặc định/);
+  assert.match(choose, /Agent BMAD của company/);
+  assert.ok(choose.includes("child-key=bmad-1"));
+  assert.ok(choose.includes("crew-bundle id=bmad seq=1"));
+  const modelLine = /`(crew-model complexity=large model=claude-opus-5 effort=high reason=[^`]+)`/.exec(choose);
+  assert.ok(modelLine, "thiếu crew-model của con BMAD");
+  assert.match(modelLine[1], MODEL_LINE_RE);
+  const story = templateLine(text, "crew-bmad story=")
+    .replace("<N>.<M>", "1.2").replace("<sha12>", "e".repeat(12)).replace("<file>", "_bmad-output/planning-artifacts/epics.md");
+  assert.match(story, BMAD_STORY_RE);
+  assert.ok(text.indexOf("## Chọn workflow") < text.indexOf("## Tách việc"));
+  assert.ok(text.indexOf("## Tạo story từ BMAD") > 0);
+  const never = section(text, "## Không bao giờ");
+  assert.ok(never.includes("Giao con có dòng `crew-kind bmad` cho agent ngoài mục \"Agent BMAD của company\""));
+});
+
+test("assistant: tạo story từ BMAD dùng khóa ổn định, đối soát và không tạo trùng khi bị đánh thức lại", () => {
+  const text = read("assistant");
+  const stories = section(text, "## Tạo story từ BMAD");
+  for (const needle of [
+    "crew-child:<id gốc>:bmad-<identifier>:s<N>-<M>",
+    "revision=bmad-<identifier con BMAD>",
+    "crew-workflow id=bmad",
+    "completedStageIds",
+    "authorAgentId",
+    '--rev <sha> --file <file> --json',
+    "Đối soát và tạo nốt",
+    "s<N>-<M-1>",
+    "story cuối của epic N-1",
+    "không** giao agent BMAD",
+  ]) assert.ok(stories.includes(needle), `thiếu ${needle}`);
+  const dispatch = text.slice(text.indexOf("## Mỗi lần được đánh thức"), text.indexOf("## Hiểu yêu cầu"));
+  const step2 = dispatch.indexOf("\n2. ");
+  const step2b = dispatch.indexOf("\n2b. ");
+  const step3 = dispatch.indexOf("\n3. ");
+  assert.ok(step2 > 0 && step2 < step2b && step2b < step3, "bước 2b nằm giữa 2 và 3");
+  assert.match(dispatch.slice(step2b, step3), /revision=bmad-<identifier con đó>/);
+});
+
+test("reviewer: mục issue BMAD kiểm lại file epic/story ở đúng commit", () => {
+  const text = read("reviewer");
+  const bmad = section(text, "## Issue BMAD (`crew-kind bmad`)");
+  assert.ok(bmad.includes('bmad stories --root "$PWD" --rev'));
+  assert.match(bmad, /`scriptsMatchPin` là `true`/);
+  assert.match(bmad, /crew-bmad-result/);
+  assert.ok(text.indexOf("## Issue research") < text.indexOf("## Issue BMAD") && text.indexOf("## Issue BMAD") < text.indexOf("## Issue gốc"));
+});

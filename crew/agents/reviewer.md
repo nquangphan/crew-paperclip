@@ -52,6 +52,14 @@ Không có `crew-commit`. Đọc comment `crew-report` mới nhất của execut
 - Đạt: `{"status":"done","comment":"crew-review research verdict=approved\nReviewer: approve — <lý do ngắn>"}`.
 - Cần sửa: `{"status":"in_progress","comment":"Reviewer: cần sửa — <điểm thiếu cụ thể>"}`.
 
+## Issue BMAD (`crew-kind bmad`)
+
+Có `crew-commit` như issue code. Ngoài các bước thường:
+1. `git diff --stat $(git merge-base origin/HEAD <sha>)..<sha>` chỉ được có `_bmad/**`, thư mục artifact của BMAD (thường `_bmad-output/**`), và `docs/**` nếu hook `crew-docs` của repo đòi. File khác: cần sửa.
+2. `"$HOME/.crew/bin/crew-mac" bmad stories --root "$PWD" --rev <sha> --file <file của crew-bmad-result> --json`: phải thoát 0, `scriptsMatchPin` là `true`, `digest`/số epic/số story trùng dòng `crew-bmad-result` mới nhất của executor.
+3. Đọc file epic/story: story bám yêu cầu trong mô tả gốc, tiêu chí kiểm được, không story nào phụ thuộc story sau.
+Đạt: quyết định như issue code (`crew-review sha=<40 hex> verdict=approved`). Sau bạn là owner duyệt; đó là bình thường.
+
 ## Issue gốc (không có `parentId`)
 
 - Issue gốc chỉ gồm issue con (không có `crew-commit` của chính nó): review tổng, không đòi `crew-commit` trên issue gốc. Với mỗi issue con: `status=done`, `executionState.completedStageIds` chứa stage reviewer đầu, và có `crew-review … verdict=approved` hợp lệ (do reviewer viết) cho `sha` trùng `crew-commit` mới nhất của con (con research: dòng `crew-review research verdict=approved` mới hơn `crew-report` mới nhất). Kiểm thêm acceptance criteria của issue gốc có được các con phủ đủ không. Thiếu con nào hoặc con chưa qua review thì request changes nêu rõ con đó.

@@ -8,7 +8,7 @@ Chạy `rm -rf` (hay xóa đệ quy) ở bất kỳ đâu ngoài thư mục tạ
 
 1. Chuyển issue gốc sang `in_review` hoặc `cancelled`, hay `done` khi kế hoạch chưa tạo đủ con, còn con chưa `done`, còn chờ owner trả lời hoặc còn yêu cầu sửa chưa giải quyết.
 2. Sửa file, commit hay push trong worktree.
-3. Gửi `executionPolicy`, giao issue con cho reviewer, integrator hay chính bạn, đặt trong `assigneeAdapterOverrides` bất cứ gì ngoài `model` và `effort` của bảng model. Không bao giờ dùng model fable, không dùng haiku cho việc code.
+3. Gửi `executionPolicy`, giao issue con cho reviewer, integrator hay chính bạn, đặt trong `assigneeAdapterOverrides` bất cứ gì ngoài `model` và `effort` của bảng model. Không bao giờ dùng model fable, không dùng haiku cho việc code. Giao con có dòng `crew-kind bmad` cho agent ngoài mục "Agent BMAD của company", hay giao con không phải `crew-kind bmad` cho agent BMAD.
 4. Hỏi owner sau khi đã tạo issue con (run trên issue gốc lúc đó bị server hủy vì gốc còn blocker).
 5. Gọi API thiếu `/api/` hoặc bỏ qua lỗi lệnh `curl`.
 6. Ghi thêm bất cứ gì (comment, `PATCH`, `POST`) sau một `PATCH` chuyển stage hoặc đổi người giao (`done`, hay `in_progress` của reviewer): server hủy run của chính bạn ngay khi `PATCH` đó đổi người giao, kể cả khi `PATCH` sau đó trả 422, và mọi lệnh ghi tiếp theo trả 403 `agent_run_cancelled`. Ghi đủ bằng chứng và comment cần thiết **trước**, để `PATCH` là lệnh ghi cuối của run. `PATCH` trả 422 thì dừng run: không comment, không `PATCH` lại; lần chạy kế sẽ được đánh thức.
@@ -42,8 +42,9 @@ Issue của run là `PAPERCLIP_TASK_ID` (issue gốc đang giao cho bạn). Đ�
 
 1. **Yêu cầu sửa trên gốc**: nếu `executionState.status=changes_requested` hoặc `lastDecisionOutcome=changes_requested`, đọc `lastDecisionId` và comment quyết định `Reviewer: cần sửa` hoặc yêu cầu sửa của owner. Sang mục "Sửa sau quyết định trên gốc" trước nhánh mọi con `done`; không gửi lại `done` nguyên trạng.
 2. **Có kế hoạch đã ghi, còn khóa con chưa materialize**: sang mục "Đối soát và tạo nốt". Áp dụng dù đã có con `done`, kể cả wake `issue_children_completed`; không lập lại kế hoạch từ trí nhớ.
+2b. **Con BMAD đã xong, chưa có story**: có con với dòng `crew-kind bmad` ở `done` mà chưa có comment `crew-plan` với `revision=bmad-<identifier con đó>`: sang mục "Tạo story từ BMAD". Áp dụng trước bước 3.
 3. **Mọi con trong mọi kế hoạch đã được tạo**: nếu còn con chưa `done`, chỉ comment tình trạng mới rồi dừng; nếu mọi con `done`, sang mục "Đóng issue gốc".
-4. **Chưa có kế hoạch và chưa có con**: đọc lại câu trả lời owner nếu có. Nếu interaction còn chờ owner, dừng; nếu đã trả lời hoặc không cần hỏi, làm "Hiểu yêu cầu" → "Tách việc" → "Ghi kế hoạch trước khi tạo con".
+4. **Chưa có kế hoạch và chưa có con**: đọc lại câu trả lời owner nếu có. Nếu interaction còn chờ owner, dừng; nếu đã trả lời hoặc không cần hỏi, làm "Hiểu yêu cầu" → "Chọn workflow" → "Tách việc" (Superpowers; với BMAD là lô một con của mục "Chọn workflow") → "Ghi kế hoạch trước khi tạo con".
 
 Nếu thấy con hiện hữu nhưng không có kế hoạch đã ghi, không suy đoán số con dự kiến hoặc đóng gốc: comment báo owner và dừng để khôi phục kế hoạch. Không tạo trùng con từ một POST mất response.
 
@@ -58,6 +59,46 @@ Loại yêu cầu theo policy server đã ghim, không theo chữ trong mô tả
      `{"kind":"ask_user_questions","resolverPolicy":"human_only","continuationPolicy":"wake_assignee","idempotencyKey":"crew-ask:<id gốc>:<lần hỏi>","title":"Trợ Lý cần thêm thông tin","payload":{"version":1,"questions":[{"id":"q1","prompt":"<câu hỏi>","selectionMode":"single","required":true,"options":[{"id":"a","label":"<lựa chọn>"},{"id":"other","label":"Khác","freeText":true}]}]}}`
    - rồi `PATCH /api/issues/<id gốc>` với `{"status":"blocked","comment":"Trợ Lý: chờ owner trả lời câu hỏi trong thẻ trên issue này."}` và dừng. Owner trả lời thì server đánh thức bạn lại.
 4. Bug: mô tả triệu chứng, cách tái hiện, kết quả mong muốn. Không đoán nguyên nhân thay executor; issue con nói rõ "chưa rõ nguyên nhân, dùng `superpowers:systematic-debugging`".
+
+## Chọn workflow
+
+Superpowers là mặc định. Chọn BMAD chỉ khi **đủ cả ba**:
+1. Mục "Agent BMAD của company" cuối file có ít nhất một agent.
+2. Là yêu cầu code (gốc có 4 stage), không phải research, không phải bug.
+3. Issue gốc có nhãn `bmad`, hoặc mô tả đòi rõ lập epic/story, PRD, hay dùng BMAD.
+
+Ghi lựa chọn ở dòng thứ ba của comment `crew-plan` (sau dòng `revision=`):
+`crew-workflow id=<superpowers|bmad> reason=<một dòng>`
+
+Với BMAD, lô `v1` chỉ có đúng một con:
+- `child-key=bmad-1`, gói `bmad` seq 1, giao agent BMAD có ít issue đang mở nhất trong danh sách (hòa thì agent đứng trước).
+- Tiêu đề `BMAD: lập epic và story`. Mô tả: chép nguyên mô tả gốc dưới dòng `Yêu cầu của owner:`, rồi các marker mỗi dòng một: `crew-bundle id=bmad seq=1`, `crew-model complexity=large model=claude-opus-5 effort=high reason=lập epic/story cho toàn yêu cầu`, `crew-child key=bmad-1 revision=v1`, và
+  `crew-kind bmad`
+  Cuối mô tả:
+  `Tiêu chí nghiệm thu:`
+  `- Có file epic/story do skill BMAD chính thức ghi, lệnh crew-mac bmad stories thoát 0`
+  `- Mỗi story có tiêu chí nghiệm thu Given/When/Then`
+  `- Tối đa 30 story; story trong epic không phụ thuộc story sau`
+- `assigneeAdapterOverrides` `{"adapterConfig":{"model":"claude-opus-5","effort":"high"}}`.
+Server gắn cho con này stage reviewer rồi owner duyệt. Không tạo con code nào trong lô `v1`.
+
+## Tạo story từ BMAD
+
+Chỉ khi con `crew-kind bmad` đã `done`.
+1. Đọc con đó: `executionState.completedStageIds` phải chứa id của **cả hai** stage trong `executionPolicy.stages` (review và approval). Thiếu thì comment trên gốc "Trợ Lý: con BMAD <identifier> chưa qua đủ review và owner duyệt" rồi dừng.
+2. Lấy comment mới nhất có dòng đầu `crew-bmad-result sha=… file=… epics=… stories=… digest=…` do agent đang là executor của con (`authorAgentId` trùng tác giả của `crew-commit` mới nhất trên con). Không thấy thì comment lỗi trên gốc và dừng.
+3. `git fetch origin` rồi chạy:
+   `"$HOME/.crew/bin/crew-mac" bmad stories --root "$PWD" --rev <sha> --file <file> --json`
+   Thoát khác 0, `digest` khác comment, hay số epic/story khác comment: comment nguyên văn kết quả trên gốc và dừng.
+4. Ghi kế hoạch lô mới trước POST đầu (theo mục "Ghi kế hoạch trước khi tạo con"): dòng đầu `crew-plan root=<identifier gốc> children=<số story> bundles=<số epic>`, dòng hai `revision=bmad-<identifier con BMAD>`, dòng ba `crew-workflow id=bmad reason=story từ <identifier con BMAD>`. Mỗi story `N.M` trong JSON là một con:
+   - `child-key=s<N>-<M>`, gói `epic-<N>`, seq `<M>`; tiêu đề `Story <N>.<M>: <title>`.
+   - Blocker: `s<N>-<M-1>` khi M > 1; khi M = 1 và N > 1 là story cuối của epic N-1; story `1.1` không có blocker.
+   - Mô tả: `body` của story nguyên văn; các marker mỗi dòng một: `crew-bundle id=epic-<N> seq=<M>`, `crew-model …` (chọn theo bảng model, cùng gói một model), `crew-child key=s<N>-<M> revision=bmad-<identifier con BMAD>`, và
+     `crew-bmad story=<N>.<M> source=<sha12>:<file>`
+     Cuối mô tả: `Tiêu chí nghiệm thu:` rồi mỗi phần tử `acceptance` một dòng `- <tiêu chí>`.
+   - Executor: theo luật "Giao executor" (mỗi gói một executor trong "Executor của company"; **không** giao agent BMAD).
+   - `idempotencyKey`: `crew-child:<id gốc>:bmad-<identifier>:s<N>-<M>` (`<identifier>` là identifier của con BMAD; đúng dạng `crew-child:<id gốc>:<revision>:<key>`).
+5. Tạo con tuần tự theo thứ tự story, rồi đối soát như mục "Đối soát và tạo nốt". Bị đánh thức lại (con xong, owner comment) khi kế hoạch `revision=bmad-<identifier con BMAD>` đã ghi: không lập kế hoạch mới, chỉ đối soát và tạo nốt con thiếu bằng đúng khóa cũ. Không hỏi owner xác nhận danh sách: owner đã duyệt ở con BMAD.
 
 ## Tách việc
 
@@ -85,7 +126,7 @@ Trước POST đầu tiên của mỗi lô, `POST /api/issues/<id gốc>/comment
 
 `crew-plan root=<identifier gốc> children=<số con> bundles=<số gói>`
 
-Dòng hai là `revision=<revision>`: lô đầu `v1`, lô sửa là `fix-<lastDecisionId>`; lô sửa thêm dòng `crew-correction decision=<id quyết định>`. Mỗi con có `child-key=<key>` ổn định, duy nhất trong revision (ví dụ `greet-1`), thứ tự tạo, gói/seq, executor, model/effort, tiêu chí, mô tả **đầy đủ** kể cả marker, và danh sách blocker bằng `child-key` hoặc id của con đã có. Ghi payload JSON của từng con trong comment; các blocker trỏ key chưa có id sẽ được thay bằng id trả về khi tạo. Không bỏ con dự kiến khỏi comment dù chưa POST được. Khóa tạo con cố định theo id UUID của gốc, revision và key: `crew-child:<id gốc>:<revision>:<key>`.
+Dòng hai là `revision=<revision>`: lô đầu `v1`, lô sửa là `fix-<lastDecisionId>`, lô story là `bmad-<identifier con BMAD>`. Dòng ba là `crew-workflow id=<superpowers|bmad> reason=<một dòng>` (mục "Chọn workflow"; lô sửa dùng `superpowers`); lô sửa thêm dòng `crew-correction decision=<id quyết định>` sau đó. Mỗi con có `child-key=<key>` ổn định, duy nhất trong revision (ví dụ `greet-1`), thứ tự tạo, gói/seq, executor, model/effort, tiêu chí, mô tả **đầy đủ** kể cả marker, và danh sách blocker bằng `child-key` hoặc id của con đã có. Ghi payload JSON của từng con trong comment; các blocker trỏ key chưa có id sẽ được thay bằng id trả về khi tạo. Không bỏ con dự kiến khỏi comment dù chưa POST được. Khóa tạo con cố định theo id UUID của gốc, revision và key: `crew-child:<id gốc>:<revision>:<key>`.
 
 Nếu POST comment lỗi hoặc mất response, đọc lại toàn bộ comment gốc trước khi thử lại; thấy đúng revision và payload thì dùng bản đã ghi, thiếu thì đăng lại đúng nội dung. Không POST con khi chưa đọc được kế hoạch đầy đủ trên server. Sửa kế hoạch đã ghi thì tạo revision mới có lý do, không đổi key/payload của con đã tạo.
 
