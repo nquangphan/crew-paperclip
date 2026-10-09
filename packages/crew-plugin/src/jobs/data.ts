@@ -111,17 +111,22 @@ export type JobOutcome =
   | { status: "done"; result: JobResult }
   | { status: "failed"; errorCode: JobErrorCode; errorText: string | null; result?: JobResult };
 
-/** Records the outcome of a claimed job; false when the job is no longer claimed by this machine. */
+/**
+ * Records the outcome of a claimed job; false when the job is no longer claimed by this machine, or, when the caller
+ * names the claim it worked under, no longer under that claim.
+ */
 export async function finishJob(
-  ctx: Db, companyId: string, jobId: string, machineId: string, outcome: JobOutcome, now: Date,
+  ctx: Db, companyId: string, jobId: string, machineId: string, outcome: JobOutcome, now: Date, claimedAt: string | null = null,
 ): Promise<boolean> {
   const done = outcome.status === "done";
   const result = outcome.result ?? null;
   const { rowCount } = await ctx.db.execute(`UPDATE ${table(ctx)} SET status = $4, result = $5::text::jsonb,
       error_code = $6, error_text = $7, finished_at = $8::timestamptz, lease_until = NULL
-    WHERE id = $1 AND company_id = $2 AND machine_id = $3 AND status = 'claimed'`,
+    WHERE id = $1 AND company_id = $2 AND machine_id = $3 AND status = 'claimed'
+      AND ($9::timestamptz IS NULL OR claimed_at = $9::timestamptz)`,
   [checkedId(jobId), checkedId(companyId), checkedId(machineId), outcome.status,
-    result ? JSON.stringify(result) : null, done ? null : outcome.errorCode, done ? null : outcome.errorText, now.toISOString()]);
+    result ? JSON.stringify(result) : null, done ? null : outcome.errorCode, done ? null : outcome.errorText, now.toISOString(),
+    claimedAt]);
   return rowCount === 1;
 }
 

@@ -106,6 +106,8 @@ const manifest: PaperclipPluginManifestV1 = {
       capability: "api.routes.register", companyResolution: { from: "body", key: "companyId" } },
     { routeKey: "setup.get", method: "GET", path: "/setup-runs/:id", auth: "board",
       capability: "api.routes.register", companyResolution: { from: "query", key: "companyId" } },
+    { routeKey: "setup.abandon", method: "POST", path: "/setup-runs/:id/abandon", auth: "board",
+      capability: "api.routes.register", companyResolution: { from: "body", key: "companyId" } },
   ],
   database: {
     migrationsDir: "migrations",

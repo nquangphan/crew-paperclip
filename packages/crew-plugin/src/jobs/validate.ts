@@ -1,5 +1,6 @@
 import { UUID } from "../shared/db.js";
-import { CREW_ROLE_SLOTS, type CrewRoleSlot, type JobPayload, MACHINE_JOB_KINDS, type MachineJobKind } from "./types.js";
+import { maskUrlUserinfo } from "./sanitize.js";
+import { CREW_ROLE_SLOTS, type CrewRoleSlot, type JobPayload, type JobResult, MACHINE_JOB_KINDS, type MachineJobKind } from "./types.js";
 
 /** Same rule as the app's project key. */
 const PROJECT_KEY = /^[a-z][a-z0-9-]{1,30}$/;
@@ -88,4 +89,45 @@ export function validateJobPayload(kind: MachineJobKind, payload: unknown): JobP
     case "check":
       return projectKeyError(p.projectKey) ?? { kind, projectKey: p.projectKey as string };
   }
+}
+
+const RESULT_ERROR = "result không hợp lệ";
+const CHECK_STATUSES = ["ok", "warn", "error"];
+const str = (value: unknown): value is string => typeof value === "string";
+const strOrNull = (value: unknown): value is string | null => value === null || typeof value === "string";
+const checkout = (value: unknown): value is { role: CrewRoleSlot; path: string; head: string } =>
+  isObject(value) && roleError(value.role) === null && str(value.path) && str(value.head);
+
+/**
+ * Checks the result a Mac reports against the job's kind, so the web can read every field it expects. Returns a copy
+ * with only the known fields (the remote URL without credentials), or `result không hợp lệ`. The kind itself is
+ * compared with the job before this is called.
+ */
+export function validateJobResult(kind: MachineJobKind, result: Record<string, unknown>): JobResult | string {
+  const r = result;
+  switch (kind) {
+    case "inspect-folder":
+      if (!str(r.root) || !strOrNull(r.branch) || !strOrNull(r.remote) || !strOrNull(r.docsBundle) || typeof r.clean !== "boolean") return RESULT_ERROR;
+      return {
+        kind, root: r.root, branch: r.branch, remote: r.remote === null ? null : maskUrlUserinfo(r.remote), docsBundle: r.docsBundle, clean: r.clean,
+      };
+    case "prepare-checkouts":
+      if (!Array.isArray(r.checkouts) || !r.checkouts.every(checkout)) return RESULT_ERROR;
+      return { kind, checkouts: r.checkouts.map(({ role, path, head }) => ({ role, path, head })) };
+    case "agent-workspace":
+      return checkout(r) ? { kind, role: r.role, path: r.path, head: r.head } : RESULT_ERROR;
+    case "skill-sync":
+      if (!str(r.sha256) || !Number.isInteger(r.files) || (r.files as number) < 0) return RESULT_ERROR;
+      return { kind, sha256: r.sha256, files: r.files as number };
+    case "check": {
+      const items = r.items;
+      if (!Array.isArray(items) || !items.every((item) =>
+        isObject(item) && str(item.id) && str(item.title) && CHECK_STATUSES.includes(item.status as string))) return RESULT_ERROR;
+      return {
+        kind,
+        items: (items as { id: string; status: "ok" | "warn" | "error"; title: string }[]).map(({ id, status, title }) => ({ id, status, title })),
+      };
+    }
+  }
+  return RESULT_ERROR;
 }

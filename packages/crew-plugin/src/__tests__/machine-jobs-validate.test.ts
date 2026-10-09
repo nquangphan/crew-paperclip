@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { MachineJobKind } from "../jobs/types.js";
-import { validateJobPayload } from "../jobs/validate.js";
+import { validateJobPayload, validateJobResult } from "../jobs/validate.js";
 
 const fullRoles = [
   { role: "assistant", branch: "crew/demo/assistant" }, { role: "executor", branch: "crew/demo/executor" },
@@ -53,5 +53,38 @@ describe("validateJobPayload", () => {
     expect(validateJobPayload("skill-sync", { skillId: "30000000-0000-4000-8000-00000000000A", slug: "superpowers", version: "2.1.0" }))
       .toEqual({ kind: "skill-sync", skillId: "30000000-0000-4000-8000-00000000000a", slug: "superpowers", version: "2.1.0" });
     expect(validateJobPayload("check", { projectKey: "e2e-demo" })).toEqual({ kind: "check", projectKey: "e2e-demo" });
+  });
+});
+
+describe("validateJobResult", () => {
+  const inspect = { kind: "inspect-folder", root: "/Users/a/repo", branch: "main", remote: null, docsBundle: null, clean: true };
+  it.each([
+    ["inspect-folder", { ...inspect, root: 1 }],
+    ["inspect-folder", { ...inspect, branch: undefined }],
+    ["inspect-folder", { ...inspect, clean: "yes" }],
+    ["inspect-folder", { ...inspect, remote: 3 }],
+    ["prepare-checkouts", { kind: "prepare-checkouts", checkouts: "x" }],
+    ["prepare-checkouts", { kind: "prepare-checkouts", checkouts: [{ role: "boss", path: "/p", head: "abc" }] }],
+    ["prepare-checkouts", { kind: "prepare-checkouts", checkouts: [{ role: "executor", path: "/p" }] }],
+    ["agent-workspace", { kind: "agent-workspace", role: "executor", path: 1, head: "abc" }],
+    ["skill-sync", { kind: "skill-sync", sha256: "abc", files: -1 }],
+    ["skill-sync", { kind: "skill-sync", sha256: 1, files: 2 }],
+    ["check", { kind: "check", items: "x" }],
+    ["check", { kind: "check", items: [{ id: "git", status: "fail", title: "Git" }] }],
+    ["check", { kind: "check", items: [{ id: "git", status: "ok" }] }],
+    ["check", { kind: "check", items: [null] }],
+  ])("%s từ chối %j", (kind, result) => {
+    expect(validateJobResult(kind as MachineJobKind, result as Record<string, unknown>)).toBe("result không hợp lệ");
+  });
+
+  it("nhận result đúng dạng, chỉ giữ trường đã biết và che user:pass trong remote", () => {
+    expect(validateJobResult("inspect-folder", { ...inspect, remote: "https://bob:secret@github.com/a/b.git", extra: 1 }))
+      .toEqual({ ...inspect, remote: "https://[ĐÃ CHE]@github.com/a/b.git" });
+    const checkouts = [{ role: "executor-2", path: "/Users/a/crew-agents/demo/executor-2", head: "abc123" }];
+    expect(validateJobResult("prepare-checkouts", { kind: "prepare-checkouts", checkouts })).toEqual({ kind: "prepare-checkouts", checkouts });
+    expect(validateJobResult("agent-workspace", { kind: "agent-workspace", ...checkouts[0] })).toEqual({ kind: "agent-workspace", ...checkouts[0] });
+    expect(validateJobResult("skill-sync", { kind: "skill-sync", sha256: "ab", files: 0 })).toEqual({ kind: "skill-sync", sha256: "ab", files: 0 });
+    const items = [{ id: "git", status: "warn", title: "Git" }];
+    expect(validateJobResult("check", { kind: "check", items })).toEqual({ kind: "check", items });
   });
 });
