@@ -1,6 +1,7 @@
 // Cổng vào duy nhất của design system. Màn hình chỉ import từ đây (DS-2, DS-4 thêm widget).
 
 export { Logo } from './brand/Logo';
+export * from './components/alert';
 export * from './components/alert-dialog';
 export * from './components/app-frame';
 export * from './components/avatar';
@@ -18,6 +19,7 @@ export * from './components/error-state';
 export * from './components/field';
 export * from './components/input';
 export * from './components/label';
+export * from './components/muted-text';
 export * from './components/popover';
 export * from './components/scroll-area';
 export * from './components/select';
@@ -34,11 +36,17 @@ export * from './components/tooltip';
 export * from './widgets/agent-row';
 export * from './widgets/attachment-picker';
 export * from './widgets/confirm-dialog';
+export * from './widgets/crew/crew-map';
+export * from './widgets/crew/crew-summary';
+export * from './widgets/crew/docs-check-panel';
+export * from './widgets/crew/machine-card';
+export * from './widgets/crew/readiness-badge';
 export * from './widgets/filter-bar';
 export * from './widgets/issue-row';
 export * from './widgets/markdown-view';
 export * from './widgets/page-header';
 export * from './widgets/property-list';
+export * from './widgets/row-link';
 export * from './widgets/run-row';
 export * from './widgets/stage-badge';
 export * from './widgets/status-badge';

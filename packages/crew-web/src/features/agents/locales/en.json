@@ -1,0 +1,129 @@
+{
+  "list": {
+    "title": "Agents",
+    "description": "Crew agents of this company.",
+    "add": "Create agent",
+    "empty": "No agents yet",
+    "emptyHint": "Create the first agent to assign work.",
+    "emptyFiltered": "No agents match the filter",
+    "loadFailed": "Could not load agents",
+    "actionFailed": "Could not change the agent state",
+    "pauseAgent": "Pause {{name}}",
+    "resumeAgent": "Resume {{name}}",
+    "pauseShort": "Pause",
+    "resumeShort": "Resume",
+    "col": {
+      "name": "Name",
+      "roles": "Roles",
+      "status": "Status",
+      "readiness": "Readiness",
+      "actions": "Actions"
+    },
+    "filter": {
+      "all": "All",
+      "running": "Running",
+      "paused": "Paused",
+      "error": "Error"
+    }
+  },
+  "role": {
+    "assistant": "Assistant",
+    "executor": "Executor",
+    "reviewer": "Reviewer",
+    "integrator": "Integrator"
+  },
+  "resume": "Continue setup",
+  "detail": {
+    "loadFailed": "Could not load the agent",
+    "rename": "Rename",
+    "tabs": {
+      "overview": "Overview",
+      "instructions": "Instructions",
+      "skills": "Skills",
+      "runtime": "Runtime",
+      "runs": "Runs"
+    }
+  },
+  "overview": {
+    "missing": "Not ready, missing",
+    "latestRun": "Latest run",
+    "noRun": "The agent has not run yet",
+    "working": "Requests in progress",
+    "noIssue": "No requests in progress",
+    "environment": "Environment",
+    "machine": "Machine",
+    "roles": "Roles",
+    "noRoles": "Holds no role yet"
+  },
+  "instructions": {
+    "loadFailed": "Could not load the instructions",
+    "render": "Re-render by role",
+    "noRole": "The agent holds no role in any project, so the role to render is unknown.",
+    "rendered": "Instructions re-rendered by role.",
+    "unchanged": "Instructions are already correct, nothing changed.",
+    "conflict": "Conflict while writing instructions",
+    "conflictHint": "Someone just edited this agent's instructions. Reload and render again; nothing was overwritten.",
+    "reload": "Reload",
+    "renderFailed": "Could not re-render the instructions",
+    "missing": "The agent has no AGENTS.md yet."
+  },
+  "skills": {
+    "loadFailed": "Could not load the agent's skills",
+    "unsupported": "This agent's adapter does not support skill sync.",
+    "empty": "The company has no skills",
+    "emptyHint": "Add skills on the Skills page, then enable them for the agent.",
+    "hint": "Enable or disable company skills for this agent. Changes apply from the next run.",
+    "col": {
+      "skill": "Skill",
+      "state": "State",
+      "enabled": "Enabled"
+    },
+    "readOnly": "Read only",
+    "syncFailed": "Could not sync skills",
+    "state": {
+      "available": "Available",
+      "configured": "Configured",
+      "installed": "Installed",
+      "missing": "Missing",
+      "stale": "Stale",
+      "external": "External"
+    }
+  },
+  "runtime": {
+    "title": "Runtime configuration",
+    "adapter": "Adapter",
+    "engine": "Engine",
+    "command": "Command",
+    "extraArgs": "Extra arguments",
+    "concurrency": "Concurrent runs",
+    "concurrencyValue": "{{count}} run at a time",
+    "heartbeat": "Heartbeat",
+    "on": "On",
+    "off": "Off",
+    "environment": "Environment",
+    "workspace": "Working folder",
+    "machine": "Machine",
+    "noEnvironment": "No environment attached",
+    "unknown": "Unknown",
+    "none": "None"
+  },
+  "model": {
+    "label": "Default model",
+    "choose": "Choose a model",
+    "save": "Save model",
+    "outside": "The current model ({{model}}) is not in the Crew model table."
+  },
+  "runs": {
+    "loadFailed": "Could not load runs",
+    "empty": "The agent has no runs",
+    "emptyHint": "The agent's runs will show up here."
+  },
+  "rename": {
+    "title": "Rename agent",
+    "name": "Agent name",
+    "icon": "Icon",
+    "iconHint": "Icon name, leave empty for none.",
+    "cancel": "Cancel",
+    "save": "Save"
+  }
+}

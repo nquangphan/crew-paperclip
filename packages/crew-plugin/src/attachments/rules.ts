@@ -112,3 +112,13 @@ export function sanitizeFilename(name: string | null): string {
   const cleaned = Array.from((name ?? "").replace(/[\p{Cc}\p{Cf}`]/gu, "").trim()).slice(0, MAX_FILENAME_CHARS).join("");
   return cleaned || "(không tên)";
 }
+
+/**
+ * Câu cảnh báo cho UI khi người dùng chọn file mà agent sẽ không đọc được; `null` nghĩa là không cần cảnh báo.
+ * Chỉ dựa vào tên file (đuôi), vì lúc chọn file chưa có byte. Việc đính kèm vẫn được phép; Mac quyết khi đọc.
+ */
+export function warnForAttachment(filename: string | null): string | null {
+  const verdict = judgeByName(filename, "");
+  if (verdict === "needs-bytes" || verdict.verdict !== "blocked") return null;
+  return `Agent sẽ không đọc được file ${sanitizeFilename(filename)}: ${verdict.reason}. Vẫn gửi được, nhưng agent sẽ bỏ qua file này.`;
+}

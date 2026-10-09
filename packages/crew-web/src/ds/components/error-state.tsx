@@ -1,5 +1,6 @@
 // crew: tự dựng
 import { CircleAlert } from 'lucide-react';
+import { useT } from '@/i18n';
 import { cn } from '../cn';
 import { Button } from './button';
 
@@ -12,7 +13,8 @@ interface ErrorStateProps {
   className?: string;
 }
 
-function ErrorState({ title, message, onRetry, retryLabel = 'Thử lại', className }: ErrorStateProps) {
+function ErrorState({ title, message, onRetry, retryLabel, className }: ErrorStateProps) {
+  const { t } = useT();
   return (
     <div
       data-slot="error-state"
@@ -29,7 +31,7 @@ function ErrorState({ title, message, onRetry, retryLabel = 'Thử lại', class
       {onRetry ? (
         <div>
           <Button variant="outline" size="sm" onClick={onRetry}>
-            {retryLabel}
+            {retryLabel ?? t('action.retry')}
           </Button>
         </div>
       ) : null}

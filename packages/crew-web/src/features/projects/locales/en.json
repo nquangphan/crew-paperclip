@@ -1,0 +1,93 @@
+{
+  "list": {
+    "title": "Projects",
+    "description": "Crew projects of this company.",
+    "add": "Add project",
+    "empty": "No projects yet",
+    "emptyHint": "Add the first project to start assigning requests.",
+    "loadFailed": "Could not load projects",
+    "col": {
+      "star": "Star",
+      "name": "Name",
+      "tasks": "Requests",
+      "readiness": "Readiness",
+      "actions": "Actions"
+    }
+  },
+  "star": {
+    "add": "Star {{name}}",
+    "remove": "Unstar {{name}}",
+    "failed": "Could not save the star"
+  },
+  "resume": "Continue",
+  "detail": {
+    "loadFailed": "Could not load the project",
+    "rename": "Rename",
+    "tabs": {
+      "issues": "Requests",
+      "roles": "Roles",
+      "docs": "Docs",
+      "readiness": "Readiness"
+    }
+  },
+  "issues": {
+    "empty": "This project has no requests",
+    "emptyHint": "Requests assigned to this project show up here.",
+    "loadFailed": "Could not load the project's requests"
+  },
+  "roles": {
+    "loadFailed": "Could not load roles",
+    "fileRoles": "This project has no role row yet. If it already has Crew requests it uses the roles in the config file; save roles here to set them for the project.",
+    "slot": {
+      "assistant": "Assistant",
+      "executor1": "Executor 1",
+      "executor2": "Executor 2 (optional)",
+      "reviewer": "Reviewer",
+      "integrator": "Integrator"
+    },
+    "none": "None",
+    "choose": "Choose an agent",
+    "unknownAgent": "Agent no longer exists ({{id}})",
+    "edit": "Edit roles",
+    "cancel": "Cancel",
+    "save": "Save roles",
+    "saving": "Saving...",
+    "saved": "Roles saved.",
+    "instructions": {
+      "ok": "The Assistant's instructions were updated.",
+      "unchanged": "The Assistant's instructions did not change.",
+      "conflict": "Someone just edited the Assistant's instructions. Reload and write again.",
+      "retry": "Reload and write again",
+      "failed": "Roles were saved but the Assistant's instructions could not be updated"
+    },
+    "saveFailed": "Could not save the roles"
+  },
+  "docs": {
+    "empty": "This project has no docs synced from a machine",
+    "emptyHint": "Docs show up after the app on the machine sends its first sync.",
+    "loadFailed": "Could not load docs",
+    "search": "Search docs",
+    "noResult": "No matching page",
+    "pick": "Pick a page to read",
+    "meta": "Commit {{commit}} · received {{at}}",
+    "pageMissing": "The page is gone from the latest docs"
+  },
+  "readiness": {
+    "title": "Checklist",
+    "allOk": "Every check passes.",
+    "project": "Project",
+    "agentOf": "Agent {{name}}",
+    "unknownAgent": "Agent {{id}}",
+    "loadFailed": "Could not load readiness"
+  },
+  "rename": {
+    "title": "Rename project",
+    "name": "Project name",
+    "description": "Description",
+    "color": "Color",
+    "colorHint": "Color code, for example #6366f1",
+    "icon": "Icon",
+    "save": "Save",
+    "cancel": "Cancel"
+  }
+}

@@ -1,0 +1,92 @@
+{
+  "root": {
+    "id": "i-root",
+    "identifier": "CRE-36",
+    "title": "Gói tính năng gốc",
+    "status": "in_progress",
+    "parentId": null,
+    "assignee": { "id": "a-tro-ly", "name": "tro-ly" },
+    "stage": null,
+    "reviewRounds": 0,
+    "maxReviewRounds": 5,
+    "kind": "code",
+    "bundle": null
+  },
+  "nodes": [
+    {
+      "id": "i-root",
+      "identifier": "CRE-36",
+      "title": "Gói tính năng gốc",
+      "status": "in_progress",
+      "parentId": null,
+      "assignee": { "id": "a-tro-ly", "name": "tro-ly" },
+      "stage": null,
+      "reviewRounds": 0,
+      "maxReviewRounds": 5,
+      "kind": "code",
+      "bundle": null
+    },
+    {
+      "id": "i-a",
+      "identifier": "CRE-37",
+      "title": "Thêm trang đăng nhập",
+      "status": "done",
+      "parentId": "i-root",
+      "assignee": { "id": "a-exec", "name": "executor" },
+      "stage": { "currentStageId": null, "currentType": null, "completed": ["s1", "s2", "s3", "s4"], "position": null },
+      "reviewRounds": 1,
+      "maxReviewRounds": 5,
+      "kind": "code",
+      "bundle": { "id": "b1", "seq": 1 }
+    },
+    {
+      "id": "i-b",
+      "identifier": "CRE-38",
+      "title": "Thêm bản đồ yêu cầu",
+      "status": "in_review",
+      "parentId": "i-root",
+      "assignee": { "id": "a-exec", "name": "executor" },
+      "stage": { "currentStageId": "s1", "currentType": "review", "completed": [], "position": 0 },
+      "reviewRounds": 0,
+      "maxReviewRounds": 5,
+      "kind": "code",
+      "bundle": null
+    },
+    {
+      "id": "i-c",
+      "identifier": "CRE-39",
+      "title": "Nghiên cứu hiệu năng",
+      "status": "todo",
+      "parentId": "i-root",
+      "assignee": null,
+      "stage": null,
+      "reviewRounds": 0,
+      "maxReviewRounds": 5,
+      "kind": "research",
+      "bundle": null
+    },
+    {
+      "id": "i-fix",
+      "identifier": "CRE-46",
+      "title": "Sửa lỗi vòng sửa",
+      "status": "todo",
+      "parentId": "i-root",
+      "assignee": null,
+      "stage": null,
+      "reviewRounds": 0,
+      "maxReviewRounds": 5,
+      "kind": "fix",
+      "bundle": null
+    }
+  ],
+  "edges": [
+    { "kind": "parent", "from": "i-root", "to": "i-a" },
+    { "kind": "parent", "from": "i-root", "to": "i-b" },
+    { "kind": "parent", "from": "i-root", "to": "i-c" },
+    { "kind": "parent", "from": "i-root", "to": "i-fix" },
+    { "kind": "dependency", "from": "i-a", "to": "i-b" },
+    { "kind": "repair", "from": "i-b", "to": "i-fix" },
+    { "kind": "dependency", "from": "i-b", "to": "i-ghost" }
+  ],
+  "diagnostics": []
+}

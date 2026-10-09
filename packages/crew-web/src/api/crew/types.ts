@@ -120,3 +120,16 @@ export interface SkillSyncState {
   sha256: string | null;
   finishedAt: string | null;
 }
+
+// Kiểu data R1 (roots, map, docsCheck, machines, docs.*): import thẳng từ export `shared/*` của plugin, không chép lại.
+export type {
+  DocsCheckResult,
+  DocsHistoryItem,
+  DocsNode,
+  DocsPage,
+  DocsProject,
+  DocsStatus,
+  DocsTree,
+} from '@crew/paperclip-plugin/shared/docs-tree';
+export type { CrewMachine, MachineCardModel } from '@crew/paperclip-plugin/shared/machine-card';
+export type { CrewMap, CrewMapNode, CrewRoot, MapEdge, MapProjection } from '@crew/paperclip-plugin/shared/map';

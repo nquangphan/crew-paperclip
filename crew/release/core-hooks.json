@@ -26,7 +26,7 @@
       "head": "const runUpdate = async (tx: any) => {",
       "anchor": "        await crewCoreHooks.beforeIssueWrite({ tx, issueId: id, existing, patch, actorAgentId, actorUserId });",
       "importLine": "import { crewCoreHooks } from \"../crew/core-hooks.js\";",
-      "description": "Reject issue writes that skip execution-policy stages or let an agent change executionPolicy.",
+      "description": "Reject issue writes that skip execution-policy stages, let an agent change executionPolicy, or let an agent other than the project's assistant hand work to anyone but the project's executors.",
       "upstreamPr": null,
       "tests": [
         "server/src/__tests__/crew-core-hooks.test.ts",
@@ -55,7 +55,7 @@
       "head": "    create: async (",
       "anchor": "      data = await crewCoreHooks.beforeIssueCreate({ db, companyId, data });",
       "importLine": "import { crewCoreHooks } from \"../crew/core-hooks.js\";",
-      "description": "Attach the Crew execution-policy template to new issues (owner approval for agent-created BMAD epic/story children) and refuse agent-created root issues.",
+      "description": "Attach the Crew execution-policy template to new issues (owner approval for agent-created BMAD epic/story children), refuse agent-created root issues, issues from agent-authored routines, and agent-created children assigned outside the project's assistant/executor rule.",
       "upstreamPr": null,
       "tests": ["server/src/__tests__/crew-issue-create-policy.test.ts"]
     },
@@ -67,7 +67,7 @@
       "head": "router.use((req, _res, next) => {",
       "anchor": "crewCoreHooks.beforeAgentMutation({ db, req, resolveAgentId: normalizeAgentReference }).then(() => next(), next);",
       "importLine": "import { crewCoreHooks } from \"../crew/core-hooks.js\";",
-      "description": "Block agent-authored changes to pinned execution configuration, adapter replacement, and revision rollback across the agent create, hire, and update routes in Crew companies.",
+      "description": "Block agents in Crew companies from creating or hiring agents, test-running adapters, updating any agent (including role), syncing skills, rewriting instructions, and rolling back config revisions.",
       "upstreamPr": null,
       "tests": ["server/src/__tests__/crew-agent-config.test.ts", "server/src/__tests__/crew-core-hooks.test.ts"]
     },

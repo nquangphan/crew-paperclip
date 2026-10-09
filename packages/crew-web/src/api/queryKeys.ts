@@ -15,6 +15,8 @@ export const queryKeys = {
   /** Danh sách issue; `issues(c)` là tiền tố của mọi bộ lọc. */
   issues: (companyId: string, filters?: Filters) =>
     (filters ? ['issues', companyId, filters] : ['issues', companyId]) as readonly unknown[],
+  labels: (companyId: string) => ['labels', companyId] as const,
+
   /** Chi tiết issue theo uuid hoặc mã (TPS-12); sự kiện trực tiếp invalidate cả hai nếu biết. */
   issue: (idOrRef: string) => ['issue', idOrRef] as const,
   comments: (issueId: string) => ['issue', issueId, 'comments'] as const,

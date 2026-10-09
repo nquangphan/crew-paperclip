@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import {
   AgentRow,
+  Alert,
   AlertDialog,
   AlertDialogAction,
   AlertDialogCancel,
@@ -57,11 +58,13 @@ import {
   Label,
   Logo,
   MarkdownView,
+  MutedText,
   PageHeader,
   Popover,
   PopoverContent,
   PopoverTrigger,
   PropertyList,
+  RowLink,
   RunRow,
   ScrollArea,
   Select,
@@ -104,7 +107,8 @@ import {
   Transcript,
   Wizard,
 } from '@/ds';
-import { Inbox, LayoutDashboard, ListChecks } from '@/ds/icons';
+import { Inbox, LayoutDashboard, ListChecks, Star, StarFilled } from '@/ds/icons';
+import { CrewShowcase } from './crew-showcase';
 
 function WidgetShowcase() {
   const [confirmOpen, setConfirmOpen] = useState(false);
@@ -161,6 +165,7 @@ function WidgetShowcase() {
           { label: 'Vòng sửa', value: '1/5' },
         ]}
       />
+      <CrewShowcase />
       <MarkdownView
         markdown={
           '## Markdown\n\n**Đậm**, `mã`, [link ngoài](https://example.com).\n\n- [x] việc xong\n- [ ] việc chưa xong\n\n<img src=x onerror="alert(1)">'
@@ -397,6 +402,21 @@ function Showcase({ theme }: { theme: 'light' | 'dark' }) {
           </ScrollArea>
           <EmptyState title="Chưa có yêu cầu" description="Tạo yêu cầu đầu tiên cho project này." />
           <ErrorState title="Không tải được" message={'HTTP 500\n<b>không render HTML</b>'} onRetry={() => {}} />
+          <Alert variant="info" title="Thông tin">
+            Đây là chú thích trung tính.
+          </Alert>
+          <Alert variant="warning" title="Cảnh báo">
+            Máy chưa kết nối daemon.
+          </Alert>
+          <Alert variant="destructive" title="Lỗi">
+            Không lưu được thay đổi.
+          </Alert>
+          <MutedText>Chữ phụ dùng cho mô tả và ghi chú.</MutedText>
+          <RowLink href="#ds-row-link">
+            <StarFilled aria-hidden />
+            <Star aria-hidden />
+            <span>Dòng danh sách có sao</span>
+          </RowLink>
           <Separator />
           <WidgetShowcase />
         </div>

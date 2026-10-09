@@ -154,3 +154,71 @@ export async function loadCompanyRoleAgentIds(input: { db: CrewRolesDb; companyI
   }
   return ids;
 }
+
+/** Trợ Lý và executor của một project theo bảng vai trò crew.core (cho luật giao việc giữa agent). */
+export interface ProjectAgentRoles {
+  assistantAgentId: string;
+  executorAgentIds: string[];
+}
+
+/**
+ * Trợ Lý và executor của project. `null` khi không có project, bảng chưa có hoặc project không có dòng vai trò
+ * (project dùng vai trò file): bên gọi giữ hành vi cũ. Lỗi đọc khác: như `loadCrewRoles` — `fallback` (H2) trả
+ * `null` và cảnh báo, `throw` (H4) ném `503 crew_roles_unavailable` để bên gọi thử lại.
+ */
+export async function loadProjectAgentRoles(input: {
+  db: CrewRolesDb;
+  companyId: string;
+  projectId: string | null | undefined;
+  onReadError: "fallback" | "throw";
+}): Promise<ProjectAgentRoles | null> {
+  const { companyId, projectId } = input;
+  if (!projectId) return null;
+  let rows: Row[] | null;
+  try {
+    rows = await readRoleRows(
+      input.db,
+      (table) => sql`SELECT r.assistant_agent_id::text AS assistant_agent_id,
+          array_to_string(r.executor_agent_ids, ',') AS executor_agent_ids
+        FROM ${sql.raw(table)} r
+        ${LIVE_PROJECT_JOIN}
+        WHERE r.company_id = ${companyId} AND r.project_id = ${projectId}
+        LIMIT 1`,
+    );
+  } catch (error) {
+    warnOncePerMinute(
+      companyId,
+      "read",
+      { projectId, err: error },
+      input.onReadError === "throw"
+        ? "crew project roles unreadable; rejecting issue create so the caller retries"
+        : "crew project roles unreadable; agent assignment uses company roles only",
+    );
+    if (input.onReadError === "fallback") return null;
+    throw new HttpError(503, "Crew: tạm thời không đọc được vai trò của project, hãy thử lại.", {
+      code: CREW_ROLES_UNAVAILABLE,
+    });
+  }
+  const row = rows?.[0];
+  if (!row) return null;
+  return {
+    assistantAgentId: lower(row.assistant_agent_id),
+    executorAgentIds: String(row.executor_agent_ids ?? "").split(",").filter(Boolean).map(lower),
+  };
+}
+
+/**
+ * Luật giao việc giữa agent trong project có vai trò: Trợ Lý giao cho agent bất kỳ (luật reviewer/integrator xét
+ * riêng); agent khác chỉ giao cho chính mình hoặc executor của project. Không có dòng vai trò thì cho qua.
+ */
+export function agentAssignmentAllowed(input: {
+  actorAgentId: string;
+  targetAgentId: string;
+  roles: ProjectAgentRoles | null;
+}): boolean {
+  if (!input.roles) return true;
+  const actor = input.actorAgentId.toLowerCase();
+  const target = input.targetAgentId.toLowerCase();
+  if (target === actor || actor === input.roles.assistantAgentId) return true;
+  return input.roles.executorAgentIds.includes(target);
+}

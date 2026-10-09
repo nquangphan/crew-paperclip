@@ -1,0 +1,41 @@
+{
+  "full": {
+    "version": 1,
+    "companyId": "c1",
+    "machineId": "m-mini",
+    "hostname": "mac-mini",
+    "sentAt": "2026-10-10T04:20:00.000Z",
+    "load1": 1.5,
+    "cpuCount": 8,
+    "memFreePct": 42,
+    "tccPending": [{ "service": "Accessibility", "client": "com.2p.crew", "since": "2026-10-10T03:00:00.000Z" }],
+    "claude": { "version": "2.1.9", "loggedIn": true, "plan": "max" },
+    "superpowers": { "pinned": "5.2.0", "ownerInstalled": "5.2.0", "pinDir": "/Users/x/.crew/superpowers/5.2.0" },
+    "checks": [
+      { "id": "C1", "status": "ok", "title": "sshd" },
+      { "id": "C2", "status": "warn", "title": "Đĩa gần đầy" },
+      { "id": "C3", "status": "error", "title": "Thiếu git" }
+    ],
+    "app": { "version": "1.4.0", "sshdOwner": "app", "updateState": "idle" },
+    "checkouts": [{ "path": "/Users/x/crew-agents/p/executor", "head": "abc1234", "clean": true }]
+  },
+  "legacy": {
+    "version": 1,
+    "companyId": "c1",
+    "machineId": "m-old",
+    "hostname": "mac-cu",
+    "sentAt": "2026-10-10T04:20:00.000Z",
+    "load1": null,
+    "cpuCount": null,
+    "memFreePct": null,
+    "tccPending": [],
+    "claude": { "version": null, "loggedIn": null, "plan": null },
+    "superpowers": { "pinned": null, "ownerInstalled": null },
+    "checks": []
+  },
+  "load24h": [
+    { "at": "2026-10-10T01:00:00.000Z", "load1": 0.5 },
+    { "at": "2026-10-10T02:00:00.000Z", "load1": 2 },
+    { "at": "2026-10-10T03:00:00.000Z", "load1": null }
+  ]
+}

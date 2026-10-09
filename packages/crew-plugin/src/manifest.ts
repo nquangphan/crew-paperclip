@@ -32,6 +32,9 @@ const manifest: PaperclipPluginManifestV1 = {
     "issue.attachments.read",
     "jobs.schedule",
     "authorization.audit.read",
+    "agents.read",
+    "agents.pause",
+    "activity.log.write",
   ],
   entrypoints: {
     worker: "./dist/worker.js",

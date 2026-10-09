@@ -2,17 +2,14 @@ import { createElement as h, useState } from "react";
 import { MarkdownBlock, Spinner, usePluginData } from "@paperclipai/plugin-sdk/ui";
 import { registerIssuePanel, registerPageSection } from "../registry.js";
 import { buildDocsTree, type DocsNode } from "./tree.js";
+import type { DocsCheckResult, DocsPage as Page, DocsProject as Project, DocsTree as Tree } from "./types.js";
 import type { DocsHistoryItem } from "../../docs/history.js";
 import type { DocsStatus } from "../../docs/status.js";
 import { DocsGraphView } from "../graph/docs-graph.js";
 import { DOCS_STATE_LABEL } from "../graph/model.js";
 
-type Project = { projectId: string; repo: string };
-type Tree = { repo:string;commit:string;auditState:string;receivedAt:string;machineId:string;dropped:Array<{path:string}>;pages:Array<{path:string;title:string;parentPath:string|null}> };
-type Page = {path:string;title:string;text:string;links:Array<{occurrence:number;originalHref:string;toPath:string|null;status:string}>};
 const time = (value:string) => new Intl.DateTimeFormat("vi-VN", { timeZone:"Asia/Ho_Chi_Minh",dateStyle:"short",timeStyle:"short" }).format(new Date(value));
 const audit: Record<string,string> = { verified:"Đã xác minh", invalid:"Không hợp lệ", unverified:"Chưa xác minh" };
-type DocsCheckResult = {commit:string;range:string;exit:number;at:string;author:string|null;invalid?:false}|{invalid:true;at:string;author:string|null};
 
 export function DocsCheckContent({ result: d }: { result: DocsCheckResult }) {
   return h("section", {"aria-label":"Kiểm docs"}, h("h3",null,"Kiểm docs"),
