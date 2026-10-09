@@ -543,7 +543,7 @@ test("assistant: chọn workflow, con BMAD và tạo story từ BMAD", () => {
   const text = read("assistant");
   const choose = section(text, "## Chọn workflow");
   assert.match(fillWorkflow(templateLine(text, "crew-workflow id=")), /^crew-workflow id=(superpowers|bmad) reason=.+$/);
-  assert.ok(text.split("\n").some((l) => l.trim().replace(/^`|`$/g, "") === "crew-kind bmad"), "thiếu dòng crew-kind bmad");
+  assert.ok(text.split("\n").some((l) => l === "crew-kind bmad"), "dòng marker crew-kind bmad phải đứng riêng, không backtick, không thụt đầu");
   assert.match(choose, /Superpowers là mặc định/);
   assert.match(choose, /Agent BMAD của company/);
   assert.ok(choose.includes("child-key=bmad-1"));
@@ -590,4 +590,29 @@ test("reviewer: mục issue BMAD kiểm lại file epic/story ở đúng commit"
   assert.match(bmad, /`scriptsMatchPin` là `true`/);
   assert.match(bmad, /crew-bmad-result/);
   assert.ok(text.indexOf("## Issue research") < text.indexOf("## Issue BMAD") && text.indexOf("## Issue BMAD") < text.indexOf("## Issue gốc"));
+});
+
+test("assistant: kiểm policy con BMAD ngay sau khi tạo, đối chiếu sha, chỉ chạy 2b cho con của kế hoạch gốc, báo khi con mở lại", () => {
+  const text = read("assistant");
+  const choose = section(text, "## Chọn workflow");
+  assert.ok(!text.includes("\r"), "chỉ dùng LF");
+  assert.match(choose, /đọc lại con/);
+  assert.match(choose, /đúng 2 stage/);
+  assert.match(choose, /stage (thứ )?(2|hai)[^\n]*`approval`/);
+  assert.match(choose, /không tạo story/);
+  assert.match(choose, /`cancelled`/);
+  const stories = section(text, "## Tạo story từ BMAD");
+  const step1 = stories.slice(stories.indexOf("\n1. "), stories.indexOf("\n2. "));
+  assert.match(step1, /đúng 2 stage/);
+  assert.match(step1, /`approval`/);
+  const step2 = stories.slice(stories.indexOf("\n2. "), stories.indexOf("\n3. "));
+  assert.match(step2, /crew-review sha=<sha> verdict=approved/);
+  assert.match(step2, /reviewer/);
+  assert.match(step2, /[Ll]ệch/);
+  const dispatch = text.slice(text.indexOf("## Mỗi lần được đánh thức"), text.indexOf("## Hiểu yêu cầu"));
+  const b2 = dispatch.slice(dispatch.indexOf("\n2b. "), dispatch.indexOf("\n3. "));
+  assert.match(b2, /crew-child key=bmad-1 revision=v1/);
+  assert.match(b2, /crew-plan.*của chính issue gốc|kế hoạch `crew-plan` của chính issue gốc/);
+  assert.match(b2, /bản epic mới chưa được áp/);
+  assert.match(b2, /báo owner/);
 });
