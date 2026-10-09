@@ -9,7 +9,13 @@ export interface MachineReport {
   claude: { version: string | null; loggedIn: boolean | null; plan: string | null };
   superpowers: { pinned: string | null; ownerInstalled: string | null };
   checks: Array<{ id: string; status: "ok" | "warn" | "error"; title: string }>;
+  app?: AppReport;
 }
+
+export const UPDATE_STATES = ["idle", "downloading", "waiting-idle", "installing", "probation", "rolled-back"] as const;
+export type UpdateState = (typeof UPDATE_STATES)[number];
+export interface AppReport { version: string; sshdOwner: "app" | "launchd"; updateState: UpdateState }
+const SEMVER = /^\d+\.\d+\.\d+(-[0-9A-Za-z.-]+)?$/;
 
 const object = (value: unknown): value is Record<string, unknown> => !!value && typeof value === "object" && !Array.isArray(value);
 function fields(value: unknown, names: string[]): value is Record<string, unknown> {
@@ -20,7 +26,22 @@ const nullableLabel = (value: unknown): value is string | null => value === null
 const iso = (value: unknown): value is string => label(value) && /^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d/.test(value) && Number.isFinite(Date.parse(value));
 const bounded = (value: unknown, min: number, max: number): value is number | null => value === null || typeof value === "number" && Number.isFinite(value) && value >= min && value <= max;
 
-export function parseMachineReport(value: unknown): MachineReport {
+function appReport(value: unknown): value is AppReport {
+  return fields(value, ["version", "sshdOwner", "updateState"])
+    && typeof value.version === "string" && value.version.length <= 32 && SEMVER.test(value.version)
+    && (value.sshdOwner === "app" || value.sshdOwner === "launchd")
+    && UPDATE_STATES.includes(value.updateState as UpdateState);
+}
+
+/** `app` là tùy chọn; sai dạng thì bỏ riêng trường đó, phần còn lại của bản tin vẫn được nhận. */
+export function parseMachineReport(input: unknown): MachineReport {
+  let value = input;
+  let app: AppReport | undefined;
+  if (object(input) && "app" in input) {
+    const { app: candidate, ...rest } = input;
+    value = rest;
+    if (appReport(candidate)) app = { version: candidate.version, sshdOwner: candidate.sshdOwner, updateState: candidate.updateState };
+  }
   if (!fields(value, ["version", "companyId", "machineId", "hostname", "sentAt", "load1", "cpuCount", "memFreePct", "tccPending", "claude", "superpowers", "checks"])
     || value.version !== 1 || typeof value.companyId !== "string" || !UUID.test(value.companyId)
     || typeof value.machineId !== "string" || !UUID.test(value.machineId) || !label(value.hostname) || !iso(value.sentAt)
@@ -35,7 +56,8 @@ export function parseMachineReport(value: unknown): MachineReport {
     || !value.checks.every((c) => fields(c, ["id", "status", "title"]) && label(c.id) && ["ok", "warn", "error"].includes(String(c.status)) && label(c.title))) {
     throw new Error("Bản tin máy không hợp lệ");
   }
-  return value as unknown as MachineReport;
+  const parsed = value as unknown as MachineReport;
+  return app ? { ...parsed, app } : parsed;
 }
 
 export async function handleMachineStatus(ctx: PluginContext, input: PluginWebhookInput, now = new Date()): Promise<void> {

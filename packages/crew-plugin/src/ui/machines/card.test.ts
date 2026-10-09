@@ -1,5 +1,5 @@
 import { expect, it } from "vitest";
-import { MachineCard } from "./index.js";
+import { appLine, MachineCard } from "./index.js";
 import type { CrewMachine } from "../../machines/data.js";
 
 it("shows unknown probe values without treating a failed login probe as logout", () => {
@@ -14,4 +14,10 @@ it("shows unknown probe values without treating a failed login probe as logout",
   expect(html).toContain("Không rõ");
   expect(html).not.toContain("chưa đăng nhập");
   expect(html).toContain("Trực tuyến");
+});
+
+it("hiện dòng app 2P Crew hoặc Chạy bằng CLI", () => {
+  expect(appLine(undefined)).toBe("Chạy bằng CLI");
+  expect(appLine({ version: "0.1.0", sshdOwner: "app", updateState: "waiting-idle" })).toBe("App 2P Crew 0.1.0 · sshd do app giữ · Chờ máy rảnh để cài");
+  expect(appLine({ version: "0.2.0", sshdOwner: "launchd", updateState: "rolled-back" })).toBe("App 2P Crew 0.2.0 · sshd do LaunchAgent giữ · Đã quay về bản trước");
 });

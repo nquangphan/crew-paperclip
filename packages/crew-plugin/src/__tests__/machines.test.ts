@@ -83,6 +83,13 @@ it("stores one signed report, rejects unsafe envelopes without writes, and compu
     expect((await sql`SELECT count(*)::int AS n FROM plugin_crew_core_0433ea20b6.machine_reports`)[0]?.n).toBe(historyBefore);
     expect((await sql`SELECT count(*)::int AS n FROM plugin_crew_core_0433ea20b6.machine_latest`)[0]?.n).toBe(latestBefore);
   }
+  const app = { version: "0.1.0", sshdOwner: "app", updateState: "probation" };
+  await send({ ...base, app });
+  expect((await loadCrewMachines(ctx, companyId, now))[0]?.latest.app).toEqual(app);
+  await send({ ...base, app: { ...app, sshdOwner: "x" } });
+  const afterBadApp = (await loadCrewMachines(ctx, companyId, now))[0]?.latest;
+  expect(afterBadApp).not.toHaveProperty("app");
+  expect(afterBadApp?.hostname).toBe("mac-mini");
   await send({ ...base, companyId: otherCompany });
   const later = new Date(now.getTime() + 25 * 3_600_000);
   await send({ ...base, machineId: machineB, sentAt: later.toISOString() }, { receivedAt: later });

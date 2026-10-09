@@ -11,6 +11,16 @@ function useMachines(companyId: string) {
   return state;
 }
 
+const UPDATE_LABELS: Record<string, string> = {
+  idle: "Đã cập nhật", downloading: "Đang tải bản mới", "waiting-idle": "Chờ máy rảnh để cài",
+  installing: "Đang cài", probation: "Đang thử bản mới", "rolled-back": "Đã quay về bản trước",
+};
+
+export function appLine(app: CrewMachine["latest"]["app"]): string {
+  if (!app) return "Chạy bằng CLI";
+  return `App 2P Crew ${app.version} · ${app.sshdOwner === "app" ? "sshd do app giữ" : "sshd do LaunchAgent giữ"} · ${UPDATE_LABELS[app.updateState] ?? "Không rõ"}`;
+}
+
 function chart(points: CrewMachine["load24h"]) {
   const known = points.filter((point): point is typeof point & { load1: number } => point.load1 !== null);
   if (!known.length) return h("p", null, "Chưa có dữ liệu tải 24 giờ.");
@@ -34,6 +44,7 @@ export function MachineCard({ machine }: { machine: CrewMachine }) {
       h("strong", null, "TCC đang chờ"),
       h("ul", null, ...report.tccPending.map((item, index) => h("li", { key: index }, `${item.service} · ${item.client} · từ ${localTime(item.since)}`)))) : null,
     h("p", null, `Claude ${report.claude.version ?? "Không rõ"} · ${report.claude.loggedIn === null ? "Không rõ" : report.claude.loggedIn ? "đã đăng nhập" : "chưa đăng nhập"} · gói ${report.claude.plan ?? "Không rõ"}`),
+    h("p", null, appLine(report.app)),
     h("p", null, `Superpowers: ghim ${report.superpowers.pinned ?? "Không rõ"} · owner ${report.superpowers.ownerInstalled ?? "Không rõ"}`),
     alerts.length ? h("ul", null, ...alerts.map((check) => h("li", { key: check.id }, `${check.status === "error" ? "Lỗi" : "Cảnh báo"}: ${check.title}`))) : null,
   );

@@ -4,6 +4,7 @@ import type { PluginContext, PluginWebhookInput } from "@paperclipai/plugin-sdk"
 import type { CrewHeaders } from "../shared/signature.js";
 import { verifyCrewSignature } from "../shared/signature.js";
 import { authenticateCrewWebhook, dispatchCrewWebhook, registerCrewWebhook } from "../shared/webhook.js";
+import { parseMachineReport } from "../machines/webhook.js";
 import manifest from "../manifest.js";
 import { validateInstanceConfig } from "../../../../server/src/services/plugin-config-validator.js";
 
@@ -91,4 +92,33 @@ it("accepts an object secret binding in the host config validator", () => {
   const schema = manifest.instanceConfigSchema!;
   expect(validateInstanceConfig({ companies: [{ companyId, webhookSecretRef: ref }] }, schema).valid).toBe(true);
   expect(validateInstanceConfig({ companies: [{ companyId, webhookSecretRef: "test-secret" }] }, schema).valid).toBe(false);
+});
+
+describe("trường app của bản tin máy", () => {
+  const report = { version: 1, companyId, machineId: "20000000-0000-4000-8000-000000000001", hostname: "mini", sentAt: "2026-10-09T05:00:00.000Z",
+    load1: 1, cpuCount: 8, memFreePct: 50, tccPending: [], claude: { version: null, loggedIn: null, plan: null },
+    superpowers: { pinned: null, ownerInstalled: null }, checks: [] };
+  const app = { version: "0.1.0", sshdOwner: "app", updateState: "idle" };
+
+  it("nhận bản tin cũ không có app như trước", () => {
+    expect(parseMachineReport(report)).toEqual(report);
+    expect(parseMachineReport(report)).not.toHaveProperty("app");
+  });
+  it("giữ nguyên app hợp lệ", () => {
+    expect(parseMachineReport({ ...report, app }).app).toEqual(app);
+    expect(parseMachineReport({ ...report, app: { ...app, version: "1.2.3-beta.1", sshdOwner: "launchd", updateState: "rolled-back" } }).app)
+      .toEqual({ version: "1.2.3-beta.1", sshdOwner: "launchd", updateState: "rolled-back" });
+  });
+  it("bỏ riêng app sai dạng, vẫn nhận phần còn lại", () => {
+    for (const bad of [{ ...app, version: "1.0.0-" + "x".repeat(30) }, { ...app, version: "abc" }, { ...app, sshdOwner: "x" },
+      { ...app, updateState: "lạ" }, { ...app, extra: 1 }, { version: "0.1.0", sshdOwner: "app" }, null, "x", [], 7]) {
+      const parsed = parseMachineReport({ ...report, app: bad });
+      expect(parsed).not.toHaveProperty("app");
+      expect(parsed).toEqual(report);
+    }
+  });
+  it("vẫn từ chối khi phần bắt buộc sai, dù có app", () => {
+    expect(() => parseMachineReport({ ...report, app, load1: 1001 })).toThrow();
+    expect(() => parseMachineReport({ ...report, app, secret: "x" })).toThrow();
+  });
 });
