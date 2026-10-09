@@ -27,7 +27,7 @@ export function unknownKeyError(value: Record<string, unknown>, allowed: readonl
   return key === undefined ? null : `trường ${key} không được hỗ trợ`;
 }
 
-function folderError(folder: unknown): string | null {
+export function folderError(folder: unknown): string | null {
   if (typeof folder !== "string" || !folder.startsWith("/")) return "folder phải là đường tuyệt đối";
   if (folder.length > 4096) return "folder quá dài";
   if (folder.includes("..")) return "folder không được chứa ..";
