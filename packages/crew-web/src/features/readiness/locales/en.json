@@ -1,0 +1,23 @@
+{
+  "state": {
+    "ready": "Ready",
+    "paused": "Paused",
+    "not_ready": "Not ready",
+    "terminated": "Terminated",
+    "untracked": "Not tracked"
+  },
+  "detail": {
+    "A1": "Agent config is wrong: needs claude_local, cli engine, empty env, one run at a time, heartbeat off",
+    "A2": "Superpowers is not pinned to the machine's version, or the command is not the Crew wrapper",
+    "A3": "AGENTS.md is missing or differs from the role render",
+    "A4": "Environment is wrong: needs SSH, active, in_place, pointing at the agent's checkout",
+    "A5": "The agent's checkout is not on the machine yet",
+    "A6": "The agent holds no role in any project",
+    "A7": "The agent is terminated or waiting for approval",
+    "P1": "The project has no Crew roles",
+    "P2": "Some agents in the roles are not ready",
+    "noReport": "No machine report yet",
+    "checkoutsUnknown": "Unknown: the app on the machine has not reported its checkouts"
+  },
+  "resume": "Continue"
+}
