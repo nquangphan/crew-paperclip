@@ -33,10 +33,16 @@ function Requests({ companyId }: { companyId: string }) {
   });
 }
 
+function GuideLink() {
+  const navigation = useHostNavigation();
+  return h("p", null, h("a", { ...navigation.linkProps("/huong-dan") }, "Xem hướng dẫn"));
+}
+
 export function CrewPage({ context }: PluginPageProps) {
   if (!context.companyId) return h("div", { role: "status" }, "Chọn company để xem Crew.");
   return h("main", { "aria-label": "Trang Crew" },
     h("h1", null, "Crew"),
+    h(GuideLink, null),
     h("section", { "aria-label": "Yêu cầu" },
       h("h2", null, "Yêu cầu"),
       h(ErrorBoundary, { fallback: h("div", { role: "alert", style: alertStyle }, "Không hiển thị được yêu cầu Crew."), children: h(Requests, { companyId: context.companyId }) })),

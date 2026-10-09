@@ -61,6 +61,8 @@ describe("Crew plugin UI bundle", () => {
       expect(typeof loaded.CrewIssueSummary).toBe("function");
       expect(typeof loaded.CrewPage).toBe("function");
       expect(typeof loaded.MachinesWidget).toBe("function");
+      expect(typeof loaded.CrewGuidePage).toBe("function");
+      expect(typeof loaded.CrewGuideSidebarLink).toBe("function");
     } finally {
       delete globalThis.__paperclipPluginBridge__;
     }
