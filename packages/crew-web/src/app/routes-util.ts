@@ -1,9 +1,25 @@
 // Tiện ích điều hướng dùng chung của shell: đường `next` an toàn, mục sidebar, mã issue.
 import type { RouteObject } from 'react-router-dom';
 
-/** Chỉ nhận đường nội bộ bắt đầu bằng `/` (không `//`, không `/\`) để tránh chuyển hướng ra ngoài. */
+const SAFE_BASE = 'http://crew.invalid';
+
+const hasControlChar = (s: string) =>
+  [...s].some((ch) => {
+    const code = ch.charCodeAt(0);
+    return code < 0x20 || code === 0x7f;
+  });
+
+/**
+ * Chỉ nhận đường nội bộ bắt đầu bằng `/` để tránh chuyển hướng ra ngoài. Cấm dấu gạch ngược và ký tự điều khiển (trình
+ * duyệt bỏ tab/xuống dòng nên `/\t/evil.com` thành `//evil.com`), rồi kiểm lại bằng URL: phải cùng origin.
+ */
 export function safeNext(next: string | null | undefined): string {
-  if (!next?.startsWith('/') || next.startsWith('//') || next.startsWith('/\\')) return '/';
+  if (!next?.startsWith('/') || next.startsWith('//') || next.includes('\\') || hasControlChar(next)) return '/';
+  try {
+    if (new URL(next, SAFE_BASE).origin !== SAFE_BASE) return '/';
+  } catch {
+    return '/';
+  }
   return next;
 }
 

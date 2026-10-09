@@ -13,10 +13,12 @@ const root = container;
 // Nạp chuỗi hai ngôn ngữ trước khi render để trang đầu không nháy key.
 await initI18n();
 
+const queryClient = createQueryClient();
+
 createRoot(root).render(
   <StrictMode>
-    <AppProviders client={createQueryClient()}>
-      <RouterProvider router={createAppRouter()} />
+    <AppProviders client={queryClient}>
+      <RouterProvider router={createAppRouter(queryClient)} />
     </AppProviders>
   </StrictMode>,
 );

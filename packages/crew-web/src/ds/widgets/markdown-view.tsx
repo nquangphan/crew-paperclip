@@ -1,34 +1,37 @@
 // crew: tự dựng
-import Markdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
+import { type ComponentType, lazy, Suspense } from 'react';
 import { cn } from '../cn';
 
-const isExternal = (href: string) => /^[a-z][a-z0-9+.-]*:/i.test(href) || href.startsWith('//');
+interface MarkdownProps {
+  markdown: string;
+  className?: string;
+}
 
-/**
- * Chỉ render markdown. Không dùng rehype-raw nên HTML thô bị bỏ; react-markdown tự chặn URL `javascript:`.
- */
-function MarkdownView({ markdown, className }: { markdown: string; className?: string }) {
+// Tải lười: react-markdown và micromark chỉ tải khi trang thật sự hiện markdown, không nằm trong chunk khởi đầu.
+let Loaded: ComponentType<MarkdownProps> | null = null;
+const load = () =>
+  import('./markdown-renderer').then((m) => {
+    Loaded = m.default;
+    return m;
+  });
+const LazyRenderer = lazy(load);
+
+// Test (vitest) nạp sẵn để markdown render đồng bộ như trước; bản build bỏ hẳn nhánh này.
+if (import.meta.env.MODE === 'test') await load();
+
+/** Render markdown (xem markdown-renderer). Lần đầu, trong lúc tải thư viện, hiện chữ thô để nội dung không trống. */
+function MarkdownView({ markdown, className }: MarkdownProps) {
+  if (Loaded) return <Loaded markdown={markdown} className={className} />;
   return (
-    <div data-slot="markdown-view" className={cn('prose prose-sm max-w-none dark:prose-invert', className)}>
-      <Markdown
-        remarkPlugins={[remarkGfm]}
-        components={{
-          a: ({ node: _node, href, children, ...rest }) =>
-            href && isExternal(href) ? (
-              <a {...rest} href={href} target="_blank" rel="noreferrer noopener">
-                {children}
-              </a>
-            ) : (
-              <a {...rest} href={href}>
-                {children}
-              </a>
-            ),
-        }}
-      >
-        {markdown}
-      </Markdown>
-    </div>
+    <Suspense
+      fallback={
+        <div data-slot="markdown-view" className={cn('prose prose-sm max-w-none whitespace-pre-wrap', className)}>
+          {markdown}
+        </div>
+      }
+    >
+      <LazyRenderer markdown={markdown} className={className} />
+    </Suspense>
   );
 }
 

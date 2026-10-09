@@ -181,7 +181,11 @@
     "failed": "Could not update the sign-in request"
   },
   "ui": {
-    "loading": "Loading"
+    "loading": "Loading",
+    "more": "More",
+    "breadcrumb": "Breadcrumb",
+    "commandPalette": "Command palette",
+    "commandPaletteHint": "Search for a command to run"
   },
   "machine": {
     "online": "Online",

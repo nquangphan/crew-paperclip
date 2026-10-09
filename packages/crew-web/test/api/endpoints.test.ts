@@ -1,7 +1,9 @@
 // @vitest-environment jsdom
 import { globSync, readFileSync } from 'node:fs';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { api } from '@/api';
 import { call, ENDPOINTS, type EndpointKey, endpointPath } from '@/api/endpoints';
+import { liveSocketUrl } from '@/app/live/live-events';
 
 const list = (pattern: string) => globSync(pattern, { cwd: process.cwd() }).sort();
 const clientFiles = () => list('src/api/{paperclip,crew}/*.ts').filter((f) => !f.endsWith('/types.ts'));
@@ -43,7 +45,31 @@ describe('ENDPOINTS', () => {
   it('client dùng hết ENDPOINTS và không gọi khóa lạ', async () => {
     const used = new Set<string>();
     for (const f of clientFiles()) for (const k of await declaredKeys(f)) used.add(k);
-    expect([...used].sort()).toEqual(Object.keys(ENDPOINTS).sort());
+    const callable = Object.entries(ENDPOINTS)
+      .filter(([, d]) => !('noCall' in d && d.noCall))
+      .map(([k]) => k);
+    expect([...used].sort()).toEqual(callable.sort());
+  });
+
+  it('đường không qua call (link tải file, WebSocket) cũng có dòng và được dùng qua endpointPath', () => {
+    const noCall = Object.entries(ENDPOINTS)
+      .filter(([, d]) => 'noCall' in d && d.noCall)
+      .map(([k]) => k)
+      .sort();
+    expect(noCall).toEqual(['attachments.content', 'live.events']);
+    const src = list('src/**/*.{ts,tsx}')
+      .map((f) => readFileSync(f, 'utf8'))
+      .join('\n');
+    for (const k of noCall) expect(src, k).toContain(`endpointPath('${k}'`);
+    expect(api.attachments.contentUrl('a 1')).toBe('/api/attachments/a%201/content');
+    expect(liveSocketUrl('c1', { protocol: 'http:', host: 'h' })).toBe('ws://h/api/companies/c1/events/ws');
+  });
+
+  it('call từ chối khóa không qua call', () => {
+    const fetchMock = vi.fn();
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
+    expect(() => call('attachments.content', { attachmentId: 'a1' })).toThrow(/attachments\.content/);
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it('ngoài lớp http không ai gọi fetch hay http() trực tiếp', () => {

@@ -1,4 +1,154 @@
 {
+  "S0.1": {
+    "spec": "e2e/specs/s0-shell.spec.ts",
+    "tests": ["PW-S0-1 "],
+    "tier": "T1"
+  },
+  "S0.2": {
+    "spec": "e2e/specs/s0-shell.spec.ts",
+    "tests": ["PW-S0-2 "],
+    "tier": "T1"
+  },
+  "S0.3": {
+    "spec": "e2e/specs/s0-shell.spec.ts",
+    "tests": ["PW-S0-3 "],
+    "tier": "T1"
+  },
+  "S0.4": {
+    "spec": "e2e/specs/s0-shell.spec.ts",
+    "tests": ["PW-S0-4 "],
+    "tier": "T1"
+  },
+  "S0.5": {
+    "spec": "e2e/specs/s0-shell.spec.ts",
+    "tests": ["PW-S0-5 "],
+    "tier": "T1"
+  },
+  "S0.6": {
+    "spec": "e2e/specs/s0-signout.spec.ts",
+    "tests": ["PW-S0-6 "],
+    "tier": "T1"
+  },
+  "S1.1": {
+    "spec": "e2e/specs/s1-auth.spec.ts",
+    "tests": ["PW-S1-1 "],
+    "tier": "T1"
+  },
+  "S1.2": {
+    "spec": "e2e/specs/s1-auth.spec.ts",
+    "tests": ["PW-S1-2 "],
+    "tier": "T1"
+  },
+  "S2.1": {
+    "spec": "e2e/specs/s2-dashboard.spec.ts",
+    "tests": ["PW-S2-1 "],
+    "tier": "T1"
+  },
+  "S2.2": {
+    "spec": "e2e/specs/s2-dashboard.spec.ts",
+    "tests": ["PW-S2-2 "],
+    "tier": "T1"
+  },
+  "S2.3": {
+    "spec": "e2e/specs/s2-dashboard.spec.ts",
+    "tests": ["PW-S2-3 "],
+    "tier": "T1"
+  },
+  "S2.4": {
+    "spec": "e2e/specs/s2-dashboard.spec.ts",
+    "tests": ["PW-S2-4 "],
+    "tier": "T1"
+  },
+  "S3.1": {
+    "spec": "e2e/specs/s3-inbox.spec.ts",
+    "tests": ["PW-S3-1 "],
+    "tier": "T1"
+  },
+  "S3.2": {
+    "spec": "e2e/specs/s3-inbox.spec.ts",
+    "tests": ["PW-S3-2 "],
+    "tier": "T1"
+  },
+  "S3.3": {
+    "spec": "e2e/specs/s3-inbox.spec.ts",
+    "tests": ["PW-S3-3 "],
+    "tier": "T1"
+  },
+  "S3.4": {
+    "spec": "e2e/specs/s3-inbox.spec.ts",
+    "tests": ["PW-S3-4 "],
+    "tier": "T1"
+  },
+  "S3.5": {
+    "spec": "e2e/specs/s3-inbox.spec.ts",
+    "tests": ["PW-S3-5 "],
+    "tier": "T1"
+  },
+  "S4.1": {
+    "spec": "e2e/specs/s4-issues.spec.ts",
+    "tests": ["PW-S4-1 "],
+    "tier": "T1"
+  },
+  "S4.2": {
+    "spec": "e2e/specs/s4-issues.spec.ts",
+    "tests": ["PW-S4-2 "],
+    "tier": "T1"
+  },
+  "S4.3": {
+    "spec": "e2e/specs/s4-issues.spec.ts",
+    "tests": ["PW-S4-3 "],
+    "tier": "T1"
+  },
+  "S4.4": {
+    "spec": "e2e/specs/s4-issues.spec.ts",
+    "tests": ["PW-S4-4 "],
+    "tier": "T1"
+  },
+  "S5.1": {
+    "spec": "e2e/specs/s5-new-request.spec.ts",
+    "tests": ["PW-S5-1 "],
+    "tier": "T1"
+  },
+  "S5.2": {
+    "spec": "e2e/specs/s5-new-request.spec.ts",
+    "tests": ["PW-S5-2 "],
+    "tier": "T2"
+  },
+  "S5.3": {
+    "spec": "e2e/specs/s5-new-request.spec.ts",
+    "tests": ["PW-S5-3 file đính kèm", "PW-S5-3 tải file lên"],
+    "tier": "T1"
+  },
+  "S5.4": {
+    "spec": "e2e/specs/s5-new-request.spec.ts",
+    "tests": ["PW-S5-4 "],
+    "tier": "T2"
+  },
+  "S5.5": {
+    "spec": "e2e/specs/s5-new-request.spec.ts",
+    "tests": ["PW-S5-5 "],
+    "tier": "T2"
+  },
+  "S5.6": {
+    "spec": "e2e/specs/s5-new-request.spec.ts",
+    "tests": ["PW-S5-6 "],
+    "tier": "T2"
+  },
+  "S5.7": {
+    "spec": "e2e/specs/s5-new-request.spec.ts",
+    "tests": ["PW-S5-7 "],
+    "tier": "T1"
+  },
+  "S19": {
+    "spec": "e2e/specs/s19-search.spec.ts",
+    "tests": ["PW-S19-1 "],
+    "tier": "T1"
+  },
+  "F5": {
+    "spec": "e2e/flows/f5-cancel.spec.ts",
+    "tests": ["PW-F5 "],
+    "tier": "T2"
+  },
   "F9": {
     "spec": null,
     "tests": [],

@@ -180,6 +180,7 @@
     "failed": "Server từ chối thao tác",
     "close": "Đóng",
     "sending": "Đang gửi",
+    "stale": "Trạng thái yêu cầu đã đổi, bạn không còn là người duyệt stage này. Trang đã tải lại.",
     "approve": {
       "button": "Duyệt",
       "title": "Duyệt yêu cầu này?",
