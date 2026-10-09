@@ -175,5 +175,52 @@
       "stopFailed": "Could not stop the run",
       "unknownAgent": "unknown agent"
     }
+  },
+  "gate": {
+    "failed": "The server rejected the action",
+    "close": "Close",
+    "sending": "Sending",
+    "approve": {
+      "button": "Approve",
+      "title": "Approve this request?",
+      "body": "The owner approval stage completes and the workflow hands over to the integrator to push.",
+      "label": "Approval note",
+      "hint": "Required. The note is saved as the decision comment.",
+      "default": "Reviewed, approved."
+    },
+    "requestChanges": {
+      "button": "Request changes",
+      "title": "Request changes",
+      "body": "Work goes back to the previous worker and counts as one more fix round.",
+      "label": "What needs fixing",
+      "hint": "Required, at least {{min}} characters.",
+      "submit": "Send change request"
+    },
+    "cancel": {
+      "button": "Cancel request",
+      "title": "Cancel this request?",
+      "body": "The request becomes Cancelled and any run on the machine is stopped. You can reopen it later."
+    },
+    "reopen": {
+      "button": "Reopen",
+      "title": "Reopen this request?",
+      "body": "The request goes back to To do and every stage runs again in a new round."
+    }
+  },
+  "crew": {
+    "mapFailed": "Could not load the Crew summary",
+    "docsFailed": "Could not load the docs check"
+  },
+  "interactions": {
+    "loadFailed": "Could not load the assistant questions",
+    "failed": "Could not send the answer",
+    "questionTitle": "The assistant has a question",
+    "confirmTitle": "The assistant needs confirmation",
+    "other": "Other",
+    "otherLabel": "Other answer for: {{question}}",
+    "send": "Send answer",
+    "accept": "Accept",
+    "reject": "Decline",
+    "rejectReason": "Reason (when declining)"
   }
 }

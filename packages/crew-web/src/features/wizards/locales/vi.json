@@ -1,0 +1,74 @@
+{
+  "addProject": {
+    "title": "Thêm project",
+    "description": "Thêm một repo git có sẵn trên máy làm project Crew: dựng checkout, environment và agent cho từng vai trò.",
+    "back": "Về danh sách project",
+    "form": {
+      "machine": "Máy",
+      "machinePlaceholder": "Chọn máy",
+      "machineNoApp": "{{name}} · App chưa chạy",
+      "machineHint": "Máy có app 2P Crew đang chạy sẽ nhận các việc trên máy (kiểm folder, dựng checkout, kiểm cuối).",
+      "noMachines": "Chưa có máy nào báo về company này.",
+      "folder": "Folder repo trên máy",
+      "folderHint": "Đường dẫn tuyệt đối tới repo git có sẵn trên máy (không clone).",
+      "suggestions": "Folder đã kiểm trước đây",
+      "key": "Khóa project",
+      "keyHint": "Chữ thường, số, gạch ngang; bắt đầu bằng chữ; 2–31 ký tự. Dùng cho tên agent và nhánh checkout.",
+      "name": "Tên project",
+      "executors": "Số executor",
+      "submit": "Bắt đầu",
+      "createFailed": "Không bắt đầu được",
+      "openRun": "Mở lần đang dở"
+    },
+    "steps": {
+      "inspect": "Kiểm folder repo",
+      "project": "Tạo project",
+      "checkouts": "Tạo checkout cho từng vai trò",
+      "environments": "Tạo environment SSH",
+      "agents": "Tạo agent và AGENTS.md",
+      "roles": "Ghi vai trò",
+      "check": "Kiểm trên máy"
+    },
+    "loadFailed": "Không tải được tiến độ thêm project",
+    "wrongKind": "Đây không phải lần thêm project.",
+    "summary": "{{name}} · khóa {{key}} · {{executors}} executor",
+    "busy": "Đang có người chạy bước này. Đợi một lát rồi bấm Chạy tiếp.",
+    "runFailed": "Chạy bước lỗi",
+    "continue": "Chạy tiếp",
+    "done": "Đã thêm project xong.",
+    "openProject": "Mở project",
+    "environmentDescription": "Checkout {{role}} của project {{project}} trên Mac"
+  },
+  "validate": {
+    "machine": "Chọn máy",
+    "folder": "Folder phải là đường dẫn tuyệt đối, không chứa \"..\" hay ký tự điều khiển",
+    "key": "Khóa chỉ gồm chữ thường, số, gạch ngang, bắt đầu bằng chữ, dài 2–31 ký tự",
+    "e2eKey": "Khóa e2e-* chỉ dùng cho company Crew E2E",
+    "keyTaken": "Company đã có project dùng khóa này",
+    "name": "Tên project không được trống (tối đa 120 ký tự)",
+    "executors": "Số executor phải là 1 hoặc 2"
+  },
+  "errors": {
+    "wrongKind": "Setup run không phải lần thêm project",
+    "jobTimeout": "Chờ app: app 2P Crew trên máy chưa làm xong việc sau {{minutes}} phút. Mở app trên Mac rồi bấm Chạy tiếp.",
+    "jobResult": "Máy trả kết quả không đúng loại việc {{kind}}",
+    "checkFailed": "Kiểm trên máy chưa đạt: {{items}}",
+    "missingRef": "Thiếu {{ref}} của bước trước",
+    "noProject": "Chưa có project: bước Tạo project chưa xong",
+    "checkoutMissing": "Máy không trả checkout cho vai trò {{role}}",
+    "noTemplate": "Company chưa có environment SSH mẫu (in_place, có secret SSH) để chép",
+    "noPinDir": "Máy chưa báo bản ghim Superpowers (superpowers.pinDir): cập nhật crew-mac trên máy rồi bấm Chạy tiếp",
+    "instructionsConflict": "AGENTS.md của {{name}} vừa bị sửa ở nơi khác: bấm Chạy tiếp để ghi lại",
+    "job": {
+      "folder_not_git": "Folder không phải repo git: {{text}}",
+      "folder_forbidden": "Folder không được phép dùng: {{text}}",
+      "folder_missing": "Không thấy folder trên máy: {{text}}",
+      "checkout_exists": "Thư mục checkout đã có trên máy: {{text}}",
+      "git_failed": "Lệnh git trên máy lỗi: {{text}}",
+      "skill_fetch_failed": "Không tải được skill: {{text}}",
+      "check_failed": "Kiểm trên máy chưa đạt: {{text}}",
+      "lease_expired": "Máy nhận việc nhưng không báo kết quả: {{text}}",
+      "app_error": "App trên máy báo lỗi: {{text}}"
+    }
+  }
+}

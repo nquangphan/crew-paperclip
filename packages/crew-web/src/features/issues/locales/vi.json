@@ -175,5 +175,52 @@
       "stopFailed": "Không dừng được run",
       "unknownAgent": "agent không rõ"
     }
+  },
+  "gate": {
+    "failed": "Server từ chối thao tác",
+    "close": "Đóng",
+    "sending": "Đang gửi",
+    "approve": {
+      "button": "Duyệt",
+      "title": "Duyệt yêu cầu này?",
+      "body": "Stage owner duyệt sẽ hoàn tất, workflow chuyển cho integrator push.",
+      "label": "Lời nhắn khi duyệt",
+      "hint": "Bắt buộc. Lời nhắn được ghi thành bình luận quyết định.",
+      "default": "Đã xem, duyệt."
+    },
+    "requestChanges": {
+      "button": "Yêu cầu sửa",
+      "title": "Yêu cầu sửa",
+      "body": "Việc quay về người làm vòng trước và tính thêm một vòng sửa.",
+      "label": "Lý do cần sửa",
+      "hint": "Bắt buộc, ít nhất {{min}} ký tự.",
+      "submit": "Gửi yêu cầu sửa"
+    },
+    "cancel": {
+      "button": "Hủy yêu cầu",
+      "title": "Hủy yêu cầu này?",
+      "body": "Yêu cầu chuyển sang Đã hủy, run đang chạy trên máy bị dừng. Có thể mở lại sau."
+    },
+    "reopen": {
+      "button": "Mở lại",
+      "title": "Mở lại yêu cầu này?",
+      "body": "Yêu cầu về trạng thái Cần làm, các stage chạy lại từ đầu ở vòng mới."
+    }
+  },
+  "crew": {
+    "mapFailed": "Không tải được tóm tắt Crew",
+    "docsFailed": "Không tải được kết quả kiểm docs"
+  },
+  "interactions": {
+    "loadFailed": "Không tải được câu hỏi của Trợ Lý",
+    "failed": "Không gửi được trả lời",
+    "questionTitle": "Trợ Lý cần hỏi",
+    "confirmTitle": "Trợ Lý cần xác nhận",
+    "other": "Khác",
+    "otherLabel": "Câu trả lời khác cho: {{question}}",
+    "send": "Gửi trả lời",
+    "accept": "Đồng ý",
+    "reject": "Từ chối",
+    "rejectReason": "Lý do (khi từ chối)"
   }
 }
