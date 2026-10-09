@@ -1,0 +1,74 @@
+{
+  "addProject": {
+    "title": "Add project",
+    "description": "Add an existing git repo on a machine as a Crew project: checkouts, environments and agents for every role.",
+    "back": "Back to projects",
+    "form": {
+      "machine": "Machine",
+      "machinePlaceholder": "Choose a machine",
+      "machineNoApp": "{{name}} · App not running",
+      "machineHint": "A machine running the 2P Crew app picks up machine jobs (folder check, checkouts, final check).",
+      "noMachines": "No machine has reported to this company yet.",
+      "folder": "Repo folder on the machine",
+      "folderHint": "Absolute path to an existing git repo on the machine (no clone).",
+      "suggestions": "Previously checked folders",
+      "key": "Project key",
+      "keyHint": "Lowercase letters, digits, dashes; starts with a letter; 2–31 characters. Used for agent names and checkout branches.",
+      "name": "Project name",
+      "executors": "Executors",
+      "submit": "Start",
+      "createFailed": "Could not start",
+      "openRun": "Open the unfinished run"
+    },
+    "steps": {
+      "inspect": "Check repo folder",
+      "project": "Create project",
+      "checkouts": "Create checkouts per role",
+      "environments": "Create SSH environments",
+      "agents": "Create agents and AGENTS.md",
+      "roles": "Save roles",
+      "check": "Check on the machine"
+    },
+    "loadFailed": "Could not load the add-project progress",
+    "wrongKind": "This is not an add-project run.",
+    "summary": "{{name}} · key {{key}} · {{executors}} executor(s)",
+    "busy": "Someone is running this step. Wait a moment, then press Continue.",
+    "runFailed": "Running the step failed",
+    "continue": "Continue",
+    "done": "The project has been added.",
+    "openProject": "Open project",
+    "environmentDescription": "{{role}} checkout of project {{project}} on the Mac"
+  },
+  "validate": {
+    "machine": "Choose a machine",
+    "folder": "The folder must be an absolute path without \"..\" or control characters",
+    "key": "The key may contain lowercase letters, digits and dashes, start with a letter, 2–31 characters",
+    "e2eKey": "e2e-* keys are only allowed in the Crew E2E company",
+    "keyTaken": "The company already has a project using this key",
+    "name": "Project name must not be empty (at most 120 characters)",
+    "executors": "Executors must be 1 or 2"
+  },
+  "errors": {
+    "wrongKind": "The setup run is not an add-project run",
+    "jobTimeout": "Waiting for the app: the 2P Crew app on the machine has not finished the job after {{minutes}} minutes. Open the app on the Mac, then press Continue.",
+    "jobResult": "The machine returned a result of the wrong job kind {{kind}}",
+    "checkFailed": "Machine check failed: {{items}}",
+    "missingRef": "Missing {{ref}} from an earlier step",
+    "noProject": "No project yet: the Create project step has not finished",
+    "checkoutMissing": "The machine returned no checkout for role {{role}}",
+    "noTemplate": "The company has no template SSH environment (in_place, with an SSH secret) to copy",
+    "noPinDir": "The machine has not reported its pinned Superpowers (superpowers.pinDir): update crew-mac on the machine, then press Continue",
+    "instructionsConflict": "AGENTS.md of {{name}} was just changed elsewhere: press Continue to write it again",
+    "job": {
+      "folder_not_git": "The folder is not a git repo: {{text}}",
+      "folder_forbidden": "The folder is not allowed: {{text}}",
+      "folder_missing": "Folder not found on the machine: {{text}}",
+      "checkout_exists": "The checkout folder already exists on the machine: {{text}}",
+      "git_failed": "A git command failed on the machine: {{text}}",
+      "skill_fetch_failed": "Could not download the skill: {{text}}",
+      "check_failed": "Machine check failed: {{text}}",
+      "lease_expired": "The machine took the job but never reported back: {{text}}",
+      "app_error": "The app on the machine reported an error: {{text}}"
+    }
+  }
+}
