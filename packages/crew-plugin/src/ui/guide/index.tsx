@@ -1,4 +1,4 @@
-import { createElement as h, useRef, type MouseEvent } from "react";
+import { createElement as h, useEffect, useRef, useState, type MouseEvent } from "react";
 import { ErrorBoundary, MarkdownBlock, useHostLocation, useHostNavigation, type PluginPageProps, type PluginSidebarProps } from "@paperclipai/plugin-sdk/ui";
 import guideText from "./huong-dan.md";
 
@@ -18,12 +18,40 @@ export function guideHeadings(text: string): string[] {
 }
 
 /**
- * Key of this plugin; the host serves plugin UI files at `/_plugins/<id-or-key>/ui/` and accepts the
- * plugin key there (server/src/routes/plugin-ui-static.ts). The bundle is loaded from a blob URL, so
- * `import.meta.url` cannot give the base.
+ * The host serves plugin UI files at `/_plugins/<pluginId>/ui/` and needs the plugin's id there (the key
+ * gives a 500). The bundle is loaded from a blob URL, so `import.meta.url` cannot give the base; the id
+ * comes from `/api/plugins/ui-contributions`, the same list the host uses to load this bundle.
  */
 export const PLUGIN_KEY = "crew.core";
-export const GUIDE_UI_BASE = `/_plugins/${PLUGIN_KEY}/ui/`;
+
+type Contribution = { pluginId?: unknown; pluginKey?: unknown };
+
+/** The `/_plugins/<id>/ui/` base for this plugin from a ui-contributions list, or null. */
+export function guideBaseFrom(list: unknown): string | null {
+  const entries = Array.isArray(list) ? list : [];
+  const mine = entries.find((entry): entry is Contribution => !!entry && (entry as Contribution).pluginKey === PLUGIN_KEY);
+  return mine && typeof mine.pluginId === "string" && /^[0-9a-f-]{36}$/i.test(mine.pluginId)
+    ? `/_plugins/${mine.pluginId}/ui/` : null;
+}
+
+let cachedBase: Promise<string | null> | null = null;
+function loadGuideBase(): Promise<string | null> {
+  cachedBase ??= fetch("/api/plugins/ui-contributions", { credentials: "include" })
+    .then((res) => (res.ok ? res.json() : null))
+    .then(guideBaseFrom)
+    .catch(() => null);
+  return cachedBase;
+}
+
+function useGuideBase(): string | null {
+  const [base, setBase] = useState<string | null>(null);
+  useEffect(() => {
+    let live = true;
+    loadGuideBase().then((value) => { if (live) setBase(value); });
+    return () => { live = false; };
+  }, []);
+  return base;
+}
 
 /** Points `img/...` images at the plugin's static files; without a base the images are dropped. */
 export function resolveGuideImages(text: string, base: string | null): string {
@@ -54,8 +82,9 @@ function Guide({ text }: { text: string }) {
 }
 
 export function CrewGuidePage(_props: PluginPageProps) {
+  const base = useGuideBase();
   return h("main", { "aria-label": "Hướng dẫn Crew" },
-    h(ErrorBoundary, { fallback: h("div", { role: "alert", style: alertStyle }, "Không hiển thị được hướng dẫn."), children: h(Guide, { text: resolveGuideImages(guideText, GUIDE_UI_BASE) }) }));
+    h(ErrorBoundary, { fallback: h("div", { role: "alert", style: alertStyle }, "Không hiển thị được hướng dẫn."), children: h(Guide, { text: resolveGuideImages(guideText, base) }) }));
 }
 
 const linkClass = "flex items-center gap-2.5 mx-2 rounded-lg px-2 py-1.5 pointer-coarse:py-1 text-(length:--text-compact) font-medium text-foreground/80 transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground";

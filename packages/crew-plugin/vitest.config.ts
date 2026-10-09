@@ -17,5 +17,8 @@ export default {
   test: {
     include: ["src/**/*.test.ts", "src/**/*.test.tsx"],
     environment: "node",
+    // DB tests start an embedded PostgreSQL; on a busy Mac that alone can take longer than 5 s.
+    testTimeout: 30_000,
+    hookTimeout: 60_000,
   },
 };
