@@ -134,12 +134,19 @@ async function resultRoute(
     if (Buffer.byteLength(JSON.stringify(body.result)) > RESULT_MAX_BYTES) return bad("result quá lớn");
     outcome = { status: "done", result: body.result as unknown as JobResult };
   } else if (body.status === "failed") {
-    if (body.result !== undefined && body.result !== null) return bad("result chỉ gửi khi status là done");
+    if (body.result !== undefined && body.result !== null) {
+      // Only a failed `check` carries a result (the doctor items); the kind is verified against the job below.
+      if (!isObject(body.result)) return bad("result phải là object");
+      if (Buffer.byteLength(JSON.stringify(body.result)) > RESULT_MAX_BYTES) return bad("result quá lớn");
+    }
     const code = body.errorCode ?? "app_error";
     if (!JOB_ERROR_CODES.includes(code as JobErrorCode)) return bad("errorCode không hợp lệ");
     if (body.errorText !== undefined && body.errorText !== null && typeof body.errorText !== "string") return bad("errorText phải là chuỗi");
     const text = typeof body.errorText === "string" ? sanitizeJobError(body.errorText) : "";
-    outcome = { status: "failed", errorCode: code as JobErrorCode, errorText: text === "" ? null : text };
+    outcome = {
+      status: "failed", errorCode: code as JobErrorCode, errorText: text === "" ? null : text,
+      ...(isObject(body.result) ? { result: body.result as unknown as JobResult } : {}),
+    };
   } else {
     return bad("status phải là done hoặc failed");
   }
@@ -149,6 +156,10 @@ async function resultRoute(
   if (job.status !== "claimed") return conflict("Việc không ở trạng thái đang nhận");
   if (job.machineId !== machineId) return conflict("Việc đang do máy khác nhận");
   if (outcome.status === "done" && outcome.result.kind !== job.kind) return bad("result không khớp loại việc");
+  if (outcome.status === "failed" && outcome.result) {
+    if (job.kind !== "check") return bad("result chỉ gửi khi status là done, hoặc failed của việc check");
+    if (outcome.result.kind !== "check") return bad("result không khớp loại việc");
+  }
   if (!await finishJob(ctx, company, id, machineId, outcome, now)) return conflict("Việc không ở trạng thái đang nhận");
   return { status: 200, body: await getJob(ctx, company, id) };
 }
