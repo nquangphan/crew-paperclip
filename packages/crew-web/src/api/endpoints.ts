@@ -157,6 +157,8 @@ export const ENDPOINTS = {
   'setup.get': { ids: ['S9', 'S13'], method: 'GET', path: `${PLUGIN}/api/setup-runs/:id` },
   'setup.begin': { ids: ['S9', 'S13'], method: 'POST', path: `${PLUGIN}/api/setup-runs/:id/steps/:stepId/begin` },
   'setup.finish': { ids: ['S9', 'S13'], method: 'POST', path: `${PLUGIN}/api/setup-runs/:id/steps/:stepId/finish` },
+  // BA không có mã riêng cho nút "Bỏ lần dở" nên gắn S9 (wizard Thêm project).
+  'setup.abandon': { ids: ['S9'], method: 'POST', path: `${PLUGIN}/api/setup-runs/:id/abandon` },
 } as const satisfies Record<string, EndpointDef>;
 
 export type EndpointKey = keyof typeof ENDPOINTS;
