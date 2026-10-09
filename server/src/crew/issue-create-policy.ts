@@ -8,6 +8,7 @@ import {
   type CrewRoles,
   housekeepingSourceIssueId,
   isCrewHousekeepingOrigin,
+  isTrackingProject,
   loadCrewCompanyConfig,
   loadSourceExecutorAgentIds,
 } from "./issue-policy.js";
@@ -24,6 +25,7 @@ export interface IssueCreateFields {
   executionPolicy?: unknown;
   assigneeAdapterOverrides?: unknown;
   labelIds?: readonly string[] | null;
+  projectId?: string | null;
 }
 
 export type CreatePolicyDecision =
@@ -43,7 +45,8 @@ const AGENT_CREATE_FORBIDDEN_STATUSES = new Set(["done", "cancelled", "in_review
  * Chỉ gọi cho company có trong file cấu hình Crew (`roles` null = cấu hình lỗi).
  * Agent chỉ tạo được issue con và luôn nhận template con (mọi policy agent gửi bị thay). Board gửi policy riêng
  * thì giữ; không gửi thì nhận template theo loại issue, owner của template gốc lấy từ file cấu hình.
- * Board tạo issue gốc có nhãn research nhận template reviewer rồi owner.
+ * Board tạo issue gốc có nhãn research nhận template reviewer rồi owner. Issue gốc trong project theo dõi
+ * (`trackingProjectIds`) không nhận policy; policy chốt lúc tạo, đổi project sau đó không đổi gì.
  * Hệ thống (không người tạo): issue watchdog/recovery giữ hành vi stock, trừ khi giao lại cho agent đang làm issue
  * nguồn (khi đó nhận template con); routine và mọi nguồn khác (kể cả không nhận diện được) nhận template con nếu có
  * `parentId`, template gốc (owner từ file cấu hình) nếu không.
@@ -55,6 +58,8 @@ export function decideCreatePolicy(input: {
   /** Agent đang làm issue nguồn (assignee, `returnAssignee`) của issue watchdog/recovery. */
   sourceExecutorAgentIds?: readonly string[];
   researchLabel?: boolean;
+  /** Issue thuộc project theo dõi của company: board tạo issue gốc ở đây không nhận policy Crew. */
+  trackingProject?: boolean;
 }): CreatePolicyDecision {
   const { data, roles } = input;
   if (data.createdByAgentId) {
@@ -80,6 +85,7 @@ export function decideCreatePolicy(input: {
   }
   if (data.executionPolicy != null || !roles) return { kind: "keep" };
   if (data.parentId) return { kind: "set", template: "child" };
+  if (input.trackingProject) return { kind: "keep" };
   return input.ownerUserId
     ? { kind: "set", template: input.researchLabel ? "research" : "root", ownerUserId: input.ownerUserId }
     : { kind: "keep" };
@@ -129,7 +135,8 @@ export async function crewBeforeIssueCreate<T extends IssueCreateFields>(input: 
     : [];
   const boardRoot = !data.createdByAgentId && !!data.createdByUserId?.trim() && !data.parentId && data.executionPolicy == null;
   const researchLabel = boardRoot ? await hasResearchLabel(input.db, input.companyId, data.labelIds) : false;
-  const decision = decideCreatePolicy({ data, roles, ownerUserId, sourceExecutorAgentIds, researchLabel });
+  const trackingProject = isTrackingProject(config, data.projectId);
+  const decision = decideCreatePolicy({ data, roles, ownerUserId, sourceExecutorAgentIds, researchLabel, trackingProject });
   if (decision.kind === "keep") return input.data;
   if (decision.kind === "reject") throw unprocessable(MESSAGES[decision.code], {
     code: decision.code,

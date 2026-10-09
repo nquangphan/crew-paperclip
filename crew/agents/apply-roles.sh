@@ -8,10 +8,12 @@
 #       current file is read before anything is written, so a refused upload leaves the agent untouched.
 #       The assistant's AGENTS.md gets the executor list appended by render-instructions.mjs.
 #       Exits non-zero when the server's answer to either write does not match what was sent.
-#   apply-roles.sh policy-config <companyId> <reviewerAgentId> <integratorAgentId> <ownerUserId> [config file]
+#   apply-roles.sh policy-config <companyId> <reviewerAgentId> <integratorAgentId> <ownerUserId> [config file] [--tracking <projectId,projectId>]
 #       Prints the CREW_POLICY_CONFIG JSON holding only that company (copying it over the live file drops the
 #       other companies). With a file argument the company is merged into that file, a .bak copy is kept and the
 #       file is rewritten in place. The server rereads the file on every gated write; no restart is needed.
+#       --tracking sets trackingProjectIds: root issues the board creates in those projects get no Crew policy
+#       (a project for following development work). Omitted, the company's existing list is kept; "" clears it.
 #
 # Roles are not stored on the agents: the server decides reviewer, integrator and owner from the config file.
 set -euo pipefail
@@ -21,15 +23,16 @@ HERE=$(cd "$(dirname "$0")" && pwd -P)
 die() { echo "apply-roles: $*" >&2; exit 2; }
 need_node() { command -v node >/dev/null 2>&1 || die "node is required on this host (run the scripts from a machine with node and copy the output)"; }
 
+TRACK=()
 write_config() { # <companyId> <reviewer> <integrator> <owner> <file>; run under the lock when flock exists
   local out=$5 tmp
   tmp=$(mktemp "$out.XXXXXX")
   trap 'rm -f "$tmp"' EXIT
   if [ -s "$out" ]; then
-    node "$HERE/policy-config.mjs" "$1" "$2" "$3" "$4" "$out" > "$tmp"
+    node "$HERE/policy-config.mjs" "$1" "$2" "$3" "$4" "$out" ${TRACK[@]+"${TRACK[@]}"} > "$tmp"
     cp -p "$out" "$out.bak"
   else
-    node "$HERE/policy-config.mjs" "$1" "$2" "$3" "$4" > "$tmp"
+    node "$HERE/policy-config.mjs" "$1" "$2" "$3" "$4" ${TRACK[@]+"${TRACK[@]}"} > "$tmp"
   fi
   [ -s "$tmp" ] && node -e 'JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"))' "$tmp" || die "generated config is empty or not JSON; $out left untouched"
   # Written in place (not renamed over): a single-file bind mount keeps pointing at the old inode after a rename.
@@ -67,11 +70,16 @@ case "$cmd" in
     echo "apply-roles: $AGENT role=$ROLE extraArgs=$EXPECTED${EXECUTORS:+ executors=$EXECUTORS}"
     ;;
   policy-config)
-    [ $# -ge 4 ] && [ $# -le 5 ] || die "usage: policy-config <companyId> <reviewerAgentId> <integratorAgentId> <ownerUserId> [config file]"
+    USAGE="usage: policy-config <companyId> <reviewerAgentId> <integratorAgentId> <ownerUserId> [config file] [--tracking <projectId,projectId>]"
+    if [ $# -ge 2 ] && [ "${*: -2:1}" = "--tracking" ]; then
+      TRACK=(--tracking "${*: -1}")
+      set -- "${@:1:$(($# - 2))}"
+    fi
+    [ $# -ge 4 ] && [ $# -le 5 ] || die "$USAGE"
     need_node
     OUT=${5:-}
     if [ -z "$OUT" ]; then
-      node "$HERE/policy-config.mjs" "$1" "$2" "$3" "$4"
+      node "$HERE/policy-config.mjs" "$1" "$2" "$3" "$4" ${TRACK[@]+"${TRACK[@]}"}
     elif command -v flock >/dev/null 2>&1; then
       (flock -x 9; write_config "$1" "$2" "$3" "$4" "$OUT") 9>"$OUT.lock"
     else

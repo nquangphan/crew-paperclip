@@ -56,3 +56,30 @@ test("từ chối file cũ hỏng thay vì ghi đè", () => {
   assert.throws(() => buildPolicyConfig("{oops", COMPANY, ok), /JSON/);
   assert.throws(() => buildPolicyConfig("{}", COMPANY, ok), /companies/);
 });
+
+const P1 = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+const P2 = "BBBBBBBB-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
+
+test("--tracking đặt trackingProjectIds (viết thường), không làm mất company khác", () => {
+  const ok = { reviewerAgentId: REVIEWER, integratorAgentId: INTEGRATOR, ownerUserId: "o" };
+  const existing = JSON.stringify({ companies: { other: { reviewerAgentId: "a", integratorAgentId: "b", ownerUserId: "c" } } });
+  const out = buildPolicyConfig(existing, COMPANY, ok, [P1, P2]);
+  assert.deepEqual(out.companies[COMPANY].trackingProjectIds, [P1, P2.toLowerCase()]);
+  assert.ok(out.companies.other);
+});
+
+test("không truyền tracking thì giữ danh sách cũ; mảng rỗng thì xóa", () => {
+  const ok = { reviewerAgentId: REVIEWER, integratorAgentId: INTEGRATOR, ownerUserId: "o" };
+  const existing = JSON.stringify({
+    companies: { [COMPANY]: { reviewerAgentId: "x", integratorAgentId: "y", ownerUserId: "z", trackingProjectIds: [P1] } },
+  });
+  assert.deepEqual(buildPolicyConfig(existing, COMPANY, ok).companies[COMPANY].trackingProjectIds, [P1]);
+  assert.equal("trackingProjectIds" in buildPolicyConfig(existing, COMPANY, ok, []).companies[COMPANY], false);
+  assert.equal("trackingProjectIds" in buildPolicyConfig(null, COMPANY, ok).companies[COMPANY], false);
+});
+
+test("từ chối tracking không phải uuid hoặc trùng", () => {
+  const ok = { reviewerAgentId: REVIEWER, integratorAgentId: INTEGRATOR, ownerUserId: "o" };
+  assert.throws(() => buildPolicyConfig(null, COMPANY, ok, ["abc"]), /uuid/);
+  assert.throws(() => buildPolicyConfig(null, COMPANY, ok, [P1, P1.toUpperCase()]), /trùng/);
+});

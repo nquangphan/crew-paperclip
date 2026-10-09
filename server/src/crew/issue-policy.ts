@@ -26,7 +26,7 @@ export const CREW_POLICY_CONFIG_ENV = "CREW_POLICY_CONFIG";
 export type CrewCompanyConfig =
   | { kind: "absent" }
   | { kind: "invalid"; reason: string }
-  | { kind: "ok"; roles: CrewRoles; ownerUserId: string };
+  | { kind: "ok"; roles: CrewRoles; ownerUserId: string; trackingProjectIds: string[] };
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -34,7 +34,10 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-/** Dạng file: `{ "companies": { "<companyId>": { reviewerAgentId, integratorAgentId, ownerUserId } } }`. */
+/**
+ * Dạng file: `{ "companies": { "<companyId>": { reviewerAgentId, integratorAgentId, ownerUserId, trackingProjectIds? } } }`.
+ * `trackingProjectIds` (tùy chọn, mảng uuid không trùng): project theo dõi, issue gốc board tạo trong đó không nhận policy Crew.
+ */
 export function parseCrewPolicyConfig(text: string, companyId: string): CrewCompanyConfig {
   let parsed: unknown;
   try {
@@ -65,10 +68,22 @@ export function parseCrewPolicyConfig(text: string, companyId: string): CrewComp
   if (typeof ownerUserId !== "string" || ownerUserId.trim() === "") {
     return { kind: "invalid", reason: `companies.${companyId}.ownerUserId phải là chuỗi khác rỗng` };
   }
+  const tracking = entry.trackingProjectIds;
+  let trackingProjectIds: string[] = [];
+  if (tracking !== undefined) {
+    if (!Array.isArray(tracking) || tracking.some((id) => typeof id !== "string" || !UUID_RE.test(id))) {
+      return { kind: "invalid", reason: `companies.${companyId}.trackingProjectIds phải là mảng uuid` };
+    }
+    trackingProjectIds = (tracking as string[]).map((id) => id.toLowerCase());
+    if (new Set(trackingProjectIds).size !== trackingProjectIds.length) {
+      return { kind: "invalid", reason: `companies.${companyId}.trackingProjectIds có uuid trùng` };
+    }
+  }
   return {
     kind: "ok",
     roles: { reviewerAgentId: reviewerAgentId.toLowerCase(), integratorAgentId: integratorAgentId.toLowerCase() },
     ownerUserId: ownerUserId.trim(),
+    trackingProjectIds,
   };
 }
 
@@ -136,6 +151,10 @@ function logConfigProblem(file: string, companyId: string, reason: string): void
   if (loggedProblems.has(key)) return;
   loggedProblems.add(key);
   logger.error({ file, companyId, reason }, "crew policy config invalid; Crew gates fail closed for this company");
+}
+
+export function isTrackingProject(config: CrewCompanyConfig, projectId: string | null | undefined): boolean {
+  return config.kind === "ok" && !!projectId && config.trackingProjectIds.includes(projectId.toLowerCase());
 }
 
 /** Đọc lại file ở mỗi lần gọi (file nhỏ; sửa file có hiệu lực ngay, không cần cache). */

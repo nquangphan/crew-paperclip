@@ -67,7 +67,17 @@ describe("parseCrewPolicyConfig", () => {
       kind: "ok",
       roles,
       ownerUserId: "owner-1",
+      trackingProjectIds: [],
     });
+  });
+
+  it("trackingProjectIds: mặc định rỗng, viết thường; lỗi khi không phải mảng uuid hoặc trùng", () => {
+    const P = "AAAAAAAA-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+    const parse = (value: unknown) =>
+      parseCrewPolicyConfig(JSON.stringify({ companies: { [COMPANY]: { ...entry, trackingProjectIds: value } } }), COMPANY);
+    expect(parseCrewPolicyConfig(JSON.stringify({ companies: { [COMPANY]: entry } }), COMPANY)).toMatchObject({ trackingProjectIds: [] });
+    expect(parse([P])).toMatchObject({ kind: "ok", trackingProjectIds: [P.toLowerCase()] });
+    for (const bad of ["x", ["nope"], [P, P.toLowerCase()], [1]]) expect(parse(bad)).toMatchObject({ kind: "invalid" });
   });
 
   it("company không có trong file thì absent (hành vi stock)", () => {
@@ -380,6 +390,18 @@ describe("evaluateIssueGate", () => {
     const v = evaluateIssueGate(facts({ actor: { kind: "system" }, patch: { status: "done" } }));
     expect(v).toMatchObject({ kind: "block", code: "crew_gate_blocked" });
     expect(v.kind === "block" && v.violations).toContain(`stage_unapproved:${sReview}`);
+  });
+
+  it("issue theo dõi (không policy, trong project theo dõi): agent và board đóng được như stock", () => {
+    const tracked = { status: "in_progress", executionPolicy: null, executionState: null, assigneeAgentId: null, assigneeUserId: null, tracking: true };
+    for (const actor of [{ kind: "agent", agentId: EXECUTOR }, { kind: "board", userId: "owner-1" }] as const) {
+      expect(evaluateIssueGate(facts({ actor, locked: tracked, patch: { status: "done" } }))).toEqual({ kind: "allow", notes: [] });
+    }
+    expect(evaluateIssueGate(facts({ locked: tracked, roles: null, patch: { status: "cancelled" } }))).toEqual({ kind: "allow", notes: [] });
+    // Ngoài project theo dõi, issue không policy vẫn bị cổng chặn.
+    expect(evaluateIssueGate(facts({ locked: { ...tracked, tracking: false }, patch: { status: "done" } }))).toMatchObject({ kind: "block" });
+    // Agent không gắn policy vào issue theo dõi để lách.
+    expect(evaluateIssueGate(facts({ locked: tracked, patch: { executionPolicy: root, status: "done" } }))).toMatchObject({ kind: "block" });
   });
 
   it("system ghi blocked không bị đụng", () => {

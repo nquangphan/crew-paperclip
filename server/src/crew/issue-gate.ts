@@ -19,6 +19,7 @@ import {
   type DocsCheckEvidence,
   housekeepingSourceIssueId,
   isCrewHousekeepingIssue,
+  isTrackingProject,
   loadCrewCompanyConfig,
   loadSourceExecutorAgentIds,
   parseCrewMergeEvidence,
@@ -48,6 +49,8 @@ export interface IssueGateFacts {
     assigneeUserId: string | null;
     /** Issue watchdog/recovery do hệ thống tạo (`isCrewHousekeepingIssue`). */
     housekeeping?: boolean;
+    /** Issue không có policy nằm trong project theo dõi của company (`trackingProjectIds`): không áp cổng Crew. */
+    tracking?: boolean;
   };
   patch: Readonly<Record<string, unknown>>;
   actor: GateActor;
@@ -141,6 +144,11 @@ export function evaluateIssueGate(f: IssueGateFacts): IssueGateVerdict {
   const notes: string[] = [];
   // Tiến trình nền stock (watchdog, recovery, evaluation) trên issue không có policy Crew: giữ hành vi gốc.
   if (f.actor.kind === "system" && policyGateFingerprint(f.locked.executionPolicy) === "none") {
+    return { kind: "allow", notes };
+  }
+
+  // Issue theo dõi (không policy, trong project theo dõi): giữ hành vi stock, trừ khi lần ghi này gắn policy vào.
+  if (f.locked.tracking && policyGateFingerprint(f.locked.executionPolicy) === "none" && !(f.patch.executionPolicy ?? null)) {
     return { kind: "allow", notes };
   }
 
@@ -376,6 +384,7 @@ export async function crewBeforeIssueWrite(input: IssueWriteHookInput): Promise<
       assigneeAgentId: locked.assigneeAgentId,
       assigneeUserId: locked.assigneeUserId,
       housekeeping,
+      tracking: isTrackingProject(config, locked.projectId),
     },
     patch,
     actor,

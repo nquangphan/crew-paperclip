@@ -15,6 +15,12 @@ import { routineService } from "../services/routines.ts";
 const roles = { reviewerAgentId: "r", integratorAgentId: "i" };
 
 describe("decideCreatePolicy", () => {
+  it("board tạo gốc trong project theo dõi thì keep; con và agent không bị ảnh hưởng", () => {
+    expect(decideCreatePolicy({ data: { createdByUserId: "board-2" }, roles, ownerUserId: "owner-1", trackingProject: true })).toEqual({ kind: "keep" });
+    expect(decideCreatePolicy({ data: { createdByUserId: "board-2", parentId: "p" }, roles, ownerUserId: "owner-1", trackingProject: true })).toEqual({ kind: "set", template: "child" });
+    expect(decideCreatePolicy({ data: { createdByAgentId: "e" }, roles, ownerUserId: "owner-1", trackingProject: true })).toEqual({ kind: "reject", code: "crew_agent_root_issue" });
+  });
+
   it("board tạo gốc có nhãn research nhận hai stage; con vẫn nhận template con", () => {
     expect(decideCreatePolicy({ data: { createdByUserId: "board-2" }, roles, ownerUserId: "owner-1", researchLabel: true })).toEqual({ kind: "set", template: "research", ownerUserId: "owner-1" });
     expect(decideCreatePolicy({ data: { createdByUserId: "board-2", parentId: "p" }, roles, ownerUserId: "owner-1", researchLabel: true })).toEqual({ kind: "set", template: "child" });
@@ -223,6 +229,37 @@ suite("crew policy in issueService.create", () => {
       ((await db.select().from(issues).where(eq(issues.id, id)))[0]!.executionPolicy as { stages: { type: string }[] }).stages.map((s) => s.type);
     expect(await stagesOf(research.id)).toEqual(["review", "approval"]);
     expect(await stagesOf(plain.id)).toEqual(["review", "review", "approval", "review"]);
+  });
+
+  it("board tạo gốc trong project theo dõi không nhận policy; ngoài project vẫn bốn stage; con vẫn nhận template con", async () => {
+    const { companyId, rootId } = await seed();
+    const trackingId = randomUUID();
+    const otherId = randomUUID();
+    await db.insert(projects).values([
+      { id: trackingId, companyId, name: "Theo dõi" },
+      { id: otherId, companyId, name: "Khác" },
+    ]);
+    configured[companyId] = { ...(configured[companyId] as object), trackingProjectIds: [trackingId.toUpperCase()] };
+    writeConfig();
+    const policyOf = async (id: string) => (await db.select().from(issues).where(eq(issues.id, id)))[0]!.executionPolicy as { stages: { type: string }[] } | null;
+    const tracked = await issueService(db).create(companyId, { title: "t", createdByUserId: "owner-1", projectId: trackingId } as never);
+    const outside = await issueService(db).create(companyId, { title: "o", createdByUserId: "owner-1", projectId: otherId } as never);
+    const child = await issueService(db).create(companyId, { title: "c", createdByUserId: "owner-1", projectId: trackingId, parentId: rootId } as never);
+    expect(await policyOf(tracked.id)).toBeNull();
+    expect((await policyOf(outside.id))!.stages.map((s) => s.type)).toEqual(["review", "review", "approval", "review"]);
+    expect((await policyOf(child.id))!.stages.map((s) => s.type)).toEqual(["review"]);
+    // Đổi project sau khi tạo không đổi policy đã chốt.
+    await db.update(issues).set({ projectId: otherId }).where(eq(issues.id, tracked.id));
+    expect(await policyOf(tracked.id)).toBeNull();
+  });
+
+  it("config không có trackingProjectIds: issue trong project vẫn nhận bốn stage như cũ", async () => {
+    const { companyId } = await seed();
+    const projectId = randomUUID();
+    await db.insert(projects).values({ id: projectId, companyId, name: "P" });
+    const created = await issueService(db).create(companyId, { title: "t", createdByUserId: "owner-1", projectId } as never);
+    const policy = (await db.select().from(issues).where(eq(issues.id, created.id)))[0]!.executionPolicy as { stages: unknown[] };
+    expect(policy.stages).toHaveLength(4);
   });
 
   it("nhãn research của company khác không tính", async () => {
