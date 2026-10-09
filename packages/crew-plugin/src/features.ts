@@ -6,6 +6,7 @@ import { registerDocsHistory } from "./docs/history.js";
 import { registerDocsWebhook } from "./docs/webhook.js";
 import { registerMapFeature } from "./handlers/map.js";
 import { registerRootsFeature } from "./handlers/roots.js";
+import { registerSecurityGuards } from "./security/index.js";
 import { registerJobsData } from "./jobs/data.js";
 import { registerMachinesFeature } from "./machines/data.js";
 import { registerSetupData } from "./setup/data.js";
@@ -27,4 +28,5 @@ export function registerFeatures(ctx: PluginContext): void {
   registerCompaniesData(ctx);
   registerStorageData(ctx);
   registerUsageData(ctx);
+  registerSecurityGuards(ctx);
 }
