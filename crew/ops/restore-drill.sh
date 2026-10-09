@@ -59,14 +59,25 @@ echo "drill: issues match ($(wc -l < "$DRILL/issues-restored.txt")), heartbeat_r
 # and no copied queued/running run may be picked up.
 $C exec -T db sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -v ON_ERROR_STOP=1 -c "update environments set status = '"'"'archived'"'"' where driver <> '"'"'local'"'"'; update agents set status = '"'"'paused'"'"'; update heartbeat_runs set status = '"'"'cancelled'"'"' where status in ('"'"'queued'"'"', '"'"'running'"'"', '"'"'scheduled_retry'"'"');"'
 
-# The server only answers its configured public host (private exposure), so requests carry that Host header.
-PUBLIC_HOST=100.105.105.12:3100
+# The server only answers its configured public host, so requests carry the Host (and, for https, the
+# forwarded proto) taken from the PAPERCLIP_PUBLIC_URL the restored compose/env actually gives it.
+PUBLIC_URL=$(sed -n 's/^[[:space:]]*PAPERCLIP_PUBLIC_URL:[[:space:]]*"\{0,1\}\([^"[:space:]]*\).*/\1/p' "$DRILL/docker-compose.yml" | head -1)
+[ -n "$PUBLIC_URL" ] || PUBLIC_URL=$(sed -n 's/^PAPERCLIP_PUBLIC_URL=//p' "$DRILL/.env" 2>/dev/null | tr -d '"' | head -1)
+[ -n "$PUBLIC_URL" ] || { echo "drill: cannot find PAPERCLIP_PUBLIC_URL in restored config" >&2; exit 4; }
+PUBLIC_HOST=${PUBLIC_URL#*://}
+PUBLIC_HOST=${PUBLIC_HOST%%/*}
+HDRS=(-H "Host: $PUBLIC_HOST")
+case "$PUBLIC_URL" in https://*) HDRS+=(-H "X-Forwarded-Proto: https") ;; esac
+# Session cookie from the Netscape jar sent as a header (curl withholds Secure cookies over http); never printed.
+COOKIE=$(awk -F'\t' '{sub(/^#HttpOnly_/, "", $1)} $1 !~ /^#/ && $6 ~ /session_token$/ {print $6 "=" $7; exit}' "$ROOT/.board-cookies" 2>/dev/null || true)
+[ -z "$COOKIE" ] || HDRS+=(-H "Cookie: $COOKIE")
+echo "drill: API host=$PUBLIC_HOST proto=${PUBLIC_URL%%://*} cookie=$([ -n "$COOKIE" ] && echo yes || echo no)"
 $C up -d server
 STATUS=""
 IP=""
 for i in $(seq 1 90); do
   IP=$(docker inspect "$P-server-1" --format '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}')
-  STATUS=$(curl -s --max-time 3 -H "Host: $PUBLIC_HOST" "http://$IP:3100/api/health" | python3 -c 'import json,sys; print(json.load(sys.stdin).get("status"))' 2>/dev/null || true)
+  STATUS=$(curl -s --max-time 3 "${HDRS[@]}" "http://$IP:3100/api/health" | python3 -c 'import json,sys; print(json.load(sys.stdin).get("status"))' 2>/dev/null || true)
   [ "$STATUS" = ok ] && break
   sleep 2
 done
@@ -74,7 +85,7 @@ done
 
 FIRST_ISSUE=$(head -1 "$DRILL/issues-restored.txt" | cut -d'|' -f1)
 EXPECTED=$(head -1 "$DRILL/issues-restored.txt" | cut -d'|' -f3)
-API_STATUS=$(curl -s --max-time 10 -H "Host: $PUBLIC_HOST" -b "$ROOT/.board-cookies" "http://$IP:3100/api/issues/$FIRST_ISSUE" | python3 -c 'import json,sys; print(json.load(sys.stdin).get("status"))' 2>/dev/null || echo "-")
+API_STATUS=$(curl -s --max-time 10 "${HDRS[@]}" "http://$IP:3100/api/issues/$FIRST_ISSUE" | python3 -c 'import json,sys; print(json.load(sys.stdin).get("status"))' 2>/dev/null || echo "-")
 echo "drill: API issue $FIRST_ISSUE status=$API_STATUS expected=$EXPECTED"
 [ "$API_STATUS" = "$EXPECTED" ] || echo "drill: WARN API read did not match (auth/host); the SQL check above is the binding evidence"
 
