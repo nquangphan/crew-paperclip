@@ -51,12 +51,41 @@ function crossProjectConflict(roles: ProjectRoles, others: { projectName: string
   return null;
 }
 
+const ROLES_ERROR = "Không đọc/ghi được vai trò project";
+
+/**
+ * Audit trail for gate changes. The plugin SDK can write host activity (`ctx.activity.log`), but that needs the
+ * `activity.log.write` capability in the manifest; until it is granted, a structured log line carries who changed
+ * which project's roles, with the values before and after.
+ */
+function auditRoles(
+  ctx: Pick<PluginContext, "logger">,
+  entry: { action: "set" | "delete"; actorUserId: string; companyId: string; projectId: string; before: ProjectRoles | null; after: ProjectRoles | null },
+): void {
+  ctx.logger.info("crew project roles changed", entry);
+}
+
 /**
  * Scoped API for project roles. The host already enforced board auth and company access;
  * the agent check stays here so a host rule change cannot let agents rewrite their own gate.
+ * Database failures never reach the board as SQL text: the detail goes to the server log only.
  */
 export async function handleRolesApi(
-  ctx: Pick<PluginContext, "db">, input: PluginApiRequestInput,
+  ctx: Pick<PluginContext, "db" | "logger">, input: PluginApiRequestInput,
+): Promise<PluginApiResponse> {
+  try {
+    return await routeRolesApi(ctx, input);
+  } catch (error) {
+    ctx.logger.error("crew project roles request failed", {
+      routeKey: input.routeKey, companyId: input.companyId, projectId: input.params.projectId,
+      err: error instanceof Error ? error.message : String(error),
+    });
+    return { status: 500, body: { error: ROLES_ERROR } };
+  }
+}
+
+async function routeRolesApi(
+  ctx: Pick<PluginContext, "db" | "logger">, input: PluginApiRequestInput,
 ): Promise<PluginApiResponse> {
   if (input.actor.actorType !== "user") return { status: 403, body: { error: "Chỉ board được đổi vai trò project" } };
   if (!["roles.get", "roles.set", "roles.delete"].includes(input.routeKey)) {
@@ -71,8 +100,12 @@ export async function handleRolesApi(
   if (input.routeKey === "roles.get") {
     return { status: 200, body: { roles: await readProjectRoles(ctx, company, project) } };
   }
+  const actorUserId = input.actor.userId ?? input.actor.actorId;
   if (input.routeKey === "roles.delete") {
-    return { status: 200, body: { deleted: await deleteProjectRoles(ctx, company, project) } };
+    const before = await readProjectRoles(ctx, company, project);
+    const deleted = await deleteProjectRoles(ctx, company, project);
+    if (deleted) auditRoles(ctx, { action: "delete", actorUserId, companyId: company, projectId: project, before, after: null });
+    return { status: 200, body: { deleted } };
   }
 
   const roles = parseRolesBody(input.body, company);
@@ -86,6 +119,8 @@ export async function handleRolesApi(
   }
   const conflict = crossProjectConflict(roles, await otherProjectRoles(ctx, company, project));
   if (conflict) return bad(conflict);
-  await upsertProjectRoles(ctx, company, project, roles, input.actor.userId ?? input.actor.actorId);
+  const before = await readProjectRoles(ctx, company, project);
+  await upsertProjectRoles(ctx, company, project, roles, actorUserId);
+  auditRoles(ctx, { action: "set", actorUserId, companyId: company, projectId: project, before, after: roles });
   return { status: 200, body: { roles: await readProjectRoles(ctx, company, project) } };
 }

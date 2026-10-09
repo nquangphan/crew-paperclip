@@ -74,15 +74,20 @@ it("stores project roles for a company, validates every id against the company a
   }
 
   let dbCalls = 0;
-  const ctx = { db: {
+  let failDb: Error | null = null;
+  const logs: { level: string; message: string; meta?: Record<string, unknown> }[] = [];
+  const record = (level: string) => (message: string, meta?: Record<string, unknown>) => { logs.push({ level, message, meta }); };
+  const ctx = { logger: { debug: record("debug"), info: record("info"), warn: record("warn"), error: record("error") }, db: {
     namespace: ns,
     query: async <T>(query: string, params: unknown[] = []) => {
       dbCalls++;
+      if (failDb) throw failDb;
       validatePluginRuntimeQuery(query, ns, manifest.database!.coreReadTables);
       return await sql.unsafe<T[]>(query, params as never[]);
     },
     execute: async (query: string, params: unknown[] = []) => {
       dbCalls++;
+      if (failDb) throw failDb;
       validatePluginRuntimeExecute(query, ns);
       return { rowCount: (await sql.unsafe(query, params as never[])).count };
     },
@@ -217,4 +222,40 @@ it("stores project roles for a company, validates every id against the company a
   await sql`DELETE FROM projects WHERE id = ${projectId}`;
   const swapped = validBody({ assistantAgentId: reviewer, executorAgentIds: [integrator], reviewerAgentId: executorA, integratorAgentId: executorB });
   expect((await handleRolesApi(ctx, request("roles.set", { project: thirdProject, body: swapped }))).status).toBe(200);
+
+  // 10. Mọi lần ghi/xóa thành công để lại log có cấu trúc: ai, project nào, trước và sau. Lệnh bị từ chối thì không log.
+  await sql.unsafe(`DELETE FROM ${ns}.crew_project_roles`);
+  const before = validBody({ assistantAgentId: assistant, executorAgentIds: [executorA], reviewerAgentId: reviewer, integratorAgentId: integrator });
+  logs.length = 0;
+  const auditProject = thirdProject;
+  expect((await handleRolesApi(ctx, request("roles.set", { project: auditProject, body: before }))).status).toBe(200);
+  const next = validBody({ assistantAgentId: assistant, executorAgentIds: [executorA, executorB], reviewerAgentId: integrator, integratorAgentId: reviewer });
+  expect((await handleRolesApi(ctx, request("roles.set", { project: auditProject, body: next, actor: otherUser }))).status).toBe(200);
+  expect(await handleRolesApi(ctx, request("roles.delete", { project: auditProject, actor: otherUser }))).toEqual({ status: 200, body: { deleted: true } });
+  expect(await handleRolesApi(ctx, request("roles.delete", { project: auditProject }))).toEqual({ status: 200, body: { deleted: false } });
+  expect((await handleRolesApi(ctx, request("roles.set", { project: auditProject, body: validBody({ reviewerAgentId: "x" }) }))).status).toBe(400);
+  const asRoles = (b: Record<string, unknown>) => ({
+    assistantAgentId: b.assistantAgentId, executorAgentIds: b.executorAgentIds, reviewerAgentId: b.reviewerAgentId, integratorAgentId: b.integratorAgentId,
+  });
+  expect(logs.filter((l) => l.level === "info").map((l) => [l.message, l.meta])).toEqual([
+    ["crew project roles changed", { action: "set", actorUserId: userId, companyId, projectId: auditProject, before: null, after: asRoles(before) }],
+    ["crew project roles changed", { action: "set", actorUserId: "user-board-2", companyId, projectId: auditProject, before: asRoles(before), after: asRoles(next) }],
+    ["crew project roles changed", { action: "delete", actorUserId: "user-board-2", companyId, projectId: auditProject, before: asRoles(next), after: null }],
+  ]);
+
+  // 11. Lỗi DB không lộ thông báo SQL ra board: trả lỗi chung, chi tiết chỉ ở log phía server.
+  const sqlError = new Error('relation "plugin_crew_core_0433ea20b6.crew_project_roles" does not exist');
+  for (const [routeKey, options] of [
+    ["roles.get", {}], ["roles.delete", {}], ["roles.set", { body: validBody() }],
+  ] as const) {
+    logs.length = 0;
+    failDb = sqlError;
+    const res = await handleRolesApi(ctx, request(routeKey, options));
+    failDb = null;
+    expect(res).toEqual({ status: 500, body: { error: "Không đọc/ghi được vai trò project" } });
+    expect(JSON.stringify(res)).not.toContain("relation");
+    expect(logs.filter((l) => l.level === "error")).toEqual([
+      expect.objectContaining({ meta: expect.objectContaining({ routeKey, companyId, projectId, err: sqlError.message }) }),
+    ]);
+  }
 }, 90_000);

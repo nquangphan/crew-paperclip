@@ -301,7 +301,9 @@ suite("crew project roles in issueService", () => {
       expect(child.assigneeAgentId).toBe(s.i2);
     });
 
-    it("H2: executor P2 done sớm bị 422; R2 duyệt được; R1 (vai trò file) duyệt issue P2 bị từ chối", async () => {
+    // Hai ca này mô tả hành vi theo participant đã ghim trên policy của issue; chúng vẫn đúng khi H2 không đọc bảng vai trò
+// theo project. Việc đọc theo project của H2 được chứng minh ở ca "H2 đọc vai trò theo project của chính issue".
+it("H2: participant đã ghim trên policy P2: executor done sớm bị 422; R2 duyệt được; R1 duyệt issue P2 bị từ chối", async () => {
       const s = await seed();
       await setRoles(s, s.p2, s.r2, s.i2);
       const svc = issueService(db);
@@ -327,6 +329,24 @@ suite("crew project roles in issueService", () => {
 
       const byR2 = await insertIssue(s, { projectId: s.p2, status: "in_review", assigneeAgentId: s.r2, executionPolicy: child, executionState: pending });
       expect((await svc.update(byR2, { status: "done", executionState: completed, actorAgentId: s.r2 } as never))?.status).toBe("done");
+    });
+
+    it("H2 đọc vai trò theo project của chính issue: dòng hỏng ở P2 chỉ chặn issue P2, không chặn issue P1", async () => {
+      const s = await seed();
+      await setRoles(s, s.p2, s.r2, s.i2);
+      await db.update(agents).set({ status: "terminated" }).where(eq(agents.id, s.r2));
+      const svc = issueService(db);
+      const doneEarly = async (projectId: string, reviewerAgentId: string, integratorAgentId: string) => {
+        const policy = buildCrewPolicy("child", { reviewerAgentId, integratorAgentId });
+        const id = await insertIssue(s, { projectId, status: "in_progress", assigneeAgentId: s.executorId, executionPolicy: policy });
+        const error = await svc.update(id, { status: "done", actorAgentId: s.executorId }).catch((e: unknown) => e);
+        return { stageId: policy.stages[0]!.id, violations: (error as { details?: { violations?: string[] } }).details?.violations };
+      };
+
+      const inP2 = await doneEarly(s.p2, s.r2, s.i2);
+      expect(inP2.violations).toEqual(expect.arrayContaining(["roles_unconfigured", `stage_unapproved:${inP2.stageId}`]));
+      const inP1 = await doneEarly(s.p1, s.r1, s.i1);
+      expect(inP1.violations).toEqual([`stage_unapproved:${inP1.stageId}`]);
     });
 
     it("giao việc: agent giao cho I2 hay R2 bị 422 crew_role_assignee, cả khi issue thuộc P1; H4 cũng chặn", async () => {
