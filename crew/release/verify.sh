@@ -27,7 +27,8 @@ run 3 node crew/release/check-core-hooks.mjs
 run 3 node --test crew/release/check-core-hooks.test.mjs
 run 3 node --test crew/ops/plugin-state.test.mjs
 run 3 node --test crew/ops/policy-config.test.mjs
-run 4 corepack pnpm install
+run 3 node --test crew/release/upgrade.test.mjs crew/ops/compose-set-image.test.mjs crew/ops/pull-backup.test.mjs
+run 4 corepack pnpm install --frozen-lockfile
 run 4 corepack pnpm --filter @paperclipai/plugin-sdk ensure-build-deps
 run 4 corepack pnpm --filter @paperclipai/paperclip-runner run build:typescript
 run 4 corepack pnpm --filter "@paperclipai/plugin-sdk..." build
