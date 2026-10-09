@@ -53,6 +53,6 @@ await build({
   outfile: "dist/ui/index.js",
   external: ["react", "react-dom", "react/jsx-runtime", "@paperclipai/plugin-sdk/ui"],
   plugins: [pluginUiRequireBridge],
-  loader: { ".css": "text" },
+  loader: { ".css": "text", ".md": "text" },
   logLevel: "warning",
 });

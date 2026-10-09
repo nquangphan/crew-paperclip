@@ -25,6 +25,7 @@ const manifest: PaperclipPluginManifestV1 = {
     "secrets.read-ref",
     "ui.detailTab.register",
     "ui.page.register",
+    "ui.sidebar.register",
     "ui.dashboardWidget.register",
   ],
   entrypoints: {
@@ -90,6 +91,22 @@ const manifest: PaperclipPluginManifestV1 = {
       id: "crew-machines",
       displayName: "Máy",
       exportName: "MachinesWidget",
+    }, {
+      type: "page",
+      id: "crew-guide",
+      displayName: "Hướng dẫn",
+      routePath: "huong-dan",
+      exportName: "CrewGuidePage",
+    }, {
+      type: "sidebar",
+      id: "crew-link",
+      displayName: "Crew",
+      exportName: "CrewSidebarLink",
+    }, {
+      type: "sidebar",
+      id: "crew-guide-link",
+      displayName: "Hướng dẫn",
+      exportName: "CrewGuideSidebarLink",
     }],
   },
 };
