@@ -1,12 +1,22 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
+import { RouterProvider } from 'react-router-dom';
 import '@/ds/tokens.css';
-import { DsPage } from '@/dev/ds-page';
+import { AppProviders, createQueryClient } from '@/app/providers';
+import { createAppRouter } from '@/app/router';
+import { initI18n } from '@/i18n';
 
 const container = document.getElementById('root');
 if (!container) throw new Error('Thiếu phần tử #root');
+const root = container;
 
-// DS-3 thay bằng router thật và giữ /ds chỉ khi import.meta.env.DEV.
-const showDsPage = import.meta.env.DEV && window.location.pathname === '/ds';
+// Nạp chuỗi hai ngôn ngữ trước khi render để trang đầu không nháy key.
+await initI18n();
 
-createRoot(container).render(<StrictMode>{showDsPage ? <DsPage /> : <p>2P Crew</p>}</StrictMode>);
+createRoot(root).render(
+  <StrictMode>
+    <AppProviders client={createQueryClient()}>
+      <RouterProvider router={createAppRouter()} />
+    </AppProviders>
+  </StrictMode>,
+);

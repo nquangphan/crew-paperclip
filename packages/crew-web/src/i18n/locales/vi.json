@@ -89,5 +89,93 @@
   "time": {
     "never": "Chưa có",
     "unknown": "Không rõ"
+  },
+  "nav": {
+    "label": "Điều hướng chính",
+    "newIssue": "Yêu cầu mới",
+    "search": "Tìm kiếm",
+    "dashboard": "Tổng quan",
+    "inbox": "Hộp thư",
+    "issues": "Yêu cầu",
+    "projects": "Project",
+    "agents": "Agent",
+    "skills": "Skills",
+    "machines": "Máy",
+    "docs": "Docs",
+    "guide": "Hướng dẫn",
+    "settings": "Cài đặt",
+    "quickSearch": "Tìm nhanh"
+  },
+  "company": {
+    "switch": "Chọn company",
+    "empty": "Chưa có company nào được cấu hình cho Crew",
+    "emptyHint": "Company phải có trong cấu hình plugin crew.core và CREW_POLICY_CONFIG.",
+    "loadFailed": "Không tải được danh sách company"
+  },
+  "account": {
+    "menu": "Tài khoản",
+    "signOut": "Đăng xuất",
+    "signOutFailed": "Không đăng xuất được"
+  },
+  "lang": {
+    "label": "Ngôn ngữ",
+    "vi": "Tiếng Việt",
+    "en": "Tiếng Anh"
+  },
+  "palette": {
+    "title": "Tìm nhanh",
+    "description": "Gõ mã yêu cầu (ví dụ {{example}}) hoặc chữ để tìm",
+    "placeholder": "Mã yêu cầu hoặc từ khóa",
+    "empty": "Không có kết quả",
+    "openIssue": "Mở {{ref}}",
+    "pages": "Trang",
+    "issues": "Yêu cầu",
+    "searching": "Đang tìm"
+  },
+  "notFound": {
+    "title": "Không tìm thấy trang",
+    "description": "Đường dẫn không tồn tại hoặc bạn không có quyền xem.",
+    "toDashboard": "Về Tổng quan",
+    "toHome": "Về trang đầu"
+  },
+  "session": {
+    "loading": "Đang kiểm tra phiên đăng nhập",
+    "loadFailed": "Không kiểm tra được phiên đăng nhập"
+  },
+  "login": {
+    "title": "Đăng nhập 2P Crew",
+    "subtitle": "Dùng tài khoản board do quản trị cấp.",
+    "email": "Email",
+    "password": "Mật khẩu",
+    "submit": "Đăng nhập",
+    "submitting": "Đang đăng nhập",
+    "invalid": "Sai email hoặc mật khẩu",
+    "failed": "Không đăng nhập được"
+  },
+  "cliAuth": {
+    "title": "Cho phép ứng dụng đăng nhập",
+    "description": "Một ứng dụng trên máy (app 2P Crew hoặc CLI) xin quyền board trên máy chủ này.",
+    "command": "Lệnh",
+    "client": "Ứng dụng",
+    "defaultClient": "CLI Paperclip",
+    "access": "Quyền xin",
+    "accessBoard": "Board",
+    "accessAdmin": "Quản trị máy chủ",
+    "company": "Company",
+    "expiresAt": "Hết hạn lúc",
+    "approve": "Cho phép",
+    "approving": "Đang cho phép",
+    "cancel": "Hủy",
+    "cancelling": "Đang hủy",
+    "approved": "Đã cho phép",
+    "approvedDetail": "Ứng dụng trên máy có thể hoàn tất đăng nhập.",
+    "cancelled": "Đã hủy yêu cầu đăng nhập",
+    "expired": "Yêu cầu đăng nhập đã hết hạn",
+    "restart": "Chạy lại bước đăng nhập trên máy để tạo yêu cầu mới.",
+    "invalidUrl": "Link duyệt đăng nhập không hợp lệ",
+    "loading": "Đang tải yêu cầu đăng nhập",
+    "unavailable": "Không đọc được yêu cầu đăng nhập",
+    "needAdmin": "Yêu cầu này cần tài khoản quản trị máy chủ.",
+    "failed": "Không cập nhật được yêu cầu đăng nhập"
   }
 }

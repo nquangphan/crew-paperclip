@@ -8,6 +8,9 @@ docker run --rm --entrypoint sh "$1" -c '
   for f in core-hooks remote-stop load-gate ssh-in-place issue-policy issue-gate issue-create-policy retry-progress handoff-rewake bundle-resume model-policy; do
     [ -f "/app/server/dist/crew/$f.js" ] && echo "crew/$f.js ok" || echo "crew/$f.js MISSING"
   done
+  UI_INDEX=/app/server/ui-dist/index.html
+  CREW_UI=$(sed -n "s/.*name=\"crew-ui\" content=\"\([0-9a-f]*\)\".*/\1/p" "$UI_INDEX" 2>/dev/null | head -1)
+  echo "crew-ui=${CREW_UI:-MISSING}"
   P=/app/packages/crew-plugin
   for f in package.json dist/manifest.js dist/worker.js; do [ -f "$P/$f" ] && echo "plugin $f ok" || echo "plugin $f MISSING"; done
   UI="$P/dist/ui/index.js"

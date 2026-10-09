@@ -7,11 +7,25 @@ export interface MachineReport {
   load1: number | null; cpuCount: number | null; memFreePct: number | null;
   tccPending: Array<{ service: string; client: string; since: string }>;
   claude: { version: string | null; loggedIn: boolean | null; plan: string | null };
-  superpowers: { pinned: string | null; ownerInstalled: string | null };
+  superpowers: SuperpowersReport;
   checks: Array<{ id: string; status: "ok" | "warn" | "error"; title: string }>;
   app?: AppReport;
   attachmentCache?: AttachmentCache;
+  /** Git folders `~/crew-agents/<project>/<role>` on the Mac, at most 64, sorted by path. */
+  checkouts?: CheckoutReport[];
+  /** Present while the 2P Crew app polls the machine job queue. */
+  jobsAgent?: JobsAgentReport;
 }
+
+/** `pinDir` is the pinned copy agents load with `--plugin-dir` (null before pinning); `skills` lists its skill folders. */
+export interface SuperpowersReport { pinned: string | null; ownerInstalled: string | null; pinDir?: string | null; skills?: string[] }
+export interface CheckoutReport { path: string; head: string | null; clean: boolean | null }
+export interface JobsAgentReport { version: string; lastPollAt: string }
+
+/** crew-mac caps a report at 64 KiB. */
+export const MACHINE_REPORT_MAX_BYTES = 65_536;
+const MAX_CHECKOUTS = 64;
+const MAX_SKILLS = 100;
 
 /** Cache file đính kèm trên Mac: `bytes` là mọi file dưới gốc cache, `blobBytes` là phần blobs/ mà GC so với trần. */
 export interface AttachmentCache { bytes: number; blobBytes: number; blobs: number; runs: number; limitBytes: number; measuredAt: string }
@@ -44,18 +58,50 @@ function attachmentCacheReport(value: unknown): value is AttachmentCache {
     && count(value.blobs) && count(value.runs) && count(value.limitBytes) && iso(value.measuredAt);
 }
 
-/** `app` và `attachmentCache` là tùy chọn; sai dạng thì bỏ riêng trường đó, phần còn lại của bản tin vẫn được nhận. */
+// biome-ignore lint/suspicious/noControlCharactersInRegex: control characters are exactly what is rejected
+const CONTROL = /[\x00-\x1f\x7f]/;
+const absolutePath = (value: unknown): value is string =>
+  typeof value === "string" && value.startsWith("/") && value.length <= 4096 && !CONTROL.test(value);
+
+function checkoutsReport(value: unknown): value is CheckoutReport[] {
+  return Array.isArray(value) && value.length <= MAX_CHECKOUTS && value.every((item) => fields(item, ["path", "head", "clean"])
+    && absolutePath(item.path)
+    && (item.head === null || typeof item.head === "string" && /^[0-9a-f]{40}$/.test(item.head))
+    && (item.clean === null || typeof item.clean === "boolean"));
+}
+
+const skillsReport = (value: unknown): value is string[] =>
+  Array.isArray(value) && value.length <= MAX_SKILLS && value.every(label);
+
+function jobsAgentReport(value: unknown): value is JobsAgentReport {
+  return fields(value, ["version", "lastPollAt"])
+    && typeof value.version === "string" && value.version.length <= 32 && SEMVER.test(value.version) && iso(value.lastPollAt);
+}
+
+/**
+ * Optional keys (`app`, `attachmentCache`, `checkouts`, `jobsAgent`, `superpowers.pinDir`, `superpowers.skills`) are
+ * dropped one by one when malformed, and the rest of the report is still accepted: an older or newer crew-mac must
+ * not lose its whole heartbeat over one field. Unknown keys and malformed required keys still reject the report.
+ */
 export function parseMachineReport(input: unknown): MachineReport {
   let value = input;
-  let app: AppReport | undefined;
-  let cache: AttachmentCache | undefined;
-  if (object(input) && ("app" in input || "attachmentCache" in input)) {
-    const { app: candidate, attachmentCache: cacheCandidate, ...rest } = input;
+  const optional: Partial<MachineReport> = {};
+  const superpowersExtra: Pick<SuperpowersReport, "pinDir" | "skills"> = {};
+  if (object(input)) {
+    const { app, attachmentCache, checkouts, jobsAgent, ...rest } = input;
     value = rest;
-    if ("app" in input && appReport(candidate)) app = { version: candidate.version, sshdOwner: candidate.sshdOwner, updateState: candidate.updateState };
-    if (attachmentCacheReport(cacheCandidate)) {
-      cache = { bytes: cacheCandidate.bytes, blobBytes: cacheCandidate.blobBytes, blobs: cacheCandidate.blobs, runs: cacheCandidate.runs,
-        limitBytes: cacheCandidate.limitBytes, measuredAt: cacheCandidate.measuredAt };
+    if (appReport(app)) optional.app = { version: app.version, sshdOwner: app.sshdOwner, updateState: app.updateState };
+    if (attachmentCacheReport(attachmentCache)) {
+      optional.attachmentCache = { bytes: attachmentCache.bytes, blobBytes: attachmentCache.blobBytes, blobs: attachmentCache.blobs,
+        runs: attachmentCache.runs, limitBytes: attachmentCache.limitBytes, measuredAt: attachmentCache.measuredAt };
+    }
+    if (checkoutsReport(checkouts)) optional.checkouts = checkouts.map(({ path, head, clean }) => ({ path, head, clean }));
+    if (jobsAgentReport(jobsAgent)) optional.jobsAgent = { version: jobsAgent.version, lastPollAt: jobsAgent.lastPollAt };
+    if (object(rest.superpowers)) {
+      const { pinDir, skills, ...required } = rest.superpowers;
+      rest.superpowers = required;
+      if (pinDir === null || absolutePath(pinDir)) superpowersExtra.pinDir = pinDir;
+      if (skillsReport(skills)) superpowersExtra.skills = [...skills];
     }
   }
   if (!fields(value, ["version", "companyId", "machineId", "hostname", "sentAt", "load1", "cpuCount", "memFreePct", "tccPending", "claude", "superpowers", "checks"])
@@ -73,11 +119,11 @@ export function parseMachineReport(input: unknown): MachineReport {
     throw new Error("Bản tin máy không hợp lệ");
   }
   const parsed = value as unknown as MachineReport;
-  return { ...parsed, ...(app ? { app } : {}), ...(cache ? { attachmentCache: cache } : {}) };
+  return { ...parsed, superpowers: { ...parsed.superpowers, ...superpowersExtra }, ...optional };
 }
 
 export async function handleMachineStatus(ctx: PluginContext, input: PluginWebhookInput, now = new Date()): Promise<void> {
-  const { body, companyId } = await authenticateCrewWebhook(input, ctx, { maxBytes: 16_384, nowSec: Math.floor(now.getTime() / 1000) });
+  const { body, companyId } = await authenticateCrewWebhook(input, ctx, { maxBytes: MACHINE_REPORT_MAX_BYTES, nowSec: Math.floor(now.getTime() / 1000) });
   const report = parseMachineReport(body);
   if (report.companyId !== companyId) throw new Error("Company không hợp lệ");
   const namespace = pluginNamespace(ctx);

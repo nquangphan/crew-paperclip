@@ -100,3 +100,27 @@ test("policy-env.sh ghi override mount thư mục :ro ngoài thư mục dữ li�
   assert.match(override, /CREW_POLICY_CONFIG: \/crew-policy\/crew-policy\.json/);
   assert.ok(override.includes(`- ${root}/crew-policy:/crew-policy:ro`));
 });
+
+test("list-companies in id company theo thứ tự đã sắp, mỗi dòng một id, không in gì khác", () => {
+  const file = path.join(tmp(), "crew-policy.json");
+  const b = "b0000000-0000-4000-8000-000000000000";
+  const a = "a0000000-0000-4000-8000-000000000000";
+  writeFileSync(file, JSON.stringify({ companies: { [b]: { ownerUserId: "bi-mat" }, [a]: { ownerUserId: "bi-mat" } } }));
+  const r = py(["list-companies", file]);
+  assert.equal(r.status, 0, r.stderr);
+  assert.equal(r.stdout, `${a}\n${b}\n`);
+  assert.equal(r.stderr, "");
+});
+
+test("list-companies: companies rỗng thì không in gì; file hỏng thì thoát 1", () => {
+  const file = path.join(tmp(), "crew-policy.json");
+  writeFileSync(file, JSON.stringify({ companies: {} }));
+  const empty = py(["list-companies", file]);
+  assert.equal(empty.status, 0);
+  assert.equal(empty.stdout, "");
+  writeFileSync(file, "{");
+  const bad = py(["list-companies", file]);
+  assert.equal(bad.status, 1);
+  assert.equal(bad.stdout, "");
+  assert.equal(py(["list-companies", path.join(tmp(), "khong-co.json")]).status, 1);
+});
