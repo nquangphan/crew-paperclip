@@ -1,0 +1,23 @@
+{
+  "state": {
+    "ready": "Sẵn sàng",
+    "paused": "Tạm dừng",
+    "not_ready": "Chưa sẵn sàng",
+    "terminated": "Đã dừng hẳn",
+    "untracked": "Không theo dõi"
+  },
+  "detail": {
+    "A1": "Cấu hình agent chưa đúng: cần claude_local, engine cli, env rỗng, chạy một run một lúc, tắt heartbeat",
+    "A2": "Chưa ghim Superpowers đúng bản của máy hoặc lệnh chạy không phải wrapper Crew",
+    "A3": "AGENTS.md chưa có hoặc khác bản render theo vai trò",
+    "A4": "Environment chưa đúng: cần SSH, đang hoạt động, in_place, trỏ đúng checkout của agent",
+    "A5": "Checkout của agent chưa có trên máy",
+    "A6": "Agent chưa giữ vai trò nào trong project",
+    "A7": "Agent đã dừng hẳn hoặc đang chờ duyệt",
+    "P1": "Project chưa có vai trò Crew",
+    "P2": "Có agent trong vai trò chưa sẵn sàng",
+    "noReport": "Chưa có bản tin máy",
+    "checkoutsUnknown": "Không rõ: app trên máy chưa báo danh sách checkout"
+  },
+  "resume": "Làm tiếp"
+}
