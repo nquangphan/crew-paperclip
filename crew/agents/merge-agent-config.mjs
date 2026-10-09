@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Reads a Paperclip agent JSON on stdin and prints the PATCH /agents/:id body that pins Superpowers.
+// Reads a Paperclip agent JSON on stdin and prints the PATCH /agents/:id body that pins Superpowers or BMAD.
 // Roles are not stored on the agent: the server reads them from CREW_POLICY_CONFIG (see policy-config.mjs).
 // Usage: merge-agent-config.mjs <pinned plugin dir>
 import { readFileSync } from "node:fs";
@@ -7,7 +7,7 @@ import { fileURLToPath } from "node:url";
 
 const OWNED_FLAGS = new Set(["--setting-sources", "--plugin-dir"]);
 const WRAPPER_RE = /^\/.+\/\.crew\/bin\/crew-claude-run$/;
-const PIN_RE = /^\/.+\/\.crew\/workflows\/superpowers\/(?!\.\.?$)[^/]+$/;
+const PIN_RE = /^\/.+\/\.crew\/workflows\/(superpowers|bmad)\/(?!\.\.?$)[^/]+$/;
 
 function isOwnedFlag(arg) {
   return OWNED_FLAGS.has(arg) || [...OWNED_FLAGS].some((flag) => arg.startsWith(`${flag}=`));
@@ -34,12 +34,12 @@ export function mergeAgentConfig(agent, pinDir) {
     throw new Error("agent has no adapterConfig.command: refusing to replace its adapterConfig");
   }
   if (!WRAPPER_RE.test(config.command)) {
-    throw new Error(`adapterConfig.command must be the absolute <home>/.crew/bin/crew-claude-run wrapper, got ${config.command}: pinning Superpowers without the wrapper skips its checks`);
+    throw new Error(`adapterConfig.command must be the absolute <home>/.crew/bin/crew-claude-run wrapper, got ${config.command}: pinning a workflow without the wrapper skips its checks`);
   }
   const redacted = findRedacted(config, "adapterConfig");
   if (redacted) throw new Error(`${redacted} is redacted by the server and would be overwritten: refusing to patch`);
   if (typeof pinDir !== "string" || !pinDir.startsWith("/")) throw new Error(`pin dir must be absolute: ${pinDir}`);
-  if (!PIN_RE.test(pinDir)) throw new Error(`pin dir must be the pinned <home>/.crew/workflows/superpowers/<version>: ${pinDir}`);
+  if (!PIN_RE.test(pinDir)) throw new Error(`pin dir must be the pinned <home>/.crew/workflows/superpowers/<version> or <home>/.crew/workflows/bmad/<version>: ${pinDir}`);
   const adapterConfig = { ...(agent.adapterConfig ?? {}) };
   const previous = Array.isArray(adapterConfig.extraArgs) ? adapterConfig.extraArgs : [];
   const kept = [];

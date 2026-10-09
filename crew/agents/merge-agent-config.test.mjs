@@ -63,3 +63,16 @@ test("từ chối pin không tuyệt đối hoặc không đúng thư mục pin"
   assert.throws(() => mergeAgentConfig(agent({}), "/tmp/other"), /pinned/);
   assert.throws(() => mergeAgentConfig(agent({}), "/Users/a/.crew/workflows/superpowers/.."), /pinned/);
 });
+
+test("nhận pin bmad, giữ đúng một --plugin-dir", () => {
+  const BMAD = "/Users/a/.crew/workflows/bmad/6.13.0-next-d009608292d8";
+  const out = mergeAgentConfig(agent({ extraArgs: ["--plugin-dir", PIN, "--verbose"] }), BMAD);
+  assert.deepEqual(out.adapterConfig.extraArgs, ["--verbose", "--setting-sources", "project,local", "--plugin-dir", BMAD]);
+  assert.equal(out.adapterConfig.extraArgs.filter((a) => a === "--plugin-dir").length, 1);
+});
+
+test("từ chối thư mục workflow lạ hoặc bmad/..", () => {
+  assert.throws(() => mergeAgentConfig(agent({}), "/Users/a/.crew/workflows/other/x"), /pinned/);
+  assert.throws(() => mergeAgentConfig(agent({}), "/Users/a/.crew/workflows/bmad/.."), /pinned/);
+  assert.throws(() => mergeAgentConfig(agent({}), "/Users/a/.crew/workflows/bmad/."), /pinned/);
+});

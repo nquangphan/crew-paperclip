@@ -18,6 +18,7 @@ const ALLOWED = new Set(["path", "content", "baseRevisionId", "baseHash", "clear
 
 function startMock({ entryHash = HASH, entryError = null } = {}) {
   const calls = [];
+  const puts = [];
   const agent = { id: AGENT, adapterConfig: { command: "/Users/a/.crew/bin/crew-claude-run", extraArgs: [] } };
   const server = createServer((req, res) => {
     let raw = "";
@@ -33,6 +34,7 @@ function startMock({ entryHash = HASH, entryError = null } = {}) {
       if (url.pathname === `/agents/${AGENT}/instructions-bundle/file`) {
         if (req.method === "GET") return entryError ? send(404, { error: entryError }) : send(200, { contentHash: entryHash, content: "cũ" });
         const body = JSON.parse(raw);
+        puts.push(body);
         if (Object.keys(body).some((k) => !ALLOWED.has(k))) return send(400, { error: "Validation error" });
         if (body.baseHash === undefined && body.baseRevisionId === undefined) {
           return send(422, { error: "Read the entry and supply baseRevisionId (null for a new entry)", code: "INSTRUCTION_BASE_REQUIRED" });
@@ -46,16 +48,20 @@ function startMock({ entryHash = HASH, entryError = null } = {}) {
       return send(404, { error: "no route" });
     });
   });
-  return new Promise((resolve) => server.listen(0, "127.0.0.1", () => resolve({ server, calls, port: server.address().port })));
+  return new Promise((resolve) => server.listen(0, "127.0.0.1", () => resolve({ server, calls, puts, port: server.address().port })));
 }
 
-async function applyRoles(port) {
+const BMAD_PIN = "/Users/a/.crew/workflows/bmad/6.13.0-next-d009608292d8";
+const E1 = "22222222-2222-4222-8222-222222222222";
+const B1 = "44444444-4444-4444-8444-444444444444";
+
+async function applyRoles(port, args = ["executor", PIN], capture = null) {
   const root = mkdtempSync(join(tmpdir(), "apply-roles-test-"));
   const api = join(root, "api.sh");
   writeFileSync(api, `#!/bin/bash\ncurl -sS -X "$1" -H 'content-type: application/json' \${3:+-d "$3"} "http://127.0.0.1:${port}$2"\n`);
   chmodSync(api, 0o755);
   try {
-    return await run("bash", [SCRIPT, "agent", AGENT, "executor", PIN], { env: { ...process.env, CREW_SPIKE_ROOT: root } });
+    return await run("bash", [SCRIPT, "agent", AGENT, ...args], { env: { ...process.env, CREW_SPIKE_ROOT: root } });
   } catch (error) {
     return error;
   } finally {
@@ -94,4 +100,43 @@ test("mock đúng hợp đồng: PUT thiếu base bị 422", async () => {
   server.close();
   assert.equal(res.status, 422);
   assert.equal((await res.json()).code, "INSTRUCTION_BASE_REQUIRED");
+});
+
+test("vai bmad nhận pin BMAD và upload bmad.md", async () => {
+  const { server, puts, port } = await startMock();
+  const result = await applyRoles(port, ["bmad", BMAD_PIN]);
+  server.close();
+  assert.equal(result.code ?? 0, 0, result.stderr);
+  assert.match(puts[0].content, /^# Agent BMAD \(Crew\)/);
+  assert.match(result.stdout, /role=bmad/);
+});
+
+test("pin sai loại thì thoát 2 và không ghi gì", async () => {
+  for (const [args, message] of [
+    [["bmad", PIN], /role bmad needs the pinned BMAD dir/],
+    [["executor", BMAD_PIN], /role executor needs the pinned Superpowers dir/],
+  ]) {
+    const { server, calls, port } = await startMock();
+    const result = await applyRoles(port, args);
+    server.close();
+    assert.equal(result.code, 2);
+    assert.match(result.stderr, message);
+    assert.equal(calls.length, 0);
+  }
+});
+
+test("assistant nhận danh sách BMAD ở đối số thứ năm", async () => {
+  const { server, puts, port } = await startMock();
+  const result = await applyRoles(port, ["assistant", PIN, E1, B1]);
+  server.close();
+  assert.equal(result.code ?? 0, 0, result.stderr);
+  assert.match(puts[0].content, new RegExp(`## Agent BMAD của company\\n\\n- \`${B1}\`\\n$`));
+});
+
+test("vai bmad (hay vai khác) nhận danh sách thì thoát 2", async () => {
+  const { server, calls, port } = await startMock();
+  const result = await applyRoles(port, ["bmad", BMAD_PIN, B1]);
+  server.close();
+  assert.equal(result.code, 2);
+  assert.equal(calls.length, 0);
 });
