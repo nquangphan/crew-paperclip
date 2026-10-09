@@ -3,7 +3,9 @@
 #
 #   apply-roles.sh agent <agentId> <executor|reviewer|integrator> <pinned plugin dir on the Mac>
 #   apply-roles.sh agent <agentId> assistant <pinned plugin dir on the Mac> <executorId,executorId>
-#       Pins Superpowers in adapterConfig.extraArgs and uploads the role's instructions as AGENTS.md.
+#       Uploads the role's instructions as AGENTS.md (with the current file's hash as baseHash, which the server
+#       requires for the entry file), then pins Superpowers in adapterConfig.extraArgs. Upload goes first and the
+#       current file is read before anything is written, so a refused upload leaves the agent untouched.
 #       The assistant's AGENTS.md gets the executor list appended by render-instructions.mjs.
 #       Exits non-zero when the server's answer to either write does not match what was sent.
 #   apply-roles.sh policy-config <companyId> <reviewerAgentId> <integratorAgentId> <ownerUserId> [config file]
@@ -54,8 +56,14 @@ case "$cmd" in
     CURRENT=$("$ROOT/api.sh" GET "/agents/$AGENT")
     BODY=$(printf '%s' "$CURRENT" | node "$HERE/merge-agent-config.mjs" "$PIN") || die "refusing to patch agent $AGENT (see the message above); nothing was written"
     EXPECTED=$(printf '%s' "$BODY" | node -e 'process.stdout.write(JSON.stringify(JSON.parse(require("fs").readFileSync(0, "utf8")).adapterConfig.extraArgs))')
-    "$ROOT/api.sh" PATCH "/agents/$AGENT" "$BODY" | node "$HERE/verify-result.mjs" patch "$EXPECTED" || die "PATCH of agent $AGENT did not take effect"
-    "$ROOT/api.sh" PUT "/agents/$AGENT/instructions-bundle/file" "$FILE" | node "$HERE/verify-result.mjs" write || die "upload of $ROLE.md for agent $AGENT failed"
+    ENTRY=$("$ROOT/api.sh" GET "/agents/$AGENT/instructions-bundle/file?path=AGENTS.md")
+    FILE_TMP=$(mktemp "${TMPDIR:-/tmp}/apply-roles.XXXXXX")
+    trap 'rm -f "$FILE_TMP"' EXIT
+    printf '%s' "$FILE" > "$FILE_TMP"
+    UPLOAD=$(printf '%s' "$ENTRY" | node "$HERE/add-base.mjs" "$FILE_TMP") || die "cannot read the current AGENTS.md of agent $AGENT; nothing was written"
+    rm -f "$FILE_TMP"; trap - EXIT
+    "$ROOT/api.sh" PUT "/agents/$AGENT/instructions-bundle/file" "$UPLOAD" | node "$HERE/verify-result.mjs" write || die "upload of $ROLE.md for agent $AGENT failed; extraArgs were not changed"
+    "$ROOT/api.sh" PATCH "/agents/$AGENT" "$BODY" | node "$HERE/verify-result.mjs" patch "$EXPECTED" || die "PATCH of agent $AGENT did not take effect (AGENTS.md was already uploaded; rerun is safe)"
     echo "apply-roles: $AGENT role=$ROLE extraArgs=$EXPECTED${EXECUTORS:+ executors=$EXECUTORS}"
     ;;
   policy-config)
