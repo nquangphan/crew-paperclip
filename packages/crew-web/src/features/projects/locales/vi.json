@@ -49,6 +49,7 @@
     "choose": "Chọn agent",
     "unknownAgent": "Agent không còn ({{id}})",
     "edit": "Sửa vai trò",
+    "addExecutor": "Thêm executor",
     "cancel": "Hủy",
     "save": "Lưu vai trò",
     "saving": "Đang lưu...",

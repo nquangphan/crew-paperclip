@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { loadProjectReadiness, type ReadinessSource } from '@/features/readiness';
+import { renderInstructions } from '@/lib/instructions';
 
 const C = 'c0000000-0000-4000-8000-000000000000';
 const HOME = '/Users/owner';
@@ -165,5 +166,47 @@ describe('loadProjectReadiness', () => {
     const demo = (await loadProjectReadiness(src, C)).find((p) => p.projectId === 'p-demo');
     expect(demo?.state).toBe('not_ready');
     expect(demo?.agents[0]?.failed).toEqual([{ id: 'A5', detail: 'detail.noReport', resume: { none: true } }]);
+  });
+});
+
+describe('A3 của Trợ Lý sau khi sửa vai trò', () => {
+  const ASSISTANT = '11111111-1111-4111-8111-111111111111';
+  const EXEC_1 = '22222222-2222-4222-8222-222222222222';
+  const EXEC_2 = '33333333-3333-4333-8333-333333333333';
+  const staleRun = {
+    id: 'run-1',
+    kind: 'add-project' as const,
+    status: 'done' as const,
+    updatedAt: '2026-10-10T01:00:00.000Z',
+    steps: { agents: { refs: { agent_assistant: ASSISTANT, instructions_assistant: 'f'.repeat(64) } } },
+  };
+
+  async function assistantA3(content: string) {
+    const { src } = source({
+      rolesFor: {
+        'p-demo': {
+          assistantAgentId: ASSISTANT,
+          executorAgentIds: [EXEC_1, EXEC_2],
+          reviewerAgentId: 'ag-reviewer',
+          integratorAgentId: 'ag-integrator',
+        },
+      },
+    });
+    const list = src.agents.list;
+    src.agents.list = async (c) => [...(await list(c)), agent(ASSISTANT, 'env-assistant')];
+    src.agents.instructionsFile = async (id) => ({ content: id === ASSISTANT ? content : 'x', contentHash: HASH });
+    src.crew.setupRuns = async () => [staleRun as never];
+    const demo = (await loadProjectReadiness(src, C)).find((p) => p.projectId === 'p-demo');
+    return demo?.agents.find((a) => a.agentId === ASSISTANT)?.failed.map((f) => f.id) ?? [];
+  }
+
+  it('AGENTS.md đúng bản render theo executor hiện tại thì đạt dù hash trong setup run đã cũ', async () => {
+    const content = renderInstructions('assistant', { agentId: ASSISTANT, executorIds: [EXEC_1, EXEC_2] });
+    expect(await assistantA3(content)).not.toContain('A3');
+  });
+
+  it('AGENTS.md bị sửa tay lệch bản render và lệch hash thì vẫn báo A3', async () => {
+    const content = `${renderInstructions('assistant', { agentId: ASSISTANT, executorIds: [EXEC_1, EXEC_2] })}\nsửa tay\n`;
+    expect(await assistantA3(content)).toContain('A3');
   });
 });

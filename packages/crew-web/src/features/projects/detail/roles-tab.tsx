@@ -2,6 +2,7 @@
 import type { Agent } from '@paperclipai/shared';
 import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { ApiError, api, type ProjectRoles, queryKeys } from '@/api';
 import { useCompany } from '@/app/hooks';
 import {
@@ -14,6 +15,7 @@ import {
   Spinner,
 } from '@/ds';
 import { useT } from '@/i18n';
+import { companyHref } from '../paths';
 import { RolesForm } from './roles-form';
 import { useRoleAgents } from './use-role-agents';
 import { type InstructionsOutcome, InstructionsStepError, useSaveRoles } from './use-save-roles';
@@ -133,8 +135,20 @@ export function RolesTab({ projectId }: { projectId: string }) {
               })}
             />
           ) : null}
-          <div>
+          <div className="flex flex-wrap gap-2">
             <Button onClick={() => setEditing(true)}>{t('roles.edit')}</Button>
+            {roles && roles.executorAgentIds.length < 2 ? (
+              <Button asChild variant="outline">
+                <Link
+                  to={companyHref(
+                    company.issuePrefix,
+                    `agents/new?${new URLSearchParams({ project: projectId, slot: 'executor-2' })}`,
+                  )}
+                >
+                  {t('roles.addExecutor')}
+                </Link>
+              </Button>
+            ) : null}
           </div>
         </>
       )}

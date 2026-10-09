@@ -149,9 +149,9 @@ Lưu ý:
 **Hộp thư** gom mọi thứ đang cần bạn. Các tab:
 - **Chờ tôi duyệt**: yêu cầu đang ở bước Owner duyệt và yêu cầu có câu hỏi Trợ Lý chờ bạn trả lời. Duyệt xong thì yêu cầu biến mất khỏi tab này.
 - **Của tôi**, **Chưa đọc**, **Đang kẹt**, **Tất cả**: lọc theo nhu cầu.
-- Chấm bên trái nghĩa là chưa đọc. Có thể đánh dấu đã đọc hoặc chưa đọc, và **lưu trữ** một mục (mục chỉ rời khỏi Hộp thư, yêu cầu vẫn còn).
+- Chấm bên trái nghĩa là chưa đọc. Có thể **Đánh dấu đã đọc** hoặc **Đánh dấu chưa đọc** từng mục, **Đánh dấu tất cả đã đọc**, tìm theo mã hoặc tiêu đề, lọc theo trạng thái, và **Lưu trữ** một mục (mục chỉ rời khỏi Hộp thư, yêu cầu vẫn còn).
 
-**Tổng quan** cho bức tranh chung: thẻ số liệu (agent, yêu cầu, **chờ bạn duyệt**), run gần đây kèm link "Xem run" để đọc nội dung agent đã chạy, thẻ **Máy** và yêu cầu gần đây.
+**Tổng quan** cho bức tranh chung: thẻ số liệu (**Agent đang chạy**, **Agent tạm dừng**, **Yêu cầu đang mở**, **Yêu cầu bị kẹt**, **Chờ bạn duyệt**), **Run gần đây** kèm link "Xem run" để đọc nội dung agent đã chạy, thẻ **Máy** và yêu cầu gần đây.
 
 ## 8. Thêm một project mới
 
@@ -184,15 +184,17 @@ Một bước lỗi thì wizard **tạm dừng các agent đã tạo**, hiện l
 
 {{shot:add-agent}}
 
-Bấm [Tạo agent](/agents/new) ở trang Agent, dùng khi cần thêm Executor hoặc thay người giữ vai trò. Wizard có 6 bước:
-1. Đặt tên, chọn project, vai trò, model mặc định và máy.
-2. Ghim đúng bản Superpowers của máy và ghi `AGENTS.md` theo vai trò.
-3. Tạo environment SSH riêng cho agent.
-4. Máy dựng thư mục làm việc riêng cho agent.
-5. Ghi vai trò của agent trong project.
-6. Nếu là Executor: cập nhật `AGENTS.md` của Trợ Lý để Trợ Lý biết có thêm người.
+Bấm [Tạo agent](/agents/new) ở trang Agent, hoặc **Thêm executor** ở tab Vai trò của một project (mở sẵn project và ô **Executor thứ 2**). Dùng khi cần thêm Executor hoặc thay người giữ vai trò. Đầu tiên là một form: chọn **Project** và **Ô vai trò**, đặt **Tên agent**, chọn **Model** và **Máy** (project chưa có vai trò thì điền thêm **Khóa project** và **Folder repo trên máy**), rồi bấm **Bắt đầu**. Wizard chạy 6 bước, bấm **Chạy tiếp** nếu một bước dừng giữa chừng:
+1. **Tạo agent**.
+2. **Ghim Superpowers và AGENTS.md**: ghim đúng bản Superpowers của máy và ghi `AGENTS.md` theo vai trò.
+3. **Environment SSH**: tạo environment riêng cho agent.
+4. **Dựng checkout trên máy**: máy dựng thư mục làm việc riêng cho agent.
+5. **Ghi vai trò**: ghi vai trò của agent trong project.
+6. **Cập nhật AGENTS.md của Trợ Lý**: nếu là Executor thì Trợ Lý được ghi thêm người mới; vai trò khác thì bước này không ghi gì.
 
-Agent chưa xong 6 bước ở trạng thái **Chưa sẵn sàng** và **không xuất hiện** trong bất kỳ lựa chọn nào. Bấm **Làm tiếp** (ở danh sách hoặc trang agent) để hoàn tất.
+Xong sẽ có **Mở agent** và **Mở project**.
+
+Agent chưa xong 6 bước ở trạng thái **Chưa sẵn sàng** và **không xuất hiện** trong bất kỳ lựa chọn nào. Bấm **Làm tiếp** (ở danh sách hoặc trang agent) để hoàn tất; wizard sẽ hiện **Sửa tiếp** từ bước còn thiếu.
 
 Chỉ **người dùng trên web** mới tạo được agent. Agent không tạo được agent khác (xem mục 15).
 

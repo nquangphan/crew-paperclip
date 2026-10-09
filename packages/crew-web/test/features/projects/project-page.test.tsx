@@ -78,6 +78,14 @@ describe('ProjectPage', () => {
     expect(s.calls.find((c) => c.url.includes('/issues'))?.url).toContain('projectId=p1');
   });
 
+  it('tab Vai trò: "Thêm executor" tới wizard tạo agent với ô executor-2 của project', async () => {
+    readiness.value = [];
+    server();
+    mount('?tab=roles');
+    const link = await screen.findByRole('link', { name: 'Thêm executor' });
+    expect(link.getAttribute('href')).toBe('/TPS/agents/new?project=p1&slot=executor-2');
+  });
+
   it('tab Vai trò: hiện 4 vai trò kèm tên agent', async () => {
     readiness.value = [];
     server();

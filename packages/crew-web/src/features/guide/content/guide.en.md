@@ -149,9 +149,9 @@ Notes:
 The **Inbox** collects everything that needs you. Its tabs:
 - **Awaiting my approval**: requests at the Owner approval stage and requests with an Assistant question waiting for you. Once approved, the request leaves this tab.
 - **Mine**, **Unread**, **Stuck**, **All**: filter as you need.
-- A dot on the left means unread. You can mark items read or unread, and **archive** an item (it only leaves the Inbox, the request stays).
+- A dot on the left means unread. You can **Mark as read** or unread per item, **Mark all as read**, search by id or title, filter by status, and **Archive** an item (it only leaves the Inbox, the request stays).
 
-The **Dashboard** gives the overall picture: number cards (agents, requests, **awaiting your approval**), recent runs with a "View run" link to read what the agent did, the **Machines** card and recent requests.
+The **Dashboard** gives the overall picture: number cards (**Agents running**, **Agents paused**, **Open requests**, **Blocked requests**, **Awaiting your approval**), **Recent runs** with a "View run" link to read what the agent did, the **Machines** card and recent requests.
 
 ## 8. Adding a new project
 
@@ -184,15 +184,17 @@ If a step fails, the wizard **pauses the agents it already created**, shows the 
 
 {{shot:add-agent}}
 
-Press [Create agent](/agents/new) on the Agents page, used when you need another Executor or want to replace whoever holds a role. The wizard has 6 steps:
-1. Name, project, role, default model and machine.
-2. Pin the machine's Superpowers version and write the role's `AGENTS.md`.
-3. Create a separate SSH environment for the agent.
-4. The machine builds the agent's own working folder.
-5. Record the agent's role in the project.
-6. For an Executor: update the Assistant's `AGENTS.md` so the Assistant knows about the new person.
+Press [Create agent](/agents/new) on the Agents page, or **Add executor** on a project's Roles tab (it opens with the project and the **Second executor** slot preselected). Use it when you need another Executor or want to replace whoever holds a role. It starts with a form: choose the **Project** and **Role slot**, enter the **Agent name**, choose the **Model** and **Machine** (for a project without roles, also fill **Project key** and **Repo folder on the machine**), then press **Start**. The wizard runs 6 steps; press **Continue** if a step stops midway:
+1. **Create agent**.
+2. **Pin Superpowers and AGENTS.md**: pin the machine's Superpowers version and write the role's `AGENTS.md`.
+3. **SSH environment**: create a separate environment for the agent.
+4. **Set up checkout on the machine**: the machine builds the agent's own working folder.
+5. **Record role**: record the agent's role in the project.
+6. **Update the Assistant's AGENTS.md**: for an Executor the Assistant is told about the new person; for other roles this step writes nothing.
 
-An agent that has not finished all 6 steps is **Not ready** and **does not appear** in any choice list. Press **Continue setup** (in the list or on the agent page) to finish it.
+When it finishes you get **Open agent** and **Open project**.
+
+An agent that has not finished all 6 steps is **Not ready** and **does not appear** in any choice list. Press **Continue setup** (in the list or on the agent page) to finish it; the wizard then shows **Continue fixing** from the missing step.
 
 Only **a person on the web** can create agents. An agent cannot create another agent (see section 15).
 

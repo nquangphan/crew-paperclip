@@ -82,6 +82,8 @@ export interface AgentReadinessInput {
   setupRun: ReadinessSetupRun | null;
   /** `contentHash` của AGENTS.md hiện tại; null khi agent chưa có file. */
   instructionsHash: string | null;
+  /** AGENTS.md hiện tại đúng là bản render từ template với executor của project (Trợ Lý sau khi sửa vai trò). */
+  instructionsRendered?: boolean;
 }
 
 const RESUME_STEP: Record<Exclude<AgentCheckId, 'A7'>, ReadinessStep> = {
@@ -156,7 +158,7 @@ export function checkEnvironment(env: ReadinessEnvironment | null, checkout: str
 }
 
 export function computeAgentReadiness(input: AgentReadinessInput): AgentReadiness {
-  const { agent, environment, report, roleOf, setupRun, instructionsHash } = input;
+  const { agent, environment, report, roleOf, setupRun, instructionsHash, instructionsRendered } = input;
   if (agent.status === 'terminated') {
     return {
       agentId: agent.id,
@@ -175,7 +177,10 @@ export function computeAgentReadiness(input: AgentReadinessInput): AgentReadines
   const refs = agentRefs(setupRun, agent.id);
   if (!checkAdapter(agent)) fail('A1');
   if (!checkPin(agent, report)) fail('A2');
-  if (instructionsHash === null || (refs.instructions !== undefined && refs.instructions !== instructionsHash)) {
+  if (
+    instructionsHash === null ||
+    (refs.instructions !== undefined && refs.instructions !== instructionsHash && !instructionsRendered)
+  ) {
     fail('A3');
   }
   if (!checkEnvironment(environment, refs.checkout)) fail('A4');
