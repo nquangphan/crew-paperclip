@@ -257,6 +257,37 @@ describe("parseDocsCheckEvidence", () => {
       parseDocsCheckEvidence(`ghi chú\ncrew-docs-check commit=${SHA_HEAD} range=${SHA_BASE}..${SHA_HEAD} exit=0`),
     ).toBeNull();
   });
+
+  // Body thật của comment integrator trên TPS-76 (prod, 09/10/2026 18:04:59): khối ``` dính liền sau `exit=0`.
+  const TPS76_GLUED =
+    "crew-docs-check commit=f0555c61a0336db2b076728981c57274726e52da range=546c7465b7699ab2e947dba92667cb016575647b..f0555c61a0336db2b076728981c57274726e52da exit=0```crew-docs check --range: ok (1 commits)```";
+
+  it("đọc được bằng chứng thật có khối code dính liền sau exit=N", () => {
+    expect(parseDocsCheckEvidence(TPS76_GLUED)).toEqual({
+      commit: "f0555c61a0336db2b076728981c57274726e52da",
+      base: "546c7465b7699ab2e947dba92667cb016575647b",
+      head: "f0555c61a0336db2b076728981c57274726e52da",
+      exit: 0,
+    });
+    const line = `crew-docs-check commit=${SHA_HEAD} range=${SHA_BASE}..${SHA_HEAD}`;
+    expect(parseDocsCheckEvidence(`${line} exit=0 \`crew-docs check\`: ok`)?.exit).toBe(0);
+    expect(parseDocsCheckEvidence(`${line} exit=3\t(không có flows.yaml)`)?.exit).toBe(3);
+  });
+
+  it("vẫn giữ mã thoát khác 0 và từ chối exit sai dạng hay câu chữ thường", () => {
+    const line = `crew-docs-check commit=${SHA_HEAD} range=${SHA_BASE}..${SHA_HEAD}`;
+    expect(parseDocsCheckEvidence(`${line} exit=1\`\`\`lỗi R3\`\`\``)?.exit).toBe(1);
+    expect(parseDocsCheckEvidence(TPS76_GLUED.replace("exit=0", "exit=2"))?.exit).toBe(2);
+    expect(parseDocsCheckEvidence(`${line} exit=01`)).toBeNull();
+    expect(parseDocsCheckEvidence(`${line} exit=10`)).toBeNull();
+    expect(parseDocsCheckEvidence(`${line} exit=4`)).toBeNull();
+    expect(parseDocsCheckEvidence(`${line} exit=0x`)).toBeNull();
+    expect(parseDocsCheckEvidence(`${line} exit=0.`)).toBeNull();
+    expect(parseDocsCheckEvidence(`${line} exit=`)).toBeNull();
+    expect(parseDocsCheckEvidence(`Đã chạy ${line} exit=0`)).toBeNull();
+    expect(parseDocsCheckEvidence(`Integrator: approve — docs check ok; docs exit 0`)).toBeNull();
+    expect(parseDocsCheckEvidence(`docs: exit=0 \`\`\`${line} exit=0\`\`\``)).toBeNull();
+  });
 });
 
 const child = buildCrewPolicy("child", roles);

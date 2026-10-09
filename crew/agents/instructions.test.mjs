@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 import { test } from "node:test";
 
-const DOCS_CHECK_RE = /^crew-docs-check commit=([0-9a-f]{40}) range=([0-9a-f]{7,40})\.\.([0-9a-f]{40}) exit=([0-3])$/;
+const DOCS_CHECK_RE = /^crew-docs-check commit=([0-9a-f]{40}) range=([0-9a-f]{7,40})\.\.([0-9a-f]{40}) exit=([0-3])(?=$|\s|`)/;
 const read = (name) => readFileSync(new URL(`./${name}.md`, import.meta.url), "utf8");
 const RECURSIVE_DELETE_RULE = "Chạy `rm -rf` (hay xóa đệ quy) ở bất kỳ đâu ngoài thư mục tạm do chính bạn vừa tạo bằng `mktemp -d` trong run này; thư mục tạm thì để nguyên, không cần dọn.";
 const fill = (line) =>
@@ -31,6 +31,15 @@ test("mọi instructions đều cấm xóa đệ quy ngoài thư mục tạm v�
 
 test("dòng mẫu crew-docs-check khớp regex của server", () => {
   assert.match(templateLine(read("integrator"), "crew-docs-check commit="), DOCS_CHECK_RE);
+});
+
+test("integrator xuống dòng ngay sau exit=N rồi đọc lại dòng đầu comment bằng chứng trước PATCH done", () => {
+  const text = read("integrator");
+  const evidence = text.slice(text.indexOf("## Ghi bằng chứng rồi quyết định"), text.indexOf("## Lỗi server"));
+  assert.match(evidence, /xuống dòng ngay sau `exit=<DOCS_EXIT>`/);
+  assert.match(evidence, /`\\n\\n` ngay sau `exit=<DOCS_EXIT>`/);
+  assert.match(evidence, /GET \/api\/issues\/<id>\/comments/);
+  assert.ok(evidence.indexOf("GET /api/issues/<id>/comments") < evidence.indexOf('"status":"done"'), "đọc lại trước PATCH done");
 });
 
 const MERGE_CHECK_RE = /^crew-merge sha=([0-9a-f]{40}) branch=(\S+) pushed=yes$/;

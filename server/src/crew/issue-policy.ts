@@ -241,8 +241,12 @@ export function parseCrewMergeEvidence(body: string): CrewMergeEvidence | null {
   return { sha: match[1] as string, branch: match[2] as string };
 }
 
+/**
+ * Sau `exit=N` chỉ được hết dòng, khoảng trắng hoặc dấu backtick: agent hay dán khối ``` output dính liền trên cùng
+ * dòng. `exit=01`, `exit=10`, `exit=0x`, `exit=0.` vẫn bị từ chối.
+ */
 export const CREW_DOCS_CHECK_RE =
-  /^crew-docs-check commit=([0-9a-f]{40}) range=([0-9a-f]{7,40})\.\.([0-9a-f]{40}) exit=([0-3])$/;
+  /^crew-docs-check commit=([0-9a-f]{40}) range=([0-9a-f]{7,40})\.\.([0-9a-f]{40}) exit=([0-3])(?=$|\s|`)/;
 
 export interface DocsCheckEvidence {
   commit: string;
