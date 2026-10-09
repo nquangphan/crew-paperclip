@@ -1,0 +1,42 @@
+{
+  "title": "Inbox",
+  "description": "Work that needs you to look or decide.",
+  "loadFailed": "Could not load the Inbox",
+  "tab": {
+    "label": "Inbox groups",
+    "awaiting_me": "Awaiting my approval",
+    "mine": "Mine",
+    "unread": "Unread",
+    "stuck": "Stuck",
+    "all": "All"
+  },
+  "empty": {
+    "awaiting_me": "Nothing is waiting for your approval",
+    "mine": "You have no requests yet",
+    "unread": "No unread items left",
+    "stuck": "No request is stuck",
+    "all": "The Inbox is empty",
+    "filtered": "No item matches the filter"
+  },
+  "reason": {
+    "approval": "Waiting for your approval",
+    "escalated": "Waiting for your decision",
+    "question": "A question is waiting for an answer"
+  },
+  "filter": {
+    "search": "Search by id or title",
+    "status": "Status",
+    "allStatus": "Any status",
+    "group": "Group",
+    "groupNone": "No grouping",
+    "groupStatus": "By status"
+  },
+  "unreadMark": "New",
+  "markRead": "Mark as read",
+  "markUnread": "Mark as unread",
+  "markAllRead": "Mark all as read",
+  "archive": "Archive",
+  "archived": "Archived {{id}}.",
+  "unarchive": "Unarchive",
+  "actionFailed": "The action did not succeed"
+}

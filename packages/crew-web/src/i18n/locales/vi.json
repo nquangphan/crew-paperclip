@@ -130,6 +130,8 @@
     "openIssue": "Mở {{ref}}",
     "pages": "Trang",
     "issues": "Yêu cầu",
+    "search": "Tìm kiếm",
+    "openSearch": "Tìm “{{q}}” trong trang Tìm kiếm",
     "searching": "Đang tìm"
   },
   "notFound": {

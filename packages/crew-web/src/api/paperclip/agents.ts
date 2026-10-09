@@ -18,6 +18,9 @@ export const agentsApi = {
     call('agents.create', { companyId }, { body }),
   update: (id: string, body: Record<string, unknown>, companyId?: string): Promise<Agent> =>
     call('agents.update', { id }, { body, query: { companyId } }),
+  /** Chỉ board hoặc agent role `ceo` gọi được; body bắt buộc canCreateAgents và canAssignTasks. Trả chi tiết agent. */
+  setPermissions: (id: string, body: Record<string, unknown>, companyId?: string): Promise<Agent> =>
+    call('agents.setPermissions', { id }, { body, query: { companyId } }),
   pause: (id: string, companyId?: string): Promise<Agent> =>
     call('agents.pause', { id }, { body: {}, query: { companyId } }),
   resume: (id: string, companyId?: string): Promise<Agent> =>
@@ -51,6 +54,7 @@ export const __endpoints = [
   'agents.pause',
   'agents.resume',
   'agents.saveInstructionsFile',
+  'agents.setPermissions',
   'agents.skills',
   'agents.syncSkills',
   'agents.update',

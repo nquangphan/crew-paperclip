@@ -130,6 +130,8 @@
     "openIssue": "Open {{ref}}",
     "pages": "Pages",
     "issues": "Requests",
+    "search": "Search",
+    "openSearch": "Search “{{q}}” on the Search page",
     "searching": "Searching"
   },
   "notFound": {

@@ -1,0 +1,30 @@
+{
+  "title": "Docs",
+  "description": "Each project's documents, read from the latest docs snapshot a machine sent.",
+  "loadFailed": "Could not load the docs",
+  "empty": "No project has docs yet",
+  "emptyHint": "A project gets docs after a machine sends its first docs snapshot.",
+  "noSnapshot": "This project has no docs snapshot",
+  "noSnapshotHint": "No machine has sent a docs snapshot for this project yet.",
+  "meta": "Commit {{commit}}, received {{at}}",
+  "pick": "Pick a page from the list on the left.",
+  "search": {
+    "label": "Search the docs",
+    "placeholder": "Type a keyword, for example greet",
+    "results": "Search results",
+    "count": "Results: {{count}}"
+  },
+  "page": {
+    "missing": "Missing page: {{path}}",
+    "brokenClick": "Broken link: there is no page {{href}}"
+  },
+  "links": {
+    "title": "Links in this page",
+    "missing": "Missing page: {{href}}",
+    "unverified": "Could not verify: {{href}}"
+  },
+  "dropped": {
+    "title": "Files dropped by the secret scan",
+    "hint": "These files may hold sensitive data, so they are not part of the docs."
+  }
+}

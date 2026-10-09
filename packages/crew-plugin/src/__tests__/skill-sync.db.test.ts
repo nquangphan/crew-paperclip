@@ -58,3 +58,18 @@ it("việc mới nhất đang chờ vẫn giữ sha256 của lần xong trước
     ]);
   await expect(loadSkillSync(host.ctx, { companyId: "x" })).rejects.toThrow();
 });
+
+it("trả jobId và lỗi đã làm sạch của lần sync mới nhất; null khi lần mới nhất không lỗi", async () => {
+  await job({ status: "failed", minutesAgo: 30 });
+  await host.sql.unsafe(`UPDATE ${host.ns}.crew_machine_jobs SET error_code='skill_fetch_failed',
+    error_text=$1 WHERE status='failed'`, [`boom \x1b[31m AKIAABCDEFGHIJKLMNOP`]);
+  const failed = await loadSkillSync(host.ctx, { companyId });
+  expect(failed[0]).toMatchObject({ status: "failed", errorCode: "skill_fetch_failed" });
+  expect(failed[0]!.errorText).toBe("boom  [ĐÃ CHE]");
+  const [{ id: failedId }] = await host.sql.unsafe(`SELECT id FROM ${host.ns}.crew_machine_jobs WHERE status='failed'`);
+  expect(failed[0]!.jobId).toBe(String(failedId));
+  await job({ status: "done", minutesAgo: 5, sha256: sha("1") });
+  const [{ id: doneId }] = await host.sql.unsafe(`SELECT id FROM ${host.ns}.crew_machine_jobs WHERE status='done'`);
+  const rows = await loadSkillSync(host.ctx, { companyId });
+  expect(rows[0]).toMatchObject({ jobId: String(doneId), status: "done", errorCode: null, errorText: null });
+});
