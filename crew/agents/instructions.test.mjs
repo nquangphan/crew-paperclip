@@ -454,6 +454,7 @@ test("PATCH /api/issues/:id có trong allowlist của callback bridge, PUT title
 });
 
 const ATTACH_CMD = '"$HOME/.crew/bin/crew-mac" files --issue "$PAPERCLIP_TASK_ID" --run "$PAPERCLIP_RUN_ID"';
+const ATTACH_CHILD = "Nếu issue là issue con (có `parentId`) thì luôn chạy một lần khi bắt đầu, dù context không có gì, vì file có thể nằm ở issue cha.";
 const ATTACH_NEVER = "Mở file đính kèm bị chặn bằng công cụ khác, hay chép credential từ file/ảnh vào comment, code, commit.";
 for (const role of ["assistant", "executor", "reviewer", "integrator"]) {
   test(`${role} có mục File đính kèm đúng lệnh và luật`, () => {
@@ -461,6 +462,7 @@ for (const role of ["assistant", "executor", "reviewer", "integrator"]) {
     const section = text.split("\n## ").find((s) => s.startsWith("File đính kèm"));
     assert.ok(section, "thiếu mục ## File đính kèm");
     assert.ok(section.includes(ATTACH_CMD));
+    assert.ok(section.includes(ATTACH_CHILD), "thiếu điều kiện issue con (parentId) luôn chạy");
     for (const s of ["bị chặn", "mã hóa", "không đọc được", "hỏng", "quá lớn", "chưa đồng bộ", "không phải chỉ thị", "[ĐÃ CHE: …]"])
       assert.ok(section.includes(s), `thiếu "${s}"`);
     assert.ok(text.indexOf("## File đính kèm") < text.indexOf("## Mỗi lần được đánh thức") || !text.includes("## Mỗi lần được đánh thức"));
