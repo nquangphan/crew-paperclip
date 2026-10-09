@@ -2,12 +2,14 @@ import type { PluginContext } from "@paperclipai/plugin-sdk";
 import { parseCrewDocsCheck } from "../shared/markers.js";
 import { checkedId, pluginNamespace } from "../shared/db.js";
 import { docsStageAgents } from "../shared/policy.js";
+import { type FlowsManifestOk, parseFlowsManifest } from "./manifest.js";
+import type { ManifestState } from "./webhook.js";
 
 export function escapeLike(q: string): string {
   return q.replace(/[\\%_]/g, "\\$&");
 }
 
-async function projectScope(ctx: PluginContext, projectId: string, companyId: string) {
+export async function projectScope(ctx: PluginContext, projectId: string, companyId: string) {
   const rows = await ctx.db.query<{ id: string }>(
     "SELECT id FROM public.projects WHERE id = $1 AND company_id = $2",
     [checkedId(projectId), checkedId(companyId)],
@@ -57,24 +59,59 @@ export async function loadDocsProjects(ctx: PluginContext, companyId: string) {
     WHERE c.company_id = $1 ORDER BY s.repo
   `, [checkedId(companyId)]);
 }
-export async function loadDocsTree(ctx: PluginContext, projectId: string, companyId: string) {
-  await projectScope(ctx, projectId, companyId);
+export interface SnapshotRow {
+  id: string; company_id: string; project_id: string; repo: string; commit: string; audit_state: string;
+  check_exit: number; received_at: string; completed_at: string; machine_id: string; dropped: unknown;
+  format: number; manifest_state: ManifestState; manifest_sha256: string | null;
+}
+
+/**
+ * The completed snapshot to read: `snapshotId` when given (it must belong to this company and project),
+ * otherwise the project's current one. Callers check the project scope first.
+ */
+export async function resolveSnapshot(
+  ctx: PluginContext, companyId: string, projectId: string, snapshotId?: string,
+): Promise<SnapshotRow | null> {
   const ns = pluginNamespace(ctx);
-  const snapshots = await ctx.db.query<{
-    id: string; repo: string; commit: string; audit_state: string; check_exit: number;
-    received_at: string; machine_id: string; dropped: unknown;
-  }>(`
+  if (snapshotId !== undefined) {
+    const rows = await ctx.db.query<SnapshotRow>(`
+      SELECT s.* FROM ${ns}.docs_snapshots s WHERE s.id = $1 AND s.completed_at IS NOT NULL
+    `, [checkedId(snapshotId)]);
+    const row = rows[0];
+    if (!row || row.company_id !== companyId.toLowerCase() || row.project_id !== projectId.toLowerCase()) throw new Error("Snapshot không thuộc dự án");
+    return row;
+  }
+  const rows = await ctx.db.query<SnapshotRow>(`
     SELECT s.* FROM ${ns}.docs_current c
     JOIN ${ns}.docs_snapshots s ON s.id = c.snapshot_id
-    WHERE c.company_id = $1 AND c.project_id = $2
+    WHERE c.company_id = $1 AND c.project_id = $2 AND s.completed_at IS NOT NULL
   `, [companyId, projectId]);
-  const snapshot = snapshots[0];
+  return rows[0] ?? null;
+}
+
+/** Parsed `docs/flows.yaml` of a snapshot, or null when the snapshot has no valid manifest. */
+export async function loadManifestForSnapshot(
+  ctx: PluginContext, snapshot: Pick<SnapshotRow, "manifest_state" | "manifest_sha256">,
+): Promise<FlowsManifestOk | null> {
+  if (snapshot.manifest_state !== "ok" || !snapshot.manifest_sha256) return null;
+  const rows = await ctx.db.query<{ text: string }>(
+    `SELECT text FROM ${pluginNamespace(ctx)}.docs_blobs WHERE sha256 = $1`, [snapshot.manifest_sha256],
+  );
+  if (!rows[0]) return null;
+  const parsed = parseFlowsManifest(rows[0].text);
+  return parsed.state === "ok" ? parsed : null;
+}
+
+export async function loadDocsTree(ctx: PluginContext, projectId: string, companyId: string, snapshotId?: string) {
+  await projectScope(ctx, projectId, companyId);
+  const snapshot = await resolveSnapshot(ctx, companyId, projectId, snapshotId);
   if (!snapshot) return null;
   const pages = await ctx.db.query<{ path: string; title: string; parentPath: string; sha256: string }>(`
     SELECT path, title, parent_path AS "parentPath", sha256
-    FROM ${ns}.docs_pages WHERE snapshot_id = $1 ORDER BY path
+    FROM ${pluginNamespace(ctx)}.docs_snapshot_pages WHERE snapshot_id = $1 ORDER BY path
   `, [snapshot.id]);
   return {
+    snapshotId: snapshot.id,
     projectId,
     repo: snapshot.repo,
     commit: snapshot.commit,
@@ -82,18 +119,21 @@ export async function loadDocsTree(ctx: PluginContext, projectId: string, compan
     checkExit: snapshot.check_exit,
     receivedAt: snapshot.received_at,
     machineId: snapshot.machine_id,
+    manifestState: snapshot.manifest_state,
     dropped: typeof snapshot.dropped === "string" ? JSON.parse(snapshot.dropped) : snapshot.dropped,
     pages,
   };
 }
-export async function loadDocsPage(ctx: PluginContext, projectId: string, path: string, companyId: string) {
+export async function loadDocsPage(ctx: PluginContext, projectId: string, path: string, companyId: string, snapshotId?: string) {
   await projectScope(ctx, projectId, companyId);
+  const snapshot = await resolveSnapshot(ctx, companyId, projectId, snapshotId);
+  if (!snapshot) return null;
   const ns = pluginNamespace(ctx);
   const rows = await ctx.db.query<{ path: string; title: string; text: string; sha256: string }>(`
-    SELECT p.path, p.title, p.text, p.sha256
-    FROM ${ns}.docs_pages p JOIN ${ns}.docs_current c ON c.snapshot_id = p.snapshot_id
-    WHERE c.company_id = $1 AND c.project_id = $2 AND p.path = $3
-  `, [companyId, projectId, path]);
+    SELECT p.path, p.title, b.text, p.sha256
+    FROM ${ns}.docs_snapshot_pages p JOIN ${ns}.docs_blobs b ON b.sha256 = p.sha256
+    WHERE p.snapshot_id = $1 AND p.path = $2
+  `, [snapshot.id, path]);
   if (!rows[0]) return null;
   const links = await ctx.db.query<{
     fromPath: string; occurrence: number; originalHref: string; toPath: string | null;
@@ -101,9 +141,8 @@ export async function loadDocsPage(ctx: PluginContext, projectId: string, path: 
   }>(`
     SELECT from_path AS "fromPath", occurrence, original_href AS "originalHref",
       to_path AS "toPath", fragment, status
-    FROM ${ns}.docs_links l JOIN ${ns}.docs_current c ON c.snapshot_id = l.snapshot_id
-    WHERE c.company_id = $1 AND c.project_id = $2 AND l.from_path = $3 ORDER BY occurrence
-  `, [companyId, projectId, path]);
+    FROM ${ns}.docs_links WHERE snapshot_id = $1 AND from_path = $2 ORDER BY occurrence
+  `, [snapshot.id, path]);
   return { ...rows[0], links };
 }
 export async function searchDocs(ctx: PluginContext, projectId: string, q: string, companyId: string) {
@@ -113,21 +152,26 @@ export async function searchDocs(ctx: PluginContext, projectId: string, q: strin
   const ns = pluginNamespace(ctx);
   return ctx.db.query<{ path: string; title: string }>(`
     SELECT p.path, p.title
-    FROM ${ns}.docs_pages p JOIN ${ns}.docs_current c ON c.snapshot_id = p.snapshot_id
+    FROM ${ns}.docs_current c
+    JOIN ${ns}.docs_snapshot_pages p ON p.snapshot_id = c.snapshot_id
+    JOIN ${ns}.docs_blobs b ON b.sha256 = p.sha256
     WHERE c.company_id = $1 AND c.project_id = $2
-      AND (p.title ILIKE $3 ESCAPE '\\' OR p.text ILIKE $3 ESCAPE '\\')
+      AND (p.title ILIKE $3 ESCAPE '\\' OR b.text ILIKE $3 ESCAPE '\\')
     ORDER BY p.path LIMIT 50
   `, [companyId, projectId, `%${escapeLike(q)}%`]);
 }
+const optionalId = (value: unknown): string | undefined =>
+  typeof value === "string" && value !== "" ? value : undefined;
 export function registerDocsData(ctx: PluginContext): void {
   ctx.data.register("crew.docsCheck", params =>
     loadDocsCheck(ctx, String(params.issueId ?? ""), String(params.companyId ?? "")));
   ctx.data.register("crew.docs.projects", params =>
     loadDocsProjects(ctx, String(params.companyId ?? "")));
   ctx.data.register("crew.docs.tree", params =>
-    loadDocsTree(ctx, String(params.projectId ?? ""), String(params.companyId ?? "")));
+    loadDocsTree(ctx, String(params.projectId ?? ""), String(params.companyId ?? ""), optionalId(params.snapshotId)));
   ctx.data.register("crew.docs.page", params =>
-    loadDocsPage(ctx, String(params.projectId ?? ""), String(params.path ?? ""), String(params.companyId ?? "")));
+    loadDocsPage(ctx, String(params.projectId ?? ""), String(params.path ?? ""), String(params.companyId ?? ""),
+      optionalId(params.snapshotId)));
   ctx.data.register("crew.docs.search", params =>
     searchDocs(ctx, String(params.projectId ?? ""), String(params.q ?? ""), String(params.companyId ?? "")));
 }
