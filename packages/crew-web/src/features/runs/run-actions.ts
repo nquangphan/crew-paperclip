@@ -41,6 +41,28 @@ export function runActionsFor(run: ActionRun): RunAction[] {
   return [{ id: 'retry', body: { reason: 'retry_failed_run', failedRunId: run.id } }];
 }
 
+/**
+ * Kết quả wakeup (202): run mới (`id`, hoặc `runId` của biên nhận chạy lại chat), biên nhận chat đã nhận nhưng chưa
+ * có run (`runId: null`, status queued/deferred: worker sẽ chạy, bấm lại là gửi trùng), còn lại là bị bỏ qua/từ chối
+ * (`status: 'skipped'` kèm message, hoặc biên nhận chat failed/cancelled).
+ */
+export type WakeupOutcome =
+  | { kind: 'created'; runId: string }
+  | { kind: 'queued' }
+  | { kind: 'rejected'; message?: string };
+
+const ACCEPTED = new Set(['queued', 'deferred', 'running']);
+
+export function wakeupOutcome(result: unknown): WakeupOutcome {
+  const r = (result ?? {}) as { id?: unknown; runId?: unknown; status?: unknown; message?: unknown };
+  const created = str(r.id) ?? str(r.runId);
+  if (created) return { kind: 'created', runId: created };
+  if ('runId' in r && r.runId === null && typeof r.status === 'string' && ACCEPTED.has(r.status)) {
+    return { kind: 'queued' };
+  }
+  return { kind: 'rejected', message: str(r.message) };
+}
+
 /** Log run là NDJSON `{ts, stream, chunk}`; ghép chunk, dòng không đọc được giữ nguyên. */
 export function formatRunLog(content: string | undefined): string {
   if (!content) return '';
