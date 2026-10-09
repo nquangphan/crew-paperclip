@@ -5,6 +5,6 @@ export default defineConfig({
   resolve: { alias: { '@': path.resolve(import.meta.dirname, './src') } },
   test: {
     include: ['test/**/*.test.{ts,tsx}'],
-    exclude: ['test/e2e-coverage.test.ts', 'node_modules/**'],
+    exclude: ['node_modules/**', 'e2e/**'],
   },
 });
