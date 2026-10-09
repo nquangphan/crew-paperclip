@@ -1,0 +1,129 @@
+{
+  "list": {
+    "title": "Agent",
+    "description": "Các agent Crew của company này.",
+    "add": "Tạo agent",
+    "empty": "Chưa có agent",
+    "emptyHint": "Tạo agent đầu tiên để giao việc.",
+    "emptyFiltered": "Không có agent khớp bộ lọc",
+    "loadFailed": "Không tải được danh sách agent",
+    "actionFailed": "Không đổi được trạng thái agent",
+    "pauseAgent": "Tạm dừng {{name}}",
+    "resumeAgent": "Tiếp tục {{name}}",
+    "pauseShort": "Tạm dừng",
+    "resumeShort": "Tiếp tục",
+    "col": {
+      "name": "Tên",
+      "roles": "Vai trò",
+      "status": "Trạng thái",
+      "readiness": "Sẵn sàng",
+      "actions": "Thao tác"
+    },
+    "filter": {
+      "all": "Tất cả",
+      "running": "Đang chạy",
+      "paused": "Tạm dừng",
+      "error": "Lỗi"
+    }
+  },
+  "role": {
+    "assistant": "Trợ Lý",
+    "executor": "Executor",
+    "reviewer": "Reviewer",
+    "integrator": "Integrator"
+  },
+  "resume": "Làm tiếp",
+  "detail": {
+    "loadFailed": "Không tải được agent",
+    "rename": "Đổi tên",
+    "tabs": {
+      "overview": "Tổng quan",
+      "instructions": "Hướng dẫn",
+      "skills": "Skills",
+      "runtime": "Cấu hình chạy",
+      "runs": "Run"
+    }
+  },
+  "overview": {
+    "missing": "Chưa sẵn sàng, còn thiếu",
+    "latestRun": "Run gần nhất",
+    "noRun": "Agent chưa chạy lần nào",
+    "working": "Yêu cầu đang làm",
+    "noIssue": "Không có yêu cầu đang làm",
+    "environment": "Environment",
+    "machine": "Máy",
+    "roles": "Vai trò",
+    "noRoles": "Chưa giữ vai trò nào"
+  },
+  "instructions": {
+    "loadFailed": "Không tải được hướng dẫn",
+    "render": "Render lại theo vai trò",
+    "noRole": "Agent chưa giữ vai trò nào trong project, nên chưa biết render theo vai trò nào.",
+    "rendered": "Đã render lại hướng dẫn theo vai trò.",
+    "unchanged": "Hướng dẫn đã đúng, không đổi.",
+    "conflict": "Xung đột khi ghi hướng dẫn",
+    "conflictHint": "Có người vừa sửa hướng dẫn của agent này. Tải lại rồi render lại, hệ thống không ghi đè.",
+    "reload": "Tải lại",
+    "renderFailed": "Không render lại được hướng dẫn",
+    "missing": "Agent chưa có AGENTS.md."
+  },
+  "skills": {
+    "loadFailed": "Không tải được skill của agent",
+    "unsupported": "Adapter của agent này không hỗ trợ đồng bộ skill.",
+    "empty": "Company chưa có skill",
+    "emptyHint": "Thêm skill ở trang Skills rồi bật cho agent.",
+    "hint": "Bật hoặc tắt skill company cho agent này. Thay đổi áp dụng từ run kế tiếp.",
+    "col": {
+      "skill": "Skill",
+      "state": "Trạng thái",
+      "enabled": "Bật"
+    },
+    "readOnly": "Chỉ đọc",
+    "syncFailed": "Không đồng bộ được skill",
+    "state": {
+      "available": "Có sẵn",
+      "configured": "Đã cấu hình",
+      "installed": "Đã cài",
+      "missing": "Thiếu",
+      "stale": "Cũ",
+      "external": "Bên ngoài"
+    }
+  },
+  "runtime": {
+    "title": "Cấu hình chạy",
+    "adapter": "Adapter",
+    "engine": "Engine",
+    "command": "Command",
+    "extraArgs": "Tham số thêm",
+    "concurrency": "Số run đồng thời",
+    "concurrencyValue": "{{count}} run một lúc",
+    "heartbeat": "Heartbeat",
+    "on": "Bật",
+    "off": "Tắt",
+    "environment": "Environment",
+    "workspace": "Thư mục làm việc",
+    "machine": "Máy",
+    "noEnvironment": "Chưa gắn environment",
+    "unknown": "Chưa rõ",
+    "none": "Không có"
+  },
+  "model": {
+    "label": "Model mặc định",
+    "choose": "Chọn model",
+    "save": "Lưu model",
+    "outside": "Model hiện tại ({{model}}) không nằm trong bảng model Crew."
+  },
+  "runs": {
+    "loadFailed": "Không tải được danh sách run",
+    "empty": "Agent chưa có run",
+    "emptyHint": "Run của agent sẽ hiện ở đây."
+  },
+  "rename": {
+    "title": "Đổi tên agent",
+    "name": "Tên agent",
+    "icon": "Biểu tượng",
+    "iconHint": "Tên biểu tượng, để trống nếu không dùng.",
+    "cancel": "Hủy",
+    "save": "Lưu"
+  }
+}
