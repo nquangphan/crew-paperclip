@@ -17,6 +17,22 @@ export function guideHeadings(text: string): string[] {
   return found;
 }
 
+/**
+ * Key of this plugin; the host serves plugin UI files at `/_plugins/<id-or-key>/ui/` and accepts the
+ * plugin key there (server/src/routes/plugin-ui-static.ts). The bundle is loaded from a blob URL, so
+ * `import.meta.url` cannot give the base.
+ */
+export const PLUGIN_KEY = "crew.core";
+export const GUIDE_UI_BASE = `/_plugins/${PLUGIN_KEY}/ui/`;
+
+/** Points `img/...` images at the plugin's static files; without a base the images are dropped. */
+export function resolveGuideImages(text: string, base: string | null): string {
+  if (base) return text.split("](img/").join(`](${base}guide/img/`);
+  return text.replace(/^[ \t]*!\[[^\]]*\]\(img\/[^)]*\)[ \t]*\r?\n?/gm, "").replace(/!\[[^\]]*\]\(img\/[^)]*\)/g, "");
+}
+
+const imageCss = ".crew-guide-body img { display: block; max-width: 100%; height: auto; margin: 0.75rem 0; border: 1px solid var(--border, rgba(128,128,128,.35)); border-radius: var(--radius, 0.5rem); }";
+
 const alertStyle = { border: "1px solid var(--destructive)", borderRadius: "var(--radius)", padding: "0.75rem" };
 
 function Guide({ text }: { text: string }) {
@@ -33,12 +49,13 @@ function Guide({ text }: { text: string }) {
       h("ol", { style: { margin: "0.5rem 0 0", paddingLeft: "1.25rem" } },
         ...headings.map((title) => h("li", { key: title },
           h("a", { href: "#", onClick: jump(title), style: { textDecoration: "underline" } }, title.replace(/^\d+\.\s*/, "")))))),
-    h("div", { ref: body }, h(MarkdownBlock, { content: text })));
+    h("style", null, imageCss),
+    h("div", { ref: body, className: "crew-guide-body" }, h(MarkdownBlock, { content: text })));
 }
 
 export function CrewGuidePage(_props: PluginPageProps) {
   return h("main", { "aria-label": "Hướng dẫn Crew" },
-    h(ErrorBoundary, { fallback: h("div", { role: "alert", style: alertStyle }, "Không hiển thị được hướng dẫn."), children: h(Guide, { text: guideText }) }));
+    h(ErrorBoundary, { fallback: h("div", { role: "alert", style: alertStyle }, "Không hiển thị được hướng dẫn."), children: h(Guide, { text: resolveGuideImages(guideText, GUIDE_UI_BASE) }) }));
 }
 
 const linkClass = "flex items-center gap-2.5 mx-2 rounded-lg px-2 py-1.5 pointer-coarse:py-1 text-(length:--text-compact) font-medium text-foreground/80 transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground";

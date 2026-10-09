@@ -36,6 +36,8 @@ OUTDIR=$(node -e 'const p=require("./packages/crew-plugin/package.json"); consol
 cp -R "packages/crew-plugin/$OUTDIR" "$WORK/app/packages/crew-plugin/$OUTDIR"
 cp -R packages/crew-plugin/migrations "$WORK/app/packages/crew-plugin/migrations"
 test -s "$WORK/app/packages/crew-plugin/dist/ui/index.js" || { echo "overlay: UI bundle not copied" >&2; exit 2; }
+# cp -R of dist/ above already carries the whole dist/ui/ tree; the guide images must be part of it.
+test -s "$WORK/app/packages/crew-plugin/dist/ui/guide/img/01-dang-nhap.jpg" || { echo "overlay: guide images not copied" >&2; exit 2; }
 
 COPYFILE_DISABLE=1 tar --no-xattrs --no-mac-metadata -C "$WORK/app" -czf "$WORK/overlay-$SHORT.tar.gz" .
 scp -q "$WORK/overlay-$SHORT.tar.gz" nhamoiplatform:/opt/crew-v3-spike/ops/
