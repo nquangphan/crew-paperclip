@@ -1,0 +1,35 @@
+{
+  "title": "Máy",
+  "description": "Các máy chạy agent của company này: tình trạng và việc đang chờ app 2P Crew làm.",
+  "loadFailed": "Không tải được danh sách máy",
+  "empty": "Chưa có máy nào báo tin",
+  "emptyHint": "Cài app 2P Crew trên máy chạy agent; máy sẽ hiện ở đây sau bản tin đầu tiên.",
+  "queue": {
+    "title": "Hàng đợi việc trên máy",
+    "loadFailed": "Không tải được hàng đợi việc",
+    "retryFailed": "Không thử lại được việc",
+    "empty": "Không có việc nào đang chờ hay lỗi",
+    "emptyHint": "Việc đã xong không hiện ở đây.",
+    "waitingApp": "Chờ app 2P Crew trên {{host}}",
+    "col": {
+      "machine": "Máy",
+      "kind": "Việc",
+      "status": "Trạng thái",
+      "created": "Tạo",
+      "detail": "Chi tiết",
+      "actions": "Thao tác"
+    },
+    "kind": {
+      "inspect-folder": "Xem thư mục repo",
+      "prepare-checkouts": "Dựng checkout",
+      "agent-workspace": "Dựng chỗ làm của agent",
+      "skill-sync": "Đồng bộ skill",
+      "check": "Kiểm tra project"
+    },
+    "status": {
+      "queued": "Đang chờ",
+      "claimed": "Đang làm",
+      "failed": "Lỗi"
+    }
+  }
+}

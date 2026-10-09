@@ -1,0 +1,30 @@
+{
+  "title": "Docs",
+  "description": "Tài liệu của từng project, đọc từ bản docs mới nhất máy đã gửi lên.",
+  "loadFailed": "Không tải được docs",
+  "empty": "Chưa có project nào có docs",
+  "emptyHint": "Project có docs sau khi máy gửi bản docs đầu tiên.",
+  "noSnapshot": "Project này chưa có bản docs",
+  "noSnapshotHint": "Máy chưa gửi bản docs nào cho project này.",
+  "meta": "Commit {{commit}}, nhận lúc {{at}}",
+  "pick": "Chọn một trang ở danh sách bên trái.",
+  "search": {
+    "label": "Tìm trong tài liệu",
+    "placeholder": "Nhập từ khóa, ví dụ greet",
+    "results": "Kết quả tìm",
+    "count": "{{count}} kết quả"
+  },
+  "page": {
+    "missing": "Thiếu trang: {{path}}",
+    "brokenClick": "Liên kết hỏng: không có trang {{href}}"
+  },
+  "links": {
+    "title": "Liên kết trong trang",
+    "missing": "Thiếu trang: {{href}}",
+    "unverified": "Chưa kiểm được: {{href}}"
+  },
+  "dropped": {
+    "title": "File bị bỏ do quét bí mật",
+    "hint": "Các file này có thể chứa thông tin nhạy cảm nên không được đưa vào docs."
+  }
+}

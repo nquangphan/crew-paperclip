@@ -104,6 +104,7 @@ export const ENDPOINTS = {
   'agents.get': { ids: ['S11.1', 'S11.4'], method: 'GET', path: '/api/agents/:id' },
   'agents.create': { ids: ['S9.5', 'S13.1'], method: 'POST', path: '/api/companies/:companyId/agents' },
   'agents.update': { ids: ['S11.5', 'S11.7', 'S13.2', 'S13.3'], method: 'PATCH', path: '/api/agents/:id' },
+  'agents.setPermissions': { ids: ['S9.5', 'S13.1'], method: 'PATCH', path: '/api/agents/:id/permissions' },
   'agents.pause': { ids: ['S9.8', 'S10.3'], method: 'POST', path: '/api/agents/:id/pause' },
   'agents.resume': { ids: ['S10.3'], method: 'POST', path: '/api/agents/:id/resume' },
   'agents.wakeup': { ids: ['S12.3', 'S12.4'], method: 'POST', path: '/api/agents/:id/wakeup' },

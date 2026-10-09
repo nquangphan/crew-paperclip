@@ -1,0 +1,25 @@
+{
+  "title": "Settings",
+  "description": "Your profile, the interface language and system information.",
+  "profile": {
+    "title": "Profile",
+    "name": "Display name",
+    "image": "Profile picture",
+    "imageHint": "Pick a new picture, then press Save profile.",
+    "save": "Save profile",
+    "saved": "Profile saved",
+    "saveFailed": "Could not save the profile",
+    "removeImage": "Remove profile picture"
+  },
+  "language": {
+    "title": "Language"
+  },
+  "system": {
+    "title": "System information",
+    "loadFailed": "Could not load the system information",
+    "version": "Server version",
+    "commit": "Running commit",
+    "backup": "Latest backup",
+    "unknown": "Unknown"
+  }
+}
