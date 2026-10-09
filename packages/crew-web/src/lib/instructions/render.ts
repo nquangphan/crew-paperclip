@@ -59,3 +59,20 @@ export function renderInstructions(role: InstructionRole, vars: RenderVars): str
     vars.bmadIds ?? [],
   );
 }
+
+const EXECUTOR_HEADING = '## Executor của company';
+const BMAD_HEADING = '## Agent BMAD của company';
+const UUID_GLOBAL_RE = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi;
+
+function sectionIds(content: string, heading: string): string[] {
+  const start = content.lastIndexOf(`\n${heading}\n`);
+  if (start < 0) return [];
+  const rest = content.slice(start + heading.length + 2);
+  const end = rest.search(/^## /m);
+  return [...new Set((end < 0 ? rest : rest.slice(0, end)).match(UUID_GLOBAL_RE) ?? [])];
+}
+
+/** Đọc lại danh sách executor và agent BMAD mà `renderInstructions('assistant', …)` đã nối vào cuối AGENTS.md. */
+export function assistantListsOf(content: string): { executorIds: string[]; bmadIds: string[] } {
+  return { executorIds: sectionIds(content, EXECUTOR_HEADING), bmadIds: sectionIds(content, BMAD_HEADING) };
+}

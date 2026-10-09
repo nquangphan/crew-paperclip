@@ -106,7 +106,8 @@ function agentRefs(run: ReadinessSetupRun | null, agentId: string): { instructio
   return { instructions: refs[`instructions${suffix}`], checkout: refs[`checkout${suffix}`] };
 }
 
-function checkAdapter(agent: ReadinessAgent): boolean {
+/** A1: cấu hình chạy Crew (dùng chung với wizard tạo agent ở chế độ sửa). */
+export function checkAdapter(agent: ReadinessAgent): boolean {
   const config = agent.adapterConfig;
   const heartbeat = isRecord(agent.runtimeConfig) ? agent.runtimeConfig.heartbeat : undefined;
   return (
@@ -122,7 +123,8 @@ function checkAdapter(agent: ReadinessAgent): boolean {
   );
 }
 
-function checkPin(agent: ReadinessAgent, report: ReadinessReport | null): boolean {
+/** A2: wrapper và ghim Superpowers theo bản tin máy. */
+export function checkPin(agent: ReadinessAgent, report: ReadinessReport | null): boolean {
   const { command, extraArgs } = agent.adapterConfig;
   if (typeof command !== 'string' || !WRAPPER_RE.test(command)) return false;
   if (!Array.isArray(extraArgs) || extraArgs.length !== 4) return false;
@@ -139,7 +141,8 @@ function checkPin(agent: ReadinessAgent, report: ReadinessReport | null): boolea
   return false;
 }
 
-function checkEnvironment(env: ReadinessEnvironment | null, checkout: string | undefined): boolean {
+/** A4: environment SSH `in_place` trỏ đúng checkout. */
+export function checkEnvironment(env: ReadinessEnvironment | null, checkout: string | undefined): boolean {
   if (!env) return false;
   const path = env.config.remoteWorkspacePath;
   return (

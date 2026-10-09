@@ -39,6 +39,64 @@
     "openProject": "Mở project",
     "environmentDescription": "Checkout {{role}} của project {{project}} trên Mac"
   },
+  "addAgent": {
+    "title": "Tạo agent",
+    "description": "Thêm executor thứ 2 hoặc thay agent của một vai trò trong project Crew: tạo agent, ghim Superpowers, environment, checkout trên máy, ghi vai trò.",
+    "form": {
+      "project": "Project",
+      "projectPlaceholder": "Chọn project",
+      "projectNoRoles": "{{name}} · Chưa có vai trò",
+      "slot": "Ô vai trò",
+      "slotPlaceholder": "Chọn ô",
+      "slotAdds": "Thêm agent vào ô này.",
+      "slotReplaces": "Thay {{name}}. Agent cũ giữ nguyên, chỉ rời vai trò.",
+      "slotSelf": "Agent đang giữ ô này.",
+      "name": "Tên agent",
+      "nameHint": "Tên hiển thị của agent trong company.",
+      "model": "Model",
+      "modelHint": "Model mặc định của agent, chỉ trong danh sách model Crew.",
+      "machine": "Máy",
+      "machinePlaceholder": "Chọn máy",
+      "noMachines": "Chưa có máy nào báo về company này.",
+      "key": "Khóa project",
+      "keyHint": "Khóa của project trên máy (tên thư mục trong ~/crew-agents).",
+      "folder": "Folder repo trên máy",
+      "folderHint": "Repo gốc của project trên máy; checkout của agent tạo từ repo này.",
+      "submit": "Bắt đầu",
+      "createFailed": "Không bắt đầu được"
+    },
+    "fix": {
+      "title": "Sửa agent {{name}} từ bước “{{step}}”",
+      "description": "Các bước trước được giữ nguyên. Bước được chỉ và các bước sau chỉ ghi phần chưa đạt.",
+      "notFound": "Không thấy agent cần sửa trong company này.",
+      "submit": "Sửa tiếp"
+    },
+    "slots": {
+      "assistant": "Trợ Lý",
+      "executor": "Executor",
+      "executor-2": "Executor thứ 2",
+      "reviewer": "Reviewer",
+      "integrator": "Integrator"
+    },
+    "steps": {
+      "agent": "Tạo agent",
+      "pin": "Ghim Superpowers và AGENTS.md",
+      "environment": "Environment SSH",
+      "workspace": "Dựng checkout trên máy",
+      "role": "Ghi vai trò",
+      "assistant-instructions": "Cập nhật AGENTS.md của Trợ Lý"
+    },
+    "loadFailed": "Không tải được dữ liệu tạo agent",
+    "wrongKind": "Đây không phải lần tạo agent.",
+    "summary": "{{name}} · {{slot}} · khóa {{key}}",
+    "busy": "Đang có người chạy bước này. Đợi một lát rồi bấm Chạy tiếp.",
+    "runFailed": "Chạy bước lỗi",
+    "continue": "Chạy tiếp",
+    "done": "Đã tạo agent xong.",
+    "openAgent": "Mở agent",
+    "openProject": "Mở project",
+    "environmentDescription": "Checkout {{role}} của project {{project}} trên Mac"
+  },
   "validate": {
     "machine": "Chọn máy",
     "folder": "Folder phải là đường dẫn tuyệt đối, không chứa \"..\" hay ký tự điều khiển",
@@ -46,7 +104,14 @@
     "e2eKey": "Khóa e2e-* chỉ dùng cho company Crew E2E",
     "keyTaken": "Company đã có project dùng khóa này",
     "name": "Tên project không được trống (tối đa 120 ký tự)",
-    "executors": "Số executor phải là 1 hoặc 2"
+    "executors": "Số executor phải là 1 hoặc 2",
+    "project": "Chọn project",
+    "projectNoRoles": "Project chưa có dòng vai trò: ghi vai trò ở trang project trước",
+    "slot": "Chọn ô vai trò",
+    "agentName": "Tên agent không được trống (tối đa 120 ký tự)",
+    "agentNameTaken": "Đã có agent tên này",
+    "model": "Chọn model trong danh sách model Crew",
+    "agentFolder": "Folder phải là đường dẫn tuyệt đối tối đa 200 ký tự, không chứa \"..\" hay ký tự điều khiển"
   },
   "errors": {
     "wrongKind": "Setup run không phải lần thêm project",
@@ -59,6 +124,12 @@
     "noTemplate": "Company chưa có environment SSH mẫu (in_place, có secret SSH) để chép",
     "noPinDir": "Máy chưa báo bản ghim Superpowers (superpowers.pinDir): cập nhật crew-mac trên máy rồi bấm Chạy tiếp",
     "instructionsConflict": "AGENTS.md của {{name}} vừa bị sửa ở nơi khác: bấm Chạy tiếp để ghi lại",
+    "wrongAgentKind": "Setup run không phải lần tạo agent",
+    "noRoles": "Project chưa có dòng vai trò: ghi vai trò ở trang project rồi bấm Chạy tiếp",
+    "agentNameTaken": "Đã có agent tên {{name}}: đổi tên agent rồi bắt đầu lại",
+    "notClaudeLocal": "Agent không chạy bằng claude_local nên wizard không sửa được",
+    "noFolder": "Thiếu folder repo của project: bắt đầu lại wizard và nhập folder",
+    "checkoutMismatch": "Máy dựng checkout ở {{path}}, khác environment ({{expected}})",
     "job": {
       "folder_not_git": "Folder không phải repo git: {{text}}",
       "folder_forbidden": "Folder không được phép dùng: {{text}}",

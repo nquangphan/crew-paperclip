@@ -1,9 +1,29 @@
-// Api giả cho wizard thêm project: giữ trạng thái trong bộ nhớ, ghi lại mọi lời gọi (tên hàm + tham số).
-import { ApiError, type JobPayload, type JobResult, type MachineJob, type SetupRun, type SetupStepId } from '@/api';
+// Api giả cho wizard thêm project và tạo agent: giữ trạng thái trong bộ nhớ, ghi lại mọi lời gọi (tên hàm + tham số).
+import {
+  ApiError,
+  type JobPayload,
+  type JobResult,
+  type MachineJob,
+  type ProjectRoles,
+  type SetupRun,
+  type SetupStepId,
+} from '@/api';
+import { ADD_AGENT_STEPS } from '@/features/wizards/add-agent/steps';
 import { ADD_PROJECT_STEPS } from '@/features/wizards/add-project/steps';
 
 export const PIN = '/Users/owner/.crew/workflows/superpowers/5.0.7';
 export const COMPANY = 'c-run';
+
+export interface FakeAgent {
+  id: string;
+  name: string;
+  status: string;
+  defaultEnvironmentId: string | null;
+  adapterType?: string;
+  adapterConfig?: Record<string, unknown>;
+  runtimeConfig?: Record<string, unknown> | null;
+  createdAt?: string;
+}
 
 export interface Call {
   fn: string;
@@ -57,7 +77,7 @@ export const TEMPLATE_ENV = {
   updatedAt: '2026-10-01T00:00:00Z',
 };
 
-type JobOutcome = (payload: JobPayload) => Partial<MachineJob>;
+export type JobOutcome = (payload: JobPayload) => Partial<MachineJob>;
 
 const defaultOutcome: JobOutcome = (payload) => {
   let result: JobResult;
@@ -79,10 +99,17 @@ const defaultOutcome: JobOutcome = (payload) => {
         head: 'a'.repeat(40),
       })),
     };
+  } else if (payload.kind === 'agent-workspace') {
+    result = {
+      kind: 'agent-workspace',
+      role: payload.role,
+      path: `/Users/owner/crew-agents/${payload.projectKey}/${payload.role}`,
+      head: 'b'.repeat(40),
+    };
   } else if (payload.kind === 'check') {
     result = { kind: 'check', items: [{ id: 'doctor', status: 'ok', title: 'Máy ổn' }] };
   } else {
-    throw new Error(`job ${payload.kind} không dùng trong wizard thêm project`);
+    throw new Error(`job ${payload.kind} không dùng trong wizard`);
   }
   return { status: 'done', result };
 };
@@ -96,9 +123,9 @@ export function fakeApi(opts: { run?: SetupRun; busy?: boolean; jobOutcome?: Job
     jobs: [] as MachineJob[],
     projects: [] as { id: string; name: string; urlKey: string; createdAt: string; archivedAt: null }[],
     environments: [structuredClone(TEMPLATE_ENV)] as Record<string, unknown>[],
-    agents: [] as { id: string; name: string; status: string; defaultEnvironmentId: string | null }[],
+    agents: [] as FakeAgent[],
     files: new Map<string, { content: string; contentHash: string }>(),
-    roles: null as unknown,
+    roles: null as ProjectRoles | null,
     busy: opts.busy ?? false,
   };
 
@@ -128,7 +155,8 @@ export function fakeApi(opts: { run?: SetupRun; busy?: boolean; jobOutcome?: Job
       ) => {
         record('setup.finish', companyId, id, stepId, structuredClone(body));
         if (state.run.runningStep !== stepId) throw new ApiError(409, `Bước ${stepId} không đang chạy`);
-        const last = ADD_PROJECT_STEPS[ADD_PROJECT_STEPS.length - 1] === stepId;
+        const order: readonly string[] = state.run.kind === 'add-agent' ? ADD_AGENT_STEPS : ADD_PROJECT_STEPS;
+        const last = order[order.length - 1] === stepId;
         state.run = {
           ...state.run,
           runningStep: null,
@@ -218,13 +246,33 @@ export function fakeApi(opts: { run?: SetupRun; busy?: boolean; jobOutcome?: Job
       },
       create: async (companyId: string, body: Record<string, unknown>) => {
         record('agents.create', companyId, structuredClone(body));
-        const agent = {
+        const agent: FakeAgent = {
           id: uuid('agent'),
           name: String(body.name),
           status: 'idle',
           defaultEnvironmentId: (body.defaultEnvironmentId as string) ?? null,
+          adapterType: String(body.adapterType),
+          adapterConfig: structuredClone(body.adapterConfig as Record<string, unknown>),
+          runtimeConfig: structuredClone(body.runtimeConfig as Record<string, unknown>),
+          createdAt: new Date().toISOString(),
         };
         state.agents.push(agent);
+        return structuredClone(agent);
+      },
+      get: async (id: string, companyId?: string) => {
+        record('agents.get', id, companyId);
+        const agent = state.agents.find((a) => a.id === id);
+        if (!agent) throw new ApiError(404, 'Agent not found');
+        return structuredClone(agent);
+      },
+      /** PATCH merge như server: adapterConfig gộp nông, trường khác thay. */
+      update: async (id: string, body: Record<string, unknown>, companyId?: string) => {
+        record('agents.update', id, structuredClone(body), companyId);
+        const agent = state.agents.find((a) => a.id === id);
+        if (!agent) throw new ApiError(404, 'Agent not found');
+        const { adapterConfig, ...rest } = structuredClone(body);
+        Object.assign(agent, rest);
+        if (adapterConfig) agent.adapterConfig = { ...agent.adapterConfig, ...(adapterConfig as object) };
         return structuredClone(agent);
       },
       pause: async (id: string, companyId?: string) => {
@@ -261,9 +309,13 @@ export function fakeApi(opts: { run?: SetupRun; busy?: boolean; jobOutcome?: Job
       },
     },
     roles: {
+      get: async (companyId: string, projectId: string) => {
+        record('roles.get', companyId, projectId);
+        return structuredClone(state.roles);
+      },
       set: async (companyId: string, projectId: string, roles: unknown) => {
         record('roles.set', companyId, projectId, structuredClone(roles));
-        state.roles = roles;
+        state.roles = roles as ProjectRoles;
         return structuredClone(roles);
       },
     },

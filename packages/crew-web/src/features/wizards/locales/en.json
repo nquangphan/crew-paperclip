@@ -39,6 +39,64 @@
     "openProject": "Open project",
     "environmentDescription": "{{role}} checkout of project {{project}} on the Mac"
   },
+  "addAgent": {
+    "title": "Create agent",
+    "description": "Add a second executor or replace the agent of a role in a Crew project: create the agent, pin Superpowers, environment, checkout on the machine, record the role.",
+    "form": {
+      "project": "Project",
+      "projectPlaceholder": "Choose a project",
+      "projectNoRoles": "{{name}} · No roles yet",
+      "slot": "Role slot",
+      "slotPlaceholder": "Choose a slot",
+      "slotAdds": "Adds an agent to this slot.",
+      "slotReplaces": "Replaces {{name}}. The old agent stays, it only leaves the role.",
+      "slotSelf": "The agent already holds this slot.",
+      "name": "Agent name",
+      "nameHint": "Display name of the agent in the company.",
+      "model": "Model",
+      "modelHint": "Default model of the agent, from the Crew model list only.",
+      "machine": "Machine",
+      "machinePlaceholder": "Choose a machine",
+      "noMachines": "No machine has reported to this company yet.",
+      "key": "Project key",
+      "keyHint": "Project key on the machine (folder name under ~/crew-agents).",
+      "folder": "Repo folder on the machine",
+      "folderHint": "The project's main repo on the machine; the agent checkout is created from it.",
+      "submit": "Start",
+      "createFailed": "Could not start"
+    },
+    "fix": {
+      "title": "Fix agent {{name}} from step “{{step}}”",
+      "description": "Earlier steps are kept. The chosen step and the ones after it only write what is not right yet.",
+      "notFound": "The agent to fix was not found in this company.",
+      "submit": "Continue fixing"
+    },
+    "slots": {
+      "assistant": "Assistant",
+      "executor": "Executor",
+      "executor-2": "Second executor",
+      "reviewer": "Reviewer",
+      "integrator": "Integrator"
+    },
+    "steps": {
+      "agent": "Create agent",
+      "pin": "Pin Superpowers and AGENTS.md",
+      "environment": "SSH environment",
+      "workspace": "Set up checkout on the machine",
+      "role": "Record role",
+      "assistant-instructions": "Update the Assistant's AGENTS.md"
+    },
+    "loadFailed": "Could not load agent creation data",
+    "wrongKind": "This is not an agent creation run.",
+    "summary": "{{name}} · {{slot}} · key {{key}}",
+    "busy": "Someone is running this step. Wait a moment, then press Continue.",
+    "runFailed": "Step failed",
+    "continue": "Continue",
+    "done": "Agent created.",
+    "openAgent": "Open agent",
+    "openProject": "Open project",
+    "environmentDescription": "{{role}} checkout of project {{project}} on the Mac"
+  },
   "validate": {
     "machine": "Choose a machine",
     "folder": "The folder must be an absolute path without \"..\" or control characters",
@@ -46,7 +104,14 @@
     "e2eKey": "e2e-* keys are only allowed in the Crew E2E company",
     "keyTaken": "The company already has a project using this key",
     "name": "Project name must not be empty (at most 120 characters)",
-    "executors": "Executors must be 1 or 2"
+    "executors": "Executors must be 1 or 2",
+    "project": "Choose a project",
+    "projectNoRoles": "The project has no role row yet: record roles on the project page first",
+    "slot": "Choose a role slot",
+    "agentName": "Agent name is required (at most 120 characters)",
+    "agentNameTaken": "An agent with this name already exists",
+    "model": "Choose a model from the Crew model list",
+    "agentFolder": "Folder must be an absolute path of at most 200 characters, without \"..\" or control characters"
   },
   "errors": {
     "wrongKind": "The setup run is not an add-project run",
@@ -59,6 +124,12 @@
     "noTemplate": "The company has no template SSH environment (in_place, with an SSH secret) to copy",
     "noPinDir": "The machine has not reported its pinned Superpowers (superpowers.pinDir): update crew-mac on the machine, then press Continue",
     "instructionsConflict": "AGENTS.md of {{name}} was just changed elsewhere: press Continue to write it again",
+    "wrongAgentKind": "The setup run is not an agent creation run",
+    "noRoles": "The project has no role row: record roles on the project page, then press Continue",
+    "agentNameTaken": "An agent named {{name}} already exists: rename it and start again",
+    "notClaudeLocal": "The agent does not run on claude_local, so the wizard cannot fix it",
+    "noFolder": "The project's repo folder is missing: start the wizard again and enter the folder",
+    "checkoutMismatch": "The machine set up the checkout at {{path}}, not the environment path ({{expected}})",
     "job": {
       "folder_not_git": "The folder is not a git repo: {{text}}",
       "folder_forbidden": "The folder is not allowed: {{text}}",

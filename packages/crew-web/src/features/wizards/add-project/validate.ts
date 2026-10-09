@@ -26,24 +26,33 @@ export interface ValidateContext {
   projects: readonly { name: string; urlKey?: string | null }[];
 }
 
+/** Đường dẫn tuyệt đối, không `..`, không ký tự điều khiển, tối đa `max` ký tự (cùng luật folder của plugin). */
+export function isSafeFolder(folder: string, max = FOLDER_MAX): boolean {
+  return (
+    folder.startsWith('/') &&
+    folder.length <= max &&
+    !folder.includes('..') &&
+    !folder.includes('\0') &&
+    !CONTROL_RE.test(folder)
+  );
+}
+
+/** Lỗi khóa project (khóa dạng đúng, khóa e2e-* chỉ ở company Crew E2E) hoặc undefined. */
+export function projectKeyError(key: string, companyName: string): string | undefined {
+  if (!PROJECT_KEY_RE.test(key)) return 'validate.key';
+  if (key.startsWith(E2E_KEY_PREFIX) && companyName !== E2E_COMPANY_NAME) return 'validate.e2eKey';
+  return undefined;
+}
+
 export function validateAddProject(form: AddProjectForm, ctx: ValidateContext): AddProjectFormErrors {
   const errors: AddProjectFormErrors = {};
   if (form.machineId === '') errors.machineId = 'validate.machine';
 
-  const folder = form.folder;
-  if (
-    !folder.startsWith('/') ||
-    folder.length > FOLDER_MAX ||
-    folder.includes('..') ||
-    folder.includes('\0') ||
-    CONTROL_RE.test(folder)
-  ) {
-    errors.folder = 'validate.folder';
-  }
+  if (!isSafeFolder(form.folder)) errors.folder = 'validate.folder';
 
   const key = form.key;
-  if (!PROJECT_KEY_RE.test(key)) errors.key = 'validate.key';
-  else if (key.startsWith(E2E_KEY_PREFIX) && ctx.companyName !== E2E_COMPANY_NAME) errors.key = 'validate.e2eKey';
+  const keyError = projectKeyError(key, ctx.companyName);
+  if (keyError) errors.key = keyError;
   else if (ctx.projects.some((p) => p.urlKey === key || p.name.trim().toLowerCase() === key)) {
     errors.key = 'validate.keyTaken';
   }
