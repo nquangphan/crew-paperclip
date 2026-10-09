@@ -53,7 +53,7 @@ it("cảnh báo file đính kèm agent sẽ không đọc, mỗi file một lầ
   const sql = postgres(database.connectionString, { max: 2, onnotice: () => {} });
   cleanup = async () => { await sql.end(); await database.cleanup(); };
   await sql.unsafe(`CREATE SCHEMA ${ns}`);
-  for (const file of ["0001_docs", "0005_attachment_audit", "0008_docs_storage"]) {
+  for (const file of ["0001_docs", "0005_attachment_audit", "0008_docs_storage", "0010_crew_companies"]) {
     const migration = await readFile(new URL(`../../migrations/${file}.sql`, import.meta.url), "utf8");
     for (const statement of migration.split(";").map((part) => part.trim()).filter(Boolean)) {
       validatePluginMigrationStatement(statement, ns, manifest.database!.coreReadTables);

@@ -1,7 +1,7 @@
 import type { PluginContext, PluginEvent } from "@paperclipai/plugin-sdk";
 import { loadCrewCompanies } from "../companies/data.js";
 
-type Ctx = Pick<PluginContext, "agents" | "activity" | "companies" | "config" | "logger">;
+type Ctx = Pick<PluginContext, "agents" | "activity" | "companies" | "config" | "logger" | "db">;
 
 /** Sự kiện project mà agent không được gây ra trong company Crew (route lõi chưa chặn agent). */
 export const PROJECT_EVENTS = [

@@ -22,7 +22,13 @@ function harness(agentRoles: Record<string, string> = {}) {
         return () => undefined;
       }),
     },
-    companies: { list: vi.fn(async () => [{ id: CREW, name: "TPS", status: "active" }, { id: OTHER, name: "Khác", status: "active" }]) },
+    companies: {
+      // Event handlers are scoped to one company: they read it with get, never the unscoped list.
+      list: vi.fn(async () => { throw Object.assign(new Error("invocation scope"), { code: -32005 }); }),
+      get: vi.fn(async (id: string) => [{ id: CREW, name: "TPS", status: "active" }, { id: OTHER, name: "Khác", status: "active" }]
+        .find((company) => company.id === id) ?? null),
+    },
+    db: { namespace: "plugin_crew_core_test", query: vi.fn(async () => []), execute: vi.fn(async () => ({ rowCount: 0 })) },
     config: { get: vi.fn(async (companyId: string) => (companyId === CREW ? { companies: [{ companyId: CREW, webhookSecretRef: ref }] } : {})) },
     agents: {
       pause,

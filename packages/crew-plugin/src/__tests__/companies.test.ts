@@ -12,7 +12,14 @@ const ref = { type: "secret_ref", secretId: "20000000-0000-4000-8000-00000000000
 function context(companies: { id: string; name: string; status?: string }[], configs: Record<string, unknown>) {
   const error = vi.fn();
   const ctx = {
-    companies: { list: vi.fn(async () => companies.map((c) => ({ status: "active", ...c }))) },
+    companies: {
+      list: vi.fn(async () => companies.map((c) => ({ status: "active", ...c }))),
+      get: vi.fn(async (id: string) => {
+        const company = companies.find((c) => c.id === id);
+        return company ? { status: "active", ...company } : null;
+      }),
+    },
+    db: { namespace: "plugin_crew_core_test", query: vi.fn(async () => []), execute: vi.fn(async () => ({ rowCount: 0 })) },
     config: {
       get: vi.fn(async (companyId: string) => {
         const config = configs[companyId];
@@ -55,4 +62,5 @@ it("khi host gắn companyId (người không phải admin) thì chỉ trả đ�
   const { ctx } = context([{ id: A, name: "TPS" }, { id: B, name: "E2E" }], configs);
   expect(await loadCrewCompanies(ctx, { companyId: B })).toEqual([{ id: B, name: "E2E" }]);
   expect(await loadCrewCompanies(ctx, { companyId: C })).toEqual([]);
+  expect(ctx.companies.list).not.toHaveBeenCalled();
 });

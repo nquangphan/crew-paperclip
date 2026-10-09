@@ -1,5 +1,5 @@
 import type { PluginContext } from "@paperclipai/plugin-sdk";
-import { pluginNamespace, UUID } from "../shared/db.js";
+import { pluginNamespace, uuidArray } from "../shared/db.js";
 
 /** Agent roles of one project. Every id is a lowercase agent uuid of the project's company. */
 export interface ProjectRoles {
@@ -11,12 +11,6 @@ export interface ProjectRoles {
 
 type Ctx = Pick<PluginContext, "db">;
 const table = (ctx: Ctx) => `${pluginNamespace(ctx)}.crew_project_roles`;
-
-/** Postgres array literal of already validated uuids; avoids driver-specific array binding. */
-function uuidArray(ids: string[]): string {
-  if (!ids.every((id) => UUID.test(id))) throw new Error("ID không hợp lệ");
-  return `{${ids.join(",")}}`;
-}
 
 export async function readProjectRoles(ctx: Ctx, companyId: string, projectId: string): Promise<ProjectRoles | null> {
   const rows = await ctx.db.query<{

@@ -49,8 +49,19 @@ export async function crewData<T = unknown>(
 }
 
 export const crewDataApi = {
-  /** Company có cấu hình Crew (instanceConfig.companies của plugin). */
-  companies: (): Promise<CrewCompany[]> => crewData<CrewCompany[]>('crew.companies', null),
+  /**
+   * Company có cấu hình Crew trong số `companyIds` (lấy từ GET /companies). Gọi từng company kèm companyId rồi
+   * gộp: host plugin từ chối lời gọi không gắn company (INVOCATION_SCOPE_DENIED) trong 15 phút sau mỗi sự kiện
+   * agent, nên không bao giờ gọi `crew.companies` thiếu companyId.
+   */
+  companies: async (companyIds: string[]): Promise<CrewCompany[]> => {
+    const lists = await Promise.all(
+      companyIds.map(async (id) =>
+        (await crewData<CrewCompany[]>('crew.companies', id)).filter((company) => company.id === id),
+      ),
+    );
+    return lists.flat();
+  },
   roots: (companyId: string, params: { status?: string } = {}): Promise<CrewRoot[]> =>
     crewData<CrewRoot[]>('crew.roots', companyId, params),
   map: (companyId: string, issueId: string): Promise<CrewMap> => crewData<CrewMap>('crew.map', companyId, { issueId }),

@@ -57,16 +57,23 @@ const toRef = (c: Pick<Company, 'id' | 'name' | 'issuePrefix'>): CompanyRef => (
 
 /**
  * Company hiện trong UI: company người dùng vào được (GET /companies) giao với company có cấu hình Crew
- * (data crew.companies). Company không có trong cấu hình Crew (ví dụ spike) không hiện.
+ * (data crew.companies, gọi riêng từng company kèm companyId). Company không có trong cấu hình Crew (ví dụ spike)
+ * không hiện.
  */
 export function useCrewCompanies() {
   const all = useQuery({ queryKey: queryKeys.companies, queryFn: () => api.companies.list(), staleTime: 60_000 });
-  const crew = useQuery({ queryKey: queryKeys.crewCompanies, queryFn: () => api.crew.companies(), staleTime: 60_000 });
+  const ids = (all.data ?? []).map((c) => c.id);
+  const crew = useQuery({
+    queryKey: [...queryKeys.crewCompanies, ids],
+    queryFn: () => api.crew.companies(ids),
+    enabled: !!all.data,
+    staleTime: 60_000,
+  });
   const allowed = new Set((crew.data ?? []).map((c) => c.id));
   const companies = all.data && crew.data ? all.data.filter((c) => allowed.has(c.id)).map(toRef) : [];
   return {
     companies,
-    isLoading: all.isLoading || crew.isLoading,
+    isLoading: all.isLoading || (!!all.data && crew.isPending),
     error: all.error ?? crew.error ?? null,
     refetch: () => {
       void all.refetch();

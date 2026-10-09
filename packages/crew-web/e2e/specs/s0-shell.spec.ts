@@ -62,7 +62,8 @@ test('PW-S0-1 mỗi link sidebar mở đúng route, không 404; badge Hộp thư
 
 test('PW-S0-2 chỉ company có cấu hình Crew nằm trong danh sách chọn @t1', async ({ page, company, api }) => {
   const all = await api.get<{ id: string; name: string; issuePrefix: string }[]>('/api/companies');
-  const crew = await api.crewData<{ id: string }[]>('crew.companies', null);
+  // Gọi từng company kèm companyId: lời gọi không gắn company bị host từ chối sau mỗi sự kiện agent.
+  const crew = (await Promise.all(all.map((c) => api.crewData<{ id: string }[]>('crew.companies', c.id)))).flat();
   const allowed = new Set(crew.map((c) => c.id));
   // Stack cục bộ: thêm một company không có cấu hình Crew để chứng minh nó bị lọc. Prod không được tạo company.
   if (!isProd() && !all.some((c) => c.name === 'E2E không Crew')) {

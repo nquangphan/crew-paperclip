@@ -1,5 +1,6 @@
 import type { PluginAuthorizationAuditEntry, PluginContext } from "@paperclipai/plugin-sdk";
-import { pluginNamespace, UUID } from "../shared/db.js";
+import { pluginNamespace, UUID, uuidArray } from "../shared/db.js";
+import { allCrewCompanies } from "../companies/data.js";
 import { type AuditVerdict, judgeBytes, judgeByName, sanitizeFilename } from "./rules.js";
 
 /**
@@ -71,12 +72,6 @@ function failed(map: Map<string, Retry>, key: string, now: number): number {
 
 const table = (ctx: Ctx) => `${pluginNamespace(ctx)}.crew_attachment_audit`;
 
-/** Postgres array literal of already validated uuids, as in roles/data.ts. */
-function uuidArray(ids: string[]): string {
-  if (!ids.every((id) => UUID.test(id))) throw new Error("ID không hợp lệ");
-  return `{${ids.join(",")}}`;
-}
-
 function toUpload(entry: PluginAuthorizationAuditEntry): Upload | null {
   if (entry.entityType !== "issue" || !UUID.test(entry.entityId)) return null;
   const details = entry.details ?? {};
@@ -95,20 +90,12 @@ function toUpload(entry: PluginAuthorizationAuditEntry): Upload | null {
   };
 }
 
-/** Companies whose own plugin config lists them; the job never touches any other company. */
+/**
+ * Companies whose own plugin config lists them; the job never touches any other company. When the host refuses
+ * the unscoped `companies.list` (an event invocation is alive), the stored Crew companies are scanned instead.
+ */
 async function configuredCompanies(ctx: Ctx): Promise<string[]> {
-  const result: string[] = [];
-  for (const company of await ctx.companies.list()) {
-    const companyId = company.id;
-    let config: Record<string, unknown>;
-    try { config = await ctx.config.get(companyId); } catch { continue; }
-    const entries = Array.isArray(config.companies) ? config.companies : [];
-    if (entries.some((item: unknown) =>
-      item !== null && typeof item === "object" && (item as Record<string, unknown>).companyId === companyId)) {
-      result.push(companyId);
-    }
-  }
-  return result;
+  return (await allCrewCompanies(ctx, JOB_KEY, { logConfigErrors: false })).map((company) => company.id);
 }
 
 /** New uploads, oldest first. Pages newest-first and stops at a page holding an already audited id. */

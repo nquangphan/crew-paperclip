@@ -7,6 +7,12 @@ export function checkedId(value: unknown): string {
   return value;
 }
 
+/** Postgres array literal of already validated uuids; avoids driver-specific array binding. */
+export function uuidArray(ids: string[]): string {
+  if (!ids.every((id) => UUID.test(id))) throw new Error("ID không hợp lệ");
+  return `{${ids.join(",")}}`;
+}
+
 export function pluginNamespace(ctx: Pick<PluginContext, "db">): string {
   const namespace = ctx.db.namespace;
   if (!/^plugin_[a-z0-9_]+$/.test(namespace)) throw new Error("Namespace không hợp lệ");
