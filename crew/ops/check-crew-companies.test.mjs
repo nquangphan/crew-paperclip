@@ -22,7 +22,9 @@ const s = JSON.parse(fs.readFileSync(path.join(__dirname, "state.json"), "utf8")
 const [method, url] = process.argv.slice(2);
 const [p, q] = url.split("?");
 if (method !== "GET") { console.error("only GET"); process.exit(1); }
-if (p === "/companies") console.log(JSON.stringify(s.companies.map((id) => ({ id }))));
+if (s.failApi) { console.error("boom"); process.exit(1); }
+if (s.garbage || (s.garbageRows && p !== "/companies")) console.log("<html>not json</html>");
+else if (p === "/companies") console.log(JSON.stringify(s.companies.map((id) => ({ id }))));
 else if (p === "/plugins/crew.core/config") console.log(JSON.stringify(s.pluginConfig[new URLSearchParams(q).get("companyId")] || null));
 else { console.error("no route " + p); process.exit(1); }
 `;
@@ -34,7 +36,7 @@ afterEach(() => {
 
 const row = (...ids) => ({ configJson: { companies: ids.map((companyId) => ({ companyId, webhookSecretRef: { type: "secret_ref", secretId: SECRET_MARK } })) } });
 
-function setup({ policy, pluginConfig, companies }) {
+function setup({ policy, pluginConfig, companies, extra = {} }) {
   const root = mkdtempSync(path.join(tmpdir(), "crew-check-companies-"));
   dirs.push(root);
   mkdirSync(path.join(root, "ops"));
@@ -43,7 +45,7 @@ function setup({ policy, pluginConfig, companies }) {
   writeFileSync(path.join(root, "api.sh"), FAKE_API, { mode: 0o755 });
   const entries = Object.fromEntries(policy.map((id) => [id, { ownerUserId: SECRET_MARK }]));
   writeFileSync(path.join(root, "crew-policy", "crew-policy.json"), JSON.stringify({ companies: entries }));
-  writeFileSync(path.join(root, "state.json"), JSON.stringify({ companies: companies ?? [TPS, E2E, OTHER], pluginConfig }));
+  writeFileSync(path.join(root, "state.json"), JSON.stringify({ companies: companies ?? [TPS, E2E, OTHER], pluginConfig, ...extra }));
   return root;
 }
 
@@ -97,4 +99,35 @@ test("file policy hỏng thì exit 2 và không nói ok", () => {
   const r = run(root);
   assert.equal(r.status, 2);
   assert.ok(!r.stdout.includes("ok"));
+});
+
+test("id phía policy viết hoa vẫn khớp id chữ thường của server", () => {
+  const root = setup({ policy: [TPS.toUpperCase(), E2E.toUpperCase()], pluginConfig: { [TPS]: row(TPS), [E2E]: row(E2E) } });
+  const r = run(root);
+  assert.equal(r.status, 0, r.stdout + r.stderr);
+  assert.equal(r.stdout.trim(), "ok 2 company");
+});
+
+test("danh sách company của server rỗng thì exit 2, không báo lệch", () => {
+  const root = setup({ policy: [TPS], pluginConfig: {}, companies: [] });
+  const r = run(root);
+  assert.equal(r.status, 2);
+  assert.ok(!r.stdout.includes("lệch"));
+});
+
+test("server trả nội dung không phải JSON thì exit 2", () => {
+  const root = setup({ policy: [TPS], pluginConfig: { [TPS]: row(TPS) }, extra: { garbage: true } });
+  assert.equal(run(root).status, 2);
+});
+
+test("api.sh lỗi thì exit 2", () => {
+  const root = setup({ policy: [TPS], pluginConfig: { [TPS]: row(TPS) }, extra: { failApi: true } });
+  assert.equal(run(root).status, 2);
+});
+
+test("hàng cấu hình plugin không đọc được thì exit 2, không báo lệch", () => {
+  const root = setup({ policy: [TPS], pluginConfig: { [TPS]: row(TPS) }, extra: { garbageRows: true } });
+  const r = run(root);
+  assert.equal(r.status, 2);
+  assert.ok(!r.stdout.includes("lệch"));
 });

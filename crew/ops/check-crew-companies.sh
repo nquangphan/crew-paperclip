@@ -12,7 +12,7 @@ PLUGIN=crew.core
 die() { echo "check-crew-companies: $*" >&2; exit 2; }
 
 [ -x "$API" ] || die "missing api.sh"
-policy_ids=$(python3 "$OPS/policy-config.py" list-companies "$POLICY_FILE") || die "policy file unreadable"
+policy_ids=$(python3 "$OPS/policy-config.py" list-companies "$POLICY_FILE" | tr '[:upper:]' '[:lower:]'; exit "${PIPESTATUS[0]}") || die "policy file unreadable"
 
 ids_py='import json, re, sys
 data = json.load(sys.stdin)
@@ -29,10 +29,12 @@ for i in ids:
         print(i.lower())'
 
 all_companies=$("$API" GET /companies </dev/null | python3 -c "$ids_py" companies) || die "cannot list companies"
+[ -n "$all_companies" ] || die "no companies listed"
 plugin_ids=""
 for cid in $all_companies; do
   row=$("$API" GET "/plugins/$PLUGIN/config?companyId=$cid" </dev/null) || die "cannot read plugin config of ${cid:0:8}"
-  plugin_ids+=$(printf '%s' "$row" | python3 -c "$ids_py" row)$'\n'
+  ids=$(printf '%s' "$row" | python3 -c "$ids_py" row) || die "cannot parse plugin config of ${cid:0:8}"
+  plugin_ids+=$ids$'\n'
 done
 plugin_ids=$(printf '%s' "$plugin_ids" | grep . | sort -u || true)
 policy_ids=$(printf '%s\n' "$policy_ids" | grep . | sort -u || true)

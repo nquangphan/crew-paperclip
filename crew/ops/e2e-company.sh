@@ -315,13 +315,15 @@ prod() {
   if [ ! -s "$STATUS_FILE" ]; then
     python3 -c 'import secrets; print(secrets.token_hex(32))' > "$STATUS_FILE.tmp"
     chmod 600 "$STATUS_FILE.tmp"
-    mv "$STATUS_FILE.tmp" "$STATUS_FILE"
     if [ -n "$status_id" ]; then
-      # The value on the server cannot be read back: rotate it to the new local value.
-      out=$(j rotate-body < "$STATUS_FILE" | api_body POST "/secrets/$status_id/rotate") || die "rotate status secret failed"
-      printf '%s' "$out" | j get id >/dev/null || die "rotate status secret failed"
+      # The value on the server cannot be read back: rotate it to the new local value. The new value stays in the
+      # .tmp file until the server accepted it, so a failed rotate leaves no file that disagrees with the server.
+      out=$(j rotate-body < "$STATUS_FILE.tmp" | api_body POST "/secrets/$status_id/rotate") \
+        || { rm -f "$STATUS_FILE.tmp"; die "rotate status secret failed"; }
+      printf '%s' "$out" | j get id >/dev/null || { rm -f "$STATUS_FILE.tmp"; die "rotate status secret failed"; }
       echo "secret $STATUS_SECRET rotated $(short "$status_id")"
     fi
+    mv "$STATUS_FILE.tmp" "$STATUS_FILE"
   fi
   if [ -z "$status_id" ]; then
     out=$(j secret-body "$STATUS_SECRET" "Secret webhook bản tin máy của company Crew E2E" < "$STATUS_FILE" \
