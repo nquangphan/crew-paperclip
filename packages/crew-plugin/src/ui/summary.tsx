@@ -4,6 +4,7 @@ import type { CrewMap, CrewMapNode } from "../handlers/map.js";
 import { DocsCheckPanel } from "./docs/index.js";
 import { stageLabel, statusLabel } from "./map/ticket-node.js";
 import { TicketMap } from "./map/ticket-map.js";
+import { UsagePanel } from "./usage/index.js";
 
 type DocsCheck = { invalid: true } | { invalid?: false; exit: number };
 
@@ -35,7 +36,8 @@ export function CrewIssueSummaryContent({ map, issueId, companyId, docs, expande
       h("button", { type: "button", "aria-expanded": expanded, onClick: onToggle }, expanded ? "Đóng map" : "Mở map")),
     expanded ? h("div", { className: "space-y-3" },
       h(TicketMap, { map, currentIssueId: issueId }),
-      h(DocsCheckPanel, { issueId: map.root.id, companyId })) : null,
+      h(DocsCheckPanel, { issueId: map.root.id, companyId }),
+      h(UsagePanel, { issueId: map.root.id, companyId })) : null,
   );
 }
 

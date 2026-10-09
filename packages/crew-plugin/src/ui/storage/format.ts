@@ -1,3 +1,4 @@
+import type { AttachmentCache } from "../../machines/webhook.js";
 import type { Measured } from "../../storage/data.js";
 
 const UNITS = ["B", "KB", "MB", "GB", "TB"] as const;
@@ -20,4 +21,9 @@ export function formatMeasured(value: Measured, opts: { lowerBound?: boolean } =
   return opts.lowerBound
     ? `≥ ${formatBytes(value.bytes)} (${KIND_LABEL[value.kind]}, cận dưới)`
     : `${formatBytes(value.bytes)} (${KIND_LABEL[value.kind]})`;
+}
+
+/** `blobBytes` là phần GC so với trần; `bytes` là toàn bộ cache (gồm derived, runs, incoming). */
+export function formatCacheUsage(cache: Pick<AttachmentCache, "bytes" | "blobBytes" | "limitBytes">): string {
+  return `blob ${formatBytes(cache.blobBytes)} / trần ${formatBytes(cache.limitBytes)} · tổng cache ${formatBytes(cache.bytes)}`;
 }

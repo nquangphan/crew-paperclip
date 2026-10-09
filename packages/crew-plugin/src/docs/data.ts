@@ -117,7 +117,7 @@ export async function loadDocsTree(ctx: PluginContext, projectId: string, compan
     commit: snapshot.commit,
     auditState: snapshot.audit_state,
     checkExit: snapshot.check_exit,
-    receivedAt: snapshot.received_at,
+    receivedAt: new Date(snapshot.received_at).toISOString(),
     machineId: snapshot.machine_id,
     manifestState: snapshot.manifest_state,
     dropped: typeof snapshot.dropped === "string" ? JSON.parse(snapshot.dropped) : snapshot.dropped,

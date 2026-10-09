@@ -1,5 +1,5 @@
 import { expect, it } from "vitest";
-import { formatBytes, formatMeasured } from "./format.js";
+import { formatBytes, formatCacheUsage, formatMeasured } from "./format.js";
 
 it("formats bytes in vi-VN with 1024 steps", () => {
   expect(formatBytes(0)).toBe("0 B"); expect(formatBytes(512)).toBe("512 B");
@@ -15,4 +15,8 @@ it("labels a logical size as a lower bound when some items have no size yet", ()
   expect(formatMeasured({ kind: "logic", bytes: 1536 }, { lowerBound: true })).toBe("≥ 1,5 KB (logic, cận dưới)");
   expect(formatMeasured({ kind: "logic", bytes: 1536 }, { lowerBound: false })).toBe("1,5 KB (logic)");
   expect(formatMeasured({ kind: "chua_do", reason: "x" }, { lowerBound: true })).toBe("Chưa đo");
+});
+it("labels the cache blob share against the limit and the whole cache apart", () => {
+  expect(formatCacheUsage({ bytes: 13442809, blobBytes: 10081823, limitBytes: 2 * 1024 ** 3 }))
+    .toBe("blob 9,6 MB / trần 2 GB · tổng cache 12,8 MB");
 });

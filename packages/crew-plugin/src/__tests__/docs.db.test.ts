@@ -65,6 +65,7 @@ it("stores docs snapshots with history, rejects invalid webhooks, scopes reads a
   // History is kept: the first snapshot stays readable by id while the current one moves on.
   expect(await count()).toBe(2);
   expect((await loadDocsTree(ctx,projectId,companyId))?.commit).toBe("c".repeat(40));
+  expect((await loadDocsTree(ctx,projectId,companyId))?.receivedAt).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/);
   expect(await loadDocsPage(ctx,projectId,"docs/index.md",companyId)).toBeNull();
   expect((await loadDocsPage(ctx,projectId,"docs/index.md",companyId,firstId))?.text).toBe("Hello 100% world");
   await expect(loadDocsTree(ctx,projectId,otherCompany)).rejects.toThrow();

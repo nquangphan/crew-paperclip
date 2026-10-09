@@ -12,6 +12,7 @@ vi.mock("@paperclipai/plugin-sdk/ui", () => ({
 import { CrewIssueSummary, CrewIssueSummaryContent } from "./summary.js";
 import { DocsCheckPanel } from "./docs/index.js";
 import { TicketMap } from "./map/ticket-map.js";
+import { UsagePanel } from "./usage/index.js";
 
 const fixture: CrewMap = {
   root: { id: "root", identifier: "CRE-36", title: "Yêu cầu", status: "in_progress", parentId: null, assignee: null,
@@ -58,4 +59,5 @@ it("shows the CRE-36 summary from crew.map data and opens the map from the butto
   const open = CrewIssueSummaryContent({ map: fixture, issueId: "root", companyId: "company", docs: { exit: 0 }, expanded, onToggle: () => {} });
   expect(findElement(open, TicketMap)).toBeDefined();
   expect(findElement(open, DocsCheckPanel)).toBeDefined();
+  expect(findElement(open, UsagePanel)).toBeDefined();
 });

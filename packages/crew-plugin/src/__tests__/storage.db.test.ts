@@ -15,6 +15,7 @@ const P1 = "20000000-0000-4000-8000-000000000001";
 const P2 = "20000000-0000-4000-8000-000000000002";
 const P3 = "20000000-0000-4000-8000-000000000003";
 const emptyProject = "20000000-0000-4000-8000-000000000004";
+const deletedProject = "20000000-0000-4000-8000-000000000006";
 const archivedProject = "20000000-0000-4000-8000-000000000005";
 const machine1 = "50000000-0000-4000-8000-000000000001";
 const machine2 = "50000000-0000-4000-8000-000000000002";
@@ -32,6 +33,7 @@ const t1 = "# Trang một\nnội dung";
 const t2 = "# Trang hai\nthêm chữ có dấu";
 const t2b = "# Trang hai đã đổi\nthêm chữ có dấu và dài hơn";
 const t3 = "# Của công ty khác";
+const tOrphan = "# Docs của project đã xóa";
 const manifestText = "version: 1\nsource: {include: [\"src/**\"]}\n";
 const legacyText = "Trang cũ tiếng Việt có dấu";
 const cache = { bytes: 5000, blobBytes: 4000, blobs: 3, runs: 2, limitBytes: 2147483648, measuredAt: "2026-10-10T01:00:00.000Z" };
@@ -42,6 +44,8 @@ const snapshots: Array<{ id: string; company: string; project: string; commit: s
   { id: snap(2), company: companyId, project: P1, commit: "b".repeat(40), pages: [{ path: "docs/a.md", text: t1 }, { path: "docs/b.md", text: t2b }], manifest: manifestText },
   { id: snap(3), company: companyId, project: P2, commit: "c".repeat(40), pages: [{ path: "docs/a.md", text: t1 }, { path: "docs/b.md", text: t2 }], manifest: manifestText },
   { id: snap(4), company: otherCompany, project: P3, commit: "d".repeat(40), pages: [{ path: "docs/a.md", text: t1 }, { path: "docs/z.md", text: t3 }], manifest: null },
+  // The project row is gone: nothing may show or count this snapshot.
+  { id: snap(6), company: companyId, project: deletedProject, commit: "f".repeat(40), pages: [{ path: "docs/m.md", text: tOrphan }], manifest: null },
 ];
 const links = [
   { snapshot: snap(1), from: "docs/a.md", to: "docs/b.md", href: "b.md" },
@@ -184,6 +188,12 @@ describe("storage report on the real host database", () => {
     const empty = report.projects.find((p) => p.projectId === emptyProject)!;
     expect(empty.name).toBe("Trống");
     expect(empty.docs).toMatchObject({ snapshots: 0, pages: 0, logical: { kind: "logic", bytes: 0 }, physical: { kind: "vat_ly", bytes: 0 } });
+  });
+
+  it("ignores docs left behind by a deleted project", async () => {
+    const report = await loadStorageReport(host.ctx, companyId);
+    expect(report.projects.map((p) => p.projectId)).not.toContain(deletedProject);
+    expect(report.company.docsPhysical).toEqual({ kind: "vat_ly", bytes: distinctBytes([...contentOf(P1), ...contentOf(P2)]) });
   });
 
   it("lists machines of the company with their attachment cache or null", async () => {

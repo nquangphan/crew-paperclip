@@ -43,13 +43,14 @@ const logic = (bytes: unknown): Measured => ({ kind: "logic", bytes: Number(byte
 const physical = (bytes: unknown): Measured => ({ kind: "vat_ly", bytes: Number(bytes ?? 0) });
 const iso = (value: string | Date | null): string | null => (value === null ? null : new Date(value).toISOString());
 
-/** Blob references of finished snapshots: every page plus the manifest. */
+/** Blob references of finished snapshots of projects that still exist: every page plus the manifest. Docs left behind by a deleted project are not counted. */
 const REFS = (ns: string) => `refs AS (
   SELECT s.project_id, s.id AS snapshot_id, sp.sha256 FROM ${ns}.docs_snapshots s JOIN ${ns}.docs_snapshot_pages sp ON sp.snapshot_id = s.id
-  WHERE s.company_id = $1 AND s.completed_at IS NOT NULL
+  WHERE s.company_id = $1 AND s.completed_at IS NOT NULL AND EXISTS (SELECT 1 FROM public.projects p WHERE p.id = s.project_id)
   UNION ALL
   SELECT s.project_id, s.id, s.manifest_sha256 FROM ${ns}.docs_snapshots s
-  WHERE s.company_id = $1 AND s.completed_at IS NOT NULL AND s.manifest_sha256 IS NOT NULL)`;
+  WHERE s.company_id = $1 AND s.completed_at IS NOT NULL AND s.manifest_sha256 IS NOT NULL
+    AND EXISTS (SELECT 1 FROM public.projects p WHERE p.id = s.project_id))`;
 
 async function pluginTableSizes(ctx: Db, ns: string): Promise<StorageReport["pluginTables"]> {
   try {

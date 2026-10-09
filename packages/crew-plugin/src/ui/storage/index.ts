@@ -2,7 +2,7 @@ import { createElement as h } from "react";
 import { DataTable, Spinner, usePluginData } from "@paperclipai/plugin-sdk/ui";
 import { registerPageSection } from "../registry.js";
 import type { StorageReport, ProjectStorage } from "../../storage/data.js";
-import { formatBytes, formatMeasured } from "./format.js";
+import { formatCacheUsage, formatMeasured } from "./format.js";
 
 const time = (value: string) => new Intl.DateTimeFormat("vi-VN", { timeZone: "Asia/Ho_Chi_Minh", dateStyle: "short", timeStyle: "short" }).format(new Date(value));
 const row = (r: Record<string, unknown>) => r as unknown as ProjectStorage;
@@ -34,7 +34,7 @@ export function StorageSection({ companyId }: { companyId: string }) {
     h("h3", null, "Máy"),
     data.machines.length ? h("ul", null, ...data.machines.map((m) => h("li", { key: m.machineId },
       m.attachmentCache
-        ? `${m.hostname}: cache ${formatBytes(m.attachmentCache.blobBytes)} / ${formatBytes(m.attachmentCache.limitBytes)} · ${m.attachmentCache.blobs} blob · ${m.attachmentCache.runs} run · đo lúc ${time(m.attachmentCache.measuredAt)}`
+        ? `${m.hostname}: ${formatCacheUsage(m.attachmentCache)} · ${m.attachmentCache.blobs} blob · ${m.attachmentCache.runs} run · đo lúc ${time(m.attachmentCache.measuredAt)}`
         : `${m.hostname}: Chưa đo`))) : h("p", null, "Chưa có máy nào báo cáo."),
     h("p", null, "Logic = tổng theo từng ảnh chụp; vật lý = thực sự chiếm chỗ sau khử trùng; không cộng vật lý của các nhóm khi có nhóm chưa đo."));
 }
