@@ -1,5 +1,6 @@
 // Bundles the Crew plugin into self-contained ESM files, so the Paperclip image does not need
 // the dev tsx loader or TypeScript sources of workspace packages to run it.
+import { cp, mkdir } from "node:fs/promises";
 import { build } from "esbuild";
 
 const pluginUiRequireBridge = {
@@ -56,3 +57,7 @@ await build({
   loader: { ".css": "text", ".md": "text" },
   logLevel: "warning",
 });
+
+// Guide screenshots stay as static files next to the bundle (served at /_plugins/<id>/ui/guide/img/).
+await mkdir("dist/ui/guide", { recursive: true });
+await cp("src/ui/guide/img", "dist/ui/guide/img", { recursive: true });

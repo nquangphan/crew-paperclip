@@ -14,6 +14,7 @@ docker run --rm --entrypoint sh "$1" -c '
   [ -d "$P/migrations" ] || { echo "plugin migrations MISSING"; exit 1; }
   [ -s "$UI" ] || { echo "plugin dist/ui/index.js MISSING"; exit 1; }
   if grep -q "require(\"react" "$UI"; then echo "plugin UI bundle FAIL: contains require(\"react"; exit 1; fi
+  [ -s "$P/dist/ui/guide/img/01-dang-nhap.jpg" ] || { echo "plugin dist/ui/guide/img/01-dang-nhap.jpg MISSING"; exit 1; }
   GZIP_BYTES=$(gzip -c "$UI" | wc -c | tr -d " ")
   echo "plugin dist/ui/index.js gzip=${GZIP_BYTES} bytes"
   [ "$GZIP_BYTES" -le 1572864 ] || { echo "plugin UI bundle exceeds 1.5 MiB gzip"; exit 1; }
