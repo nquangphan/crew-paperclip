@@ -1,8 +1,8 @@
 // Wizard Thêm project (S9). Không có `?resume=`: form bước 1 (máy, folder, khóa, tên, số executor) rồi tạo setup run.
 // Có `?resume=<setupRunId>`: danh sách 7 bước theo setup run, chạy tiếp từ bước dở; lỗi hiện kèm nút "Chạy tiếp".
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { type FormEvent, useCallback, useEffect, useRef, useState } from 'react';
-import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
+import { useMutation, useQuery } from '@tanstack/react-query';
+import { type FormEvent, useState } from 'react';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { type AddProjectInput, ApiError, api, type CrewMachine, queryKeys, type SetupRun } from '@/api';
 import { useCompany } from '@/app/hooks';
 import {
@@ -21,15 +21,14 @@ import {
   SelectTrigger,
   SelectValue,
   Spinner,
-  Wizard,
-  type WizardStep,
 } from '@/ds';
 import { useT } from '@/i18n';
-import { runAddProject, StepBusyError, type Translate } from './run-step';
-import { ADD_PROJECT_STEPS, type AddProjectStepId } from './steps';
+import { companyHref } from '../resume';
+import { type RunHooks, SetupProgress } from '../setup-progress';
+import { runAddProject } from './run-step';
+import { ADD_PROJECT_STEPS } from './steps';
 import { type AddProjectForm, type AddProjectFormErrors, validateAddProject } from './validate';
 
-const companyHref = (prefix: string, to: string) => `/${encodeURIComponent(prefix)}/${to.replace(/^\//, '')}`;
 const resumeSearch = (id: string) => `?resume=${encodeURIComponent(id)}`;
 
 export function AddProjectPage() {
@@ -233,106 +232,26 @@ function AddProjectFormView() {
   );
 }
 
-function stepsOf(t: Translate, run: SetupRun, active: AddProjectStepId | null): WizardStep[] {
-  return ADD_PROJECT_STEPS.map((id) => {
-    const saved = run.steps[id];
-    const state = active === id ? 'running' : (saved?.status ?? (run.runningStep === id ? 'running' : 'pending'));
-    return {
-      id,
-      title: t(`addProject.steps.${id}`),
-      state,
-      ...(state === 'failed' && saved?.error ? { detail: saved.error } : {}),
-    };
-  });
-}
+const runProject = (hooks: RunHooks, run: SetupRun) =>
+  runAddProject({ api, t: hooks.t, onStep: hooks.onStep, onRun: hooks.onRun }, run);
+const projectQueries = (run: SetupRun) => [queryKeys.projects(run.companyId)];
 
 function AddProjectProgress({ runId }: { runId: string }) {
   const { t } = useT('wizards');
   const { company } = useCompany();
-  const location = useLocation();
-  const navigate = useNavigate();
-  const queryClient = useQueryClient();
-  const [active, setActive] = useState<AddProjectStepId | null>(null);
-  const [running, setRunning] = useState(false);
-  const [busy, setBusy] = useState(false);
-  const [runError, setRunError] = useState<string | null>(null);
-  const autostarted = useRef(false);
-
-  // Mở bằng link: setup run đọc theo company đang xem; sau đó mọi bước dùng companyId của chính setup run.
-  const query = useQuery({
-    queryKey: queryKeys.setupRun(runId),
-    queryFn: () => api.setup.get(company.id, runId),
-  });
-
-  const start = useCallback(
-    async (run: SetupRun) => {
-      setBusy(false);
-      setRunError(null);
-      setRunning(true);
-      const translate: Translate = (key, params) => t(key, params);
-      try {
-        await runAddProject(
-          {
-            api,
-            t: translate,
-            onStep: setActive,
-            onRun: (next) => queryClient.setQueryData(queryKeys.setupRun(runId), next),
-          },
-          run,
-        );
-      } catch (error) {
-        if (error instanceof StepBusyError) setBusy(true);
-        else setRunError(error instanceof Error ? error.message : String(error));
-        void queryClient.invalidateQueries({ queryKey: queryKeys.setupRun(runId) });
-      } finally {
-        setActive(null);
-        setRunning(false);
-        void queryClient.invalidateQueries({ queryKey: queryKeys.crew('crew.setupRuns') });
-        void queryClient.invalidateQueries({ queryKey: queryKeys.projects(run.companyId) });
-      }
-    },
-    [queryClient, runId, t],
-  );
-
-  const autostart = Boolean((location.state as { autostart?: boolean } | null)?.autostart);
-  useEffect(() => {
-    if (!query.data || !autostart || autostarted.current) return;
-    autostarted.current = true;
-    // Bỏ cờ tự chạy khỏi lịch sử để tải lại trang không chạy lại ngầm.
-    navigate({ search: location.search }, { replace: true, state: null });
-    void start(query.data);
-  }, [query.data, autostart, navigate, location.search, start]);
-
-  if (query.isLoading) return <Spinner />;
-  if (query.error || !query.data) {
-    return (
-      <ErrorState
-        title={t('addProject.loadFailed')}
-        message={query.error?.message ?? ''}
-        retryLabel={t('common:action.retry')}
-        onRetry={() => void query.refetch()}
-      />
-    );
-  }
-  const run = query.data;
-  if (run.kind !== 'add-project') return <Alert variant="warning" title={t('addProject.wrongKind')} />;
-
-  const input = run.input as AddProjectInput;
-  const steps = stepsOf((key, params) => t(key, params), run, active);
-  const failedStep = steps.find((s) => s.state === 'failed');
-  const done = run.status === 'done';
-
   return (
-    <div className="flex flex-col gap-4">
-      <MutedText>{t('addProject.summary', { name: input.name, key: input.key, executors: input.executors })}</MutedText>
-      <Wizard steps={steps} error={failedStep?.detail} onResume={running ? undefined : () => void start(run)} />
-      {busy ? <Alert variant="warning" title={t('addProject.busy')} /> : null}
-      {runError ? (
-        <Alert variant="destructive" title={t('addProject.runFailed')}>
-          {runError}
-        </Alert>
-      ) : null}
-      {done ? (
+    <SetupProgress
+      runId={runId}
+      kind="add-project"
+      prefix="addProject"
+      steps={ADD_PROJECT_STEPS}
+      run={runProject}
+      invalidate={projectQueries}
+      summary={(run) => {
+        const input = run.input as AddProjectInput;
+        return t('addProject.summary', { name: input.name, key: input.key, executors: input.executors });
+      }}
+      done={(run) => (
         <Alert title={t('addProject.done')}>
           {run.projectId ? (
             <Link to={companyHref(company.issuePrefix, `projects/${run.projectId}`)}>
@@ -340,12 +259,7 @@ function AddProjectProgress({ runId }: { runId: string }) {
             </Link>
           ) : null}
         </Alert>
-      ) : null}
-      {!done && !running && !failedStep ? (
-        <div className="flex gap-2">
-          <Button onClick={() => void start(run)}>{t('addProject.continue')}</Button>
-        </div>
-      ) : null}
-    </div>
+      )}
+    />
   );
 }

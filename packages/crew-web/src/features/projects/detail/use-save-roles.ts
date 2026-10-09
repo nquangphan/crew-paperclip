@@ -3,25 +3,14 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { type Api, api, type ProjectRoles, queryKeys } from '@/api';
 import { useCompany } from '@/app/hooks';
+import { bmadIdsOf } from '@/features/readiness/assistant-instructions';
 import { INSTRUCTIONS_PATH, putInstructions, renderInstructions } from '@/lib/instructions';
 
+export { bmadIdsOf };
 export type InstructionsOutcome = 'ok' | 'conflict' | 'unchanged';
 export interface SaveRolesResult {
   roles: 'ok';
   instructions: InstructionsOutcome;
-}
-
-const UUID_RE = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi;
-const BMAD_HEADING = '## Agent BMAD của company';
-
-/** Id agent BMAD trong AGENTS.md hiện có của Trợ Lý; render lại phải giữ nguyên danh sách này. */
-export function bmadIdsOf(content: string): string[] {
-  const start = content.indexOf(BMAD_HEADING);
-  if (start < 0) return [];
-  const rest = content.slice(start + BMAD_HEADING.length);
-  const end = rest.search(/^## /m);
-  const section = end < 0 ? rest : rest.slice(0, end);
-  return [...new Set(section.match(UUID_RE) ?? [])];
 }
 
 const statusOf = (error: unknown): number | undefined =>

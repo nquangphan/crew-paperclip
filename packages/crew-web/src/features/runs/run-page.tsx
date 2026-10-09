@@ -6,11 +6,13 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { ApiError, api, queryKeys } from '@/api';
 import { useCompany } from '@/app/hooks';
 import {
+  Alert,
   Button,
   Card,
   CardContent,
   CardHeader,
   CardTitle,
+  CodeBlock,
   ConfirmDialog,
   ErrorState,
   IssueRow,
@@ -19,12 +21,11 @@ import {
   PropertyList,
   Skeleton,
   StatusBadge,
-  Textarea,
   Transcript,
   type TranscriptEntry,
 } from '@/ds';
 import { formatDateTime, useT } from '@/i18n';
-import { formatRunLog, type RunAction, type RunActionId, runActionsFor } from './run-actions';
+import { formatRunLog, type RunAction, type RunActionId, runActionsFor, wakeupOutcome } from './run-actions';
 
 const ACTIVE = new Set(['queued', 'running']);
 
@@ -78,7 +79,7 @@ function RunLog({ runId, active }: { runId: string; active: boolean }) {
       <CardContent className="flex flex-col gap-2">
         {log.error && !missing ? <ErrorState title={t('log.loadFailed')} message={log.error.message} /> : null}
         {missing || (!log.isLoading && !log.error && !text) ? <MutedText>{t('log.empty')}</MutedText> : null}
-        {text ? <Textarea readOnly aria-label={t('log.heading')} rows={14} value={text} /> : null}
+        {text ? <CodeBlock label={t('log.heading')} code={text} /> : null}
       </CardContent>
     </Card>
   );
@@ -125,6 +126,9 @@ export function RunPage() {
   const navigate = useNavigate();
   const qc = useQueryClient();
   const [asking, setAsking] = useState<RunActionId | null>(null);
+  /** Server đã nhận yêu cầu chạy lại nhưng run mới chưa có: khóa nút để không gửi trùng. */
+  const [queuedFor, setQueuedFor] = useState<string | null>(null);
+  const queued = queuedFor === runId;
 
   const run = useQuery({
     queryKey: queryKeys.run(runId),
@@ -149,11 +153,12 @@ export function RunPage() {
         await api.runs.cancel(runId);
         return null;
       }
-      const result = await api.agents.wakeup(run.data?.agentId as string, action.body as never, company.id);
-      const created =
-        (result as { id?: string; runId?: string | null }).id ?? (result as { runId?: string | null }).runId;
-      if (!created) throw new Error((result as { message?: string }).message ?? t('actions.skipped'));
-      return created;
+      const outcome = wakeupOutcome(
+        await api.agents.wakeup(run.data?.agentId as string, action.body as never, company.id),
+      );
+      if (outcome.kind === 'rejected') throw new Error(outcome.message ?? t('actions.skipped'));
+      if (outcome.kind === 'queued') setQueuedFor(runId);
+      return outcome.kind === 'created' ? outcome.runId : null;
     },
     onSuccess: (createdRunId) => {
       setAsking(null);
@@ -190,7 +195,7 @@ export function RunPage() {
             key={a.id}
             variant={a.id === 'cancel' ? 'outline' : 'default'}
             size="sm"
-            disabled={act.isPending}
+            disabled={act.isPending || (queued && a.id !== 'cancel')}
             onClick={() => {
               act.reset();
               setAsking(a.id);
@@ -201,6 +206,7 @@ export function RunPage() {
         ))}
       />
       {act.error && !asking ? <ErrorState title={t('actions.failed')} message={act.error.message} /> : null}
+      {queued ? <Alert variant="info" title={t('actions.queued')} /> : null}
       <Card>
         <CardContent>
           <PropertyList

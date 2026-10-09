@@ -1,0 +1,323 @@
+{
+  "description": "How to use 2P Crew day to day, screen by screen, and why some original Paperclip buttons are missing.",
+  "toc": "Contents",
+  "sectionLabel": "Section {{n}}",
+  "shot": {
+    "pending": "An illustration will be captured once the system is live.",
+    "screen": "Screen: {{route}}"
+  },
+  "missingTable": {
+    "feature": "Feature",
+    "where": "Where in Paperclip",
+    "reason": "Reason",
+    "note": "Note",
+    "count": "{{count}} items"
+  },
+  "groups": {
+    "nav": "Navigation and overview",
+    "issue": "Requests",
+    "agent": "Agents",
+    "project": "Projects",
+    "company": "Company and settings"
+  },
+  "reasons": {
+    "KD": {
+      "label": "Not used by Crew",
+      "meaning": "This feature is not needed for the way Crew works."
+    },
+    "HK": {
+      "label": "Blocked by rules",
+      "meaning": "Using it would break the approval flow that the automatic Crew rules protect."
+    },
+    "CL": {
+      "label": "No flow yet",
+      "meaning": "It needs a complete multi-step flow that does not exist yet."
+    },
+    "RS": {
+      "label": "Later release",
+      "meaning": "Planned for a later release."
+    }
+  },
+  "shots": {
+    "login": "Sign-in page",
+    "dashboard": "Overview page",
+    "new-issue": "New request dialog",
+    "issue-detail": "A request page: Crew summary, map of sub-requests and the Approve, Request changes and Cancel request buttons",
+    "inbox": "Inbox, Awaiting my approval tab",
+    "projects": "Project list with readiness",
+    "add-project": "Add project wizard",
+    "agents": "Agent list",
+    "add-agent": "Create agent wizard",
+    "skills": "Skills page",
+    "machines": "Machines page",
+    "docs": "Docs page",
+    "settings": "Settings page"
+  },
+  "missing": {
+    "routines": {
+      "feature": "Routines (scheduled runs, triggers, public webhooks)",
+      "where": "Paperclip /routines",
+      "note": "Crew only runs when there is a request, never on a schedule. Work created by a routine would not follow the Crew approval flow."
+    },
+    "artifacts": {
+      "feature": "Artifacts",
+      "where": "/artifacts",
+      "note": "Results are read through comments, commits and project docs, so a separate section is not needed."
+    },
+    "connectors": {
+      "feature": "Connectors, Apps, gateways, AI connections, managed profiles",
+      "where": "/apps",
+      "note": "AI keys and logins stay on the Mac. Crew agents do not use tools through the server gateway."
+    },
+    "auditCosts": {
+      "feature": "Activity log, Costs, Budgets",
+      "where": "/activity",
+      "note": "Cost is covered by the Claude plan on the Mac and Paperclip records zero. To see what an agent did, open the Agent page or the request."
+    },
+    "orgChart": {
+      "feature": "Org chart, \"reports to\", chain of command",
+      "where": "/org",
+      "note": "Crew is organised by role inside each project (Assistant, Executor, Reviewer, Integrator), not by a reporting tree."
+    },
+    "goals": {
+      "feature": "Goals",
+      "where": "/goals",
+      "note": "Crew does not use it."
+    },
+    "timeline": {
+      "feature": "Timeline and a separate live Dashboard",
+      "where": "/timeline and /dashboard/live",
+      "note": "Runs in progress already appear on the Overview page and inside each request."
+    },
+    "chats": {
+      "feature": "Chat with agents, board chat, conference room",
+      "where": "/chats and /board-chat",
+      "note": "Crew agents only work through requests. To ask or add instructions, write a comment on the request."
+    },
+    "decisionsCards": {
+      "feature": "Decisions, Status cards, Summaries, Cases, Pipelines, Review queue, Learnings",
+      "where": "Several experimental sections",
+      "note": "These experimental features are switched off. You approve results inside the request, at the \"Owner approval\" step."
+    },
+    "workspaces": {
+      "feature": "Workspaces (project and execution workspaces)",
+      "where": "/workspaces and /execution-workspaces",
+      "note": "Crew gives every agent its own repo folder on the Mac. You can see this on the Machines page."
+    },
+    "onboarding": {
+      "feature": "Onboarding wizard and the Connectors announcement",
+      "where": "/onboarding and pop-ups",
+      "note": "The company is already set up, so it is not needed. This Guide page replaces it."
+    },
+    "designLabs": {
+      "feature": "Design guide, UX lab, perf lab, smoke lab",
+      "where": "/design-guide and /ux-lab",
+      "note": "Internal pages for the Paperclip developers, not for users."
+    },
+    "publicProfile": {
+      "feature": "Public user profile page",
+      "where": "/u/<name>",
+      "note": "There is only one user. Edit your name and picture on the Settings page."
+    },
+    "freeAssignee": {
+      "feature": "Choosing any assignee when creating or changing a request",
+      "where": "New request dialog, properties panel",
+      "note": "Assigning straight to a Reviewer or Integrator makes them do the wrong job. Requests always go through the project Assistant, so the dialog shows the Assistant and cannot be changed."
+    },
+    "pickReviewers": {
+      "feature": "Choosing Reviewer, Approver, Monitor, Watchdog",
+      "where": "New request dialog, properties panel",
+      "note": "Crew attaches the approval rules from the project roles. Choosing people by hand would break the Crew checks."
+    },
+    "freeStatus": {
+      "feature": "Changing status freely, dragging cards on a Kanban board",
+      "where": "Request list, properties panel",
+      "note": "Setting \"Done\" directly would skip review, the docs check and the push. Use the Approve, Request changes and Cancel request buttons instead."
+    },
+    "editRelations": {
+      "feature": "Changing project, labels, parent, \"blocked by\" after creation",
+      "where": "Request properties panel",
+      "note": "The approval rules are fixed when the request is created. Changing the project does not change roles, and a label added later has no effect. The Assistant manages the links between tasks."
+    },
+    "planMode": {
+      "feature": "Auto, Plan and Ask modes",
+      "where": "New request dialog",
+      "note": "The Assistant already brainstorms and plans using the Superpowers workflow."
+    },
+    "commentModel": {
+      "feature": "Choosing model and effort in the comment box",
+      "where": "Comment box",
+      "note": "The model is chosen by task difficulty. You can only change an agent default model, on its Runtime tab."
+    },
+    "addSubIssue": {
+      "feature": "Adding a sub-request by hand",
+      "where": "Sub-request editor",
+      "note": "The Assistant splits work and sets bundles and blockers. A sub-request made by hand would have no bundle. To add work, ask the Assistant in a comment."
+    },
+    "queuedComment": {
+      "feature": "Queued comments: edit, reorder, steer, interrupt",
+      "where": "Comment area",
+      "note": "Crew does not use it."
+    },
+    "feedbackVote": {
+      "feature": "\"Helpful / Needs work\" votes and sharing feedback data",
+      "where": "End of an agent reply",
+      "note": "Sharing feedback data is switched off, so nobody reads these votes."
+    },
+    "issueDocsLock": {
+      "feature": "Locking, unlocking, deleting, restoring request documents; work products",
+      "where": "Request documents tab",
+      "note": "Documents inside a request are read-only."
+    },
+    "monitorRecovery": {
+      "feature": "Check monitor now, scheduled retry, recovery actions, stalled review decision",
+      "where": "Request page",
+      "note": "The system recovers by itself in the standard way, so no button is needed."
+    },
+    "deleteIssue": {
+      "feature": "Deleting requests and labels",
+      "where": "—",
+      "note": "To drop a request use the Cancel request button. A cancelled request can be reopened."
+    },
+    "plainAgent": {
+      "feature": "Plain agent creation (free choice of adapter, command, arguments, environment)",
+      "where": "Paperclip /agents/new",
+      "note": "Replaced by the 6-step \"Create agent\" wizard. It sets up the configuration, workspace and role instructions, so a new agent always runs correctly."
+    },
+    "runNow": {
+      "feature": "Run now, run with provider trace",
+      "where": "Top of the agent page",
+      "note": "Crew agents only run when a request is assigned to them."
+    },
+    "assignFromAgent": {
+      "feature": "Assigning work from the agent page",
+      "where": "Top of the agent page",
+      "note": "Every request must go through the project Assistant. Use \"New request\"."
+    },
+    "editRuntime": {
+      "feature": "Free editing of command, extra arguments, environment variables, adapter type; viewing and rolling back configuration revisions",
+      "where": "Runtime tab",
+      "note": "Editing these could remove the pinned Superpowers version or the Crew wrapper. The Runtime tab only lets you change the default model."
+    },
+    "editInstructions": {
+      "feature": "Editing AGENTS.md by hand, adding or deleting instruction files, changing bundle mode",
+      "where": "Agent Instructions tab",
+      "note": "Manual edits are overwritten when instructions are re-rendered from the role. The Instructions tab only lets you read and press \"Re-render from role\"."
+    },
+    "agentSecrets": {
+      "feature": "Agent secrets and variables",
+      "where": "Agent tab",
+      "note": "Passwords and keys stay on the Mac, not on the server."
+    },
+    "agentTools": {
+      "feature": "Tools (connector installs)",
+      "where": "Agent tab",
+      "note": "Crew does not use it."
+    },
+    "agentPermissions": {
+      "feature": "Agent permissions (create agents, create skills, assign tasks)",
+      "where": "Permissions tab",
+      "note": "Permissions are fixed when an agent is created: no agent may create another agent, and only the Assistant may assign work. Letting an agent create agents would bypass the wizard and its checks, so there is no such button."
+    },
+    "agentApiKeys": {
+      "feature": "Agent API keys",
+      "where": "Agent tab",
+      "note": "Agents use a temporary token for each run. The Mac app signs in through the \"Allow\" step on the cli-auth page."
+    },
+    "duplicateReset": {
+      "feature": "Duplicate agent, reset sessions, clear error",
+      "where": "Agent menu",
+      "note": "A copy has no work folder or role. Resetting a session erases the memory that tasks in the same bundle rely on."
+    },
+    "terminateAgent": {
+      "feature": "Terminate or delete an agent",
+      "where": "Agent menu",
+      "note": "If an agent that holds a role is terminated, the project can no longer run. A separate \"remove\" flow (edit roles, archive the environment) is needed and does not exist yet. To stop work, use Pause."
+    },
+    "approvals": {
+      "feature": "Approve hires, Approvals page (hiring, budget)",
+      "where": "/approvals",
+      "note": "Crew does not require approval to create agents. You approve results inside the request."
+    },
+    "followAgent": {
+      "feature": "Follow an agent, star agents in the sidebar",
+      "where": "Sidebar",
+      "note": "Crew does not use it."
+    },
+    "builtInAgents": {
+      "feature": "Paperclip built-in agents",
+      "where": "—",
+      "note": "This feature is switched off."
+    },
+    "plainProject": {
+      "feature": "Plain project creation",
+      "where": "Add Project dialog",
+      "note": "Replaced by the 7-step \"Add project\" wizard, which sets up the machine, folders, agents and roles."
+    },
+    "repositories": {
+      "feature": "Adding GitHub repos, setting a local folder, project environment variables",
+      "where": "Project Configuration tab",
+      "note": "The repo lives on the Mac. Agents run in their own folder."
+    },
+    "archiveProject": {
+      "feature": "Archiving or deleting a project",
+      "where": "Configuration tab",
+      "note": "Agents must be paused, environments archived and roles removed in the right order. This flow does not exist on the web yet."
+    },
+    "budgetTab": {
+      "feature": "Project Budget tab",
+      "where": "Project page",
+      "note": "Crew does not track cost per project."
+    },
+    "workspacesTab": {
+      "feature": "Workspaces tab, starting and stopping runtime services",
+      "where": "Project page",
+      "note": "Crew does not use it."
+    },
+    "createOrganization": {
+      "feature": "Creating a new organization, using a company outside the Crew configuration",
+      "where": "Company menu",
+      "note": "A company missing from the Crew configuration has no checks. That is why the company list only shows Crew companies."
+    },
+    "members": {
+      "feature": "Members, invites, join requests, instance access, claiming the board",
+      "where": "Paperclip Settings",
+      "note": "There is only one user for now. Adding users will come in a later release; ask the administrator if you need it."
+    },
+    "secrets": {
+      "feature": "Managing Secrets",
+      "where": "Paperclip Settings",
+      "note": "SSH keys and webhook keys are created by the wizards and the Mac app, never edited by hand."
+    },
+    "environments": {
+      "feature": "Managing Environments",
+      "where": "Paperclip Settings",
+      "note": "Environments are created by the Add project and Create agent wizards."
+    },
+    "instancePlugins": {
+      "feature": "Experimental, Adapters, Plugins (install, remove, enable, disable, configure)",
+      "where": "Paperclip Settings",
+      "note": "This is server administration, done by the operator with separate tools."
+    },
+    "exportImport": {
+      "feature": "Export and import company data",
+      "where": "Paperclip Settings",
+      "note": "Backup and restore are done by the operator on the server."
+    },
+    "instanceGeneral": {
+      "feature": "Instance settings (hide usernames, backup retention, AI feedback)",
+      "where": "Paperclip Settings",
+      "note": "Managed by the operator. The Crew Settings page only shows read-only information."
+    },
+    "skillStudio": {
+      "feature": "Skill Studio (write, test, fork, version skills), catalog, beta skills",
+      "where": "/skills/studio",
+      "note": "This release only lists skills, adds skills from a GitHub repo, enables them for agents and shows sync status."
+    },
+    "signUp": {
+      "feature": "Account sign-up",
+      "where": "Sign-in page",
+      "note": "Open sign-up is switched off so strangers cannot get in. The administrator issues accounts."
+    }
+  }
+}

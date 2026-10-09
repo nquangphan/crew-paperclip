@@ -119,6 +119,9 @@ export interface SkillSyncState {
   status: MachineJobStatus;
   sha256: string | null;
   finishedAt: string | null;
+  jobId: string | null;
+  errorCode: string | null;
+  errorText: string | null;
 }
 
 // Kiểu data R1 (roots, map, docsCheck, machines, docs.*): import thẳng từ export `shared/*` của plugin, không chép lại.

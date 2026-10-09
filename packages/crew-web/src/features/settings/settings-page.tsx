@@ -1,8 +1,7 @@
 // Trang Cài đặt (S18): hồ sơ, ngôn ngữ giao diện, thông tin hệ thống (chỉ đọc).
-import { Button, PageHeader } from '@/ds';
+import { Button, PageHeader, Section } from '@/ds';
 import { type Lang, setLanguage, useT } from '@/i18n';
 import { ProfileForm } from './profile-form';
-import { Section } from './section';
 import { SystemInfo } from './system-info';
 
 const LANGS: readonly Lang[] = ['vi', 'en'];

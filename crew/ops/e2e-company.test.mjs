@@ -50,7 +50,8 @@ else if ((m = /^\\/companies\\/([^/]+)\\/(secrets|labels|agents)$/.exec(p))) {
 else if (method === "GET" && (m = /^\\/agents\\/([^/]+)$/.exec(p))) {
   const a = Object.values(s.agents).flat().find((x) => x.id === m[1]); out(a || { error: "nf" });
 } else if (method === "POST" && (m = /^\\/secrets\\/([^/]+)\\/rotate$/.exec(p))) {
-  const sec = Object.values(s.secrets).flat().find((x) => x.id === m[1]); sec.value = body.value; out({ id: sec.id });
+  if (s.failRotate) out({ error: "boom" });
+  else { const sec = Object.values(s.secrets).flat().find((x) => x.id === m[1]); sec.value = body.value; out({ id: sec.id }); }
 } else if (p === "/plugins/crew.core/config") {
   if (method === "GET") out(s.pluginConfig[query.get("companyId")] || null);
   else { const row = { id: randomUUID(), companyId: body.companyId, configJson: body.configJson }; s.pluginConfig[body.companyId] = row; out(row); }
@@ -282,6 +283,37 @@ test("mất file secret webhook thì rotate secret trên server sang giá trị 
     const value = readFileSync(path.join(root, "crew-e2e", "status-webhook-secret"), "utf8").trim();
     assert.equal(JSON.parse(creates[0].stdin).value.trim(), value);
     assert.ok(!r.stdout.includes(value));
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("rotate secret webhook lỗi thì file giá trị không bị thay, lần chạy sau vẫn rotate lại", () => {
+  const root = setup();
+  try {
+    assert.equal(run(root).status, 0);
+    const file = path.join(root, "crew-e2e", "status-webhook-secret");
+    const old = readFileSync(file, "utf8");
+    const withFail = (flag) => { const s = state(root); s.failRotate = flag; writeFileSync(path.join(root, "state.json"), JSON.stringify(s)); };
+    // Giá trị cũ bị mất file thì lần chạy sau sinh giá trị mới; rotate lỗi không được để lại file mới.
+    rmSync(file);
+    withFail(true);
+    const bad = run(root);
+    assert.notEqual(bad.status, 0);
+    assert.match(bad.stderr, /rotate status secret failed/);
+    assert.ok(!existsSync(file), "file chính không được tạo khi rotate lỗi");
+    withFail(false);
+    const first = calls(root).length;
+    const ok = run(root);
+    assert.equal(ok.status, 0, ok.stderr);
+    const rot = calls(root).slice(first).filter(isCreate);
+    assert.equal(rot.length, 1);
+    assert.match(rot[0].argv[1], /^\/secrets\/[0-9a-f-]+\/rotate$/);
+    const value = readFileSync(file, "utf8").trim();
+    assert.notEqual(value, old.trim());
+    assert.equal(JSON.parse(rot[0].stdin).value.trim(), value);
+    assert.ok(!existsSync(file + ".tmp"));
+    assert.equal(statSync(file).mode & 0o777, 0o600);
   } finally {
     rmSync(root, { recursive: true, force: true });
   }

@@ -3,30 +3,15 @@
 
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import type { ReactNode } from 'react';
-import type { CrewMachine, MachineJob, SkillSyncState } from '@/api';
+import type { CrewMachine, SkillSyncState } from '@/api';
 import { api, queryKeys } from '@/api';
 import { useCompany } from '@/app/hooks';
 import { Alert, Button, EmptyState, MutedText, Spinner } from '@/ds';
 import { RefreshCw } from '@/ds/icons';
-import { useMachineJobs } from '@/features/machines/use-machines';
 import { formatDateTime, useT } from '@/i18n';
 import { hasJobsAgent, queueSkillSync, type SyncSkill, useSkillSyncStates } from './use-skill-sync';
 
 const HASH_LENGTH = 12;
-
-/** Việc skill-sync lỗi mới nhất của cặp skill/máy. */
-function latestFailedJob(jobs: readonly MachineJob[], skillId: string, machineId: string): MachineJob | undefined {
-  return jobs
-    .filter(
-      (j) =>
-        j.kind === 'skill-sync' &&
-        j.status === 'failed' &&
-        j.machineId === machineId &&
-        j.payload.kind === 'skill-sync' &&
-        j.payload.skillId === skillId,
-    )
-    .sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt))[0];
-}
 
 interface SyncStatusProps {
   skill: SyncSkill;
@@ -38,13 +23,12 @@ export function SyncStatus({ skill, machines }: SyncStatusProps) {
   const { company } = useCompany();
   const queryClient = useQueryClient();
   const states = useSkillSyncStates(company.id);
-  const jobs = useMachineJobs(company.id);
   const refresh = () => {
     void queryClient.invalidateQueries({ queryKey: queryKeys.crew() });
     void queryClient.invalidateQueries({ queryKey: queryKeys.machineJobs(company.id) });
   };
   const retry = useMutation({
-    mutationFn: (job: MachineJob) => api.jobs.retry(company.id, job.id),
+    mutationFn: (jobId: string) => api.jobs.retry(company.id, jobId),
     onSettled: refresh,
   });
   const sync = useMutation({
@@ -52,7 +36,7 @@ export function SyncStatus({ skill, machines }: SyncStatusProps) {
     onSettled: refresh,
   });
 
-  if (states.isLoading || jobs.isLoading) return <Spinner label={t('sync.loading')} />;
+  if (states.isLoading) return <Spinner label={t('sync.loading')} />;
   if (machines.length === 0) return <EmptyState title={t('sync.noMachines')} />;
   const stateOf = (machineId: string): SkillSyncState | undefined =>
     states.data?.find((s) => s.skillId === skill.id && s.machineId === machineId);
@@ -69,8 +53,6 @@ export function SyncStatus({ skill, machines }: SyncStatusProps) {
           const host = machine.hostname;
           const state = stateOf(machine.machineId);
           const held = state?.sha256 ? t('sync.held', { hash: state.sha256.slice(0, HASH_LENGTH) }) : null;
-          const failed =
-            state?.status === 'failed' ? latestFailedJob(jobs.data ?? [], skill.id, machine.machineId) : undefined;
           const canQueue = hasJobsAgent(machine);
           const syncButton = (label: string) =>
             canQueue ? (
@@ -99,9 +81,10 @@ export function SyncStatus({ skill, machines }: SyncStatusProps) {
           } else if (state.status === 'claimed') {
             line = t('sync.claimed', { host });
           } else if (state.status === 'failed') {
-            line = t('sync.failed', { host, error: failed?.errorText ?? t('sync.unknownError') });
-            action = failed ? (
-              <Button variant="outline" size="sm" disabled={retry.isPending} onClick={() => retry.mutate(failed)}>
+            line = t('sync.failed', { host, error: state.errorText ?? t('sync.unknownError') });
+            const failedJobId = state.jobId;
+            action = failedJobId ? (
+              <Button variant="outline" size="sm" disabled={retry.isPending} onClick={() => retry.mutate(failedJobId)}>
                 <RefreshCw aria-hidden />
                 {t('common:action.retry')}
               </Button>

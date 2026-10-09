@@ -61,6 +61,8 @@ export function CommandPalette({
     navigate(companyPath(company.issuePrefix, to));
   };
 
+  const goSearch = () => go(`search?q=${encodeURIComponent(q).replace(/%20/g, '+')}`);
+
   const pages = NAV_ITEMS.filter((i) => i.id !== 'newIssue' && segments.has(i.segment));
   const issueRef = ref ? `${ref[1].toUpperCase()}-${ref[2]}` : null;
 
@@ -74,6 +76,13 @@ export function CommandPalette({
       <CommandInput value={text} onValueChange={setText} placeholder={t('palette.placeholder')} />
       <CommandList>
         <CommandEmpty>{found.isFetching ? t('palette.searching') : t('palette.empty')}</CommandEmpty>
+        {q && !issueRef && segments.has('search') ? (
+          <CommandGroup heading={t('palette.search')}>
+            <CommandItem value={`search ${q}`} keywords={[q]} onSelect={goSearch}>
+              {t('palette.openSearch', { q })}
+            </CommandItem>
+          </CommandGroup>
+        ) : null}
         {issueRef && segments.has('issues') ? (
           <CommandGroup heading={t('palette.issues')}>
             <CommandItem value={`ref ${issueRef}`} keywords={[q]} onSelect={() => go(`issues/${issueRef}`)}>

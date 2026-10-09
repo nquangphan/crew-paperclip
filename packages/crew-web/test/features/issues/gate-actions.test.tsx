@@ -51,6 +51,7 @@ describe('ActionsSlot (S6.7, S6.8, S6.10, S6.11)', () => {
   it('Duyệt gửi PATCH {status:"done", comment} và không gửi policy/assignee', async () => {
     const s = mockServer({
       'GET /api/issues/TPS-2': { body: ISSUE },
+      'GET /api/issues/i1': { body: ISSUE },
       'PATCH /api/issues/i1': { body: { ...ISSUE, status: 'in_review' } },
     });
     mountHarness();
@@ -66,6 +67,7 @@ describe('ActionsSlot (S6.7, S6.8, S6.10, S6.11)', () => {
   it('Yêu cầu sửa tắt nút gửi khi lý do dưới 5 ký tự, gửi {status:"in_progress", comment}', async () => {
     const s = mockServer({
       'GET /api/issues/TPS-2': { body: ISSUE },
+      'GET /api/issues/i1': { body: ISSUE },
       'PATCH /api/issues/i1': { body: { ...ISSUE, status: 'in_progress' } },
     });
     mountHarness();
@@ -120,6 +122,7 @@ describe('ActionsSlot (S6.7, S6.8, S6.10, S6.11)', () => {
   it('server từ chối Duyệt (409) thì lỗi hiện trong hộp, giữ lời nhắn, không thử lại', async () => {
     const s = mockServer({
       'GET /api/issues/TPS-2': { body: ISSUE },
+      'GET /api/issues/i1': { body: ISSUE },
       'PATCH /api/issues/i1': {
         status: 422,
         body: { error: 'Only the active reviewer or approver can advance the current execution stage' },
@@ -170,6 +173,69 @@ describe('ActionsSlot (S6.7, S6.8, S6.10, S6.11)', () => {
     await act(() => qc.invalidateQueries({ queryKey: queryKeys.issue('TPS-2') }));
     await waitFor(() => expect(screen.queryByRole('button', { name: 'Duyệt' })).toBeNull());
     expect(screen.getByRole('button', { name: 'Hủy yêu cầu' })).toBeTruthy();
+  });
+
+  /** Stage đã sang review của agent (người khác duyệt ở tab khác, hoặc workflow đi tiếp). */
+  const MOVED_ON = {
+    ...ISSUE,
+    assigneeAgentId: 'a3',
+    executionState: {
+      ...ISSUE.executionState,
+      currentStageId: 's3',
+      currentStageType: 'review',
+      currentParticipant: { type: 'agent', agentId: 'a3' },
+    },
+  };
+  const STALE = 'Trạng thái yêu cầu đã đổi, bạn không còn là người duyệt stage này. Trang đã tải lại.';
+
+  it('stage đổi trong lúc hộp Duyệt mở thì không gửi PATCH, báo trạng thái đã đổi và làm mới', async () => {
+    const s = mockServer({
+      'GET /api/issues/TPS-2': { body: ISSUE },
+      'GET /api/issues/i1': { body: MOVED_ON },
+      'PATCH /api/issues/i1': { body: { ...ISSUE, status: 'done' } },
+    });
+    const qc = mountHarness();
+    fireEvent.click(await screen.findByRole('button', { name: 'Duyệt' }));
+    const dialog = await screen.findByRole('dialog');
+    const seen: string[] = [];
+    qc.getQueryCache().subscribe((e) => {
+      if (e.type === 'updated' && e.action.type === 'invalidate') seen.push(JSON.stringify(e.query.queryKey));
+    });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Duyệt' }));
+    expect(await screen.findByText(STALE)).toBeTruthy();
+    expect(patches(s)).toHaveLength(0);
+    await waitFor(() => expect(seen).toContain(JSON.stringify(queryKeys.issue('TPS-2'))));
+  });
+
+  it('stage đổi trong lúc hộp Yêu cầu sửa mở thì không gửi PATCH', async () => {
+    const s = mockServer({
+      'GET /api/issues/TPS-2': { body: ISSUE },
+      'GET /api/issues/i1': { body: { ...ISSUE, status: 'done', executionState: null } },
+      'PATCH /api/issues/i1': { body: { ...ISSUE, status: 'in_progress' } },
+    });
+    mountHarness();
+    fireEvent.click(await screen.findByRole('button', { name: 'Yêu cầu sửa' }));
+    const dialog = await screen.findByRole('dialog');
+    fireEvent.change(within(dialog).getByRole('textbox'), { target: { value: 'Thiếu test cho ca lỗi' } });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Gửi yêu cầu sửa' }));
+    expect(await screen.findByText(STALE)).toBeTruthy();
+    expect(patches(s)).toHaveLength(0);
+  });
+
+  it('nút Duyệt biến mất khi hộp đang mở thì bấm gửi vẫn có phản hồi, không treo', async () => {
+    let current: unknown = ISSUE;
+    const s = mockServer({
+      'GET /api/issues/TPS-2': () => ({ body: current }),
+      'GET /api/issues/i1': () => ({ body: current }),
+    });
+    const qc = mountHarness();
+    fireEvent.click(await screen.findByRole('button', { name: 'Duyệt' }));
+    const dialog = await screen.findByRole('dialog');
+    current = MOVED_ON;
+    await act(() => qc.invalidateQueries({ queryKey: queryKeys.issue('TPS-2') }));
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Duyệt' }));
+    expect(await screen.findByText(STALE)).toBeTruthy();
+    expect(patches(s)).toHaveLength(0);
   });
 
   it('thành công thì làm mới issue (theo mã và uuid), danh sách và bình luận', async () => {

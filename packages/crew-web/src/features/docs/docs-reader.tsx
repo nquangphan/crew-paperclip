@@ -2,8 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import type { DocsPage } from '@/api';
-import { Alert, Button, MarkdownView, MutedText } from '@/ds';
-import { Section } from '@/features/settings/section';
+import { Alert, Button, MarkdownView, MutedText, Section } from '@/ds';
 import { useT } from '@/i18n';
 
 type PageLink = DocsPage['links'][number];

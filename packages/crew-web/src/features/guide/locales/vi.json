@@ -1,0 +1,323 @@
+{
+  "description": "Cách dùng 2P Crew hằng ngày, từng màn hình, và lý do một số nút của Paperclip gốc không có.",
+  "toc": "Mục lục",
+  "sectionLabel": "Mục {{n}}",
+  "shot": {
+    "pending": "Ảnh minh họa sẽ được chụp sau khi hệ thống chạy thật.",
+    "screen": "Màn hình: {{route}}"
+  },
+  "missingTable": {
+    "feature": "Tính năng",
+    "where": "Ở đâu trong Paperclip",
+    "reason": "Lý do",
+    "note": "Ghi chú",
+    "count": "{{count}} mục"
+  },
+  "groups": {
+    "nav": "Điều hướng và tổng quan",
+    "issue": "Yêu cầu",
+    "agent": "Agent",
+    "project": "Project",
+    "company": "Company và cài đặt"
+  },
+  "reasons": {
+    "KD": {
+      "label": "Crew không dùng",
+      "meaning": "Tính năng này không cần cho cách làm việc của Crew."
+    },
+    "HK": {
+      "label": "Bị luật chặn",
+      "meaning": "Dùng được sẽ làm hỏng luồng duyệt mà các luật tự động của Crew bảo vệ."
+    },
+    "CL": {
+      "label": "Chưa có luồng",
+      "meaning": "Cần một luồng làm đủ các bước nhưng hiện chưa có."
+    },
+    "RS": {
+      "label": "Để bản sau",
+      "meaning": "Sẽ làm ở bản sau."
+    }
+  },
+  "shots": {
+    "login": "Trang đăng nhập",
+    "dashboard": "Trang Tổng quan",
+    "new-issue": "Hộp thoại Yêu cầu mới",
+    "issue-detail": "Trang một yêu cầu: tóm tắt Crew, bản đồ việc con và các nút Duyệt, Yêu cầu sửa, Hủy yêu cầu",
+    "inbox": "Hộp thư, tab Chờ tôi duyệt",
+    "projects": "Danh sách Project và trạng thái sẵn sàng",
+    "add-project": "Wizard Thêm project",
+    "agents": "Danh sách Agent",
+    "add-agent": "Wizard Tạo agent",
+    "skills": "Trang Skills",
+    "machines": "Trang Máy",
+    "docs": "Trang Docs",
+    "settings": "Trang Cài đặt"
+  },
+  "missing": {
+    "routines": {
+      "feature": "Routines (lịch chạy định kỳ, trigger, webhook công khai)",
+      "where": "Mục /routines của Paperclip",
+      "note": "Crew chỉ chạy khi có yêu cầu, không chạy theo lịch. Việc do routine tạo ra sẽ không đi đúng luồng duyệt của Crew."
+    },
+    "artifacts": {
+      "feature": "Artifacts",
+      "where": "Mục /artifacts",
+      "note": "Kết quả làm việc được đọc qua bình luận, commit và tài liệu của project nên không cần mục riêng."
+    },
+    "connectors": {
+      "feature": "Connectors, Apps, gateway, kết nối AI, hồ sơ quản lý",
+      "where": "Mục /apps",
+      "note": "Khóa và đăng nhập của AI chỉ nằm trên máy Mac. Agent Crew không dùng công cụ qua cổng của máy chủ."
+    },
+    "auditCosts": {
+      "feature": "Nhật ký hoạt động, Chi phí, Ngân sách",
+      "where": "Mục /activity",
+      "note": "Chi phí nằm trong gói Claude trên Mac và Paperclip ghi 0 đồng. Muốn xem agent đã làm gì thì mở trang Agent hoặc trang yêu cầu."
+    },
+    "orgChart": {
+      "feature": "Sơ đồ tổ chức, \"báo cáo cho\", chuỗi chỉ huy",
+      "where": "Mục /org",
+      "note": "Crew tổ chức theo vai trò trong từng project (Trợ Lý, Executor, Reviewer, Integrator), không theo cây báo cáo."
+    },
+    "goals": {
+      "feature": "Mục tiêu (Goals)",
+      "where": "Mục /goals",
+      "note": "Crew không dùng."
+    },
+    "timeline": {
+      "feature": "Timeline và Dashboard trực tiếp riêng",
+      "where": "Mục /timeline và /dashboard/live",
+      "note": "Run đang chạy đã hiện ở trang Tổng quan và trong từng yêu cầu."
+    },
+    "chats": {
+      "feature": "Chat với agent, chat nhóm, phòng họp",
+      "where": "Mục /chats và /board-chat",
+      "note": "Agent Crew chỉ làm việc qua yêu cầu. Muốn hỏi hay dặn thêm thì viết bình luận trong yêu cầu."
+    },
+    "decisionsCards": {
+      "feature": "Decisions, Status cards, Summaries, Cases, Pipelines, Review queue, Learnings",
+      "where": "Nhiều mục thử nghiệm",
+      "note": "Các tính năng thử nghiệm đang tắt. Bạn duyệt kết quả ngay trong yêu cầu, ở bước \"Owner duyệt\"."
+    },
+    "workspaces": {
+      "feature": "Workspaces (không gian làm việc của project và của lần chạy)",
+      "where": "Mục /workspaces và /execution-workspaces",
+      "note": "Crew dùng máy chạy riêng cho từng agent, mỗi agent một thư mục repo trên Mac. Bạn xem ở trang Máy."
+    },
+    "onboarding": {
+      "feature": "Hướng dẫn làm quen khi mới vào và thông báo Connectors",
+      "where": "Mục /onboarding và cửa sổ thông báo",
+      "note": "Company đã được dựng sẵn nên không cần. Thay vào đó đã có trang Hướng dẫn này."
+    },
+    "designLabs": {
+      "feature": "Design guide, UX lab, perf lab, smoke lab",
+      "where": "Mục /design-guide và /ux-lab",
+      "note": "Trang nội bộ của đội làm Paperclip, không dành cho người dùng."
+    },
+    "publicProfile": {
+      "feature": "Trang hồ sơ người dùng công khai",
+      "where": "Mục /u/<tên>",
+      "note": "Chỉ có một người dùng. Tên và ảnh sửa ở trang Cài đặt."
+    },
+    "freeAssignee": {
+      "feature": "Chọn người làm tùy ý khi tạo hoặc đổi người làm",
+      "where": "Hộp thoại tạo yêu cầu, bảng thuộc tính",
+      "note": "Giao thẳng cho Reviewer hay Integrator sẽ làm sai vai trò. Yêu cầu luôn đi qua Trợ Lý của project, nên hộp thoại hiện cố định tên Trợ Lý."
+    },
+    "pickReviewers": {
+      "feature": "Chọn Reviewer, Approver, Monitor, Watchdog",
+      "where": "Hộp thoại tạo yêu cầu, bảng thuộc tính",
+      "note": "Crew tự gắn luật duyệt theo vai trò của project. Tự chọn người duyệt sẽ làm lệch các bước kiểm của Crew."
+    },
+    "freeStatus": {
+      "feature": "Đổi trạng thái tự do, kéo thả bảng Kanban",
+      "where": "Danh sách yêu cầu, bảng thuộc tính",
+      "note": "Đặt thẳng \"Hoàn thành\" sẽ bỏ qua bước review, kiểm tài liệu và đẩy code. Thay vào đó dùng các nút Duyệt, Yêu cầu sửa và Hủy yêu cầu."
+    },
+    "editRelations": {
+      "feature": "Đổi project, nhãn, yêu cầu cha, \"bị chặn bởi\" sau khi tạo",
+      "where": "Bảng thuộc tính của yêu cầu",
+      "note": "Luật duyệt được chốt lúc tạo. Đổi project không đổi vai trò, còn nhãn thêm sau không có tác dụng. Quan hệ giữa các việc do Trợ Lý quản lý."
+    },
+    "planMode": {
+      "feature": "Chế độ Auto, Plan, Ask",
+      "where": "Hộp thoại tạo yêu cầu",
+      "note": "Trợ Lý đã tự brainstorm và lập kế hoạch theo bộ quy trình Superpowers."
+    },
+    "commentModel": {
+      "feature": "Chọn model và mức nỗ lực ngay trong ô soạn bình luận",
+      "where": "Ô soạn bình luận",
+      "note": "Model được chọn theo độ khó của từng việc. Bạn chỉ đổi được model mặc định của agent, ở tab Cấu hình chạy."
+    },
+    "addSubIssue": {
+      "feature": "Tự thêm yêu cầu con từ giao diện",
+      "where": "Phần sửa yêu cầu con",
+      "note": "Trợ Lý tách việc, gắn gói (bundle) và việc phải xong trước. Việc con tạo tay sẽ không có gói. Muốn thêm việc thì nhắn Trợ Lý trong bình luận."
+    },
+    "queuedComment": {
+      "feature": "Bình luận xếp hàng: sửa, đổi thứ tự, steer, interrupt",
+      "where": "Khung bình luận",
+      "note": "Crew không dùng."
+    },
+    "feedbackVote": {
+      "feature": "Bình chọn \"Hữu ích / Cần cải thiện\" và chia sẻ dữ liệu phản hồi",
+      "where": "Cuối câu trả lời của agent",
+      "note": "Chia sẻ dữ liệu phản hồi đang tắt nên không ai đọc các bình chọn này."
+    },
+    "issueDocsLock": {
+      "feature": "Khóa, mở, xóa, khôi phục tài liệu của yêu cầu; work products",
+      "where": "Tab tài liệu của yêu cầu",
+      "note": "Tài liệu trong yêu cầu chỉ để đọc."
+    },
+    "monitorRecovery": {
+      "feature": "Kiểm tra giám sát ngay, thử lại theo lịch, khôi phục, quyết định review bị kẹt",
+      "where": "Trang yêu cầu",
+      "note": "Hệ thống tự khôi phục theo cách gốc, không cần nút bấm."
+    },
+    "deleteIssue": {
+      "feature": "Xóa yêu cầu, xóa nhãn",
+      "where": "—",
+      "note": "Muốn bỏ một yêu cầu thì dùng nút Hủy yêu cầu. Yêu cầu đã hủy vẫn mở lại được."
+    },
+    "plainAgent": {
+      "feature": "Tạo agent trơn (tự chọn adapter, lệnh chạy, tham số, environment)",
+      "where": "Trang /agents/new của Paperclip",
+      "note": "Thay bằng wizard \"Tạo agent\" gồm 6 bước. Wizard dựng đủ cấu hình, chỗ làm việc và hướng dẫn theo vai trò, nên agent tạo ra luôn chạy đúng."
+    },
+    "runNow": {
+      "feature": "Chạy ngay, chạy kèm dấu vết nhà cung cấp",
+      "where": "Phần đầu trang agent",
+      "note": "Agent Crew chỉ chạy khi có yêu cầu giao cho nó."
+    },
+    "assignFromAgent": {
+      "feature": "Giao việc từ trang agent",
+      "where": "Phần đầu trang agent",
+      "note": "Mọi yêu cầu phải đi qua Trợ Lý của project. Hãy bấm \"Yêu cầu mới\"."
+    },
+    "editRuntime": {
+      "feature": "Sửa tự do lệnh chạy, tham số thêm, biến môi trường, loại adapter; xem và quay về bản cấu hình cũ",
+      "where": "Tab Cấu hình chạy",
+      "note": "Sửa các mục này có thể xóa mất bản ghim Superpowers hoặc lớp bao ngoài của Crew. Tab Cấu hình chạy chỉ cho đổi model mặc định."
+    },
+    "editInstructions": {
+      "feature": "Sửa AGENTS.md bằng tay, thêm hoặc xóa file hướng dẫn, đổi chế độ bundle",
+      "where": "Tab Hướng dẫn của agent",
+      "note": "Bản sửa tay sẽ bị ghi đè khi render lại theo vai trò. Tab Hướng dẫn chỉ cho xem và bấm \"Render lại theo vai trò\"."
+    },
+    "agentSecrets": {
+      "feature": "Secrets và biến của agent",
+      "where": "Tab của agent",
+      "note": "Mật khẩu và khóa nằm trên máy Mac, không lưu trên máy chủ."
+    },
+    "agentTools": {
+      "feature": "Tools (cài kết nối công cụ)",
+      "where": "Tab của agent",
+      "note": "Crew không dùng."
+    },
+    "agentPermissions": {
+      "feature": "Quyền của agent (tạo agent, tạo skill, giao việc)",
+      "where": "Tab Permissions",
+      "note": "Quyền được đặt cố định khi tạo agent: không agent nào được tạo agent khác, và chỉ Trợ Lý được giao việc. Cho agent quyền tạo agent là đi vòng qua wizard và các bước kiểm của nó, nên không có nút này."
+    },
+    "agentApiKeys": {
+      "feature": "Khóa API của agent",
+      "where": "Tab của agent",
+      "note": "Agent dùng mã tạm của mỗi lần chạy. Ứng dụng trên Mac đăng nhập bằng cách \"Cho phép\" ở trang cli-auth."
+    },
+    "duplicateReset": {
+      "feature": "Nhân bản agent, đặt lại phiên làm việc, xóa lỗi",
+      "where": "Menu của agent",
+      "note": "Bản sao không có thư mục làm việc và vai trò. Đặt lại phiên làm mất trí nhớ mà các việc cùng gói đang dùng."
+    },
+    "terminateAgent": {
+      "feature": "Dừng hẳn hoặc xóa agent",
+      "where": "Menu của agent",
+      "note": "Agent đang giữ vai trò mà bị dừng hẳn thì project sẽ không chạy được. Cần có luồng \"gỡ\" riêng gồm sửa vai trò và lưu trữ environment, hiện chưa có. Muốn ngừng việc thì dùng Tạm dừng."
+    },
+    "approvals": {
+      "feature": "Duyệt tuyển agent, trang Approvals (tuyển agent, ngân sách)",
+      "where": "Mục /approvals",
+      "note": "Crew không bắt duyệt khi tạo agent. Bạn duyệt kết quả ngay trong yêu cầu."
+    },
+    "followAgent": {
+      "feature": "Theo dõi agent, gắn sao agent ở thanh bên",
+      "where": "Thanh bên",
+      "note": "Crew không dùng."
+    },
+    "builtInAgents": {
+      "feature": "Agent dựng sẵn của Paperclip",
+      "where": "—",
+      "note": "Tính năng này đang tắt."
+    },
+    "plainProject": {
+      "feature": "Tạo project trơn",
+      "where": "Hộp thoại Add Project",
+      "note": "Thay bằng wizard \"Thêm project\" gồm 7 bước, dựng đủ máy, thư mục, agent và vai trò."
+    },
+    "repositories": {
+      "feature": "Thêm repo GitHub, đặt thư mục cục bộ, biến môi trường của project",
+      "where": "Tab Configuration của project",
+      "note": "Repo nằm trên máy Mac. Agent chạy trong thư mục riêng của chính nó."
+    },
+    "archiveProject": {
+      "feature": "Lưu trữ hoặc xóa project",
+      "where": "Tab Configuration",
+      "note": "Phải tạm dừng agent, lưu trữ environment và xóa vai trò theo đúng thứ tự. Luồng này chưa có trên web."
+    },
+    "budgetTab": {
+      "feature": "Tab Ngân sách của project",
+      "where": "Trang project",
+      "note": "Crew không tính chi phí theo project."
+    },
+    "workspacesTab": {
+      "feature": "Tab Workspaces, bật tắt dịch vụ chạy kèm",
+      "where": "Trang project",
+      "note": "Crew không dùng."
+    },
+    "createOrganization": {
+      "feature": "Tạo tổ chức mới, dùng company ngoài cấu hình Crew",
+      "where": "Menu chọn company",
+      "note": "Company không có trong cấu hình Crew sẽ không có các cổng kiểm. Vì vậy danh sách company chỉ gồm company Crew."
+    },
+    "members": {
+      "feature": "Thành viên, lời mời, yêu cầu tham gia, quyền truy cập, nhận quyền board",
+      "where": "Cài đặt của Paperclip",
+      "note": "Hiện chỉ có một người dùng. Thêm người dùng sẽ làm ở bản sau, nhờ người quản trị nếu cần."
+    },
+    "secrets": {
+      "feature": "Quản lý Secrets",
+      "where": "Cài đặt của Paperclip",
+      "note": "Khóa SSH và khóa webhook do wizard và app Mac tạo, không sửa tay."
+    },
+    "environments": {
+      "feature": "Quản lý Environments",
+      "where": "Cài đặt của Paperclip",
+      "note": "Environment do wizard Thêm project và Tạo agent tạo ra."
+    },
+    "instancePlugins": {
+      "feature": "Thử nghiệm, Adapters, Plugins (cài, gỡ, bật, tắt, cấu hình)",
+      "where": "Cài đặt của Paperclip",
+      "note": "Đây là quản trị máy chủ, do người vận hành làm bằng công cụ riêng."
+    },
+    "exportImport": {
+      "feature": "Xuất và nhập dữ liệu company",
+      "where": "Cài đặt của Paperclip",
+      "note": "Sao lưu và khôi phục do người vận hành làm trên máy chủ."
+    },
+    "instanceGeneral": {
+      "feature": "Cài đặt chung của máy chủ (ẩn tên người dùng, thời gian giữ bản sao lưu, phản hồi AI)",
+      "where": "Cài đặt của Paperclip",
+      "note": "Do người vận hành quản lý. Trang Cài đặt của Crew chỉ hiện thông tin để xem."
+    },
+    "skillStudio": {
+      "feature": "Skill Studio (viết, thử, tách nhánh, đánh phiên bản skill), danh mục, skill thử nghiệm",
+      "where": "Mục /skills/studio",
+      "note": "Bản này chỉ có: xem danh sách, thêm skill từ repo GitHub, bật cho agent và xem trạng thái đồng bộ."
+    },
+    "signUp": {
+      "feature": "Đăng ký tài khoản",
+      "where": "Trang đăng nhập",
+      "note": "Đăng ký tự do đã tắt để người lạ không vào được. Tài khoản do người quản trị cấp."
+    }
+  }
+}

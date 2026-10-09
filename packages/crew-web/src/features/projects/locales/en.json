@@ -49,6 +49,7 @@
     "choose": "Choose an agent",
     "unknownAgent": "Agent no longer exists ({{id}})",
     "edit": "Edit roles",
+    "addExecutor": "Add executor",
     "cancel": "Cancel",
     "save": "Save roles",
     "saving": "Saving...",

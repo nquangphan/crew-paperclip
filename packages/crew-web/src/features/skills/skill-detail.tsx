@@ -15,6 +15,7 @@ import {
   MutedText,
   PageHeader,
   PropertyList,
+  Section,
   Spinner,
   Table,
   TableBody,
@@ -25,7 +26,6 @@ import {
   ToggleSwitch,
 } from '@/ds';
 import { useCrewMachines } from '@/features/machines/use-machines';
-import { Section } from '@/features/settings/section';
 import { useT } from '@/i18n';
 import { SyncStatus } from './sync-status';
 import { skillVersion } from './use-skill-sync';

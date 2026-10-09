@@ -25,9 +25,9 @@ import {
 import { ADD_PROJECT_STEPS, type AddProjectStepId, projectSlots, slotBranch, slotName } from './steps';
 import { JobFailedError, JobTimeoutError, waitJob } from './wait-job';
 
-type Dateish = string | Date;
+export type Dateish = string | Date;
 
-interface EnvironmentRow {
+export interface EnvironmentRow {
   id: string;
   name: string;
   driver: string;
@@ -37,11 +37,12 @@ interface EnvironmentRow {
   createdAt?: Dateish;
 }
 
-interface AgentRow {
+export interface AgentRow {
   id: string;
   name: string;
   status: string;
   defaultEnvironmentId?: string | null;
+  createdAt?: Dateish;
 }
 
 /** Phần của `api` (src/api) mà wizard thêm project gọi. `api` của web khớp kiểu này. */
@@ -106,7 +107,12 @@ export interface AddProjectContext {
 }
 
 /** Thời hạn chờ app trên máy làm xong việc: kiểm folder nhanh (quá thì "Chờ app"), việc git lâu hơn. */
-export const JOB_TIMEOUT_MS = { 'inspect-folder': 2 * 60_000, 'prepare-checkouts': 10 * 60_000, check: 10 * 60_000 };
+export const JOB_TIMEOUT_MS: Record<WizardJobPayload['kind'], number> = {
+  'inspect-folder': 2 * 60_000,
+  'prepare-checkouts': 10 * 60_000,
+  'agent-workspace': 10 * 60_000,
+  check: 10 * 60_000,
+};
 
 /** Bước bị khóa: người khác (tab khác) đang chạy bước này. Không ghi gì, không pause gì. */
 export class StepBusyError extends Error {
@@ -143,7 +149,7 @@ function inputOf(run: SetupRun): AddProjectInput {
   return run.input as AddProjectInput;
 }
 
-const isTime = (value: Dateish | undefined) => (value === undefined ? Number.NaN : new Date(value).getTime());
+export const isTime = (value: Dateish | undefined) => (value === undefined ? Number.NaN : new Date(value).getTime());
 
 /** Câu lỗi lưu vào setup run. Lỗi server và lỗi máy giữ nguyên văn (plugin làm sạch lần nữa). */
 export function stepErrorText(t: Translate, error: unknown): string {
@@ -159,10 +165,23 @@ export function stepErrorText(t: Translate, error: unknown): string {
   return String(error);
 }
 
-type WizardJobPayload = Extract<JobPayload, { kind: 'inspect-folder' | 'prepare-checkouts' | 'check' }>;
+export type WizardJobPayload = Extract<
+  JobPayload,
+  { kind: 'inspect-folder' | 'prepare-checkouts' | 'agent-workspace' | 'check' }
+>;
+
+/** Phần ngữ cảnh mà việc trên máy cần (chung cho wizard thêm project và tạo agent). */
+export interface JobContext {
+  api: { jobs: AddProjectApi['jobs'] };
+  signal?: AbortSignal;
+  pollMs?: number;
+}
 
 /** Kết quả việc phải đúng loại việc đã xếp. */
-function resultOf<K extends JobResult['kind']>(result: JobResult | null, kind: K): Extract<JobResult, { kind: K }> {
+export function resultOf<K extends JobResult['kind']>(
+  result: JobResult | null,
+  kind: K,
+): Extract<JobResult, { kind: K }> {
   if (result?.kind !== kind) throw new StepError('errors.jobResult', { kind });
   return result as Extract<JobResult, { kind: K }>;
 }
@@ -171,8 +190,8 @@ function resultOf<K extends JobResult['kind']>(result: JobResult | null, kind: K
  * Xếp việc cho máy của run rồi chờ. Việc cùng loại của run còn đang chờ/đang làm thì chờ tiếp việc đó (Chạy tiếp sau
  * khi hết hạn chờ); `reuseDone` thì việc đã xong của run được dùng lại (kiểm folder, dựng checkout là việc lặp được).
  */
-async function runJob(
-  ctx: AddProjectContext,
+export async function runJob(
+  ctx: JobContext,
   run: SetupRun,
   payload: WizardJobPayload,
   reuseDone: boolean,
@@ -195,14 +214,14 @@ async function runJob(
   return (await waitJob(api, job, { timeoutMs, signal: ctx.signal, intervalMs: ctx.pollMs })).result;
 }
 
-const required = (refs: Record<string, string>, key: string): string => {
+export const required = (refs: Record<string, string>, key: string): string => {
   const value = refs[key];
   if (!value) throw new StepError('errors.missingRef', { ref: key });
   return value;
 };
 
 /** Environment SSH `in_place` mẫu của company (có secret SSH): ưu tiên bản có `crewLoadGate`, rồi bản mới nhất. */
-function pickTemplate(envs: EnvironmentRow[]): EnvironmentRow | null {
+export function pickTemplate(envs: EnvironmentRow[]): EnvironmentRow | null {
   const ok = envs.filter((env) => {
     const ref = env.config.privateKeySecretRef as { secretId?: unknown } | undefined;
     return (
@@ -219,7 +238,7 @@ function pickTemplate(envs: EnvironmentRow[]): EnvironmentRow | null {
   return ok[0] ?? null;
 }
 
-function environmentBody(template: EnvironmentRow, name: string, checkout: string, description: string) {
+export function environmentBody(template: EnvironmentRow, name: string, checkout: string, description: string) {
   const config = template.config;
   const secretId = (config.privateKeySecretRef as { secretId: string }).secretId;
   const gate = template.metadata?.crewLoadGate;
@@ -241,8 +260,11 @@ function environmentBody(template: EnvironmentRow, name: string, checkout: strin
 }
 
 /** Bản ghim Superpowers mà máy của run báo (`superpowers.pinDir`). */
-async function pinDirOf(ctx: AddProjectContext, run: SetupRun): Promise<string> {
-  const machines = await ctx.api.crew.machines(run.companyId);
+export async function pinDirOf(
+  api: { crew: { machines(companyId: string): Promise<unknown> } },
+  run: SetupRun,
+): Promise<string> {
+  const machines = await api.crew.machines(run.companyId);
   const machine = Array.isArray(machines)
     ? (machines as { machineId?: unknown; latest?: { superpowers?: { pinDir?: unknown } } }[]).find(
         (m) => m?.machineId === run.machineId,
@@ -340,7 +362,7 @@ const STEPS: Record<AddProjectStepId, StepWork> = {
     const companyId = run.companyId;
     const all = { ...runRefs(run), ...refs };
     const slots = projectSlots(input.executors);
-    const pinDir = await pinDirOf(ctx, run);
+    const pinDir = await pinDirOf(api, run);
     const existing = await api.agents.list(companyId);
 
     for (const slot of slots) {
@@ -408,46 +430,61 @@ const agentIdsOf = (refs: Record<string, string>) =>
   new Set(Object.entries(refs).flatMap(([k, v]) => (k.startsWith('agent_') ? [v] : [])));
 
 /**
- * Sau lỗi: tạm dừng agent của run đang chạy được. Agent chờ duyệt thì để nguyên (pause sẽ bỏ qua bước duyệt), agent đã
- * dừng hẳn thì thôi. Không xóa gì.
+ * Sau lỗi: tạm dừng agent wizard đã tạo mà đang chạy được. Agent chờ duyệt thì để nguyên (pause sẽ bỏ qua bước duyệt),
+ * agent đã dừng hẳn thì thôi. Không xóa gì.
  */
-async function pauseOwnAgents(ctx: AddProjectContext, companyId: string, refs: Record<string, string>) {
-  const ids = agentIdsOf(refs);
+export async function pauseAgents(
+  api: { agents: Pick<AddProjectApi['agents'], 'list' | 'pause'> },
+  companyId: string,
+  ids: ReadonlySet<string>,
+) {
   if (ids.size === 0) return;
   let rows: AgentRow[];
   try {
-    rows = await ctx.api.agents.list(companyId);
+    rows = await api.agents.list(companyId);
   } catch {
     rows = [...ids].map((id) => ({ id, name: '', status: 'unknown' }));
   }
   for (const agent of rows) {
     if (!ids.has(agent.id) || ['paused', 'terminated', 'pending_approval'].includes(agent.status)) continue;
-    await ctx.api.agents.pause(agent.id, companyId).catch(() => undefined);
+    await api.agents.pause(agent.id, companyId).catch(() => undefined);
   }
 }
 
 const statusOf = (error: unknown) => (error instanceof ApiError ? error.status : undefined);
 
-/** Chạy một bước. Bước đã `done` thì trả run nguyên vẹn. 409 khi begin → StepBusyError. */
-export async function runAddProjectStep(
-  ctx: AddProjectContext,
-  run: SetupRun,
-  stepId: AddProjectStepId,
-): Promise<SetupRun> {
+export interface ExecuteStepInput {
+  api: { setup: AddProjectApi['setup'] };
+  t: Translate;
+  run: SetupRun;
+  stepId: SetupStepId;
+  onStep?: () => void;
+  /** Làm việc của bước; ghi id tạo ra vào `refs` ngay khi có để lần lỗi vẫn lưu lại. */
+  work: (current: SetupRun, refs: Record<string, string>) => Promise<{ projectId?: string }>;
+  /** Sau khi ghi bước lỗi (hoặc không ghi được): tạm dừng agent wizard đã tạo. */
+  onFail: (current: SetupRun, refs: Record<string, string>) => Promise<void>;
+}
+
+/**
+ * Khung một bước: `setup.begin` (khóa; 409 → StepBusyError, không làm gì) → việc → `setup.finish` kèm refs. Lỗi thì ghi
+ * bước `failed` kèm refs đã có rồi gọi `onFail`. Bước đã `done` thì trả run nguyên vẹn.
+ */
+export async function executeStep(input: ExecuteStepInput): Promise<SetupRun> {
+  const { api, run, stepId } = input;
   if (run.steps[stepId]?.status === 'done') return run;
   const companyId = run.companyId;
   let current: SetupRun;
   try {
-    current = await ctx.api.setup.begin(companyId, run.id, stepId);
+    current = await api.setup.begin(companyId, run.id, stepId);
   } catch (error) {
     if (statusOf(error) === 409) throw new StepBusyError((error as Error).message);
     throw error;
   }
-  ctx.onStep?.(stepId);
+  input.onStep?.();
   const refs: Record<string, string> = { ...(current.steps[stepId]?.refs ?? {}) };
   try {
-    const extra = await STEPS[stepId](ctx, current, refs);
-    return await ctx.api.setup.finish(companyId, run.id, stepId, {
+    const extra = await input.work(current, refs);
+    return await api.setup.finish(companyId, run.id, stepId, {
       status: 'done',
       ...(Object.keys(refs).length > 0 ? { refs } : {}),
       ...extra,
@@ -456,18 +493,31 @@ export async function runAddProjectStep(
     if (error instanceof DOMException && error.name === 'AbortError') throw error;
     let failed: SetupRun | null = null;
     try {
-      failed = await ctx.api.setup.finish(companyId, run.id, stepId, {
+      failed = await api.setup.finish(companyId, run.id, stepId, {
         status: 'failed',
-        error: stepErrorText(ctx.t, error),
+        error: stepErrorText(input.t, error),
         ...(Object.keys(refs).length > 0 ? { refs } : {}),
       });
     } catch {
       // Không ghi được trạng thái lỗi (mất khóa, mạng): vẫn tạm dừng agent rồi báo lỗi gốc.
     }
-    await pauseOwnAgents(ctx, companyId, { ...runRefs(current), ...refs });
+    await input.onFail(current, refs);
     if (failed) return failed;
     throw error;
   }
+}
+
+/** Chạy một bước. Bước đã `done` thì trả run nguyên vẹn. 409 khi begin → StepBusyError. */
+export function runAddProjectStep(ctx: AddProjectContext, run: SetupRun, stepId: AddProjectStepId): Promise<SetupRun> {
+  return executeStep({
+    api: ctx.api,
+    t: ctx.t,
+    run,
+    stepId,
+    onStep: () => ctx.onStep?.(stepId),
+    work: (current, refs) => STEPS[stepId](ctx, current, refs),
+    onFail: (current, refs) => pauseAgents(ctx.api, run.companyId, agentIdsOf({ ...runRefs(current), ...refs })),
+  });
 }
 
 /** Chạy từ bước đầu chưa xong tới hết, dừng ở bước lỗi. */
