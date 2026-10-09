@@ -1,9 +1,11 @@
 // @vitest-environment jsdom
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { QueryClient, QueryClientProvider, useQuery } from '@tanstack/react-query';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { createMemoryRouter, RouterProvider } from 'react-router-dom';
 import { afterEach, beforeAll, describe, expect, it } from 'vitest';
-import { buildAppRoutes, type FeatureModules } from '@/app/router';
+import { api } from '@/api';
+import { setUnauthorizedHandler } from '@/api/http';
+import { bindUnauthorizedHandler, buildAppRoutes, type FeatureModules } from '@/app/router';
 import { initI18n, setLanguage } from '@/i18n';
 import { COMPANY_TPS, mockServer, SESSION } from './fetch-mock';
 
@@ -11,7 +13,10 @@ beforeAll(async () => {
   await initI18n();
   await setLanguage('vi');
 });
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  setUnauthorizedHandler(null);
+});
 
 const features: FeatureModules = {
   '../features/dashboard/routes.tsx': { routes: [{ path: 'dashboard', element: <p>trang tổng quan</p> }] },
@@ -80,5 +85,44 @@ describe('router', () => {
     });
     const inbox = await screen.findByRole('link', { name: /Hộp thư/ });
     await waitFor(() => expect(inbox.textContent).toContain('4'));
+  });
+
+  it('phiên bị thu hồi khi cache phiên còn mới: 401 thì hiện form đăng nhập, không đẩy qua lại', async () => {
+    let sessionCalls = 0;
+    const { calls } = mockServer({
+      'GET /api/auth/get-session': () => {
+        sessionCalls += 1;
+        return sessionCalls === 1 ? { body: SESSION } : { status: 401, body: {} };
+      },
+      'GET /api/companies': { body: [COMPANY_TPS] },
+      'POST /api/plugins/crew.core/data/crew.companies': { body: { data: [{ id: 'c-tps', name: '2P Solutions' }] } },
+      'GET /api/companies/c-tps/sidebar-badges': { body: { inbox: 0, approvals: 0, failedRuns: 0, joinRequests: 0 } },
+      'GET /api/issues/TPS-1': { status: 401, body: { error: 'Unauthorized' } },
+    });
+    function IssuePage() {
+      const q = useQuery({ queryKey: ['issue', 'TPS-1'], queryFn: () => api.issues.get('TPS-1'), retry: false });
+      return <p>{q.isError ? 'lỗi' : 'đang tải'}</p>;
+    }
+    const qc = new QueryClient();
+    const router = createMemoryRouter(
+      buildAppRoutes({
+        featureModules: {
+          '../features/issues/routes.tsx': { routes: [{ path: 'issues/:ref', element: <IssuePage /> }] },
+        },
+      }),
+      { initialEntries: ['/TPS/issues/TPS-1'] },
+    );
+    bindUnauthorizedHandler(router, qc);
+    render(
+      <QueryClientProvider client={qc}>
+        <RouterProvider router={router} />
+      </QueryClientProvider>,
+    );
+    expect(await screen.findByLabelText('Email')).toBeTruthy();
+    expect(router.state.location.pathname).toBe('/login');
+    expect(router.state.location.search).toBe(`?next=${encodeURIComponent('/TPS/issues/TPS-1')}`);
+    await new Promise((r) => setTimeout(r, 50));
+    expect(router.state.location.pathname).toBe('/login');
+    expect(calls.filter((c) => c.url === '/api/issues/TPS-1').length).toBe(1);
   });
 });

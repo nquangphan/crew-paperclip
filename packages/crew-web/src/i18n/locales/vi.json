@@ -181,7 +181,11 @@
     "failed": "Không cập nhật được yêu cầu đăng nhập"
   },
   "ui": {
-    "loading": "Đang tải"
+    "loading": "Đang tải",
+    "more": "Thêm",
+    "breadcrumb": "Đường dẫn trang",
+    "commandPalette": "Bảng lệnh",
+    "commandPaletteHint": "Tìm lệnh để chạy"
   },
   "machine": {
     "online": "Trực tuyến",

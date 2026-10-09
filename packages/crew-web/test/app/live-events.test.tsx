@@ -43,8 +43,9 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-function mount() {
+function mount(seed?: (qc: QueryClient) => void) {
   const qc = new QueryClient();
+  seed?.(qc);
   const spy = vi.spyOn(qc, 'invalidateQueries');
   const seen: unknown[] = [];
   function Probe() {
@@ -96,6 +97,36 @@ describe('live events', () => {
     expect(keys).toContain(JSON.stringify(queryKeys.issue('TPS-7')));
     expect(keys).toContain(JSON.stringify(queryKeys.issues(C)));
     expect(keys).toContain(JSON.stringify(queryKeys.sidebarBadges(C)));
+  });
+
+  it('sự kiện không mang mã issue vẫn làm mới trang chi tiết đang mở bằng mã', () => {
+    const { spy } = mount((qc) => {
+      qc.setQueryData(queryKeys.issue('TPS-7'), { id: 'i1', identifier: 'TPS-7' });
+      qc.setQueryData(queryKeys.issue('TPS-8'), { id: 'i2', identifier: 'TPS-8' });
+    });
+    act(() => {
+      FakeSocket.all[0].emit({
+        id: 4,
+        companyId: C,
+        type: 'activity.logged',
+        createdAt: '',
+        payload: { entityType: 'issue', entityId: 'i1', action: 'issue.thread_interaction_answered', details: {} },
+      });
+    });
+    expect(keysOf(spy)).toContain(JSON.stringify(queryKeys.issue('TPS-7')));
+    expect(keysOf(spy)).not.toContain(JSON.stringify(queryKeys.issue('TPS-8')));
+    spy.mockClear();
+    act(() => {
+      FakeSocket.all[0].emit({
+        id: 5,
+        companyId: C,
+        type: 'heartbeat.run.status',
+        createdAt: '',
+        payload: { runId: 'r1', agentId: 'a1', issueId: 'i1' },
+      });
+    });
+    expect(keysOf(spy)).toContain(JSON.stringify(queryKeys.issue('TPS-7')));
+    expect(keysOf(spy)).not.toContain(JSON.stringify(queryKeys.issue('TPS-8')));
   });
 
   it('sự kiện của company khác bị bỏ qua; subscriber nhận sự kiện của company đang xem', () => {
