@@ -22,11 +22,21 @@ function literal(v: SqlParam): string {
   return `'${s.replaceAll("'", "''")}'`;
 }
 
+// psql chạy bằng superuser nên read-only không chặn hàm có tác dụng phụ (pg_terminate_backend, set_config, setval...).
+const FORBIDDEN_CALL =
+  /\b(pg_[a-z_0-9]+|lo_[a-z_0-9]+|dblink[a-z_0-9]*|set_config|nextval|setval|txid_[a-z_0-9]+)"?\s*\(/i;
+
+function assertNoServerFunctions(sql: string): void {
+  const m = FORBIDDEN_CALL.exec(sql.replace(/'(?:[^']|'')*'/g, "''"));
+  if (m) throw new Error(`db.query từ chối hàm ${m[1]}`);
+}
+
 /** Thay $n bằng literal; không thay $n nằm trong chuỗi '...' của câu SQL gốc. */
 export function formatSql(sql: string, params: SqlParam[] = []): string {
   const trimmed = sql.trim().replace(/;\s*$/, '');
   if (!/^(select|with)\b/i.test(trimmed)) throw new Error('db.query chỉ nhận câu SELECT');
   if (trimmed.includes(';')) throw new Error('db.query chỉ nhận một câu lệnh');
+  assertNoServerFunctions(trimmed);
   let out = '';
   let inStr = false;
   for (let i = 0; i < trimmed.length; i++) {
