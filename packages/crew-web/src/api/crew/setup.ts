@@ -12,14 +12,23 @@ export const setupApi = {
   }): Promise<SetupRun> => call('setup.create', {}, { body }),
   get: (companyId: string, id: string): Promise<SetupRun> => call('setup.get', { id }, { query: { companyId } }),
   /** 409 khi bước khác đang chạy (khóa running_step). */
-  begin: (companyId: string, id: string, stepId: SetupStepId): Promise<SetupRun> =>
+  begin: (companyId: string, id: string, stepId: SetupStepId): Promise<SetupRun & { lockToken?: string }> =>
     call('setup.begin', { id, stepId }, { body: { companyId } }),
   finish: (
     companyId: string,
     id: string,
     stepId: SetupStepId,
-    body: { status: 'done' | 'failed'; refs?: Record<string, string>; error?: string; projectId?: string },
+    body: {
+      status: 'done' | 'failed';
+      refs?: Record<string, string>;
+      error?: string;
+      projectId?: string;
+      /** Lấy từ kết quả `begin`; token lệch (tab khác begin lại) thì plugin trả 409. */
+      lockToken?: string;
+    },
   ): Promise<SetupRun> => call('setup.finish', { id, stepId }, { body: { companyId, ...body } }),
+  /** Bỏ lần thêm project dở (chưa có project). 409 khi đã xong/đã bỏ/đã tạo project/bước còn chạy. */
+  abandon: (companyId: string, id: string): Promise<SetupRun> => call('setup.abandon', { id }, { body: { companyId } }),
 };
 
-export const __endpoints = ['setup.begin', 'setup.create', 'setup.finish', 'setup.get'];
+export const __endpoints = ['setup.abandon', 'setup.begin', 'setup.create', 'setup.finish', 'setup.get'];

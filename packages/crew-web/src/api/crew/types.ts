@@ -94,7 +94,7 @@ export interface SetupRun {
   machineId: string;
   input: AddProjectInput | AddAgentInput;
   steps: Partial<Record<SetupStepId, SetupStepState>>;
-  status: 'running' | 'failed' | 'done';
+  status: 'running' | 'failed' | 'done' | 'abandoned';
   runningStep: SetupStepId | null;
   createdAt: string;
   updatedAt: string;
