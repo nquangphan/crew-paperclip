@@ -1,0 +1,35 @@
+{
+  "title": "Machines",
+  "description": "Machines that run this company's agents: health and jobs waiting for the 2P Crew app.",
+  "loadFailed": "Could not load the machines",
+  "empty": "No machine has reported yet",
+  "emptyHint": "Install the 2P Crew app on the machine that runs agents; it shows up here after its first report.",
+  "queue": {
+    "title": "Machine job queue",
+    "loadFailed": "Could not load the job queue",
+    "retryFailed": "Could not retry the job",
+    "empty": "No job is waiting or failed",
+    "emptyHint": "Finished jobs are not listed here.",
+    "waitingApp": "Waiting for the 2P Crew app on {{host}}",
+    "col": {
+      "machine": "Machine",
+      "kind": "Job",
+      "status": "Status",
+      "created": "Created",
+      "detail": "Details",
+      "actions": "Actions"
+    },
+    "kind": {
+      "inspect-folder": "Inspect repo folder",
+      "prepare-checkouts": "Prepare checkouts",
+      "agent-workspace": "Prepare agent workspace",
+      "skill-sync": "Sync skill",
+      "check": "Check project"
+    },
+    "status": {
+      "queued": "Queued",
+      "claimed": "Running",
+      "failed": "Failed"
+    }
+  }
+}

@@ -1,0 +1,25 @@
+{
+  "title": "Cài đặt",
+  "description": "Hồ sơ của bạn, ngôn ngữ giao diện và thông tin hệ thống.",
+  "profile": {
+    "title": "Hồ sơ",
+    "name": "Tên hiển thị",
+    "image": "Ảnh đại diện",
+    "imageHint": "Chọn ảnh mới rồi bấm Lưu hồ sơ.",
+    "save": "Lưu hồ sơ",
+    "saved": "Đã lưu hồ sơ",
+    "saveFailed": "Không lưu được hồ sơ",
+    "removeImage": "Gỡ ảnh đại diện"
+  },
+  "language": {
+    "title": "Ngôn ngữ"
+  },
+  "system": {
+    "title": "Thông tin hệ thống",
+    "loadFailed": "Không tải được thông tin hệ thống",
+    "version": "Bản server",
+    "commit": "Commit đang chạy",
+    "backup": "Sao lưu gần nhất",
+    "unknown": "Không rõ"
+  }
+}
