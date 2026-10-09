@@ -58,14 +58,47 @@ export async function deleteProjectRoles(ctx: Ctx, companyId: string, projectId:
   return result.rowCount > 0;
 }
 
-/** Ids from `agentIds` that are not agents of `companyId`, in input order. */
-export async function agentsOutsideCompany(ctx: Ctx, companyId: string, agentIds: string[]): Promise<string[]> {
-  const rows = await ctx.db.query<{ id: string }>(
-    "SELECT id::text FROM public.agents WHERE company_id = $1 AND id = ANY($2::uuid[])",
+/** First id of `agentIds` (input order) that cannot hold a role: not an agent of `companyId`, or terminated. */
+export async function firstUnusableAgent(
+  ctx: Ctx, companyId: string, agentIds: string[],
+): Promise<{ id: string; reason: "outside" | "terminated" } | null> {
+  const rows = await ctx.db.query<{ id: string; status: string }>(
+    "SELECT id::text, status FROM public.agents WHERE company_id = $1 AND id = ANY($2::uuid[])",
     [companyId, uuidArray(agentIds)],
   );
-  const found = new Set(rows.map((row) => row.id.toLowerCase()));
-  return agentIds.filter((id) => !found.has(id));
+  const status = new Map(rows.map((row) => [row.id.toLowerCase(), row.status]));
+  for (const id of agentIds) {
+    if (!status.has(id)) return { id, reason: "outside" };
+    if (status.get(id) === "terminated") return { id, reason: "terminated" };
+  }
+  return null;
+}
+
+/** Roles of the company's other projects that still exist (rows of deleted projects are ignored). */
+export async function otherProjectRoles(
+  ctx: Ctx, companyId: string, projectId: string,
+): Promise<{ projectName: string; roles: ProjectRoles }[]> {
+  const rows = await ctx.db.query<{
+    project_name: string; assistant_agent_id: string; executor_agent_ids: string; reviewer_agent_id: string;
+    integrator_agent_id: string;
+  }>(
+    `SELECT p.name AS project_name, r.assistant_agent_id::text AS assistant_agent_id,
+      array_to_string(r.executor_agent_ids, ',') AS executor_agent_ids,
+      r.reviewer_agent_id::text AS reviewer_agent_id, r.integrator_agent_id::text AS integrator_agent_id
+     FROM ${table(ctx)} r
+     JOIN public.projects p ON p.id = r.project_id AND p.company_id = r.company_id
+     WHERE r.company_id = $1 AND r.project_id <> $2`,
+    [companyId, projectId],
+  );
+  return rows.map((row) => ({
+    projectName: row.project_name,
+    roles: {
+      assistantAgentId: row.assistant_agent_id.toLowerCase(),
+      executorAgentIds: row.executor_agent_ids.split(",").map((id) => id.toLowerCase()),
+      reviewerAgentId: row.reviewer_agent_id.toLowerCase(),
+      integratorAgentId: row.integrator_agent_id.toLowerCase(),
+    },
+  }));
 }
 
 export async function projectInCompany(ctx: Ctx, companyId: string, projectId: string): Promise<boolean> {

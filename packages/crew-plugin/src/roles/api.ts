@@ -1,7 +1,7 @@
 import type { PluginApiRequestInput, PluginApiResponse, PluginContext } from "@paperclipai/plugin-sdk";
 import { UUID } from "../shared/db.js";
 import {
-  agentsOutsideCompany, deleteProjectRoles, projectInCompany, type ProjectRoles, readProjectRoles, upsertProjectRoles,
+  deleteProjectRoles, firstUnusableAgent, otherProjectRoles, projectInCompany, type ProjectRoles, readProjectRoles, upsertProjectRoles,
 } from "./data.js";
 
 const BODY_KEYS = ["companyId", "assistantAgentId", "executorAgentIds", "reviewerAgentId", "integratorAgentId"];
@@ -34,6 +34,23 @@ function parseRolesBody(body: unknown, companyId: string): ProjectRoles | string
   return roles;
 }
 
+const workers = (roles: ProjectRoles) => [roles.assistantAgentId, ...roles.executorAgentIds];
+const gates = (roles: ProjectRoles) => [roles.reviewerAgentId, roles.integratorAgentId];
+
+/**
+ * The gate forbids agents from assigning work to any reviewer/integrator of the company, whatever the project.
+ * So across the company's projects an agent is either a worker (assistant/executor) or a gate role, never both.
+ */
+function crossProjectConflict(roles: ProjectRoles, others: { projectName: string; roles: ProjectRoles }[]): string | null {
+  for (const other of others) {
+    const asGate = workers(roles).find((id) => gates(other.roles).includes(id));
+    if (asGate) return `agent ${asGate} đang là reviewer/integrator ở project "${other.projectName}", không thể làm assistant/executor`;
+    const asWorker = gates(roles).find((id) => workers(other.roles).includes(id));
+    if (asWorker) return `agent ${asWorker} đang là assistant/executor ở project "${other.projectName}", không thể làm reviewer/integrator`;
+  }
+  return null;
+}
+
 /**
  * Scoped API for project roles. The host already enforced board auth and company access;
  * the agent check stays here so a host rule change cannot let agents rewrite their own gate.
@@ -61,10 +78,14 @@ export async function handleRolesApi(
   const roles = parseRolesBody(input.body, company);
   if (typeof roles === "string") return bad(roles);
   if (!await projectInCompany(ctx, company, project)) return bad(`project ${project} không thuộc company`);
-  const outside = await agentsOutsideCompany(ctx, company, [
+  const unusable = await firstUnusableAgent(ctx, company, [
     roles.assistantAgentId, ...roles.executorAgentIds, roles.reviewerAgentId, roles.integratorAgentId,
   ]);
-  if (outside.length > 0) return bad(`agent ${outside[0]} không thuộc company`);
+  if (unusable) {
+    return bad(`agent ${unusable.id} ${unusable.reason === "terminated" ? "đã terminated" : "không thuộc company"}`);
+  }
+  const conflict = crossProjectConflict(roles, await otherProjectRoles(ctx, company, project));
+  if (conflict) return bad(conflict);
   await upsertProjectRoles(ctx, company, project, roles, input.actor.userId ?? input.actor.actorId);
   return { status: 200, body: { roles: await readProjectRoles(ctx, company, project) } };
 }

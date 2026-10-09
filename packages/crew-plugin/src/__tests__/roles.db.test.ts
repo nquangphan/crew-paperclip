@@ -17,9 +17,11 @@ const companyId = "10000000-0000-4000-8000-000000000001";
 const otherCompany = "10000000-0000-4000-8000-000000000002";
 const projectId = "20000000-0000-4000-8000-000000000001";
 const otherProject = "20000000-0000-4000-8000-000000000002";
+const thirdProject = "20000000-0000-4000-8000-000000000003";
 const [assistant, executorA, executorB, reviewer, integrator, spare] = [1, 2, 3, 4, 5, 6]
   .map((n) => `40000000-0000-4000-8000-00000000000${n}`);
 const foreignAgent = "40000000-0000-4000-8000-000000000099";
+const [retired, fresh] = ["40000000-0000-4000-8000-000000000007", "40000000-0000-4000-8000-000000000008"];
 const userId = "user-board-1";
 const ns = derivePluginDatabaseNamespace("crew.core");
 let cleanup: (() => Promise<void>) | undefined;
@@ -59,8 +61,8 @@ it("stores project roles for a company, validates every id against the company a
   const sql = postgres(database.connectionString, { max: 2, onnotice: () => {} });
   cleanup = async () => { await sql.end(); await database.cleanup(); };
   await sql`INSERT INTO companies (id,name,issue_prefix) VALUES (${companyId},'Crew','CRE'),(${otherCompany},'Other','OTH')`;
-  await sql`INSERT INTO projects (id,company_id,name) VALUES (${projectId},${companyId},'Repo A'),(${otherProject},${otherCompany},'Other')`;
-  for (const [i, id] of [assistant, executorA, executorB, reviewer, integrator, spare].entries()) {
+  await sql`INSERT INTO projects (id,company_id,name) VALUES (${projectId},${companyId},'Repo A'),(${otherProject},${otherCompany},'Other'),(${thirdProject},${companyId},'Repo C')`;
+  for (const [i, id] of [assistant, executorA, executorB, reviewer, integrator, spare, retired, fresh].entries()) {
     await sql`INSERT INTO agents (id,company_id,name) VALUES (${id},${companyId},${`Agent ${i}`})`;
   }
   await sql`INSERT INTO agents (id,company_id,name) VALUES (${foreignAgent},${otherCompany},'Foreign')`;
@@ -182,4 +184,37 @@ it("stores project roles for a company, validates every id against the company a
     VALUES ($1,$2,$3,$4::uuid[],$5,$5,'u')`, [companyId, projectId, assistant, `{${executorA}}`, reviewer])).rejects.toThrow();
   await expect(sql.unsafe(`INSERT INTO ${ns}.crew_project_roles (company_id,project_id,assistant_agent_id,executor_agent_ids,reviewer_agent_id,integrator_agent_id,updated_by_user_id)
     VALUES ($1,$2,$3,'{}'::uuid[],$4,$5,'u')`, [companyId, projectId, assistant, reviewer, integrator])).rejects.toThrow();
+
+  // 8. A terminated agent cannot take a role (the gate would fail closed for the whole project right after).
+  await sql`UPDATE agents SET status = 'terminated' WHERE id = ${retired}`;
+  for (const body of [validBody({ reviewerAgentId: retired }), validBody({ executorAgentIds: [executorA, retired] })]) {
+    expect(await handleRolesApi(ctx, request("roles.set", { body })))
+      .toEqual({ status: 400, body: { error: `agent ${retired} đã terminated` } });
+  }
+  expect(await rows()).toHaveLength(0);
+
+  // 9. Across projects of one company an agent is either a worker (assistant/executor) or a gate role
+  //    (reviewer/integrator), never both: the gate forbids assigning work to any reviewer/integrator of the company.
+  expect((await handleRolesApi(ctx, request("roles.set", { body: validBody() }))).status).toBe(200);
+  for (const body of [
+    // Worker in Repo A becomes a gate role here.
+    validBody({ assistantAgentId: fresh, executorAgentIds: [spare], reviewerAgentId: executorA }),
+    validBody({ assistantAgentId: fresh, executorAgentIds: [spare], integratorAgentId: assistant }),
+    // Gate role in Repo A becomes a worker here.
+    validBody({ assistantAgentId: fresh, executorAgentIds: [reviewer], reviewerAgentId: integrator, integratorAgentId: spare }),
+    validBody({ assistantAgentId: integrator, executorAgentIds: [spare], integratorAgentId: fresh }),
+  ]) {
+    const res = await handleRolesApi(ctx, request("roles.set", { project: thirdProject, body }));
+    expect(res.status).toBe(400);
+    expect(res.body).toEqual({ error: expect.stringContaining("Repo A") });
+  }
+  expect(await rows()).toHaveLength(1);
+  // Same role kind in two projects is fine; re-saving the same project never conflicts with itself.
+  const sameKinds = validBody({ assistantAgentId: fresh, executorAgentIds: [executorA] });
+  expect((await handleRolesApi(ctx, request("roles.set", { project: thirdProject, body: sameKinds }))).status).toBe(200);
+  expect((await handleRolesApi(ctx, request("roles.set", { body: validBody() }))).status).toBe(200);
+  // A row of a deleted project no longer counts.
+  await sql`DELETE FROM projects WHERE id = ${projectId}`;
+  const swapped = validBody({ assistantAgentId: reviewer, executorAgentIds: [integrator], reviewerAgentId: executorA, integratorAgentId: executorB });
+  expect((await handleRolesApi(ctx, request("roles.set", { project: thirdProject, body: swapped }))).status).toBe(200);
 }, 90_000);
