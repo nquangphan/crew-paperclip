@@ -26,6 +26,7 @@ import {
   parseDocsCheckEvidence,
   policyGateFingerprint,
 } from "./issue-policy.js";
+import { loadCompanyRoleAgentIds, loadCrewRoles } from "./project-roles.js";
 
 /** Cùng shape với BeforeIssueWriteInput trong core-hooks.ts (không import registry). */
 export interface IssueWriteHookInput {
@@ -54,8 +55,13 @@ export interface IssueGateFacts {
   };
   patch: Readonly<Record<string, unknown>>;
   actor: GateActor;
-  /** Vai trò từ file cấu hình; `null` khi cấu hình của company lỗi (fail closed). */
+  /** Vai trò của issue (theo project, không có thì theo file); `null` khi cấu hình lỗi (fail closed). */
   roles: CrewRoles | null;
+  /**
+   * Mọi agent reviewer/integrator của company (file ∪ vai trò theo project), cho luật giao việc.
+   * Không truyền thì dùng `roles`.
+   */
+  roleAgentIds?: ReadonlySet<string>;
   /** Decision `approved` đã lưu của issue. */
   approvals: ReadonlyArray<{ stageId: string; actorAgentId: string | null; actorUserId: string | null; createdAt: Date }>;
   /** Lần gần nhất issue rời `done`/`cancelled` (activity `crew.gate.cycle_reset`); approval/bằng chứng cũ hơn không tính. */
@@ -176,9 +182,11 @@ export function evaluateIssueGate(f: IssueGateFacts): IssueGateVerdict {
       : lockedState;
 
   // Agent không tự giao việc cho reviewer/integrator; workflow stock giao cho participant stage thì được.
-  if (f.actor.kind === "agent" && f.roles && has(f.patch, "assigneeAgentId")) {
+  const roleAgentIds =
+    f.roleAgentIds ?? new Set(f.roles ? [f.roles.reviewerAgentId, f.roles.integratorAgentId] : []);
+  if (f.actor.kind === "agent" && roleAgentIds.size > 0 && has(f.patch, "assigneeAgentId")) {
     const target = f.patch.assigneeAgentId as string | null;
-    const roleAgent = target === f.roles.reviewerAgentId || target === f.roles.integratorAgentId;
+    const roleAgent = target !== null && roleAgentIds.has(target.toLowerCase());
     const workflowHandoff =
       nextState?.status === "pending" &&
       nextState.currentParticipant?.type === "agent" &&
@@ -308,10 +316,14 @@ export async function crewBeforeIssueWrite(input: IssueWriteHookInput): Promise<
   const { tx, issueId } = input;
   const [locked] = await tx.select().from(issues).where(eq(issues.id, issueId)).for("update");
   if (!locked) return;
-  const config = await loadCrewCompanyConfig(locked.companyId);
+  const config = await loadCrewRoles({ db: tx, companyId: locked.companyId, projectId: locked.projectId });
   if (config.kind === "absent") return;
   const roles = config.kind === "ok" ? config.roles : null;
   const actor = actorOf(input);
+  const roleAgentIds =
+    actor.kind === "agent" && has(patch, "assigneeAgentId")
+      ? await loadCompanyRoleAgentIds({ db: tx, companyId: locked.companyId })
+      : undefined;
 
   const decisions = await tx
     .select({
@@ -389,6 +401,7 @@ export async function crewBeforeIssueWrite(input: IssueWriteHookInput): Promise<
     patch,
     actor,
     roles,
+    roleAgentIds,
     approvals: decisions.filter((d) => d.outcome === "approved"),
     cycleStartedAt: cycle?.createdAt ?? null,
     lastChangesRequestedAt: changes.length > 0 ? new Date(Math.max(...changes)) : null,

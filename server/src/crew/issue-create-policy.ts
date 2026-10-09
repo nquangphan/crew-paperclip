@@ -1,4 +1,4 @@
-import { labels, type Db } from "@paperclipai/db";
+import { issues, labels, type Db } from "@paperclipai/db";
 import { and, eq, inArray, sql } from "drizzle-orm";
 import { unprocessable } from "../errors.js";
 import { CREW_OVERRIDE_FORBIDDEN_MESSAGE, checkAgentAdapterOverrides } from "./model-policy.js";
@@ -9,9 +9,9 @@ import {
   housekeepingSourceIssueId,
   isCrewHousekeepingOrigin,
   isTrackingProject,
-  loadCrewCompanyConfig,
   loadSourceExecutorAgentIds,
 } from "./issue-policy.js";
+import { loadCompanyRoleAgentIds, loadCrewRoles } from "./project-roles.js";
 
 /** Cùng shape với IssueCreateLike trong core-hooks.ts (không import registry). */
 export interface IssueCreateFields {
@@ -60,6 +60,8 @@ export function decideCreatePolicy(input: {
   researchLabel?: boolean;
   /** Issue thuộc project theo dõi của company: board tạo issue gốc ở đây không nhận policy Crew. */
   trackingProject?: boolean;
+  /** Mọi agent reviewer/integrator của company (file ∪ vai trò theo project); không truyền thì dùng `roles`. */
+  roleAgentIds?: ReadonlySet<string>;
 }): CreatePolicyDecision {
   const { data, roles } = input;
   if (data.createdByAgentId) {
@@ -68,7 +70,8 @@ export function decideCreatePolicy(input: {
     if (data.status && AGENT_CREATE_FORBIDDEN_STATUSES.has(data.status)) {
       return { kind: "reject", code: "crew_gate_blocked" };
     }
-    if (data.assigneeAgentId && [roles.reviewerAgentId, roles.integratorAgentId].includes(data.assigneeAgentId)) {
+    const roleAgentIds = input.roleAgentIds ?? new Set([roles.reviewerAgentId, roles.integratorAgentId]);
+    if (data.assigneeAgentId && roleAgentIds.has(data.assigneeAgentId.toLowerCase())) {
       return { kind: "reject", code: "crew_role_assignee" };
     }
     const violations = checkAgentAdapterOverrides(data.assigneeAdapterOverrides);
@@ -105,6 +108,17 @@ async function hasResearchLabel(db: Db, companyId: string, labelIds: readonly st
   return rows.length > 0;
 }
 
+/** Issue con không ghi project: vai trò theo project của issue cha (cùng company). */
+async function parentProjectId(db: Db, companyId: string, parentId: string | null | undefined): Promise<string | null> {
+  if (!parentId) return null;
+  const [parent] = await db
+    .select({ projectId: issues.projectId })
+    .from(issues)
+    .where(and(eq(issues.id, parentId), eq(issues.companyId, companyId)))
+    .limit(1);
+  return parent?.projectId ?? null;
+}
+
 const MESSAGES: Record<Extract<CreatePolicyDecision, { kind: "reject" }>["code"], string> = {
   crew_agent_root_issue: "Crew: agent chỉ được tạo issue con (cần parentId).",
   crew_roles_unconfigured: "Crew: company chưa có đúng một agent reviewer và một agent integrator.",
@@ -123,11 +137,16 @@ export async function crewBeforeIssueCreate<T extends IssueCreateFields>(input: 
   companyId: string;
   data: T;
 }): Promise<T> {
-  const config = await loadCrewCompanyConfig(input.companyId);
+  const { data } = input;
+  const projectId = data.projectId ?? (await parentProjectId(input.db, input.companyId, data.parentId));
+  const config = await loadCrewRoles({ db: input.db, companyId: input.companyId, projectId });
   if (config.kind === "absent") return input.data;
   const roles = config.kind === "ok" ? config.roles : null;
   const ownerUserId = config.kind === "ok" ? config.ownerUserId : null;
-  const { data } = input;
+  const roleAgentIds =
+    data.createdByAgentId && data.assigneeAgentId
+      ? await loadCompanyRoleAgentIds({ db: input.db, companyId: input.companyId })
+      : undefined;
   const needsSource =
     !data.createdByAgentId && !data.createdByUserId?.trim() && !!data.assigneeAgentId && isCrewHousekeepingOrigin(data.originKind);
   const sourceExecutorAgentIds = needsSource
@@ -136,7 +155,15 @@ export async function crewBeforeIssueCreate<T extends IssueCreateFields>(input: 
   const boardRoot = !data.createdByAgentId && !!data.createdByUserId?.trim() && !data.parentId && data.executionPolicy == null;
   const researchLabel = boardRoot ? await hasResearchLabel(input.db, input.companyId, data.labelIds) : false;
   const trackingProject = isTrackingProject(config, data.projectId);
-  const decision = decideCreatePolicy({ data, roles, ownerUserId, sourceExecutorAgentIds, researchLabel, trackingProject });
+  const decision = decideCreatePolicy({
+    data,
+    roles,
+    ownerUserId,
+    sourceExecutorAgentIds,
+    researchLabel,
+    trackingProject,
+    roleAgentIds,
+  });
   if (decision.kind === "keep") return input.data;
   if (decision.kind === "reject") throw unprocessable(MESSAGES[decision.code], {
     code: decision.code,
