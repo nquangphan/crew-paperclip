@@ -1,18 +1,18 @@
-// AGENTS.md của Trợ Lý: danh sách executor nằm trong file, nên mỗi lần sửa vai trò file được render lại và hash lưu ở
-// setup run lỗi thời. Readiness so nội dung hiện tại với bản render kỳ vọng thay vì hash cũ.
-import { renderInstructions } from '@/lib/instructions';
-
-const UUID_RE = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi;
-const BMAD_HEADING = '## Agent BMAD của company';
+// AGENTS.md so với bản render kỳ vọng thay vì hash lưu ở setup run: Trợ Lý có danh sách executor trong file nên mỗi
+// lần sửa vai trò file được render lại; vai trò khác được "Render lại" khi template đổi giữa hai bản phát hành.
+import { assistantListsOf, type CrewRoleSlot, renderInstructions, roleOfSlot } from '@/lib/instructions';
 
 /** Id agent BMAD trong AGENTS.md hiện có của Trợ Lý; render lại phải giữ nguyên danh sách này. */
 export function bmadIdsOf(content: string): string[] {
-  const start = content.indexOf(BMAD_HEADING);
-  if (start < 0) return [];
-  const rest = content.slice(start + BMAD_HEADING.length);
-  const end = rest.search(/^## /m);
-  const section = end < 0 ? rest : rest.slice(0, end);
-  return [...new Set(section.match(UUID_RE) ?? [])];
+  return assistantListsOf(content).bmadIds;
+}
+
+const SLOTS: readonly string[] = ['executor', 'executor-2', 'reviewer', 'integrator'];
+
+/** AGENTS.md hiện tại của agent vai trò khác Trợ Lý có đúng là bản render từ template hiện tại không. */
+export function matchesRoleTemplate(content: string, agentId: string, slot: string): boolean {
+  if (!SLOTS.includes(slot)) return false;
+  return renderInstructions(roleOfSlot(slot as CrewRoleSlot), { agentId }) === content;
 }
 
 /** AGENTS.md hiện tại của Trợ Lý có đúng là bản render từ template với executor của project không. */

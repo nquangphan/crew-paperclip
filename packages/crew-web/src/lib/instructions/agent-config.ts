@@ -27,8 +27,12 @@ export const ASSISTANT_GRANTS = Object.freeze(['tasks:assign'] as const);
 /** Đuôi đường dẫn wrapper; đường đầy đủ là `<home>` + đuôi này (tuyệt đối, như WRAPPER_RE của merge-agent-config). */
 export const CREW_WRAPPER_SUFFIX = '/.crew/bin/crew-claude-run';
 export const WRAPPER_RE = /^\/.+\/\.crew\/bin\/crew-claude-run$/;
-/** Bản ghim Superpowers của máy: `<home>/.crew/workflows/superpowers/<bản>`. */
-export const SUPERPOWERS_PIN_RE = /^(\/.+)\/\.crew\/workflows\/superpowers\/(?!\.\.?$)[^/]+$/;
+/**
+ * Bản ghim Superpowers của máy: `<home>/.crew/workflows/superpowers/<bản>`. Home và bản chỉ gồm chữ, số, `._+-`, không
+ * có đoạn `.`/`..`: wrapper suy từ home nên home lạ sẽ trỏ command ra ngoài home.
+ */
+export const SUPERPOWERS_PIN_RE =
+  /^((?:\/(?!\.\.?(?:\/|$))[A-Za-z0-9._+-]+)+)\/\.crew\/workflows\/superpowers\/(?!\.\.?$)[A-Za-z0-9._+-]+$/;
 
 function homeOfPin(pinDir: string): string {
   const match = SUPERPOWERS_PIN_RE.exec(pinDir);

@@ -1,10 +1,14 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, screen, waitFor, within } from '@testing-library/react';
-import { afterEach, beforeAll, describe, expect, it } from 'vitest';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { createMemoryRouter, RouterProvider } from 'react-router-dom';
+import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
+import { api } from '@/api';
+import { CompanyContext } from '@/app/hooks';
 import { AddProjectPage } from '@/features/wizards/add-project/add-project-page';
 import { initI18n, setLanguage } from '@/i18n';
 import { mockServer } from '../../app/fetch-mock';
-import { data, renderPage } from '../projects/helpers';
+import { COMPANY, data, renderPage } from '../projects/helpers';
 
 beforeAll(async () => {
   await initI18n();
@@ -155,5 +159,62 @@ describe('AddProjectPage', () => {
     expect(item('Kiểm trên máy').dataset.state).toBe('pending');
     expect(screen.getByRole('alert').textContent).toContain('git worktree add thất bại');
     expect(screen.getByRole('button', { name: 'Chạy tiếp' })).toBeTruthy();
+  });
+
+  describe('Bỏ lần dở', () => {
+    const setup = api.setup as { abandon?: unknown };
+    afterEach(() => {
+      delete setup.abandon;
+    });
+    const unborn = {
+      ...RUN,
+      projectId: null,
+      steps: { inspect: { status: 'failed', at: 'x', error: 'Không phải repo git' } },
+    };
+
+    it('lần thêm lỗi chưa tạo project: bấm "Bỏ lần dở", xác nhận → bỏ đúng run của company rồi về form', async () => {
+      server({ [`GET ${PLUGIN}/setup-runs/run-1`]: { body: unborn } });
+      const abandon = vi.fn(async () => ({ ...unborn, status: 'abandoned' }));
+      setup.abandon = abandon;
+      const router = mount('/TPS/projects/new?resume=run-1');
+      fireEvent.click(await screen.findByRole('button', { name: 'Bỏ lần dở' }));
+      const dialog = await screen.findByRole('alertdialog');
+      fireEvent.click(within(dialog).getByRole('button', { name: 'Bỏ lần dở' }));
+      await waitFor(() => expect(abandon).toHaveBeenCalledWith('c-tps', 'run-1'));
+      await waitFor(() => expect(router.state.location.search).toBe(''));
+      expect(router.state.location.pathname).toBe('/TPS/projects/new');
+    });
+
+    it('đã tạo project thì không có nút (project và agent đã có, phải chạy tiếp)', async () => {
+      server({ [`GET ${PLUGIN}/setup-runs/run-1`]: { body: RUN } });
+      setup.abandon = vi.fn();
+      mount('/TPS/projects/new?resume=run-1');
+      expect(await screen.findByRole('button', { name: 'Chạy tiếp' })).toBeTruthy();
+      expect(screen.queryByRole('button', { name: 'Bỏ lần dở' })).toBeNull();
+    });
+
+    it('lần đã bỏ: báo đã bỏ, không có Chạy tiếp', async () => {
+      server({ [`GET ${PLUGIN}/setup-runs/run-1`]: { body: { ...unborn, status: 'abandoned' } } });
+      mount('/TPS/projects/new?resume=run-1');
+      expect(await screen.findByText('Lần thêm project này đã bỏ. Thêm lại project từ đầu.')).toBeTruthy();
+      expect(screen.queryByRole('button', { name: 'Chạy tiếp' })).toBeNull();
+      expect(screen.getByRole('link', { name: 'Thêm project' }).getAttribute('href')).toBe('/TPS/projects/new');
+    });
+  });
+
+  it('link "Mở project" theo company của setup run, không theo company đang chọn', async () => {
+    const other = { id: 'c-xyz', name: 'XYZ', issuePrefix: 'XYZ' };
+    server({ [`GET ${PLUGIN}/setup-runs/run-1`]: { body: { ...RUN, companyId: 'c-xyz', status: 'done', steps: {} } } });
+    const router = createMemoryRouter([{ path: '/:companyPrefix/projects/new', element: <AddProjectPage /> }], {
+      initialEntries: ['/TPS/projects/new?resume=run-1'],
+    });
+    render(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <CompanyContext.Provider value={{ company: COMPANY, companies: [COMPANY, other] }}>
+          <RouterProvider router={router} />
+        </CompanyContext.Provider>
+      </QueryClientProvider>,
+    );
+    expect((await screen.findByRole('link', { name: 'Mở project' })).getAttribute('href')).toBe('/XYZ/projects/p-demo');
   });
 });

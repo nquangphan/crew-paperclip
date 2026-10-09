@@ -27,7 +27,7 @@ export function findAgentRun<R extends ResumableRun>(runs: readonly R[], agentId
 
 /**
  * Link "Làm tiếp". Agent có setup run tạo agent đang dở → chạy tiếp run đó; không có (agent do app tạo, hay run đã
- * xong) → wizard tạo agent ở chế độ sửa từ bước `step`. `runs` là `crew.setupRuns` của company (không truyền thì chỉ dựng
+ * xong) → wizard tạo agent ở chế độ sửa từ bước `step` (`rewrite=1` khi AGENTS.md lệch). `runs` là `crew.setupRuns` của company (không truyền thì chỉ dựng
  * link chế độ sửa; trang wizard tự chuyển sang run dở nếu có).
  */
 export function resumeHref(prefix: string, target: ResumeTarget, runs: readonly ResumableRun[] = []): string | null {
@@ -39,6 +39,6 @@ export function resumeHref(prefix: string, target: ResumeTarget, runs: readonly 
   if (run) return companyHref(prefix, `agents/new?resume=${encodeURIComponent(run.id)}`);
   return companyHref(
     prefix,
-    `agents/new?fix=${encodeURIComponent(target.agentId)}&step=${encodeURIComponent(target.step)}`,
+    `agents/new?fix=${encodeURIComponent(target.agentId)}&step=${encodeURIComponent(target.step)}${target.rewrite ? '&rewrite=1' : ''}`,
   );
 }
