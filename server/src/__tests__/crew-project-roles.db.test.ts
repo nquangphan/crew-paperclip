@@ -189,18 +189,27 @@ suite("crew project roles in issueService", () => {
       expect(await gateScenarios((s) => s.p1)).toEqual(baseline);
     });
 
-    it("bảng hỏng (đọc lỗi): H2 dùng vai trò file trong savepoint; H4 trên project trả 503 để thử lại, không ghim vai trò file", async () => {
+    it("bảng hỏng (đọc lỗi): H2 của board/hệ thống dùng vai trò file trong savepoint; agent và H4 trên project trả 503 để thử lại", async () => {
       const table = crewRolesTable();
       await db.execute(sql.raw(`CREATE SCHEMA IF NOT EXISTS ${table.split(".")[0]}`));
       await db.execute(sql.raw(`CREATE TABLE ${table} (company_id uuid NOT NULL)`));
       try {
+        const unavailable = "503:crew_roles_unavailable:";
         expect(await gateScenarios((s) => s.p1)).toEqual([
-          ...baseline.slice(0, 8),
-          "503:crew_roles_unavailable:",
-          "503:crew_roles_unavailable:",
+          ...Array.from({ length: 4 }, () => unavailable),
+          ...baseline.slice(4, 6),
+          unavailable,
+          unavailable,
+          unavailable,
+          unavailable,
         ]);
-        // Issue không project vẫn theo vai trò file.
-        expect(await gateScenarios(() => null)).toEqual(baseline);
+        // Issue không project theo vai trò file; riêng agent đổi assignee cần mọi dòng vai trò của company nên cũng 503.
+        expect(await gateScenarios(() => null)).toEqual([
+          ...baseline.slice(0, 2),
+          unavailable,
+          unavailable,
+          ...baseline.slice(4),
+        ]);
         // Issue con của agent không ghi project, cha thuộc P1: cũng 503, không tạo issue nào.
         const s = await seed();
         const parent = await insertIssue(s, { projectId: s.p1 });
@@ -251,6 +260,7 @@ suite("crew project roles in issueService", () => {
       expect(stageAgents(await policyOf(childNoProject.id))).toEqual([s.r2]);
     });
 
+    // Board: agent tạo con khác project của cha thì bị từ chối (crew-agent-assignment.db.test.ts).
     it("issue con suy project như lõi: theo inheritExecutionWorkspaceFromIssueId trước parentId, bỏ khi skip", async () => {
       const s = await seed();
       await setRoles(s, s.p2, s.r2, s.i2);
@@ -261,7 +271,7 @@ suite("crew project roles in issueService", () => {
 
       // Cha ở P1, nguồn workspace ở P2: lõi gán P2 nên vai trò là R2.
       const inherited = await svc.create(s.companyId, {
-        title: "con kế thừa", createdByAgentId: s.executorId, assigneeAgentId: s.executorId,
+        title: "con kế thừa", createdByUserId: "owner-1", assigneeAgentId: s.executorId,
         parentId: parentP1, inheritExecutionWorkspaceFromIssueId: sourceP2,
       } as never);
       expect(inherited.projectId).toBe(s.p2);
@@ -269,7 +279,7 @@ suite("crew project roles in issueService", () => {
 
       // Cha ở P2 nhưng bỏ kế thừa: lõi không gán project nên vai trò file R1.
       const skipped = await svc.create(s.companyId, {
-        title: "con bỏ kế thừa", createdByAgentId: s.executorId, assigneeAgentId: s.executorId,
+        title: "con bỏ kế thừa", createdByUserId: "owner-1", assigneeAgentId: s.executorId,
         parentId: parentP2, skipExecutionWorkspaceInheritance: true,
       } as never);
       expect(skipped.projectId).toBeNull();
@@ -277,7 +287,7 @@ suite("crew project roles in issueService", () => {
 
       // Con ghi rõ project khác cha: theo project của con.
       const explicit = await svc.create(s.companyId, {
-        title: "con khác project", createdByAgentId: s.executorId, assigneeAgentId: s.executorId,
+        title: "con khác project", createdByUserId: "owner-1", assigneeAgentId: s.executorId,
         parentId: parentP1, projectId: s.p2,
       } as never);
       expect(stageAgents(await policyOf(explicit.id))).toEqual([s.r2]);

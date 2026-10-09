@@ -57,6 +57,12 @@ const LIVE_PROJECT_JOIN = sql`JOIN "projects" p ON p.id = r.project_id AND p.com
 /** Mã lỗi tạm của H4 khi không đọc được vai trò theo project; bên gọi thử lại sau. */
 export const CREW_ROLES_UNAVAILABLE = "crew_roles_unavailable";
 
+function rolesUnavailable(): HttpError {
+  return new HttpError(503, "Crew: tạm thời không đọc được vai trò của project, hãy thử lại.", {
+    code: CREW_ROLES_UNAVAILABLE,
+  });
+}
+
 /**
  * Cấu hình Crew cho một issue: vai trò reviewer/integrator theo project từ bảng plugin, còn lại theo file.
  * - File `absent`/`invalid`, `projectId` trống, bảng chưa có, project không có dòng: như `loadCrewCompanyConfig`.
@@ -70,7 +76,7 @@ export async function loadCrewRoles(input: {
   db: CrewRolesDb;
   companyId: string;
   projectId: string | null | undefined;
-  /** `fallback` (mặc định, H2): lỗi đọc thì dùng vai trò file. `throw` (H4): lỗi đọc thì ném 503. */
+  /** `fallback` (mặc định; H2 của board/hệ thống): lỗi đọc thì dùng vai trò file. `throw` (H4; H2 của agent): ném 503. */
   onReadError?: "fallback" | "throw";
 }): Promise<CrewCompanyConfig> {
   const config = await loadCrewCompanyConfig(input.companyId);
@@ -97,14 +103,10 @@ export async function loadCrewRoles(input: {
       "read",
       { projectId, err: error },
       input.onReadError === "throw"
-        ? "crew project roles unreadable; rejecting issue create so the caller retries"
+        ? "crew project roles unreadable; rejecting the issue write so the caller retries"
         : "crew project roles unreadable; using company roles from CREW_POLICY_CONFIG",
     );
-    if (input.onReadError === "throw") {
-      throw new HttpError(503, "Crew: tạm thời không đọc được vai trò của project, hãy thử lại.", {
-        code: CREW_ROLES_UNAVAILABLE,
-      });
-    }
+    if (input.onReadError === "throw") throw rolesUnavailable();
     return config;
   }
   const row = rows?.[0];
@@ -124,9 +126,14 @@ export async function loadCrewRoles(input: {
 
 /**
  * Mọi agent reviewer/integrator của company: vai trò trong file ∪ mọi dòng vai trò theo project còn tồn tại.
- * Dùng cho luật "agent không giao việc cho reviewer/integrator" (bất kể project của issue).
+ * Dùng cho luật "agent không giao việc cho reviewer/integrator" (bất kể project của issue). Lỗi đọc: `fallback`
+ * (mặc định) chỉ dùng vai trò file và cảnh báo; `throw` (actor agent) ném `503 crew_roles_unavailable`.
  */
-export async function loadCompanyRoleAgentIds(input: { db: CrewRolesDb; companyId: string }): Promise<Set<string>> {
+export async function loadCompanyRoleAgentIds(input: {
+  db: CrewRolesDb;
+  companyId: string;
+  onReadError?: "fallback" | "throw";
+}): Promise<Set<string>> {
   const config = await loadCrewCompanyConfig(input.companyId);
   const ids = new Set<string>();
   if (config.kind === "absent") return ids;
@@ -149,8 +156,11 @@ export async function loadCompanyRoleAgentIds(input: { db: CrewRolesDb; companyI
       input.companyId,
       "read",
       { err: error },
-      "crew project roles unreadable; using company roles from CREW_POLICY_CONFIG",
+      input.onReadError === "throw"
+        ? "crew project roles unreadable; rejecting the issue write so the caller retries"
+        : "crew project roles unreadable; using company roles from CREW_POLICY_CONFIG",
     );
+    if (input.onReadError === "throw") throw rolesUnavailable();
   }
   return ids;
 }
@@ -163,8 +173,8 @@ export interface ProjectAgentRoles {
 
 /**
  * Trợ Lý và executor của project. `null` khi không có project, bảng chưa có hoặc project không có dòng vai trò
- * (project dùng vai trò file): bên gọi giữ hành vi cũ. Lỗi đọc khác: như `loadCrewRoles` — `fallback` (H2) trả
- * `null` và cảnh báo, `throw` (H4) ném `503 crew_roles_unavailable` để bên gọi thử lại.
+ * (project dùng vai trò file): bên gọi giữ hành vi cũ. Lỗi đọc khác: như `loadCrewRoles` — `fallback` trả `null` và
+ * cảnh báo, `throw` (H4, H2 của agent) ném `503 crew_roles_unavailable` để bên gọi thử lại.
  */
 export async function loadProjectAgentRoles(input: {
   db: CrewRolesDb;
@@ -191,13 +201,11 @@ export async function loadProjectAgentRoles(input: {
       "read",
       { projectId, err: error },
       input.onReadError === "throw"
-        ? "crew project roles unreadable; rejecting issue create so the caller retries"
+        ? "crew project roles unreadable; rejecting the issue write so the caller retries"
         : "crew project roles unreadable; agent assignment uses company roles only",
     );
     if (input.onReadError === "fallback") return null;
-    throw new HttpError(503, "Crew: tạm thời không đọc được vai trò của project, hãy thử lại.", {
-      code: CREW_ROLES_UNAVAILABLE,
-    });
+    throw rolesUnavailable();
   }
   const row = rows?.[0];
   if (!row) return null;
@@ -209,16 +217,23 @@ export async function loadProjectAgentRoles(input: {
 
 /**
  * Luật giao việc giữa agent trong project có vai trò: Trợ Lý giao cho agent bất kỳ (luật reviewer/integrator xét
- * riêng); agent khác chỉ giao cho chính mình hoặc executor của project. Không có dòng vai trò thì cho qua.
+ * riêng); agent khác giao cho executor của project, hoặc tự nhận khi issue chưa giao agent nào (không tự lấy việc
+ * đang giao Trợ Lý hay executor khác, kể cả khi mình là executor). Không có dòng vai trò thì cho qua.
  */
 export function agentAssignmentAllowed(input: {
   actorAgentId: string;
   targetAgentId: string;
   roles: ProjectAgentRoles | null;
+  /** Assignee agent hiện tại của issue (H2); tạo mới (H4) thì không có. */
+  currentAssigneeAgentId?: string | null;
 }): boolean {
   if (!input.roles) return true;
   const actor = input.actorAgentId.toLowerCase();
   const target = input.targetAgentId.toLowerCase();
-  if (target === actor || actor === input.roles.assistantAgentId) return true;
+  if (actor === input.roles.assistantAgentId) return true;
+  if (target === actor) {
+    const current = input.currentAssigneeAgentId?.toLowerCase() ?? null;
+    return current === null || current === actor;
+  }
   return input.roles.executorAgentIds.includes(target);
 }

@@ -383,6 +383,34 @@ const integratorApproves = {
 };
 
 describe("evaluateIssueGate", () => {
+  it("agent không được đổi project của issue, kể cả issue theo dõi hay chuyển về không project; board thì được", () => {
+    const locked = { ...facts({}).locked, projectId: "project-p" };
+    for (const projectId of ["project-q", null]) {
+      expect(evaluateIssueGate(facts({ locked, patch: { projectId } }))).toMatchObject({
+        kind: "block",
+        code: "crew_project_locked",
+      });
+    }
+    const tracked = { ...locked, executionPolicy: null, executionState: null, tracking: true };
+    expect(evaluateIssueGate(facts({ locked: tracked, patch: { projectId: "project-q" } }))).toMatchObject({
+      code: "crew_project_locked",
+    });
+    expect(evaluateIssueGate(facts({ locked, patch: { projectId: "project-p" } })).kind).not.toBe("block");
+    expect(
+      evaluateIssueGate(facts({ locked, patch: { projectId: "project-q" }, actor: { kind: "board", userId: "owner-1" } })).kind,
+    ).not.toBe("block");
+  });
+
+  it("agent ngoài Trợ Lý chỉ tự nhận issue chưa giao agent nào", () => {
+    const projectAgentRoles = [{ assistantAgentId: "assistant", executorAgentIds: [] }];
+    const open = { status: "todo", executionPolicy: null, executionState: null, assigneeUserId: null };
+    const selfAssign = (assigneeAgentId: string | null) =>
+      evaluateIssueGate(facts({ locked: { ...open, assigneeAgentId }, patch: { assigneeAgentId: EXECUTOR }, projectAgentRoles }));
+    expect(selfAssign(OTHER)).toMatchObject({ kind: "block", code: "crew_assignment_forbidden" });
+    expect(selfAssign("assistant")).toMatchObject({ kind: "block", code: "crew_assignment_forbidden" });
+    expect(selfAssign(null).kind).not.toBe("block");
+  });
+
   it("chặn agent đổi stage hoặc xóa policy", () => {
     const shrunk = { ...root, stages: root.stages.slice(0, 1) };
     expect(evaluateIssueGate(facts({ patch: { executionPolicy: shrunk } }))).toMatchObject({

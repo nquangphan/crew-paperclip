@@ -49,6 +49,7 @@ export type CreatePolicyDecision =
         | "crew_roles_unconfigured"
         | "crew_role_assignee"
         | "crew_assignment_forbidden"
+        | "crew_project_outside_parent"
         | "crew_routine_issue_forbidden"
         | "crew_gate_blocked"
         | "crew_override_forbidden";
@@ -86,11 +87,16 @@ export function decideCreatePolicy(input: {
   projectAgentRoles?: ProjectAgentRoles | null;
   /** Issue do routine sinh ra mà routine (hoặc trigger của nó) do agent tạo/sửa. */
   agentRoutine?: boolean;
+  /** Project lõi sẽ gán cho issue con khác project của issue cha (kể cả không project). */
+  projectOutsideParent?: boolean;
 }): CreatePolicyDecision {
   const { data, roles } = input;
   if (data.createdByAgentId) {
     if (!roles) return { kind: "reject", code: "crew_roles_unconfigured" };
     if (!data.parentId) return { kind: "reject", code: "crew_agent_root_issue" };
+    // Con ở project khác cha thì luật giao việc đọc vai trò của project đó (có thể không có dòng nào): chặn để agent
+    // không lách luật giao việc của project cha.
+    if (input.projectOutsideParent) return { kind: "reject", code: "crew_project_outside_parent" };
     if (data.status && AGENT_CREATE_FORBIDDEN_STATUSES.has(data.status)) {
       return { kind: "reject", code: "crew_gate_blocked" };
     }
@@ -156,14 +162,18 @@ async function hasResearchLabel(db: Db, companyId: string, labelIds: readonly st
 async function resolveIssueProjectId(db: Db, companyId: string, data: IssueCreateFields): Promise<string | null> {
   if (data.projectId != null) return data.projectId;
   if (data.skipExecutionWorkspaceInheritance) return null;
-  const sourceId = data.inheritExecutionWorkspaceFromIssueId ?? data.parentId;
-  if (!sourceId) return null;
-  const [source] = await db
+  return (await issueProjectId(db, companyId, data.inheritExecutionWorkspaceFromIssueId ?? data.parentId)) ?? null;
+}
+
+/** Project của một issue cùng company; `undefined` khi không có id hoặc không tìm thấy issue (lõi tự báo 404). */
+async function issueProjectId(db: Db, companyId: string, issueId: string | null | undefined): Promise<string | null | undefined> {
+  if (!issueId) return undefined;
+  const [row] = await db
     .select({ projectId: issues.projectId })
     .from(issues)
-    .where(and(eq(issues.id, sourceId), eq(issues.companyId, companyId)))
+    .where(and(eq(issues.id, issueId), eq(issues.companyId, companyId)))
     .limit(1);
-  return source?.projectId ?? null;
+  return row ? row.projectId : undefined;
 }
 
 /** `originKind` của issue do routine sinh ra (`services/routines.ts`); `originId` là id routine. */
@@ -205,6 +215,7 @@ const MESSAGES: Record<Extract<CreatePolicyDecision, { kind: "reject" }>["code"]
   crew_role_assignee: "Crew: không giao việc thực thi cho agent reviewer hoặc integrator.",
   crew_assignment_forbidden:
     "Crew: chỉ Trợ Lý của project giao việc cho agent khác; agent khác chỉ giao cho executor của project.",
+  crew_project_outside_parent: "Crew: agent chỉ tạo issue con trong cùng project với issue cha.",
   crew_routine_issue_forbidden: "Crew: routine do agent tạo hoặc sửa không được sinh issue; chỉ board tạo routine.",
   crew_gate_blocked: "Crew: agent không được tạo issue ở trạng thái done, cancelled hoặc in_review.",
   crew_override_forbidden: CREW_OVERRIDE_FORBIDDEN_MESSAGE,
@@ -224,11 +235,14 @@ export async function crewBeforeIssueCreate<T extends IssueCreateFields>(input: 
   const projectId = await resolveIssueProjectId(input.db, input.companyId, data);
   const config = await loadCrewRoles({ db: input.db, companyId: input.companyId, projectId, onReadError: "throw" });
   if (config.kind === "absent") return input.data;
+  const parentProjectId =
+    data.createdByAgentId && data.parentId ? await issueProjectId(input.db, input.companyId, data.parentId) : undefined;
+  const projectOutsideParent = parentProjectId !== undefined && projectId !== parentProjectId;
   const roles = config.kind === "ok" ? config.roles : null;
   const ownerUserId = config.kind === "ok" ? config.ownerUserId : null;
   const roleAgentIds =
     data.createdByAgentId && data.assigneeAgentId
-      ? await loadCompanyRoleAgentIds({ db: input.db, companyId: input.companyId })
+      ? await loadCompanyRoleAgentIds({ db: input.db, companyId: input.companyId, onReadError: "throw" })
       : undefined;
   const projectAgentRoles =
     data.createdByAgentId && data.assigneeAgentId
@@ -256,6 +270,7 @@ export async function crewBeforeIssueCreate<T extends IssueCreateFields>(input: 
     roleAgentIds,
     projectAgentRoles,
     agentRoutine,
+    projectOutsideParent,
   });
   if (decision.kind === "keep") return input.data;
   if (decision.kind === "reject") throw unprocessable(MESSAGES[decision.code], {

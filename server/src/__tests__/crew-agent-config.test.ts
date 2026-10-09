@@ -166,6 +166,19 @@ describe("Crew agent config routes with PostgreSQL", () => {
     expect(await snapshot(c.companyId)).toEqual(before);
   });
 
+  it("agent đổi quyền hay resume agent khác đang bị pause bị 422 và DB không đổi", async () => {
+    const c = await seed();
+    await db.update(agents).set({ status: "paused" }).where(eq(agents.id, c.other.id));
+    const before = await snapshot(c.companyId);
+    const permissions = await request(app(c)).patch(`/api/agents/${c.other.id}/permissions`).send({ canCreateAgents: true, canAssignTasks: true });
+    expect(permissions.status, JSON.stringify(permissions.body)).toBe(422);
+    expect(permissions.body.details).toEqual({ code: "crew_agent_config_forbidden", keys: ["permissions"] });
+    const resume = await request(app(c)).post(`/api/agents/${c.other.id}/resume`);
+    expect(resume.status, JSON.stringify(resume.body)).toBe(422);
+    expect(resume.body.details).toEqual({ code: "crew_agent_config_forbidden", keys: ["resume"] });
+    expect(await snapshot(c.companyId)).toEqual(before);
+  });
+
   it.each([
     ["POST", "skills/sync", { desiredSkills: [] }],
     ["PUT", "instructions-bundle/file", { path: "AGENTS.md", content: "x" }],
@@ -174,6 +187,8 @@ describe("Crew agent config routes with PostgreSQL", () => {
     ["POST", "instructions-bundle/restore", { revisionId: "00000000-0000-4000-8000-000000000000" }],
     ["POST", "instructions-bundle/candidates/00000000-0000-4000-8000-000000000000/resolve", { action: "accept" }],
     ["PATCH", "instructions-path", { path: "AGENTS.md" }],
+    ["PATCH", "permissions", { canCreateAgents: true, canAssignTasks: true }],
+    ["POST", "resume", undefined],
   ] as const)("agent %s /agents/<self>/%s bị 422 và DB không đổi", async (method, suffix, body) => {
     const c = await seed();
     const before = await snapshot(c.companyId);

@@ -29,7 +29,7 @@ function decodeReference(value: string): string | null {
 }
 
 const AGENT_SUBRESOURCE_WRITE_RE =
-  /^\/agents\/([^/]+)\/(?:skills\/sync|instructions-path|instructions-bundle(?:\/.*)?)\/?$/i;
+  /^\/agents\/([^/]+)\/(?:skills\/sync|instructions-path|instructions-bundle(?:\/.*)?|permissions|resume)\/?$/i;
 const WRITE_METHODS = new Set(["POST", "PUT", "PATCH", "DELETE"]);
 
 /**
@@ -37,7 +37,8 @@ const WRITE_METHODS = new Set(["POST", "PUT", "PATCH", "DELETE"]);
  * - tạo agent (`agents`, `agent-hires`) và chạy thử adapter với cấu hình tùy ý: `crew_agent_create_forbidden`,
  *   bất kể body và quyền `canCreateAgents`;
  * - `PATCH /agents/:id` (mọi body: role, reportsTo, runtimeConfig, budget, adapterConfig...), đồng bộ skill,
- *   hướng dẫn (`instructions-bundle*`, `instructions-path`) và rollback revision: `crew_agent_config_forbidden`.
+ *   hướng dẫn (`instructions-bundle*`, `instructions-path`), quyền (`permissions`), `resume` (bỏ pause mà plugin hay
+ *   board đặt) và rollback revision: `crew_agent_config_forbidden`.
  * Agent Crew không tự sửa agent nào; mọi đổi cấu hình đi qua board. Board và company ngoài cấu hình giữ stock.
  */
 export async function crewBeforeAgentMutation({ db, req, resolveAgentId }: AgentMutationInput): Promise<void> {

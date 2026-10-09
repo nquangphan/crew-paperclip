@@ -132,6 +132,35 @@ suite("crew agent-to-agent assignment", () => {
       const s = await seed();
       await expect(child(s, s.a, s.r)).rejects.toMatchObject({ status: 422, details: { code: "crew_role_assignee" } });
     });
+
+    it.each([
+      ["projectId của project không có dòng vai trò", (s: Seed) => ({ projectId: s.q })],
+      ["inheritExecutionWorkspaceFromIssueId sang issue của project khác", (s: Seed) => ({ inheritExecutionWorkspaceFromIssueId: s.rootQ })],
+      ["skipExecutionWorkspaceInheritance (con không có project)", () => ({ skipExecutionWorkspaceInheritance: true })],
+    ] as const)("agent tạo con nằm ngoài project của cha (%s) bị 422, không tạo issue", async (_label, extra) => {
+      const s = await seed();
+      const before = await countIssues(s.companyId);
+      for (const [actor, assignee] of [[s.e1, s.x], [s.e1, s.e2], [s.a, s.e1]] as const) {
+        await expect(
+          issueService(db).create(s.companyId, {
+            title: "con", parentId: s.root, createdByAgentId: actor, assigneeAgentId: assignee, ...extra(s),
+          } as never),
+        ).rejects.toMatchObject({ status: 422, details: { code: "crew_project_outside_parent" } });
+      }
+      expect(await countIssues(s.companyId)).toBe(before);
+    });
+
+    it("agent tạo con ghi rõ đúng project của cha vẫn được; board tạo con ở project khác như cũ", async () => {
+      const s = await seed();
+      const own = await issueService(db).create(s.companyId, {
+        title: "con", parentId: s.root, createdByAgentId: s.a, assigneeAgentId: s.e1, projectId: s.p,
+      } as never);
+      expect(own).toMatchObject({ projectId: s.p, assigneeAgentId: s.e1 });
+      const board = await issueService(db).create(s.companyId, {
+        title: "con", parentId: s.root, createdByUserId: "owner-1", assigneeAgentId: s.x, projectId: s.q,
+      } as never);
+      expect(board).toMatchObject({ projectId: s.q, assigneeAgentId: s.x });
+    });
   });
 
   describe("H2 đổi assignee", () => {
@@ -151,6 +180,75 @@ suite("crew agent-to-agent assignment", () => {
       const issueId = await insertIssue(s.companyId, { projectId: s.p, parentId: s.root, assigneeAgentId: s.e1, status: "in_progress" });
       expect((await issueService(db).update(issueId, { assigneeAgentId: s.e2, actorAgentId: s.e1 }))?.assigneeAgentId).toBe(s.e2);
       expect((await issueService(db).update(issueId, { assigneeAgentId: s.x, actorAgentId: s.a }))?.assigneeAgentId).toBe(s.x);
+    });
+
+    it("agent đổi project của issue bị 422 crew_project_locked, rồi đổi assignee vẫn bị luật của project cũ chặn", async () => {
+      const s = await seed();
+      const issueId = await insertIssue(s.companyId, { projectId: s.p, parentId: s.root, assigneeAgentId: s.e1, status: "in_progress" });
+      for (const actor of [s.e1, s.a]) {
+        for (const projectId of [s.q, null]) {
+          await expect(issueService(db).update(issueId, { projectId, actorAgentId: actor })).rejects.toMatchObject({
+            status: 422, details: { code: "crew_project_locked" },
+          });
+        }
+      }
+      await expect(issueService(db).update(issueId, { assigneeAgentId: s.x, actorAgentId: s.e1 })).rejects.toMatchObject({
+        status: 422, details: { code: "crew_assignment_forbidden" },
+      });
+      const [row] = await db.select().from(issues).where(eq(issues.id, issueId));
+      expect(row).toMatchObject({ projectId: s.p, assigneeAgentId: s.e1 });
+    });
+
+    it("agent gửi lại đúng project hiện tại vẫn được; board đổi project được", async () => {
+      const s = await seed();
+      const issueId = await insertIssue(s.companyId, { projectId: s.p, parentId: s.root, assigneeAgentId: s.e1, status: "in_progress" });
+      expect((await issueService(db).update(issueId, { projectId: s.p, title: "Việc mới", actorAgentId: s.e1 }))?.title).toBe("Việc mới");
+      expect((await issueService(db).update(issueId, { projectId: s.q, actorUserId: "owner-1" }))?.projectId).toBe(s.q);
+    });
+
+    it("executor chỉ tự nhận issue chưa giao agent nào; issue của Trợ Lý hay executor khác thì 422", async () => {
+      const s = await seed();
+      for (const owner of [s.a, s.e1]) {
+        const issueId = await insertIssue(s.companyId, { projectId: s.p, parentId: s.root, assigneeAgentId: owner, status: "todo" });
+        await expect(issueService(db).update(issueId, { assigneeAgentId: s.e2, actorAgentId: s.e2 })).rejects.toMatchObject({
+          status: 422, details: { code: "crew_assignment_forbidden" },
+        });
+        expect(await assigneeOf(issueId)).toBe(owner);
+      }
+      const free = await insertIssue(s.companyId, { projectId: s.p, parentId: s.root, status: "todo" });
+      expect((await issueService(db).update(free, { assigneeAgentId: s.e2, actorAgentId: s.e2 }))?.assigneeAgentId).toBe(s.e2);
+    });
+
+    it("không đọc được bảng vai trò: agent đổi assignee hay trạng thái bị 503, board vẫn đổi được", async () => {
+      const s = await seed();
+      const issueId = await insertIssue(s.companyId, { projectId: s.p, parentId: s.root, assigneeAgentId: s.e1, status: "in_progress" });
+      const table = crewRolesTable();
+      // Cột executor chỉ được đọc khi đổi assignee; cột reviewer được đọc ở mọi lệnh ghi qua cổng.
+      const cases = [
+        ["executor_agent_ids", [{ assigneeAgentId: s.e2 }]],
+        ["reviewer_agent_id", [{ assigneeAgentId: s.e2 }, { status: "blocked" as const }]],
+      ] as const;
+      for (const [column, patches] of cases) {
+        await db.execute(sql.raw(`ALTER TABLE ${table} RENAME COLUMN ${column} TO ${column}_broken`));
+        try {
+          for (const patch of patches) {
+            await expect(issueService(db).update(issueId, { ...patch, actorAgentId: s.e1 })).rejects.toMatchObject({
+              status: 503, details: { code: "crew_roles_unavailable" },
+            });
+          }
+          expect(await db.select().from(issues).where(eq(issues.id, issueId))).toMatchObject([
+            { assigneeAgentId: s.e1, status: "in_progress" },
+          ]);
+        } finally {
+          await db.execute(sql.raw(`ALTER TABLE ${table} RENAME COLUMN ${column}_broken TO ${column}`));
+        }
+      }
+      await db.execute(sql.raw(`ALTER TABLE ${table} RENAME COLUMN executor_agent_ids TO executor_agent_ids_broken`));
+      try {
+        expect((await issueService(db).update(issueId, { assigneeAgentId: s.x, actorUserId: "owner-1" }))?.assigneeAgentId).toBe(s.x);
+      } finally {
+        await db.execute(sql.raw(`ALTER TABLE ${table} RENAME COLUMN executor_agent_ids_broken TO executor_agent_ids`));
+      }
     });
 
     it("project chưa có dòng vai trò: executor chuyển cho agent khác như cũ", async () => {

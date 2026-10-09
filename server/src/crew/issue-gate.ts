@@ -54,6 +54,8 @@ export interface IssueGateFacts {
     executionState: unknown;
     assigneeAgentId: string | null;
     assigneeUserId: string | null;
+    /** Project hiện tại của issue; agent không được đổi (luật giao việc đọc vai trò theo project). */
+    projectId?: string | null;
     /** Issue watchdog/recovery do hệ thống tạo (`isCrewHousekeepingIssue`). */
     housekeeping?: boolean;
     /** Issue không có policy nằm trong project theo dõi của company (`trackingProjectIds`): không áp cổng Crew. */
@@ -69,8 +71,8 @@ export interface IssueGateFacts {
    */
   roleAgentIds?: ReadonlySet<string>;
   /**
-   * Trợ Lý/executor theo dòng vai trò crew.core của project hiện tại và project mới (nếu lệnh ghi đổi project),
-   * cho luật giao việc giữa agent. Rỗng hoặc không truyền: project không có dòng vai trò, giữ hành vi cũ.
+   * Trợ Lý/executor theo dòng vai trò crew.core của project của issue (agent không đổi được project), cho luật
+   * giao việc giữa agent. Rỗng hoặc không truyền: project không có dòng vai trò, giữ hành vi cũ.
    */
   projectAgentRoles?: ReadonlyArray<ProjectAgentRoles>;
   /** Decision `approved` đã lưu của issue. */
@@ -89,7 +91,12 @@ export type IssueGateVerdict =
   | { kind: "override"; violations: string[] }
   | {
       kind: "block";
-      code: "crew_policy_locked" | "crew_gate_blocked" | "crew_role_assignee" | "crew_assignment_forbidden";
+      code:
+        | "crew_policy_locked"
+        | "crew_project_locked"
+        | "crew_gate_blocked"
+        | "crew_role_assignee"
+        | "crew_assignment_forbidden";
       violations: string[];
     };
 
@@ -163,6 +170,11 @@ export function pushGateStages(policy: IssueExecutionPolicy | null): IssueExecut
 
 export function evaluateIssueGate(f: IssueGateFacts): IssueGateVerdict {
   const notes: string[] = [];
+  // Agent không chuyển issue sang project khác (kể cả về không project): luật giao việc đọc vai trò theo project, nên
+  // chuyển sang project không có dòng vai trò rồi đổi assignee sẽ lách được luật. Board chuyển project như stock.
+  if (f.actor.kind === "agent" && has(f.patch, "projectId") && (f.patch.projectId ?? null) !== (f.locked.projectId ?? null)) {
+    return { kind: "block", code: "crew_project_locked", violations: ["project_changed"] };
+  }
   // Tiến trình nền stock (watchdog, recovery, evaluation) trên issue không có policy Crew: giữ hành vi gốc.
   if (f.actor.kind === "system" && policyGateFingerprint(f.locked.executionPolicy) === "none") {
     return { kind: "allow", notes };
@@ -220,7 +232,15 @@ export function evaluateIssueGate(f: IssueGateFacts): IssueGateVerdict {
       target !== f.locked.assigneeAgentId &&
       !workflowHandoff &&
       !returnAgents.includes(target) &&
-      (f.projectAgentRoles ?? []).some((roles) => !agentAssignmentAllowed({ actorAgentId, targetAgentId: target, roles }))
+      (f.projectAgentRoles ?? []).some(
+        (roles) =>
+          !agentAssignmentAllowed({
+            actorAgentId,
+            targetAgentId: target,
+            roles,
+            currentAssigneeAgentId: f.locked.assigneeAgentId,
+          }),
+      )
     ) {
       return { kind: "block", code: "crew_assignment_forbidden", violations: ["assignment_forbidden"] };
     }
@@ -317,7 +337,7 @@ export function evaluateIssueGate(f: IssueGateFacts): IssueGateVerdict {
   return { kind: "block", code: "crew_gate_blocked", violations };
 }
 
-const GATE_KEYS = ["status", "executionPolicy", "executionState", "assigneeAgentId"] as const;
+const GATE_KEYS = ["status", "executionPolicy", "executionState", "assigneeAgentId", "projectId"] as const;
 
 function actorOf(input: IssueWriteHookInput): GateActor {
   if (input.actorAgentId) return { kind: "agent", agentId: input.actorAgentId };
@@ -327,6 +347,7 @@ function actorOf(input: IssueWriteHookInput): GateActor {
 
 const BLOCK_MESSAGES: Record<string, string> = {
   crew_policy_locked: "Crew: agent và tiến trình nền không được sửa stage của executionPolicy.",
+  crew_project_locked: "Crew: agent không được chuyển issue sang project khác; việc này chỉ board làm.",
   crew_role_assignee: "Crew: agent không được giao việc cho agent reviewer hoặc integrator.",
   crew_assignment_forbidden:
     "Crew: chỉ Trợ Lý của project giao việc cho agent khác; agent khác chỉ giao cho executor của project.",
@@ -348,21 +369,25 @@ export async function crewBeforeIssueWrite(input: IssueWriteHookInput): Promise<
   const { tx, issueId } = input;
   const [locked] = await tx.select().from(issues).where(eq(issues.id, issueId)).for("update");
   if (!locked) return;
-  const config = await loadCrewRoles({ db: tx, companyId: locked.companyId, projectId: locked.projectId });
+  const actor = actorOf(input);
+  // Actor agent: không đọc được bảng vai trò thì từ chối (503, thử lại) như H4, không rơi về vai trò file.
+  const onReadError = actor.kind === "agent" ? "throw" : "fallback";
+  const config = await loadCrewRoles({ db: tx, companyId: locked.companyId, projectId: locked.projectId, onReadError });
   if (config.kind === "absent") return;
   const roles = config.kind === "ok" ? config.roles : null;
-  const actor = actorOf(input);
   const roleAgentIds =
     actor.kind === "agent" && has(patch, "assigneeAgentId")
-      ? await loadCompanyRoleAgentIds({ db: tx, companyId: locked.companyId })
+      ? await loadCompanyRoleAgentIds({ db: tx, companyId: locked.companyId, onReadError })
       : undefined;
   const projectAgentRoles: ProjectAgentRoles[] = [];
   if (actor.kind === "agent" && has(patch, "assigneeAgentId") && patch.assigneeAgentId !== null) {
-    const projectIds = new Set([locked.projectId, has(patch, "projectId") ? (patch.projectId as string | null) : null]);
-    for (const projectId of projectIds) {
-      const roles = await loadProjectAgentRoles({ db: tx, companyId: locked.companyId, projectId, onReadError: "fallback" });
-      if (roles) projectAgentRoles.push(roles);
-    }
+    const rolesOfProject = await loadProjectAgentRoles({
+      db: tx,
+      companyId: locked.companyId,
+      projectId: locked.projectId,
+      onReadError,
+    });
+    if (rolesOfProject) projectAgentRoles.push(rolesOfProject);
   }
 
   const decisions = await tx
@@ -435,6 +460,7 @@ export async function crewBeforeIssueWrite(input: IssueWriteHookInput): Promise<
       executionState: locked.executionState,
       assigneeAgentId: locked.assigneeAgentId,
       assigneeUserId: locked.assigneeUserId,
+      projectId: locked.projectId,
       housekeeping,
       tracking: isTrackingProject(config, locked.projectId),
     },

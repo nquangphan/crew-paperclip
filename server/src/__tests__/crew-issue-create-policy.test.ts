@@ -198,6 +198,17 @@ describe("decideCreatePolicy", () => {
     expect(create("e1", "x", null)).toEqual({ kind: "set", template: "child" });
   });
 
+  it("agent tạo con nằm ngoài project của issue cha bị từ chối, kể cả Trợ Lý; board thì giữ", () => {
+    const outside = (data: Parameters<typeof decideCreatePolicy>[0]["data"]) =>
+      decideCreatePolicy({ data, roles, ownerUserId: "owner-1", projectOutsideParent: true });
+    expect(outside({ createdByAgentId: "e1", parentId: "p", assigneeAgentId: "e2" })).toEqual({
+      kind: "reject",
+      code: "crew_project_outside_parent",
+    });
+    expect(outside({ createdByAgentId: "a", parentId: "p" })).toEqual({ kind: "reject", code: "crew_project_outside_parent" });
+    expect(outside({ createdByUserId: "owner-1", parentId: "p" })).toEqual({ kind: "set", template: "child" });
+  });
+
   it("hệ thống tạo issue routine hoặc nguồn không nhận diện được: con → template con, gốc → template gốc", () => {
     for (const originKind of ["routine_execution", "manual", "plugin:x", undefined]) {
       expect(
