@@ -9,7 +9,7 @@ TAG=crew-v3/paperclip:v3-$SHORT
 rm -rf "$CTX"; mkdir -p "$CTX/app"
 tar -xzf "$OPS/overlay-$SHORT.tar.gz" -C "$CTX/app"
 cat > "$CTX/Dockerfile" <<'DOCK'
-FROM ghcr.io/paperclipai/paperclip:2026.1001.0
+FROM ghcr.io/paperclipai/paperclip:@CREW_BASE@
 COPY --chown=node:node app/ /app/
 RUN test -s /app/packages/crew-plugin/dist/ui/index.js && test -d /app/packages/crew-plugin/migrations
 RUN set -e; cd /app/server; OUT=dist; \
@@ -20,8 +20,12 @@ RUN set -e; cd /app/server; OUT=dist; \
     chown -R node:node "/app/server/$OUT" /app/packages/crew-plugin
 DOCK
 FULL=$(tr -dc '0-9a-f' < "$CTX/app/crew-commit.txt")
+# Upstream tag the overlay sits on, written by overlay-source.sh from core-hooks.json (e.g. v2026.1005.0).
+BASE=$(tr -dc 'v0-9.' < "$CTX/app/crew-base.txt")
+[[ "$BASE" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "overlay: bad crew-base.txt" >&2; exit 2; }
+sed -i "s#@CREW_BASE@#${BASE#v}#" "$CTX/Dockerfile"
 printf 'ENV PAPERCLIP_BUILD_COMMIT=%s\n' "$FULL" >> "$CTX/Dockerfile"
-printf 'ENV PAPERCLIP_BUILD_VERSION=v2026.1001.0-crew-%s\nLABEL crew.kind=overlay crew.commit=%s crew.base=ghcr.io/paperclipai/paperclip:2026.1001.0\n' "$SHORT" "$SHORT" >> "$CTX/Dockerfile"
+printf 'ENV PAPERCLIP_BUILD_VERSION=%s-crew-%s\nLABEL crew.kind=overlay crew.commit=%s crew.base=ghcr.io/paperclipai/paperclip:%s\n' "$BASE" "$SHORT" "$SHORT" "${BASE#v}" >> "$CTX/Dockerfile"
 LOG=$OPS/overlay-$SHORT.log; : > "$LOG"
 cd "$CTX"
 DOCKER_BUILDKIT=1 docker build -t "$TAG" --progress=plain . >> "$LOG" 2>&1 &

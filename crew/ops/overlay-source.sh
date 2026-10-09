@@ -3,7 +3,9 @@
 # and uploads them to the VPS for overlay-job.sh. Usage: overlay-source.sh [<commit>] (default HEAD of the fork worktree this script lives in)
 set -euo pipefail
 FORK=$(cd "$(dirname "$0")/../.." && pwd -P)
-BASE=v2026.1001.0
+# The upstream pin is the single source of truth: crew/release/core-hooks.json "base".
+BASE=$(node -e 'process.stdout.write(require(process.argv[1]).base)' "$FORK/crew/release/core-hooks.json")
+[[ "$BASE" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "overlay: bad base in core-hooks.json: $BASE" >&2; exit 2; }
 COMMIT=$(git -C "$FORK" rev-parse "${1:-HEAD}")
 SHORT=${COMMIT:0:9}
 WORK=$(mktemp -d)
@@ -25,6 +27,7 @@ SHIP=$(printf '%s\n' "$CHANGED" | grep -E '^(server/src/|packages/adapters/claud
 mkdir -p "$WORK/app"
 printf '%s\n' "$SHIP" | grep -E '^server/src/.*\.ts$' | sed 's#^server/##' > "$WORK/app/crew-transpile.txt" || true
 echo "$COMMIT" > "$WORK/app/crew-commit.txt"
+echo "$BASE" > "$WORK/app/crew-base.txt"
 if [ -n "$SHIP" ]; then git archive --format=tar "$COMMIT" $SHIP | tar -x -C "$WORK/app"; fi
 
 # The bundle resolves @paperclipai/plugin-sdk from its built dist.
