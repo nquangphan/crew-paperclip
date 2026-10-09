@@ -1,0 +1,82 @@
+{
+  "page": {
+    "title": "Requests",
+    "description": "The company's requests; child requests sit under their root request.",
+    "loadFailed": "Could not load requests",
+    "empty": "No requests yet",
+    "emptyFiltered": "No request matches the filters",
+    "created": "Created request {{identifier}}",
+    "createdDraft": "Saved draft {{identifier}} (not running)",
+    "open": "Open",
+    "uploadFailed": "Could not attach: {{names}}"
+  },
+  "list": {
+    "search": "Search requests",
+    "status": "Status",
+    "project": "Project",
+    "assignee": "Assignee",
+    "kind": "Type",
+    "sort": "Sort",
+    "group": "Group",
+    "columns": "Columns",
+    "all": "All",
+    "none": "None",
+    "unassigned": "Unassigned",
+    "noProject": "No project",
+    "expand": "Show child requests",
+    "collapse": "Hide child requests",
+    "col": {
+      "id": "ID",
+      "title": "Title",
+      "status": "Status",
+      "stage": "Crew stage",
+      "progress": "Child requests",
+      "project": "Project",
+      "assignee": "Assignee"
+    },
+    "progress": "{{done}}/{{total}} children done",
+    "kindOption": {
+      "research": "Research",
+      "other": "Code / Bug"
+    },
+    "sortOption": {
+      "updated": "Recently updated",
+      "created": "Recently created",
+      "title": "Title"
+    },
+    "groupOption": {
+      "status": "Status",
+      "project": "Project",
+      "assignee": "Assignee"
+    }
+  },
+  "new": {
+    "button": "New request",
+    "title": "New request",
+    "description": "The project's Assistant takes the request, splits the work and hands it to the agents.",
+    "project": "Project",
+    "projectPlaceholder": "Choose a project",
+    "noReadyProject": "No project is ready yet. Finish adding a project or fix the failing checks on the Project page.",
+    "kind": "Type",
+    "kinds": {
+      "code": "Code",
+      "bug": "Bug",
+      "research": "Research"
+    },
+    "researchMissing": "The company has no “research” label, so the Research type is unavailable.",
+    "titleLabel": "Title",
+    "titlePlaceholder": "What needs doing, in one sentence",
+    "descriptionLabel": "Description",
+    "descriptionPlaceholder": "Description (markdown)",
+    "assignee": "Assignee",
+    "assigneeHint": "The project's Assistant, fixed.",
+    "noRoles": "This project has no Crew role table yet, so the Assistant is unknown. Set roles on the Project page and try again.",
+    "attachments": "Attachments",
+    "remove": "Remove {{name}}",
+    "create": "Create",
+    "creating": "Creating",
+    "saveDraft": "Save draft (does not run)",
+    "cancel": "Cancel",
+    "createFailed": "Could not create the request"
+  }
+}
