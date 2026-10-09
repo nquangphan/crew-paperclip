@@ -19,7 +19,8 @@ export function isCrewResearch(description: string | null): boolean {
   return /^crew-kind research$/m.test(description ?? "");
 }
 
-const DOCS_CHECK = /^crew-docs-check commit=([0-9a-f]{40}) range=([0-9a-f]{7,40}\.\.[0-9a-f]{40}) exit=([0-3])$/;
+// Giữ đồng bộ với CREW_DOCS_CHECK_RE của server (server/src/crew/issue-policy.ts); khối ``` được dính liền sau exit=N.
+const DOCS_CHECK = /^crew-docs-check commit=([0-9a-f]{40}) range=([0-9a-f]{7,40}\.\.[0-9a-f]{40}) exit=([0-3])(?=$|\s|`)/;
 export function parseCrewDocsCheck(body: string): { commit: string; range: string; exit: number } | null {
   const match = DOCS_CHECK.exec(body.split("\n", 1)[0]?.trim() ?? "");
   if (!match || !match[2]?.endsWith(match[1]!)) return null;
