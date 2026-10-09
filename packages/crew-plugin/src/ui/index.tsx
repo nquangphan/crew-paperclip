@@ -1,5 +1,7 @@
 import "./docs/index.js";
 import "./machines/index.js";
+import "./storage/index.js";
+import "./usage/index.js";
 
 export { MachinesWidget } from "./machines/index.js";
 export { CrewIssueTab } from "./tab.js";

@@ -2,6 +2,10 @@ import { createElement as h, useState } from "react";
 import { MarkdownBlock, Spinner, usePluginData } from "@paperclipai/plugin-sdk/ui";
 import { registerIssuePanel, registerPageSection } from "../registry.js";
 import { buildDocsTree, type DocsNode } from "./tree.js";
+import type { DocsHistoryItem } from "../../docs/history.js";
+import type { DocsStatus } from "../../docs/status.js";
+import { DocsGraphView } from "../graph/docs-graph.js";
+import { DOCS_STATE_LABEL } from "../graph/model.js";
 
 type Project = { projectId: string; repo: string };
 type Tree = { repo:string;commit:string;auditState:string;receivedAt:string;machineId:string;dropped:Array<{path:string}>;pages:Array<{path:string;title:string;parentPath:string|null}> };
@@ -25,8 +29,8 @@ export function DocsCheckPanel({issueId,companyId}:{issueId:string;companyId:str
   const d = result.data; if (!d) return h("p", {role:"status"}, "Chưa có kết quả kiểm docs.");
   return h(DocsCheckContent, { result: d });
 }
-function DocsPage({projectId,path,onSelect}:{projectId:string;path:string;onSelect:(p:string)=>void}) {
-  const result = usePluginData<Page|null>("crew.docs.page", {projectId,path});
+function DocsPage({projectId,path,snapshotId,onSelect}:{projectId:string;path:string;snapshotId?:string;onSelect:(p:string)=>void}) {
+  const result = usePluginData<Page|null>("crew.docs.page", {projectId,path,snapshotId});
   if (result.loading) return h("p",{role:"status"},"Đang tải trang…");
   if (result.error) return h("p",{role:"alert"},result.error.message);
   const p = result.data; if (!p) return h("p",{role:"alert"},"Không tìm thấy trang.");
@@ -44,18 +48,35 @@ function DocsSearch({projectId,onSelect}:{projectId:string;onSelect:(p:string)=>
   const result = usePluginData<Array<{path:string;title:string}>>("crew.docs.search",{projectId,q});
   return h("section",{"aria-label":"Tìm tài liệu"},h("label",null,"Tìm kiếm ",h("input",{value:q,onChange:(e:{target:{value:string}})=>setQ(e.target.value)})),result.error ? h("p",{role:"alert"},result.error.message) : null, q && result.data ? h("ul",null,...result.data.map(row=>h("li",{key:row.path},h("button",{type:"button",onClick:()=>onSelect(row.path)},row.title)))) : null);
 }
+export function historyLabel(item:DocsHistoryItem):string {
+  const change = item.changed ? ` · +${item.changed.added} ~${item.changed.modified} −${item.changed.removed}` : "";
+  return `${item.commit.slice(0,12)} · ${time(item.receivedAt)}${change}${item.current ? " (hiện hành)" : ""}`;
+}
+function DocsStatusBadge({projectId}:{projectId:string}) {
+  const result = usePluginData<DocsStatus>("crew.docs.status",{projectId});
+  if (result.loading) return h("p",{role:"status"},"Đang tải trạng thái docs…");
+  if (result.error) return h("p",{role:"alert"},`Không tải được trạng thái docs: ${result.error.message}`);
+  if (!result.data) return null;
+  return h("p",{role:"status"},h("strong",null,DOCS_STATE_LABEL[result.data.state]),` — ${result.data.reason}`);
+}
 function DocsSpace({projectId}:{projectId:string}) {
   const [path,setPath] = useState<string|null>(null);
-  const result = usePluginData<Tree|null>("crew.docs.tree",{projectId});
+  const [snapshotId,setSnapshotId] = useState<string|undefined>(undefined);
+  const [view,setView] = useState<"pages"|"graph">("pages");
+  const history = usePluginData<DocsHistoryItem[]>("crew.docs.history",{projectId});
+  const result = usePluginData<Tree|null>("crew.docs.tree",{projectId,snapshotId});
   if (result.loading) return h("p",{role:"status"},"Đang tải cây tài liệu…");
   if (result.error) return h("p",{role:"alert"},result.error.message);
-  const tree = result.data; if (!tree) return h("p",{role:"status"},"Dự án chưa có tài liệu.");
+  const tree = result.data; if (!tree) return h("section",{"aria-label":"Tài liệu repo"},h(DocsStatusBadge,{projectId}),h("p",{role:"status"},"Dự án chưa có tài liệu."));
   const selected = path && tree.pages.some(p=>p.path===path) ? path : tree.pages.find(p=>p.path==="docs/index.md")?.path ?? tree.pages[0]?.path;
   const children = (nodes: DocsNode[]): React.ReactNode => h("ul", null, ...nodes.map(node => h("li", { key: node.path },
     node.type === "directory"
       ? h("details", { open: true }, h("summary", null, node.name), children(node.children))
       : h("button", { type: "button", "aria-current": selected === node.path ? "page" : undefined, onClick: () => setPath(node.path) }, node.title))));
-  return h("section",{"aria-label":"Tài liệu repo"}, h("p",null,`Repo: ${tree.repo} · Commit: ${tree.commit} · Nhận lúc: ${time(tree.receivedAt)} · ${audit[tree.auditState] ?? tree.auditState}`),tree.dropped.length ? h("details",null,h("summary",null,`${tree.dropped.length} file bị bỏ do secret-scan`),h("ul",null,...tree.dropped.map((d,index)=>h("li",{key:index},d.path)))):null,h(DocsSearch,{projectId,onSelect:setPath}),h("nav",{"aria-label":"Cây tài liệu"},children(buildDocsTree(tree.pages))),selected?h(DocsPage,{projectId,path:selected,onSelect:setPath}):h("p",null,"Chưa có trang tài liệu."));
+  const tabButton = (id:"pages"|"graph",label:string) => h("button",{type:"button",role:"tab","aria-selected":view===id,onClick:()=>setView(id)},label);
+  const picker = history.data && history.data.length ? h("label",null,"Ảnh chụp ",h("select",{value:snapshotId ?? history.data.find(i=>i.current)?.snapshotId ?? "",onChange:(e:{target:{value:string}})=>{ const item=history.data!.find(i=>i.snapshotId===e.target.value); setSnapshotId(item?.current ? undefined : e.target.value); }},...history.data.map(item=>h("option",{key:item.snapshotId,value:item.snapshotId},historyLabel(item))))) : null;
+  const graphView = h(DocsGraphView,{projectId,snapshotId,onOpenPage:(p:string)=>{ setPath(p); setView("pages"); }});
+  return h("section",{"aria-label":"Tài liệu repo"}, h(DocsStatusBadge,{projectId}), picker, h("div",{role:"tablist","aria-label":"Chế độ xem docs"},tabButton("pages","Trang"),tabButton("graph","Đồ thị")), view==="graph" ? graphView : h("div",null, h("p",null,`Repo: ${tree.repo} · Commit: ${tree.commit} · Nhận lúc: ${time(tree.receivedAt)} · ${audit[tree.auditState] ?? tree.auditState}`),tree.dropped.length ? h("details",null,h("summary",null,`${tree.dropped.length} file bị bỏ do secret-scan`),h("ul",null,...tree.dropped.map((d,index)=>h("li",{key:index},d.path)))):null,h(DocsSearch,{projectId,onSelect:setPath}),h("nav",{"aria-label":"Cây tài liệu"},children(buildDocsTree(tree.pages))),selected?h(DocsPage,{projectId,path:selected,snapshotId,onSelect:setPath}):h("p",null,"Chưa có trang tài liệu.")));
 }
 export function DocsSection({companyId}:{companyId:string}) {
   const [projectId,setProjectId] = useState<string|null>(null);
