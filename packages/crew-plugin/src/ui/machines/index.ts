@@ -2,23 +2,14 @@ import { createElement as h, useEffect } from "react";
 import { Spinner, StatusBadge, usePluginData, type PluginWidgetProps } from "@paperclipai/plugin-sdk/ui";
 import { registerPageSection } from "../registry.js";
 import type { CrewMachine } from "../../machines/data.js";
+import { appLine, machineCardModel } from "./model.js";
 
-const localTime = (value: string) => new Intl.DateTimeFormat("vi-VN", { timeZone: "Asia/Ho_Chi_Minh", dateStyle: "short", timeStyle: "medium" }).format(new Date(value));
+export { appLine };
 
 function useMachines(companyId: string) {
   const state = usePluginData<CrewMachine[]>("crew.machines", { companyId });
   useEffect(() => { const timer = setInterval(() => state.refresh(), 30_000); return () => clearInterval(timer); }, [state.refresh]);
   return state;
-}
-
-const UPDATE_LABELS: Record<string, string> = {
-  idle: "Đã cập nhật", downloading: "Đang tải bản mới", "waiting-idle": "Chờ máy rảnh để cài",
-  installing: "Đang cài", probation: "Đang thử bản mới", "rolled-back": "Đã quay về bản trước",
-};
-
-export function appLine(app: CrewMachine["latest"]["app"]): string {
-  if (!app) return "Chạy bằng CLI";
-  return `App 2P Crew ${app.version} · ${app.sshdOwner === "app" ? "sshd do app giữ" : "sshd do LaunchAgent giữ"} · ${UPDATE_LABELS[app.updateState] ?? "Không rõ"}`;
 }
 
 function chart(points: CrewMachine["load24h"]) {
@@ -32,21 +23,20 @@ function chart(points: CrewMachine["load24h"]) {
 }
 
 export function MachineCard({ machine }: { machine: CrewMachine }) {
-  const report = machine.latest;
-  const alerts = report.checks.filter((check) => check.status !== "ok");
-  return h("article", { key: machine.machineId, className: "rounded-lg border p-4 space-y-2" },
-    h("h3", null, machine.hostname),
-    h(StatusBadge, { label: machine.online ? "Trực tuyến" : "Mất liên lạc", status: machine.online ? "ok" : "error" }),
-    h("p", null, `Lần cuối ${localTime(machine.lastSeenAt)}`),
-    h("p", null, `Tải 1 phút: ${report.load1 ?? "Không rõ"} / ${report.cpuCount ?? "Không rõ"} CPU · RAM trống: ${report.memFreePct === null ? "Không rõ" : `${report.memFreePct}%`}`),
-    chart(machine.load24h),
-    report.tccPending.length ? h("div", { role: "alert", className: "rounded-md border border-warning p-3" },
+  const model = machineCardModel(machine);
+  return h("article", { key: model.machineId, className: "rounded-lg border p-4 space-y-2" },
+    h("h3", null, model.hostname),
+    h(StatusBadge, { label: model.statusLabel, status: model.online ? "ok" : "error" }),
+    h("p", null, model.lastSeenLine),
+    h("p", null, model.loadLine),
+    chart(model.load24h),
+    model.tccPending.length ? h("div", { role: "alert", className: "rounded-md border border-warning p-3" },
       h("strong", null, "TCC đang chờ"),
-      h("ul", null, ...report.tccPending.map((item, index) => h("li", { key: index }, `${item.service} · ${item.client} · từ ${localTime(item.since)}`)))) : null,
-    h("p", null, `Claude ${report.claude.version ?? "Không rõ"} · ${report.claude.loggedIn === null ? "Không rõ" : report.claude.loggedIn ? "đã đăng nhập" : "chưa đăng nhập"} · gói ${report.claude.plan ?? "Không rõ"}`),
-    h("p", null, appLine(report.app)),
-    h("p", null, `Superpowers: ghim ${report.superpowers.pinned ?? "Không rõ"} · owner ${report.superpowers.ownerInstalled ?? "Không rõ"}`),
-    alerts.length ? h("ul", null, ...alerts.map((check) => h("li", { key: check.id }, `${check.status === "error" ? "Lỗi" : "Cảnh báo"}: ${check.title}`))) : null,
+      h("ul", null, ...model.tccPending.map((item, index) => h("li", { key: index }, item.text)))) : null,
+    h("p", null, model.claudeLine),
+    h("p", null, model.appLine),
+    h("p", null, model.superpowersLine),
+    model.alerts.length ? h("ul", null, ...model.alerts.map((alert) => h("li", { key: alert.id }, alert.text))) : null,
   );
 }
 
