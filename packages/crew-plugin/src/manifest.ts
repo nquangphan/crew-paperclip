@@ -81,6 +81,8 @@ const manifest: PaperclipPluginManifestV1 = {
       capability: "api.routes.register", companyResolution: { from: "body", key: "companyId" } },
     { routeKey: "roles.delete", method: "DELETE", path: "/projects/:projectId/roles", auth: "board",
       capability: "api.routes.register", companyResolution: { from: "query", key: "companyId" } },
+    { routeKey: "docs.graph", method: "GET", path: "/docs/graph", auth: "board-or-agent",
+      capability: "api.routes.register", companyResolution: { from: "query", key: "companyId" } },
   ],
   database: {
     migrationsDir: "migrations",

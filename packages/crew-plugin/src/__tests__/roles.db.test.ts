@@ -46,13 +46,14 @@ function request(routeKey: string, options: {
   };
 }
 
-it("declares board-only role routes that pass the host manifest validator", () => {
+it("declares the role routes as board-only and the docs graph route for board and agent, and they pass the host manifest validator", () => {
   const parsed = pluginManifestV1Schema.parse(manifest);
   expect(parsed.capabilities).toContain("api.routes.register");
   expect(parsed.apiRoutes?.map((r) => [r.routeKey, r.method, r.path, r.auth, r.companyResolution])).toEqual([
     ["roles.get", "GET", "/projects/:projectId/roles", "board", { from: "query", key: "companyId" }],
     ["roles.set", "POST", "/projects/:projectId/roles", "board", { from: "body", key: "companyId" }],
     ["roles.delete", "DELETE", "/projects/:projectId/roles", "board", { from: "query", key: "companyId" }],
+    ["docs.graph", "GET", "/docs/graph", "board-or-agent", { from: "query", key: "companyId" }],
   ]);
 });
 

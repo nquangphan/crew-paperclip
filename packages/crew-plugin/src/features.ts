@@ -1,5 +1,6 @@
 import type { PluginContext } from "@paperclipai/plugin-sdk";
 import { registerDocsData } from "./docs/data.js";
+import { registerDocsGraph } from "./docs/graph-data.js";
 import { registerDocsHistory } from "./docs/history.js";
 import { registerDocsWebhook } from "./docs/webhook.js";
 import { registerMapFeature } from "./handlers/map.js";
@@ -12,5 +13,6 @@ export function registerFeatures(ctx: PluginContext): void {
   registerDocsData(ctx);
   registerDocsWebhook(ctx);
   registerDocsHistory(ctx);
+  registerDocsGraph(ctx);
   registerMachinesFeature(ctx);
 }
