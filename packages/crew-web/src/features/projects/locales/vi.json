@@ -1,0 +1,93 @@
+{
+  "list": {
+    "title": "Project",
+    "description": "Các project Crew của company này.",
+    "add": "Thêm project",
+    "empty": "Chưa có project",
+    "emptyHint": "Thêm project đầu tiên để bắt đầu giao yêu cầu.",
+    "loadFailed": "Không tải được danh sách project",
+    "col": {
+      "star": "Sao",
+      "name": "Tên",
+      "tasks": "Yêu cầu",
+      "readiness": "Sẵn sàng",
+      "actions": "Thao tác"
+    }
+  },
+  "star": {
+    "add": "Gắn sao {{name}}",
+    "remove": "Bỏ sao {{name}}",
+    "failed": "Không lưu được sao"
+  },
+  "resume": "Làm tiếp",
+  "detail": {
+    "loadFailed": "Không tải được project",
+    "rename": "Đổi tên",
+    "tabs": {
+      "issues": "Yêu cầu",
+      "roles": "Vai trò",
+      "docs": "Docs",
+      "readiness": "Sẵn sàng"
+    }
+  },
+  "issues": {
+    "empty": "Project chưa có yêu cầu",
+    "emptyHint": "Yêu cầu giao cho project này sẽ hiện ở đây.",
+    "loadFailed": "Không tải được yêu cầu của project"
+  },
+  "roles": {
+    "loadFailed": "Không tải được vai trò",
+    "fileRoles": "Project này chưa có dòng vai trò. Nếu project đã có yêu cầu Crew thì nó đang dùng vai trò trong file cấu hình; lưu vai trò ở đây để đặt vai trò cho project.",
+    "slot": {
+      "assistant": "Trợ Lý",
+      "executor1": "Executor 1",
+      "executor2": "Executor 2 (tùy chọn)",
+      "reviewer": "Reviewer",
+      "integrator": "Integrator"
+    },
+    "none": "Không có",
+    "choose": "Chọn agent",
+    "unknownAgent": "Agent không còn ({{id}})",
+    "edit": "Sửa vai trò",
+    "cancel": "Hủy",
+    "save": "Lưu vai trò",
+    "saving": "Đang lưu...",
+    "saved": "Đã lưu vai trò.",
+    "instructions": {
+      "ok": "Đã cập nhật hướng dẫn của Trợ Lý.",
+      "unchanged": "Hướng dẫn của Trợ Lý không đổi.",
+      "conflict": "Có người vừa sửa hướng dẫn của Trợ Lý, tải lại rồi ghi lại.",
+      "retry": "Tải lại và ghi lại",
+      "failed": "Đã lưu vai trò nhưng chưa cập nhật được hướng dẫn của Trợ Lý"
+    },
+    "saveFailed": "Không lưu được vai trò"
+  },
+  "docs": {
+    "empty": "Project này chưa có docs đồng bộ từ máy",
+    "emptyHint": "Docs hiện sau khi app trên máy gửi bản đồng bộ đầu tiên.",
+    "loadFailed": "Không tải được docs",
+    "search": "Tìm trong docs",
+    "noResult": "Không có trang khớp",
+    "pick": "Chọn một trang để xem",
+    "meta": "Commit {{commit}} · nhận lúc {{at}}",
+    "pageMissing": "Trang không còn trong bản docs mới nhất"
+  },
+  "readiness": {
+    "title": "Danh sách kiểm",
+    "allOk": "Mọi mục đều đạt.",
+    "project": "Project",
+    "agentOf": "Agent {{name}}",
+    "unknownAgent": "Agent {{id}}",
+    "loadFailed": "Không tải được trạng thái sẵn sàng"
+  },
+  "rename": {
+    "title": "Đổi tên project",
+    "name": "Tên project",
+    "description": "Mô tả",
+    "color": "Màu",
+    "colorHint": "Mã màu, ví dụ #6366f1",
+    "icon": "Biểu tượng",
+    "save": "Lưu",
+    "cancel": "Hủy"
+  }
+}
