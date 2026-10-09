@@ -105,6 +105,7 @@ import {
   Wizard,
 } from '@/ds';
 import { Inbox, LayoutDashboard, ListChecks } from '@/ds/icons';
+import { CrewShowcase } from './crew-showcase';
 
 function WidgetShowcase() {
   const [confirmOpen, setConfirmOpen] = useState(false);
@@ -161,6 +162,7 @@ function WidgetShowcase() {
           { label: 'Vòng sửa', value: '1/5' },
         ]}
       />
+      <CrewShowcase />
       <MarkdownView
         markdown={
           '## Markdown\n\n**Đậm**, `mã`, [link ngoài](https://example.com).\n\n- [x] việc xong\n- [ ] việc chưa xong\n\n<img src=x onerror="alert(1)">'

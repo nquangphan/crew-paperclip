@@ -177,5 +177,99 @@
     "unavailable": "Could not read the sign-in request",
     "needAdmin": "This request needs an instance admin account.",
     "failed": "Could not update the sign-in request"
+  },
+  "ui": {
+    "loading": "Loading"
+  },
+  "machine": {
+    "online": "Online",
+    "offline": "Offline",
+    "unknown": "Unknown",
+    "lastSeen": "Last seen {{time}}",
+    "load": "1-min load: {{load}} / {{cpu}} CPU · Free RAM: {{mem}}",
+    "tccTitle": "Pending TCC",
+    "tccItem": "{{service}} · {{client}} · since {{since}}",
+    "claude": "Claude {{version}} · {{login}} · plan {{plan}}",
+    "loggedIn": "signed in",
+    "loggedOut": "signed out",
+    "cli": "Running via CLI",
+    "app": "2P Crew app {{version}} · {{sshd}} · {{update}}",
+    "sshd": {
+      "app": "sshd held by the app",
+      "launchd": "sshd held by LaunchAgent"
+    },
+    "update": {
+      "idle": "Up to date",
+      "downloading": "Downloading update",
+      "waiting-idle": "Waiting for idle to install",
+      "installing": "Installing",
+      "probation": "Trying the new version",
+      "rolled-back": "Rolled back to previous version"
+    },
+    "superpowers": "Superpowers: pinned {{pinned}} · owner {{owner}}",
+    "checkouts": "{{count}} checkout(s)",
+    "alertWarn": "Warning: {{title}}",
+    "alertError": "Error: {{title}}",
+    "load24h": "24-hour load chart, peak {{peak}}"
+  },
+  "readinessBadge": {
+    "check": {
+      "A1": "Agent config is wrong",
+      "A2": "Superpowers is not pinned to the right version",
+      "A3": "AGENTS.md differs from the rendered version",
+      "A4": "Environment is wrong",
+      "A5": "Checkout missing on the machine",
+      "A6": "Holds no role in the project",
+      "A7": "Agent is terminated or pending approval",
+      "P1": "Project has no Crew roles",
+      "P2": "A role holder is not ready"
+    }
+  },
+  "docsCheck": {
+    "title": "Docs check",
+    "pass": "Passed",
+    "fail": "Failed (exit {{exit}})",
+    "invalid": "Invalid evidence",
+    "commit": "Commit: {{value}}",
+    "range": "Range: {{value}}",
+    "author": "Author: {{value}}",
+    "at": "At: {{value}}",
+    "unknown": "Unknown",
+    "empty": "No docs check result yet"
+  },
+  "crewMap": {
+    "label": "Crew request map",
+    "loadFailed": "Could not display the Crew map.",
+    "edge": {
+      "parent": "Belongs to request",
+      "dependency": "Must finish first",
+      "repair": "Fix round"
+    },
+    "kind": {
+      "code": "Code",
+      "research": "Research",
+      "fix": "Fix"
+    },
+    "stageLine": "Stage: {{stage}}",
+    "assigneeLine": "Assignee: {{name}} · Fix rounds: {{round}}/{{max}}",
+    "unassigned": "Unassigned",
+    "bundle": "Bundle {{id}} #{{seq}}",
+    "missingIssue": "{{kind}} relation is missing an issue: {{from}} → {{to}}"
+  },
+  "crewSummary": {
+    "label": "Crew summary",
+    "name": "Crew",
+    "children": "{{done}}/{{total}} children done",
+    "docsLine": "docs {{state}}",
+    "docs": {
+      "none": "none",
+      "invalid": "invalid",
+      "pass": "passed",
+      "fail": "failed"
+    },
+    "open": "Open map",
+    "close": "Close map",
+    "empty": "No Crew requests yet",
+    "rootProgress": "Children done"
   }
 }

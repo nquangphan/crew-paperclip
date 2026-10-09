@@ -1,0 +1,24 @@
+[
+  {
+    "id": "i-root",
+    "identifier": "CRE-36",
+    "title": "Gói tính năng gốc",
+    "status": "in_progress",
+    "updatedAt": "2026-10-10T04:00:00.000Z",
+    "doneChildren": 1,
+    "totalChildren": 4,
+    "kind": "code",
+    "stage": { "currentStageId": "s1", "currentType": "review", "completed": [], "position": 0 }
+  },
+  {
+    "id": "i-r2",
+    "identifier": "CRE-50",
+    "title": "Nghiên cứu cache",
+    "status": "done",
+    "updatedAt": "2026-10-09T04:00:00.000Z",
+    "doneChildren": 2,
+    "totalChildren": 2,
+    "kind": "research",
+    "stage": null
+  }
+]

@@ -1,0 +1,17 @@
+{
+  "ok": {
+    "commit": "6e7268d3a1b2c3d4e5f60718293a4b5c6d7e8f90",
+    "range": "3ec54bf..6e7268d",
+    "exit": 0,
+    "at": "2026-10-10T04:20:00.000Z",
+    "author": "integrator"
+  },
+  "fail": {
+    "commit": "6e7268d3a1b2c3d4e5f60718293a4b5c6d7e8f90",
+    "range": "3ec54bf..6e7268d",
+    "exit": 2,
+    "at": "2026-10-10T04:20:00.000Z",
+    "author": null
+  },
+  "invalid": { "invalid": true, "at": "2026-10-10T04:20:00.000Z", "author": "integrator" }
+}

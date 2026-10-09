@@ -1,8 +1,20 @@
 // Data plugin crew.core: POST /api/plugins/crew.core/data/<key> { companyId, params } → { data }.
-// Kiểu trả của data R1 (roots, map, docsCheck, machines, docs.*) lấy từ export `shared/*` của plugin ở nơi dùng;
-// ở đây giữ `unknown` để không chép lại logic plugin.
+// Kiểu trả của data R1 (roots, map, docsCheck, machines, docs.*) lấy từ export `shared/*` của plugin (qua ./types).
 import { call } from '../endpoints';
-import type { CrewCompany, MachineJob, MachineJobStatus, SetupRun, SkillSyncState } from './types';
+import type {
+  CrewCompany,
+  CrewMachine,
+  CrewMap,
+  CrewRoot,
+  DocsCheckResult,
+  DocsPage,
+  DocsProject,
+  DocsTree,
+  MachineJob,
+  MachineJobStatus,
+  SetupRun,
+  SkillSyncState,
+} from './types';
 
 /** Khóa data UI Crew đọc và mã nút BA dùng nó. Khóa ngoài danh sách không gọi được. */
 export const CREW_DATA_KEYS = {
@@ -39,19 +51,20 @@ export async function crewData<T = unknown>(
 export const crewDataApi = {
   /** Company có cấu hình Crew (instanceConfig.companies của plugin). */
   companies: (): Promise<CrewCompany[]> => crewData<CrewCompany[]>('crew.companies', null),
-  roots: (companyId: string, params: { status?: string } = {}): Promise<unknown> =>
-    crewData('crew.roots', companyId, params),
-  map: (companyId: string, issueId: string): Promise<unknown> => crewData('crew.map', companyId, { issueId }),
-  docsCheck: (companyId: string, issueId: string): Promise<unknown> =>
-    crewData('crew.docsCheck', companyId, { issueId }),
-  machines: (companyId: string): Promise<unknown> => crewData('crew.machines', companyId),
-  docsProjects: (companyId: string): Promise<unknown> => crewData('crew.docs.projects', companyId),
-  docsTree: (companyId: string, projectId: string, snapshotId?: string): Promise<unknown> =>
-    crewData('crew.docs.tree', companyId, { projectId, snapshotId }),
-  docsPage: (companyId: string, projectId: string, path: string, snapshotId?: string): Promise<unknown> =>
-    crewData('crew.docs.page', companyId, { projectId, path, snapshotId }),
-  docsSearch: (companyId: string, projectId: string, q: string): Promise<unknown> =>
-    crewData('crew.docs.search', companyId, { projectId, q }),
+  roots: (companyId: string, params: { status?: string } = {}): Promise<CrewRoot[]> =>
+    crewData<CrewRoot[]>('crew.roots', companyId, params),
+  map: (companyId: string, issueId: string): Promise<CrewMap> => crewData<CrewMap>('crew.map', companyId, { issueId }),
+  /** null: issue chưa có bằng chứng kiểm docs. */
+  docsCheck: (companyId: string, issueId: string): Promise<DocsCheckResult | null> =>
+    crewData<DocsCheckResult | null>('crew.docsCheck', companyId, { issueId }),
+  machines: (companyId: string): Promise<CrewMachine[]> => crewData<CrewMachine[]>('crew.machines', companyId),
+  docsProjects: (companyId: string): Promise<DocsProject[]> => crewData<DocsProject[]>('crew.docs.projects', companyId),
+  docsTree: (companyId: string, projectId: string, snapshotId?: string): Promise<DocsTree | null> =>
+    crewData<DocsTree | null>('crew.docs.tree', companyId, { projectId, snapshotId }),
+  docsPage: (companyId: string, projectId: string, path: string, snapshotId?: string): Promise<DocsPage | null> =>
+    crewData<DocsPage | null>('crew.docs.page', companyId, { projectId, path, snapshotId }),
+  docsSearch: (companyId: string, projectId: string, q: string): Promise<{ path: string; title: string }[]> =>
+    crewData<{ path: string; title: string }[]>('crew.docs.search', companyId, { projectId, q }),
   machineJobs: (
     companyId: string,
     params: { machineId?: string; setupRunId?: string; status?: MachineJobStatus } = {},
