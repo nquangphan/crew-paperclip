@@ -11,6 +11,8 @@ Chạy `rm -rf` (hay xóa đệ quy) ở bất kỳ đâu ngoài thư mục tạ
 3. Merge hoặc push `sha` không có `crew-review` hợp lệ, hay dùng `--force`, `--no-verify` (không có ngoại lệ).
 4. Tạo issue con giao cho reviewer hoặc integrator.
 5. Gọi API thiếu `/api/`.
+6. Ghi thêm bất cứ gì (comment, `PATCH`, `POST`) sau một `PATCH` chuyển stage hoặc đổi người giao (`done`, hay `in_progress` của reviewer): server hủy run của chính bạn ngay khi `PATCH` đó đổi người giao, kể cả khi `PATCH` sau đó trả 422, và mọi lệnh ghi tiếp theo trả 403 `agent_run_cancelled`. Ghi đủ bằng chứng và comment cần thiết **trước**, để `PATCH` là lệnh ghi cuối của run. `PATCH` trả 422 thì dừng run: không comment, không `PATCH` lại; lần chạy kế sẽ được đánh thức.
+7. Gọi `PUT /api/issues/<id>/title`: route này không có trong danh sách cho phép của run SSH, và issue không có tiêu đề vẫn chạy bình thường. Cần đổi tiêu đề thì dùng `PATCH /api/issues/<id>` với `title` (kèm `comment`).
 
 ## Gọi API
 
@@ -61,7 +63,7 @@ Sau đó comment trên issue gốc nêu lý do và issue con vừa tạo, rồi 
 
 ## Lỗi server
 
-- 422 `crew_gate_blocked` với `docs_missing`, `docs_stale` hoặc `docs_failed:<DOCS_EXIT>`: ghi lại bằng chứng đúng định dạng cho merged commit hiện tại rồi `PATCH` một lần nữa; vẫn 422 thì dừng và comment nguyên văn `violations`.
+- 422 `crew_gate_blocked` với `docs_missing`, `docs_stale` hoặc `docs_failed:<DOCS_EXIT>` trả về cho `PATCH done`: run của bạn đã bị hủy nên không ghi thêm được gì (không comment, không `PATCH` lại); dừng run, lần chạy kế được đánh thức sẽ dựng lại bằng chứng đúng định dạng cho merged commit hiện tại **trước** khi `PATCH`.
 - 422 `crew_policy_locked`, `crew_role_assignee`, `crew_override_forbidden`: bạn đang đổi policy, người giao việc hoặc override của issue; bỏ thay đổi đó.
 - Không chuyển `cancelled`. Khi bạn là participant đang chờ duyệt, mọi status khác `done`/`in_review` bị stock hiểu là yêu cầu sửa; muốn dừng vì lý do môi trường hay chờ owner thì chỉ comment lý do, không đổi status.
 
@@ -85,5 +87,5 @@ Bạn được hệ thống đánh thức ở stage 4 như mọi lần được 
 7. Comment `POST /api/issues/<id>/comments`, **dòng đầu đúng định dạng**:
    `crew-merge sha=<T> branch=<nhánh mặc định> pushed=<yes|no>`
    (`sha` là `T`; khi chưa tới bước 3 thì là `git rev-parse HEAD`.) Khi `PUSHED=no`, dòng sau ghi mã thoát và tối đa 5 dòng lỗi đã lọc. Không dán output thô của git và không chạy `git remote -v` hay đọc URL remote: URL có thể chứa credential. Lọc bằng `sed -E 's#[A-Za-z][A-Za-z0-9+.-]*://[^@/ ]*@#://***@#g; s/(gh[pousr]_|github_pat_|glpat-|xox[abp]-)[A-Za-z0-9_-]+/***/g' | grep -E '^(error|fatal| ?!|remote:)' | head -5`.
-8. `PUSHED=yes` (hoặc đã push ở bước 1): `PATCH /api/issues/<id>` `{"status":"done","comment":"Integrator: approve — đã push <T> vào <nhánh mặc định>"}`. Server hoàn tất stage 4 và đóng issue. 422 `crew_gate_blocked`: đọc `violations`, kiểm comment `crew-merge` có là dòng mới nhất và `sha` bằng `commit=` bằng chứng mới nhất không; sửa thứ tự đăng một lần, vẫn 422 thì dừng và comment nguyên văn.
+8. `PUSHED=yes` (hoặc đã push ở bước 1): `PATCH /api/issues/<id>` `{"status":"done","comment":"Integrator: approve — đã push <T> vào <nhánh mặc định>"}`. Server hoàn tất stage 4 và đóng issue. `PATCH` này là lệnh ghi cuối: trước khi gửi, kiểm comment `crew-merge` là dòng mới nhất và `sha` bằng `commit=` của bằng chứng mới nhất. 422 `crew_gate_blocked`: run đã bị hủy, dừng (không comment, không đăng lại, không `PATCH` lại); lần chạy kế bắt đầu lại từ bước 1.
 9. `PUSHED=no`: không đổi status (stock sẽ hiểu là yêu cầu sửa và trả issue về executor). Comment ở bước 7 đã nêu lý do; thêm một dòng nhờ owner xử lý nguyên nhân (quyền push, nhánh bảo vệ, conflict) rồi comment trên issue để đánh thức lại bạn. Lần chạy sau bắt đầu lại từ bước 1 và vẫn dựng lại từ `EVIDENCE`.

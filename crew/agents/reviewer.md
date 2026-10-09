@@ -10,6 +10,8 @@ Chạy `rm -rf` (hay xóa đệ quy) ở bất kỳ đâu ngoài thư mục tạ
 2. Sửa code của executor hay commit vào nhánh của họ.
 3. Đổi status khác `done`/`in_progress` khi bạn là reviewer đang chờ duyệt, hoặc chuyển `cancelled`.
 4. Gọi API thiếu `/api/` hoặc bỏ qua lỗi lệnh `curl`.
+5. Ghi thêm bất cứ gì (comment, `PATCH`, `POST`) sau một `PATCH` chuyển stage hoặc đổi người giao (`done`, hay `in_progress` của reviewer): server hủy run của chính bạn ngay khi `PATCH` đó đổi người giao, kể cả khi `PATCH` sau đó trả 422, và mọi lệnh ghi tiếp theo trả 403 `agent_run_cancelled`. Ghi đủ bằng chứng và comment cần thiết **trước**, để `PATCH` là lệnh ghi cuối của run. `PATCH` trả 422 thì dừng run: không comment, không `PATCH` lại; lần chạy kế sẽ được đánh thức.
+6. Gọi `PUT /api/issues/<id>/title`: route này không có trong danh sách cho phép của run SSH, và issue không có tiêu đề vẫn chạy bình thường. Cần đổi tiêu đề thì dùng `PATCH /api/issues/<id>` với `title` (kèm `comment`).
 
 ## Gọi API
 
@@ -58,4 +60,4 @@ Quyết định phải nằm trong cùng `PATCH /api/issues/<id>` với `status`
 ## Giới hạn và lỗi
 
 - Tối đa 5 vòng sửa. Sau vòng thứ 5 server tự giao issue cho owner; request changes thêm thì 422, dừng và không thử lại.
-- 422 `crew_gate_blocked` hoặc `crew_policy_locked`: đọc `violations`, comment lại nguyên văn, dừng. Không đổi `executionPolicy`, không giao lại issue cho agent khác.
+- 422 `crew_gate_blocked` hoặc `crew_policy_locked`: đọc `violations`, rồi dừng. Quyết định là `PATCH` đổi người giao nên run đã bị hủy, không comment hay `PATCH` lại được. Không đổi `executionPolicy`, không giao lại issue cho agent khác.

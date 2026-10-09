@@ -400,3 +400,46 @@ test("assistant: yêu cầu sửa gốc được xử lý trước khi đóng l�
   ]) assert.ok(text.includes(needle), `thiếu ${needle}`);
   assert.match(text, /Trước tiên đối soát mọi kế hoạch đã ghi với mọi con đã tạo/);
 });
+
+test("mọi vai trò cấm ghi sau PATCH chuyển stage và dừng khi PATCH trả 422", () => {
+  for (const name of ["executor", "reviewer", "integrator", "assistant"]) {
+    const text = read(name);
+    assert.match(text, /Ghi thêm bất cứ gì \(comment, `PATCH`, `POST`\) sau một `PATCH` chuyển stage/, name);
+    assert.match(text, /agent_run_cancelled/, name);
+    assert.match(text, /`PATCH` trả 422 thì dừng run: không comment, không `PATCH` lại/, name);
+  }
+});
+
+test("integrator không bảo ghi bằng chứng rồi PATCH lại sau 422", () => {
+  const text = read("integrator");
+  assert.doesNotMatch(text, /rồi `PATCH` một lần nữa/);
+  assert.doesNotMatch(text, /sửa thứ tự đăng một lần/);
+  assert.match(text, /run của bạn đã bị hủy nên không ghi thêm được gì/);
+  const stage2 = text.slice(text.indexOf("## Ghi bằng chứng rồi quyết định"), text.indexOf("## Lỗi server"));
+  assert.ok(stage2.indexOf("crew-docs-check commit=") < stage2.indexOf('"status":"done"'), "bằng chứng phải đứng trước PATCH");
+  const stage4 = text.slice(text.indexOf("## Stage 4"));
+  assert.ok(stage4.indexOf("crew-merge sha=") < stage4.indexOf("`PUSHED=yes` (hoặc đã push"), "crew-merge phải đứng trước PATCH done");
+  assert.match(stage4, /`PATCH` này là lệnh ghi cuối/);
+});
+
+test("vai trò khác không bảo comment sau PATCH 422 của quyết định", () => {
+  assert.doesNotMatch(read("reviewer"), /đọc `violations`, comment lại nguyên văn, dừng/);
+  assert.match(read("reviewer"), /run đã bị hủy, không comment hay `PATCH` lại được/);
+  for (const name of ["executor", "assistant"]) assert.match(read(name), /422 của chính `PATCH done` \(lệnh ghi cuối\) thì run đã bị hủy/, name);
+});
+
+test("mọi vai trò cấm PUT /api/issues/:id/title và chỉ dùng PATCH title", () => {
+  for (const name of ["executor", "reviewer", "integrator", "assistant"]) {
+    const text = read(name);
+    assert.match(text, /Gọi `PUT \/api\/issues\/<id>\/title`/, name);
+    assert.match(text, /dùng `PATCH \/api\/issues\/<id>` với `title`/, name);
+  }
+});
+
+const BRIDGE_SOURCE = new URL("../../packages/adapter-utils/src/sandbox-callback-bridge.ts", import.meta.url);
+
+test("PATCH /api/issues/:id có trong allowlist của callback bridge, PUT title thì không", { skip: !existsSync(BRIDGE_SOURCE) && "bridge chưa có trên nhánh này" }, () => {
+  const text = readFileSync(BRIDGE_SOURCE, "utf8");
+  assert.ok(text.includes('{ method: "PATCH", path: /^\\/api\\/issues\\/[^/]+$/ }'));
+  assert.doesNotMatch(text, /method: "PUT", path: \/\^\\\/api\\\/issues\\\/\[\^\/\]\+\\\/title/);
+});

@@ -10,6 +10,8 @@ Chạy `rm -rf` (hay xóa đệ quy) ở bất kỳ đâu ngoài thư mục tạ
 2. Báo xong mà không đăng `crew-commit` cho commit mới nhất (đăng lại sau MỖI lần sửa); issue research thì thay bằng `crew-report`.
 3. Đổi `executionPolicy`, chuyển `cancelled`, dùng `--no-verify` (không có ngoại lệ).
 4. Gọi API thiếu `/api/` hoặc bỏ qua lỗi lệnh `curl`.
+5. Ghi thêm bất cứ gì (comment, `PATCH`, `POST`) sau một `PATCH` chuyển stage hoặc đổi người giao (`done`, hay `in_progress` của reviewer): server hủy run của chính bạn ngay khi `PATCH` đó đổi người giao, kể cả khi `PATCH` sau đó trả 422, và mọi lệnh ghi tiếp theo trả 403 `agent_run_cancelled`. Ghi đủ bằng chứng và comment cần thiết **trước**, để `PATCH` là lệnh ghi cuối của run. `PATCH` trả 422 thì dừng run: không comment, không `PATCH` lại; lần chạy kế sẽ được đánh thức.
+6. Gọi `PUT /api/issues/<id>/title`: route này không có trong danh sách cho phép của run SSH, và issue không có tiêu đề vẫn chạy bình thường. Cần đổi tiêu đề thì dùng `PATCH /api/issues/<id>` với `title` (kèm `comment`).
 
 ## Gọi API
 
@@ -65,7 +67,7 @@ Trước khi báo xong bắt buộc chạy `crew-mac workflow-check --root "$(gi
 
 ## Khi server trả 422
 
-Đọc `code` và `violations`, comment lại nguyên văn rồi dừng. Không thử đường khác.
+Đọc `code` và `violations`, comment lại nguyên văn rồi dừng. Không thử đường khác. Ngoại lệ: 422 của chính `PATCH done` (lệnh ghi cuối) thì run đã bị hủy, không comment được nữa; dừng luôn.
 
 | code | Nghĩa | Bạn làm |
 |---|---|---|
