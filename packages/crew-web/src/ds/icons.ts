@@ -19,6 +19,7 @@ export {
   Folder,
   Globe,
   Inbox,
+  Info,
   KeyRound,
   Languages,
   LayoutDashboard,
@@ -37,8 +38,15 @@ export {
   Search,
   Settings,
   Sparkles,
+  Star,
   Sun,
   Trash2,
   Users,
   X,
 } from 'lucide-react';
+
+import { type LucideProps, Star as StarOutline } from 'lucide-react';
+import { createElement } from 'react';
+
+/** Sao đặc (đã gắn sao); `Star` là dạng viền. */
+export const StarFilled = (props: LucideProps) => createElement(StarOutline, { fill: 'currentColor', ...props });

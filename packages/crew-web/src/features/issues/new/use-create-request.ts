@@ -2,7 +2,7 @@
 import type { Issue } from '@paperclipai/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, queryKeys } from '@/api';
-import { findResearchLabelId, type LabelLike, type RequestKind } from './kinds';
+import { findResearchLabelId, type RequestKind } from './kinds';
 
 export interface CreateRequestInput {
   companyId: string;
@@ -65,21 +65,11 @@ export function useCreateRequest(companyId: string) {
   });
 }
 
-type LabelsApi = { list(companyId: string): Promise<LabelLike[]> };
-
-/**
- * Id nhãn `research` của company. `api.labels` chưa có trong src/api (cần FX gói ds): trong lúc chờ, lấy nhãn
- * từ các yêu cầu đã có. Không tìm thấy thì null và dialog ẩn loại Nghiên cứu.
- */
+/** Id nhãn `research` của company. Không có nhãn này thì null và dialog ẩn loại Nghiên cứu. */
 export function useResearchLabelId(companyId: string) {
   return useQuery({
     queryKey: ['issues', companyId, 'research-label'],
     enabled: companyId !== '',
-    queryFn: async (): Promise<string | null> => {
-      const labelsApi = (api as unknown as { labels?: LabelsApi }).labels;
-      if (labelsApi) return findResearchLabelId(await labelsApi.list(companyId));
-      const issues = await api.issues.listCompact(companyId, { limit: 200 });
-      return findResearchLabelId(issues.flatMap((i) => i.labels ?? []));
-    },
+    queryFn: async (): Promise<string | null> => findResearchLabelId(await api.labels.list(companyId)),
   });
 }

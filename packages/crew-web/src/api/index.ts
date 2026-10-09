@@ -16,6 +16,7 @@ import { healthApi } from './paperclip/health';
 import { inboxApi } from './paperclip/inbox';
 import { interactionsApi } from './paperclip/interactions';
 import { issuesApi } from './paperclip/issues';
+import { labelsApi } from './paperclip/labels';
 import { profileApi } from './paperclip/profile';
 import { projectsApi } from './paperclip/projects';
 import { runsApi } from './paperclip/runs';
@@ -33,6 +34,7 @@ export const api = {
   dashboard: dashboardApi,
   search: searchApi,
   issues: issuesApi,
+  labels: labelsApi,
   inbox: inboxApi,
   comments: commentsApi,
   attachments: attachmentsApi,
