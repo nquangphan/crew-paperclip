@@ -251,6 +251,30 @@ describe("machine job queue on the real host database", () => {
     expect((await result({ status: "failed" }, third.id)).body).toMatchObject({ status: "failed", errorCode: "app_error", errorText: null });
   });
 
+  it("việc check failed giữ danh sách mục kiểm, kind khác vẫn bị từ chối result", async () => {
+    const checkResult = { kind: "check", items: [{ id: "git", status: "ok", title: "Git" }, { id: "workflow:executor", status: "error", title: "Workflow chưa sạch" }] };
+    const fail = (id: string, extra: Record<string, unknown>) =>
+      call(request("jobs.result", { jobId: id, body: { companyId, machineId: machine1, status: "failed", errorCode: "check_failed", ...extra } }));
+
+    const inspect = await create();
+    await call(request("jobs.claim", { body: { companyId, machineId: machine1 } }));
+    expect(await fail(inspect.id, { result: checkResult }))
+      .toEqual({ status: 400, body: { error: "result chỉ gửi khi status là done, hoặc failed của việc check" } });
+
+    const created = await call(request("jobs.create", { body: { companyId, machineId: machine1, kind: "check", payload: { projectKey: "demo" } } }));
+    expect(created.status).toBe(201);
+    const checkId = (created.body as MachineJob).id;
+    expect(await call(request("jobs.claim", { body: { companyId, machineId: machine1 } }))).toMatchObject({ status: 200 });
+    expect(await fail(checkId, { result: { kind: "inspect-folder" } })).toEqual({ status: 400, body: { error: "result không khớp loại việc" } });
+    expect(await fail(checkId, { result: "x" })).toEqual({ status: 400, body: { error: "result phải là object" } });
+    expect(await fail(checkId, { result: { kind: "check", items: [{ title: "y".repeat(70_000) }] } })).toEqual({ status: 400, body: { error: "result quá lớn" } });
+    const ok = await fail(checkId, { result: checkResult, errorText: "Workflow chưa sạch" });
+    expect(ok.status).toBe(200);
+    expect(ok.body).toMatchObject({ status: "failed", errorCode: "check_failed", result: checkResult });
+    const listed = (await loadMachineJobs(host.ctx, { companyId })).find((job) => job.id === checkId);
+    expect(listed?.result).toEqual(checkResult);
+  });
+
   it("retry chỉ nhận việc failed, cancel chỉ nhận việc chưa xong", async () => {
     const job = await create();
     const retry = (id: string, company = companyId) => call(request("jobs.retry", { jobId: id, company, body: { companyId: company } }));

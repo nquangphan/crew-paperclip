@@ -3,6 +3,12 @@
   "version": "0.0.0",
   "description": "Crew plugin for Paperclip",
   "type": "module",
+  "exports": {
+    "./shared/*": {
+      "types": "./src/shared-web/*.ts",
+      "import": "./src/shared-web/*.ts"
+    }
+  },
   "private": true,
   "paperclipPlugin": {
     "manifest": "./dist/manifest.js",
