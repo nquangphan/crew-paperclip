@@ -91,7 +91,9 @@ test('PW-S3-3 đánh dấu đã đọc / chưa đọc / tất cả đã đọc: 
     `PW-S3-3 a ${uniqueToken()}`,
     `PW-S3-3 b ${uniqueToken()}`,
   ]);
-  const isUnread = async (id: string) => (await api.get<IssueLite>(`/api/issues/${id}`)).isUnreadForMe === true;
+  // isUnreadForMe chỉ có trong danh sách (GET /issues/:id không trả field này), nên đọc từ danh sách Hộp thư như UI.
+  const isUnread = async (id: string) =>
+    (await inboxIssues(api, company.id)).find((i) => i.id === id)?.isUnreadForMe === true;
   const inboxBadge = page.getByRole('navigation', { name: 'Điều hướng chính' }).getByRole('link', { name: /^Hộp thư/ });
   const badgeNumber = async () => Number(((await inboxBadge.innerText()).match(/\d+/) ?? ['0'])[0]);
 
