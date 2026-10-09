@@ -24,7 +24,7 @@ import {
 } from '@/ds';
 import { awaitingMyApproval } from '@/features/issues/detail/crew/gate-actions';
 import { useT } from '@/i18n';
-import { hasPendingUserInteraction, INBOX_TAB_IDS, type InboxTabId, inboxTabs } from './tabs';
+import { hasPendingUserInteraction, INBOX_TAB_IDS, type InboxTabId, inboxTabs, isMyExecutionStage } from './tabs';
 import { useInboxIssues } from './use-inbox-issues';
 
 const ALL = '__all';
@@ -83,7 +83,7 @@ export function InboxPage() {
 
   const reasonOf = (issue: Issue): string | null => {
     if (tab !== 'awaiting_me') return null;
-    if (awaitingMyApproval(issue, me)) return t('reason.approval');
+    if (awaitingMyApproval(issue, me) || isMyExecutionStage(issue, me)) return t('reason.approval');
     if (hasPendingUserInteraction(issue)) return t('reason.question');
     return t('reason.escalated');
   };
