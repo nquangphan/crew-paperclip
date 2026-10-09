@@ -2,6 +2,7 @@
 
 export { Logo } from './brand/Logo';
 export * from './components/alert-dialog';
+export * from './components/app-frame';
 export * from './components/avatar';
 export * from './components/badge';
 export * from './components/breadcrumb';
