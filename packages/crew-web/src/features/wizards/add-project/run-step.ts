@@ -46,14 +46,24 @@ export interface AgentRow {
 }
 
 /** Phần của `api` (src/api) mà wizard thêm project gọi. `api` của web khớp kiểu này. */
+/** Run trả về từ `setup.begin`: kèm mã chủ khóa bước (chỉ có ở response begin). */
+export type BegunRun = SetupRun & { lockToken?: string };
+
 export interface AddProjectApi extends InstructionsApi {
   setup: {
-    begin(companyId: string, id: string, stepId: SetupStepId): Promise<SetupRun>;
+    begin(companyId: string, id: string, stepId: SetupStepId): Promise<BegunRun>;
+    /** `lockToken` của begin phải gửi lại: tab khác đã begin lại bước thì plugin trả 409. */
     finish(
       companyId: string,
       id: string,
       stepId: SetupStepId,
-      body: { status: 'done' | 'failed'; refs?: Record<string, string>; error?: string; projectId?: string },
+      body: {
+        status: 'done' | 'failed';
+        refs?: Record<string, string>;
+        error?: string;
+        projectId?: string;
+        lockToken?: string;
+      },
     ): Promise<SetupRun>;
   };
   jobs: {
@@ -220,7 +230,10 @@ export const required = (refs: Record<string, string>, key: string): string => {
   return value;
 };
 
-/** Environment SSH `in_place` mẫu của company (có secret SSH): ưu tiên bản có `crewLoadGate`, rồi bản mới nhất. */
+/**
+ * Environment SSH `in_place` mẫu của company (có secret SSH và `knownHosts`, vì environment mới luôn bật
+ * `strictHostKeyChecking`): ưu tiên bản có `crewLoadGate`, rồi bản mới nhất.
+ */
 export function pickTemplate(envs: EnvironmentRow[]): EnvironmentRow | null {
   const ok = envs.filter((env) => {
     const ref = env.config.privateKeySecretRef as { secretId?: unknown } | undefined;
@@ -230,7 +243,9 @@ export function pickTemplate(envs: EnvironmentRow[]): EnvironmentRow | null {
       env.metadata?.workspaceRealizationMode === 'in_place' &&
       typeof ref?.secretId === 'string' &&
       typeof env.config.host === 'string' &&
-      typeof env.config.username === 'string'
+      typeof env.config.username === 'string' &&
+      typeof env.config.knownHosts === 'string' &&
+      env.config.knownHosts.trim() !== ''
     );
   });
   const gate = (env: EnvironmentRow) => (env.metadata?.crewLoadGate ? 1 : 0);
@@ -252,7 +267,7 @@ export function environmentBody(template: EnvironmentRow, name: string, checkout
       username: config.username,
       remoteWorkspacePath: checkout,
       privateKeySecretRef: { type: 'secret_ref', secretId, version: 'latest' },
-      knownHosts: typeof config.knownHosts === 'string' ? config.knownHosts : null,
+      knownHosts: config.knownHosts,
       strictHostKeyChecking: true,
     },
     metadata: { workspaceRealizationMode: 'in_place', ...(gate ? { crewLoadGate: gate } : {}) },
@@ -465,30 +480,40 @@ export interface ExecuteStepInput {
   onFail: (current: SetupRun, refs: Record<string, string>) => Promise<void>;
 }
 
+/** `setup.begin`; 409 (người khác giữ khóa) → StepBusyError. */
+export async function beginStep(
+  api: { setup: Pick<AddProjectApi['setup'], 'begin'> },
+  run: SetupRun,
+  stepId: SetupStepId,
+): Promise<BegunRun> {
+  try {
+    return await api.setup.begin(run.companyId, run.id, stepId);
+  } catch (error) {
+    if (statusOf(error) === 409) throw new StepBusyError((error as Error).message);
+    throw error;
+  }
+}
+
+/** Phần body `setup.finish` mang mã chủ khóa của lần begin. */
+export const lockOf = (begun: BegunRun) => (begun.lockToken ? { lockToken: begun.lockToken } : {});
+
 /**
- * Khung một bước: `setup.begin` (khóa; 409 → StepBusyError, không làm gì) → việc → `setup.finish` kèm refs. Lỗi thì ghi
- * bước `failed` kèm refs đã có rồi gọi `onFail`. Bước đã `done` thì trả run nguyên vẹn.
+ * Khung một bước: `setup.begin` (khóa; 409 → StepBusyError, không làm gì) → việc → `setup.finish` kèm refs và mã chủ
+ * khóa. Lỗi thì ghi bước `failed` kèm refs đã có rồi gọi `onFail`. `finish` trả 409 nghĩa là tab khác đã begin lại bước
+ * (khóa hết hạn trong lúc chờ máy): kết quả thuộc về tab đó, nên ném StepBusyError và KHÔNG gọi `onFail` (không tạm
+ * dừng agent mà tab kia vừa chạy lại). Bước đã `done` thì trả run nguyên vẹn.
  */
 export async function executeStep(input: ExecuteStepInput): Promise<SetupRun> {
   const { api, run, stepId } = input;
   if (run.steps[stepId]?.status === 'done') return run;
   const companyId = run.companyId;
-  let current: SetupRun;
-  try {
-    current = await api.setup.begin(companyId, run.id, stepId);
-  } catch (error) {
-    if (statusOf(error) === 409) throw new StepBusyError((error as Error).message);
-    throw error;
-  }
+  const current = await beginStep(api, run, stepId);
+  const lock = lockOf(current);
   input.onStep?.();
   const refs: Record<string, string> = { ...(current.steps[stepId]?.refs ?? {}) };
+  let extra: { projectId?: string };
   try {
-    const extra = await input.work(current, refs);
-    return await api.setup.finish(companyId, run.id, stepId, {
-      status: 'done',
-      ...(Object.keys(refs).length > 0 ? { refs } : {}),
-      ...extra,
-    });
+    extra = await input.work(current, refs);
   } catch (error) {
     if (error instanceof DOMException && error.name === 'AbortError') throw error;
     let failed: SetupRun | null = null;
@@ -497,12 +522,25 @@ export async function executeStep(input: ExecuteStepInput): Promise<SetupRun> {
         status: 'failed',
         error: stepErrorText(input.t, error),
         ...(Object.keys(refs).length > 0 ? { refs } : {}),
+        ...lock,
       });
-    } catch {
-      // Không ghi được trạng thái lỗi (mất khóa, mạng): vẫn tạm dừng agent rồi báo lỗi gốc.
+    } catch (finishError) {
+      if (statusOf(finishError) === 409) throw new StepBusyError((finishError as Error).message);
+      // Không ghi được trạng thái lỗi (mạng): vẫn tạm dừng agent rồi báo lỗi gốc.
     }
     await input.onFail(current, refs);
     if (failed) return failed;
+    throw error;
+  }
+  try {
+    return await api.setup.finish(companyId, run.id, stepId, {
+      status: 'done',
+      ...(Object.keys(refs).length > 0 ? { refs } : {}),
+      ...extra,
+      ...lock,
+    });
+  } catch (error) {
+    if (statusOf(error) === 409) throw new StepBusyError((error as Error).message);
     throw error;
   }
 }

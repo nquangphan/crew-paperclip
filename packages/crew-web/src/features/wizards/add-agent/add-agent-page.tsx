@@ -1,7 +1,8 @@
 // Wizard Tạo agent (S13): thêm executor thứ 2 hoặc thay agent của một ô vai trò. Ba lối vào:
 // - `?project=<id>&slot=<ô>` (hoặc không gì): form bước 1 rồi tạo setup run `add-agent`;
-// - `?fix=<agentId>&step=<bước>`: "Làm tiếp" từ trạng thái sẵn sàng cho agent chưa có lần tạo dở (agent do app tạo):
-//   bỏ các bước trước, sửa từ bước được chỉ; agent đã có lần tạo dở thì chuyển sang chạy tiếp lần đó;
+// - `?fix=<agentId>&step=<bước>[&rewrite=1]`: "Làm tiếp" từ trạng thái sẵn sàng cho agent chưa có lần tạo dở (agent do
+//   app tạo): bỏ các bước trước, sửa từ bước được chỉ; agent đã có lần tạo dở thì chuyển sang chạy tiếp lần đó.
+//   `rewrite=1` (AGENTS.md lệch) mới ghi lại AGENTS.md của agent có sẵn;
 // - `?resume=<setupRunId>`: 6 bước theo setup run, chạy tiếp từ bước dở.
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { type FormEvent, useMemo, useState } from 'react';
@@ -37,13 +38,13 @@ import { useT } from '@/i18n';
 import { CREW_MODELS, isCrewModel, ROLE_MODELS, roleOfSlot } from '@/lib/instructions';
 import { companyHref, findAgentRun } from '../resume';
 import { type RunHooks, SetupProgress } from '../setup-progress';
-import { prepareFixRun, runAddAgent } from './run-step';
+import { type AddAgentSeed, prepareFixRun, runAddAgent } from './run-step';
 import { ADD_AGENT_STEPS, type AddAgentStepId, isAddAgentStep, ROLE_SLOTS } from './steps';
 import { type AddAgentForm, type AddAgentFormErrors, validateAddAgent } from './validate';
 
 const resumeSearch = (id: string) => `?resume=${encodeURIComponent(id)}`;
 
-type FixTarget = { agentId: string; step: AddAgentStepId };
+type FixTarget = { agentId: string; step: AddAgentStepId; rewrite: boolean };
 
 export function AddAgentPage() {
   const { t } = useT('wizards');
@@ -51,7 +52,9 @@ export function AddAgentPage() {
   const resume = params.get('resume');
   const fixId = params.get('fix');
   const step = params.get('step');
-  const fix: FixTarget | null = fixId ? { agentId: fixId, step: isAddAgentStep(step) ? step : 'agent' } : null;
+  const fix: FixTarget | null = fixId
+    ? { agentId: fixId, step: isAddAgentStep(step) ? step : 'agent', rewrite: params.get('rewrite') === '1' }
+    : null;
   return (
     <>
       <PageHeader title={t('addAgent.title')} description={t('addAgent.description')} />
@@ -154,8 +157,9 @@ function AddAgentFormView({
     return null;
   }, [fix, roles.data]);
 
-  const projectId = overrides.projectId ?? holding?.projectId ?? initialProject;
-  const slot = overrides.slot ?? holding?.slot ?? initialSlot;
+  // Chế độ sửa: agent đang giữ ô thì project và ô cố định theo vai trò (đổi ô thì một agent nằm hai ô).
+  const projectId = holding?.projectId ?? overrides.projectId ?? initialProject;
+  const slot = holding?.slot ?? overrides.slot ?? initialSlot;
   const projectRoles = roles.data?.get(projectId);
   const runs = setupRuns.data ?? [];
   const projectRun = runs
@@ -181,7 +185,9 @@ function AddAgentFormView({
     }
     return '';
   })();
-  const key = overrides.key ?? derivedKey;
+  // Suy được khóa thì khóa cố định: checkout, environment và job dựng theo khóa này phải là của chính project.
+  const keyLocked = derivedKey !== '';
+  const key = keyLocked ? derivedKey : (overrides.key ?? '');
   const derivedFolder =
     projectRun?.steps.inspect?.refs?.root ?? (projectRun ? (projectRun.input as AddProjectInput).folder : '');
   const machineList = machines.data ?? [];
@@ -225,7 +231,11 @@ function AddAgentFormView({
         machineId: form.machineId,
         input,
       });
-      const seed = { folder: form.folder, ...(fix ? { agent: fix.agentId } : {}) };
+      const seed: AddAgentSeed = {
+        folder: form.folder,
+        ...(fix ? { agent: fix.agentId } : {}),
+        ...(fix?.rewrite ? { rewrite: 'true' } : {}),
+      };
       const translate = (k: string, p?: Record<string, unknown>) => t(k, p);
       if (fix) await prepareFixRun({ api, t: translate, seed }, run, fix);
       return { run, seed };
@@ -291,7 +301,7 @@ function AddAgentFormView({
           ) : null}
 
           <Field label={t('addAgent.form.project')} htmlFor="add-agent-project" error={err('projectId')}>
-            <Select value={projectId} onValueChange={(v) => set('projectId', v)}>
+            <Select value={projectId} onValueChange={(v) => set('projectId', v)} disabled={holding !== null}>
               <SelectTrigger id="add-agent-project" className="w-full">
                 <SelectValue placeholder={t('addAgent.form.projectPlaceholder')} />
               </SelectTrigger>
@@ -309,7 +319,7 @@ function AddAgentFormView({
           </Field>
 
           <Field label={t('addAgent.form.slot')} htmlFor="add-agent-slot" hint={slotHint} error={err('slot')}>
-            <Select value={slot} onValueChange={(v) => set('slot', v)}>
+            <Select value={slot} onValueChange={(v) => set('slot', v)} disabled={holding !== null}>
               <SelectTrigger id="add-agent-slot" className="w-full">
                 <SelectValue placeholder={t('addAgent.form.slotPlaceholder')} />
               </SelectTrigger>
@@ -378,13 +388,14 @@ function AddAgentFormView({
           <Field
             label={t('addAgent.form.key')}
             htmlFor="add-agent-key"
-            hint={t('addAgent.form.keyHint')}
+            hint={keyLocked ? t('addAgent.form.keyLocked') : t('addAgent.form.keyHint')}
             error={err('key')}
           >
             <Input
               id="add-agent-key"
               value={form.key}
               autoComplete="off"
+              readOnly={keyLocked}
               onChange={(e) => set('key', e.target.value.trim())}
             />
           </Field>
@@ -427,7 +438,7 @@ const runAgent = (hooks: RunHooks, run: SetupRun, state: unknown) =>
       t: hooks.t,
       onStep: hooks.onStep,
       onRun: hooks.onRun,
-      seed: (state as { seed?: { folder?: string; agent?: string } } | null)?.seed,
+      seed: (state as { seed?: AddAgentSeed } | null)?.seed,
     },
     run,
   );
@@ -439,7 +450,6 @@ const agentQueries = (run: SetupRun) => [
 
 function AddAgentProgress({ runId }: { runId: string }) {
   const { t } = useT('wizards');
-  const { company } = useCompany();
   return (
     <SetupProgress
       runId={runId}
@@ -456,18 +466,14 @@ function AddAgentProgress({ runId }: { runId: string }) {
           key: run.projectKey,
         });
       }}
-      done={(run) => {
+      done={(run, prefix) => {
         const agentId = run.steps.agent?.refs?.agent;
         return (
           <Alert title={t('addAgent.done')}>
             <div className="flex gap-4">
-              {agentId ? (
-                <Link to={companyHref(company.issuePrefix, `agents/${agentId}`)}>{t('addAgent.openAgent')}</Link>
-              ) : null}
+              {agentId ? <Link to={companyHref(prefix, `agents/${agentId}`)}>{t('addAgent.openAgent')}</Link> : null}
               {run.projectId ? (
-                <Link to={companyHref(company.issuePrefix, `projects/${run.projectId}`)}>
-                  {t('addAgent.openProject')}
-                </Link>
+                <Link to={companyHref(prefix, `projects/${run.projectId}`)}>{t('addAgent.openProject')}</Link>
               ) : null}
             </div>
           </Alert>

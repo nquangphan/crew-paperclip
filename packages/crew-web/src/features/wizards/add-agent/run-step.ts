@@ -25,9 +25,11 @@ import {
 } from '@/lib/instructions';
 import {
   type AddProjectApi,
+  beginStep,
   environmentBody,
   executeStep,
   isTime,
+  lockOf,
   pauseAgents,
   pickTemplate,
   pinDirOf,
@@ -47,6 +49,7 @@ export interface AddAgentApi {
   setup: AddProjectApi['setup'];
   jobs: AddProjectApi['jobs'];
   environments: AddProjectApi['environments'];
+  projects: Pick<AddProjectApi['projects'], 'list'>;
   agents: AddProjectApi['agents'] & {
     get(id: string, companyId?: string): Promise<AgentDetail>;
     update(id: string, body: Record<string, unknown>, companyId?: string): Promise<unknown>;
@@ -65,12 +68,26 @@ export interface AddAgentContext {
   signal?: AbortSignal;
   pollMs?: number;
   /**
-   * Giá trị người dùng nhập ở form (`folder`) hoặc agent cần sửa (`agent`), ghi vào refs của bước `agent` để lần chạy
-   * tiếp ở trình duyệt khác vẫn có. Refs đã lưu luôn thắng.
+   * Giá trị người dùng nhập ở form (`folder`), agent cần sửa (`agent`) và `rewrite: 'true'` khi sửa vì AGENTS.md lệch
+   * (A3), ghi vào refs của bước `agent` để lần chạy tiếp ở trình duyệt khác vẫn có. Refs đã lưu luôn thắng.
    */
-  seed?: { folder?: string; agent?: string };
+  seed?: AddAgentSeed;
   onStep?: (step: AddAgentStepId) => void;
   onRun?: (run: SetupRun) => void;
+}
+
+export interface AddAgentSeed {
+  folder?: string;
+  agent?: string;
+  rewrite?: string;
+}
+
+/** Refs bước `agent` lấy từ seed (chế độ sửa): id agent, folder, cờ ghi lại AGENTS.md. */
+function seedRefs(seed: AddAgentSeed | undefined): Record<string, string> {
+  return {
+    ...(seed?.folder ? { folder: seed.folder } : {}),
+    ...(seed?.rewrite === 'true' ? { rewrite: 'true' } : {}),
+  };
 }
 
 export function agentInputOf(run: SetupRun): AddAgentInput {
@@ -161,8 +178,11 @@ const STEPS: Record<AddAgentStepId, StepWork> = {
     const { api } = ctx;
     const companyId = run.companyId;
     const saved = agentRunRefs(run);
-    const folder = refs.folder ?? saved.folder ?? ctx.seed?.folder;
-    if (folder) refs.folder = folder;
+    const seeded = seedRefs(ctx.seed);
+    for (const key of ['folder', 'rewrite']) {
+      const value = refs[key] ?? saved[key] ?? seeded[key];
+      if (value) refs[key] = value;
+    }
     const pinDir = await pinDirOf(api, run);
     let agentId = refs.agent ?? saved.agent ?? ctx.seed?.agent;
 
@@ -227,6 +247,11 @@ const STEPS: Record<AddAgentStepId, StepWork> = {
         { adapterConfig: { command: crewWrapperCommand(pinDir), extraArgs: crewExtraArgs(pinDir) } },
         companyId,
       );
+    }
+    const saved = agentRunRefs(run);
+    // Agent có sẵn (chế độ sửa) đang có AGENTS.md mà không lệch (A3 đạt): giữ nguyên phần owner sửa tay.
+    if (saved.created !== 'true' && saved.rewrite !== 'true') {
+      if ((await currentInstructions(ctx, agentId, companyId)) !== '') return;
     }
     const role = roleOfSlot(input.slot);
     const content =
@@ -298,12 +323,15 @@ const STEPS: Record<AddAgentStepId, StepWork> = {
     refs.checkout = result.path;
   },
 
-  async role(ctx, run) {
+  async role(ctx, run, refs) {
     const input = agentInputOf(run);
     const agentId = required(agentRunRefs(run), 'agent');
     const roles = await rolesOf(ctx, run);
+    // Trợ Lý bị thay: nhớ id trước khi ghi vai trò để lần chạy tiếp (vai trò đã lưu) vẫn bỏ được quyền giao việc.
+    if (input.slot === 'assistant' && roles.assistantAgentId !== agentId) refs.replaced = roles.assistantAgentId;
     const next = withSlot(roles, input.slot, agentId);
     if (!sameRoles(roles, next)) await ctx.api.roles.set(run.companyId, input.projectId, next);
+    if (refs.replaced) await dropAssignIfFree(ctx, run, refs.replaced);
   },
 
   async 'assistant-instructions'(ctx, run, refs) {
@@ -324,6 +352,25 @@ const STEPS: Record<AddAgentStepId, StepWork> = {
     }
   },
 };
+
+/**
+ * Trợ Lý cũ không còn là Trợ Lý của project nào (chưa lưu trữ) thì bỏ quyền giao việc. Project không đọc được vai trò
+ * thì coi như còn giữ (không bỏ nhầm). Không xóa gì.
+ */
+async function dropAssignIfFree(ctx: AddAgentContext, run: SetupRun, agentId: string) {
+  const projects = (await ctx.api.projects.list(run.companyId)).filter((p) => !p.archivedAt);
+  for (const project of projects) {
+    let roles: ProjectRoles | null;
+    try {
+      roles = await ctx.api.roles.get(run.companyId, project.id);
+    } catch (error) {
+      if (statusOf(error) === 404) continue;
+      throw error;
+    }
+    if (roles?.assistantAgentId === agentId) return;
+  }
+  await ctx.api.agents.setPermissions?.(agentId, { ...CREW_AGENT_PERMISSIONS, canAssignTasks: false }, run.companyId);
+}
 
 /** Chạy một bước. Bước đã `done` thì trả run nguyên vẹn. 409 khi begin → StepBusyError. */
 export function runAddAgentStep(ctx: AddAgentContext, run: SetupRun, stepId: AddAgentStepId): Promise<SetupRun> {
@@ -369,12 +416,13 @@ export async function prepareFixRun(
   let current = run;
   for (const step of ADD_AGENT_STEPS.slice(0, ADD_AGENT_STEPS.indexOf(target.step))) {
     if (current.steps[step]?.status === 'done') continue;
-    await ctx.api.setup.begin(run.companyId, run.id, step);
-    const refs =
-      step === 'agent'
-        ? { agent: target.agentId, ...(ctx.seed?.folder ? { folder: ctx.seed.folder } : {}) }
-        : undefined;
-    current = await ctx.api.setup.finish(run.companyId, run.id, step, { status: 'done', ...(refs ? { refs } : {}) });
+    const begun = await beginStep(ctx.api, run, step);
+    const refs = step === 'agent' ? { agent: target.agentId, ...seedRefs(ctx.seed) } : undefined;
+    current = await ctx.api.setup.finish(run.companyId, run.id, step, {
+      status: 'done',
+      ...(refs ? { refs } : {}),
+      ...lockOf(begun),
+    });
   }
   return current;
 }

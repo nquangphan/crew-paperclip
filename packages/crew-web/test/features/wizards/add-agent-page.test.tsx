@@ -106,6 +106,8 @@ describe('AddAgentPage', () => {
     const router = mount('/TPS/agents/new?project=p1&slot=executor-2');
 
     await waitFor(() => expect(field('Khóa project').value).toBe('demo'));
+    // Khóa lấy từ project: không sửa tay được (checkout và job dựng theo khóa này).
+    expect(field('Khóa project').readOnly).toBe(true);
     expect(field('Folder repo trên máy').value).toBe('/Users/owner/code/demo-root');
     expect(field('Tên agent').value).toBe('demo-executor-2');
     // Ô đang trống: thêm mới; project chưa có dòng vai trò thì không chọn được.
@@ -138,6 +140,21 @@ describe('AddAgentPage', () => {
     expect(calls.some((c) => c.method === 'POST' && c.url.startsWith(`${PLUGIN}/setup-runs`))).toBe(false);
   });
 
+  it('project không suy được khóa (không có lần thêm project, không có checkout) thì cho nhập khóa', async () => {
+    server(
+      {
+        'GET /api/companies/c-tps/projects': { body: [{ id: 'p3', name: 'Cũ', urlKey: 'cu', archivedAt: null }] },
+        [`GET ${PLUGIN}/projects/p3/roles`]: { body: { roles: ROLES } },
+      },
+      [],
+    );
+    mount('/TPS/agents/new?project=p3&slot=executor-2');
+    await waitFor(() => expect(field('Tên agent')).toBeTruthy());
+    expect(field('Khóa project').readOnly).toBe(false);
+    fireEvent.change(field('Khóa project'), { target: { value: 'cu' } });
+    expect(field('Khóa project').value).toBe('cu');
+  });
+
   it('?fix= có lần tạo agent dở của agent đó → chuyển sang chạy tiếp lần đó', async () => {
     server({ [`GET ${PLUGIN}/setup-runs/run-a`]: { body: AGENT_RUN } }, [PROJECT_RUN, AGENT_RUN]);
     const router = mount(`/TPS/agents/new?fix=${ID.spare}&step=workspace`);
@@ -150,15 +167,21 @@ describe('AddAgentPage', () => {
         status: 201,
         body: { ...AGENT_RUN, input: { ...AGENT_RUN.input, slot: 'executor' }, steps: {}, status: 'running' },
       },
-      [`POST ${PLUGIN}/setup-runs/run-a/steps/agent/begin`]: { body: { ...FIX_RUN, steps: {}, runningStep: 'agent' } },
+      [`POST ${PLUGIN}/setup-runs/run-a/steps/agent/begin`]: {
+        body: { ...FIX_RUN, steps: {}, runningStep: 'agent', lockToken: '0f000000-0000-4000-8000-000000000001' },
+      },
       [`POST ${PLUGIN}/setup-runs/run-a/steps/agent/finish`]: { body: FIX_RUN },
       [`GET ${PLUGIN}/setup-runs/run-a`]: { body: FIX_RUN },
       [`POST ${PLUGIN}/setup-runs/run-a/steps/pin/begin`]: { status: 409, body: { error: 'Bước pin đang chạy' } },
     });
-    const router = mount(`/TPS/agents/new?fix=${ID.executor}&step=pin`);
+    const router = mount(`/TPS/agents/new?fix=${ID.executor}&step=pin&rewrite=1`);
     expect(await screen.findByText(/Sửa agent demo-executor từ bước “Ghim Superpowers và AGENTS.md”/)).toBeTruthy();
     await waitFor(() => expect(field('Khóa project').value).toBe('demo'));
     expect(screen.queryByLabelText('Tên agent')).toBeNull();
+    // Agent đang giữ ô: project và ô cố định (đổi sang ô khác thì một agent nằm hai ô).
+    expect((screen.getByRole('combobox', { name: 'Project' }) as HTMLButtonElement).disabled).toBe(true);
+    expect((screen.getByRole('combobox', { name: 'Ô vai trò' }) as HTMLButtonElement).disabled).toBe(true);
+    expect(field('Khóa project').readOnly).toBe(true);
 
     fireEvent.click(screen.getByRole('button', { name: 'Sửa tiếp' }));
     await waitFor(() => expect(router.state.location.search).toBe('?resume=run-a'));
@@ -170,7 +193,8 @@ describe('AddAgentPage', () => {
     expect(calls.find((c) => c.url === `${PLUGIN}/setup-runs/run-a/steps/agent/finish`)?.body).toEqual({
       companyId: 'c-tps',
       status: 'done',
-      refs: { agent: ID.executor, folder: '/Users/owner/code/demo-root' },
+      refs: { agent: ID.executor, folder: '/Users/owner/code/demo-root', rewrite: 'true' },
+      lockToken: '0f000000-0000-4000-8000-000000000001',
     });
     expect(calls.some((c) => c.method === 'POST' && c.url.includes('/api/companies/c-tps/agents'))).toBe(false);
   });
