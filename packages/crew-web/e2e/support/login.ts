@@ -22,12 +22,22 @@ export interface LoginOptions {
   passwordValue?: string;
 }
 
+/** Better Auth giới hạn ~4 lần đăng nhập mỗi phút (kể cả sai): gặp 429 thì đợi hết cửa sổ rồi gửi lại, tối đa 2 lần. */
+const RATE_LIMIT_RETRIES = 2;
+const RATE_LIMIT_WAIT_MS = 62_000;
+
 async function submitLoginForm(page: Page, opts: LoginOptions): Promise<void> {
   await page.goto('/login');
   const form = page.locator('form');
   await form.locator('input[type="email"]').fill(opts.emailValue ?? email());
   await fillSecret(form.locator('input[type="password"]'), opts.passwordValue ?? password());
-  await form.locator('button[type="submit"]').click();
+  for (let attempt = 0; ; attempt++) {
+    const signIn = page.waitForResponse((r) => r.url().includes('/api/auth/sign-in/email'), { timeout: 20_000 });
+    await form.locator('button[type="submit"]').click();
+    const status = (await signIn).status();
+    if (status !== 429 || attempt >= RATE_LIMIT_RETRIES) break;
+    await page.waitForTimeout(RATE_LIMIT_WAIT_MS);
+  }
   await expect(page).not.toHaveURL(/\/login(\?|$)/, { timeout: 20_000 });
   if (opts.expectPath) await expect(page).toHaveURL(opts.expectPath, { timeout: 20_000 });
 }
