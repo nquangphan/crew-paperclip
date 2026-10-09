@@ -47,7 +47,7 @@ function routes(over: Record<string, unknown> = {}) {
     'GET /api/companies/c1/projects': { body: PROJECTS },
     'GET /api/companies/c1/agents': { body: AGENTS },
     'GET /api/plugins/crew.core/api/projects/p1/roles': { body: { roles: ROLES } },
-    'GET /api/companies/c1/issues': { body: [{ id: 'old', labels: [RESEARCH] }] },
+    'GET /api/companies/c1/labels': { body: [RESEARCH] },
     'POST /api/companies/c1/issues': { status: 201, body: { id: 'i-new', identifier: 'TPS-5' } },
     ...over,
   } as Parameters<typeof mockServer>[0];
@@ -135,7 +135,7 @@ describe('NewRequestDialog', () => {
   });
 
   it('không có nhãn research thì ẩn loại Nghiên cứu và hiện gợi ý (S5.2)', async () => {
-    mockServer(routes({ 'GET /api/companies/c1/issues': { body: [] } }));
+    mockServer(routes({ 'GET /api/companies/c1/labels': { body: [{ id: 'l-bug', name: 'bug' }] } }));
     mount();
     await fillReady();
     await screen.findByText(/chưa có nhãn “research”/);
