@@ -12,6 +12,7 @@ cat > "$CTX/Dockerfile" <<'DOCK'
 FROM ghcr.io/paperclipai/paperclip:@CREW_BASE@
 COPY --chown=node:node app/ /app/
 RUN test -s /app/packages/crew-plugin/dist/ui/index.js && test -d /app/packages/crew-plugin/migrations
+RUN test -s /app/server/ui-dist/index.html && grep -q 'name="crew-ui"' /app/server/ui-dist/index.html
 RUN set -e; cd /app/server; OUT=dist; \
     while read -r f; do [ -n "$f" ] || continue; \
       o="$OUT/${f#src/}"; o="${o%.ts}.js"; mkdir -p "$(dirname "$o")"; \

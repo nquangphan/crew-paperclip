@@ -3,6 +3,8 @@
 
 Usage:
   policy-config.py file <path>      exit 0 when <path> is a JSON object with a `companies` object
+  policy-config.py list-companies <path>
+                                    prints the company ids of <path>, one per line, sorted; exit 1 when the file is invalid
   policy-config.py startup-log      reads the server startup log on stdin; exit 1 when it says the Crew gates are off
   policy-config.py compose-env <env-file> <value>
                                     makes <env-file> carry exactly one COMPOSE_FILE=<value> line, keeping every
@@ -26,6 +28,14 @@ def check_file(path):
     if not isinstance(data, dict) or not isinstance(data.get("companies"), dict):
         return f"{path} has no `companies` object"
     return None
+
+
+def list_companies(path):
+    problem = check_file(path)
+    if problem:
+        return problem, []
+    with open(path) as f:
+        return None, sorted(json.load(f)["companies"])
 
 
 def check_startup_log(text):
@@ -67,6 +77,11 @@ def set_compose_file(path, value):
 def main(argv):
     if len(argv) == 3 and argv[1] == "file":
         problem = check_file(argv[2])
+    elif len(argv) == 3 and argv[1] == "list-companies":
+        problem, ids = list_companies(argv[2])
+        if not problem:
+            for company_id in ids:
+                print(company_id)
     elif len(argv) == 2 and argv[1] == "startup-log":
         problem = check_startup_log(sys.stdin.read())
     elif len(argv) == 4 and argv[1] == "compose-env":
