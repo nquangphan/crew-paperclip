@@ -12,7 +12,7 @@ Hướng dẫn này viết cho người **mới vào lần đầu**. Đọc từ
 
 | Đã có sẵn | Là gì |
 |---|---|
-| **Công ty "Crew Spike"** | Không gian làm việc chứa toàn bộ yêu cầu và agent. Không phải tạo công ty mới |
+| **Công ty "2P Solutions"** | Không gian làm việc chứa toàn bộ yêu cầu và agent. Không phải tạo công ty mới |
 | **5 agent** | Trợ Lý, 2 người viết code (executor), 1 người review (reviewer), 1 người tích hợp (integrator) |
 | **Mac mini đã nối** | Agent chạy Claude Code trên Mac mini ở nhà. Web nói chuyện với Mac qua mạng riêng Tailscale |
 | **Luật làm việc** | Mỗi yêu cầu code đi 4 bước duyệt, có kiểm tài liệu tự động, tối đa 5 vòng sửa |
@@ -194,7 +194,7 @@ Bấm **Crew** ở thanh bên trái.
 | `crew-plan root=… children=… bundles=…` | Kế hoạch của Trợ Lý: mấy việc con, mấy gói |
 | `crew-bundle id=… seq=…` | Việc con thuộc gói nào, thứ mấy. Cùng gói thì một executor làm lần lượt và **nhớ** ngữ cảnh của việc trước |
 | `crew-model complexity=… model=…` | Độ khó và model được chọn: Sonnet cho việc vừa và nhỏ, Opus cho việc lớn |
-| `crew-stack on=CRE-…` | Việc này xây tiếp trên code của việc kia |
+| `crew-stack on=TPS-…` | Việc này xây tiếp trên code của việc kia |
 | `crew-kind research` | Việc nghiên cứu, không sửa code |
 | `crew-review … verdict=approved` | Reviewer đã duyệt |
 | `crew-docs-check commit=… exit=0` | Integrator đã kiểm tài liệu trên code đã gộp. `exit=0` là đạt |
