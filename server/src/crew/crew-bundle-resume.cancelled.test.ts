@@ -166,7 +166,7 @@ describe("crew-bundle-resume: cancellation issue_reassigned trước task sessio
     expect(adapterExecutionTargetSessionMatches(params.remoteExecution, { ...target, spec: { ...target.spec, host: "other.invalid" } })).toBe(false);
   }, 30_000);
 
-  it("MCP fallback chọn chuỗi không rỗng mới nhất, không lấy company/agent/adapter khác", async () => {
+  it("MCP fallback chọn chuỗi không rỗng mới nhất, không lấy company/adapter khác", async () => {
     const s = await seedLog();
     await seedMcpSession(s, { updatedAt: new Date(1000), sessionParamsJson: { mcpServerIdentity: "old" } });
     await seedMcpSession(s, { updatedAt: new Date(2000) });
@@ -175,9 +175,14 @@ describe("crew-bundle-resume: cancellation issue_reassigned trước task sessio
     }
     const foreign = await seedLog();
     await seedMcpSession(s, { companyId: foreign.companyId, sessionParamsJson: { mcpServerIdentity: "foreign-company" } });
-    await seedMcpSession(s, { agentId: s.otherAgentId, sessionParamsJson: { mcpServerIdentity: "other-agent" } });
     await seedMcpSession(s, { adapterType: "codex_local", sessionParamsJson: { mcpServerIdentity: "other-adapter" } });
     expect((await find(s))?.predecessor.session.sessionParamsJson).toEqual({ sessionId: s.sessionId, mcpServerIdentity: mcpIdentity });
+  });
+  it("MCP fallback lấy identity mới nhất của company dù session riêng của executor cũ hơn (URL public đã đổi)", async () => {
+    const s = await seedLog();
+    await seedMcpSession(s, { updatedAt: new Date(1000), sessionParamsJson: { mcpServerIdentity: "executor-old-url" } });
+    await seedMcpSession(s, { agentId: s.otherAgentId, updatedAt: new Date(2000), sessionParamsJson: { mcpServerIdentity: "company-current-url" } });
+    expect((await find(s))?.predecessor.session.sessionParamsJson).toEqual({ sessionId: s.sessionId, mcpServerIdentity: "company-current-url" });
   });
   it("executor không có task session nhận identity từ agent cùng company/adapter, không lấy company khác", async () => {
     const s = await seedLog();
