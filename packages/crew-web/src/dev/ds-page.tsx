@@ -28,6 +28,7 @@ import {
   CardHeader,
   CardTitle,
   Checkbox,
+  CodeBlock,
   Collapsible,
   CollapsibleContent,
   CollapsibleTrigger,
@@ -67,6 +68,8 @@ import {
   RowLink,
   RunRow,
   ScrollArea,
+  Section,
+  SectionHeading,
   Select,
   SelectContent,
   SelectItem,
@@ -165,6 +168,11 @@ function WidgetShowcase() {
           { label: 'Vòng sửa', value: '1/5' },
         ]}
       />
+      <SectionHeading>Tiêu đề nhóm</SectionHeading>
+      <Section title="Mục trang">
+        <MutedText>Nội dung của mục, xếp dọc theo token.</MutedText>
+      </Section>
+      <CodeBlock label="Khối mã" code={'$ crew-docs check --staged\nOK: không có lỗi'} />
       <CrewShowcase />
       <MarkdownView
         markdown={

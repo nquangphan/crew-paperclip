@@ -1,6 +1,5 @@
 // Mục "Vì sao không có nút X": dựng từ MISSING_FEATURES, chữ lấy ở locale `guide`.
-import { Badge, MutedText, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/ds';
-import { Section } from '@/features/settings/section';
+import { Badge, MutedText, Section, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/ds';
 import { useT } from '@/i18n';
 import { MISSING_FEATURES, MISSING_GROUPS, type MissingReason } from './missing-features';
 

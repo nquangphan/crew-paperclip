@@ -11,6 +11,7 @@ import {
   CardContent,
   CardHeader,
   CardTitle,
+  CodeBlock,
   ConfirmDialog,
   ErrorState,
   IssueRow,
@@ -19,7 +20,6 @@ import {
   PropertyList,
   Skeleton,
   StatusBadge,
-  Textarea,
   Transcript,
   type TranscriptEntry,
 } from '@/ds';
@@ -78,7 +78,7 @@ function RunLog({ runId, active }: { runId: string; active: boolean }) {
       <CardContent className="flex flex-col gap-2">
         {log.error && !missing ? <ErrorState title={t('log.loadFailed')} message={log.error.message} /> : null}
         {missing || (!log.isLoading && !log.error && !text) ? <MutedText>{t('log.empty')}</MutedText> : null}
-        {text ? <Textarea readOnly aria-label={t('log.heading')} rows={14} value={text} /> : null}
+        {text ? <CodeBlock label={t('log.heading')} code={text} /> : null}
       </CardContent>
     </Card>
   );

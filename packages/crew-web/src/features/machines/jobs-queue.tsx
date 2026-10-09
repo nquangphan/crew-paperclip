@@ -10,6 +10,7 @@ import {
   Button,
   EmptyState,
   MutedText,
+  Section,
   Table,
   TableBody,
   TableCell,
@@ -18,7 +19,6 @@ import {
   TableRow,
 } from '@/ds';
 import { RefreshCw } from '@/ds/icons';
-import { Section } from '@/features/settings/section';
 import { formatRelative, useT } from '@/i18n';
 
 /** Việc chờ lâu hơn ngưỡng này mà máy chưa có app nhận việc thì báo "Chờ app 2P Crew". */

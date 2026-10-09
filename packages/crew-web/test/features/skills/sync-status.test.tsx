@@ -32,13 +32,18 @@ describe('SyncStatus (S14.4)', () => {
     expect(screen.queryByText(/abcdef0123456/)).toBeNull();
   });
 
-  it('việc failed hiện lỗi đã làm sạch kèm nút Thử lại gọi jobs.retry', async () => {
+  it('việc failed hiện lỗi đã làm sạch kèm nút Thử lại gọi jobs.retry theo jobId', async () => {
     const s = mockServer({
-      ...data('crew.skillSync', [state({ status: 'failed', sha256: null })]),
-      ...data('crew.machineJobs', [
-        job({ id: 'j-old', status: 'failed', errorText: 'Lỗi cũ', createdAt: '2026-10-10T00:00:00Z' }),
-        job({ id: 'j-new', status: 'failed', errorText: 'Không tải được skill', createdAt: '2026-10-10T00:30:00Z' }),
+      ...data('crew.skillSync', [
+        state({
+          status: 'failed',
+          sha256: null,
+          jobId: 'j-new',
+          errorCode: 'download',
+          errorText: 'Không tải được skill',
+        }),
       ]),
+      ...data('crew.machineJobs', []),
       [`${ROUTE}/machine-jobs/j-new/retry`]: { body: job({ id: 'j-new', status: 'queued' }) },
     });
     renderWith(<SyncStatus skill={SKILL} machines={[machine()]} />);
