@@ -12,11 +12,11 @@ vi.mock("@paperclipai/plugin-sdk/ui", () => ({
 
 import { readdirSync, readFileSync } from "node:fs";
 import { gzipSync } from "node:zlib";
-import { CrewGuidePage, CrewGuideSidebarLink, CrewSidebarLink, GUIDE_UI_BASE, guideHeadings, resolveGuideImages } from "./index.js";
+import { CrewGuidePage, CrewGuideSidebarLink, CrewSidebarLink, guideBaseFrom, guideHeadings, resolveGuideImages } from "./index.js";
 import guideText from "./huong-dan.md";
 
 it("renders the guide with a table of contents of at least 10 entries", () => {
-  const html = renderToStaticMarkup(CrewGuidePage({ context: {} as never }) as ReactElement);
+  const html = renderToStaticMarkup(h(CrewGuidePage, { context: {} as never }));
   expect(html).toContain("Hướng dẫn sử dụng 2P Crew");
   const toc = /<nav aria-label="Mục lục"[^>]*>(.*?)<\/nav>/s.exec(html)?.[1] ?? "";
   expect(toc.match(/<li>/g)?.length ?? 0).toBeGreaterThanOrEqual(10);
@@ -37,10 +37,14 @@ it("sidebar links point at the company-prefixed routes", () => {
 });
 
 it("rewrites image URLs to the plugin static path", () => {
-  const html = renderToStaticMarkup(CrewGuidePage({ context: {} as never }) as ReactElement);
+  const html = renderToStaticMarkup(h(CrewGuidePage, { context: {} as never }));
+  // Server render: the base is not known before the effect runs, so images are dropped, never left broken.
   expect(html).not.toContain("](img/");
-  expect(html).toContain("](/_plugins/crew.core/ui/guide/img/01-dang-nhap.jpg)");
-  expect(resolveGuideImages("![a](img/x.jpg)", GUIDE_UI_BASE)).toBe("![a](/_plugins/crew.core/ui/guide/img/x.jpg)");
+  const base = guideBaseFrom([{ pluginKey: "other", pluginId: "11111111-1111-4111-8111-111111111111" }, { pluginKey: "crew.core", pluginId: "e29d3a17-f50b-4863-9005-ebf98119558d" }]);
+  expect(base).toBe("/_plugins/e29d3a17-f50b-4863-9005-ebf98119558d/ui/");
+  expect(guideBaseFrom([{ pluginKey: "crew.core", pluginId: "not-a-uuid" }])).toBeNull();
+  expect(guideBaseFrom(null)).toBeNull();
+  expect(resolveGuideImages("![a](img/x.jpg)", base)).toBe("![a](/_plugins/e29d3a17-f50b-4863-9005-ebf98119558d/ui/guide/img/x.jpg)");
 });
 
 it("drops images when there is no base", () => {
