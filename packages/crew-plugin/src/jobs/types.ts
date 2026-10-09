@@ -7,6 +7,7 @@ export const MACHINE_JOB_KINDS: readonly MachineJobKind[] = ["inspect-folder", "
 export const MACHINE_JOB_STATUSES: readonly MachineJobStatus[] = ["queued", "claimed", "done", "failed", "cancelled"];
 export const CREW_ROLE_SLOTS: readonly CrewRoleSlot[] = ["assistant", "executor", "executor-2", "reviewer", "integrator"];
 
+/** `result` is set when a job is `done`, and also when a `check` job is `failed` (the doctor items the board lists). */
 export interface MachineJob {
   id: string; companyId: string; machineId: string; kind: MachineJobKind; payload: JobPayload; status: MachineJobStatus;
   result: JobResult | null; errorCode: JobErrorCode | null; errorText: string | null; attempts: number;

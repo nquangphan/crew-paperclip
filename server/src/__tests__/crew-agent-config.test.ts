@@ -120,10 +120,77 @@ describe("Crew agent config routes with PostgreSQL", () => {
       const before = await snapshot(c.companyId);
       const response = await request(app(c)).post(`/api/companies/${c.companyId}/${route}`).send({ name: "New agent", role: "engineer", adapterType: "process", adapterConfig: { [key]: value } });
       expect(response.status, JSON.stringify(response.body)).toBe(422);
-      expect(response.body.details).toMatchObject({ code: "crew_agent_config_forbidden", keys: [`adapterConfig.${key}`] });
+      expect(response.body.details).toMatchObject({ code: "crew_agent_create_forbidden" });
+      expect(await snapshot(c.companyId)).toEqual(before);
+    });
+
+    it(`agent POST ${route} body không có key ghim (kể cả role ceo) vẫn bị 422 dù có canCreateAgents`, async () => {
+      const c = await seed();
+      const before = await snapshot(c.companyId);
+      const response = await request(app(c)).post(`/api/companies/${c.companyId}/${route}`).send({ name: "Sneaky", role: "ceo", adapterType: "process", permissions: { canCreateAgents: true } });
+      expect(response.status, JSON.stringify(response.body)).toBe(422);
+      expect(response.body.details).toEqual({ code: "crew_agent_create_forbidden" });
       expect(await snapshot(c.companyId)).toEqual(before);
     });
   }
+
+  it("agent chạy thử adapter (test-environment) với cấu hình tùy ý bị 422", async () => {
+    const c = await seed();
+    const before = await snapshot(c.companyId);
+    const response = await request(app(c)).post(`/api/companies/${c.companyId}/adapters/process/test-environment`).send({ adapterConfig: { command: "/bin/sh" } });
+    expect(response.status, JSON.stringify(response.body)).toBe(422);
+    expect(response.body.details).toEqual({ code: "crew_agent_create_forbidden" });
+    expect(await snapshot(c.companyId)).toEqual(before);
+  });
+
+  it.each([
+    ["tự nâng role ceo kèm field khác", { role: "ceo", budgetMonthlyCents: 1 }],
+    ["đổi reportsTo và bật heartbeat", { reportsTo: null, runtimeConfig: { heartbeat: { enabled: true } } }],
+    ["đổi tên", { name: "Renamed executor" }],
+    ["đổi key adapter không ghim", { adapterConfig: { effort: "high" } }],
+  ])("agent PATCH chính mình (%s) bị 422 và DB không đổi", async (_label, patch) => {
+    const c = await seed();
+    const before = await snapshot(c.companyId);
+    const response = await request(app(c)).patch(`/api/agents/${c.actor.id}`).send(patch);
+    expect(response.status, JSON.stringify(response.body)).toBe(422);
+    expect(response.body.details).toEqual({ code: "crew_agent_config_forbidden", keys: Object.keys(patch) });
+    expect(await snapshot(c.companyId)).toEqual(before);
+  });
+
+  it("agent PATCH agent khác cùng company (có grant agents:configure) bị 422", async () => {
+    const c = await seed();
+    const before = await snapshot(c.companyId);
+    const response = await request(app(c)).patch(`/api/agents/${c.other.id}`).send({ name: "Peer renamed" });
+    expect(response.status, JSON.stringify(response.body)).toBe(422);
+    expect(response.body.details.code).toBe("crew_agent_config_forbidden");
+    expect(await snapshot(c.companyId)).toEqual(before);
+  });
+
+  it.each([
+    ["POST", "skills/sync", { desiredSkills: [] }],
+    ["PUT", "instructions-bundle/file", { path: "AGENTS.md", content: "x" }],
+    ["PATCH", "instructions-bundle", { mode: "managed" }],
+    ["DELETE", "instructions-bundle/file?path=AGENTS.md", undefined],
+    ["POST", "instructions-bundle/restore", { revisionId: "00000000-0000-4000-8000-000000000000" }],
+    ["POST", "instructions-bundle/candidates/00000000-0000-4000-8000-000000000000/resolve", { action: "accept" }],
+    ["PATCH", "instructions-path", { path: "AGENTS.md" }],
+  ] as const)("agent %s /agents/<self>/%s bị 422 và DB không đổi", async (method, suffix, body) => {
+    const c = await seed();
+    const before = await snapshot(c.companyId);
+    const agent = request(app(c));
+    const url = `/api/agents/${c.actor.id}/${suffix}`;
+    const call = method === "POST" ? agent.post(url) : method === "PUT" ? agent.put(url) : method === "PATCH" ? agent.patch(url) : agent.delete(url);
+    const response = await (body === undefined ? call : call.send(body));
+    expect(response.status, JSON.stringify(response.body)).toBe(422);
+    expect(response.body.details.code).toBe("crew_agent_config_forbidden");
+    expect(await snapshot(c.companyId)).toEqual(before);
+  });
+
+  it("agent đọc skill và bundle của chính mình vẫn được (GET không bị chặn)", async () => {
+    const c = await seed();
+    const response = await request(app(c)).get(`/api/agents/${c.actor.id}/skills`);
+    expect(response.status, JSON.stringify(response.body)).not.toBe(422);
+  });
 
   it("cấu hình Crew invalid vẫn chặn", async () => {
     const c = await seed("invalid");
@@ -145,9 +212,9 @@ describe("Crew agent config routes with PostgreSQL", () => {
     expect(await snapshot(c.companyId)).toEqual(before);
   });
 
-  it("agent đổi name với grant stock vẫn được", async () => {
-    const c = await seed();
-    const response = await request(app(c)).patch(`/api/agents/${c.actor.id}`).send({ name: "Renamed executor" });
+  it.each(["board", "absent"])("%s vẫn đổi name như stock", async (mode) => {
+    const c = await seed(mode === "absent" ? "absent" : "ok");
+    const response = await request(app(c, mode === "board")).patch(`/api/agents/${c.actor.id}`).send({ name: "Renamed executor" });
     expect(response.status, JSON.stringify(response.body)).toBe(200);
     const [row] = await db.select().from(agents).where(eq(agents.id, c.actor.id));
     expect(row!.name).toBe("Renamed executor");
@@ -216,8 +283,8 @@ describe("Crew agent config routes with PostgreSQL", () => {
     });
   }
 
-  it("agent đổi effort vẫn được và giữ key được bảo vệ", async () => {
-    const c = await seed();
+  it("agent company ngoài cấu hình vẫn tự đổi effort như stock", async () => {
+    const c = await seed("absent");
     const response = await request(app(c)).patch(`/api/agents/${c.actor.id}`).send({ adapterConfig: { effort: "high" } });
     expect(response.status, JSON.stringify(response.body)).toBe(200);
     const [row] = await db.select().from(agents).where(eq(agents.id, c.actor.id));

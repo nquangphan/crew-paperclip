@@ -3,8 +3,8 @@ import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { eq } from "drizzle-orm";
-import { agents, companies, createDb, issues, labels, projects } from "@paperclipai/db";
+import { and, eq } from "drizzle-orm";
+import { agents, companies, createDb, issues, labels, projects, routineTriggers } from "@paperclipai/db";
 import { getEmbeddedPostgresTestSupport, startEmbeddedPostgresTestDatabase } from "./helpers/embedded-postgres.js";
 import { decideCreatePolicy } from "../crew/issue-create-policy.ts";
 import { buildCrewPolicy, CREW_POLICY_CONFIG_ENV } from "../crew/issue-policy.ts";
@@ -174,6 +174,30 @@ describe("decideCreatePolicy", () => {
       });
     }
   });
+  it("issue do routine của agent sinh ra bị từ chối, kể cả cấu hình lỗi", () => {
+    for (const parentId of [undefined, "p"]) {
+      expect(
+        decideCreatePolicy({ data: { originKind: "routine_execution", parentId }, roles, ownerUserId: "owner-1", agentRoutine: true }),
+      ).toEqual({ kind: "reject", code: "crew_routine_issue_forbidden" });
+    }
+    expect(decideCreatePolicy({ data: { originKind: "routine_execution" }, roles: null, ownerUserId: null, agentRoutine: true })).toEqual({
+      kind: "reject",
+      code: "crew_routine_issue_forbidden",
+    });
+  });
+
+  it("giao con giữa agent theo dòng vai trò project: Trợ Lý giao bất kỳ, agent khác chỉ cho executor", () => {
+    const projectAgentRoles = { assistantAgentId: "a", executorAgentIds: ["e1", "e2"] };
+    const create = (createdByAgentId: string, assigneeAgentId: string, rolesOfProject: typeof projectAgentRoles | null = projectAgentRoles) =>
+      decideCreatePolicy({ data: { createdByAgentId, assigneeAgentId, parentId: "p" }, roles, ownerUserId: "owner-1", projectAgentRoles: rolesOfProject });
+    expect(create("a", "x")).toEqual({ kind: "set", template: "child" });
+    expect(create("e1", "E2")).toEqual({ kind: "set", template: "child" });
+    expect(create("i", "e1")).toEqual({ kind: "set", template: "child" });
+    expect(create("e1", "x")).toEqual({ kind: "reject", code: "crew_assignment_forbidden" });
+    expect(create("e1", "a")).toEqual({ kind: "reject", code: "crew_assignment_forbidden" });
+    expect(create("e1", "x", null)).toEqual({ kind: "set", template: "child" });
+  });
+
   it("hệ thống tạo issue routine hoặc nguồn không nhận diện được: con → template con, gốc → template gốc", () => {
     for (const originKind of ["routine_execution", "manual", "plugin:x", undefined]) {
       expect(
@@ -489,8 +513,7 @@ suite("crew policy in issueService.create", () => {
     expect((created.executionPolicy as StagePolicy).stages.map((s) => s.type)).toEqual(["review", "review", "approval", "review"]);
   });
 
-  it("agent tạo routine giao cho chính mình: issue routine sinh ra cần integrator và owner", async () => {
-    const { companyId, executorId, reviewerId, integratorId } = await seed();
+  async function newRoutine(companyId: string, assigneeAgentId: string, actor: { agentId?: string; userId?: string }) {
     const projectId = randomUUID();
     await db.insert(projects).values({ id: projectId, companyId, name: "Routines", status: "in_progress" });
     const routines = routineService(db, { heartbeat: { wakeup: async () => null } });
@@ -501,15 +524,42 @@ suite("crew policy in issueService.create", () => {
         goalId: null,
         parentIssueId: null,
         title: "tự làm hằng ngày",
-        description: "routine của executor",
-        assigneeAgentId: executorId,
+        description: "routine",
+        assigneeAgentId,
         priority: "medium",
         status: "active",
         concurrencyPolicy: "coalesce_if_active",
         catchUpPolicy: "skip_missed",
       },
-      { agentId: executorId },
+      actor,
     );
+    return { routines, routine };
+  }
+  const routineIssues = (routineId: string) =>
+    db.select().from(issues).where(and(eq(issues.originKind, "routine_execution"), eq(issues.originId, routineId)));
+
+  it("agent tạo routine giao cho chính mình: lịch chạy không sinh được issue, routine run failed", async () => {
+    const { companyId, executorId } = await seed();
+    const { routines, routine } = await newRoutine(companyId, executorId, { agentId: executorId });
+    const run = await routines.runRoutine(routine.id, { source: "schedule" });
+    expect(run).toMatchObject({ status: "failed", linkedIssueId: null });
+    expect(run.failureReason).toMatch(/routine do agent/);
+    expect(await routineIssues(routine.id)).toHaveLength(0);
+  });
+
+  it("routine của board mà agent thêm trigger: không sinh được issue", async () => {
+    const { companyId, executorId } = await seed();
+    const { routines, routine } = await newRoutine(companyId, executorId, { userId: "owner-1" });
+    await db.insert(routineTriggers).values({ companyId, routineId: routine.id, kind: "schedule", createdByAgentId: executorId });
+    const run = await routines.runRoutine(routine.id, { source: "schedule" });
+    expect(run).toMatchObject({ status: "failed", linkedIssueId: null });
+    expect(run.failureReason).toMatch(/routine do agent/);
+    expect(await routineIssues(routine.id)).toHaveLength(0);
+  });
+
+  it("routine do board tạo giao cho executor: issue sinh ra nhận template gốc, agent không done thẳng được", async () => {
+    const { companyId, executorId, reviewerId, integratorId } = await seed();
+    const { routines, routine } = await newRoutine(companyId, executorId, { userId: "owner-1" });
     const run = await routines.runRoutine(routine.id, { source: "schedule" });
     expect(run.linkedIssueId).toBeTruthy();
     const [row] = await db.select().from(issues).where(eq(issues.id, run.linkedIssueId!));
@@ -523,6 +573,13 @@ suite("crew policy in issueService.create", () => {
     await expect(
       issueService(db).update(row!.id, { status: "done", actorAgentId: executorId }),
     ).rejects.toMatchObject({ status: 422 });
+  });
+
+  it("company ngoài cấu hình: routine do agent tạo vẫn sinh issue như stock", async () => {
+    const { companyId, executorId } = await seed("absent");
+    const { routines, routine } = await newRoutine(companyId, executorId, { agentId: executorId });
+    const run = await routines.runRoutine(routine.id, { source: "schedule" });
+    expect(run.linkedIssueId).toBeTruthy();
   });
 
   it("monitor create_recovery_issue do executor đặt: issue recovery giao lại executor nhận template con", async () => {
