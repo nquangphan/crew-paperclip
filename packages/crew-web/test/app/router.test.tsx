@@ -24,6 +24,14 @@ function server(session: unknown = SESSION) {
     'GET /api/companies': { body: [COMPANY_TPS] },
     'POST /api/plugins/crew.core/data/crew.companies': { body: { data: [{ id: 'c-tps', name: '2P Solutions' }] } },
     'GET /api/companies/c-tps/sidebar-badges': { body: { inbox: 4, approvals: 0, failedRuns: 0, joinRequests: 0 } },
+    // Route sidebar-badges của server không tính issue chưa đọc; badge cộng thêm issue isUnreadForMe của Hộp thư.
+    'GET /api/companies/c-tps/issues': {
+      body: [
+        { id: 'i1', status: 'todo', isUnreadForMe: true },
+        { id: 'i2', status: 'todo', isUnreadForMe: true },
+        { id: 'i3', status: 'todo', isUnreadForMe: false },
+      ],
+    },
   });
 }
 
@@ -62,23 +70,29 @@ describe('router', () => {
     expect(router.state.location.search).toBe(`?next=${encodeURIComponent('/TPS/issues?status=todo')}`);
   });
 
-  it('sidebar chỉ hiện mục của feature đã có route, badge Hộp thư từ sidebar-badges', async () => {
-    server();
+  it('sidebar chỉ hiện mục của feature đã có route, không có Hộp thư thì không tải badge', async () => {
+    const s = server();
     mount('/TPS/dashboard');
     await screen.findByText('trang tổng quan');
     const nav = screen.getByRole('navigation');
     const links = [...nav.querySelectorAll('a')].map((a) => a.getAttribute('href'));
     expect(links).toEqual(['/TPS/issues?new=1', '/TPS/dashboard', '/TPS/issues']);
     expect(screen.queryByRole('link', { name: /Hộp thư/ })).toBeNull();
+    expect(s.calls.some((c) => c.url.includes('/sidebar-badges') || c.url.includes('/issues'))).toBe(false);
   });
 
-  it('badge Hộp thư hiện số chưa đọc khi có trang Hộp thư', async () => {
-    server();
+  it('badge Hộp thư = mục của sidebar-badges + issue chưa đọc của Hộp thư', async () => {
+    const s = server();
     mount('/TPS/dashboard', {
       ...features,
       '../features/inbox/routes.tsx': { routes: [{ path: 'inbox', element: <p>hộp thư</p> }] },
     });
     const inbox = await screen.findByRole('link', { name: /Hộp thư/ });
-    await waitFor(() => expect(inbox.textContent).toContain('4'));
+    await waitFor(() => expect(inbox.textContent).toContain('6'));
+    expect(
+      s.calls.some(
+        (c) => c.url.startsWith('/api/companies/c-tps/issues?') && c.url.includes('inboxArchivedByUserId=me'),
+      ),
+    ).toBe(true);
   });
 });

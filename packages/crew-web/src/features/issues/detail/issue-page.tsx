@@ -56,7 +56,7 @@ export function IssuePage() {
   const agentNames = useAgentNames(company.id);
   const projectName = useProjectName(company.id, issue?.projectId ?? null);
   const childIssues = useChildIssues(company.id, issue?.id);
-  useMarkReadOnce(issue?.id);
+  useMarkReadOnce(company.id, issue?.id);
 
   if (issueQuery.isLoading) return <Skeleton />;
   if (loaded && !issue) {

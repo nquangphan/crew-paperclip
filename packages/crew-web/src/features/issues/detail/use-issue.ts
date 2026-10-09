@@ -1,6 +1,6 @@
 // Dữ liệu dùng chung của trang chi tiết yêu cầu: issue, tên agent, project, yêu cầu con, đã đọc.
 import type { Issue } from '@paperclipai/shared';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useRef } from 'react';
 import { api, queryKeys } from '@/api';
 
@@ -45,14 +45,24 @@ export function useChildIssues(companyId: string, parentId: string | undefined):
   return (data ?? []).map((i) => ({ id: i.id, identifier: i.identifier, title: i.title, status: i.status }));
 }
 
-/** Đánh dấu đã đọc đúng một lần cho mỗi issue được mở (lỗi bỏ qua: không cản việc xem). */
-export function useMarkReadOnce(issueId: string | undefined): void {
+/**
+ * Đánh dấu đã đọc đúng một lần cho mỗi issue được mở (lỗi bỏ qua: không cản việc xem). Xong thì làm mới danh sách
+ * issue (Hộp thư, cờ isUnreadForMe) và badge sidebar để số chưa đọc giảm theo.
+ */
+export function useMarkReadOnce(companyId: string, issueId: string | undefined): void {
+  const qc = useQueryClient();
   const done = useRef<string | null>(null);
   useEffect(() => {
     if (!issueId || done.current === issueId) return;
     done.current = issueId;
-    api.inbox.markRead(issueId).catch(() => {});
-  }, [issueId]);
+    api.inbox
+      .markRead(issueId)
+      .then(() => {
+        void qc.invalidateQueries({ queryKey: queryKeys.issues(companyId) });
+        void qc.invalidateQueries({ queryKey: queryKeys.sidebarBadges(companyId) });
+      })
+      .catch(() => {});
+  }, [companyId, issueId, qc]);
 }
 
 export type { Issue };
