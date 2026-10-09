@@ -59,7 +59,7 @@ it("stores one signed report, rejects unsafe envelopes without writes, and compu
     () => send({ ...base, machineId: "not-a-uuid" }),
     () => send({ ...base, secret: "bad" }),
     () => send({ ...base, checks: [{ ...base.checks[0], detail: "/secret" }] }),
-    () => send(base, { raw: "x".repeat(17_000) }),
+    () => send(base, { raw: "x".repeat(65_537) }),
   ];
   for (const reject of bad) { await expect(reject()).rejects.toThrow(); expect((await sql`SELECT * FROM plugin_crew_core_0433ea20b6.machine_reports`)).toHaveLength(1); }
   const rows = await loadCrewMachines(ctx, companyId, now);

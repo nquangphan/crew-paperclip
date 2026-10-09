@@ -6,7 +6,7 @@ Câu hỏi thiết kế 8 của spec tạm theo khuyên; đổi giao diện sau 
 ## Cấu trúc
 
 - `tokens.css`: biến màu, bán kính, chuyển động; theme sáng (`:root`) và tối (`.dark`). Chép từ `ui/src/index.css` và `ui/src/motion-tokens.css`, bỏ selector riêng của trang stock.
-- `components/`: 23 component chép từ `ui/src/components/ui/*` (dòng 1 ghi nguồn) và 5 component tự dựng (`table`, `field`, `empty-state`, `error-state`, `spinner`, dòng 1 ghi `crew: tự dựng`).
+- `components/`: 23 component chép từ `ui/src/components/ui/*` (dòng 1 ghi nguồn) và component tự dựng (`table`, `field`, `empty-state`, `error-state`, `spinner`, `theme-scope`, `app-frame`; dòng 1 ghi `crew: tự dựng`). `app-frame` gồm khung trang (`AppFrame`, `SidebarHeader/Body/Footer/Item`, `CenteredPage`, `Kbd`) cho shell ở `src/app`.
 - `brand/`: logo chữ "2P Crew" (một màu `currentColor`).
 - `cn.ts`: `cn(...classes)`. `icons.ts`: icon lucide được phép dùng ngoài ds.
 - `index.ts`: cổng export duy nhất.
@@ -20,4 +20,4 @@ Câu hỏi thiết kế 8 của spec tạm theo khuyên; đổi giao diện sau 
 
 ## Xem thử
 
-`pnpm --filter @crew/paperclip-web dev` rồi mở `/ds` (chỉ có khi dev): mọi component ở theme sáng và tối.
+`pnpm --filter @crew/paperclip-web dev` rồi mở `/ds` (chỉ có khi dev, bản production không chứa trang này): mọi component và widget ở theme sáng và tối.

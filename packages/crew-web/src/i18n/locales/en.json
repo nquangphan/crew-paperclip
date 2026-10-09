@@ -89,5 +89,93 @@
   "time": {
     "never": "None yet",
     "unknown": "Unknown"
+  },
+  "nav": {
+    "label": "Main navigation",
+    "newIssue": "New request",
+    "search": "Search",
+    "dashboard": "Dashboard",
+    "inbox": "Inbox",
+    "issues": "Requests",
+    "projects": "Projects",
+    "agents": "Agents",
+    "skills": "Skills",
+    "machines": "Machines",
+    "docs": "Docs",
+    "guide": "Guide",
+    "settings": "Settings",
+    "quickSearch": "Quick search"
+  },
+  "company": {
+    "switch": "Choose company",
+    "empty": "No company is configured for Crew yet",
+    "emptyHint": "A company must be in the crew.core plugin config and CREW_POLICY_CONFIG.",
+    "loadFailed": "Could not load companies"
+  },
+  "account": {
+    "menu": "Account",
+    "signOut": "Sign out",
+    "signOutFailed": "Could not sign out"
+  },
+  "lang": {
+    "label": "Language",
+    "vi": "Vietnamese",
+    "en": "English"
+  },
+  "palette": {
+    "title": "Quick search",
+    "description": "Type a request key (e.g. {{example}}) or words to search",
+    "placeholder": "Request key or keyword",
+    "empty": "No results",
+    "openIssue": "Open {{ref}}",
+    "pages": "Pages",
+    "issues": "Requests",
+    "searching": "Searching"
+  },
+  "notFound": {
+    "title": "Page not found",
+    "description": "The link does not exist or you cannot view it.",
+    "toDashboard": "Back to Dashboard",
+    "toHome": "Back to start"
+  },
+  "session": {
+    "loading": "Checking your session",
+    "loadFailed": "Could not check your session"
+  },
+  "login": {
+    "title": "Sign in to 2P Crew",
+    "subtitle": "Use the board account your administrator gave you.",
+    "email": "Email",
+    "password": "Password",
+    "submit": "Sign in",
+    "submitting": "Signing in",
+    "invalid": "Wrong email or password",
+    "failed": "Could not sign in"
+  },
+  "cliAuth": {
+    "title": "Allow an app to sign in",
+    "description": "An app on a machine (the 2P Crew app or CLI) is asking for board access to this server.",
+    "command": "Command",
+    "client": "App",
+    "defaultClient": "Paperclip CLI",
+    "access": "Requested access",
+    "accessBoard": "Board",
+    "accessAdmin": "Instance admin",
+    "company": "Company",
+    "expiresAt": "Expires at",
+    "approve": "Allow",
+    "approving": "Allowing",
+    "cancel": "Cancel",
+    "cancelling": "Cancelling",
+    "approved": "Access allowed",
+    "approvedDetail": "The app on the machine can now finish signing in.",
+    "cancelled": "Sign-in request cancelled",
+    "expired": "Sign-in request expired",
+    "restart": "Start the sign-in step on the machine again to get a new request.",
+    "invalidUrl": "Invalid sign-in approval link",
+    "loading": "Loading sign-in request",
+    "unavailable": "Could not read the sign-in request",
+    "needAdmin": "This request needs an instance admin account.",
+    "failed": "Could not update the sign-in request"
   }
 }
