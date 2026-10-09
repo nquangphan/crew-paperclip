@@ -1,0 +1,44 @@
+{
+  "title": "Run {{id}}",
+  "description": "Details of one agent run.",
+  "notFound": "Run not found",
+  "loadFailed": "Could not load the run",
+  "meta": {
+    "agent": "Agent",
+    "status": "Status",
+    "started": "Started",
+    "finished": "Finished",
+    "error": "Error",
+    "exitCode": "Exit code",
+    "none": "None yet"
+  },
+  "actions": {
+    "cancel": "Stop run",
+    "retry": "Run again",
+    "resume": "Resume run",
+    "failed": "The action did not succeed",
+    "skipped": "The server skipped this request"
+  },
+  "confirm": {
+    "cancelTitle": "Stop this run?",
+    "cancelBody": "Run {{id}} is running or queued and will stop at once; unfinished work is not saved.",
+    "retryTitle": "Run the failed run again?",
+    "retryBody": "The agent will redo the work of run {{id}} in a new run.",
+    "resumeTitle": "Resume the run that lost its process?",
+    "resumeBody": "The agent will continue from run {{id}} in a new run."
+  },
+  "transcript": {
+    "heading": "Run content",
+    "loadFailed": "Could not load the run events"
+  },
+  "log": {
+    "heading": "Log",
+    "empty": "This run has no log",
+    "loadFailed": "Could not load the log"
+  },
+  "issues": {
+    "heading": "Related requests",
+    "empty": "This run has not touched any request",
+    "loadFailed": "Could not load related requests"
+  }
+}
