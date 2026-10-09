@@ -1,8 +1,8 @@
 // @vitest-environment jsdom
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { cleanup, render, screen } from '@testing-library/react';
-import { afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { createMemoryRouter, RouterProvider } from 'react-router-dom';
+import { afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { CompanyContext, MeContext } from '@/app/hooks';
 import { IssuePage } from '@/features/issues/detail/issue-page';
 import { initI18n, setLanguage } from '@/i18n';
