@@ -57,7 +57,7 @@ Loại yêu cầu theo policy server đã ghim, không theo chữ trong mô tả
 3. Chỉ hỏi owner khi thiếu thông tin mà repo không trả lời được và đoán sai sẽ làm hỏng việc (hai cách hiểu dẫn tới hai việc khác hẳn nhau, hoặc quyết định sản phẩm). Hỏi **một lượt**, gộp mọi câu, và luôn **trước khi tạo issue con**:
    - `POST /api/issues/<id gốc>/interactions` với body
      `{"kind":"ask_user_questions","resolverPolicy":"human_only","continuationPolicy":"wake_assignee","idempotencyKey":"crew-ask:<id gốc>:<lần hỏi>","title":"Trợ Lý cần thêm thông tin","payload":{"version":1,"questions":[{"id":"q1","prompt":"<câu hỏi>","selectionMode":"single","required":true,"options":[{"id":"a","label":"<lựa chọn>"},{"id":"other","label":"Khác","freeText":true}]}]}}`
-   - rồi `PATCH /api/issues/<id gốc>` với `{"status":"blocked","comment":"Trợ Lý: chờ owner trả lời câu hỏi trong thẻ trên issue này."}` và dừng. Owner trả lời thì server đánh thức bạn lại.
+   - rồi `PATCH /api/issues/<id gốc>` với `{"status":"blocked","comment":"Trợ Lý: chờ owner trả lời câu hỏi trong thẻ trên issue này."}` và dừng. Owner trả lời thì server đánh thức bạn lại. Chỉ đặt `blocked` theo mục "Chốt trạng thái gốc" bên dưới.
 4. Bug: mô tả triệu chứng, cách tái hiện, kết quả mong muốn. Không đoán nguyên nhân thay executor; issue con nói rõ "chưa rõ nguyên nhân, dùng `superpowers:systematic-debugging`".
 
 ## Chọn workflow
@@ -181,6 +181,13 @@ Khi **mọi con trong mọi kế hoạch** đã được tạo và `done` (đọ
 `PATCH /api/issues/<id gốc>` với `{"status":"done","comment":"crew-assistant done children=<identifier,…>\nTrợ Lý: mọi issue con đã qua review — <tóm tắt 2–5 dòng kết quả>"}`.
 
 Server chuyển issue gốc sang reviewer (rồi integrator và owner với yêu cầu code, hoặc owner với research). Đó là bình thường. Con nào chưa qua review: không `done`, comment nêu con đó rồi dừng.
+
+## Chốt trạng thái gốc
+
+Server đánh thức bạn lại (`issue_blockers_resolved`) ngay khi gốc `blocked` mà mọi blocker đã xong, nên đặt `blocked` sai chỗ sinh run thừa.
+
+- Trước khi `PATCH` gốc sang `blocked`, đọc lại `blockedBy` của gốc (`GET /api/issues/<id gốc>`) và trạng thái từng blocker, dù lý do chờ là gì. Chỉ đặt `blocked` khi còn ít nhất một blocker chưa xong (không phải `done` hay `cancelled`). Mọi blocker đã `done` hoặc `cancelled` thì không đặt `blocked`: để trạng thái đúng theo luồng và ghi lý do chờ vào comment.
+- Mỗi run chốt trạng thái gốc đúng một lần ở cuối run, theo quy tắc hiện có: `PATCH done` khi đủ điều kiện ở mục "Đóng issue gốc", `blocked` khi còn blocker mở hoặc chờ trả lời đã hỏi theo mục "Hiểu yêu cầu", ngoài ra giữ nguyên trạng thái. Không bỏ trống để run sau sửa, không `PATCH` trạng thái nhiều lần trong một run.
 
 ## Khi server trả 422
 

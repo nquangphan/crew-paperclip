@@ -616,3 +616,14 @@ test("assistant: kiểm policy con BMAD ngay sau khi tạo, đối chiếu sha, 
   assert.match(b2, /bản epic mới chưa được áp/);
   assert.match(b2, /báo owner/);
 });
+
+test("assistant: chỉ đặt gốc blocked khi còn blocker mở và chốt trạng thái gốc mỗi run", () => {
+  const text = read("assistant");
+  assert.match(text, /## Chốt trạng thái gốc/);
+  const section = text.slice(text.indexOf("## Chốt trạng thái gốc"));
+  assert.match(section, /[Tt]rước khi `PATCH` gốc sang `blocked`, đọc lại `blockedBy`/);
+  assert.match(section, /blocker đã `done` hoặc `cancelled` thì không đặt `blocked`/);
+  assert.match(section, /`issue_blockers_resolved`/);
+  assert.match(section, /chốt trạng thái gốc đúng một lần ở cuối run/);
+  assert.match(text, /Chỉ đặt `blocked` theo mục "Chốt trạng thái gốc"/);
+});
