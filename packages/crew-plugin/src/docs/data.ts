@@ -16,6 +16,8 @@ async function projectScope(ctx: PluginContext, projectId: string, companyId: st
 }
 
 export async function loadDocsCheck(ctx: PluginContext, issueId: string, companyId: string) {
+  // The issue summary asks before the map has resolved the root; no issue yet means no docs check, not an error.
+  if (issueId === "") return null;
   let current = checkedId(issueId);
   const visited = new Set<string>();
   while (true) {
