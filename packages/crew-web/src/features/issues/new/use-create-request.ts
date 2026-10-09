@@ -2,6 +2,7 @@
 import type { Issue } from '@paperclipai/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, queryKeys } from '@/api';
+import { getI18n } from '@/i18n';
 import { findResearchLabelId, type RequestKind } from './kinds';
 
 export interface CreateRequestInput {
@@ -34,7 +35,7 @@ export function buildCreateBody(input: CreateRequestInput): Record<string, unkno
     status: input.draft ? 'backlog' : 'todo',
   };
   if (input.kind === 'research') {
-    if (!input.researchLabelId) throw new Error('Thiếu nhãn research cho yêu cầu Nghiên cứu');
+    if (!input.researchLabelId) throw new Error(getI18n().t('new.researchMissing', { ns: 'issues' }));
     body.labelIds = [input.researchLabelId];
   }
   return body;
@@ -65,11 +66,12 @@ export function useCreateRequest(companyId: string) {
   });
 }
 
-/** Id nhãn `research` của company. Không có nhãn này thì null và dialog ẩn loại Nghiên cứu. */
+/** Id nhãn `research` của company (dùng chung cache nhãn). Không có nhãn này thì null và dialog ẩn loại Nghiên cứu. */
 export function useResearchLabelId(companyId: string) {
   return useQuery({
-    queryKey: ['issues', companyId, 'research-label'],
+    queryKey: queryKeys.labels(companyId),
     enabled: companyId !== '',
-    queryFn: async (): Promise<string | null> => findResearchLabelId(await api.labels.list(companyId)),
+    queryFn: () => api.labels.list(companyId),
+    select: findResearchLabelId,
   });
 }

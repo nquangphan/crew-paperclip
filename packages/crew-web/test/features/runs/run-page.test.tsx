@@ -182,6 +182,45 @@ describe('RunPage thao tác (S12.2–S12.4)', () => {
     expect(router.state.location.pathname).toBe(`/TPS/runs/${RUN_ID}`);
   });
 
+  it('chạy lại run gắn chat được nhận nhưng chưa có run mới: báo đã xếp hàng, không báo lỗi, khóa nút', async () => {
+    const s = server(
+      { status: 'failed', errorCode: 'adapter_failed' },
+      {
+        'POST /api/agents/a1/wakeup': {
+          status: 202,
+          body: { actionId: 'act-1', issueId: 'i1', runId: null, status: 'queued' },
+        },
+      },
+    );
+    const router = mount();
+    fireEvent.click(await screen.findByRole('button', { name: 'Chạy lại' }));
+    fireEvent.click(within(await screen.findByRole('alertdialog')).getByRole('button', { name: 'Chạy lại' }));
+    expect(
+      await screen.findByText('Đã nhận yêu cầu chạy lại. Run mới sẽ bắt đầu khi tới lượt, không cần bấm lại.'),
+    ).toBeTruthy();
+    expect(screen.queryByText('Thao tác không thành công')).toBeNull();
+    expect(screen.queryByRole('alertdialog')).toBeNull();
+    expect((screen.getByRole('button', { name: 'Chạy lại' }) as HTMLButtonElement).disabled).toBe(true);
+    expect(router.state.location.pathname).toBe(`/TPS/runs/${RUN_ID}`);
+    expect(s.calls.filter((c) => c.url.includes('/wakeup'))).toHaveLength(1);
+  });
+
+  it('chạy lại run gắn chat bị từ chối (runId null, status failed) thì báo lỗi', async () => {
+    server(
+      { status: 'failed', errorCode: 'adapter_failed' },
+      {
+        'POST /api/agents/a1/wakeup': {
+          status: 202,
+          body: { actionId: 'act-1', issueId: 'i1', runId: null, status: 'failed' },
+        },
+      },
+    );
+    mount();
+    fireEvent.click(await screen.findByRole('button', { name: 'Chạy lại' }));
+    fireEvent.click(within(await screen.findByRole('alertdialog')).getByRole('button', { name: 'Chạy lại' }));
+    expect(await screen.findByText('Thao tác không thành công')).toBeTruthy();
+  });
+
   it('run thành công không có nút thao tác', async () => {
     server({ status: 'succeeded', finishedAt: '2026-10-10T02:00:00.000Z' });
     mount();

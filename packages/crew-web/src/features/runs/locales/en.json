@@ -17,7 +17,8 @@
     "retry": "Run again",
     "resume": "Resume run",
     "failed": "The action did not succeed",
-    "skipped": "The server skipped this request"
+    "skipped": "The server skipped this request",
+    "queued": "Rerun request accepted. The new run will start when its turn comes; no need to click again."
   },
   "confirm": {
     "cancelTitle": "Stop this run?",

@@ -55,6 +55,16 @@ const ACTIONS: Record<GateActionId, GateAction> = {
   reopen: { id: 'reopen', body: () => ({ status: 'todo' }) },
 };
 
+/** Thao tác cổng theo mã, không phụ thuộc trạng thái (người gọi tự kiểm quyền). */
+export function gateAction(id: GateActionId): GateAction {
+  return ACTIONS[id];
+}
+
+/** Duyệt và Yêu cầu sửa chỉ đúng khi owner còn là người duyệt stage đang chờ; gửi từ trạng thái cũ là vượt cổng. */
+export function needsApprovalStage(id: GateActionId): boolean {
+  return id === 'approve' || id === 'request_changes';
+}
+
 /** Thao tác cổng được phép theo trạng thái mới nhất của issue. */
 export function gateActionsFor(issue: GateIssue, me: { id: string }): GateAction[] {
   if (CLOSED.has(issue.status)) return [ACTIONS.reopen];

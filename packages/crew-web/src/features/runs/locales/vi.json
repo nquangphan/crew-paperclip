@@ -17,7 +17,8 @@
     "retry": "Chạy lại",
     "resume": "Tiếp tục run",
     "failed": "Thao tác không thành công",
-    "skipped": "Máy chủ bỏ qua yêu cầu này"
+    "skipped": "Máy chủ bỏ qua yêu cầu này",
+    "queued": "Đã nhận yêu cầu chạy lại. Run mới sẽ bắt đầu khi tới lượt, không cần bấm lại."
   },
   "confirm": {
     "cancelTitle": "Dừng run này?",
