@@ -1,7 +1,11 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { buildCreateBody, createRequest } from '@/features/issues/new/use-create-request';
+import { initI18n, setLanguage } from '@/i18n';
 import { mockServer } from '../../app/fetch-mock';
 
+beforeAll(async () => {
+  await initI18n();
+});
 afterEach(() => vi.restoreAllMocks());
 
 const base = {
@@ -36,6 +40,17 @@ describe('buildCreateBody', () => {
 
   it('Nghiên cứu mà không có nhãn thì ném lỗi, không gửi thiếu nhãn', () => {
     expect(() => buildCreateBody({ ...base, kind: 'research', researchLabelId: null })).toThrow();
+  });
+
+  it('câu lỗi thiếu nhãn research theo ngôn ngữ đang chọn', async () => {
+    await setLanguage('en');
+    expect(() => buildCreateBody({ ...base, kind: 'research', researchLabelId: null })).toThrow(
+      'The company has no “research” label, so the Research type is unavailable.',
+    );
+    await setLanguage('vi');
+    expect(() => buildCreateBody({ ...base, kind: 'research', researchLabelId: null })).toThrow(
+      'Company chưa có nhãn “research” nên chưa chọn được loại Nghiên cứu.',
+    );
   });
 
   it('lưu nháp là backlog; không bao giờ có policy hay reviewer', () => {
