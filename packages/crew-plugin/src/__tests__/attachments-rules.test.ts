@@ -33,15 +33,15 @@ describe("bảng kiểu file (giống bản crew-mac)", () => {
   });
 });
 
-// Bản chép bảng EXTENSION_LABELS của apps/crew-mac/src/files/policy.ts: đổi một bên thì đổi bên kia.
+// Bản chép bảng EXTENSION_LABELS của apps/crew-mac/src/files/policy.ts (repo Crew, @06bd46d): đổi một bên thì đổi bên kia.
 const MAC_EXTENSION_LABELS = {
   zip: "zip 7z rar gz tgz tar bz2 xz",
-  exe: "exe msi dmg pkg app bat cmd com scr dll dylib jar apk",
+  exe: "exe msi dmg pkg app bat cmd com scr dll dylib jar apk ps1 vbs deb rpm so",
   docm: "docm dotm",
   xlsm: "xlsm xltm",
-  "office-cu": "doc xls ppt dot xlt pot",
+  "office-cu": "doc xls ppt dot xlt pot pps",
   pptx: "pptx pptm ppsx potx",
-  media: "mp3 mp4 m4a m4v mov wav avi mkv webm aac flac ogg aiff",
+  media: "mp3 mp4 m4a m4v mov wav avi mkv webm aac flac ogg aiff wmv",
 };
 
 describe("bảng đuôi → nhãn (giống bản crew-mac)", () => {
@@ -51,7 +51,9 @@ describe("bảng đuôi → nhãn (giống bản crew-mac)", () => {
   });
 
   it("đuôi lệch trước đây giờ ra đúng nhãn của Mac", () => {
-    for (const ext of ["ps1", "vbs", "deb", "rpm", "so", "pps", "wmv"]) expect(labelForExtension(ext)).toBe("khac");
+    for (const ext of ["ps1", "vbs", "deb", "rpm", "so"]) expect(labelForExtension(ext)).toBe("exe");
+    expect(labelForExtension("pps")).toBe("office-cu");
+    expect(labelForExtension("wmv")).toBe("media");
     expect(labelForExtension("aiff")).toBe("media");
     for (const ext of Object.values(MAC_EXTENSION_LABELS).join(" ").split(" ")) {
       expect(labelForExtension(ext)).not.toBe("khac");
@@ -59,7 +61,11 @@ describe("bảng đuôi → nhãn (giống bản crew-mac)", () => {
     expect(judgeByName("x.pptm", "")).toEqual(blocked("tài liệu Office có macro (pptx)"));
     expect(judgeByName("x.dotm", "")).toEqual(blocked("tài liệu Office có macro (docm)"));
     expect(judgeByName("x.xltm", "")).toEqual(blocked("tài liệu Office có macro (xlsm)"));
-    expect(judgeByName("x.ps1", "")).toEqual(blocked("kiểu file không được phép (khac)"));
+    expect(judgeByName("x.ps1", "")).toEqual(blocked("kiểu file không được phép (exe)"));
+    expect(judgeByName("x.pps", "")).toEqual(blocked("kiểu file không được phép (office-cu)"));
+    expect(judgeByName("x.wmv", "")).toEqual(blocked("kiểu file không được phép (media)"));
+    expect(judgeByName("x.pptm", "application/vnd.ms-powerpoint.presentation.macroEnabled.12"))
+      .toEqual(blocked("tài liệu Office có macro (pptx)"));
     expect(judgeByName("x.aiff", "")).toEqual(blocked("kiểu file không được phép (media)"));
   });
 });

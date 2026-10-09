@@ -22,15 +22,19 @@ const ALLOWED = new Set(ALLOWED_EXTENSIONS);
 const SNIFFED = new Set(SNIFF_CHECKED);
 const MACRO = new Set(MACRO_EXTENSIONS);
 
-/** Same table as `EXTENSION_LABELS` in apps/crew-mac/src/files/policy.ts; the macro extensions go through it too. */
+/**
+ * Verbatim copy of `EXTENSION_LABELS` in apps/crew-mac/src/files/policy.ts (Crew repo, synced with commit 06bd46d);
+ * the macro extensions go through it too. When the Mac table changes, copy it again here and in the copy
+ * inside __tests__/attachments-rules.test.ts.
+ */
 export const EXTENSION_LABELS: Readonly<Record<Exclude<TypeLabel, "khac">, readonly string[]>> = {
   zip: ["zip", "7z", "rar", "gz", "tgz", "tar", "bz2", "xz"],
-  exe: ["exe", "msi", "dmg", "pkg", "app", "bat", "cmd", "com", "scr", "dll", "dylib", "jar", "apk"],
+  exe: ["exe", "msi", "dmg", "pkg", "app", "bat", "cmd", "com", "scr", "dll", "dylib", "jar", "apk", "ps1", "vbs", "deb", "rpm", "so"],
   docm: ["docm", "dotm"],
   xlsm: ["xlsm", "xltm"],
-  "office-cu": ["doc", "xls", "ppt", "dot", "xlt", "pot"],
+  "office-cu": ["doc", "xls", "ppt", "dot", "xlt", "pot", "pps"],
   pptx: ["pptx", "pptm", "ppsx", "potx"],
-  media: ["mp3", "mp4", "m4a", "m4v", "mov", "wav", "avi", "mkv", "webm", "aac", "flac", "ogg", "aiff"],
+  media: ["mp3", "mp4", "m4a", "m4v", "mov", "wav", "avi", "mkv", "webm", "aac", "flac", "ogg", "aiff", "wmv"],
 };
 
 export function labelForExtension(ext: string | null): TypeLabel {
