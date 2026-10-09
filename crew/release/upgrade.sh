@@ -70,7 +70,7 @@ check_toplevel() {
 
 check_toplevel
 echo "== Merge $REF ($TARGET) vào $BRANCH (từ $BASE), worktree $WT"
-if ! git -C "$WT" merge --no-ff -m "chore(sync): merge Paperclip $REF into $BASE" "$TARGET"; then
+if ! git -C "$WT" merge -s ort --no-ff -m "chore(sync): merge Paperclip $REF into $BASE" "$TARGET"; then
   CONFLICTS="$(git -C "$WT" diff --name-only --diff-filter=U)"
   if [ -z "$CONFLICTS" ]; then
     check_toplevel
