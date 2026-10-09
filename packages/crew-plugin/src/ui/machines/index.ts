@@ -43,7 +43,7 @@ export function MachinesSection({ companyId }: { companyId: string }) {
   const { data, loading, error } = useMachines(companyId);
   if (loading && !data) return h("div", { role: "status" }, h(Spinner, null), " Đang tải trạng thái máy…");
   if (error) return h("div", { role: "alert" }, `Không tải được trạng thái máy: ${error.message}`);
-  return h("section", { "aria-label": "Máy", className: "space-y-4" },
+  return h("div", { className: "space-y-4" },
     ...(data?.length ? data.map(machine => h(MachineCard, { key: machine.machineId, machine })) : [h("p", { key: "empty" }, "Chưa có máy gửi bản tin.")]));
 }
 

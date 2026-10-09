@@ -64,7 +64,7 @@ export function DocsSection({companyId}:{companyId:string}) {
   if (result.error) return h("p",{role:"alert"},result.error.message);
   const projects = result.data ?? [];
   const chosen = projectId && projects.some(p=>p.projectId===projectId) ? projectId : projects[0]?.projectId;
-  return h("section",{"aria-label":"Docs"},h("h2",null,"Docs"),projects.length?h("label",null,"Dự án ",h("select",{value:chosen,onChange:(e:{target:{value:string}})=>setProjectId(e.target.value)},...projects.map(p=>h("option",{key:p.projectId,value:p.projectId},p.repo)))):h("p",{role:"status"},"Chưa có repo nào đồng bộ docs."),chosen?h(DocsSpace,{key:chosen,projectId:chosen}):null);
+  return h("div",null,projects.length?h("label",null,"Dự án ",h("select",{value:chosen,onChange:(e:{target:{value:string}})=>setProjectId(e.target.value)},...projects.map(p=>h("option",{key:p.projectId,value:p.projectId},p.repo)))):h("p",{role:"status"},"Chưa có repo nào đồng bộ docs."),chosen?h(DocsSpace,{key:chosen,projectId:chosen}):null);
 }
 registerIssuePanel({id:"docs-check",order:20,component:DocsCheckPanel});
 registerPageSection({id:"docs",title:"Docs",order:30,component:DocsSection});
