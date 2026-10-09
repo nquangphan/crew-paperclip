@@ -1,0 +1,44 @@
+{
+  "title": "Run {{id}}",
+  "description": "Chi tiết một lần agent chạy.",
+  "notFound": "Không tìm thấy run",
+  "loadFailed": "Không tải được run",
+  "meta": {
+    "agent": "Agent",
+    "status": "Trạng thái",
+    "started": "Bắt đầu",
+    "finished": "Kết thúc",
+    "error": "Lỗi",
+    "exitCode": "Mã thoát",
+    "none": "Chưa có"
+  },
+  "actions": {
+    "cancel": "Dừng run",
+    "retry": "Chạy lại",
+    "resume": "Tiếp tục run",
+    "failed": "Thao tác không thành công",
+    "skipped": "Máy chủ bỏ qua yêu cầu này"
+  },
+  "confirm": {
+    "cancelTitle": "Dừng run này?",
+    "cancelBody": "Run {{id}} đang chạy hoặc xếp hàng sẽ bị dừng ngay, phần việc dở không được lưu.",
+    "retryTitle": "Chạy lại run lỗi?",
+    "retryBody": "Agent sẽ chạy lại đúng việc của run {{id}} bằng một run mới.",
+    "resumeTitle": "Tiếp tục run bị mất tiến trình?",
+    "resumeBody": "Agent sẽ chạy tiếp từ run {{id}} bằng một run mới."
+  },
+  "transcript": {
+    "heading": "Nội dung chạy",
+    "loadFailed": "Không tải được sự kiện của run"
+  },
+  "log": {
+    "heading": "Log",
+    "empty": "Run chưa có log",
+    "loadFailed": "Không tải được log"
+  },
+  "issues": {
+    "heading": "Yêu cầu liên quan",
+    "empty": "Run chưa chạm yêu cầu nào",
+    "loadFailed": "Không tải được yêu cầu liên quan"
+  }
+}

@@ -1,0 +1,31 @@
+{
+  "title": "Tìm kiếm",
+  "description": "Tìm trong yêu cầu, bình luận và tài liệu của company.",
+  "placeholder": "Từ khóa cần tìm",
+  "hint": "Gõ ít nhất 2 ký tự để tìm.",
+  "loadFailed": "Không tìm được",
+  "empty": "Không có kết quả cho \"{{q}}\"",
+  "count": "{{count}} kết quả",
+  "more": "Còn kết quả khác, hãy gõ cụ thể hơn.",
+  "scope": {
+    "label": "Phạm vi",
+    "all": "Tất cả",
+    "issues": "Yêu cầu",
+    "comments": "Bình luận",
+    "documents": "Tài liệu",
+    "artifacts": "Tệp đính kèm",
+    "agents": "Agent",
+    "projects": "Project"
+  },
+  "type": {
+    "issue": "Yêu cầu",
+    "artifact": "Tệp",
+    "agent": "Agent",
+    "project": "Project"
+  },
+  "col": {
+    "type": "Loại",
+    "result": "Kết quả",
+    "status": "Trạng thái"
+  }
+}

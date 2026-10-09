@@ -1,0 +1,32 @@
+{
+  "title": "Dashboard",
+  "description": "State of the company's agents, requests and machines.",
+  "cards": {
+    "label": "Key numbers",
+    "running": "Agents running",
+    "paused": "Agents paused",
+    "open": "Open requests",
+    "blocked": "Blocked requests",
+    "awaiting": "Awaiting your approval",
+    "agentsHint": "{{active}} active, {{error}} in error",
+    "openHint": "{{inProgress}} in progress"
+  },
+  "loadFailed": "Could not load the numbers",
+  "runs": {
+    "heading": "Recent runs",
+    "live": "{{count}} running",
+    "empty": "No runs yet",
+    "view": "View run",
+    "loadFailed": "Could not load runs"
+  },
+  "machines": {
+    "heading": "Machines",
+    "empty": "No machine has reported yet",
+    "loadFailed": "Could not load machines"
+  },
+  "recent": {
+    "heading": "Recent requests",
+    "empty": "No requests yet",
+    "loadFailed": "Could not load requests"
+  }
+}

@@ -1,0 +1,31 @@
+{
+  "title": "Search",
+  "description": "Search the company's requests, comments and documents.",
+  "placeholder": "Keywords to find",
+  "hint": "Type at least 2 characters to search.",
+  "loadFailed": "Search failed",
+  "empty": "No results for \"{{q}}\"",
+  "count": "{{count}} results",
+  "more": "There are more results; be more specific.",
+  "scope": {
+    "label": "Scope",
+    "all": "All",
+    "issues": "Requests",
+    "comments": "Comments",
+    "documents": "Documents",
+    "artifacts": "Attachments",
+    "agents": "Agents",
+    "projects": "Projects"
+  },
+  "type": {
+    "issue": "Request",
+    "artifact": "File",
+    "agent": "Agent",
+    "project": "Project"
+  },
+  "col": {
+    "type": "Type",
+    "result": "Result",
+    "status": "Status"
+  }
+}

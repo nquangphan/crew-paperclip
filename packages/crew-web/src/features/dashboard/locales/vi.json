@@ -1,0 +1,32 @@
+{
+  "title": "Tổng quan",
+  "description": "Tình hình agent, yêu cầu và máy của company.",
+  "cards": {
+    "label": "Số liệu chính",
+    "running": "Agent đang chạy",
+    "paused": "Agent tạm dừng",
+    "open": "Yêu cầu đang mở",
+    "blocked": "Yêu cầu bị kẹt",
+    "awaiting": "Chờ bạn duyệt",
+    "agentsHint": "{{active}} agent hoạt động, {{error}} lỗi",
+    "openHint": "{{inProgress}} đang làm"
+  },
+  "loadFailed": "Không tải được số liệu",
+  "runs": {
+    "heading": "Run gần đây",
+    "live": "{{count}} đang chạy",
+    "empty": "Chưa có run nào",
+    "view": "Xem run",
+    "loadFailed": "Không tải được run"
+  },
+  "machines": {
+    "heading": "Máy",
+    "empty": "Chưa có máy nào báo về",
+    "loadFailed": "Không tải được thông tin máy"
+  },
+  "recent": {
+    "heading": "Yêu cầu gần đây",
+    "empty": "Chưa có yêu cầu nào",
+    "loadFailed": "Không tải được yêu cầu"
+  }
+}

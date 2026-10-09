@@ -1,0 +1,42 @@
+{
+  "title": "Hộp thư",
+  "description": "Việc cần bạn xem hoặc quyết định.",
+  "loadFailed": "Không tải được Hộp thư",
+  "tab": {
+    "label": "Nhóm trong Hộp thư",
+    "awaiting_me": "Chờ tôi duyệt",
+    "mine": "Của tôi",
+    "unread": "Chưa đọc",
+    "stuck": "Đang kẹt",
+    "all": "Tất cả"
+  },
+  "empty": {
+    "awaiting_me": "Không có gì chờ bạn duyệt",
+    "mine": "Chưa có yêu cầu nào của bạn",
+    "unread": "Không còn mục chưa đọc",
+    "stuck": "Không có yêu cầu nào đang kẹt",
+    "all": "Hộp thư trống",
+    "filtered": "Không có mục khớp bộ lọc"
+  },
+  "reason": {
+    "approval": "Chờ bạn duyệt",
+    "escalated": "Chờ bạn quyết định",
+    "question": "Có câu hỏi chờ trả lời"
+  },
+  "filter": {
+    "search": "Tìm theo mã hoặc tiêu đề",
+    "status": "Trạng thái",
+    "allStatus": "Mọi trạng thái",
+    "group": "Nhóm",
+    "groupNone": "Không nhóm",
+    "groupStatus": "Theo trạng thái"
+  },
+  "unreadMark": "Mới",
+  "markRead": "Đánh dấu đã đọc",
+  "markUnread": "Đánh dấu chưa đọc",
+  "markAllRead": "Đánh dấu tất cả đã đọc",
+  "archive": "Lưu trữ",
+  "archived": "Đã lưu trữ {{id}}.",
+  "unarchive": "Bỏ lưu trữ",
+  "actionFailed": "Thao tác không thành công"
+}
