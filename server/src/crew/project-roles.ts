@@ -1,5 +1,6 @@
 import { sql } from "drizzle-orm";
 import type { Db } from "@paperclipai/db";
+import { HttpError } from "../errors.js";
 import { logger } from "../middleware/logger.js";
 import { derivePluginDatabaseNamespace } from "../services/plugin-database.js";
 import { type CrewCompanyConfig, loadCrewCompanyConfig } from "./issue-policy.js";
@@ -50,10 +51,18 @@ async function readRoleRows(db: CrewRolesDb, query: (table: string) => ReturnTyp
 
 const lower = (value: unknown) => String(value).toLowerCase();
 
+/** Dòng của project đã xóa (bảng plugin không có FK tới `projects`) coi như không có. */
+const LIVE_PROJECT_JOIN = sql`JOIN "projects" p ON p.id = r.project_id AND p.company_id = r.company_id`;
+
+/** Mã lỗi tạm của H4 khi không đọc được vai trò theo project; bên gọi thử lại sau. */
+export const CREW_ROLES_UNAVAILABLE = "crew_roles_unavailable";
+
 /**
  * Cấu hình Crew cho một issue: vai trò reviewer/integrator theo project từ bảng plugin, còn lại theo file.
  * - File `absent`/`invalid`, `projectId` trống, bảng chưa có, project không có dòng: như `loadCrewCompanyConfig`.
- * - Lỗi đọc khác: như `loadCrewCompanyConfig`, cảnh báo tối đa một lần mỗi phút cho mỗi company.
+ * - Lỗi đọc khác: như `loadCrewCompanyConfig`, cảnh báo tối đa một lần mỗi phút cho mỗi company. Với
+ *   `onReadError: "throw"` (H4: policy ghim vĩnh viễn lúc tạo) thì ném `503 crew_roles_unavailable` để bên gọi thử
+ *   lại, không ghim reviewer/integrator file vốn có thể không có checkout repo của project này.
  * - Dòng trỏ agent không còn trong company (đã xóa, đã chuyển company) hoặc đã `terminated`: `invalid`
  *   (fail closed như cấu hình lỗi). Không rơi về vai trò file, vì đó là reviewer/integrator của project khác.
  */
@@ -61,6 +70,8 @@ export async function loadCrewRoles(input: {
   db: CrewRolesDb;
   companyId: string;
   projectId: string | null | undefined;
+  /** `fallback` (mặc định, H2): lỗi đọc thì dùng vai trò file. `throw` (H4): lỗi đọc thì ném 503. */
+  onReadError?: "fallback" | "throw";
 }): Promise<CrewCompanyConfig> {
   const config = await loadCrewCompanyConfig(input.companyId);
   if (config.kind !== "ok" || !input.projectId) return config;
@@ -74,6 +85,7 @@ export async function loadCrewRoles(input: {
           ra.status AS reviewer_status,
           ia.status AS integrator_status
         FROM ${sql.raw(table)} r
+        ${LIVE_PROJECT_JOIN}
         LEFT JOIN "agents" ra ON ra.id = r.reviewer_agent_id AND ra.company_id = r.company_id
         LEFT JOIN "agents" ia ON ia.id = r.integrator_agent_id AND ia.company_id = r.company_id
         WHERE r.company_id = ${companyId} AND r.project_id = ${projectId}
@@ -84,8 +96,15 @@ export async function loadCrewRoles(input: {
       companyId,
       "read",
       { projectId, err: error },
-      "crew project roles unreadable; using company roles from CREW_POLICY_CONFIG",
+      input.onReadError === "throw"
+        ? "crew project roles unreadable; rejecting issue create so the caller retries"
+        : "crew project roles unreadable; using company roles from CREW_POLICY_CONFIG",
     );
+    if (input.onReadError === "throw") {
+      throw new HttpError(503, "Crew: tạm thời không đọc được vai trò của project, hãy thử lại.", {
+        code: CREW_ROLES_UNAVAILABLE,
+      });
+    }
     return config;
   }
   const row = rows?.[0];
@@ -104,7 +123,7 @@ export async function loadCrewRoles(input: {
 }
 
 /**
- * Mọi agent reviewer/integrator của company: vai trò trong file ∪ mọi dòng vai trò theo project của company.
+ * Mọi agent reviewer/integrator của company: vai trò trong file ∪ mọi dòng vai trò theo project còn tồn tại.
  * Dùng cho luật "agent không giao việc cho reviewer/integrator" (bất kể project của issue).
  */
 export async function loadCompanyRoleAgentIds(input: { db: CrewRolesDb; companyId: string }): Promise<Set<string>> {
@@ -118,8 +137,8 @@ export async function loadCompanyRoleAgentIds(input: { db: CrewRolesDb; companyI
   try {
     const rows = await readRoleRows(
       input.db,
-      (table) => sql`SELECT reviewer_agent_id::text AS reviewer_agent_id, integrator_agent_id::text AS integrator_agent_id
-        FROM ${sql.raw(table)} WHERE company_id = ${input.companyId}`,
+      (table) => sql`SELECT r.reviewer_agent_id::text AS reviewer_agent_id, r.integrator_agent_id::text AS integrator_agent_id
+        FROM ${sql.raw(table)} r ${LIVE_PROJECT_JOIN} WHERE r.company_id = ${input.companyId}`,
     );
     for (const row of rows ?? []) {
       ids.add(lower(row.reviewer_agent_id));

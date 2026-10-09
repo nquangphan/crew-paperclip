@@ -26,6 +26,8 @@ export interface IssueCreateFields {
   assigneeAdapterOverrides?: unknown;
   labelIds?: readonly string[] | null;
   projectId?: string | null;
+  inheritExecutionWorkspaceFromIssueId?: string | null;
+  skipExecutionWorkspaceInheritance?: boolean;
 }
 
 export type CreatePolicyDecision =
@@ -108,15 +110,22 @@ async function hasResearchLabel(db: Db, companyId: string, labelIds: readonly st
   return rows.length > 0;
 }
 
-/** Issue con không ghi project: vai trò theo project của issue cha (cùng company). */
-async function parentProjectId(db: Db, companyId: string, parentId: string | null | undefined): Promise<string | null> {
-  if (!parentId) return null;
-  const [parent] = await db
+/**
+ * Project mà lõi sẽ gán cho issue (`issueService.create`): project ghi rõ; không có thì project của issue nguồn
+ * workspace (`inheritExecutionWorkspaceFromIssueId ?? parentId`, cùng company), trừ khi
+ * `skipExecutionWorkspaceInheritance`. Nguồn không tìm thấy thì lõi tự báo 404, ở đây trả null.
+ */
+async function resolveIssueProjectId(db: Db, companyId: string, data: IssueCreateFields): Promise<string | null> {
+  if (data.projectId != null) return data.projectId;
+  if (data.skipExecutionWorkspaceInheritance) return null;
+  const sourceId = data.inheritExecutionWorkspaceFromIssueId ?? data.parentId;
+  if (!sourceId) return null;
+  const [source] = await db
     .select({ projectId: issues.projectId })
     .from(issues)
-    .where(and(eq(issues.id, parentId), eq(issues.companyId, companyId)))
+    .where(and(eq(issues.id, sourceId), eq(issues.companyId, companyId)))
     .limit(1);
-  return parent?.projectId ?? null;
+  return source?.projectId ?? null;
 }
 
 const MESSAGES: Record<Extract<CreatePolicyDecision, { kind: "reject" }>["code"], string> = {
@@ -138,8 +147,8 @@ export async function crewBeforeIssueCreate<T extends IssueCreateFields>(input: 
   data: T;
 }): Promise<T> {
   const { data } = input;
-  const projectId = data.projectId ?? (await parentProjectId(input.db, input.companyId, data.parentId));
-  const config = await loadCrewRoles({ db: input.db, companyId: input.companyId, projectId });
+  const projectId = await resolveIssueProjectId(input.db, input.companyId, data);
+  const config = await loadCrewRoles({ db: input.db, companyId: input.companyId, projectId, onReadError: "throw" });
   if (config.kind === "absent") return input.data;
   const roles = config.kind === "ok" ? config.roles : null;
   const ownerUserId = config.kind === "ok" ? config.ownerUserId : null;

@@ -162,8 +162,10 @@ suite("crew project roles in issueService", () => {
     results.push(await outcome(svc.update(await inReview(), { status: "done", executionState: completed, actorAgentId: s.i1 } as never)));
     const root = await outcome(svc.create(s.companyId, { title: "gốc", createdByUserId: "owner-1", projectId } as never));
     results.push(root);
-    const created = await svc.create(s.companyId, { title: "gốc 2", createdByUserId: "owner-1", projectId } as never);
-    results.push(stageAgents(await policyOf(created.id)).join(" / "));
+    results.push(await svc.create(s.companyId, { title: "gốc 2", createdByUserId: "owner-1", projectId } as never).then(
+      async (created) => stageAgents(await policyOf(created.id)).join(" / "),
+      (error: { status?: number; details?: { code?: string } }) => `${error.status}:${error.details?.code}:`,
+    ));
     return results.map((r) => r.replaceAll(stageId, "S").replaceAll(s.r1, "R").replaceAll(s.i1, "I"));
   }
 
@@ -187,12 +189,29 @@ suite("crew project roles in issueService", () => {
       expect(await gateScenarios((s) => s.p1)).toEqual(baseline);
     });
 
-    it("bảng hỏng (đọc lỗi): lỗi nằm trong savepoint, transaction ghi issue không bị abort", async () => {
+    it("bảng hỏng (đọc lỗi): H2 dùng vai trò file trong savepoint; H4 trên project trả 503 để thử lại, không ghim vai trò file", async () => {
       const table = crewRolesTable();
       await db.execute(sql.raw(`CREATE SCHEMA IF NOT EXISTS ${table.split(".")[0]}`));
       await db.execute(sql.raw(`CREATE TABLE ${table} (company_id uuid NOT NULL)`));
       try {
-        expect(await gateScenarios((s) => s.p1)).toEqual(baseline);
+        expect(await gateScenarios((s) => s.p1)).toEqual([
+          ...baseline.slice(0, 8),
+          "503:crew_roles_unavailable:",
+          "503:crew_roles_unavailable:",
+        ]);
+        // Issue không project vẫn theo vai trò file.
+        expect(await gateScenarios(() => null)).toEqual(baseline);
+        // Issue con của agent không ghi project, cha thuộc P1: cũng 503, không tạo issue nào.
+        const s = await seed();
+        const parent = await insertIssue(s, { projectId: s.p1 });
+        const svc = issueService(db);
+        await expect(svc.createChild(parent, {
+          title: "con", createdByAgentId: s.executorId, assigneeAgentId: s.executorId,
+        } as never)).rejects.toMatchObject({ status: 503, details: { code: "crew_roles_unavailable" } });
+        await expect(svc.create(s.companyId, {
+          title: "con", createdByAgentId: s.executorId, assigneeAgentId: s.executorId, parentId: parent,
+        } as never)).rejects.toMatchObject({ status: 503, details: { code: "crew_roles_unavailable" } });
+        expect(await db.select().from(issues).where(eq(issues.parentId, parent))).toHaveLength(0);
       } finally {
         await db.execute(sql.raw(`DROP TABLE ${table}`));
       }
@@ -230,6 +249,56 @@ suite("crew project roles in issueService", () => {
       expect(stageAgents(await policyOf(childByAgent.id))).toEqual([s.r2]);
       const childNoProject = await svc.create(s.companyId, { title: "con 2", createdByUserId: "owner-1", parentId: inP2.id } as never);
       expect(stageAgents(await policyOf(childNoProject.id))).toEqual([s.r2]);
+    });
+
+    it("issue con suy project như lõi: theo inheritExecutionWorkspaceFromIssueId trước parentId, bỏ khi skip", async () => {
+      const s = await seed();
+      await setRoles(s, s.p2, s.r2, s.i2);
+      const svc = issueService(db);
+      const parentP1 = await insertIssue(s, { projectId: s.p1 });
+      const sourceP2 = await insertIssue(s, { projectId: s.p2 });
+      const parentP2 = await insertIssue(s, { projectId: s.p2 });
+
+      // Cha ở P1, nguồn workspace ở P2: lõi gán P2 nên vai trò là R2.
+      const inherited = await svc.create(s.companyId, {
+        title: "con kế thừa", createdByAgentId: s.executorId, assigneeAgentId: s.executorId,
+        parentId: parentP1, inheritExecutionWorkspaceFromIssueId: sourceP2,
+      } as never);
+      expect(inherited.projectId).toBe(s.p2);
+      expect(stageAgents(await policyOf(inherited.id))).toEqual([s.r2]);
+
+      // Cha ở P2 nhưng bỏ kế thừa: lõi không gán project nên vai trò file R1.
+      const skipped = await svc.create(s.companyId, {
+        title: "con bỏ kế thừa", createdByAgentId: s.executorId, assigneeAgentId: s.executorId,
+        parentId: parentP2, skipExecutionWorkspaceInheritance: true,
+      } as never);
+      expect(skipped.projectId).toBeNull();
+      expect(stageAgents(await policyOf(skipped.id))).toEqual([s.r1]);
+
+      // Con ghi rõ project khác cha: theo project của con.
+      const explicit = await svc.create(s.companyId, {
+        title: "con khác project", createdByAgentId: s.executorId, assigneeAgentId: s.executorId,
+        parentId: parentP1, projectId: s.p2,
+      } as never);
+      expect(stageAgents(await policyOf(explicit.id))).toEqual([s.r2]);
+    });
+
+    it("dòng của project đã xóa không còn chặn giao việc cho reviewer cũ", async () => {
+      const s = await seed();
+      await setRoles(s, s.p2, s.r2, s.i2);
+      const svc = issueService(db);
+      const blocked = await insertIssue(s, { projectId: s.p1, status: "in_progress", assigneeAgentId: s.executorId });
+      await expect(svc.update(blocked, { assigneeAgentId: s.r2, actorAgentId: s.executorId })).rejects.toMatchObject({
+        status: 422, details: { code: "crew_role_assignee" },
+      });
+      await db.delete(projects).where(eq(projects.id, s.p2));
+      const free = await insertIssue(s, { projectId: s.p1, status: "in_progress", assigneeAgentId: s.executorId });
+      expect((await svc.update(free, { assigneeAgentId: s.r2, actorAgentId: s.executorId }))?.assigneeAgentId).toBe(s.r2);
+      const parent = await insertIssue(s, { projectId: s.p1 });
+      const child = await svc.create(s.companyId, {
+        title: "con", createdByAgentId: s.executorId, assigneeAgentId: s.i2, parentId: parent,
+      } as never);
+      expect(child.assigneeAgentId).toBe(s.i2);
     });
 
     it("H2: executor P2 done sớm bị 422; R2 duyệt được; R1 (vai trò file) duyệt issue P2 bị từ chối", async () => {

@@ -187,6 +187,29 @@ describe("loadCrewRoles", () => {
     expect(warn).toHaveBeenCalledTimes(2);
   });
 
+  it("H4 (onReadError throw): lỗi đọc khi có projectId thì ném 503 crew_roles_unavailable, không rơi về vai trò file", async () => {
+    writeConfig(okEntry);
+    vi.spyOn(logger, "warn").mockImplementation(() => logger);
+    for (const answers of [[[{ ok: true }], new Error("lock timeout")], [new Error("permission denied for schema")]] as Answer[][]) {
+      await expect(
+        loadCrewRoles({ db: fakeDb(answers) as never, companyId: COMPANY, projectId: PROJECT, onReadError: "throw" }),
+      ).rejects.toMatchObject({ status: 503, details: { code: "crew_roles_unavailable" } });
+    }
+    // Bảng chưa có, project không có dòng hay issue không project: vẫn vai trò file như I7.
+    for (const [answers, projectId] of [[[[{ ok: false }]], PROJECT], [[[{ ok: true }], []], PROJECT], [[], null]] as [Answer[], string | null][]) {
+      await expect(
+        loadCrewRoles({ db: fakeDb(answers) as never, companyId: COMPANY, projectId, onReadError: "throw" }),
+      ).resolves.toMatchObject({ kind: "ok", roles: { reviewerAgentId: FILE_REVIEWER, integratorAgentId: FILE_INTEGRATOR } });
+    }
+  });
+
+  it("chỉ đọc dòng của project còn tồn tại trong company", async () => {
+    writeConfig(okEntry);
+    const db = fakeDb([[{ ok: true }], []]);
+    await loadCrewRoles({ db: db as never, companyId: COMPANY, projectId: PROJECT });
+    expect(db.statements[1]).toMatch(/JOIN "projects" p ON p\.id = r\.project_id AND p\.company_id = r\.company_id/);
+  });
+
   it("đọc trong savepoint (transaction lồng) để lỗi không abort transaction bên ngoài", async () => {
     writeConfig(okEntry);
     const db = fakeDb([[{ ok: true }], []]);
@@ -226,6 +249,13 @@ describe("loadCompanyRoleAgentIds", () => {
       companyId: COMPANY,
     });
     expect([...rowsOnly].sort()).toEqual([ROW_REVIEWER, ROW_INTEGRATOR].sort());
+  });
+
+  it("bỏ dòng của project đã xóa (JOIN projects)", async () => {
+    writeConfig(okEntry);
+    const db = fakeDb([[{ ok: true }], []]);
+    await loadCompanyRoleAgentIds({ db: db as never, companyId: COMPANY });
+    expect(db.statements[1]).toMatch(/JOIN "projects" p ON p\.id = r\.project_id AND p\.company_id = r\.company_id/);
   });
 
   it("company không có trong file: tập rỗng, không SQL", async () => {
