@@ -78,5 +78,102 @@
     "saveDraft": "Lưu nháp (chưa chạy)",
     "cancel": "Hủy",
     "createFailed": "Không tạo được yêu cầu"
+  },
+  "detail": {
+    "back": "Về danh sách yêu cầu",
+    "loadFailed": "Không tải được yêu cầu",
+    "copyId": "Copy mã",
+    "copyLink": "Copy link",
+    "copied": "Đã copy",
+    "saving": "Đang lưu",
+    "save": "Lưu",
+    "cancel": "Hủy",
+    "title": {
+      "label": "Tiêu đề",
+      "edit": "Sửa tiêu đề",
+      "failed": "Không sửa được tiêu đề"
+    },
+    "description": {
+      "label": "Mô tả",
+      "edit": "Sửa mô tả",
+      "empty": "Chưa có mô tả",
+      "failed": "Không sửa được mô tả"
+    },
+    "props": {
+      "heading": "Thuộc tính",
+      "status": "Trạng thái",
+      "assignee": "Người làm",
+      "project": "Project",
+      "kind": "Loại",
+      "parent": "Yêu cầu cha",
+      "children": "Yêu cầu con",
+      "blockedBy": "Bị chặn bởi",
+      "stages": "Giai đoạn và người duyệt",
+      "round": "Vòng sửa",
+      "model": "Model",
+      "created": "Tạo lúc",
+      "updated": "Cập nhật lúc",
+      "started": "Bắt đầu lúc",
+      "completed": "Xong lúc",
+      "none": "Không có",
+      "unassigned": "Chưa giao",
+      "owner": "Owner",
+      "kindResearch": "Nghiên cứu",
+      "kindCode": "Code / Bug",
+      "stageType": {
+        "review": "Reviewer",
+        "approval": "Owner duyệt"
+      },
+      "current": "đang ở đây",
+      "modelValue": "{{model}} · độ khó {{complexity}} · effort {{effort}}"
+    },
+    "comments": {
+      "heading": "Bình luận",
+      "empty": "Chưa có bình luận",
+      "loadFailed": "Không tải được bình luận",
+      "you": "Bạn",
+      "user": "Người dùng",
+      "agent": "Agent",
+      "liveRun": "Run đang chạy của {{name}}",
+      "liveFailed": "Không tải được nội dung run"
+    },
+    "composer": {
+      "label": "Viết bình luận",
+      "placeholder": "Viết bình luận (markdown). Dán ảnh hoặc file để đính kèm.",
+      "send": "Gửi bình luận",
+      "sending": "Đang gửi",
+      "uploading": "Đang tải file lên",
+      "sendFailed": "Không gửi được bình luận",
+      "uploadFailed": "Không đính kèm được: {{names}}"
+    },
+    "attachments": {
+      "heading": "Đính kèm",
+      "empty": "Chưa có đính kèm",
+      "loadFailed": "Không tải được đính kèm",
+      "delete": "Xóa",
+      "deleteFile": "Xóa {{name}}",
+      "deleteTitle": "Xóa file đính kèm?",
+      "deleteBody": "File {{name}} sẽ bị xóa khỏi yêu cầu. Việc này không hoàn tác được.",
+      "deleteFailed": "Không xóa được file",
+      "unnamed": "(không tên)",
+      "size": "{{kb}} KB"
+    },
+    "documents": {
+      "heading": "Tài liệu",
+      "empty": "Chưa có tài liệu",
+      "loadFailed": "Không tải được tài liệu",
+      "bodyFailed": "Không tải được nội dung tài liệu",
+      "untitled": "(không tiêu đề)"
+    },
+    "runs": {
+      "heading": "Run của yêu cầu",
+      "empty": "Chưa có run",
+      "loadFailed": "Không tải được danh sách run",
+      "stop": "Dừng run",
+      "stopTitle": "Dừng run này?",
+      "stopBody": "Run {{id}} sẽ bị dừng, tiến trình trên máy chạy việc kết thúc. Agent có thể phải làm lại phần đang dở.",
+      "stopFailed": "Không dừng được run",
+      "unknownAgent": "agent không rõ"
+    }
   }
 }

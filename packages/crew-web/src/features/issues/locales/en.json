@@ -78,5 +78,102 @@
     "saveDraft": "Save draft (does not run)",
     "cancel": "Cancel",
     "createFailed": "Could not create the request"
+  },
+  "detail": {
+    "back": "Back to requests",
+    "loadFailed": "Could not load the request",
+    "copyId": "Copy ID",
+    "copyLink": "Copy link",
+    "copied": "Copied",
+    "saving": "Saving",
+    "save": "Save",
+    "cancel": "Cancel",
+    "title": {
+      "label": "Title",
+      "edit": "Edit title",
+      "failed": "Could not change the title"
+    },
+    "description": {
+      "label": "Description",
+      "edit": "Edit description",
+      "empty": "No description yet",
+      "failed": "Could not change the description"
+    },
+    "props": {
+      "heading": "Properties",
+      "status": "Status",
+      "assignee": "Assignee",
+      "project": "Project",
+      "kind": "Type",
+      "parent": "Parent request",
+      "children": "Child requests",
+      "blockedBy": "Blocked by",
+      "stages": "Stages and reviewers",
+      "round": "Revision round",
+      "model": "Model",
+      "created": "Created",
+      "updated": "Updated",
+      "started": "Started",
+      "completed": "Completed",
+      "none": "None",
+      "unassigned": "Unassigned",
+      "owner": "Owner",
+      "kindResearch": "Research",
+      "kindCode": "Code / Bug",
+      "stageType": {
+        "review": "Reviewer",
+        "approval": "Owner approval"
+      },
+      "current": "current",
+      "modelValue": "{{model}} · complexity {{complexity}} · effort {{effort}}"
+    },
+    "comments": {
+      "heading": "Comments",
+      "empty": "No comments yet",
+      "loadFailed": "Could not load comments",
+      "you": "You",
+      "user": "User",
+      "agent": "Agent",
+      "liveRun": "Live run of {{name}}",
+      "liveFailed": "Could not load the run output"
+    },
+    "composer": {
+      "label": "Write a comment",
+      "placeholder": "Write a comment (markdown). Paste an image or file to attach it.",
+      "send": "Send comment",
+      "sending": "Sending",
+      "uploading": "Uploading file",
+      "sendFailed": "Could not send the comment",
+      "uploadFailed": "Could not attach: {{names}}"
+    },
+    "attachments": {
+      "heading": "Attachments",
+      "empty": "No attachments yet",
+      "loadFailed": "Could not load attachments",
+      "delete": "Delete",
+      "deleteFile": "Delete {{name}}",
+      "deleteTitle": "Delete this attachment?",
+      "deleteBody": "File {{name}} will be removed from the request. This cannot be undone.",
+      "deleteFailed": "Could not delete the file",
+      "unnamed": "(unnamed)",
+      "size": "{{kb}} KB"
+    },
+    "documents": {
+      "heading": "Documents",
+      "empty": "No documents yet",
+      "loadFailed": "Could not load documents",
+      "bodyFailed": "Could not load the document",
+      "untitled": "(untitled)"
+    },
+    "runs": {
+      "heading": "Runs of this request",
+      "empty": "No runs yet",
+      "loadFailed": "Could not load runs",
+      "stop": "Stop run",
+      "stopTitle": "Stop this run?",
+      "stopBody": "Run {{id}} will be stopped and its process on the work machine ends. The agent may have to redo unfinished work.",
+      "stopFailed": "Could not stop the run",
+      "unknownAgent": "unknown agent"
+    }
   }
 }
