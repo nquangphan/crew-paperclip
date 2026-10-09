@@ -46,7 +46,7 @@ function request(routeKey: string, options: {
   };
 }
 
-it("declares the role routes as board-only and the docs graph route for board and agent, and they pass the host manifest validator", () => {
+it("declares the role and machine job routes as board-only and the docs graph route for board and agent, and they pass the host manifest validator", () => {
   const parsed = pluginManifestV1Schema.parse(manifest);
   expect(parsed.capabilities).toContain("api.routes.register");
   expect(parsed.apiRoutes?.map((r) => [r.routeKey, r.method, r.path, r.auth, r.companyResolution])).toEqual([
@@ -54,6 +54,12 @@ it("declares the role routes as board-only and the docs graph route for board an
     ["roles.set", "POST", "/projects/:projectId/roles", "board", { from: "body", key: "companyId" }],
     ["roles.delete", "DELETE", "/projects/:projectId/roles", "board", { from: "query", key: "companyId" }],
     ["docs.graph", "GET", "/docs/graph", "board-or-agent", { from: "query", key: "companyId" }],
+    ["jobs.create", "POST", "/machine-jobs", "board", { from: "body", key: "companyId" }],
+    ["jobs.list", "GET", "/machine-jobs", "board", { from: "query", key: "companyId" }],
+    ["jobs.claim", "POST", "/machine-jobs/claim", "board", { from: "body", key: "companyId" }],
+    ["jobs.result", "POST", "/machine-jobs/:jobId/result", "board", { from: "body", key: "companyId" }],
+    ["jobs.retry", "POST", "/machine-jobs/:jobId/retry", "board", { from: "body", key: "companyId" }],
+    ["jobs.cancel", "POST", "/machine-jobs/:jobId/cancel", "board", { from: "body", key: "companyId" }],
   ]);
 });
 
