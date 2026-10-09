@@ -182,9 +182,10 @@ export async function loadCrewCompanyConfig(
  * - con: `[review reviewer]`.
  * - gốc: `[review reviewer, review integrator (merge + docs), approval owner, review integrator (push)]`.
  * - research: `[review reviewer, approval owner]`.
+ * - bmad: [review reviewer, approval owner] cho issue con lập epic/story (owner duyệt epic/story trước khi Trợ Lý tạo issue code).
  */
 export function buildCrewPolicy(
-  kind: "root" | "child" | "research",
+  kind: "root" | "child" | "research" | "bmad",
   roles: CrewRoles,
   ownerUserId: string | null = null,
 ): IssueExecutionPolicy {

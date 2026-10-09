@@ -55,7 +55,7 @@
       "head": "    create: async (",
       "anchor": "      data = await crewCoreHooks.beforeIssueCreate({ db, companyId, data });",
       "importLine": "import { crewCoreHooks } from \"../crew/core-hooks.js\";",
-      "description": "Attach the Crew execution-policy template to new issues and refuse agent-created root issues.",
+      "description": "Attach the Crew execution-policy template to new issues (owner approval for agent-created BMAD epic/story children) and refuse agent-created root issues.",
       "upstreamPr": null,
       "tests": ["server/src/__tests__/crew-issue-create-policy.test.ts"]
     },
