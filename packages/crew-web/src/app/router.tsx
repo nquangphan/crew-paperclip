@@ -1,7 +1,9 @@
 // Router của UI Crew. Route feature gom bằng import.meta.glob('../features/*/routes.tsx') (mỗi module export
 // `routes: RouteObject[]`, path tương đối dưới /:companyPrefix/), nên gói khác thêm trang không phải sửa file này.
+import type { QueryClient } from '@tanstack/react-query';
 import { createBrowserRouter, type RouteObject } from 'react-router-dom';
-import { setUnauthorizedHandler } from '@/api/http';
+import { queryKeys } from '@/api';
+import { loginRedirectPath, setUnauthorizedHandler } from '@/api/http';
 import { CliAuthPage } from './auth/cli-auth-page';
 import { LoginPage } from './auth/login-page';
 import { RequireSession } from './auth/require-session';
@@ -54,9 +56,22 @@ export function buildAppRoutes({ featureModules = featureGlob, dev = false }: Bu
   return routes;
 }
 
-export function createAppRouter() {
+type AppRouter = Pick<ReturnType<typeof createBrowserRouter>, 'navigate' | 'state'>;
+
+/**
+ * 401 giữa chừng: xóa phiên trong cache rồi điều hướng SPA về /login?next= (không tải lại trang). Phải xóa
+ * phiên trước: nếu không, /login thấy phiên cũ còn hạn (staleTime) và đẩy ngược về trang vừa gặp 401, lặp mãi.
+ */
+export function bindUnauthorizedHandler(router: AppRouter, queryClient: QueryClient): void {
+  setUnauthorizedHandler(() => {
+    queryClient.setQueryData(queryKeys.session, null);
+    const to = loginRedirectPath(router.state.location);
+    if (to) void router.navigate(to, { replace: true });
+  });
+}
+
+export function createAppRouter(queryClient: QueryClient) {
   const router = createBrowserRouter(buildAppRoutes({ dev: import.meta.env.DEV }));
-  // 401 giữa chừng: điều hướng SPA về /login?next= thay vì tải lại trang.
-  setUnauthorizedHandler((to) => void router.navigate(to, { replace: true }));
+  bindUnauthorizedHandler(router, queryClient);
   return router;
 }

@@ -3,7 +3,18 @@ import ts from 'ts-api';
 import { describe, expect, it } from 'vitest';
 
 const ALLOWED = new Set(['Crew', '2P Crew', 'Paperclip', 'Claude', 'VI', 'EN']);
-const TEXT_ATTRS = new Set(['title', 'placeholder', 'aria-label', 'alt', 'label', 'confirmLabel']);
+const TEXT_ATTRS = new Set([
+  'title',
+  'placeholder',
+  'aria-label',
+  'alt',
+  'label',
+  'confirmLabel',
+  'description',
+  'message',
+  'body',
+  'hint',
+]);
 const HAS_LETTER = /\p{L}/u;
 const FIXTURE = 'test/guards/__fixtures__/hardcoded.tsx';
 
@@ -63,7 +74,8 @@ export function scanHardcodedText(files: string[]): string[] {
   return bad;
 }
 
-export const screenFiles = () => list('src/{features,app}/**/*.tsx').concat(list('src/ds/widgets/**/*.tsx'));
+export const screenFiles = () =>
+  list('src/{features,app}/**/*.tsx').concat(list('src/ds/{widgets,components}/**/*.tsx'));
 
 describe('i18n', () => {
   it('vi.json và en.json cùng tập khóa ở mọi thư mục locales', () => {
@@ -72,13 +84,21 @@ describe('i18n', () => {
   it('có ít nhất một cặp locale để so', () => {
     expect(list('src/i18n/locales/*.json').length).toBe(2);
   });
-  it('không có chữ cứng trong feature, app, widget', () => {
+  it('không có chữ cứng trong feature, app, widget, component ds', () => {
     expect(scanHardcodedText(screenFiles())).toEqual([]);
   });
   it('bộ quét bắt được fixture chữ cứng (không xanh vì quét rỗng)', () => {
-    expect(scanHardcodedText([FIXTURE])).toEqual([`${FIXTURE}: text "Xin chào"`, `${FIXTURE}: placeholder="Tìm"`]);
+    expect(scanHardcodedText([FIXTURE])).toEqual([
+      `${FIXTURE}: text "Xin chào"`,
+      `${FIXTURE}: placeholder="Tìm"`,
+      `${FIXTURE}: description="Mô tả"`,
+      `${FIXTURE}: message="Lỗi"`,
+      `${FIXTURE}: body="Nội dung"`,
+      `${FIXTURE}: hint="Gợi ý"`,
+    ]);
   });
-  it('bộ quét widget thật có file để quét', () => {
+  it('bộ quét widget và component ds thật có file để quét', () => {
     expect(list('src/ds/widgets/*.tsx').length).toBeGreaterThanOrEqual(13);
+    expect(screenFiles()).toContain('src/ds/components/dialog.tsx');
   });
 });

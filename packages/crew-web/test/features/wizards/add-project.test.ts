@@ -306,6 +306,54 @@ describe('runAddProject', () => {
     expect(new Set(companyArgs)).toEqual(new Set([COMPANY]));
   });
 
+  it('finish gửi lại đúng mã chủ khóa mà begin trả', async () => {
+    const f = fakeApi();
+    await runAddProjectStep(ctxOf(f.api), f.state.run, 'inspect');
+    const token = f.calls.find((c) => c.fn === 'setup.finish')?.args[3] as { lockToken?: string };
+    expect(token.lockToken).toMatch(/^0f/);
+  });
+
+  it('tab khác đã lấy khóa khi việc xong (finish 409) → StepBusyError, không ghi lỗi, không tạm dừng agent', async () => {
+    const f = fakeApi();
+    const run = await runAddProject(ctxOf(f.api), f.state.run);
+    expect(run.status).toBe('done');
+    // Dựng lại run dở ở bước check, rồi để finish của bước check bị 409 như khi tab khác đã begin lại.
+    const halfway = { ...run, status: 'running' as const, steps: { ...run.steps, check: undefined } };
+    f.state.run = structuredClone(halfway);
+    f.calls.length = 0;
+    const finish = f.api.setup.finish;
+    f.api.setup.finish = async (companyId, id, stepId, body) => {
+      f.state.lockToken = 'token-cua-tab-khac';
+      return finish(companyId, id, stepId, body);
+    };
+    await expect(runAddProjectStep(ctxOf(f.api), halfway, 'check')).rejects.toBeInstanceOf(StepBusyError);
+    expect(f.calls.filter((c) => c.fn === 'setup.finish')).toHaveLength(1);
+    expect(f.names()).not.toContain('agents.pause');
+  });
+
+  it('việc lỗi mà finish failed cũng 409 → StepBusyError, không tạm dừng agent', async () => {
+    const f = fakeApi();
+    f.failOn('roles.set', 1, new ApiError(400, 'Reviewer trùng'));
+    const finish = f.api.setup.finish;
+    f.api.setup.finish = async (companyId, id, stepId, body) => {
+      if (stepId === 'roles') f.state.lockToken = 'token-cua-tab-khac';
+      return finish(companyId, id, stepId, body);
+    };
+    await expect(runAddProject(ctxOf(f.api), f.state.run)).rejects.toBeInstanceOf(StepBusyError);
+    expect(f.names()).toContain('agents.create');
+    expect(f.names()).not.toContain('agents.pause');
+  });
+
+  it('environment mẫu thiếu knownHosts thì không dùng làm mẫu', async () => {
+    const f = fakeApi();
+    const template = f.state.environments[0] as { config: Record<string, unknown> };
+    template.config = { ...template.config, knownHosts: null };
+    const run = await runAddProject(ctxOf(f.api), f.state.run);
+    expect(run.status).toBe('failed');
+    expect(run.steps.environments?.error).toContain('errors.noTemplate');
+    expect(f.names()).not.toContain('environments.create');
+  });
+
   it('bước đã done thì bỏ qua, không begin lại', async () => {
     const f = fakeApi();
     const run = await runAddProjectStep(

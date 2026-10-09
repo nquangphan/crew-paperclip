@@ -37,7 +37,15 @@
     "continue": "Continue",
     "done": "The project has been added.",
     "openProject": "Open project",
-    "environmentDescription": "{{role}} checkout of project {{project}} on the Mac"
+    "environmentDescription": "{{role}} checkout of project {{project}} on the Mac",
+    "abandon": {
+      "button": "Discard this attempt",
+      "title": "Discard this add-project attempt?",
+      "body": "No project has been created yet, so there is nothing to clean up. After discarding, the key {{key}} can be used again with another machine or folder. Nothing is deleted.",
+      "failed": "Could not discard the add-project attempt"
+    },
+    "abandoned": "This add-project attempt was discarded. Add the project again from the start.",
+    "startOver": "Add project"
   },
   "addAgent": {
     "title": "Create agent",
@@ -60,6 +68,7 @@
       "noMachines": "No machine has reported to this company yet.",
       "key": "Project key",
       "keyHint": "Project key on the machine (folder name under ~/crew-agents).",
+      "keyLocked": "Taken from the selected project and cannot be changed: the agent checkout and environment use this key.",
       "folder": "Repo folder on the machine",
       "folderHint": "The project's main repo on the machine; the agent checkout is created from it.",
       "submit": "Start",

@@ -26,7 +26,8 @@ function request(routeKey: string, options: {
   if (options.stepId) params.stepId = options.stepId;
   const path = routeKey === "setup.create" ? "/setup-runs"
     : routeKey === "setup.get" ? `/setup-runs/${options.id}`
-      : `/setup-runs/${options.id}/steps/${options.stepId}/${routeKey === "setup.begin" ? "begin" : "finish"}`;
+      : routeKey === "setup.abandon" ? `/setup-runs/${options.id}/abandon`
+        : `/setup-runs/${options.id}/steps/${options.stepId}/${routeKey === "setup.begin" ? "begin" : "finish"}`;
   const method = routeKey === "setup.get" ? "GET" : "POST";
   return {
     routeKey, method, path, params, query: method === "GET" ? { companyId: company } : {}, body: options.body ?? null,
@@ -47,9 +48,18 @@ describe("tiến độ wizard trên database thật của host", () => {
     expect(res.status).toBe(201);
     return res.body as SetupRun;
   };
-  const begin = (id: string, stepId: string) => call(request("setup.begin", { id, stepId, body: { companyId } }));
+  /** Lock token of the last successful begin per run, sent back by `finish` unless the test overrides it. */
+  const tokens = new Map<string, string>();
+  const begin = async (id: string, stepId: string) => {
+    const res = await call(request("setup.begin", { id, stepId, body: { companyId } }));
+    if (res.status === 200) tokens.set(id, (res.body as { lockToken: string }).lockToken);
+    return res;
+  };
   const finish = (id: string, stepId: string, body: Record<string, unknown>) =>
-    call(request("setup.finish", { id, stepId, body: { companyId, ...body } }));
+    call(request("setup.finish", { id, stepId, body: { companyId, lockToken: tokens.get(id), ...body } }));
+  const abandon = (id: string) => call(request("setup.abandon", { id, body: { companyId } }));
+  const ageLock = (id: string, minutes: number) => host.sql.unsafe(
+    `UPDATE ${host.ns}.crew_setup_runs SET running_since = now() - make_interval(mins => ${minutes}) WHERE id = $1`, [id]);
   const row = async (id: string) => (await host.sql.unsafe(`SELECT * FROM ${host.ns}.crew_setup_runs WHERE id = $1`, [id]))[0]!;
 
   beforeAll(async () => { host = await startPluginHost("crew-setup-runs-"); }, 120_000);
@@ -111,7 +121,7 @@ describe("tiến độ wizard trên database thật của host", () => {
     expect(first.input).toEqual(input);
   });
 
-  it("mỗi run chỉ một bước chạy một lúc; finish nhả khóa; khóa quá 5 phút coi như chết", async () => {
+  it("mỗi run chỉ một bước chạy một lúc; finish nhả khóa; khóa quá 15 phút coi như chết", async () => {
     const run = await create();
     const started = await begin(run.id, "agents");
     expect(started.status).toBe(200);
@@ -128,11 +138,118 @@ describe("tiến độ wizard trên database thật của host", () => {
     expect(new Date(after.steps.agents!.at).toISOString()).toBe(after.steps.agents!.at);
     expect((await begin(run.id, "roles")).status).toBe(200);
 
-    await host.sql.unsafe(`UPDATE ${host.ns}.crew_setup_runs SET running_since = now() - interval '6 minutes' WHERE id = $1`, [run.id]);
+    await ageLock(run.id, 16);
     expect((await call(request("setup.get", { id: run.id }))).body).toMatchObject({ runningStep: null });
     const retaken = await begin(run.id, "check");
     expect(retaken.status).toBe(200);
     expect((retaken.body as SetupRun).runningStep).toBe("check");
+  });
+
+  it("khóa bước sống lâu hơn hạn một việc trên máy (10 phút)", async () => {
+    const run = await create();
+    expect((await begin(run.id, "check")).status).toBe(200);
+    await ageLock(run.id, 11);
+    expect((await call(request("setup.get", { id: run.id }))).body).toMatchObject({ runningStep: "check" });
+    expect(await begin(run.id, "check")).toEqual({ status: 409, body: { error: "Bước check đang chạy" } });
+  });
+
+  it("begin trả mã chủ khóa; finish phải gửi đúng mã, tab cũ không kết thúc được bước tab mới đã nhận", async () => {
+    const run = await create();
+    const first = await begin(run.id, "check");
+    const firstToken = (first.body as { lockToken: string }).lockToken;
+    expect(firstToken).toMatch(/^[0-9a-f-]{36}$/);
+    expect((await call(request("setup.get", { id: run.id }))).body).not.toHaveProperty("lockToken");
+    expect(JSON.stringify(await loadSetupRuns(host.ctx, { companyId }))).not.toContain(firstToken);
+
+    expect(await finish(run.id, "check", { status: "done", lockToken: undefined }))
+      .toEqual({ status: 400, body: { error: "lockToken phải là uuid" } });
+    expect(await finish(run.id, "check", { status: "done", lockToken: "70000000-0000-4000-8000-000000000001" }))
+      .toEqual({ status: 409, body: { error: "Bước check không đang chạy" } });
+
+    // Tab 1 waits past the lock window; tab 2 resumes and takes the step over.
+    await ageLock(run.id, 16);
+    const second = await begin(run.id, "check");
+    expect(second.status).toBe(200);
+    expect((second.body as { lockToken: string }).lockToken).not.toBe(firstToken);
+    expect(await finish(run.id, "check", { status: "failed", error: "x", lockToken: firstToken }))
+      .toEqual({ status: 409, body: { error: "Bước check không đang chạy" } });
+    expect(await finish(run.id, "check", { status: "done", lockToken: firstToken }))
+      .toEqual({ status: 409, body: { error: "Bước check không đang chạy" } });
+    expect((await finish(run.id, "check", { status: "done" })).body).toMatchObject({ status: "done" });
+  });
+
+  it("finish đúng mã vẫn nhận khi khóa đã quá hạn nhưng chưa ai nhận lại", async () => {
+    const run = await create();
+    await begin(run.id, "inspect");
+    await ageLock(run.id, 30);
+    expect((await finish(run.id, "inspect", { status: "done" })).status).toBe(200);
+  });
+
+  it("bỏ lần thêm project hỏng chưa có project thì nhả khóa project, không xóa gì", async () => {
+    const run = await create();
+    await begin(run.id, "inspect");
+    expect(await abandon(run.id)).toEqual({ status: 409, body: { error: "Bước inspect đang chạy" } });
+    await finish(run.id, "inspect", { status: "failed", error: "Folder không phải git" });
+
+    const res = await abandon(run.id);
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({ id: run.id, status: "abandoned", projectKey: "demo", runningStep: null, input: projectInput });
+    expect((res.body as SetupRun).steps.inspect).toMatchObject({ status: "failed", error: "Folder không phải git" });
+    expect(host.logs.find((log) => log.message === "crew setup run abandoned")?.meta).toMatchObject({ setupRunId: run.id, actorUserId: userId });
+
+    expect(await abandon(run.id)).toEqual({ status: 409, body: { error: "Lần cài đặt đã bỏ" } });
+    expect(await begin(run.id, "inspect")).toEqual({ status: 409, body: { error: "Lần cài đặt đã bỏ" } });
+    expect((await loadSetupRuns(host.ctx, { companyId, status: "abandoned" })).map((item) => item.id)).toEqual([run.id]);
+    const again = await create();
+    expect(again.id).not.toBe(run.id);
+    expect(await host.sql.unsafe(`SELECT id FROM ${host.ns}.crew_setup_runs`)).toHaveLength(2);
+  });
+
+  it("bỏ được run đang chạy mà khóa đã chết; từ chối run có project, run xong, run add-agent, agent, company khác", async () => {
+    const stale = await create();
+    await begin(stale.id, "inspect");
+    await ageLock(stale.id, 16);
+    expect((await abandon(stale.id)).body).toMatchObject({ status: "abandoned" });
+
+    const withProject = await create();
+    await begin(withProject.id, "project");
+    await finish(withProject.id, "project", { status: "done", projectId });
+    await begin(withProject.id, "checkouts");
+    await finish(withProject.id, "checkouts", { status: "failed", error: "x" });
+    expect(await abandon(withProject.id)).toEqual({ status: 409, body: { error: "Lần cài đặt đã tạo project, không bỏ được" } });
+    await begin(withProject.id, "check");
+    await finish(withProject.id, "check", { status: "done" });
+    expect(await abandon(withProject.id)).toEqual({ status: 409, body: { error: "Lần cài đặt đã xong" } });
+
+    const agentRun = await create({ kind: "add-agent", input: { projectId, slot: "executor", name: "A", model: "claude-sonnet-5" } });
+    expect(await abandon(agentRun.id)).toEqual({ status: 409, body: { error: "Chỉ bỏ được lần thêm project" } });
+
+    const other = await create({ projectKey: "demo-3", input: { ...projectInput, key: "demo-3" } });
+    expect(await call(request("setup.abandon", { id: other.id, body: { companyId }, actor: agent })))
+      .toEqual({ status: 403, body: { error: "Chỉ board được dùng tiến độ cài đặt" } });
+    expect(await call(request("setup.abandon", { id: other.id, body: { companyId: otherCompany }, company: otherCompany })))
+      .toEqual({ status: 404, body: { error: "Không tìm thấy lần cài đặt" } });
+    expect(await call(request("setup.abandon", { id: other.id, body: { companyId, extra: 1 } })))
+      .toEqual({ status: 400, body: { error: "trường extra không được hỗ trợ" } });
+    expect(await call(request("setup.abandon", { id: "x", body: { companyId } }))).toEqual({ status: 400, body: { error: "id phải là uuid" } });
+    expect((await row(other.id)).status).toBe("running");
+  });
+
+  it("run add-agent phải dùng đúng khóa của project", async () => {
+    const otherProject = "30000000-0000-4000-8000-000000000002";
+    const run = await create();
+    await begin(run.id, "project");
+    await finish(run.id, "project", { status: "done", projectId });
+    const agentBody = (projectKey: string, project = projectId) =>
+      createBody({ kind: "add-agent", projectKey, input: { projectId: project, slot: "executor-2", name: "Thợ 2", model: "claude-sonnet-5" } });
+
+    expect(await call(request("setup.create", { body: agentBody("demo-b") })))
+      .toEqual({ status: 400, body: { error: "projectKey không khớp project" } });
+    expect(await call(request("setup.create", { body: agentBody("demo", otherProject) })))
+      .toEqual({ status: 400, body: { error: "Khóa project đã thuộc project khác" } });
+    expect((await call(request("setup.create", { body: agentBody("demo") }))).status).toBe(201);
+    // A project the app created has no add-project run: any free key is accepted.
+    expect((await call(request("setup.create", { body: agentBody("app-made", otherProject) }))).status).toBe(201);
   });
 
   it("hai lần begin cùng lúc chỉ một lần được", async () => {
@@ -170,7 +287,8 @@ describe("tiến độ wizard trên database thật của host", () => {
 
   it("từ chối finish sai, bước lạ, run của company khác", async () => {
     const run = await create();
-    expect(await finish(run.id, "agents", { status: "done" })).toEqual({ status: 409, body: { error: "Bước agents không đang chạy" } });
+    expect(await finish(run.id, "agents", { status: "done", lockToken: "70000000-0000-4000-8000-000000000002" }))
+      .toEqual({ status: 409, body: { error: "Bước agents không đang chạy" } });
     expect(await begin(run.id, "pin")).toEqual({ status: 400, body: { error: "stepId không hợp lệ" } });
     await begin(run.id, "agents");
     for (const [body, error] of [

@@ -31,10 +31,23 @@ describe('cấu hình agent Crew', () => {
       '/Users/owner/.crew/workflows/superpowers/1/extra',
       '/Users/owner/.crew/workflows/bmad/6.13.0',
       '/Users/owner/plugins/superpowers',
+      // Home có `..` hoặc ký tự lạ: command trỏ ra ngoài home.
+      '/Users/../etc/.crew/workflows/superpowers/1',
+      '/Users/owner/../../tmp/.crew/workflows/superpowers/1',
+      '/Users/./owner/.crew/workflows/superpowers/1',
+      '/Users/a b$(x)/.crew/workflows/superpowers/1',
+      '/Users/owner\n/.crew/workflows/superpowers/1',
+      '/Users/owner/.crew/workflows/superpowers/1;rm',
     ]) {
       expect(() => crewExtraArgs(bad), bad).toThrow(/bản ghim/);
       expect(() => crewWrapperCommand(bad), bad).toThrow(/bản ghim/);
     }
+  });
+
+  it('nhận home và bản ghim dùng ký tự thường', () => {
+    expect(crewWrapperCommand('/Users/owner.name-2/.crew/workflows/superpowers/6.4.1_x+y')).toBe(
+      '/Users/owner.name-2/.crew/bin/crew-claude-run',
+    );
   });
 
   it('body tạo agent có đúng các key Crew, không key lạ', () => {

@@ -238,7 +238,6 @@ const projectQueries = (run: SetupRun) => [queryKeys.projects(run.companyId)];
 
 function AddProjectProgress({ runId }: { runId: string }) {
   const { t } = useT('wizards');
-  const { company } = useCompany();
   return (
     <SetupProgress
       runId={runId}
@@ -247,16 +246,15 @@ function AddProjectProgress({ runId }: { runId: string }) {
       steps={ADD_PROJECT_STEPS}
       run={runProject}
       invalidate={projectQueries}
+      restartPath="projects/new"
       summary={(run) => {
         const input = run.input as AddProjectInput;
         return t('addProject.summary', { name: input.name, key: input.key, executors: input.executors });
       }}
-      done={(run) => (
+      done={(run, prefix) => (
         <Alert title={t('addProject.done')}>
           {run.projectId ? (
-            <Link to={companyHref(company.issuePrefix, `projects/${run.projectId}`)}>
-              {t('addProject.openProject')}
-            </Link>
+            <Link to={companyHref(prefix, `projects/${run.projectId}`)}>{t('addProject.openProject')}</Link>
           ) : null}
         </Alert>
       )}

@@ -11,6 +11,8 @@ interface EndpointDef {
   readonly path: string;
   /** 401 là kết quả bình thường, không chuyển về trang đăng nhập. */
   readonly public?: boolean;
+  /** Không gọi qua call(): link cho trình duyệt tự tải (href) hoặc WebSocket. Chỉ dựng đường bằng endpointPath. */
+  readonly noCall?: boolean;
 }
 
 const PLUGIN = '/api/plugins/crew.core';
@@ -26,6 +28,8 @@ export const ENDPOINTS = {
   'cliAuth.approve': { ids: ['S1.2'], method: 'POST', path: '/api/cli-auth/challenges/:id/approve' },
   'cliAuth.cancel': { ids: ['S1.2'], method: 'POST', path: '/api/cli-auth/challenges/:id/cancel' },
   'health.get': { ids: ['S18.3'], method: 'GET', path: '/api/health' },
+  // Cập nhật trực tiếp (S0.5): WebSocket, mở bằng new WebSocket chứ không qua call().
+  'live.events': { ids: ['S0.5'], method: 'GET', path: '/api/companies/:companyId/events/ws', noCall: true },
 
   // Khung (S0)
   'companies.list': { ids: ['S0.2'], method: 'GET', path: '/api/companies' },
@@ -63,6 +67,12 @@ export const ENDPOINTS = {
     path: '/api/companies/:companyId/issues/:issueId/attachments',
   },
   'attachments.delete': { ids: ['S6.6'], method: 'DELETE', path: '/api/attachments/:attachmentId' },
+  'attachments.content': {
+    ids: ['S6.5', 'S6.6'],
+    method: 'GET',
+    path: '/api/attachments/:attachmentId/content',
+    noCall: true,
+  },
   'documents.list': { ids: ['S6.14'], method: 'GET', path: '/api/issues/:id/documents' },
   'documents.get': { ids: ['S6.14'], method: 'GET', path: '/api/issues/:id/documents/:key' },
   'interactions.list': { ids: ['S6.9'], method: 'GET', path: '/api/issues/:id/interactions' },
@@ -147,6 +157,8 @@ export const ENDPOINTS = {
   'setup.get': { ids: ['S9', 'S13'], method: 'GET', path: `${PLUGIN}/api/setup-runs/:id` },
   'setup.begin': { ids: ['S9', 'S13'], method: 'POST', path: `${PLUGIN}/api/setup-runs/:id/steps/:stepId/begin` },
   'setup.finish': { ids: ['S9', 'S13'], method: 'POST', path: `${PLUGIN}/api/setup-runs/:id/steps/:stepId/finish` },
+  // BA không có mã riêng cho nút "Bỏ lần dở" nên gắn S9 (wizard Thêm project).
+  'setup.abandon': { ids: ['S9'], method: 'POST', path: `${PLUGIN}/api/setup-runs/:id/abandon` },
 } as const satisfies Record<string, EndpointDef>;
 
 export type EndpointKey = keyof typeof ENDPOINTS;
@@ -186,6 +198,7 @@ export function call<K extends EndpointKey, T = unknown>(
   opts: CallOptions = {},
 ): Promise<T> {
   const def: EndpointDef = ENDPOINTS[key];
+  if (def.noCall) throw new Error(`${key} không gọi qua call(); dùng endpointPath`);
   return http<T>(def.method, endpointPath(key, params), opts.body, {
     form: opts.form,
     query: opts.query,

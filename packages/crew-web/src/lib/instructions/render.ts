@@ -65,9 +65,11 @@ const BMAD_HEADING = '## Agent BMAD của company';
 const UUID_GLOBAL_RE = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi;
 
 function sectionIds(content: string, heading: string): string[] {
-  const start = content.lastIndexOf(`\n${heading}\n`);
+  // Tiêu đề phải đứng riêng một dòng (kể cả dòng đầu file); lấy lần cuối vì render nối hai mục vào cuối file.
+  const text = `\n${content}`;
+  const start = text.lastIndexOf(`\n${heading}\n`);
   if (start < 0) return [];
-  const rest = content.slice(start + heading.length + 2);
+  const rest = text.slice(start + heading.length + 2);
   const end = rest.search(/^## /m);
   return [...new Set((end < 0 ? rest : rest.slice(0, end)).match(UUID_GLOBAL_RE) ?? [])];
 }

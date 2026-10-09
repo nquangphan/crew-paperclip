@@ -3,14 +3,14 @@ import { UUID } from "../shared/db.js";
 import { sanitizeJobError } from "../jobs/sanitize.js";
 import { CREW_ROLE_SLOTS, type CrewRoleSlot } from "../jobs/types.js";
 import { folderError, unknownKeyError } from "../jobs/validate.js";
-import { activeProjectRun, beginStep, finishStep, getSetupRun, insertSetupRun } from "./data.js";
+import { abandonSetupRun, activeProjectRun, beginStep, finishStep, getSetupRun, insertSetupRun, projectKeyOwners } from "./data.js";
 import {
   type AddAgentInput, type AddProjectInput, SETUP_RUN_KINDS, SETUP_STEPS, type SetupRun, type SetupRunKind, type SetupStepId, type SetupStepState,
 } from "./types.js";
 
 type Ctx = Pick<PluginContext, "db" | "logger">;
 const SETUP_ERROR = "Không đọc/ghi được tiến độ cài đặt";
-const ROUTE_KEYS = ["setup.create", "setup.begin", "setup.finish", "setup.get"];
+const ROUTE_KEYS = ["setup.create", "setup.begin", "setup.finish", "setup.get", "setup.abandon"];
 /** Same rule as the app's project key and the machine job payloads. */
 const PROJECT_KEY = /^[a-z][a-z0-9-]{1,30}$/;
 const MODEL = /^[A-Za-z0-9._:/[\]-]{1,100}$/;
@@ -25,6 +25,7 @@ const conflict = (error: string): PluginApiResponse => ({ status: 409, body: { e
 const busy = (setupRunId: string): PluginApiResponse =>
   ({ status: 409, body: { error: "Đang có lần thêm project dở cho khóa này", setupRunId } });
 const NOT_FOUND: PluginApiResponse = { status: 404, body: { error: "Không tìm thấy lần cài đặt" } };
+const FINAL_STATE: Partial<Record<SetupRun["status"], string>> = { done: "Lần cài đặt đã xong", abandoned: "Lần cài đặt đã bỏ" };
 const uuid = (value: unknown): value is string => typeof value === "string" && UUID.test(value);
 const isObject = (value: unknown): value is Record<string, unknown> =>
   !!value && typeof value === "object" && !Array.isArray(value);
@@ -97,8 +98,10 @@ async function routeSetupApi(ctx: Ctx, input: PluginApiRequestInput): Promise<Pl
     const run = await getSetupRun(ctx, company, id, now);
     return run ? { status: 200, body: run } : NOT_FOUND;
   }
+  if (input.routeKey === "setup.abandon") return abandonRoute(ctx, input, company, id, now);
 
-  const body = parseBody(input, input.routeKey === "setup.begin" ? ["companyId"] : ["companyId", "status", "refs", "error", "projectId"], company);
+  const body = parseBody(input, input.routeKey === "setup.begin" ? ["companyId"]
+    : ["companyId", "lockToken", "status", "refs", "error", "projectId"], company);
   if (typeof body === "string") return bad(body);
   const run = await getSetupRun(ctx, company, id, now);
   if (!run) return NOT_FOUND;
@@ -108,14 +111,21 @@ async function routeSetupApi(ctx: Ctx, input: PluginApiRequestInput): Promise<Pl
   const step = stepId as SetupStepId;
 
   if (input.routeKey === "setup.begin") {
-    if (run.status === "done") return conflict("Lần cài đặt đã xong");
-    if (!await beginStep(ctx, company, id, step, now)) {
+    const final = FINAL_STATE[run.status];
+    if (final) return conflict(final);
+    const lockToken = await beginStep(ctx, company, id, step, now);
+    if (!lockToken) {
       const current = await getSetupRun(ctx, company, id, now);
-      if (current?.status === "done") return conflict("Lần cài đặt đã xong");
+      const nowFinal = current && FINAL_STATE[current.status];
+      if (nowFinal) return conflict(nowFinal);
       return conflict(`Bước ${current?.runningStep ?? step} đang chạy`);
     }
-    return { status: 200, body: await getSetupRun(ctx, company, id, now) };
+    // The token is handed out only here; `finish` must send it back.
+    return { status: 200, body: { ...await getSetupRun(ctx, company, id, now), lockToken } };
   }
+
+  if (!uuid(body.lockToken)) return bad("lockToken phải là uuid");
+  const lockToken = body.lockToken.toLowerCase();
 
   const state: SetupStepState = { status: "done", at: now.toISOString() };
   if (body.status === "failed") {
@@ -142,7 +152,7 @@ async function routeSetupApi(ctx: Ctx, input: PluginApiRequestInput): Promise<Pl
     projectId = body.projectId.toLowerCase();
   }
   const last = steps[steps.length - 1] === step;
-  if (!await finishStep(ctx, company, id, step, { state, projectId, last }, now)) return conflict(`Bước ${step} không đang chạy`);
+  if (!await finishStep(ctx, company, id, step, lockToken, { state, projectId, last }, now)) return conflict(`Bước ${step} không đang chạy`);
   ctx.logger.info("crew setup step finished", { setupRunId: id, companyId: company, stepId: step, status: state.status });
   return { status: 200, body: await getSetupRun(ctx, company, id, now) };
 }
@@ -161,6 +171,12 @@ async function createRoute(ctx: Ctx, input: PluginApiRequestInput, company: stri
   if (kind === "add-project") {
     const active = await activeProjectRun(ctx, company, projectKey);
     if (active) return busy(active);
+  } else {
+    // The agent's checkout lives under this key on the Mac: it must be the key the project was created with.
+    const projectId = (parsed as AddAgentInput).projectId;
+    const owners = await projectKeyOwners(ctx, company, projectId, projectKey);
+    if (owners.some((owner) => owner.projectId === projectId && owner.projectKey !== projectKey)) return bad("projectKey không khớp project");
+    if (owners.some((owner) => owner.projectId !== projectId)) return bad("Khóa project đã thuộc project khác");
   }
   const createdByUserId = input.actor.userId ?? input.actor.actorId;
   let run: SetupRun;
@@ -177,4 +193,27 @@ async function createRoute(ctx: Ctx, input: PluginApiRequestInput, company: stri
   }
   ctx.logger.info("crew setup run created", { setupRunId: run.id, kind, projectKey, companyId: company, actorUserId: createdByUserId });
   return { status: 201, body: run };
+}
+
+/**
+ * Gives up a failed add-project run that never created a project, freeing its key for a new run. Allowed only while
+ * no step holds a live lock; a run that created a project is finished through "Chạy tiếp" instead.
+ */
+async function abandonRoute(ctx: Ctx, input: PluginApiRequestInput, company: string, id: string, now: Date): Promise<PluginApiResponse> {
+  const body = parseBody(input, ["companyId"], company);
+  if (typeof body === "string") return bad(body);
+  const run = await getSetupRun(ctx, company, id, now);
+  if (!run) return NOT_FOUND;
+  if (!await abandonSetupRun(ctx, company, id, now)) {
+    const current = await getSetupRun(ctx, company, id, now) ?? run;
+    const final = FINAL_STATE[current.status];
+    if (final) return conflict(final);
+    if (current.kind !== "add-project") return conflict("Chỉ bỏ được lần thêm project");
+    if (current.projectId !== null) return conflict("Lần cài đặt đã tạo project, không bỏ được");
+    return conflict(current.runningStep ? `Bước ${current.runningStep} đang chạy` : "Lần cài đặt vừa đổi, hãy tải lại");
+  }
+  ctx.logger.info("crew setup run abandoned", {
+    setupRunId: id, companyId: company, projectKey: run.projectKey, actorUserId: input.actor.userId ?? input.actor.actorId,
+  });
+  return { status: 200, body: await getSetupRun(ctx, company, id, now) };
 }

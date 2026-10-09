@@ -35,6 +35,11 @@ describe('resumeHref', () => {
     );
   });
 
+  it('AGENTS.md lệch (A3) → chế độ sửa kèm rewrite=1 để wizard ghi lại file', () => {
+    const target = { wizard: 'add-agent', step: 'pin', agentId: AGENT, rewrite: true } as const;
+    expect(resumeHref('TPS', target)).toBe(`/TPS/agents/new?fix=${AGENT}&step=pin&rewrite=1`);
+  });
+
   it('add-project → projects/new?resume=; none → null', () => {
     expect(resumeHref('TPS', { wizard: 'add-project', setupRunId: 'run-p' })).toBe('/TPS/projects/new?resume=run-p');
     expect(resumeHref('TPS', { none: true })).toBeNull();

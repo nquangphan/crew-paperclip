@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ApiError, type SetupRun } from '@/api';
+import { ApiError, type ProjectRoles, type SetupRun } from '@/api';
 import { computeAgentReadiness } from '@/features/readiness';
 import { prepareFixRun, runAddAgent, runAddAgentStep } from '@/features/wizards/add-agent/run-step';
 import { StepBusyError } from '@/features/wizards/add-project/run-step';
@@ -209,6 +209,46 @@ describe('runAddAgent', () => {
     expect(f.state.roles?.assistantAgentId).toBe(newId);
   });
 
+  it('thay Trợ Lý: Trợ Lý cũ không còn giữ ô Trợ Lý ở project nào thì bị bỏ quyền giao việc', async () => {
+    const f = setup(addAgentRun('assistant'));
+    const OTHER = 'p0000000-0000-4000-8000-000000000002';
+    f.state.projects.push(
+      { id: PROJECT, name: 'Demo', urlKey: 'demo', createdAt: 'x', archivedAt: null },
+      { id: OTHER, name: 'Khác', urlKey: 'khac', createdAt: 'x', archivedAt: null },
+    );
+    f.state.rolesBy.set(OTHER, null);
+    const run = await runAddAgent(ctxOf(f.api), f.state.run);
+    expect(run.status).toBe('done');
+    expect(
+      f.calls.filter((c) => c.fn === 'agents.setPermissions' && c.args[0] === ID.assistant).map((c) => c.args),
+    ).toEqual([[ID.assistant, { canCreateAgents: false, canCreateSkills: false, canAssignTasks: false }, COMPANY]]);
+  });
+
+  it('thay Trợ Lý: Trợ Lý cũ còn là Trợ Lý của project khác thì giữ quyền giao việc', async () => {
+    const f = setup(addAgentRun('assistant'));
+    const OTHER = 'p0000000-0000-4000-8000-000000000002';
+    f.state.projects.push(
+      { id: PROJECT, name: 'Demo', urlKey: 'demo', createdAt: 'x', archivedAt: null },
+      { id: OTHER, name: 'Khác', urlKey: 'khac', createdAt: 'x', archivedAt: null },
+    );
+    f.state.rolesBy.set(OTHER, { ...(f.state.roles as ProjectRoles) });
+    const run = await runAddAgent(ctxOf(f.api), f.state.run);
+    expect(run.status).toBe('done');
+    expect(f.calls.some((c) => c.fn === 'agents.setPermissions' && c.args[0] === ID.assistant)).toBe(false);
+  });
+
+  it('tab khác đã lấy khóa khi bước xong (finish 409) → StepBusyError, agent mới không bị tạm dừng', async () => {
+    const f = setup(addAgentRun('executor-2'));
+    const finish = f.api.setup.finish;
+    f.api.setup.finish = async (companyId, id, stepId, body) => {
+      if (stepId === 'pin') f.state.lockToken = 'token-cua-tab-khac';
+      return finish(companyId, id, stepId, body);
+    };
+    await expect(runAddAgent(ctxOf(f.api), f.state.run)).rejects.toBeInstanceOf(StepBusyError);
+    expect(f.names()).toContain('agents.create');
+    expect(f.names()).not.toContain('agents.pause');
+  });
+
   it('lỗi workspace: run failed, agent mới bị tạm dừng, readiness not_ready A5; không xóa gì', async () => {
     const f = setup(addAgentRun('executor-2'), (payload) =>
       payload.kind === 'agent-workspace'
@@ -326,11 +366,40 @@ describe('chế độ sửa (agent do app tạo, không có setup run)', () => {
       COMPANY,
     ]);
     expect(agent.adapterConfig?.engine).toBe('cli');
-    expect(savedContent(f.calls, ID.executor)).toBe(renderInstructions('executor', { agentId: ID.executor }));
+    // AGENTS.md đang có (A3 đạt): không ghi đè phần owner sửa tay.
+    expect(saves(f.calls, ID.executor)).toHaveLength(0);
+    expect(f.state.files.get(ID.executor)?.content).toBe('bản cũ của app');
     expect(f.calls.some((c) => c.fn === 'roles.set')).toBe(false);
     expect(saves(f.calls, ID.assistant)).toHaveLength(0);
     // Agent không do wizard tạo: không tạm dừng, không bật lại.
     expect(f.calls.some((c) => c.fn === 'agents.pause' || c.fn === 'agents.resume')).toBe(false);
+  });
+
+  it('sửa từ bước pin vì AGENTS.md lệch (A3): ghi lại AGENTS.md theo mẫu, cả khi chạy tiếp ở trình duyệt khác', async () => {
+    const f = setup(
+      addAgentRun('executor', {
+        input: { projectId: PROJECT, slot: 'executor', name: 'demo-executor', model: 'claude-sonnet-5' },
+      }),
+    );
+    f.state.files.set(ID.executor, { content: 'bản lệch', contentHash: 'h-exec' });
+    const seeded = await prepareFixRun(ctxOf(f.api, { folder: FOLDER, rewrite: 'true' }), f.state.run, {
+      agentId: ID.executor,
+      step: 'pin',
+    });
+    expect(seeded.steps.agent?.refs).toMatchObject({ rewrite: 'true' });
+    await runAddAgentStep(ctxOf(f.api, {}), seeded, 'pin');
+    expect(savedContent(f.calls, ID.executor)).toBe(renderInstructions('executor', { agentId: ID.executor }));
+  });
+
+  it('sửa agent chưa có AGENTS.md: ghi file theo mẫu', async () => {
+    const f = setup(
+      addAgentRun('executor', {
+        input: { projectId: PROJECT, slot: 'executor', name: 'demo-executor', model: 'claude-sonnet-5' },
+      }),
+    );
+    const seeded = await prepareFixRun(ctxOf(f.api), f.state.run, { agentId: ID.executor, step: 'pin' });
+    await runAddAgentStep(ctxOf(f.api), seeded, 'pin');
+    expect(savedContent(f.calls, ID.executor)).toBe(renderInstructions('executor', { agentId: ID.executor }));
   });
 
   it('sửa từ bước agent (A1): PATCH merge engine/env/heartbeat, không tạo agent mới', async () => {

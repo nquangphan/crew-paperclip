@@ -31,7 +31,7 @@ export interface Call {
 }
 
 let seq = 0;
-const PREFIX: Record<string, string> = { job: '0b', proj: '0c', env: '0e', agent: '0a' };
+const PREFIX: Record<string, string> = { job: '0b', proj: '0c', env: '0e', agent: '0a', lock: '0f' };
 /** uuid thật (hex) để render AGENTS.md nhận; tiền tố cho dễ đọc khi test đỏ. */
 const uuid = (kind: string) => {
   seq += 1;
@@ -126,7 +126,11 @@ export function fakeApi(opts: { run?: SetupRun; busy?: boolean; jobOutcome?: Job
     agents: [] as FakeAgent[],
     files: new Map<string, { content: string; contentHash: string }>(),
     roles: null as ProjectRoles | null,
+    /** Vai trò của project khác (theo id); project không có ở đây đọc `roles`. */
+    rolesBy: new Map<string, ProjectRoles | null>(),
     busy: opts.busy ?? false,
+    /** Mã chủ khóa bước như plugin: begin cấp mới, finish phải gửi lại đúng mã. */
+    lockToken: null as string | null,
   };
 
   /** Ghi lời gọi; lỗi tiêm cho lần gọi thứ n (đếm từ 1) thì ném. */
@@ -145,16 +149,26 @@ export function fakeApi(opts: { run?: SetupRun; busy?: boolean; jobOutcome?: Job
         if (state.busy) throw new ApiError(409, `Bước ${stepId} đang chạy`);
         if (state.run.status === 'done') throw new ApiError(409, 'Lần cài đặt đã xong');
         state.run = { ...state.run, status: 'running', runningStep: stepId };
-        return structuredClone(state.run);
+        state.lockToken = uuid('lock');
+        return { ...structuredClone(state.run), lockToken: state.lockToken };
       },
       finish: async (
         companyId: string,
         id: string,
         stepId: SetupStepId,
-        body: { status: 'done' | 'failed'; refs?: Record<string, string>; error?: string; projectId?: string },
+        body: {
+          status: 'done' | 'failed';
+          refs?: Record<string, string>;
+          error?: string;
+          projectId?: string;
+          lockToken?: string;
+        },
       ) => {
         record('setup.finish', companyId, id, stepId, structuredClone(body));
-        if (state.run.runningStep !== stepId) throw new ApiError(409, `Bước ${stepId} không đang chạy`);
+        if (state.run.runningStep !== stepId || body.lockToken !== state.lockToken) {
+          throw new ApiError(409, `Bước ${stepId} không đang chạy`);
+        }
+        state.lockToken = null;
         const order: readonly string[] = state.run.kind === 'add-agent' ? ADD_AGENT_STEPS : ADD_PROJECT_STEPS;
         const last = order[order.length - 1] === stepId;
         state.run = {
@@ -311,7 +325,7 @@ export function fakeApi(opts: { run?: SetupRun; busy?: boolean; jobOutcome?: Job
     roles: {
       get: async (companyId: string, projectId: string) => {
         record('roles.get', companyId, projectId);
-        return structuredClone(state.roles);
+        return structuredClone(state.rolesBy.has(projectId) ? (state.rolesBy.get(projectId) ?? null) : state.roles);
       },
       set: async (companyId: string, projectId: string, roles: unknown) => {
         record('roles.set', companyId, projectId, structuredClone(roles));

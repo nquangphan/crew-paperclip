@@ -64,6 +64,7 @@ it("declares the role, machine job and setup run routes as board-only and the do
     ["setup.begin", "POST", "/setup-runs/:id/steps/:stepId/begin", "board", { from: "body", key: "companyId" }],
     ["setup.finish", "POST", "/setup-runs/:id/steps/:stepId/finish", "board", { from: "body", key: "companyId" }],
     ["setup.get", "GET", "/setup-runs/:id", "board", { from: "query", key: "companyId" }],
+    ["setup.abandon", "POST", "/setup-runs/:id/abandon", "board", { from: "body", key: "companyId" }],
   ]);
 });
 

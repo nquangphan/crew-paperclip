@@ -2,11 +2,18 @@
 import type { Issue } from '@paperclipai/shared';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
-import { api, type IssueUpdate, queryKeys } from '@/api';
+import { api, queryKeys } from '@/api';
 import { useMe } from '@/app/hooks';
 import { Button, ConfirmDialog, ErrorState } from '@/ds';
 import { useT } from '@/i18n';
-import { type GateActionId, gateActionsFor, MIN_CHANGE_REASON } from './gate-actions';
+import {
+  awaitingMyApproval,
+  type GateActionId,
+  gateAction,
+  gateActionsFor,
+  MIN_CHANGE_REASON,
+  needsApprovalStage,
+} from './gate-actions';
 import { CommentDialog } from './gate-dialogs';
 
 /** Làm mới mọi thứ một thao tác cổng làm đổi: issue (uuid và mã), danh sách, bình luận, run, data Crew. */
@@ -35,8 +42,9 @@ const LABEL: Record<GateActionId, string> = {
 
 /**
  * Nút thao tác cổng cạnh tiêu đề (S6.7 Duyệt, S6.8 Yêu cầu sửa, S6.10 Hủy, S6.11 Mở lại). Nút hiện theo
- * `executionState` mới nhất (sự kiện trực tiếp invalidate issue). Server từ chối thì hiện câu lỗi nguyên văn,
- * không tự thử lại.
+ * `executionState` mới nhất (sự kiện trực tiếp invalidate issue). Duyệt và Yêu cầu sửa đọc lại issue ngay trước
+ * khi gửi: owner không còn là người duyệt stage đang chờ thì không gửi (gửi `done` bằng quyền board lúc đó là vượt
+ * cổng), báo trạng thái đã đổi và làm mới trang. Server từ chối thì hiện câu lỗi nguyên văn, không tự thử lại.
  */
 export function ActionsSlot({ issue }: { issue: Issue }) {
   const { t } = useT('issues');
@@ -45,16 +53,23 @@ export function ActionsSlot({ issue }: { issue: Issue }) {
   const [open, setOpen] = useState<GateActionId | null>(null);
   const actions = gateActionsFor(issue, me);
   const gate = useMutation({
-    mutationFn: (body: IssueUpdate) => api.issues.update(issue.id, body),
+    mutationFn: async ({ id, comment }: { id: GateActionId; comment?: string }) => {
+      const body = gateAction(id).body(comment);
+      if (needsApprovalStage(id)) {
+        const fresh = await api.issues.get(issue.id);
+        if (!awaitingMyApproval(fresh, me)) {
+          refresh();
+          throw new Error(t('gate.stale'));
+        }
+      }
+      return api.issues.update(issue.id, body);
+    },
     onSuccess: () => {
       setOpen(null);
       refresh();
     },
   });
-  const run = (id: GateActionId, comment?: string) => {
-    const action = actions.find((a) => a.id === id);
-    if (action) gate.mutate(action.body(comment));
-  };
+  const run = (id: GateActionId, comment?: string) => gate.mutate({ id, comment });
   const show = (id: GateActionId) => {
     gate.reset();
     setOpen(id);

@@ -31,10 +31,20 @@ const AWAITING = {
   title: 'Chờ owner duyệt',
   status: 'in_review',
   isUnreadForMe: true,
-  executionState: {
-    status: 'pending',
-    currentStageType: 'approval',
-    currentParticipant: { type: 'user', userId: 'u1' },
+  // Danh sách thật trả executionState null; người duyệt stage đang chờ chỉ có ở reviewAttention.
+  executionState: null,
+  reviewAttention: {
+    state: 'covered',
+    reason: null,
+    paths: [
+      {
+        kind: 'execution_participant',
+        label: 'Execution review participant',
+        responder: 'Owner',
+        since: null,
+        ref: 'u1',
+      },
+    ],
   },
 };
 const QUESTION = {
@@ -122,11 +132,11 @@ describe('InboxPage tab (S3.1, S3.2)', () => {
     expect(rowTitles()).toHaveLength(4);
   });
 
-  it('duyệt xong thì biến khỏi tab (executionState đổi sau khi tải lại)', async () => {
+  it('duyệt xong thì biến khỏi tab (reviewAttention đổi sau khi tải lại)', async () => {
     let calls = 0;
     mockServer({
       'GET /api/companies/c1/issues': () => ({
-        body: calls++ === 0 ? LIST : [{ ...AWAITING, executionState: null, status: 'done' }, QUESTION],
+        body: calls++ === 0 ? LIST : [{ ...AWAITING, reviewAttention: null, status: 'done' }, QUESTION],
       }),
     });
     const { client } = mount();

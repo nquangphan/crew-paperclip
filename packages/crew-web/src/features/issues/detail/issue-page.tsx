@@ -1,9 +1,10 @@
 // crew: tự dựng
 import { useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, Navigate, useParams } from 'react-router-dom';
 import { queryKeys } from '@/api';
 import { useCompany } from '@/app/hooks';
+import { NotFoundPage } from '@/app/not-found-page';
 import { Button, ErrorState, PageHeader, Skeleton } from '@/ds';
 import { ArrowLeft, Check, Copy } from '@/ds/icons';
 import { useT } from '@/i18n';
@@ -39,20 +40,30 @@ function CopyButton({ text, label }: { text: string; label: string }) {
   );
 }
 
-/** Trang chi tiết yêu cầu, phần chung (S6.4 đến S6.6, S6.12 đến S6.16). Phần Crew gắn qua ba khe trong ./crew. */
+/**
+ * Trang chi tiết yêu cầu, phần chung (S6.4 đến S6.6, S6.12 đến S6.16). Phần Crew gắn qua ba khe trong ./crew.
+ * Yêu cầu thuộc company khác prefix trên URL thì chuyển sang prefix đúng (hoặc 404 nếu không có quyền company đó),
+ * không hiện ở company sai: sự kiện trực tiếp, danh sách con và thao tác cổng đều theo company của trang.
+ */
 export function IssuePage() {
   const { t } = useT('issues');
   const { ref } = useParams<{ ref: string }>();
-  const { company } = useCompany();
+  const { company, companies } = useCompany();
   const qc = useQueryClient();
   const issueQuery = useIssue(ref);
-  const issue = issueQuery.data;
+  const loaded = issueQuery.data;
+  const issue = loaded && loaded.companyId === company.id ? loaded : undefined;
   const agentNames = useAgentNames(company.id);
   const projectName = useProjectName(company.id, issue?.projectId ?? null);
   const childIssues = useChildIssues(company.id, issue?.id);
-  useMarkReadOnce(issue?.id);
+  useMarkReadOnce(company.id, issue?.id);
 
   if (issueQuery.isLoading) return <Skeleton />;
+  if (loaded && !issue) {
+    const owner = companies.find((c) => c.id === loaded.companyId);
+    if (!owner) return <NotFoundPage companyPrefix={company.issuePrefix} />;
+    return <Navigate to={`/${owner.issuePrefix}/issues/${loaded.identifier ?? loaded.id}`} replace />;
+  }
   if (issueQuery.error || !issue) {
     return (
       <ErrorState

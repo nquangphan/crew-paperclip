@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { hasPendingUserInteraction, type InboxIssue, inboxTabs } from '@/features/inbox/tabs';
+import { hasPendingUserInteraction, type InboxIssue, inboxTabs, isMyExecutionStage } from '@/features/inbox/tabs';
 
 const ME = { id: 'u1' };
 
@@ -81,6 +81,37 @@ describe('inboxTabs.awaiting_me (S3.1)', () => {
   it('đã duyệt xong (state không còn pending) thì biến mất', () => {
     const decided = { ...approvalMine, executionState: { ...approvalMine.executionState, status: 'completed' } };
     expect(inboxTabs([decided], ME).awaiting_me).toEqual([]);
+  });
+});
+
+// Danh sách thật: server trả executionState null (server/src/services/issues.ts, cột chọn của list), người duyệt của stage
+// đang chờ chỉ có ở reviewAttention.paths kind "execution_participant" (ref = userId khi participant là user,
+// server/src/services/recovery/issue-graph-liveness.ts classifyIssueReviewPaths).
+const participantPath = (ref: string) => ({
+  state: 'covered',
+  reason: null,
+  paths: [
+    { kind: 'execution_participant', label: 'Execution review participant', responder: 'Owner', since: null, ref },
+  ],
+});
+
+describe('inboxTabs.awaiting_me với dữ liệu danh sách (executionState null)', () => {
+  it('bắt issue có participant stage đang chờ là user này qua reviewAttention', () => {
+    const mine = issue({ id: 'l1', executionState: null, reviewAttention: participantPath('u1') });
+    const other = issue({ id: 'l2', executionState: null, reviewAttention: participantPath('u2') });
+    const agent = issue({ id: 'l3', executionState: null, reviewAttention: participantPath('agent-1') });
+    expect(inboxTabs([mine, other, agent], ME).awaiting_me.map((i) => i.id)).toEqual(['l1']);
+  });
+
+  it('bỏ issue đã đóng dù còn path cũ', () => {
+    const done = issue({ id: 'l4', status: 'done', executionState: null, reviewAttention: participantPath('u1') });
+    expect(inboxTabs([done], ME).awaiting_me).toEqual([]);
+  });
+
+  it('isMyExecutionStage chỉ đúng khi path execution_participant trỏ tới user này', () => {
+    expect(isMyExecutionStage(issue({ id: 'l5', reviewAttention: participantPath('u1') }), ME)).toBe(true);
+    expect(isMyExecutionStage(issue({ id: 'l6', reviewAttention: participantPath('u2') }), ME)).toBe(false);
+    expect(isMyExecutionStage(issue({ id: 'l7' }), ME)).toBe(false);
   });
 });
 

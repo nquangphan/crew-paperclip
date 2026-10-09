@@ -1,8 +1,6 @@
-// S0.1: sidebar. Mục chỉ hiện khi feature đã có route (không link chết). Badge Hộp thư từ sidebar-badges.
-import { useQuery } from '@tanstack/react-query';
+// S0.1: sidebar. Mục chỉ hiện khi feature đã có route (không link chết). Badge Hộp thư = sidebar-badges + issue chưa đọc.
 import type { ComponentType } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { api, queryKeys } from '@/api';
 import { Button, Kbd, Logo, SidebarBody, SidebarFooter, SidebarHeader, SidebarItem } from '@/ds';
 import {
   BookOpen,
@@ -18,6 +16,7 @@ import {
   Settings,
   Sparkles,
 } from '@/ds/icons';
+import { useInboxBadge } from '@/features/inbox/use-inbox-badge';
 import { useT } from '@/i18n';
 import { useCompany } from '../hooks';
 import { companyPath, NAV_ITEMS, type NavId } from '../routes-util';
@@ -48,11 +47,7 @@ export function Sidebar({ segments, onOpenPalette }: { segments: ReadonlySet<str
   const navigate = useNavigate();
   const { pathname, search } = useLocation();
   const { company } = useCompany();
-  const badges = useQuery({
-    queryKey: queryKeys.sidebarBadges(company.id),
-    queryFn: () => api.sidebar.badges(company.id),
-    enabled: segments.has('inbox'),
-  });
+  const inboxBadge = useInboxBadge(company.id, segments.has('inbox'));
   const items = NAV_ITEMS.filter((i) => segments.has(i.segment));
   const isActive = (to: string) => {
     if (to.includes('?')) return `${pathname}${search}` === companyPath(company.issuePrefix, to);
@@ -81,7 +76,7 @@ export function Sidebar({ segments, onOpenPalette }: { segments: ReadonlySet<str
               href={href}
               label={t(`nav.${item.id}`)}
               icon={<Icon aria-hidden />}
-              badge={item.id === 'inbox' ? (badges.data?.inbox ?? null) : null}
+              badge={item.id === 'inbox' ? inboxBadge : null}
               active={isActive(item.to)}
               onNavigate={() => navigate(href)}
             />

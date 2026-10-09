@@ -180,6 +180,7 @@
     "failed": "The server rejected the action",
     "close": "Close",
     "sending": "Sending",
+    "stale": "The request has changed and you are no longer the approver of this stage. The page has been reloaded.",
     "approve": {
       "button": "Approve",
       "title": "Approve this request?",

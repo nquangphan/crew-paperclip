@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import { QueryClient } from '@tanstack/react-query';
 import { cleanup, fireEvent, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { IssuePage } from '@/features/issues/detail/issue-page';
@@ -87,6 +88,23 @@ describe('IssuePage luồng bình luận (S6.4)', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Sửa tiêu đề' }));
     fireEvent.click(screen.getByRole('button', { name: 'Hủy' }));
     expect(s.calls.filter((c) => c.method === 'POST' && c.url.endsWith('/read'))).toHaveLength(1);
+  });
+
+  it('đánh dấu đã đọc xong thì làm mới danh sách Hộp thư và badge sidebar (S3.3)', async () => {
+    const invalidated: unknown[] = [];
+    const orig = QueryClient.prototype.invalidateQueries;
+    vi.spyOn(QueryClient.prototype, 'invalidateQueries').mockImplementation(function (
+      this: QueryClient,
+      filters?: { queryKey?: unknown },
+    ) {
+      invalidated.push(filters?.queryKey);
+      return orig.call(this, filters as never);
+    } as never);
+    server();
+    mount(<IssuePage />);
+    await screen.findAllByTestId('comment');
+    await waitFor(() => expect(invalidated).toContainEqual(['sidebar-badges', 'c1']));
+    expect(invalidated).toContainEqual(['issues', 'c1']);
   });
 
   it('copy mã và copy link dùng navigator.clipboard (S6.16)', async () => {

@@ -4,5 +4,5 @@ import { stub } from './stub';
 
 export default async function globalTeardown(): Promise<void> {
   if (tier() === 't1') return;
-  for (const key of stub.projectKeys()) stub.off(key);
+  stub.offAll();
 }

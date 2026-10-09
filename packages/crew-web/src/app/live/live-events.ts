@@ -1,9 +1,10 @@
 // Cập nhật trực tiếp (S0.5): WebSocket /api/companies/:c/events/ws như UI stock
 // (ui/src/context/LiveUpdatesProvider.tsx). Sự kiện về thì invalidate query theo queryKeys; mất kết nối thì thử lại.
 import type { LiveEvent } from '@paperclipai/shared';
-import { useQueryClient } from '@tanstack/react-query';
+import { type QueryClient, useQueryClient } from '@tanstack/react-query';
 import { createContext, createElement, type ReactNode, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { queryKeys } from '@/api';
+import { endpointPath } from '@/api/endpoints';
 
 type QueryKey = readonly unknown[];
 type Listener = (event: LiveEvent) => void;
@@ -14,7 +15,7 @@ const rec = (v: unknown): Record<string, unknown> =>
 
 export function liveSocketUrl(companyId: string, loc: { protocol: string; host: string } = window.location): string {
   const scheme = loc.protocol === 'https:' ? 'wss' : 'ws';
-  return `${scheme}://${loc.host}/api/companies/${encodeURIComponent(companyId)}/events/ws`;
+  return `${scheme}://${loc.host}${endpointPath('live.events', { companyId })}`;
 }
 
 /** Chờ trước lần nối lại thứ `attempt` (1, 2, 4… giây, trần 30 giây). */
@@ -22,15 +23,33 @@ export function reconnectDelay(attempt: number): number {
   return Math.min(30_000, 1000 * 2 ** Math.max(0, attempt - 1));
 }
 
-function issueKeys(companyId: string, issueId: string | null, identifier: string | null): QueryKey[] {
-  const keys: QueryKey[] = [queryKeys.issues(companyId), queryKeys.crew()];
-  if (issueId) keys.push(queryKeys.issue(issueId), queryKeys.issueRuns(issueId), queryKeys.issueLiveRuns(issueId));
-  if (identifier && identifier !== issueId) keys.push(queryKeys.issue(identifier));
+/** Mã (TPS-7) mà các trang chi tiết đang mở dùng làm khóa cho issue có uuid này. */
+export type IssueRefsOf = (issueId: string) => string[];
+
+/**
+ * Tìm trong cache các query chi tiết `issue(<mã>)` có dữ liệu là issue `issueId`. Nhiều sự kiện của server chỉ
+ * mang uuid (bình luận mở lại, trả lời tương tác, run), nên không suy được mã từ sự kiện.
+ */
+export function cachedIssueRefs(queryClient: QueryClient): IssueRefsOf {
+  return (issueId) =>
+    queryClient
+      .getQueryCache()
+      .findAll({ queryKey: ['issue'] })
+      .filter((q) => q.queryKey.length === 2 && (q.state.data as { id?: unknown } | undefined)?.id === issueId)
+      .map((q) => String(q.queryKey[1]))
+      .filter((ref) => ref !== issueId);
+}
+
+function issueDetailKeys(issueId: string, identifier: string | null, refsOf?: IssueRefsOf): QueryKey[] {
+  const keys: QueryKey[] = [queryKeys.issue(issueId), queryKeys.issueRuns(issueId), queryKeys.issueLiveRuns(issueId)];
+  const refs = new Set(refsOf?.(issueId) ?? []);
+  if (identifier && identifier !== issueId) refs.add(identifier);
+  for (const ref of refs) keys.push(queryKeys.issue(ref));
   return keys;
 }
 
-/** Bảng ánh xạ loại sự kiện → khóa query cần làm mới. */
-export function invalidationsFor(event: LiveEvent, companyId: string): QueryKey[] {
+/** Bảng ánh xạ loại sự kiện → khóa query cần làm mới. `refsOf` bù mã issue khi sự kiện chỉ có uuid. */
+export function invalidationsFor(event: LiveEvent, companyId: string, refsOf?: IssueRefsOf): QueryKey[] {
   const p = rec(event.payload);
   switch (event.type) {
     case 'heartbeat.run.queued':
@@ -48,7 +67,7 @@ export function invalidationsFor(event: LiveEvent, companyId: string): QueryKey[
       const issueId = str(p.issueId);
       if (runId) keys.push(queryKeys.run(runId));
       if (agentId) keys.push(queryKeys.agent(agentId));
-      if (issueId) keys.push(queryKeys.issue(issueId), queryKeys.issueRuns(issueId), queryKeys.issueLiveRuns(issueId));
+      if (issueId) keys.push(...issueDetailKeys(issueId, null, refsOf));
       return keys;
     }
     case 'agent.status': {
@@ -61,8 +80,12 @@ export function invalidationsFor(event: LiveEvent, companyId: string): QueryKey[
       const keys: QueryKey[] = [queryKeys.dashboard(companyId), queryKeys.sidebarBadges(companyId)];
       const entityType = str(p.entityType);
       const entityId = str(p.entityId);
-      if (entityType === 'issue') keys.push(...issueKeys(companyId, entityId, str(rec(p.details).identifier)));
-      else if (entityType === 'agent') {
+      if (entityType === 'issue') {
+        keys.push(queryKeys.issues(companyId), queryKeys.crew());
+        const identifier = str(rec(p.details).identifier);
+        if (entityId) keys.push(...issueDetailKeys(entityId, identifier, refsOf));
+        else if (identifier) keys.push(queryKeys.issue(identifier));
+      } else if (entityType === 'agent') {
         keys.push(queryKeys.agents(companyId));
         if (entityId) keys.push(queryKeys.agent(entityId));
       } else if (entityType === 'project') {
@@ -123,7 +146,9 @@ export function LiveEventsProvider({ companyId, children }: { companyId: string;
           return;
         }
         if (event.companyId !== companyId) return;
-        for (const queryKey of invalidationsFor(event, companyId)) void queryClient.invalidateQueries({ queryKey });
+        for (const queryKey of invalidationsFor(event, companyId, cachedIssueRefs(queryClient))) {
+          void queryClient.invalidateQueries({ queryKey });
+        }
         for (const listener of listeners.current) listener(event);
       };
       next.onclose = () => {

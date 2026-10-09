@@ -1,6 +1,6 @@
 // File đính kèm issue/bình luận. Upload multipart, trường `file` (server/src/routes/issues.ts:18374).
 import type { IssueAttachment } from '@paperclipai/shared';
-import { call } from '../endpoints';
+import { call, endpointPath } from '../endpoints';
 
 export const attachmentsApi = {
   list: (issueId: string): Promise<IssueAttachment[]> => call('attachments.list', { id: issueId }),
@@ -17,7 +17,7 @@ export const attachmentsApi = {
   },
   delete: (attachmentId: string): Promise<{ ok: true }> => call('attachments.delete', { attachmentId }),
   /** Link tải nội dung (dùng làm href, không gọi qua fetch). */
-  contentUrl: (attachmentId: string): string => `/api/attachments/${encodeURIComponent(attachmentId)}/content`,
+  contentUrl: (attachmentId: string): string => endpointPath('attachments.content', { attachmentId }),
 };
 
 export const __endpoints = ['attachments.delete', 'attachments.list', 'attachments.upload'];

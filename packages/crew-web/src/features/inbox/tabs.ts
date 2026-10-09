@@ -1,6 +1,7 @@
 // Chia issue của Hộp thư thành các tab (S3.1, S3.2). Hàm thuần, nhận dữ liệu GET /companies/:c/issues.
-// "Chờ tôi duyệt" = owner phải làm gì đó: stage đang chờ có người tham gia là user này (dùng lại
-// awaitingMyApproval cho stage approval, cùng điều kiện với nút Duyệt) hoặc có thẻ câu hỏi/xác nhận chờ trả lời.
+// "Chờ tôi duyệt" = owner phải làm gì đó: stage đang chờ có người tham gia là user này hoặc có thẻ câu hỏi/xác nhận
+// chờ trả lời. Danh sách của server luôn trả executionState null (chỉ chi tiết GET /issues/:id có), nên người tham gia
+// stage đọc từ reviewAttention (isMyExecutionStage); executionState vẫn được xét khi có (cùng điều kiện nút Duyệt).
 import { awaitingMyApproval } from '@/features/issues/detail/crew/gate-actions';
 
 export type InboxTabId = 'awaiting_me' | 'mine' | 'unread' | 'stuck' | 'all';
@@ -50,9 +51,18 @@ export function hasPendingUserInteraction(issue: InboxIssue): boolean {
   );
 }
 
+/**
+ * Stage đang chờ có người tham gia là user này, theo dữ liệu danh sách. Nguồn: server/src/services/recovery/
+ * issue-graph-liveness.ts classifyIssueReviewPaths — issue in_review có executionState pending với participant là user
+ * thì có path `execution_participant` mang ref = userId (participant là agent thì ref = agentId).
+ */
+export function isMyExecutionStage(issue: InboxIssue, me: { id: string }): boolean {
+  return !!issue.reviewAttention?.paths?.some((path) => path.kind === 'execution_participant' && path.ref === me.id);
+}
+
 function awaitingMe(issue: InboxIssue, me: { id: string }): boolean {
   if (CLOSED.has(issue.status)) return false;
-  if (awaitingMyApproval(issue, me)) return true;
+  if (awaitingMyApproval(issue, me) || isMyExecutionStage(issue, me)) return true;
   const state = issue.executionState;
   const escalated =
     state?.status === 'pending' &&

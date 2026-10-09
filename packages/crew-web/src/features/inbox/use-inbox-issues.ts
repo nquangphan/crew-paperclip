@@ -10,9 +10,10 @@ export const INBOX_LIMIT = 200;
  * lưu trữ và gắn `isUnreadForMe`/`myLastTouchAt` cho người dùng này). Khóa nằm dưới `issues(companyId)` nên mọi
  * invalidate theo tiền tố đó làm mới luôn Hộp thư và thẻ "chờ bạn duyệt" của Tổng quan.
  */
-export function useInboxIssues(companyId: string) {
+export function useInboxIssues(companyId: string, enabled = true) {
   return useQuery<Issue[]>({
     queryKey: queryKeys.issues(companyId, { inbox: 'me', limit: INBOX_LIMIT }),
     queryFn: () => api.issues.list(companyId, { inboxArchivedByUserId: 'me', limit: INBOX_LIMIT }),
+    enabled,
   });
 }

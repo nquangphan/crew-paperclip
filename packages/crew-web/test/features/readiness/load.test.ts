@@ -130,7 +130,7 @@ describe('loadProjectReadiness', () => {
     ]);
     expect(by['p-r1']?.state).toBe('ready');
     expect(by['p-r1']?.agents.map((a) => a.agentId)).toEqual(['r1-tro-ly']);
-    expect(by['p-plain']).toMatchObject({ state: 'not_ready', failed: [{ id: 'P1' }] });
+    expect(by['p-plain']).toMatchObject({ state: 'untracked', failed: [] });
     expect(by['p-old']?.state).toBe('untracked');
     expect(calls).toContain(`instructionsFile ag-assistant AGENTS.md ${C}`);
     expect(calls).not.toContain('issues.list p-demo');
@@ -208,5 +208,42 @@ describe('A3 của Trợ Lý sau khi sửa vai trò', () => {
   it('AGENTS.md bị sửa tay lệch bản render và lệch hash thì vẫn báo A3', async () => {
     const content = `${renderInstructions('assistant', { agentId: ASSISTANT, executorIds: [EXEC_1, EXEC_2] })}\nsửa tay\n`;
     expect(await assistantA3(content)).toContain('A3');
+  });
+});
+
+describe('project chưa có vai trò', () => {
+  it('có lần thêm project dở trỏ tới project → not_ready P1', async () => {
+    const { src } = source();
+    src.crew.setupRuns = async () => [
+      { id: 'run-p', kind: 'add-project', status: 'failed', projectId: 'p-plain', steps: {} } as never,
+    ];
+    const plain = (await loadProjectReadiness(src, C)).find((p) => p.projectId === 'p-plain');
+    expect(plain).toMatchObject({ state: 'not_ready', failed: [{ id: 'P1' }] });
+  });
+});
+
+describe('A3 của vai trò khác Trợ Lý', () => {
+  const staleRun = {
+    id: 'run-1',
+    kind: 'add-project' as const,
+    status: 'done' as const,
+    updatedAt: '2026-10-10T01:00:00.000Z',
+    steps: { agents: { refs: { agent_reviewer: 'ag-reviewer', instructions_reviewer: 'f'.repeat(64) } } },
+  };
+
+  async function reviewerA3(content: string) {
+    const { src } = source();
+    src.agents.instructionsFile = async (id) => ({ content: id === 'ag-reviewer' ? content : 'x', contentHash: HASH });
+    src.crew.setupRuns = async () => [staleRun as never];
+    const demo = (await loadProjectReadiness(src, C)).find((p) => p.projectId === 'p-demo');
+    return demo?.agents.find((a) => a.agentId === 'ag-reviewer')?.failed.map((f) => f.id) ?? [];
+  }
+
+  it('AGENTS.md đúng bản render hiện tại của vai trò thì đạt dù hash trong setup run đã cũ', async () => {
+    expect(await reviewerA3(renderInstructions('reviewer', { agentId: 'ag-reviewer' }))).not.toContain('A3');
+  });
+
+  it('AGENTS.md lệch bản render và lệch hash thì báo A3', async () => {
+    expect(await reviewerA3('sửa tay')).toContain('A3');
   });
 });

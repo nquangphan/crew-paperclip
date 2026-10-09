@@ -1,7 +1,7 @@
 // Gọi REST Paperclip và plugin crew.core bằng phiên của lần đăng nhập form (storageState). Dùng để dựng trạng thái
 // và kiểm tác dụng thật sau khi bấm trên UI.
 import { type APIRequestContext, type APIResponse, request } from '@playwright/test';
-import { baseUrl, isProd, storageStatePath, TPS_COMPANY_ID } from './env';
+import { baseUrl, CREW_E2E_PROD_COMPANY_ID, isProd, storageStatePath, TPS_COMPANY_ID } from './env';
 
 export class ApiError extends Error {
   constructor(
@@ -16,12 +16,38 @@ export class ApiError extends Error {
 
 const PLUGIN = '/api/plugins/crew.core';
 
-/** Chặn ghi chéo: trên prod mọi lời gọi ghi có nhắc tới TPS trong đường dẫn hoặc body đều bị từ chối. */
-function assertWriteAllowed(method: string, path: string, body: unknown): void {
+const E2E_ID_ROUTE = /^\/api\/(issues|projects|agents)\/([0-9a-f-]{36})(\/|$)/i;
+const BOARD_OWN_ROUTE = /^\/api\/(cli-auth|board-api-keys)\//;
+
+/**
+ * Chặn ghi chéo trên prod: chỉ cho ghi vào company Crew E2E. Cho phép đường `/api/companies/<E2E>/`, data plugin
+ * (chỉ đọc), route plugin có companyId E2E, đường theo id issue/project/agent mà GET xác minh thuộc company E2E, và
+ * đường khóa của chính board (cli-auth, board-api-keys). Mọi đường khác bị từ chối. Mọi lời gọi nhắc TPS bị từ chối.
+ */
+async function assertWriteAllowed(ctx: APIRequestContext, method: string, rawPath: string, body: unknown) {
   if (method === 'GET' || !isProd()) return;
-  if (path.startsWith(`${PLUGIN}/data/`)) return; // data plugin chỉ đọc
+  let path: string;
+  try {
+    path = decodeURIComponent(rawPath.split('?')[0] ?? '');
+  } catch {
+    throw new Error(`Từ chối ghi: đường dẫn không giải mã được: ${method} ${rawPath}`);
+  }
+  if (path.includes('..') || !path.startsWith('/api/')) throw new Error(`Từ chối ghi: ${method} ${rawPath}`);
   const text = `${path} ${body === undefined ? '' : JSON.stringify(body)}`;
   if (text.includes(TPS_COMPANY_ID)) throw new Error(`Từ chối ghi vào TPS: ${method} ${path}`);
+  const e2e = CREW_E2E_PROD_COMPANY_ID;
+  if (path.startsWith(`${PLUGIN}/data/`)) return; // data plugin chỉ đọc
+  if (path.startsWith(`/api/companies/${e2e}/`)) return;
+  if (BOARD_OWN_ROUTE.test(path)) return;
+  if (path.startsWith(`${PLUGIN}/api/`) && text.includes(e2e)) return;
+  const m = E2E_ID_ROUTE.exec(path);
+  if (m) {
+    const res = await ctx.get(`/api/${m[1]}/${m[2]}`);
+    const owner = res.ok() ? ((await res.json()) as { companyId?: string }).companyId : undefined;
+    if (owner === e2e) return;
+    throw new Error(`Từ chối ghi: ${path} không thuộc company Crew E2E (companyId=${owner ?? 'không đọc được'})`);
+  }
+  throw new Error(`Từ chối ghi ngoài company Crew E2E: ${method} ${path}`);
 }
 
 async function parse(res: APIResponse): Promise<unknown> {
@@ -39,7 +65,7 @@ export class Api {
 
   /** Gửi một lời gọi, trả `{status, body}` (không ném) — dùng cho ca âm. */
   async raw(method: string, path: string, body?: unknown, headers?: Record<string, string>) {
-    assertWriteAllowed(method, path, body);
+    await assertWriteAllowed(this.ctx, method, path, body);
     const res = await this.ctx.fetch(path, {
       method,
       ...(body === undefined ? {} : { data: body }),

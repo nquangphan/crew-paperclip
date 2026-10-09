@@ -36,7 +36,21 @@ const awaiting = (id: string, userId: string, status = 'in_review') => ({
   identifier: `TPS-${id}`,
   title: `Issue ${id}`,
   status,
-  executionState: { status: 'pending', currentStageType: 'approval', currentParticipant: { type: 'user', userId } },
+  // Hình dữ liệu của danh sách thật: executionState luôn null, người duyệt nằm ở reviewAttention.
+  executionState: null,
+  reviewAttention: {
+    state: 'covered',
+    reason: null,
+    paths: [
+      {
+        kind: 'execution_participant',
+        label: 'Execution review participant',
+        responder: 'x',
+        since: null,
+        ref: userId,
+      },
+    ],
+  },
 });
 const ISSUES = [awaiting('1', 'u1'), awaiting('2', 'u1'), awaiting('3', 'u2'), awaiting('4', 'u1', 'done')];
 const RUNS = [

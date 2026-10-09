@@ -25,6 +25,8 @@ export function e2eCheckouts(projectKey: string, role?: string): StubCheckout[] 
   const root = path.join(agentsRoot(), projectKey);
   if (!existsSync(root)) return [];
   const realRoot = realpathSync(root);
+  // Thư mục project phải còn nằm dưới realpath(agentsRoot)/e2e-*: symlink e2e-x trỏ sang checkout thật thì bỏ.
+  if (path.dirname(realRoot) !== realpathSync(agentsRoot()) || !path.basename(realRoot).startsWith('e2e-')) return [];
   const out: StubCheckout[] = [];
   for (const name of readdirSync(root).sort()) {
     if (role && name !== role) continue;
@@ -54,6 +56,16 @@ export const stub = {
   },
   isOn(c: StubCheckout): boolean {
     return existsSync(path.join(c.gitDir, STUB_MARKER));
+  },
+  /** Gỡ marker của mọi project e2e-* đang có checkout; trả các checkout đã gỡ. */
+  offAll(): StubCheckout[] {
+    return this.projectKeys().flatMap((key) => this.off(key));
+  },
+  /** Các checkout e2e-* còn marker (rỗng = sạch). */
+  stillOn(): StubCheckout[] {
+    return this.projectKeys()
+      .flatMap((key) => e2eCheckouts(key))
+      .filter((c) => this.isOn(c));
   },
   /** Mọi project e2e-* đang có checkout dưới ~/crew-agents. */
   projectKeys(): string[] {

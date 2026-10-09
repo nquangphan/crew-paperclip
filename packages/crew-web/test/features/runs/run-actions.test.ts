@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { formatRunLog, runActionsFor } from '@/features/runs/run-actions';
+import { formatRunLog, runActionsFor, wakeupOutcome } from '@/features/runs/run-actions';
 
 // Nguồn: server/src/routes/agents.ts route POST /agents/:id/wakeup (nhánh failedRunId: chỉ run `failed`/`timed_out`,
 // reason bắt buộc `retry_failed_run`); ui/src/pages/AgentDetail.tsx RunDetail (resume khi errorCode `process_lost` và
@@ -66,5 +66,29 @@ describe('formatRunLog', () => {
   });
   it('rỗng thì trả chuỗi rỗng', () => {
     expect(formatRunLog(undefined)).toBe('');
+  });
+});
+
+// Nguồn: server/src/routes/agents.ts handleWakeupRoute (202 run, hoặc buildSkippedWakeupResponse status skipped) và
+// nhánh chạy lại run gắn chat (biên nhận {actionId, issueId, runId, status} của chat-channels failedChatRetryReceipt).
+describe('wakeupOutcome', () => {
+  it('run mới hoặc biên nhận chat đã có run là created', () => {
+    expect(wakeupOutcome({ id: 'r9', status: 'queued' })).toEqual({ kind: 'created', runId: 'r9' });
+    expect(wakeupOutcome({ actionId: 'a', runId: 'r8', status: 'running' })).toEqual({ kind: 'created', runId: 'r8' });
+  });
+
+  it('biên nhận chat chưa có run mà queued/deferred là queued', () => {
+    for (const status of ['queued', 'deferred']) {
+      expect(wakeupOutcome({ actionId: 'a', issueId: 'i1', runId: null, status })).toEqual({ kind: 'queued' });
+    }
+  });
+
+  it('skipped hoặc biên nhận chat failed/cancelled là rejected', () => {
+    expect(wakeupOutcome({ status: 'skipped', message: 'Wakeup was skipped.' })).toEqual({
+      kind: 'rejected',
+      message: 'Wakeup was skipped.',
+    });
+    expect(wakeupOutcome({ actionId: 'a', runId: null, status: 'failed' })).toEqual({ kind: 'rejected' });
+    expect(wakeupOutcome({ actionId: 'a', runId: null, status: 'cancelled' })).toEqual({ kind: 'rejected' });
   });
 });
