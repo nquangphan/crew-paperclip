@@ -1,0 +1,82 @@
+{
+  "page": {
+    "title": "Yêu cầu",
+    "description": "Danh sách yêu cầu của company, yêu cầu con nằm dưới yêu cầu gốc.",
+    "loadFailed": "Không tải được danh sách yêu cầu",
+    "empty": "Chưa có yêu cầu nào",
+    "emptyFiltered": "Không có yêu cầu khớp bộ lọc",
+    "created": "Đã tạo yêu cầu {{identifier}}",
+    "createdDraft": "Đã lưu nháp {{identifier}} (chưa chạy)",
+    "open": "Mở",
+    "uploadFailed": "Không đính kèm được: {{names}}"
+  },
+  "list": {
+    "search": "Tìm yêu cầu",
+    "status": "Trạng thái",
+    "project": "Dự án",
+    "assignee": "Người làm",
+    "kind": "Loại",
+    "sort": "Sắp xếp",
+    "group": "Nhóm",
+    "columns": "Cột",
+    "all": "Tất cả",
+    "none": "Không",
+    "unassigned": "Chưa giao",
+    "noProject": "Không có project",
+    "expand": "Mở yêu cầu con",
+    "collapse": "Thu yêu cầu con",
+    "col": {
+      "id": "Mã",
+      "title": "Tiêu đề",
+      "status": "Trạng thái",
+      "stage": "Giai đoạn Crew",
+      "progress": "Yêu cầu con",
+      "project": "Project",
+      "assignee": "Người làm"
+    },
+    "progress": "{{done}}/{{total}} con xong",
+    "kindOption": {
+      "research": "Nghiên cứu",
+      "other": "Code / Bug"
+    },
+    "sortOption": {
+      "updated": "Mới cập nhật",
+      "created": "Mới tạo",
+      "title": "Tiêu đề"
+    },
+    "groupOption": {
+      "status": "Trạng thái",
+      "project": "Project",
+      "assignee": "Người làm"
+    }
+  },
+  "new": {
+    "button": "Yêu cầu mới",
+    "title": "Yêu cầu mới",
+    "description": "Trợ Lý của project nhận yêu cầu, tách việc và giao cho các agent.",
+    "project": "Project",
+    "projectPlaceholder": "Chọn project",
+    "noReadyProject": "Chưa có project nào sẵn sàng. Hoàn tất thêm project hoặc sửa mục chưa đạt ở trang Project.",
+    "kind": "Loại",
+    "kinds": {
+      "code": "Code",
+      "bug": "Bug",
+      "research": "Nghiên cứu"
+    },
+    "researchMissing": "Company chưa có nhãn “research” nên chưa chọn được loại Nghiên cứu.",
+    "titleLabel": "Tiêu đề",
+    "titlePlaceholder": "Việc cần làm, một câu",
+    "descriptionLabel": "Mô tả",
+    "descriptionPlaceholder": "Mô tả (markdown)",
+    "assignee": "Người nhận",
+    "assigneeHint": "Trợ Lý của project, không đổi được.",
+    "noRoles": "Project này chưa có bảng vai trò Crew nên chưa biết ai là Trợ Lý. Đặt vai trò ở trang Project rồi tạo lại.",
+    "attachments": "Đính kèm",
+    "remove": "Bỏ {{name}}",
+    "create": "Tạo",
+    "creating": "Đang tạo",
+    "saveDraft": "Lưu nháp (chưa chạy)",
+    "cancel": "Hủy",
+    "createFailed": "Không tạo được yêu cầu"
+  }
+}
