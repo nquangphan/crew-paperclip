@@ -18,7 +18,9 @@ cd "$FORK"
 [ -z "$(git status --porcelain)" ] || { echo "overlay: worktree has uncommitted changes" >&2; exit 3; }
 
 CHANGED=$(git diff --name-only --diff-filter=ACMR "$BASE" "$COMMIT")
-UNKNOWN=$(printf '%s\n' "$CHANGED" | grep -v -E '^(server/src/|packages/adapters/claude-local/src/|packages/crew-plugin/|packages/crew-web/|crew/|pnpm-lock\.yaml$|.*\.md$)' || true)
+# ui/ (the stock Paperclip UI at /paperclip/) is allowed as a whole: it is built and served by stock-ui.sh, and the
+# SHIP list below never includes it, so its changes cannot reach the image.
+UNKNOWN=$(printf '%s\n' "$CHANGED" | grep -v -E '^(ui/|server/src/|packages/adapters/claude-local/src/|packages/crew-plugin/|packages/crew-web/|crew/|pnpm-lock\.yaml$|.*\.md$)' || true)
 if [ -n "$UNKNOWN" ]; then
   echo "overlay: v3 changes files the overlay cannot ship:" >&2
   printf '%s\n' "$UNKNOWN" >&2
