@@ -83,6 +83,7 @@ export interface AddProjectApi extends InstructionsApi {
     list(companyId: string): Promise<{ id: string; name: string; archivedAt?: Dateish | null; createdAt?: Dateish }[]>;
     create(companyId: string, body: Record<string, unknown>): Promise<{ id: string }>;
   };
+  secrets: { list(companyId: string): Promise<{ id: string }[]> };
   environments: {
     list(companyId: string): Promise<EnvironmentRow[]>;
     create(companyId: string, body: Record<string, unknown>): Promise<{ id: string }>;
@@ -233,12 +234,16 @@ export const required = (refs: Record<string, string>, key: string): string => {
 
 /**
  * Environment SSH `in_place` mẫu của company (có secret SSH và `knownHosts`, vì environment mới luôn bật
- * `strictHostKeyChecking`): ưu tiên bản có `crewLoadGate`, rồi bản mới nhất.
+ * `strictHostKeyChecking`): ưu tiên bản có `crewLoadGate`, rồi bản mới nhất. Bảng environment không có `company_id`
+ * nên danh sách là của cả instance; chỉ nhận mẫu có secret SSH thuộc đúng company (`companySecretIds`), nếu không
+ * environment mới sẽ trỏ secret của company khác và server chặn run.
  */
-export function pickTemplate(envs: EnvironmentRow[]): EnvironmentRow | null {
+export function pickTemplate(envs: EnvironmentRow[], companySecretIds: ReadonlySet<string>): EnvironmentRow | null {
   const ok = envs.filter((env) => {
     const ref = env.config.privateKeySecretRef as { secretId?: unknown } | undefined;
     return (
+      typeof ref?.secretId === 'string' &&
+      companySecretIds.has(ref.secretId) &&
       env.status === 'active' &&
       env.driver === 'ssh' &&
       env.metadata?.workspaceRealizationMode === 'in_place' &&
@@ -252,6 +257,16 @@ export function pickTemplate(envs: EnvironmentRow[]): EnvironmentRow | null {
   const gate = (env: EnvironmentRow) => (env.metadata?.crewLoadGate ? 1 : 0);
   ok.sort((a, b) => gate(b) - gate(a) || (isTime(b.createdAt) || 0) - (isTime(a.createdAt) || 0));
   return ok[0] ?? null;
+}
+
+/** Mẫu của company `companyId`: environment trong `envs` có secret SSH nằm trong danh sách secret của company. */
+export async function pickCompanyTemplate(
+  api: { secrets: { list(companyId: string): Promise<{ id: string }[]> } },
+  companyId: string,
+  envs: EnvironmentRow[],
+): Promise<EnvironmentRow | null> {
+  const secrets = await api.secrets.list(companyId);
+  return pickTemplate(envs, new Set(secrets.map((secret) => secret.id)));
 }
 
 export function environmentBody(template: EnvironmentRow, name: string, checkout: string, description: string) {
@@ -362,7 +377,7 @@ const STEPS: Record<AddProjectStepId, StepWork> = {
         refs[key] = lost.id;
         continue;
       }
-      template ??= pickTemplate(envs);
+      template ??= await pickCompanyTemplate(ctx.api, run.companyId, envs);
       if (!template) throw new StepError('errors.noTemplate');
       const description = ctx.t('addProject.environmentDescription', { role: slot, project: input.name.trim() });
       refs[key] = (

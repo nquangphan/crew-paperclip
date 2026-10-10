@@ -24,6 +24,7 @@ import { profileApi } from './paperclip/profile';
 import { projectsApi } from './paperclip/projects';
 import { runsApi } from './paperclip/runs';
 import { searchApi } from './paperclip/search';
+import { secretsApi } from './paperclip/secrets';
 import { sidebarApi } from './paperclip/sidebar';
 import { skillSourcesApi, skillsApi } from './paperclip/skills';
 
@@ -48,6 +49,7 @@ export const api = {
   projects: projectsApi,
   agents: agentsApi,
   environments: environmentsApi,
+  secrets: secretsApi,
   skills: skillsApi,
   skillSources: skillSourcesApi,
   crew: { ...crewDataApi, ...forceDoneApi },

@@ -234,6 +234,7 @@ describe('ô runtime Codex/OpenCode', () => {
       name: 'demo-executor-codex',
       adapterType: 'codex_local',
       adapterConfig: {
+        engine: 'cli',
         command: '/Users/owner/.crew/bin/crew-codex-run',
         extraArgs: [],
         model: 'gpt-6-luna',

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { ApiError } from '@/api';
 import { runAddProject, runAddProjectStep, StepBusyError } from '@/features/wizards/add-project/run-step';
 import { renderInstructions } from '@/lib/instructions';
-import { addProjectRun, COMPANY, fakeApi, PIN } from './fake-api';
+import { addProjectRun, COMPANY, fakeApi, PIN, TEMPLATE_ENV } from './fake-api';
 
 /** Dịch giả: trả khóa kèm tham số để test so được. */
 const t = (key: string, params?: Record<string, unknown>) => (params ? `${key} ${JSON.stringify(params)}` : key);
@@ -348,6 +348,39 @@ describe('runAddProject', () => {
     const f = fakeApi();
     const template = f.state.environments[0] as { config: Record<string, unknown> };
     template.config = { ...template.config, knownHosts: null };
+    const run = await runAddProject(ctxOf(f.api), f.state.run);
+    expect(run.status).toBe('failed');
+    expect(run.steps.environments?.error).toContain('errors.noTemplate');
+    expect(f.names()).not.toContain('environments.create');
+  });
+
+  it('environment mới hơn nhưng secret thuộc company khác thì không làm mẫu: chọn bản của company', async () => {
+    const f = fakeApi();
+    f.state.environments.push({
+      ...structuredClone(TEMPLATE_ENV),
+      id: 'env-company-khac',
+      name: 'e2e',
+      config: {
+        ...TEMPLATE_ENV.config,
+        host: 'e2e.local',
+        privateKeySecretRef: { type: 'secret_ref', secretId: 'sec-khac', version: 'latest' },
+      },
+      createdAt: '2026-10-09T21:16:00Z',
+    });
+    const run = await runAddProject(ctxOf(f.api), f.state.run);
+    expect(run.status).toBe('done');
+    const creates = f.calls.filter((c) => c.fn === 'environments.create');
+    expect(creates.length).toBeGreaterThan(0);
+    for (const c of creates) {
+      expect(c.args[1]).toMatchObject({
+        config: { host: TEMPLATE_ENV.config.host, privateKeySecretRef: { secretId: 'sec-1' } },
+      });
+    }
+  });
+
+  it('chỉ có environment mẫu của company khác thì báo lỗi noTemplate, không tạo environment', async () => {
+    const f = fakeApi();
+    f.state.secrets = [{ id: 'sec-cua-company-nay' }];
     const run = await runAddProject(ctxOf(f.api), f.state.run);
     expect(run.status).toBe('failed');
     expect(run.steps.environments?.error).toContain('errors.noTemplate');

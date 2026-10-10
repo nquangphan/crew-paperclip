@@ -212,6 +212,8 @@ export interface ClaudeAgentConfig {
   env: Record<string, never>;
 }
 export interface CodexAgentConfig {
+  /** Adapter Codex mặc định `acp`, mà ACP không chạy environment SSH `in_place`: luôn `cli`. */
+  engine: 'cli';
   command: string;
   extraArgs: string[];
   model: string;
@@ -252,6 +254,7 @@ export function crewRuntimeConfigOf(
   if (runtime === 'opencode_local') return { command, extraArgs, env: {} };
   const effort = isRuntimeSlot(slot) ? RUNTIME_SLOT_DEFAULTS[slot].effort : null;
   return {
+    engine: 'cli',
     command,
     extraArgs,
     modelReasoningEffort: effort === 'high' ? 'high' : 'medium',
@@ -262,7 +265,7 @@ export function crewRuntimeConfigOf(
 
 /**
  * Body `POST /companies/:c/agents` cho agent Crew. Agent Claude: `engine: 'cli'` bắt buộc (thiếu thì Paperclip chạy
- * ACP, mà ACP không chạy environment SSH `in_place`), `env` rỗng. Agent Codex: wrapper `crew-codex-run`, bỏ sandbox
+ * ACP, mà ACP không chạy environment SSH `in_place`), `env` rỗng. Agent Codex: `engine: 'cli'` (cùng lý do), wrapper `crew-codex-run`, bỏ sandbox
  * (gitdir của worktree nằm ngoài worktree), `env` chỉ có CODEX_HOME, không bao giờ có OPENAI_API_KEY. Agent OpenCode:
  * wrapper `crew-opencode-run`, `env` rỗng (key nằm trong Keychain của Mac). `slot` hoặc `role` (ô Claude).
  */
