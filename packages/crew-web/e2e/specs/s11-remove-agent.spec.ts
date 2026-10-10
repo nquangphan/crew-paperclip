@@ -1,11 +1,19 @@
 // Gỡ agent (S11.9): executor thứ 2 của project dựng bằng wizard. Gỡ xong: còn một executor, AGENTS.md của Trợ Lý không
-// còn id agent, agent paused, environment archived, checkout của vai đó mất. Reviewer: nút tắt kèm lý do.
+// còn id agent, agent paused, environment archived, checkout của vai đó mất. Reviewer: nút tắt kèm lý do. Dọn: gỡ cả
+// project qua luồng gỡ trên UI.
 // Cần máy thật có app 2P Crew nên chỉ chạy ở T2.
 import { existsSync } from 'node:fs';
 import type { Api } from '../support/api';
 import { tier } from '../support/env';
 import { expect, test } from '../support/fixtures';
-import { addProjectViaWizard, checkoutDir, parkProject, rolesOf, type WizardProject } from '../support/r3x-project';
+import {
+  addProjectViaWizard,
+  checkoutDir,
+  parkProject,
+  removeProjectViaUi,
+  rolesOf,
+  type WizardProject,
+} from '../support/r3x-project';
 
 interface AgentRow {
   id: string;
@@ -77,6 +85,8 @@ test('PW-S11-9 Gỡ executor thứ 2: rời vai trò, AGENTS.md cập nhật, pa
     await page.getByRole('button', { name: 'Đã gỡ', exact: true }).click();
     await expect(page.getByText(agent.name, { exact: true })).toBeVisible();
   } finally {
-    if (project) await parkProject(api, project).catch(() => undefined);
+    // Dọn bằng luồng gỡ trên UI (không để lại environment active hay checkout); gỡ không được mới chỉ lưu trữ.
+    const p = project;
+    if (p) await removeProjectViaUi(page, company, p).catch(() => parkProject(api, p).catch(() => undefined));
   }
 });
