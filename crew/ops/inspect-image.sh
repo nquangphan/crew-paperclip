@@ -1,6 +1,9 @@
 #!/bin/sh
 # Checks a built overlay image before deploy. Usage: inspect-image.sh <image-tag> [<commit>]
-# After the image checks, the adapter patches (core-hooks.json adapter-patch) are compared with <commit> (default: fork HEAD).
+# Runs on the VPS (deploy.sh, set -e) and on the Mac. Adapter patches P2-P7 (core-hooks.json adapter-patch):
+#  - in-image check, always: needs only docker; compares /app files with crew-adapter-expect.json from the overlay tarball.
+#  - host check against <commit> (default: fork HEAD): needs node + the fork git repo, so only on the Mac. On the VPS it is
+#    skipped with a WARNING (never fails deploy); run `crew/ops/inspect-image.sh <tag> <commit>` from the Mac for the full check.
 # The plugin is a self-contained esbuild bundle: it must import with plain node, without the tsx loader.
 docker run --rm --entrypoint sh "$1" -c '
   S=/app/server/dist/services
@@ -30,5 +33,15 @@ docker run --rm --entrypoint sh "$1" -c '
   cd "$P" && node --input-type=module -e "import(\"./dist/manifest.js\").then((m) => console.log(\"plugin bundle ok; manifest \" + m.default.id + \" \" + m.default.capabilities.join(\",\")), (e) => console.log(\"plugin bundle FAIL \" + e.message))"
 '
 RC=$?
-node "$(dirname "$0")/inspect-adapters.mjs" "$1" ${2:+"$2"} || RC=1
+# Adapter patches P2-P7, check 1: INSIDE the image (needs only docker): inspect-adapters.mjs is piped into the image's
+# node and compares /app files with the sha256/anchor manifest overlay-source.sh shipped (crew-adapter-expect.json).
+HERE=$(cd "$(dirname "$0")" && pwd -P)
+docker run --rm --entrypoint node -i "$1" --input-type=module - --in-image < "$HERE/inspect-adapters.mjs" || RC=1
+# Check 2: against the fork commit. Needs node and the fork git repo (the Mac); the VPS has neither, so it is skipped
+# there with a warning - deploy must not stop on it. Run the full check from the Mac before deploying.
+if command -v node >/dev/null 2>&1 && git -C "$HERE" rev-parse --git-dir >/dev/null 2>&1; then
+  node "$HERE/inspect-adapters.mjs" "$1" ${2:+"$2"} || RC=1
+else
+  echo "WARNING: host adapter check SKIPPED (no node or no fork git repo on this host); only the in-image check ran"
+fi
 exit $RC

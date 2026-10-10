@@ -1,7 +1,8 @@
 // Tests for inspect-adapters.mjs and its call from inspect-image.sh, with a fake `docker` on PATH.
 // Run: node --test crew/ops/inspect-adapters.test.mjs
 import { spawnSync } from "node:child_process";
-import { chmodSync, cpSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { createHash } from "node:crypto";
+import { chmodSync, cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, test } from "node:test";
@@ -44,6 +45,7 @@ function setup(image) {
   // `docker run --rm --entrypoint cat <image> /app/<file>` prints the fake image file; any other run is a no-op.
   writeFileSync(path.join(root, "bin/docker"), `#!/bin/sh
 if [ "$4" = cat ]; then f="${root}/img/\${6#/app/}"; [ -f "$f" ] && exec cat "$f"; exit 1; fi
+if [ "$4" = node ]; then shift 6; APP_ROOT="${root}/img" exec node "$@"; fi
 exit 0
 `);
   chmodSync(path.join(root, "bin/docker"), 0o755);
@@ -99,4 +101,65 @@ test("inspect-image.sh prints the adapter results and fails when one patch fails
   assert.equal(r.status, 1);
   assert.match(r.stdout, /adapter P5 .* FAIL: sha256/);
   assert.match(r.stdout, /adapter P6 .* ok/);
+});
+
+const MANIFEST = "crew-adapter-expect.json";
+const script = (root) => path.join(root, "crew/ops/inspect-adapters.mjs");
+const writeManifest = (root, out) =>
+  spawnSync("node", [script(root), "--write-manifest", out], { cwd: root, encoding: "utf8", env: env(root) });
+const inImage = (root) =>
+  spawnSync("node", [script(root), "--in-image"], { cwd: root, encoding: "utf8", env: { ...env(root), APP_ROOT: path.join(root, "img") } });
+
+test("--write-manifest lists only adapter-patch entries with the committed sha256", () => {
+  const root = setup({});
+  const out = path.join(root, "m.json");
+  const r = writeManifest(root, out);
+  assert.equal(r.status, 0, r.stderr);
+  const m = JSON.parse(readFileSync(out, "utf8"));
+  assert.deepEqual(m.entries.map((e) => e.id), ["P5", "P6"]);
+  assert.equal(m.entries[0].sha256, createHash("sha256").update(GOOD).digest("hex"));
+  assert.equal(m.entries[0].occurrences, 2);
+});
+
+test("--in-image passes with node and the manifest only (no git, no docker)", () => {
+  const root = setup({ [CODEX]: GOOD, [OPENCODE]: OPENCODE_GOOD });
+  const out = path.join(root, "img", MANIFEST);
+  writeManifest(root, out);
+  const r = inImage(root);
+  assert.equal(r.status, 0, r.stdout + r.stderr);
+  assert.match(r.stdout, /adapter P5 .* ok/);
+  assert.match(r.stdout, /adapter P6 .* ok/);
+});
+
+test("--in-image fails on a differing file, a missing file and a missing manifest", () => {
+  const root = setup({ [CODEX]: GOOD + "extra\n" });
+  writeManifest(root, path.join(root, "img", MANIFEST));
+  const r = inImage(root);
+  assert.equal(r.status, 1);
+  assert.match(r.stdout, /adapter P5 .* FAIL: sha256/);
+  assert.match(r.stdout, /adapter P6 .* MISSING/);
+  const bare = inImage(setup({}));
+  assert.equal(bare.status, 1);
+  assert.match(bare.stdout, /adapter manifest MISSING/);
+});
+
+test("inspect-image.sh checks inside the image and skips the host check, with a warning, when the host has no fork repo", () => {
+  const root = setup({ [CODEX]: GOOD, [OPENCODE]: OPENCODE_GOOD });
+  writeManifest(root, path.join(root, "img", MANIFEST));
+  const lone = mkdtempSync(path.join(tmpdir(), "crew-vps-"));
+  dirs.push(lone);
+  cpSync(path.join(OPS, "inspect-image.sh"), path.join(lone, "inspect-image.sh"));
+  cpSync(path.join(OPS, "inspect-adapters.mjs"), path.join(lone, "inspect-adapters.mjs"));
+  const r = spawnSync("sh", [path.join(lone, "inspect-image.sh"), "img:tag"], { cwd: lone, encoding: "utf8", env: env(root) });
+  assert.equal(r.status, 0, r.stdout + r.stderr);
+  assert.match(r.stdout, /adapter P5 .* ok/);
+  assert.match(r.stdout, /host adapter check SKIPPED/);
+});
+
+test("inspect-image.sh fails when the in-image check fails", () => {
+  const root = setup({ [CODEX]: GOOD + "extra\n", [OPENCODE]: OPENCODE_GOOD });
+  writeManifest(root, path.join(root, "img", MANIFEST));
+  const r = spawnSync("sh", [path.join(root, "crew/ops/inspect-image.sh"), "img:tag"], { cwd: root, encoding: "utf8", env: env(root) });
+  assert.equal(r.status, 1);
+  assert.match(r.stdout, /adapter P5 .* FAIL: sha256/);
 });

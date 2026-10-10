@@ -43,6 +43,8 @@ mkdir -p "$WORK/app"
 printf '%s\n' "$SHIP" | grep -E '^server/src/.*\.ts$' | sed 's#^server/##' > "$WORK/app/crew-transpile.txt" || true
 echo "$COMMIT" > "$WORK/app/crew-commit.txt"
 echo "$BASE" > "$WORK/app/crew-base.txt"
+# Expected sha256/anchor of the adapter patches, checked inside the image by inspect-image.sh (VPS has no node/git).
+node "$FORK/crew/ops/inspect-adapters.mjs" --write-manifest "$WORK/app/crew-adapter-expect.json" "$COMMIT"
 if [ -n "$SHIP" ]; then git archive --format=tar "$COMMIT" $SHIP | tar -x -C "$WORK/app"; fi
 
 # The bundle resolves @paperclipai/plugin-sdk from its built dist.
