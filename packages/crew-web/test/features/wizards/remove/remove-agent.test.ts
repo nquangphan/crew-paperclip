@@ -106,7 +106,7 @@ describe('runRemoveAgent', () => {
 
     expect(f.state.roles?.executorAgentIds).toEqual([ID.executor]);
     const file = f.state.files.get(ID.assistant)?.content ?? '';
-    expect(assistantListsOf(file)).toEqual({ executorIds: [ID.executor], bmadIds: [ID.bmad] });
+    expect(assistantListsOf(file)).toMatchObject({ executorIds: [ID.executor], bmadIds: [ID.bmad] });
     const save = f.calls.find((c) => c.fn === 'agents.saveInstructionsFile');
     expect(save?.args[1]).toMatchObject({ baseHash: 'hash-old' });
 

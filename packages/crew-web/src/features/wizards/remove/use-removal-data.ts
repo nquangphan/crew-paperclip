@@ -3,6 +3,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { useMemo } from 'react';
 import { api, type CrewMachine, type ProjectRoles, queryKeys, type SetupRun } from '@/api';
+import { slotAgents } from '@/lib/instructions';
 
 const CHECKOUT_KEY_RE = /\/crew-agents\/([a-z][a-z0-9-]{1,30})\/[^/]+$/;
 
@@ -17,12 +18,8 @@ interface EnvironmentLike {
   config: Record<string, unknown>;
 }
 
-export const roleAgentIds = (roles: ProjectRoles) => [
-  roles.assistantAgentId,
-  ...roles.executorAgentIds,
-  roles.reviewerAgentId,
-  roles.integratorAgentId,
-];
+/** Agent của mọi ô có người, gồm ba ô runtime. */
+export const roleAgentIds = (roles: ProjectRoles) => slotAgents(roles).map(([, id]) => id);
 
 /** Lần thêm project mới nhất đã tạo project này. */
 export function projectRunOf(runs: readonly SetupRun[], projectId: string): SetupRun | undefined {

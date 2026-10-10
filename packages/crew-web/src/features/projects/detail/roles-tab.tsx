@@ -1,4 +1,5 @@
-// Tab Vai trò (S8.2, S8.3): xem 4 vai trò, sửa, lưu; đổi executor thì render lại AGENTS.md của Trợ Lý.
+// Tab Vai trò (S8.2, S8.3): xem 4 vai trò và 3 ô runtime, sửa, lưu; đổi executor hay reviewer Codex thì render lại
+// AGENTS.md của Trợ Lý. Ô runtime trống có lối thêm agent bằng wizard Tạo agent.
 import type { Agent } from '@paperclipai/shared';
 import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
@@ -16,20 +17,24 @@ import {
 } from '@/ds';
 import { useSelectableAgents } from '@/features/wizards';
 import { useT } from '@/i18n';
+import { agentOfSlot, type CrewRuntimeSlot, slotAgents } from '@/lib/instructions';
 import { companyHref } from '../paths';
 import { RolesForm } from './roles-form';
 import { useRoleAgents } from './use-role-agents';
 import { type InstructionsOutcome, InstructionsStepError, useSaveRoles } from './use-save-roles';
 
-const SLOTS = ['assistant', 'executor1', 'executor2', 'reviewer', 'integrator'] as const;
-
-function slotAgentId(roles: ProjectRoles, slot: (typeof SLOTS)[number]): string | null {
-  if (slot === 'assistant') return roles.assistantAgentId;
-  if (slot === 'executor1') return roles.executorAgentIds[0] ?? null;
-  if (slot === 'executor2') return roles.executorAgentIds[1] ?? null;
-  if (slot === 'reviewer') return roles.reviewerAgentId;
-  return roles.integratorAgentId;
-}
+/** Ô hiện trên tab (khóa dịch `roles.slot.*`) và ô vai trò tương ứng. */
+const SLOTS = [
+  ['assistant', 'assistant'],
+  ['executor1', 'executor'],
+  ['executor2', 'executor-2'],
+  ['reviewer', 'reviewer'],
+  ['integrator', 'integrator'],
+  ['executorCodex', 'executor-codex'],
+  ['executorOpencode', 'executor-opencode'],
+  ['reviewerCodex', 'reviewer-codex'],
+] as const;
+const RUNTIME_SLOTS: readonly CrewRuntimeSlot[] = ['executor-codex', 'executor-opencode', 'reviewer-codex'];
 
 export function RolesTab({ projectId }: { projectId: string }) {
   const { t } = useT('projects');
@@ -53,9 +58,7 @@ export function RolesTab({ projectId }: { projectId: string }) {
   const selectable = useSelectableAgents(company.id);
   // Người đang giữ ô vẫn hiện trong hộp chọn của ô đó, kể cả đã gỡ.
   const current = rolesQuery.data;
-  const held = current
-    ? [current.assistantAgentId, ...current.executorAgentIds, current.reviewerAgentId, current.integratorAgentId]
-    : [];
+  const held = current ? slotAgents(current).map(([, id]) => id) : [];
   const { options, stateOf } = useRoleAgents(projectId, selectable(agentsQuery.data as Agent[] | undefined, held));
   const { save, retryInstructions } = useSaveRoles(projectId);
 
@@ -125,11 +128,11 @@ export function RolesTab({ projectId }: { projectId: string }) {
         <>
           {roles ? (
             <PropertyList
-              items={SLOTS.map((slot) => {
-                const id = slotAgentId(roles, slot);
+              items={SLOTS.map(([label, slot]) => {
+                const id = agentOfSlot(roles, slot);
                 const state = id ? stateOf(id) : undefined;
                 return {
-                  label: t(`roles.slot.${slot}`),
+                  label: t(`roles.slot.${label}`),
                   value: id ? (
                     <span className="inline-flex items-center gap-2">
                       {nameOf.get(id) ?? t('roles.unknownAgent', { id })}
@@ -156,6 +159,20 @@ export function RolesTab({ projectId }: { projectId: string }) {
                 </Link>
               </Button>
             ) : null}
+            {roles
+              ? RUNTIME_SLOTS.filter((slot) => !agentOfSlot(roles, slot)).map((slot) => (
+                  <Button key={slot} asChild variant="outline">
+                    <Link
+                      to={companyHref(
+                        company.issuePrefix,
+                        `agents/new?${new URLSearchParams({ project: projectId, slot })}`,
+                      )}
+                    >
+                      {t(`roles.addRuntime.${slot}`)}
+                    </Link>
+                  </Button>
+                ))
+              : null}
           </div>
         </>
       )}

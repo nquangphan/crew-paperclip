@@ -103,4 +103,15 @@ describe('exclusiveEnvironments', () => {
       }),
     ).toEqual([{ agentId: 'a1', environmentId: 'e1' }]);
   });
+
+  it('environment của ô runtime (executor-codex, executor-opencode, reviewer-codex) → archive', () => {
+    const slots = ['executor-codex', 'executor-opencode', 'reviewer-codex'];
+    const out = exclusiveEnvironments({
+      environments: slots.map((slot, i) => roleEnv(`e${i}`, 'demo', slot)),
+      agents: slots.map((_, i) => agent(`a${i}`, `e${i}`)),
+      scope: ['a0', 'a1', 'a2'],
+      projectKey: 'demo',
+    });
+    expect(out.map((o) => o.environmentId)).toEqual(['e0', 'e1', 'e2']);
+  });
 });

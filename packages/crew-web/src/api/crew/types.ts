@@ -2,8 +2,10 @@
 // I6 data); bản gốc ở packages/crew-plugin/src/jobs/types.ts và src/setup/*. Plugin đổi thì sửa cùng lúc.
 
 import type { Issue } from '@paperclipai/shared';
+import type { CrewRoleSlot } from '@/lib/instructions/agent-config';
 
-export type CrewRoleSlot = 'assistant' | 'executor' | 'executor-2' | 'reviewer' | 'integrator';
+/** Ô vai trò (cùng CrewRoleSlot của plugin `src/jobs/types.ts`), gồm ba ô runtime `executor-codex`, `executor-opencode`, `reviewer-codex`. */
+export type { CrewRoleSlot };
 
 // I1. Hàng đợi việc trên máy
 export type MachineJobKind =
@@ -179,12 +181,16 @@ export interface SetupRun {
   updatedAt: string;
 }
 
-// Vai trò project (route roles, R2-1)
+// Vai trò project (route roles, R2-1). Ba ô runtime: plugin luôn trả (null = trống); body POST thiếu khóa thì plugin giữ
+// giá trị đang lưu, null thì xóa.
 export interface ProjectRoles {
   assistantAgentId: string;
   executorAgentIds: string[];
   reviewerAgentId: string;
   integratorAgentId: string;
+  codexExecutorAgentId?: string | null;
+  opencodeExecutorAgentId?: string | null;
+  codexReviewerAgentId?: string | null;
 }
 
 // I6. Data mới của PL-2

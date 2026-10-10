@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ApiError, type MachineJob, type SetupRun } from '@/api';
+import { ApiError, type MachineJob, type ProjectRoles, type SetupRun } from '@/api';
 import { keptCheckouts, REMOVE_PROJECT_STEPS, runRemoveProject } from '@/features/wizards/remove/remove-project';
 import { COMPANY, type FakeAgent, fakeApi, type JobOutcome } from '../fake-api';
 
@@ -142,7 +142,16 @@ describe('runRemoveProject', () => {
       kind: 'remove-checkouts',
       projectId: P,
       projectKey: 'demo',
-      roles: ['assistant', 'executor', 'executor-2', 'reviewer', 'integrator'],
+      roles: [
+        'assistant',
+        'executor',
+        'executor-2',
+        'reviewer',
+        'integrator',
+        'executor-codex',
+        'executor-opencode',
+        'reviewer-codex',
+      ],
       removeStatusRepo: true,
     });
     expect(job.setupRunId).toBe('run-rm');
@@ -275,5 +284,18 @@ describe('runRemoveProject', () => {
     expect(run.steps['pause-agents']?.status).toBe('failed');
     expect(run.steps['pause-agents']?.refs?.paused_assistant).toBe(ID.assistant);
     expect(f.names()).not.toContain('roles.remove');
+  });
+
+  it('agent ô runtime cũng bị pause, environment riêng archive', async () => {
+    const CODEX = 'f8888888-8888-4888-8888-888888888888';
+    const f = setup();
+    f.state.agents.push(agent(CODEX, 'executor-codex'));
+    f.state.environments.push(roleEnv('executor-codex'));
+    f.state.roles = { ...(f.state.roles as ProjectRoles), codexExecutorAgentId: CODEX, codexReviewerAgentId: null };
+    const run = await runRemoveProject(ctxOf(f.api), removeRun());
+    expect(run.status).toBe('done');
+    expect(run.steps['pause-agents']?.refs?.['agent_executor-codex']).toBe(CODEX);
+    expect(f.calls.filter((c) => c.fn === 'agents.pause').map((c) => c.args[0])).toContain(CODEX);
+    expect(run.steps.environments?.refs?.['environment_executor-codex']).toBe('env-executor-codex');
   });
 });

@@ -52,4 +52,16 @@ describe('validateAddAgent', () => {
   it.each(['code/demo', '/a/../b', `/${'a'.repeat(200)}`, '/a\u0007b'])('folder sai: %s', (folder) => {
     expect(validateAddAgent({ ...FORM, folder }, ctx()).folder).toBe('validate.agentFolder');
   });
+
+  it('model theo runtime của ô; reviewer Codex chỉ gpt-6-sol', () => {
+    expect(validateAddAgent({ ...FORM, slot: 'executor-codex', model: 'gpt-6-luna' }, ctx())).toEqual({});
+    expect(validateAddAgent({ ...FORM, slot: 'executor-codex', model: 'claude-sonnet-5' }, ctx()).model).toBe(
+      'validate.model',
+    );
+    expect(validateAddAgent({ ...FORM, slot: 'executor-opencode', model: 'opencode-go/glm-5.3' }, ctx())).toEqual({});
+    expect(validateAddAgent({ ...FORM, slot: 'reviewer-codex', model: 'gpt-6-luna' }, ctx()).model).toBe(
+      'validate.model',
+    );
+    expect(validateAddAgent({ ...FORM, slot: 'reviewer-codex', model: 'gpt-6-sol' }, ctx())).toEqual({});
+  });
 });

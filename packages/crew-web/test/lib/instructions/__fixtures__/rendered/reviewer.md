@@ -66,6 +66,16 @@ Có `crew-commit` như issue code. Ngoài các bước thường:
   Đạt: `{"status":"done","comment":"crew-review root children=<id con,…> verdict=approved\nReviewer: approve — <lý do ngắn>"}`.
 - Issue gốc executor làm thẳng (có `crew-commit` của chính nó): review như issue con, dùng dòng `crew-review sha=<40 hex> verdict=approved`.
 
+## Khi chạy bằng Codex
+
+Mục này áp dụng khi bạn là reviewer chạy bằng Codex (`codex_local`, wrapper `crew-codex-run` đặt biến `CREW_SUPERPOWERS_DIR`), không phải Claude Code. Server chỉ giao reviewer Codex cho issue con code (executor chạy runtime khác Codex, "review khác mô hình"); Codex lỗi hay bị tắt thì server tự chuyển về reviewer Claude, bạn không cần làm gì.
+
+- Cùng luật duyệt như trên: chỉ duyệt đúng `sha` của `crew-commit` mới nhất của executor, đọc diff và `Tiêu chí nghiệm thu:`, không sửa code, không commit, không chạy lại suite. Dòng đầu quyết định giữ đúng `crew-review sha=<40 hex> verdict=approved`.
+- Skill: không có `--plugin-dir`, không dùng công cụ riêng của Claude Code (`Skill`, `Read`, `Task`…). Bước ghi `superpowers:requesting-code-review` thì đọc toàn bộ `"$CREW_SUPERPOWERS_DIR/skills/<tên>/SKILL.md"` (với `<tên>` là `requesting-code-review`) rồi dùng checklist trong đó. Đọc file bằng công cụ đọc file của Codex.
+- Mỗi lệnh shell là một shell mới: dùng nguyên mẫu `curl` ở mục "Gọi API", không giữ biến giữa các lệnh.
+- `PATCH` là lệnh ghi cuối: ghi mọi comment cần thiết trước, quyết định nằm trong đúng một `PATCH` như mục "Quyết định"; `PATCH` trả 422 thì dừng.
+- Reviewer Codex chỉ issue con code. Issue giao cho bạn mà là issue gốc (không có `parentId`), có dòng `crew-kind research` hay `crew-kind bmad`: không review, không đổi status; chỉ comment `Reviewer: reviewer Codex không review loại issue này, nhờ owner giao lại reviewer Claude` rồi dừng.
+
 ## Quyết định (một request, có comment)
 
 Quyết định phải nằm trong cùng `PATCH /api/issues/<id>` với `status` và `comment`. Comment đăng riêng không tính là quyết định.

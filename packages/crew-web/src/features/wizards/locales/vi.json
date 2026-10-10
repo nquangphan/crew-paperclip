@@ -72,7 +72,10 @@
       "folder": "Folder repo trên máy",
       "folderHint": "Repo gốc của project trên máy; checkout của agent tạo từ repo này.",
       "submit": "Bắt đầu",
-      "createFailed": "Không bắt đầu được"
+      "createFailed": "Không bắt đầu được",
+      "modelFixed": "Reviewer Codex chạy model cố định gpt-6-sol, effort high.",
+      "runtimeHint": "Agent chạy runtime {{runtime}} trên máy. Bật runtime ở trang Máy trước khi giao việc.",
+      "modelHintRuntime": "Model mặc định của agent, trong danh sách model của runtime {{runtime}}."
     },
     "fix": {
       "title": "Sửa agent {{name}} từ bước “{{step}}”",
@@ -85,7 +88,10 @@
       "executor": "Executor",
       "executor-2": "Executor thứ 2",
       "reviewer": "Reviewer",
-      "integrator": "Integrator"
+      "integrator": "Integrator",
+      "executor-codex": "Executor Codex",
+      "executor-opencode": "Executor OpenCode",
+      "reviewer-codex": "Reviewer Codex"
     },
     "steps": {
       "agent": "Tạo agent",
@@ -151,7 +157,8 @@
       "check_failed": "Kiểm trên máy chưa đạt: {{text}}",
       "lease_expired": "Máy nhận việc nhưng không báo kết quả: {{text}}",
       "app_error": "App trên máy báo lỗi: {{text}}"
-    }
+    },
+    "wrongAdapter": "Ô này cần agent {{expected}}, agent đang chạy {{actual}}: chọn agent khác hoặc tạo agent mới"
   },
   "removeProject": {
     "button": "Gỡ project",

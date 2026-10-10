@@ -11,6 +11,7 @@ import {
 } from '@/features/readiness';
 import en from '@/features/readiness/locales/en.json';
 import vi from '@/features/readiness/locales/vi.json';
+import { crewAgentCreateBody } from '@/lib/instructions';
 
 const HOME = '/Users/owner';
 const PIN = `${HOME}/.crew/workflows/superpowers/6.4.1-5bf4e7801107`;
@@ -88,7 +89,7 @@ describe('computeAgentReadiness', () => {
     });
 
     it.each([
-      ['adapterType khác', { adapterType: 'codex_local' }],
+      ['adapterType khác', { adapterType: 'process' }],
       ['env có biến', { adapterConfig: { ...agent().adapterConfig, env: { X: '1' } } }],
       ['env thiếu', { adapterConfig: { ...agent().adapterConfig, env: undefined } }],
       ['model trống', { adapterConfig: { ...agent().adapterConfig, model: '' } }],
@@ -403,5 +404,111 @@ describe('locale readiness', () => {
     for (const id of ['A1', 'A2', 'A3', 'A4', 'A5', 'A6', 'A7', 'P1', 'P2']) {
       expect(keys(vi)).toContain(`detail.${id}`);
     }
+  });
+});
+
+describe('agent runtime Codex/OpenCode', () => {
+  const codexBody = crewAgentCreateBody({
+    name: 'c',
+    slot: 'executor-codex',
+    model: 'gpt-6-luna',
+    pinDir: PIN,
+    projectKey: 'demo',
+  });
+  const opencodeBody = crewAgentCreateBody({
+    name: 'o',
+    slot: 'executor-opencode',
+    model: 'opencode-go/glm-5.3',
+    pinDir: PIN,
+    projectKey: 'demo',
+  });
+  const codex = (config: Record<string, unknown> = {}): ReadinessAgent =>
+    agent({ adapterType: 'codex_local', adapterConfig: { ...codexBody.adapterConfig, ...config } });
+  const opencode = (config: Record<string, unknown> = {}): ReadinessAgent =>
+    agent({ adapterType: 'opencode_local', adapterConfig: { ...opencodeBody.adapterConfig, ...config } });
+
+  it('agent do wizard tạo ở ô runtime thì ready', () => {
+    for (const [a, slot] of [
+      [codex(), 'executor-codex'],
+      [opencode(), 'executor-opencode'],
+      [codex(), 'reviewer-codex'],
+    ] as const) {
+      expect(computeAgentReadiness(input({ agent: a, roleOf: slot })).failed).toEqual([]);
+    }
+  });
+
+  it('CODEX_HOME dạng binding plain vẫn đạt', () => {
+    const home = (codexBody.adapterConfig.env as { CODEX_HOME: string }).CODEX_HOME;
+    const a = codex({ env: { CODEX_HOME: { type: 'plain', value: home } } });
+    expect(ids(computeAgentReadiness(input({ agent: a, roleOf: 'executor-codex' })))).toEqual([]);
+  });
+
+  it.each([
+    ['thiếu CODEX_HOME', { env: {} }],
+    [
+      'CODEX_HOME trong cây companies/<id>',
+      { env: { CODEX_HOME: '/paperclip/instances/default/companies/x/codex-home' } },
+    ],
+    ['CODEX_HOME tương đối', { env: { CODEX_HOME: 'codex-home' } }],
+    ['có OPENAI_API_KEY', { env: { ...codexBody.adapterConfig.env, OPENAI_API_KEY: 'k' } }],
+    ['còn sandbox', { dangerouslyBypassApprovalsAndSandbox: false }],
+    ['model trống', { model: '' }],
+  ])('Codex %s → A1', (_name, over) => {
+    expect(ids(computeAgentReadiness(input({ agent: codex(over), roleOf: 'executor-codex' })))).toEqual(['A1']);
+  });
+
+  it('OpenCode có env → A1', () => {
+    const a = opencode({ env: { CREW_OPENCODE_GO_KEY: 'k' } });
+    expect(ids(computeAgentReadiness(input({ agent: a, roleOf: 'executor-opencode' })))).toEqual(['A1']);
+  });
+
+  it('agent Claude ngồi ô runtime → A1 và A2', () => {
+    expect(ids(computeAgentReadiness(input({ agent: agent(), roleOf: 'executor-codex' })))).toEqual(['A1', 'A2']);
+  });
+
+  it.each([
+    ['wrapper Claude', { command: `${HOME}/.crew/bin/crew-claude-run` }],
+    ['wrapper OpenCode cho agent Codex', { command: `${HOME}/.crew/bin/crew-opencode-run` }],
+    ['mang --plugin-dir', { extraArgs: ['--plugin-dir', PIN] }],
+    ['wrapper ở home khác máy', { command: '/Users/khac/.crew/bin/crew-codex-run' }],
+  ])('Codex %s → A2, làm tiếp ở bước pin', (_name, over) => {
+    const r = computeAgentReadiness(input({ agent: codex(over), roleOf: 'executor-codex' }));
+    expect(r.failed).toEqual([
+      { id: 'A2', detail: 'detail.A2', resume: { wizard: 'add-agent', step: 'pin', agentId: AGENT } },
+    ]);
+  });
+
+  it('chưa có bản tin máy: chỉ kiểm dạng wrapper', () => {
+    const r = computeAgentReadiness(
+      input({
+        agent: codex({ command: '/Users/khac/.crew/bin/crew-codex-run' }),
+        roleOf: 'executor-codex',
+        report: null,
+      }),
+    );
+    expect(ids(r)).toEqual(['A5']);
+  });
+
+  it('agent Codex chưa giữ vai trò được kiểm theo adapter của nó (danh sách ứng viên)', () => {
+    expect(ids(computeAgentReadiness(input({ agent: codex(), roleOf: null })))).toEqual(['A6']);
+  });
+
+  it('project: agent ô runtime chưa sẵn sàng thì P2', () => {
+    const roles = {
+      assistantAgentId: 'a',
+      executorAgentIds: ['e'],
+      reviewerAgentId: 'r',
+      integratorAgentId: 'i',
+      codexExecutorAgentId: 'c',
+      opencodeExecutorAgentId: null,
+    };
+    const ready = (agentId: string): AgentReadiness => ({ agentId, state: 'ready', failed: [] });
+    const r = computeProjectReadiness({
+      project: { id: 'p1' },
+      roles,
+      fileRoles: false,
+      agents: [ready('a'), ready('e'), ready('r'), ready('i')],
+    });
+    expect(r.failed).toEqual([{ id: 'P2', detail: 'detail.P2', agentIds: ['c'] }]);
   });
 });

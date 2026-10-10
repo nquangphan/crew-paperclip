@@ -129,6 +129,59 @@ describe('AddAgentPage', () => {
     expect(calls.some((c) => c.method === 'POST' && c.url.includes('/agents'))).toBe(false);
   });
 
+  it('ô executor Codex: danh sách model Codex, mặc định gpt-6-luna, setup run mang ô và model', async () => {
+    const { calls } = server({
+      [`POST ${PLUGIN}/setup-runs`]: { status: 201, body: { ...AGENT_RUN, steps: {}, status: 'running' } },
+      [`GET ${PLUGIN}/setup-runs/run-a`]: { body: { ...AGENT_RUN, steps: {}, status: 'running' } },
+      [`POST ${PLUGIN}/setup-runs/run-a/steps/agent/begin`]: { status: 409, body: { error: 'Bước agent đang chạy' } },
+    });
+    const router = mount('/TPS/agents/new?project=p1&slot=executor-codex');
+    await waitFor(() => expect(field('Tên agent').value).toBe('demo-executor-codex'));
+    expect(screen.getByText('Model mặc định của agent, trong danh sách model của runtime codex_local.')).toBeTruthy();
+    expect(
+      screen.getByText(
+        'Thêm agent vào ô này. Agent chạy runtime codex_local trên máy. Bật runtime ở trang Máy trước khi giao việc.',
+      ),
+    ).toBeTruthy();
+    fireEvent.keyDown(screen.getByRole('combobox', { name: 'Model' }), { key: 'Enter' });
+    const options = (await screen.findAllByRole('option')).map((o) => o.textContent);
+    expect(options).toEqual(['gpt-6-luna', 'gpt-6-sol']);
+    fireEvent.keyDown(screen.getByRole('option', { name: 'gpt-6-luna' }), { key: 'Escape' });
+    fireEvent.click(screen.getByRole('button', { name: 'Bắt đầu' }));
+    await waitFor(() => expect(router.state.location.search).toBe('?resume=run-a'));
+    expect(calls.find((c) => c.method === 'POST' && c.url === `${PLUGIN}/setup-runs`)?.body).toMatchObject({
+      input: { projectId: 'p1', slot: 'executor-codex', name: 'demo-executor-codex', model: 'gpt-6-luna' },
+    });
+  });
+
+  it('ô reviewer Codex: model cố định gpt-6-sol, không chọn được model khác', async () => {
+    server();
+    mount('/TPS/agents/new?project=p1&slot=reviewer-codex');
+    await waitFor(() => expect(field('Tên agent').value).toBe('demo-reviewer-codex'));
+    expect(screen.getByText('Reviewer Codex chạy model cố định gpt-6-sol, effort high.')).toBeTruthy();
+    const model = screen.getByRole('combobox', { name: 'Model' });
+    expect(model.textContent).toContain('gpt-6-sol');
+    expect((model as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it('danh sách ô có ba ô runtime', async () => {
+    server();
+    mount('/TPS/agents/new?project=p1');
+    await waitFor(() => expect(field('Khóa project').value).toBe('demo'));
+    fireEvent.keyDown(screen.getByRole('combobox', { name: 'Ô vai trò' }), { key: 'Enter' });
+    const options = (await screen.findAllByRole('option')).map((o) => o.textContent);
+    expect(options).toEqual([
+      'Trợ Lý',
+      'Executor',
+      'Executor thứ 2',
+      'Reviewer',
+      'Integrator',
+      'Executor Codex',
+      'Executor OpenCode',
+      'Reviewer Codex',
+    ]);
+  });
+
   it('chọn ô đang có agent: báo sẽ thay; tên trùng agent đang có thì chặn, không tạo setup run', async () => {
     const { calls } = server();
     mount('/TPS/agents/new?project=p1&slot=reviewer');

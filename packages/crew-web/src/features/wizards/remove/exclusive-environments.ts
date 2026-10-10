@@ -1,6 +1,6 @@
 // Environment riêng của các agent bị gỡ: chỉ những environment này được archive (PATCH status, không bao giờ DELETE:
 // xóa kéo theo secret SSH dùng chung). Environment mẫu và environment còn agent khác dùng thì giữ.
-import type { CrewRoleSlot } from '@/api';
+import { CREW_ROLE_SLOTS } from '@/lib/instructions';
 
 export interface EnvironmentLike {
   id: string;
@@ -15,7 +15,7 @@ export interface AgentEnvironmentLike {
   defaultEnvironmentId?: string | null;
 }
 
-const SLOTS: readonly CrewRoleSlot[] = ['assistant', 'executor', 'executor-2', 'reviewer', 'integrator'];
+const SLOTS: readonly string[] = CREW_ROLE_SLOTS;
 const CHECKOUT_RE = /\/crew-agents\/([a-z][a-z0-9-]{1,30})\/([a-z0-9-]+)$/;
 
 /**

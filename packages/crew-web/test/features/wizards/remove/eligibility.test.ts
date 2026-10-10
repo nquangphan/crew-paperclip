@@ -86,3 +86,25 @@ describe('rolesWithout', () => {
     expect(rolesWithout(roles([ID.executor, ID.executor2]), ID.executor).executorAgentIds).toEqual([ID.executor2]);
   });
 });
+
+describe('ô runtime', () => {
+  const withRuntime = (): ProjectRoles => ({
+    ...roles([ID.executor]),
+    codexExecutorAgentId: ID.spare,
+    opencodeExecutorAgentId: ID.executor2,
+    codexReviewerAgentId: 'f8888888-8888-4888-8888-888888888888',
+  });
+
+  it.each([
+    ['executor-codex', ID.spare],
+    ['executor-opencode', ID.executor2],
+    ['reviewer-codex', 'f8888888-8888-4888-8888-888888888888'],
+  ] as const)('%s luôn gỡ được (ô tùy chọn)', (role, id) => {
+    expect(removeAgentEligibility(agent(id), byProject(withRuntime()))).toEqual({ kind: 'ok', projectId: P, role });
+  });
+
+  it('rolesWithout bỏ agent ô runtime → ô thành null, ô khác giữ', () => {
+    expect(rolesWithout(withRuntime(), ID.spare)).toEqual({ ...withRuntime(), codexExecutorAgentId: null });
+    expect(rolesWithout(withRuntime(), 'F8888888-8888-4888-8888-888888888888').codexReviewerAgentId).toBeNull();
+  });
+});

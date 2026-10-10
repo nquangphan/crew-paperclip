@@ -86,6 +86,35 @@ describe('ProjectPage', () => {
     expect(link.getAttribute('href')).toBe('/TPS/agents/new?project=p1&slot=executor-2');
   });
 
+  it('tab Vai trò: ô runtime hiện tên agent đang giữ; ô trống có lối thêm bằng wizard', async () => {
+    readiness.value = [];
+    server({
+      'GET /api/plugins/crew.core/api/projects/p1/roles': {
+        body: {
+          roles: {
+            ...ROLES,
+            codexExecutorAgentId: ID.spare,
+            opencodeExecutorAgentId: null,
+            codexReviewerAgentId: null,
+          },
+        },
+      },
+      'GET /api/companies/c-tps/agents': {
+        body: [...agentsList, { id: ID.spare, name: 'Codex Một', status: 'idle', adapterType: 'codex_local' }],
+      },
+    });
+    mount('?tab=roles');
+    expect(await screen.findByText('Codex Một')).toBeTruthy();
+    expect(screen.getByText('Executor Codex (tùy chọn)')).toBeTruthy();
+    expect(screen.queryByRole('link', { name: 'Thêm executor Codex' })).toBeNull();
+    expect(screen.getByRole('link', { name: 'Thêm executor OpenCode' }).getAttribute('href')).toBe(
+      '/TPS/agents/new?project=p1&slot=executor-opencode',
+    );
+    expect(screen.getByRole('link', { name: 'Thêm reviewer Codex' }).getAttribute('href')).toBe(
+      '/TPS/agents/new?project=p1&slot=reviewer-codex',
+    );
+  });
+
   it('tab Vai trò: hiện 4 vai trò kèm tên agent', async () => {
     readiness.value = [];
     server();

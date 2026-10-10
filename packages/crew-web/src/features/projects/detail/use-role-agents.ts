@@ -61,6 +61,7 @@ export function useRoleAgents(
     name: a.name,
     state: stateOf(a.id) ?? 'not_ready',
     holdsElsewhere: held.has(a.id) && held.get(a.id)?.projectId !== projectId,
+    adapterType: a.adapterType,
   }));
   return { options, stateOf, isLoading: readiness.isLoading || computed.isLoading };
 }

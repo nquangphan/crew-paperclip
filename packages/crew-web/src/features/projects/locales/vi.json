@@ -50,7 +50,10 @@
       "executor1": "Executor 1",
       "executor2": "Executor 2 (tùy chọn)",
       "reviewer": "Reviewer",
-      "integrator": "Integrator"
+      "integrator": "Integrator",
+      "executorCodex": "Executor Codex (tùy chọn)",
+      "executorOpencode": "Executor OpenCode (tùy chọn)",
+      "reviewerCodex": "Reviewer Codex (tùy chọn)"
     },
     "none": "Không có",
     "choose": "Chọn agent",
@@ -68,7 +71,12 @@
       "retry": "Tải lại và ghi lại",
       "failed": "Đã lưu vai trò nhưng chưa cập nhật được hướng dẫn của Trợ Lý"
     },
-    "saveFailed": "Không lưu được vai trò"
+    "saveFailed": "Không lưu được vai trò",
+    "addRuntime": {
+      "executor-codex": "Thêm executor Codex",
+      "executor-opencode": "Thêm executor OpenCode",
+      "reviewer-codex": "Thêm reviewer Codex"
+    }
   },
   "docs": {
     "empty": "Project này chưa có docs đồng bộ từ máy",

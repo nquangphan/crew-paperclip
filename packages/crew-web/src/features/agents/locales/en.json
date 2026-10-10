@@ -112,7 +112,8 @@
     "label": "Default model",
     "choose": "Choose a model",
     "save": "Save model",
-    "outside": "The current model ({{model}}) is not in the Crew model table."
+    "outside": "The current model ({{model}}) is not in the Crew model table.",
+    "fixed": "The Codex reviewer runs the fixed model gpt-6-sol with high effort."
   },
   "runs": {
     "loadFailed": "Could not load runs",

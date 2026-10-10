@@ -112,7 +112,8 @@
     "label": "Model mặc định",
     "choose": "Chọn model",
     "save": "Lưu model",
-    "outside": "Model hiện tại ({{model}}) không nằm trong bảng model Crew."
+    "outside": "Model hiện tại ({{model}}) không nằm trong bảng model Crew.",
+    "fixed": "Reviewer Codex chạy model cố định gpt-6-sol, effort high."
   },
   "runs": {
     "loadFailed": "Không tải được danh sách run",

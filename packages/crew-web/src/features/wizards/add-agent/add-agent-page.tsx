@@ -35,7 +35,16 @@ import {
   Spinner,
 } from '@/ds';
 import { useT } from '@/i18n';
-import { CREW_MODELS, isCrewModel, ROLE_MODELS, roleOfSlot } from '@/lib/instructions';
+import {
+  agentOfSlot,
+  CREW_MODELS,
+  defaultModelOf,
+  isRuntimeSlot,
+  runtimeOfSlot,
+  slotAgents,
+  slotModels,
+  slotOfAgent,
+} from '@/lib/instructions';
 import { companyHref, findAgentRun } from '../resume';
 import { type RunHooks, SetupProgress } from '../setup-progress';
 import { type AddAgentSeed, prepareFixRun, runAddAgent } from './run-step';
@@ -72,26 +81,10 @@ export function AddAgentPage() {
   );
 }
 
-/** Ô vai trò mà agent đang giữ trong vai trò của project. */
-function slotOf(roles: ProjectRoles, agentId: string): CrewRoleSlot | null {
-  if (roles.assistantAgentId === agentId) return 'assistant';
-  const i = roles.executorAgentIds.indexOf(agentId);
-  if (i === 0) return 'executor';
-  if (i === 1) return 'executor-2';
-  if (roles.reviewerAgentId === agentId) return 'reviewer';
-  if (roles.integratorAgentId === agentId) return 'integrator';
-  return null;
-}
-
 /** Agent đang ở ô (để báo "sẽ thay"). */
 function holderOf(roles: ProjectRoles | null | undefined, slot: string): string | null {
-  if (!roles) return null;
-  if (slot === 'assistant') return roles.assistantAgentId;
-  if (slot === 'executor') return roles.executorAgentIds[0] ?? null;
-  if (slot === 'executor-2') return roles.executorAgentIds[1] ?? null;
-  if (slot === 'reviewer') return roles.reviewerAgentId;
-  if (slot === 'integrator') return roles.integratorAgentId;
-  return null;
+  if (!roles || !(ROLE_SLOTS as readonly string[]).includes(slot)) return null;
+  return agentOfSlot(roles, slot as CrewRoleSlot);
 }
 
 const CHECKOUT_KEY_RE = /\/crew-agents\/([a-z][a-z0-9-]{1,30})\/[^/]+$/;
@@ -151,7 +144,7 @@ function AddAgentFormView({
   const holding = useMemo(() => {
     if (!fix || !roles.data) return null;
     for (const [projectId, r] of roles.data) {
-      const slot = r ? slotOf(r, fix.agentId) : null;
+      const slot = r ? slotOfAgent(r, fix.agentId) : null;
       if (slot) return { projectId, slot };
     }
     return null;
@@ -170,12 +163,7 @@ function AddAgentFormView({
   const derivedKey = (() => {
     if (projectRun) return projectRun.projectKey;
     if (!projectRoles) return '';
-    const ids = new Set([
-      projectRoles.assistantAgentId,
-      ...projectRoles.executorAgentIds,
-      projectRoles.reviewerAgentId,
-      projectRoles.integratorAgentId,
-    ]);
+    const ids = new Set(slotAgents(projectRoles).map(([, id]) => id));
     for (const a of agents.data ?? []) {
       if (!ids.has(a.id)) continue;
       const env = environments.data?.find((e) => e.id === a.defaultEnvironmentId);
@@ -202,19 +190,24 @@ function AddAgentFormView({
       if (!taken(name)) return name;
     }
   })();
+  // Model theo runtime của ô: chọn ô khác thì model đã chọn (của runtime cũ) bỏ, về mặc định của ô.
+  const knownSlot = (ROLE_SLOTS as readonly string[]).includes(slot) ? (slot as CrewRoleSlot) : null;
+  const models: readonly string[] = knownSlot ? slotModels(knownSlot) : CREW_MODELS;
   const agentModel = fixAgent?.adapterConfig.model;
   const derivedModel =
-    typeof agentModel === 'string' && isCrewModel(agentModel)
+    typeof agentModel === 'string' && models.includes(agentModel)
       ? agentModel
-      : slot && (ROLE_SLOTS as readonly string[]).includes(slot)
-        ? ROLE_MODELS[roleOfSlot(slot as CrewRoleSlot)]
+      : knownSlot
+        ? defaultModelOf(knownSlot)
         : '';
+  const chosenModel =
+    overrides.model !== undefined && models.includes(overrides.model) ? overrides.model : derivedModel;
 
   const form: AddAgentForm = {
     projectId,
     slot,
     name: fix ? derivedName : (overrides.name ?? derivedName),
-    model: fix ? derivedModel : (overrides.model ?? derivedModel),
+    model: fix ? derivedModel : chosenModel,
     machineId: overrides.machineId ?? derivedMachine,
     key,
     folder: overrides.folder ?? derivedFolder,
@@ -282,13 +275,18 @@ function AddAgentFormView({
   const err = (field: keyof AddAgentForm) => (errors[field] ? t(errors[field]) : undefined);
   const holder = holderOf(projectRoles, slot);
   const holderName = holder ? (agents.data?.find((a) => a.id === holder)?.name ?? holder) : null;
-  const slotHint = !slot
+  const holderHint = !slot
     ? undefined
     : holder === fix?.agentId && holder
       ? t('addAgent.form.slotSelf')
       : holderName
         ? t('addAgent.form.slotReplaces', { name: holderName })
         : t('addAgent.form.slotAdds');
+  // Ô runtime: nhắc công tắc runtime theo máy (mặc định tắt) ở trang Máy.
+  const slotHint =
+    holderHint && knownSlot && isRuntimeSlot(knownSlot)
+      ? `${holderHint} ${t('addAgent.form.runtimeHint', { runtime: runtimeOfSlot(knownSlot) })}`
+      : holderHint;
 
   return (
     <Card>
@@ -346,15 +344,25 @@ function AddAgentFormView({
               <Field
                 label={t('addAgent.form.model')}
                 htmlFor="add-agent-model"
-                hint={t('addAgent.form.modelHint')}
+                hint={
+                  knownSlot === 'reviewer-codex'
+                    ? t('addAgent.form.modelFixed')
+                    : knownSlot && isRuntimeSlot(knownSlot)
+                      ? t('addAgent.form.modelHintRuntime', { runtime: runtimeOfSlot(knownSlot) })
+                      : t('addAgent.form.modelHint')
+                }
                 error={err('model')}
               >
-                <Select value={form.model} onValueChange={(v) => set('model', v)}>
+                <Select
+                  value={form.model}
+                  onValueChange={(v) => set('model', v)}
+                  disabled={knownSlot === 'reviewer-codex'}
+                >
                   <SelectTrigger id="add-agent-model" className="w-full">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent position="popper">
-                    {CREW_MODELS.map((m) => (
+                    {models.map((m) => (
                       <SelectItem key={m} value={m}>
                         {m}
                       </SelectItem>

@@ -5,7 +5,7 @@ import { ModelSelect } from '@/features/agents/detail/model-select';
 import { initI18n, setLanguage } from '@/i18n';
 import { CREW_MODELS } from '@/lib/instructions';
 import { mockServer } from '../../app/fetch-mock';
-import { agent, renderWith } from './helpers';
+import { agent, ID, ROLES, renderWith } from './helpers';
 
 beforeAll(async () => {
   await initI18n();
@@ -61,5 +61,58 @@ describe('ModelSelect', () => {
     fireEvent.click(screen.getByRole('option', { name: 'claude-opus-5' }));
     fireEvent.click(screen.getByRole('button', { name: 'Lưu model' }));
     expect(await screen.findByText('Model bị từ chối')).toBeTruthy();
+  });
+
+  it('agent Codex: chỉ model Codex; agent OpenCode: chỉ model OpenCode', () => {
+    mockServer({});
+    renderWith(
+      <ModelSelect
+        agent={agent({ adapterType: 'codex_local', adapterConfig: { model: 'gpt-6-luna' } }) as never}
+        companyId="c-tps"
+      />,
+    );
+    fireEvent.keyDown(screen.getByRole('combobox', { name: 'Model mặc định' }), { key: 'Enter' });
+    expect(screen.getAllByRole('option').map((o) => o.textContent)).toEqual(['gpt-6-luna', 'gpt-6-sol']);
+    cleanup();
+    renderWith(
+      <ModelSelect
+        agent={agent({ adapterType: 'opencode_local', adapterConfig: { model: 'opencode-go/kimi-k3' } }) as never}
+        companyId="c-tps"
+      />,
+    );
+    fireEvent.keyDown(screen.getByRole('combobox', { name: 'Model mặc định' }), { key: 'Enter' });
+    expect(screen.getAllByRole('option').map((o) => o.textContent)).toEqual([
+      'opencode-go/deepseek-v4-flash',
+      'opencode-go/kimi-k3',
+      'opencode-go/glm-5.3',
+    ]);
+  });
+
+  it('model Claude trên agent Codex là ngoài bảng của runtime', () => {
+    mockServer({});
+    renderWith(
+      <ModelSelect
+        agent={agent({ adapterType: 'codex_local', adapterConfig: { model: 'claude-sonnet-5' } }) as never}
+        companyId="c-tps"
+      />,
+    );
+    expect(screen.getByText('Model hiện tại (claude-sonnet-5) không nằm trong bảng model Crew.')).toBeTruthy();
+  });
+
+  it('reviewer Codex của project: model cố định, không đổi được', async () => {
+    mockServer({
+      'GET /api/companies/c-tps/projects': { body: [{ id: 'p1', name: 'Demo', archivedAt: null }] },
+      'GET /api/plugins/crew.core/api/projects/p1/roles': {
+        body: { roles: { ...ROLES, codexReviewerAgentId: ID.spare } },
+      },
+    });
+    renderWith(
+      <ModelSelect
+        agent={agent({ id: ID.spare, adapterType: 'codex_local', adapterConfig: { model: 'gpt-6-sol' } }) as never}
+        companyId="c-tps"
+      />,
+    );
+    expect(await screen.findByText('Reviewer Codex chạy model cố định gpt-6-sol, effort high.')).toBeTruthy();
+    expect((screen.getByRole('combobox', { name: 'Model mặc định' }) as HTMLButtonElement).disabled).toBe(true);
   });
 });

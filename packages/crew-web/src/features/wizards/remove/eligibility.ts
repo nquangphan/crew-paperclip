@@ -1,6 +1,10 @@
 // Điều kiện gỡ agent (S11.9, spec §4.5), tính ở web từ vai trò của mọi project chưa archive. Agent giữ vai trò bắt buộc
-// (Trợ Lý, reviewer, integrator, executor duy nhất) không gỡ được: gỡ sẽ làm project fail closed.
+// (Trợ Lý, reviewer, integrator, executor duy nhất) không gỡ được: gỡ sẽ làm project fail closed. Ô runtime (executor
+// Codex/OpenCode, reviewer Codex) là tùy chọn nên luôn gỡ được.
 import type { CrewRoleSlot, ProjectRoles } from '@/api';
+import { isRuntimeSlot, RUNTIME_SLOT_KEYS, slotOfAgent } from '@/lib/instructions';
+
+export { slotOfAgent };
 
 export type RemoveAgentBlock = 'assistant' | 'reviewer' | 'integrator' | 'onlyExecutor';
 
@@ -12,26 +16,21 @@ export type RemoveAgentEligibility =
 
 const same = (a: string, b: string) => a.toLowerCase() === b.toLowerCase();
 
-/** Ô vai trò agent đang giữ trong vai trò của một project; không giữ thì null. */
-export function slotOfAgent(roles: ProjectRoles, agentId: string): CrewRoleSlot | null {
-  if (same(roles.assistantAgentId, agentId)) return 'assistant';
-  const i = roles.executorAgentIds.findIndex((id) => same(id, agentId));
-  if (i === 0) return 'executor';
-  if (i === 1) return 'executor-2';
-  if (same(roles.reviewerAgentId, agentId)) return 'reviewer';
-  if (same(roles.integratorAgentId, agentId)) return 'integrator';
-  return null;
-}
-
 /** Lý do không gỡ được agent ở ô `slot`; gỡ được thì null. */
 export function blockOf(roles: ProjectRoles, slot: CrewRoleSlot): RemoveAgentBlock | null {
+  if (isRuntimeSlot(slot)) return null;
   if (slot === 'assistant' || slot === 'reviewer' || slot === 'integrator') return slot;
   return roles.executorAgentIds.length < 2 ? 'onlyExecutor' : null;
 }
 
-/** Vai trò mới bỏ agent (executor-2 → bỏ; executor-1 → executor-2 lên executor-1). */
+/** Vai trò mới bỏ agent (executor-2 → bỏ; executor-1 → executor-2 lên executor-1; ô runtime → null). */
 export function rolesWithout(roles: ProjectRoles, agentId: string): ProjectRoles {
-  return { ...roles, executorAgentIds: roles.executorAgentIds.filter((id) => !same(id, agentId)) };
+  const next: ProjectRoles = { ...roles, executorAgentIds: roles.executorAgentIds.filter((id) => !same(id, agentId)) };
+  for (const key of Object.values(RUNTIME_SLOT_KEYS)) {
+    const id = next[key];
+    if (id && same(id, agentId)) next[key] = null;
+  }
+  return next;
 }
 
 /**

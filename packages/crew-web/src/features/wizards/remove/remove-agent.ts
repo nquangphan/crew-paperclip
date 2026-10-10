@@ -3,11 +3,11 @@
 // Gỡ = pause (đảo ngược được, giữ key và lịch sử run), không bao giờ terminate hay DELETE.
 import type { CrewRoleSlot, ProjectRoles, RemoveAgentInput, SetupRun, SetupStepId } from '@/api';
 import {
-  assistantListsOf,
+  assistantListsMatch,
   INSTRUCTIONS_PATH,
   type InstructionsApi,
   putInstructions,
-  renderInstructions,
+  renderAssistantFor,
 } from '@/lib/instructions';
 import { executeStep, StepError } from '../add-project/run-step';
 import { blockOf, rolesWithout, slotOfAgent } from './eligibility';
@@ -53,9 +53,6 @@ export interface RemoveAgentApi extends RemoveApi, InstructionsApi {
 const statusOf = (error: unknown): number | undefined =>
   typeof error === 'object' && error !== null ? (error as { status?: number }).status : undefined;
 
-const sameIds = (a: readonly string[], b: readonly string[]) =>
-  a.length === b.length && a.every((id, i) => id.toLowerCase() === b[i]?.toLowerCase());
-
 async function currentInstructions(api: InstructionsApi, agentId: string, companyId: string): Promise<string> {
   try {
     return (await api.agents.instructionsFile(agentId, INSTRUCTIONS_PATH, companyId)).content;
@@ -81,17 +78,12 @@ const STEPS: Record<RemoveAgentStepId, StepWork> = {
       roles = rolesWithout(roles, input.agentId);
       await ctx.api.roles.set(run.companyId, input.projectId, roles);
     }
-    // Danh sách executor nằm trong AGENTS.md của Trợ Lý: đọc từ file nên lần chạy tiếp vẫn nhận ra chỗ chưa ghi.
+    // Danh sách executor (kèm runtime) và reviewer Codex nằm trong AGENTS.md của Trợ Lý: đọc từ file nên lần chạy tiếp
+    // vẫn nhận ra chỗ chưa ghi.
     const assistantId = roles.assistantAgentId;
     const current = await currentInstructions(ctx.api, assistantId, run.companyId);
-    const lists = assistantListsOf(current);
-    if (sameIds(lists.executorIds, roles.executorAgentIds)) return;
-    const taken = new Set([assistantId, ...roles.executorAgentIds].map((id) => id.toLowerCase()));
-    const content = renderInstructions('assistant', {
-      agentId: assistantId,
-      executorIds: roles.executorAgentIds,
-      bmadIds: lists.bmadIds.filter((id) => !taken.has(id.toLowerCase())),
-    });
+    if (assistantListsMatch(current, roles)) return;
+    const content = renderAssistantFor(roles, current);
     const saved = await putInstructions(ctx.api, assistantId, content, { companyId: run.companyId });
     if (!saved.ok) {
       const assistant = (await ctx.api.agents.list(run.companyId)).find((a) => a.id === assistantId);

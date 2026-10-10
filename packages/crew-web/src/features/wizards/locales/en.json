@@ -72,7 +72,10 @@
       "folder": "Repo folder on the machine",
       "folderHint": "The project's main repo on the machine; the agent checkout is created from it.",
       "submit": "Start",
-      "createFailed": "Could not start"
+      "createFailed": "Could not start",
+      "modelFixed": "The Codex reviewer runs the fixed model gpt-6-sol with high effort.",
+      "runtimeHint": "The agent runs {{runtime}} on the machine. Turn the runtime on in the Machines page before assigning work.",
+      "modelHintRuntime": "Default model of the agent, from the {{runtime}} model list."
     },
     "fix": {
       "title": "Fix agent {{name}} from step “{{step}}”",
@@ -85,7 +88,10 @@
       "executor": "Executor",
       "executor-2": "Second executor",
       "reviewer": "Reviewer",
-      "integrator": "Integrator"
+      "integrator": "Integrator",
+      "executor-codex": "Codex executor",
+      "executor-opencode": "OpenCode executor",
+      "reviewer-codex": "Codex reviewer"
     },
     "steps": {
       "agent": "Create agent",
@@ -151,7 +157,8 @@
       "check_failed": "Machine check failed: {{text}}",
       "lease_expired": "The machine took the job but never reported back: {{text}}",
       "app_error": "The app on the machine reported an error: {{text}}"
-    }
+    },
+    "wrongAdapter": "This slot needs a {{expected}} agent but the agent runs {{actual}}: pick another agent or create a new one"
   },
   "removeProject": {
     "button": "Remove project",

@@ -15,12 +15,22 @@ beforeAll(async () => {
 });
 afterEach(cleanup);
 
-const agent = (id: string, name: string, state: RoleAgent['state'], holdsElsewhere = false): RoleAgent => ({
+const agent = (
+  id: string,
+  name: string,
+  state: RoleAgent['state'],
+  holdsElsewhere = false,
+  adapterType = 'claude_local',
+): RoleAgent => ({
   id,
   name,
   state,
   holdsElsewhere,
+  adapterType,
 });
+const CODEX = 'f8888888-8888-4888-8888-888888888888';
+const OPENCODE = 'f9999999-9999-4999-8999-999999999999';
+const NO_RUNTIME = { codexExecutorAgentId: null, opencodeExecutorAgentId: null, codexReviewerAgentId: null };
 
 const AGENTS = [
   agent(ID.assistant, 'Trợ Lý', 'ready'),
@@ -41,6 +51,17 @@ describe('roleOptions', () => {
     const list = [agent(ID.spare, 'Bận', 'ready', true), agent(ID.executor, 'Rảnh', 'ready')];
     expect(roleOptions(list, null).map((a) => a.id)).toEqual([ID.executor]);
     expect(roleOptions(list, ID.spare).map((a) => a.id)).toEqual([ID.spare, ID.executor]);
+  });
+  it('ô Claude không nhận agent Codex/OpenCode; ô runtime chỉ nhận đúng adapter', () => {
+    const list = [
+      agent(ID.executor, 'Claude', 'ready'),
+      agent(CODEX, 'Codex', 'ready', false, 'codex_local'),
+      agent(OPENCODE, 'OpenCode', 'ready', false, 'opencode_local'),
+    ];
+    const ids = (l: RoleAgent[]) => l.map((a) => a.id);
+    expect(ids(roleOptions(list, null))).toEqual([ID.executor]);
+    expect(ids(roleOptions(list, null, 'codex_local'))).toEqual([CODEX]);
+    expect(ids(roleOptions(list, null, 'opencode_local'))).toEqual([OPENCODE]);
   });
   it('agent tạm dừng, đã dừng hẳn không được chọn mới', () => {
     const list = [agent(ID.spare, 'A', 'paused'), agent(ID.executor, 'B', 'terminated')];
@@ -76,6 +97,29 @@ describe('RolesForm', () => {
     fireEvent.keyDown(screen.getByRole('combobox', { name: 'Executor 2 (tùy chọn)' }), { key: 'Enter' });
     fireEvent.click(screen.getByRole('option', { name: 'Executor Hai' }));
     fireEvent.click(screen.getByRole('button', { name: 'Lưu vai trò' }));
-    expect(onSubmit).toHaveBeenCalledWith({ ...ROLES, executorAgentIds: [ID.executor, ID.executor2] });
+    expect(onSubmit).toHaveBeenCalledWith({ ...ROLES, ...NO_RUNTIME, executorAgentIds: [ID.executor, ID.executor2] });
+  });
+
+  it('ô runtime: chọn executor Codex, bỏ reviewer Codex đang có → gửi id và null', () => {
+    const onSubmit = vi.fn();
+    const agents = [
+      ...AGENTS,
+      agent(CODEX, 'Codex Một', 'ready', false, 'codex_local'),
+      agent(OPENCODE, 'OpenCode Một', 'ready', false, 'opencode_local'),
+    ];
+    const roles = { ...ROLES, codexReviewerAgentId: CODEX };
+    render(<RolesForm roles={roles} agents={agents} saving={false} error={null} onSubmit={onSubmit} />);
+    fireEvent.keyDown(screen.getByRole('combobox', { name: 'Executor OpenCode (tùy chọn)' }), { key: 'Enter' });
+    expect(screen.queryByRole('option', { name: 'Codex Một' })).toBeNull();
+    fireEvent.click(screen.getByRole('option', { name: 'OpenCode Một' }));
+    fireEvent.keyDown(screen.getByRole('combobox', { name: 'Reviewer Codex (tùy chọn)' }), { key: 'Enter' });
+    fireEvent.click(screen.getByRole('option', { name: 'Không có' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Lưu vai trò' }));
+    expect(onSubmit).toHaveBeenCalledWith({
+      ...ROLES,
+      codexExecutorAgentId: null,
+      opencodeExecutorAgentId: OPENCODE,
+      codexReviewerAgentId: null,
+    });
   });
 });

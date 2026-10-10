@@ -50,7 +50,10 @@
       "executor1": "Executor 1",
       "executor2": "Executor 2 (optional)",
       "reviewer": "Reviewer",
-      "integrator": "Integrator"
+      "integrator": "Integrator",
+      "executorCodex": "Codex executor (optional)",
+      "executorOpencode": "OpenCode executor (optional)",
+      "reviewerCodex": "Codex reviewer (optional)"
     },
     "none": "None",
     "choose": "Choose an agent",
@@ -68,7 +71,12 @@
       "retry": "Reload and write again",
       "failed": "Roles were saved but the Assistant's instructions could not be updated"
     },
-    "saveFailed": "Could not save the roles"
+    "saveFailed": "Could not save the roles",
+    "addRuntime": {
+      "executor-codex": "Add Codex executor",
+      "executor-opencode": "Add OpenCode executor",
+      "reviewer-codex": "Add Codex reviewer"
+    }
   },
   "docs": {
     "empty": "This project has no docs synced from a machine",

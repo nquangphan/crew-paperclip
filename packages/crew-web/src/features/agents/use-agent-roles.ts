@@ -4,13 +4,16 @@ import type { Project } from '@paperclipai/shared';
 import { useQueries, useQuery } from '@tanstack/react-query';
 import { ApiError, api, type ProjectRoles, queryKeys } from '@/api';
 import { useCompany } from '@/app/hooks';
+import { type CrewRoleSlot, roleOfSlot, slotAgents } from '@/lib/instructions';
 
 export type HeldRole = 'assistant' | 'executor' | 'reviewer' | 'integrator';
 
 export interface AgentHolding {
   projectId: string;
   projectName: string;
+  /** Template của ô: executor Codex/OpenCode là executor, reviewer Codex là reviewer. */
   role: HeldRole;
+  slot: CrewRoleSlot;
   roles: ProjectRoles;
 }
 
@@ -18,13 +21,10 @@ export function holdingsOf(
   project: Pick<Project, 'id' | 'name'>,
   roles: ProjectRoles,
 ): { agentId: string; holding: AgentHolding }[] {
-  const make = (role: HeldRole) => ({ projectId: project.id, projectName: project.name, role, roles });
-  return [
-    { agentId: roles.assistantAgentId, holding: make('assistant') },
-    ...roles.executorAgentIds.map((agentId) => ({ agentId, holding: make('executor') })),
-    { agentId: roles.reviewerAgentId, holding: make('reviewer') },
-    { agentId: roles.integratorAgentId, holding: make('integrator') },
-  ];
+  return slotAgents(roles).map(([slot, agentId]) => ({
+    agentId,
+    holding: { projectId: project.id, projectName: project.name, role: roleOfSlot(slot), slot, roles },
+  }));
 }
 
 export function useAgentHoldings(): { byAgent: Map<string, AgentHolding[]>; isLoading: boolean } {

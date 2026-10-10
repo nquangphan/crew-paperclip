@@ -3,6 +3,7 @@
 // wizard thêm project. Không bao giờ DELETE agent/project/environment, không terminate, không hủy issue đang mở; checkout
 // còn việc chưa commit được máy giữ lại và báo. Project archive sau cùng: lỗi giữa chừng thì project vẫn hiện để chạy tiếp.
 import type { CrewRoleSlot, ProjectRoles, RemoveProjectInput, SetupRun, SetupStepId } from '@/api';
+import { CREW_ROLE_SLOTS, slotAgents } from '@/lib/instructions';
 import {
   type AddProjectApi,
   type AgentRow,
@@ -25,7 +26,7 @@ export const REMOVE_PROJECT_STEPS = [
 ] as const satisfies readonly SetupStepId[];
 export type RemoveProjectStepId = (typeof REMOVE_PROJECT_STEPS)[number];
 
-export const ROLE_SLOTS: readonly CrewRoleSlot[] = ['assistant', 'executor', 'executor-2', 'reviewer', 'integrator'];
+export const ROLE_SLOTS: readonly CrewRoleSlot[] = CREW_ROLE_SLOTS;
 
 /** Phần của `api` (src/api) mà lần gỡ gọi. `api` của web khớp kiểu này. */
 export interface RemoveApi {
@@ -121,16 +122,6 @@ export function keptCheckouts(run: SetupRun): KeptCheckout[] {
 function scopeOf(run: SetupRun): { slot: CrewRoleSlot; agentId: string }[] {
   const refs = run.steps['pause-agents']?.refs ?? {};
   return ROLE_SLOTS.flatMap((slot) => (refs[`agent_${slot}`] ? [{ slot, agentId: refs[`agent_${slot}`] }] : []));
-}
-
-function slotAgents(roles: ProjectRoles): [CrewRoleSlot, string | undefined][] {
-  return [
-    ['assistant', roles.assistantAgentId],
-    ['executor', roles.executorAgentIds[0]],
-    ['executor-2', roles.executorAgentIds[1]],
-    ['reviewer', roles.reviewerAgentId],
-    ['integrator', roles.integratorAgentId],
-  ];
 }
 
 type StepWork = (ctx: RemoveContext<RemoveProjectApi>, run: SetupRun, refs: Record<string, string>) => Promise<void>;

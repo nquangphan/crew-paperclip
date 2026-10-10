@@ -1,6 +1,18 @@
 // Trạng thái sẵn sàng của agent và project Crew, tính thuần ở web (plugin không đọc được bảng environments).
 // Bảng kiểm A1–A7 theo spec R3 mục 4.8; áp cho cả agent do wizard web tạo lẫn agent do app Mac tạo.
-import { crewExtraArgs, SUPERPOWERS_PIN_RE, WRAPPER_RE } from '@/lib/instructions';
+import {
+  type CrewRoleSlot,
+  type CrewRuntime,
+  crewExtraArgs,
+  isRuntimeSlot,
+  isUnmanagedCodexHome,
+  runtimeOfSlot,
+  SUPERPOWERS_PIN_RE,
+  slotAgents,
+  WRAPPER_RE,
+  wrapperReOf,
+  wrapperSuffixOf,
+} from '@/lib/instructions';
 
 export type AgentCheckId = 'A1' | 'A2' | 'A3' | 'A4' | 'A5' | 'A6' | 'A7';
 export type ProjectCheckId = 'P1' | 'P2';
@@ -69,6 +81,9 @@ export interface ReadinessProjectRoles {
   executorAgentIds: string[];
   reviewerAgentId: string;
   integratorAgentId: string;
+  codexExecutorAgentId?: string | null;
+  opencodeExecutorAgentId?: string | null;
+  codexReviewerAgentId?: string | null;
 }
 
 export interface AgentReadinessInput {
@@ -112,26 +127,85 @@ function agentRefs(run: ReadinessSetupRun | null, agentId: string): { instructio
   return { instructions: refs[`instructions${suffix}`], checkout: refs[`checkout${suffix}`] };
 }
 
-/** A1: cấu hình chạy Crew (dùng chung với wizard tạo agent ở chế độ sửa). */
-export function checkAdapter(agent: ReadinessAgent): boolean {
+/** Giá trị env dạng chuỗi hoặc binding `{type:'plain', value}` (server có thể lưu theo dạng sau). */
+function envString(env: Record<string, unknown>, key: string): string | undefined {
+  const raw = env[key];
+  const value = isRecord(raw) ? (raw.type === 'plain' ? raw.value : undefined) : raw;
+  return typeof value === 'string' ? value : undefined;
+}
+
+/**
+ * Runtime mà agent phải chạy: ô runtime quyết định; ô khác (Claude, vai trò file, chưa giữ vai trò) theo adapter của agent
+ * nếu là một trong ba runtime Crew, còn lại là Claude. Route vai trò đã chặn agent sai adapter cho từng ô.
+ */
+export function expectedRuntime(agent: Pick<ReadinessAgent, 'adapterType'>, roleOf: string | null): CrewRuntime {
+  if (roleOf && isRuntimeSlot(roleOf)) return runtimeOfSlot(roleOf as CrewRoleSlot);
+  return agent.adapterType === 'codex_local' || agent.adapterType === 'opencode_local'
+    ? agent.adapterType
+    : 'claude_local';
+}
+
+/** A1: cấu hình chạy Crew theo runtime (dùng chung với wizard tạo agent ở chế độ sửa). */
+export function checkAdapter(agent: ReadinessAgent, runtime: CrewRuntime = 'claude_local'): boolean {
   const config = agent.adapterConfig;
   const heartbeat = isRecord(agent.runtimeConfig) ? agent.runtimeConfig.heartbeat : undefined;
-  return (
-    agent.adapterType === 'claude_local' &&
-    config.engine === 'cli' &&
+  const common =
+    agent.adapterType === runtime &&
     typeof config.model === 'string' &&
     config.model !== '' &&
     isRecord(config.env) &&
-    Object.keys(config.env).length === 0 &&
     isRecord(heartbeat) &&
     heartbeat.enabled === false &&
-    heartbeat.maxConcurrentRuns === 1
-  );
+    heartbeat.maxConcurrentRuns === 1;
+  if (!common || !isRecord(config.env)) return false;
+  const envKeys = Object.keys(config.env);
+  if (runtime === 'codex_local') {
+    // Chỉ CODEX_HOME ngoài cây companies/<id>; không OPENAI_API_KEY (key sẽ lên server).
+    return (
+      config.dangerouslyBypassApprovalsAndSandbox === true &&
+      envKeys.length === 1 &&
+      isUnmanagedCodexHome(envString(config.env, 'CODEX_HOME'))
+    );
+  }
+  if (runtime === 'opencode_local') return envKeys.length === 0;
+  return config.engine === 'cli' && envKeys.length === 0;
 }
 
-/** A2: wrapper và ghim Superpowers theo bản tin máy. */
-export function checkPin(agent: ReadinessAgent, report: ReadinessReport | null): boolean {
+const OWNED_FLAGS = ['--setting-sources', '--plugin-dir'];
+
+/** Home của máy theo bản tin: từ `superpowers.pinDir`; không có thì không biết. */
+const reportHome = (report: ReadinessReport | null): string | undefined => {
+  const pinDir = report?.superpowers?.pinDir;
+  return pinDir ? SUPERPOWERS_PIN_RE.exec(pinDir)?.[1] : undefined;
+};
+
+/**
+ * A2: wrapper và ghim Superpowers theo bản tin máy. Claude ghim bằng `--plugin-dir`; Codex/OpenCode dùng wrapper riêng
+ * (đọc bản ghim qua `CREW_SUPERPOWERS_DIR`), không mang cờ ghim của Claude.
+ */
+export function checkPin(
+  agent: ReadinessAgent,
+  report: ReadinessReport | null,
+  runtime: CrewRuntime = 'claude_local',
+): boolean {
   const { command, extraArgs } = agent.adapterConfig;
+  if (runtime !== 'claude_local') {
+    if (typeof command !== 'string' || !wrapperReOf(runtime).test(command)) return false;
+    const home = command.slice(0, -wrapperSuffixOf(runtime).length);
+    if (!SUPERPOWERS_PIN_RE.test(`${home}/.crew/workflows/superpowers/x`)) return false;
+    if (extraArgs !== undefined) {
+      if (!Array.isArray(extraArgs)) return false;
+      if (
+        extraArgs.some(
+          (arg) => typeof arg !== 'string' || OWNED_FLAGS.some((f) => arg === f || arg.startsWith(`${f}=`)),
+        )
+      )
+        return false;
+    }
+    // Wrapper phải ở đúng home của máy chạy agent (bản tin có bản ghim); chưa biết thì chỉ kiểm được dạng.
+    const known = reportHome(report);
+    return known === undefined || known === home;
+  }
   if (typeof command !== 'string' || !WRAPPER_RE.test(command)) return false;
   if (!Array.isArray(extraArgs) || extraArgs.length !== 4) return false;
   const pinDir = extraArgs[3];
@@ -180,8 +254,9 @@ export function computeAgentReadiness(input: AgentReadinessInput): AgentReadines
   const fail = (id: Exclude<AgentCheckId, 'A7'>) => failed.push({ id, detail: `detail.${id}`, resume: resumeFor(id) });
 
   const refs = agentRefs(setupRun, agent.id);
-  if (!checkAdapter(agent)) fail('A1');
-  if (!checkPin(agent, report)) fail('A2');
+  const runtime = expectedRuntime(agent, roleOf);
+  if (!checkAdapter(agent, runtime)) fail('A1');
+  if (!checkPin(agent, report, runtime)) fail('A2');
   if (
     instructionsHash === null ||
     (refs.instructions !== undefined && refs.instructions !== instructionsHash && !instructionsRendered)
@@ -230,9 +305,7 @@ export function computeProjectReadiness(input: {
     return { projectId: project.id, state: 'not_ready', failed: [{ id: 'P1', detail: 'detail.P1' }], agents };
   }
   const byId = new Map(agents.map((a) => [a.agentId, a]));
-  const roleIds = roles
-    ? [roles.assistantAgentId, ...roles.executorAgentIds, roles.reviewerAgentId, roles.integratorAgentId]
-    : agents.map((a) => a.agentId);
+  const roleIds = roles ? slotAgents(roles).map(([, id]) => id) : agents.map((a) => a.agentId);
   const notReady = roleIds.filter((id) => {
     const state = byId.get(id)?.state;
     return state !== 'ready' && state !== 'paused';

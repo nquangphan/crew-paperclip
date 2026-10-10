@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { loadProjectReadiness, type ReadinessSource } from '@/features/readiness';
-import { renderInstructions } from '@/lib/instructions';
+import { matchesAssistantTemplate } from '@/features/readiness/assistant-instructions';
+import { crewAgentCreateBody, renderAssistantFor, renderInstructions } from '@/lib/instructions';
 
 const C = 'c0000000-0000-4000-8000-000000000000';
 const HOME = '/Users/owner';
@@ -245,5 +246,93 @@ describe('A3 của vai trò khác Trợ Lý', () => {
 
   it('AGENTS.md lệch bản render và lệch hash thì báo A3', async () => {
     expect(await reviewerA3('sửa tay')).toContain('A3');
+  });
+});
+
+describe('ô runtime trong vai trò project', () => {
+  const CODEX = 'ag-codex';
+  const REV = 'ag-review-codex';
+  const ASSISTANT = '11111111-1111-4111-8111-111111111111';
+  const EXEC = '22222222-2222-4222-8222-222222222222';
+  const CODEX_ID = '33333333-3333-4333-8333-333333333333';
+  const REV_ID = '44444444-4444-4444-8444-444444444444';
+
+  function withRuntimes(files: Record<string, string> = {}) {
+    const { src } = source({
+      rolesFor: {
+        'p-demo': {
+          assistantAgentId: 'ag-assistant',
+          executorAgentIds: ['ag-executor'],
+          reviewerAgentId: 'ag-reviewer',
+          integratorAgentId: 'ag-integrator',
+          codexExecutorAgentId: CODEX,
+          opencodeExecutorAgentId: null,
+          codexReviewerAgentId: REV,
+        },
+      },
+    });
+    const list = src.agents.list;
+    const codexAgent = (id: string, slot: 'executor-codex' | 'reviewer-codex') => {
+      const body = crewAgentCreateBody({ name: id, slot, model: 'gpt-6-sol', pinDir: PIN, projectKey: 'demo' });
+      return agent(id, `env-${slot}`, { adapterType: body.adapterType, adapterConfig: body.adapterConfig });
+    };
+    src.agents.list = async (c) => [
+      ...(await list(c)),
+      codexAgent(CODEX, 'executor-codex'),
+      codexAgent(REV, 'reviewer-codex'),
+    ];
+    const envs = src.environments.list;
+    src.environments.list = async (c) => [
+      ...(await envs(c)),
+      env('env-executor-codex', path('executor-codex')),
+      env('env-reviewer-codex', path('reviewer-codex')),
+    ];
+    const machines = src.crew.machines;
+    src.crew.machines = async (c) => {
+      const [m] = (await machines(c)) as { latest: { checkouts: { path: string }[] } }[];
+      m?.latest.checkouts.push({ path: path('executor-codex') }, { path: path('reviewer-codex') });
+      return [m];
+    };
+    src.agents.instructionsFile = async (id) => ({ content: files[id] ?? 'x', contentHash: HASH });
+    return src;
+  }
+
+  it('agent Codex ở ô executor-codex và reviewer-codex được kiểm theo runtime Codex, có trong project', async () => {
+    const demo = (await loadProjectReadiness(withRuntimes(), C)).find((p) => p.projectId === 'p-demo');
+    const of = (id: string) => demo?.agents.find((a) => a.agentId === id);
+    expect(of(CODEX)?.failed).toEqual([]);
+    expect(of(REV)?.failed).toEqual([]);
+    expect(demo?.state).toBe('ready');
+  });
+
+  it('AGENTS.md của agent ô runtime khớp template executor/reviewer thì không A3 khi hash cũ', async () => {
+    const src = withRuntimes({ [REV]: renderInstructions('reviewer', { agentId: REV }) });
+    src.crew.setupRuns = async () =>
+      [
+        {
+          id: 'run-r',
+          kind: 'add-agent',
+          status: 'done',
+          updatedAt: '2026-10-10T01:00:00.000Z',
+          steps: { agent: { refs: { agent: REV } }, pin: { refs: { instructions: 'f'.repeat(64) } } },
+        },
+      ] as never;
+    const demo = (await loadProjectReadiness(src, C)).find((p) => p.projectId === 'p-demo');
+    expect(demo?.agents.find((a) => a.agentId === REV)?.failed.map((f) => f.id)).toEqual([]);
+  });
+
+  it('Trợ Lý: AGENTS.md phải có executor kèm runtime và reviewer Codex', () => {
+    const roles = {
+      assistantAgentId: ASSISTANT,
+      executorAgentIds: [EXEC],
+      reviewerAgentId: 'r',
+      integratorAgentId: 'i',
+      codexExecutorAgentId: CODEX_ID,
+      codexReviewerAgentId: REV_ID,
+    };
+    const good = renderAssistantFor(roles, '');
+    expect(matchesAssistantTemplate(good, roles)).toBe(true);
+    const old = renderInstructions('assistant', { agentId: ASSISTANT, executorIds: [EXEC, CODEX_ID] });
+    expect(matchesAssistantTemplate(old, roles)).toBe(false);
   });
 });

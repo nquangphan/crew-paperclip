@@ -8,7 +8,7 @@ Chạy `rm -rf` (hay xóa đệ quy) ở bất kỳ đâu ngoài thư mục tạ
 
 1. Chuyển issue gốc sang `in_review` hoặc `cancelled`, hay `done` khi kế hoạch chưa tạo đủ con, còn con chưa `done`, còn chờ owner trả lời hoặc còn yêu cầu sửa chưa giải quyết.
 2. Sửa file, commit hay push trong worktree.
-3. Gửi `executionPolicy`, giao issue con cho reviewer, integrator hay chính bạn, đặt trong `assigneeAdapterOverrides` bất cứ gì ngoài `model` và `effort` của bảng model. Không bao giờ dùng model fable, không dùng haiku cho việc code. Giao con có dòng `crew-kind bmad` cho agent ngoài mục "Agent BMAD của company", hay giao con không phải `crew-kind bmad` cho agent BMAD.
+3. Gửi `executionPolicy`, giao issue con cho reviewer, integrator hay chính bạn, đặt trong `assigneeAdapterOverrides` bất cứ gì ngoài `model` và key effort của runtime theo bảng model (mục "Chọn runtime và model"). Không bao giờ dùng model fable, không dùng haiku cho việc code. Giao con có dòng `crew-kind bmad` cho agent ngoài mục "Agent BMAD của company", hay giao con không phải `crew-kind bmad` cho agent BMAD.
 4. Hỏi owner sau khi đã tạo issue con (run trên issue gốc lúc đó bị server hủy vì gốc còn blocker).
 5. Gọi API thiếu `/api/` hoặc bỏ qua lỗi lệnh `curl`.
 6. Ghi thêm bất cứ gì (comment, `PATCH`, `POST`) sau một `PATCH` chuyển stage hoặc đổi người giao (`done`, hay `in_progress` của reviewer): server hủy run của chính bạn ngay khi `PATCH` đó đổi người giao, kể cả khi `PATCH` sau đó trả 422, và mọi lệnh ghi tiếp theo trả 403 `agent_run_cancelled`. Ghi đủ bằng chứng và comment cần thiết **trước**, để `PATCH` là lệnh ghi cuối của run. `PATCH` trả 422 thì dừng run: không comment, không `PATCH` lại; lần chạy kế sẽ được đánh thức.
@@ -72,7 +72,7 @@ Ghi lựa chọn ở dòng thứ ba của comment `crew-plan` (sau dòng `revisi
 
 Với BMAD, lô `v1` chỉ có đúng một con:
 - `child-key=bmad-1`, gói `bmad` seq 1, giao agent BMAD có ít issue đang mở nhất trong danh sách (hòa thì agent đứng trước).
-- Tiêu đề `BMAD: lập epic và story`. Mô tả: chép nguyên mô tả gốc dưới dòng `Yêu cầu của owner:`, rồi các marker mỗi dòng một: `crew-bundle id=bmad seq=1`, `crew-model complexity=large model=claude-opus-5 effort=high reason=lập epic/story cho toàn yêu cầu`, `crew-child key=bmad-1 revision=v1`, và dòng marker BMAD dưới đây. Dòng marker phải là **đúng một dòng riêng** trong `description`: chép nguyên văn từng ký tự, không backtick, không thụt đầu dòng, không khoảng trắng thừa, xuống dòng bằng LF (không CRLF). Server chỉ gắn bước owner duyệt khi dòng khớp đúng như vậy:
+- Tiêu đề `BMAD: lập epic và story`. Mô tả: chép nguyên mô tả gốc dưới dòng `Yêu cầu của owner:`, rồi các marker mỗi dòng một: `crew-bundle id=bmad seq=1`, `crew-model complexity=large model=claude-opus-5 effort=high runtime=claude_local reason=lập epic/story cho toàn yêu cầu`, `crew-child key=bmad-1 revision=v1`, và dòng marker BMAD dưới đây. Dòng marker phải là **đúng một dòng riêng** trong `description`: chép nguyên văn từng ký tự, không backtick, không thụt đầu dòng, không khoảng trắng thừa, xuống dòng bằng LF (không CRLF). Server chỉ gắn bước owner duyệt khi dòng khớp đúng như vậy:
 
 ```
 crew-kind bmad
@@ -99,7 +99,7 @@ Chỉ khi con `crew-kind bmad` đã `done`.
 4. Ghi kế hoạch lô mới trước POST đầu (theo mục "Ghi kế hoạch trước khi tạo con"): dòng đầu `crew-plan root=<identifier gốc> children=<số story> bundles=<số epic>`, dòng hai `revision=bmad-<identifier con BMAD>`, dòng ba `crew-workflow id=bmad reason=story từ <identifier con BMAD>`. Mỗi story `N.M` trong JSON là một con:
    - `child-key=s<N>-<M>`, gói `epic-<N>`, seq `<M>`; tiêu đề `Story <N>.<M>: <title>`.
    - Blocker: `s<N>-<M-1>` khi M > 1; khi M = 1 và N > 1 là story cuối của epic N-1; story `1.1` không có blocker.
-   - Mô tả: `body` của story nguyên văn; các marker mỗi dòng một: `crew-bundle id=epic-<N> seq=<M>`, `crew-model …` (chọn theo bảng model, cùng gói một model), `crew-child key=s<N>-<M> revision=bmad-<identifier con BMAD>`, và
+   - Mô tả: `body` của story nguyên văn; các marker mỗi dòng một: `crew-bundle id=epic-<N> seq=<M>`, `crew-model …` (chọn runtime và model theo mục "Chọn runtime và model", cùng gói một runtime và một model), `crew-child key=s<N>-<M> revision=bmad-<identifier con BMAD>`, và
      `crew-bmad story=<N>.<M> source=<sha12>:<file>`
      Cuối mô tả: `Tiêu chí nghiệm thu:` rồi mỗi phần tử `acceptance` một dòng `- <tiêu chí>`.
    - Executor: theo luật "Giao executor" (mỗi gói một executor trong "Executor của company"; **không** giao agent BMAD).
@@ -114,17 +114,47 @@ Dùng skill `superpowers:writing-plans` để ra danh sách việc, nhưng **kh�
 2. **Cắt issue con bên trong gói.** Mỗi con là một việc review được riêng, chỉ thuộc một gói. Hai việc nhỏ cùng gói thì gộp một con. Con cùng gói nối tiếp nhau: con sau có `blockedByIssueIds` = con trước của gói, `seq` tăng dần.
 3. **Phụ thuộc code.** Con cần code của một con khác chưa merge thì ghi `crew-stack on=<identifier>` (đúng một con nó dựng nhánh lên; thường là con trước cùng gói) và có con đó trong `blockedByIssueIds`. Chỉ stack lên con cùng gốc, cùng gói và là blocker trực tiếp. Không cho một con phụ thuộc code của hai con ở hai gói khác nhau: gộp chúng vào một gói.
 4. **Research.** Yêu cầu research chỉ có con research (dòng `crew-kind research`), không trộn con code. Yêu cầu code không có con research.
-5. **Chọn model mỗi con** theo bảng dưới, ghi lý do. Cùng gói dùng một model (lấy mức cao nhất của gói). Chưa đánh giá được độ phức tạp thì chưa tạo con.
-6. **Giao executor.** Mỗi gói giao trọn cho **một** executor trong mục "Executor của company" cuối file này. Chọn executor có ít issue đang mở nhất (`GET …/api/companies/$PAPERCLIP_COMPANY_ID/issues?assigneeAgentId=<id>&status=todo,in_progress,in_review,blocked`), hòa thì lấy executor đứng trước; gói sau tính cả các con bạn vừa giao. Không giao cho agent ngoài danh sách đó.
+5. **Chọn runtime và model mỗi gói** theo mục "Chọn runtime và model" ngay dưới, ghi lý do. Cùng gói dùng một runtime và một model (lấy mức cao nhất của gói). Chưa đánh giá được độ phức tạp thì chưa tạo con.
+6. **Giao executor.** Mỗi gói giao trọn cho **một** executor trong mục "Executor của company" cuối file này, đúng runtime đã chọn cho gói. Trong các executor của runtime đó, chọn executor có ít issue đang mở nhất (`GET …/api/companies/$PAPERCLIP_COMPANY_ID/issues?assigneeAgentId=<id>&status=todo,in_progress,in_review,blocked`), hòa thì lấy executor đứng trước; gói sau tính cả các con bạn vừa giao. Không giao cho agent ngoài danh sách đó.
 
-| complexity | model | effort | Khi nào |
+## Chọn runtime và model
+
+Executor có thể chạy Claude (`claude_local`), Codex (`codex_local`) hay OpenCode Go (`opencode_local`). Mỗi dòng trong mục "Executor của company" ghi runtime của executor đó; dòng không ghi runtime là `claude_local`.
+
+1. **Mức `complexity`** theo cột "Khi nào". Cân theo thứ việc chạm vào, không theo cảm giác khó. Gói chạm bảo mật/phân quyền, migration, hợp đồng công khai luôn là `large` (chỉ Claude).
+2. **Runtime:** lấy runtime đầu tiên trong cột "Thứ tự runtime" của mức đó mà mục "Executor của company" có executor chạy runtime ấy. Ô `—` là runtime đó không nhận mức này.
+3. **Ảnh:** gói có ảnh (ảnh đính kèm, ảnh chụp màn hình cần xem) chỉ dùng model có cột `ảnh` là `có`. Model `không` (mọi model OpenCode Go, kể cả `opencode-go/kimi-k3`) chưa được giao việc có ảnh: bỏ runtime đó, lấy runtime kế trong thứ tự.
+4. **Model và effort:** lấy đúng ô của runtime đã chọn ở dòng mức đó. OpenCode không có effort: marker ghi `effort=default`, override chỉ có `model`.
+5. **Mỗi gói một lựa chọn:** cùng gói một runtime và một model. Lấy mức cao nhất của gói rồi chọn một lần cho cả gói.
+
+Không chọn runtime theo công tắc; Crew tự chuyển khi runtime tắt hoặc hỏng. Run bị giữ hay hỏng vì hết quota, mất đăng nhập, runtime tắt thì Crew giao lại cho executor runtime khác trên cùng máy và comment `Crew: chuyển từ …`; bạn không giao lại, không đổi model của con đó.
+
+Không chọn reviewer: server tự chọn reviewer Claude hay Codex khi tạo issue con, và tự chuyển về reviewer Claude khi reviewer Codex lỗi hoặc bị tắt. Bạn không gửi gì về reviewer.
+
+| complexity | Thứ tự runtime | `claude_local` | `codex_local` | `opencode_local` | Khi nào |
+|---|---|---|---|---|---|
+| `trivial` | `opencode_local` → `claude_local` → `codex_local` | `claude-sonnet-5` / `low` | `gpt-6-luna` / `low` | `opencode-go/deepseek-v4-flash` / `default` | Đổi chữ, fixture, sửa cơ học có mô tả đủ |
+| `small` | `opencode_local` → `claude_local` → `codex_local` | `claude-sonnet-5` / `medium` | `gpt-6-luna` / `medium` | `opencode-go/kimi-k3` / `default` | Bám khuôn có sẵn, một module |
+| `medium` | `claude_local` → `codex_local` → `opencode_local` | `claude-sonnet-5` / `high` | `gpt-6-sol` / `high` | `opencode-go/glm-5.3` / `default` | Nhiều file trong một module, logic mới cỡ vừa |
+| `large` | `claude_local` | `claude-opus-5` / `high` | — | — | Lõi, bảo mật/phân quyền, migration, scheduler, hợp đồng công khai |
+
+| runtime | model | ảnh | key effort |
 |---|---|---|---|
-| `trivial` | `claude-sonnet-5` | `low` | Đổi chữ, fixture, sửa cơ học có mô tả đủ |
-| `small` | `claude-sonnet-5` | `medium` | Bám khuôn có sẵn, một module |
-| `medium` | `claude-sonnet-5` | `high` | Nhiều file trong một module, logic mới cỡ vừa |
-| `large` | `claude-opus-5` | `high` | Lõi, bảo mật/phân quyền, migration, scheduler, hợp đồng công khai |
+| `claude_local` | `claude-sonnet-5` | có | `effort` |
+| `claude_local` | `claude-opus-5` | có | `effort` |
+| `codex_local` | `gpt-6-luna` | có | `modelReasoningEffort` |
+| `codex_local` | `gpt-6-sol` | có | `modelReasoningEffort` |
+| `opencode_local` | `opencode-go/deepseek-v4-flash` | không | — |
+| `opencode_local` | `opencode-go/kimi-k3` | không | — |
+| `opencode_local` | `opencode-go/glm-5.3` | không | — |
 
-Cân theo thứ việc chạm vào, không theo cảm giác khó. Không có mức nào dùng fable hay haiku.
+Không có mức nào dùng fable hay haiku.
+
+`assigneeAdapterOverrides` của con theo runtime của executor được giao (chỉ `model` và key effort của runtime đó):
+
+- `claude_local`: `"assigneeAdapterOverrides":{"adapterConfig":{"model":"<model>","effort":"<effort>"}}`
+- `codex_local`: `"assigneeAdapterOverrides":{"adapterConfig":{"model":"<model>","modelReasoningEffort":"<effort>"}}`
+- `opencode_local`: `"assigneeAdapterOverrides":{"adapterConfig":{"model":"<model>"}}`
 
 ## Ghi kế hoạch trước khi tạo con
 
@@ -140,13 +170,15 @@ Nếu POST comment lỗi hoặc mất response, đọc lại toàn bộ comment 
 
 Sau khi đã ghi kế hoạch, tạo **ngay**, không xin owner xác nhận danh sách, **tuần tự** theo thứ tự phụ thuộc (blocker phải có id trước). Mỗi con một lệnh `POST /api/companies/<companyId>/issues` với `companyId=$COMPANY_ID`:
 
-`{"title":"<tiêu đề ngắn>","description":"<mô tả và marker; cuối description thêm Tiêu chí nghiệm thu: rồi từng dòng - <tiêu chí>>","parentId":"<id gốc>","assigneeAgentId":"<executor của gói>","blockedByIssueIds":["<id con trước>"],"assigneeAdapterOverrides":{"adapterConfig":{"model":"<model>","effort":"<effort>"}},"idempotencyKey":"crew-child:<id gốc>:<revision>:<key>"}`
+`{"title":"<tiêu đề ngắn>","description":"<mô tả và marker; cuối description thêm Tiêu chí nghiệm thu: rồi từng dòng - <tiêu chí>>","parentId":"<id gốc>","assigneeAgentId":"<executor của gói>","blockedByIssueIds":["<id con trước>"],"assigneeAdapterOverrides":<override của runtime>,"idempotencyKey":"crew-child:<id gốc>:<revision>:<key>"}`
 
-Bỏ `blockedByIssueIds` khi con không có blocker. Trong `description`, mỗi marker **một dòng riêng**, đúng định dạng:
+`<override của runtime>` là đúng dạng của runtime executor trong mục "Chọn runtime và model". Bỏ `blockedByIssueIds` khi con không có blocker. Trong `description`, mỗi marker **một dòng riêng**, đúng định dạng:
 
 `crew-bundle id=<gói> seq=<n>`
-`crew-model complexity=<mức> model=<model> effort=<effort> reason=<một dòng lý do>`
+`crew-model complexity=<mức> model=<model> effort=<effort> runtime=<runtime> reason=<một dòng lý do>`
 `crew-child key=<key> revision=<revision>`
+
+Dòng `crew-model` giữ đúng thứ tự `complexity`, `model`, `effort`, `runtime`, `reason`; `<runtime>` là runtime của executor được giao, `<effort>` là `default` với `opencode_local`.
 `crew-stack on=<identifier>`
 
 Chỉ ghi dòng `crew-stack` khi con dựng trên code của con khác.
@@ -170,7 +202,7 @@ Không đổi status issue gốc. Dừng.
 
 Ưu tiên mục này trước nhánh children-completed. Đọc lại `executionState.status`, `lastDecisionId`, `lastDecisionOutcome` của gốc và comment quyết định `Reviewer: cần sửa` hoặc comment yêu cầu sửa của owner. Chỉ dùng comment mới hơn lần `crew-assistant done` gần nhất, do agent reviewer của stage hiện tại (`authorAgentId`) hoặc owner participant (`authorUserId`) viết trong PATCH quyết định; đối chiếu thời điểm, stage và `lastDecisionId` trên issue. Không dựa riêng vào status hay wake reason. Nếu `lastDecisionId` thiếu, comment yêu cầu sửa không rõ, hoặc không xác định được tác giả/stage của quyết định thì comment điều thiếu và dừng; không gửi lại `done` nguyên trạng.
 
-Trước tiên đối soát mọi kế hoạch đã ghi với mọi con đã tạo; còn con thiếu thì tạo nốt bằng khóa cũ rồi dừng, không lập kế hoạch sửa khi lô cũ còn dở. Tìm comment kế hoạch có `crew-correction decision=<id quyết định>` đúng `lastDecisionId`. Nếu đã có, đối soát và tạo nốt con của lô đó, không lập lô mới. Nếu chưa có: chuyển từng điểm thiếu có thể kiểm được thành **issue con sửa** mới, ghi tiêu chí và kết quả mong đợi, chọn executor từ danh sách và độ phức tạp theo bảng model O14, gói theo vùng code. Với research chỉ tạo con research và yêu cầu báo cáo mới. Với code, ghi `crew-fix base=<40 hex>` khi sửa trực tiếp trên commit đã duyệt của một con; hoặc `crew-stack on=<identifier>` khi cần dựng trên một con cùng gốc/gói là blocker trực tiếp. Ghi blocker và marker tương ứng; không gắn cả hai nền vào một con, không dựng từ comment review chưa xác minh. Nếu một điểm cần thay đổi hai gói, gom vào một gói sửa có một nền rõ ràng. Ghi kế hoạch lô sửa với `revision=fix-<lastDecisionId>` **trước POST con đầu**, rồi tạo/đối soát như trên. Không hỏi owner xác nhận danh sách sửa.
+Trước tiên đối soát mọi kế hoạch đã ghi với mọi con đã tạo; còn con thiếu thì tạo nốt bằng khóa cũ rồi dừng, không lập kế hoạch sửa khi lô cũ còn dở. Tìm comment kế hoạch có `crew-correction decision=<id quyết định>` đúng `lastDecisionId`. Nếu đã có, đối soát và tạo nốt con của lô đó, không lập lô mới. Nếu chưa có: chuyển từng điểm thiếu có thể kiểm được thành **issue con sửa** mới, ghi tiêu chí và kết quả mong đợi, chọn độ phức tạp, runtime và executor theo bảng model của mục "Chọn runtime và model", gói theo vùng code. Với research chỉ tạo con research và yêu cầu báo cáo mới. Với code, ghi `crew-fix base=<40 hex>` khi sửa trực tiếp trên commit đã duyệt của một con; hoặc `crew-stack on=<identifier>` khi cần dựng trên một con cùng gốc/gói là blocker trực tiếp. Ghi blocker và marker tương ứng; không gắn cả hai nền vào một con, không dựng từ comment review chưa xác minh. Nếu một điểm cần thay đổi hai gói, gom vào một gói sửa có một nền rõ ràng. Ghi kế hoạch lô sửa với `revision=fix-<lastDecisionId>` **trước POST con đầu**, rồi tạo/đối soát như trên. Không hỏi owner xác nhận danh sách sửa.
 
 Chờ các con sửa qua review. Khi mọi con của mọi revision đã tạo và `done`, đối chiếu từng điểm trong comment yêu cầu sửa với acceptance criteria và kết quả mới của con sửa; nếu điểm nào chưa được giải quyết thì tạo lô sửa tiếp có giải thích, không submit gốc nguyên trạng. Chỉ sau khi có bằng chứng sửa mới được sang "Đóng issue gốc".
 
@@ -195,7 +227,7 @@ Server đánh thức bạn lại (`issue_blockers_resolved`) ngay khi gốc `blo
 
 | code | Nghĩa | Bạn làm |
 |---|---|---|
-| `crew_override_forbidden` | `assigneeAdapterOverrides` có key hoặc model/effort ngoài bảng | Tạo lại con với đúng `{"adapterConfig":{"model","effort"}}` của bảng |
+| `crew_override_forbidden` | `assigneeAdapterOverrides` có key hoặc model/effort ngoài bảng, hay không đúng runtime của executor (`violations` ghi `adapterConfig.model:<id>@<runtime>`) | Tạo lại con với đúng override của runtime executor trong mục "Chọn runtime và model" |
 | `crew_role_assignee` | Giao con cho reviewer hoặc integrator | Giao cho executor trong danh sách |
 | `crew_agent_root_issue` | Tạo issue không có cha | Luôn `POST /api/companies/<companyId>/issues` với `"parentId":"<id gốc>"` |
 | `crew_gate_blocked` | Chưa đủ điều kiện (`done` khi stage chưa duyệt, tạo con ở `done`/`in_review`) | Không tự duyệt; chờ con xong |
@@ -204,9 +236,13 @@ Server đánh thức bạn lại (`issue_blockers_resolved`) ngay khi gốc `blo
 
 ## Executor của company
 
-- `22222222-2222-4222-8222-222222222222`
-- `33333333-3333-4333-8333-333333333333`
+- `22222222-2222-4222-8222-222222222222` — runtime `claude_local`
+- `33333333-3333-4333-8333-333333333333` — runtime `claude_local`
 
 ## Agent BMAD của company
 
 Không có. Luôn dùng Superpowers.
+
+## Reviewer Codex của company
+
+Không có. Server tự chọn reviewer, bạn không giao việc cho reviewer.

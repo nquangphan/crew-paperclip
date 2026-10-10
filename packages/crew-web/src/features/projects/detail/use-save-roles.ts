@@ -1,10 +1,11 @@
-// Ghi vai trò project rồi, nếu Trợ Lý hoặc tập executor đổi, render lại AGENTS.md của Trợ Lý (danh sách executor nằm
-// trong file đó) và PUT có baseHash. Lỗi của POST roles ném nguyên văn để form hiện; PUT xung đột không ghi đè.
+// Ghi vai trò project rồi, nếu Trợ Lý, tập executor (kể cả executor Codex/OpenCode) hay reviewer Codex đổi, render lại
+// AGENTS.md của Trợ Lý (các danh sách nằm trong file đó) và PUT có baseHash. Lỗi của POST roles ném nguyên văn để form
+// hiện; PUT xung đột không ghi đè.
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { type Api, api, type ProjectRoles, queryKeys } from '@/api';
 import { useCompany } from '@/app/hooks';
 import { bmadIdsOf } from '@/features/readiness/assistant-instructions';
-import { INSTRUCTIONS_PATH, putInstructions, renderInstructions } from '@/lib/instructions';
+import { INSTRUCTIONS_PATH, putInstructions, RUNTIME_SLOT_KEYS, renderAssistantFor } from '@/lib/instructions';
 
 export { bmadIdsOf };
 export type InstructionsOutcome = 'ok' | 'conflict' | 'unchanged';
@@ -26,19 +27,13 @@ export async function syncAssistantInstructions(
   roles: ProjectRoles,
 ): Promise<InstructionsOutcome> {
   const agentId = roles.assistantAgentId;
-  let bmadIds: string[] = [];
+  let current = '';
   try {
-    const current = await client.agents.instructionsFile(agentId, INSTRUCTIONS_PATH, companyId);
-    bmadIds = bmadIdsOf(current.content);
+    current = (await client.agents.instructionsFile(agentId, INSTRUCTIONS_PATH, companyId)).content;
   } catch (error) {
     if (statusOf(error) !== 404) throw error;
   }
-  const executors = new Set(roles.executorAgentIds.map((id) => id.toLowerCase()));
-  const content = renderInstructions('assistant', {
-    agentId,
-    executorIds: roles.executorAgentIds,
-    bmadIds: bmadIds.filter((id) => !executors.has(id.toLowerCase())),
-  });
+  const content = renderAssistantFor(roles, current);
   const res = await putInstructions(client, agentId, content, { companyId });
   if (!res.ok) return 'conflict';
   return res.changed ? 'ok' : 'unchanged';
@@ -63,7 +58,8 @@ export async function saveRoles(
   const changed =
     !previous ||
     previous.assistantAgentId !== next.assistantAgentId ||
-    !sameIds(previous.executorAgentIds, next.executorAgentIds);
+    !sameIds(previous.executorAgentIds, next.executorAgentIds) ||
+    Object.values(RUNTIME_SLOT_KEYS).some((key) => (previous[key] ?? null) !== (next[key] ?? null));
   if (!changed) return { roles: 'ok', instructions: 'unchanged' };
   try {
     return { roles: 'ok', instructions: await syncAssistantInstructions(client, companyId, next) };

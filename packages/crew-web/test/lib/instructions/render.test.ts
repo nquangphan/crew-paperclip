@@ -13,12 +13,28 @@ const A = '11111111-1111-4111-8111-111111111111';
 const E1 = '22222222-2222-4222-8222-222222222222';
 const E2 = '33333333-3333-4333-8333-333333333333';
 const B1 = '44444444-4444-4444-8444-444444444444';
+const E3 = '55555555-5555-4555-8555-555555555555';
+const R1 = '66666666-6666-4666-8666-666666666666';
 
 /** Chạy script gốc của fork với đúng tham số CLI của nó, trả `content`. */
-function script(role: InstructionRole, agentId: string, executors: string[] = [], bmad: string[] = []): string {
+function script(
+  role: InstructionRole,
+  agentId: string,
+  executors: string[] = [],
+  bmad: string[] = [],
+  reviewerCodex = '',
+): string {
   const out = execFileSync(
     'node',
-    [SCRIPT, role, resolve(FORK, `crew/agents/${role}.md`), agentId, executors.join(','), bmad.join(',')],
+    [
+      SCRIPT,
+      role,
+      resolve(FORK, `crew/agents/${role}.md`),
+      agentId,
+      executors.join(','),
+      bmad.join(','),
+      reviewerCodex,
+    ],
     { encoding: 'utf8' },
   );
   const parsed = JSON.parse(out) as { path: string; content: string };
@@ -26,9 +42,16 @@ function script(role: InstructionRole, agentId: string, executors: string[] = []
   return parsed.content;
 }
 
-const CASES: { name: string; role: InstructionRole; executors: string[]; bmad: string[] }[] = [
+const CASES: { name: string; role: InstructionRole; executors: string[]; bmad: string[]; reviewerCodex?: string }[] = [
   { name: 'assistant', role: 'assistant', executors: [E1, E2], bmad: [] },
   { name: 'assistant-bmad', role: 'assistant', executors: [E1], bmad: [B1] },
+  {
+    name: 'assistant-runtimes',
+    role: 'assistant',
+    executors: [E1, `${E2}:codex_local`, `${E3}:opencode_local`],
+    bmad: [B1],
+    reviewerCodex: R1,
+  },
   { name: 'executor', role: 'executor', executors: [], bmad: [] },
   { name: 'reviewer', role: 'reviewer', executors: [], bmad: [] },
   { name: 'integrator', role: 'integrator', executors: [], bmad: [] },
@@ -37,14 +60,13 @@ const CASES: { name: string; role: InstructionRole; executors: string[]; bmad: s
 
 describe('renderInstructions', () => {
   for (const c of CASES) {
+    const vars = { agentId: A, executorIds: c.executors, bmadIds: c.bmad, reviewerCodexId: c.reviewerCodex };
     it(`render ${c.name} khớp từng byte fixture sinh từ render-instructions.mjs`, () => {
-      const out = renderInstructions(c.role, { agentId: A, executorIds: c.executors, bmadIds: c.bmad });
-      expect(out).toBe(fixture(c.name));
+      expect(renderInstructions(c.role, vars)).toBe(fixture(c.name));
     });
 
     it(`render ${c.name} khớp từng byte script gốc chạy trên template hiện tại`, () => {
-      const out = renderInstructions(c.role, { agentId: A, executorIds: c.executors, bmadIds: c.bmad });
-      expect(out).toBe(script(c.role, A, c.executors, c.bmad));
+      expect(renderInstructions(c.role, vars)).toBe(script(c.role, A, c.executors, c.bmad, c.reviewerCodex));
     });
   }
 
@@ -89,6 +111,21 @@ describe('renderInstructions', () => {
       'danh sách agent BMAD chỉ assistant nhận',
     );
     expect(() => renderInstructions('owner' as InstructionRole, { agentId: A })).toThrow('unknown role: owner');
+    expect(() => renderInstructions('assistant', { agentId: A, executorIds: [`${E1}:claude`] })).toThrow(
+      `runtime của executor không hợp lệ: ${E1}:claude`,
+    );
+    expect(() => renderInstructions('assistant', { agentId: A, executorIds: [E1, `${E1}:codex_local`] })).toThrow(
+      `executor trùng: ${E1}`,
+    );
+    expect(() => renderInstructions('assistant', { agentId: A, executorIds: [E1], reviewerCodexId: E1 })).toThrow(
+      `reviewer Codex trùng: ${E1}`,
+    );
+    expect(() => renderInstructions('assistant', { agentId: A, executorIds: [E1], reviewerCodexId: 'x' })).toThrow(
+      'reviewer Codex phải là uuid: x',
+    );
+    expect(() => renderInstructions('reviewer', { agentId: A, reviewerCodexId: R1 })).toThrow(
+      'reviewer Codex chỉ assistant nhận',
+    );
   });
 
   it('vai không phải assistant trả nguyên template, không cần agentId hợp lệ', () => {

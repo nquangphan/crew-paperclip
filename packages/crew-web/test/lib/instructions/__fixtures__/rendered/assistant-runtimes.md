@@ -237,6 +237,8 @@ Server đánh thức bạn lại (`issue_blockers_resolved`) ngay khi gốc `blo
 ## Executor của company
 
 - `22222222-2222-4222-8222-222222222222` — runtime `claude_local`
+- `33333333-3333-4333-8333-333333333333` — runtime `codex_local`
+- `55555555-5555-4555-8555-555555555555` — runtime `opencode_local`
 
 ## Agent BMAD của company
 
@@ -244,4 +246,4 @@ Server đánh thức bạn lại (`issue_blockers_resolved`) ngay khi gốc `blo
 
 ## Reviewer Codex của company
 
-Không có. Server tự chọn reviewer, bạn không giao việc cho reviewer.
+- `66666666-6666-4666-8666-666666666666` — runtime `codex_local`

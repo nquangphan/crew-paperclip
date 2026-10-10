@@ -1,5 +1,5 @@
 // Kiểm form bước 1 của wizard tạo agent. Trả khóa dịch (namespace wizards), nơi hiện lỗi tự dịch.
-import { isCrewModel } from '@/lib/instructions';
+import { type CrewRoleSlot, isCrewModel, slotModels } from '@/lib/instructions';
 import { isSafeFolder, projectKeyError } from '../add-project/validate';
 import { ROLE_SLOTS } from './steps';
 
@@ -30,14 +30,17 @@ export interface ValidateAgentContext {
 export function validateAddAgent(form: AddAgentForm, ctx: ValidateAgentContext): AddAgentFormErrors {
   const errors: AddAgentFormErrors = {};
   if (form.projectId === '') errors.projectId = 'validate.project';
-  if (!(ROLE_SLOTS as readonly string[]).includes(form.slot)) errors.slot = 'validate.slot';
+  const slotOk = (ROLE_SLOTS as readonly string[]).includes(form.slot);
+  if (!slotOk) errors.slot = 'validate.slot';
   if (!ctx.fix) {
     const name = form.name.trim();
     if (name === '' || form.name.length > NAME_MAX) errors.name = 'validate.agentName';
     else if (ctx.agents.some((a) => a.name === name && a.status !== 'terminated'))
       errors.name = 'validate.agentNameTaken';
   }
-  if (!isCrewModel(form.model)) errors.model = 'validate.model';
+  // Model theo runtime của ô (reviewer Codex chỉ model cố định); ô lạ thì kiểm theo model Claude.
+  const modelOk = slotOk ? slotModels(form.slot as CrewRoleSlot).includes(form.model) : isCrewModel(form.model);
+  if (!modelOk) errors.model = 'validate.model';
   if (form.machineId === '') errors.machineId = 'validate.machine';
   const keyError = projectKeyError(form.key, ctx.companyName);
   if (keyError) errors.key = keyError;

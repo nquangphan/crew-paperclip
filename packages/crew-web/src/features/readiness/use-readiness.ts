@@ -1,6 +1,6 @@
 // Ghép dữ liệu REST Paperclip và plugin crew.core rồi tính trạng thái sẵn sàng cho mọi project của một company.
 import { type UseQueryResult, useQuery } from '@tanstack/react-query';
-import { INSTRUCTIONS_PATH, sha256Hex } from '@/lib/instructions';
+import { INSTRUCTIONS_PATH, sha256Hex, slotAgents } from '@/lib/instructions';
 import { matchesAssistantTemplate, matchesRoleTemplate } from './assistant-instructions';
 import {
   type AgentReadiness,
@@ -57,12 +57,9 @@ function idsOf(data: unknown): Set<string> {
   return new Set(data.flatMap((r) => (typeof r?.id === 'string' ? [r.id] : [])));
 }
 
-const roleSlots = (roles: ReadinessProjectRoles): [string, string][] => [
-  [roles.assistantAgentId, 'assistant'],
-  ...roles.executorAgentIds.map((id, i): [string, string] => [id, i === 0 ? 'executor' : `executor-${i + 1}`]),
-  [roles.reviewerAgentId, 'reviewer'],
-  [roles.integratorAgentId, 'integrator'],
-];
+/** [agent, ô] của mọi ô có agent, gồm ba ô runtime. */
+const roleSlots = (roles: ReadinessProjectRoles): [string, string][] =>
+  slotAgents(roles).map(([slot, id]): [string, string] => [id, slot]);
 
 /** Setup run mới nhất có refs trỏ tới agent. */
 function setupRunOf(runs: SetupRunRow[], agentId: string): SetupRunRow | null {
@@ -136,7 +133,7 @@ export async function loadProjectReadiness(source: ReadinessSource, companyId: s
           // render kỳ vọng.
           const roles = perProject.find((p) => p.roles?.assistantAgentId === agent.id)?.roles;
           instructionsRendered = roles
-            ? matchesAssistantTemplate(file.content, agent.id, roles.executorAgentIds)
+            ? matchesAssistantTemplate(file.content, roles)
             : matchesRoleTemplate(file.content, agent.id, roleOf.get(agent.id) ?? '');
         } catch (error) {
           if (statusOf(error) !== 404) throw error;

@@ -1,9 +1,16 @@
 import { describe, expect, it } from 'vitest';
-import { ApiError, type ProjectRoles, type SetupRun } from '@/api';
+import { ApiError, type CrewRoleSlot, type ProjectRoles, type SetupRun } from '@/api';
 import { computeAgentReadiness } from '@/features/readiness';
 import { prepareFixRun, runAddAgent, runAddAgentStep } from '@/features/wizards/add-agent/run-step';
 import { StepBusyError } from '@/features/wizards/add-project/run-step';
-import { crewAgentCreateBody, crewExtraArgs, renderInstructions } from '@/lib/instructions';
+import {
+  crewAgentCreateBody,
+  crewExtraArgs,
+  defaultModelOf,
+  isRuntimeSlot,
+  renderAssistantFor,
+  renderInstructions,
+} from '@/lib/instructions';
 import { COMPANY, type FakeAgent, fakeApi, type JobOutcome, PIN, TEMPLATE_ENV } from './fake-api';
 
 const t = (key: string, params?: Record<string, unknown>) => (params ? `${key} ${JSON.stringify(params)}` : key);
@@ -44,7 +51,7 @@ const ASSISTANT_FILE = renderInstructions('assistant', {
   bmadIds: [ID.bmad],
 });
 
-function addAgentRun(slot: 'executor-2' | 'reviewer' | 'assistant' | 'executor', over: Partial<SetupRun> = {}) {
+function addAgentRun(slot: CrewRoleSlot, over: Partial<SetupRun> = {}) {
   return {
     id: 'run-a',
     companyId: COMPANY,
@@ -52,7 +59,12 @@ function addAgentRun(slot: 'executor-2' | 'reviewer' | 'assistant' | 'executor',
     projectKey: 'demo',
     projectId: PROJECT,
     machineId: 'm1',
-    input: { projectId: PROJECT, slot, name: `demo-${slot}-moi`, model: 'claude-sonnet-5' },
+    input: {
+      projectId: PROJECT,
+      slot,
+      name: `demo-${slot}-moi`,
+      model: isRuntimeSlot(slot) ? defaultModelOf(slot) : 'claude-sonnet-5',
+    },
     steps: {},
     status: 'running',
     runningStep: null,
@@ -440,5 +452,178 @@ describe('chế độ sửa (agent do app tạo, không có setup run)', () => {
     expect(run.status).toBe('failed');
     expect(run.steps.pin?.error).toBe('Lỗi máy chủ');
     expect(f.calls.some((c) => c.fn === 'agents.pause')).toBe(false);
+  });
+});
+
+describe('ô runtime Codex/OpenCode', () => {
+  it('thêm executor Codex: agent codex_local, ghim bằng wrapper codex, ô riêng, AGENTS.md Trợ Lý có runtime', async () => {
+    const f = setup(addAgentRun('executor-codex'));
+    const run = await runAddAgent(ctxOf(f.api), f.state.run);
+    expect(run.status).toBe('done');
+    const created = f.state.agents.find((a) => a.name === 'demo-executor-codex-moi') as FakeAgent;
+    expect(f.calls.find((c) => c.fn === 'agents.create')?.args).toEqual([
+      COMPANY,
+      crewAgentCreateBody({
+        name: 'demo-executor-codex-moi',
+        slot: 'executor-codex',
+        model: 'gpt-6-luna',
+        pinDir: PIN,
+        projectKey: 'demo',
+      }),
+    ]);
+    expect(created.adapterType).toBe('codex_local');
+    // Ghim đúng từ lúc tạo: không PATCH adapterConfig; AGENTS.md theo template executor.
+    expect(f.calls.some((c) => c.fn === 'agents.update' && 'adapterConfig' in (c.args[1] as object))).toBe(false);
+    expect(savedContent(f.calls, created.id)).toBe(renderInstructions('executor', { agentId: created.id }));
+    expect(f.calls.find((c) => c.fn === 'environments.create')?.args[1]).toMatchObject({
+      name: 'demo-executor-codex',
+      config: { remoteWorkspacePath: '/Users/owner/crew-agents/demo/executor-codex' },
+    });
+    expect((f.calls.find((c) => c.fn === 'jobs.create')?.args[0] as { payload: unknown } | undefined)?.payload).toEqual(
+      {
+        kind: 'agent-workspace',
+        projectKey: 'demo',
+        folder: FOLDER,
+        role: 'executor-codex',
+        branch: 'crew/demo/executor-codex',
+      },
+    );
+    expect(f.state.roles).toEqual({
+      assistantAgentId: ID.assistant,
+      executorAgentIds: [ID.executor],
+      reviewerAgentId: ID.reviewer,
+      integratorAgentId: ID.integrator,
+      codexExecutorAgentId: created.id,
+    });
+    expect(savedContent(f.calls, ID.assistant)).toBe(
+      renderInstructions('assistant', {
+        agentId: ID.assistant,
+        executorIds: [ID.executor, `${created.id}:codex_local`],
+        bmadIds: [ID.bmad],
+      }),
+    );
+    // Agent Codex không giao việc.
+    expect(f.calls.find((c) => c.fn === 'agents.setPermissions')?.args[1]).toMatchObject({ canAssignTasks: false });
+  });
+
+  it('thêm executor OpenCode: agent opencode_local, Trợ Lý thấy runtime opencode_local', async () => {
+    const f = setup(addAgentRun('executor-opencode'));
+    const run = await runAddAgent(ctxOf(f.api), f.state.run);
+    expect(run.status).toBe('done');
+    const created = f.state.agents.find((a) => a.name === 'demo-executor-opencode-moi') as FakeAgent;
+    expect(created.adapterType).toBe('opencode_local');
+    expect(created.adapterConfig).toMatchObject({
+      command: '/Users/owner/.crew/bin/crew-opencode-run',
+      model: 'opencode-go/kimi-k3',
+      env: {},
+    });
+    expect(f.state.roles?.opencodeExecutorAgentId).toBe(created.id);
+    expect(savedContent(f.calls, ID.assistant)).toContain(`- \`${created.id}\` — runtime \`opencode_local\``);
+  });
+
+  it('thêm reviewer Codex: AGENTS.md theo template reviewer, Trợ Lý có mục reviewer Codex', async () => {
+    const f = setup(addAgentRun('reviewer-codex'));
+    const run = await runAddAgent(ctxOf(f.api), f.state.run);
+    expect(run.status).toBe('done');
+    const created = f.state.agents.find((a) => a.name === 'demo-reviewer-codex-moi') as FakeAgent;
+    expect(created.adapterConfig).toMatchObject({ model: 'gpt-6-sol', modelReasoningEffort: 'high' });
+    expect(savedContent(f.calls, created.id)).toBe(renderInstructions('reviewer', { agentId: created.id }));
+    expect(f.state.roles?.codexReviewerAgentId).toBe(created.id);
+    expect(f.state.roles?.reviewerAgentId).toBe(ID.reviewer);
+    expect(savedContent(f.calls, ID.assistant)).toBe(renderAssistantFor(f.state.roles as ProjectRoles, ASSISTANT_FILE));
+  });
+
+  it('thay executor Codex: ô Codex đổi agent, ô Claude giữ nguyên', async () => {
+    const OLD = 'd6666666-6666-4666-8666-666666666666';
+    const f = setup(addAgentRun('executor-codex'));
+    f.state.roles = { ...(f.state.roles as ProjectRoles), codexExecutorAgentId: OLD };
+    const run = await runAddAgent(ctxOf(f.api), f.state.run);
+    expect(run.status).toBe('done');
+    const created = f.state.agents.find((a) => a.name === 'demo-executor-codex-moi') as FakeAgent;
+    expect(f.state.roles?.codexExecutorAgentId).toBe(created.id);
+    expect(f.state.roles?.executorAgentIds).toEqual([ID.executor]);
+  });
+
+  it('sửa agent Codex có sẵn từ bước agent: PATCH bỏ sandbox, CODEX_HOME, heartbeat; không engine', async () => {
+    const CODEX = 'd6666666-6666-4666-8666-666666666666';
+    const f = setup(
+      addAgentRun('executor-codex', {
+        input: { projectId: PROJECT, slot: 'executor-codex', name: 'demo-codex', model: 'gpt-6-luna' },
+      }),
+    );
+    f.state.agents.push({
+      id: CODEX,
+      name: 'demo-codex',
+      status: 'idle',
+      defaultEnvironmentId: null,
+      adapterType: 'codex_local',
+      adapterConfig: { command: '/Users/owner/.crew/bin/crew-codex-run', model: 'gpt-6-sol', env: {} },
+      runtimeConfig: {},
+      createdAt: '2026-10-01T00:00:00.000Z',
+    });
+    f.state.roles = { ...(f.state.roles as ProjectRoles), codexExecutorAgentId: CODEX };
+    const seeded = await prepareFixRun(ctxOf(f.api), f.state.run, { agentId: CODEX, step: 'agent' });
+    await runAddAgentStep(ctxOf(f.api, { folder: FOLDER, agent: CODEX }), seeded, 'agent');
+    expect(f.calls.find((c) => c.fn === 'agents.update')?.args).toEqual([
+      CODEX,
+      {
+        adapterConfig: {
+          dangerouslyBypassApprovalsAndSandbox: true,
+          env: { CODEX_HOME: '/paperclip/instances/default/crew-codex-home/demo/executor-codex' },
+        },
+        runtimeConfig: { heartbeat: { enabled: false, maxConcurrentRuns: 1 } },
+      },
+      COMPANY,
+    ]);
+  });
+
+  it('sửa ô Codex mà agent không chạy codex_local → lỗi, không PATCH', async () => {
+    const f = setup(
+      addAgentRun('executor-codex', {
+        input: { projectId: PROJECT, slot: 'executor-codex', name: 'demo-executor', model: 'gpt-6-luna' },
+      }),
+    );
+    const seeded = await prepareFixRun(ctxOf(f.api), f.state.run, { agentId: ID.executor, step: 'agent' });
+    const run = await runAddAgentStep(ctxOf(f.api, { folder: FOLDER, agent: ID.executor }), seeded, 'agent');
+    expect(run.steps.agent?.error).toContain('errors.wrongAdapter');
+    expect(f.calls.some((c) => c.fn === 'agents.update')).toBe(false);
+  });
+
+  it('sửa ghim agent Codex: PATCH command wrapper codex, extraArgs rỗng', async () => {
+    const CODEX = 'd6666666-6666-4666-8666-666666666666';
+    const f = setup(
+      addAgentRun('executor-codex', {
+        input: { projectId: PROJECT, slot: 'executor-codex', name: 'demo-codex', model: 'gpt-6-luna' },
+      }),
+    );
+    const body = crewAgentCreateBody({
+      name: 'demo-codex',
+      slot: 'executor-codex',
+      model: 'gpt-6-luna',
+      pinDir: PIN,
+      projectKey: 'demo',
+    });
+    f.state.agents.push({
+      id: CODEX,
+      name: 'demo-codex',
+      status: 'idle',
+      defaultEnvironmentId: null,
+      adapterType: 'codex_local',
+      adapterConfig: {
+        ...body.adapterConfig,
+        command: '/Users/owner/.crew/bin/crew-claude-run',
+        extraArgs: ['--plugin-dir', PIN],
+      },
+      runtimeConfig: structuredClone(body.runtimeConfig),
+      createdAt: '2026-10-01T00:00:00.000Z',
+    });
+    f.state.files.set(CODEX, { content: 'x', contentHash: 'h' });
+    const seeded = await prepareFixRun(ctxOf(f.api), f.state.run, { agentId: CODEX, step: 'pin' });
+    await runAddAgentStep(ctxOf(f.api), seeded, 'pin');
+    expect(f.calls.find((c) => c.fn === 'agents.update')?.args).toEqual([
+      CODEX,
+      { adapterConfig: { command: '/Users/owner/.crew/bin/crew-codex-run', extraArgs: [] } },
+      COMPANY,
+    ]);
   });
 });

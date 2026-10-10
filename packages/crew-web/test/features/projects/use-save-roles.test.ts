@@ -89,4 +89,26 @@ describe('saveRoles', () => {
     expect(await saveRoles(api, 'c-tps', 'p1', ROLES, null)).toEqual({ roles: 'ok', instructions: 'unchanged' });
     expect(s.calls.some((c) => c.method === 'PUT')).toBe(false);
   });
+
+  it('thêm executor Codex → render lại AGENTS.md của Trợ Lý có runtime codex_local', async () => {
+    const next = { ...ROLES, codexExecutorAgentId: ID.spare };
+    expect(await saveRoles(api, 'c-tps', 'p1', next, ROLES)).toEqual({ roles: 'ok', instructions: 'ok' });
+    expect(s.calls[0].body).toEqual({ companyId: 'c-tps', ...next });
+    expect((lastBody(s) as { content: string }).content).toContain(`- \`${ID.spare}\` — runtime \`codex_local\``);
+  });
+
+  it('đổi reviewer Codex → render lại AGENTS.md của Trợ Lý (mục reviewer Codex)', async () => {
+    const prev = { ...ROLES, codexReviewerAgentId: null };
+    const next = { ...ROLES, codexReviewerAgentId: ID.spare };
+    expect(await saveRoles(api, 'c-tps', 'p1', next, prev)).toEqual({ roles: 'ok', instructions: 'ok' });
+    expect((lastBody(s) as { content: string }).content).toContain(
+      `## Reviewer Codex của company\n\n- \`${ID.spare}\` — runtime \`codex_local\``,
+    );
+  });
+
+  it('ô runtime null và thiếu khóa là như nhau: không render lại', async () => {
+    const res = await saveRoles(api, 'c-tps', 'p1', { ...ROLES, opencodeExecutorAgentId: null }, ROLES);
+    expect(res).toEqual({ roles: 'ok', instructions: 'unchanged' });
+    expect(s.calls.map((c) => c.method)).toEqual(['POST']);
+  });
 });

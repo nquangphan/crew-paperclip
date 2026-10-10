@@ -11,16 +11,21 @@ import {
   type ReadinessEnvironment,
 } from '@/features/readiness';
 import {
-  assistantListsOf,
+  assistantListsMatch,
   CREW_AGENT_PERMISSIONS,
   CREW_RUNTIME_CONFIG,
   crewAgentCreateBody,
-  crewExtraArgs,
+  crewExtraArgsOf,
+  crewRuntimeConfigOf,
   crewWrapperCommand,
   INSTRUCTIONS_PATH,
+  isRuntimeSlot,
   putInstructions,
+  RUNTIME_SLOT_KEYS,
+  renderAssistantFor,
   renderInstructions,
   roleOfSlot,
+  runtimeOfSlot,
   SUPERPOWERS_PIN_RE,
 } from '@/lib/instructions';
 import {
@@ -117,10 +122,12 @@ async function rolesOf(ctx: AddAgentContext, run: SetupRun): Promise<ProjectRole
 
 /** Vai trò mới khi đặt `agentId` vào `slot` (thay agent cũ của ô, executor-2 chưa có thì thêm). */
 export function withSlot(roles: ProjectRoles, slot: CrewRoleSlot, agentId: string): ProjectRoles {
+  if (isRuntimeSlot(slot)) return { ...roles, [RUNTIME_SLOT_KEYS[slot]]: agentId };
   const executors = [...roles.executorAgentIds];
   if (slot === 'executor') executors[0] = agentId;
   if (slot === 'executor-2') executors[executors.length >= 2 ? 1 : executors.length] = agentId;
   return {
+    ...roles,
     assistantAgentId: slot === 'assistant' ? agentId : roles.assistantAgentId,
     executorAgentIds: executors,
     reviewerAgentId: slot === 'reviewer' ? agentId : roles.reviewerAgentId,
@@ -135,7 +142,8 @@ const sameRoles = (a: ProjectRoles, b: ProjectRoles) =>
   a.assistantAgentId === b.assistantAgentId &&
   sameIds(a.executorAgentIds, b.executorAgentIds) &&
   a.reviewerAgentId === b.reviewerAgentId &&
-  a.integratorAgentId === b.integratorAgentId;
+  a.integratorAgentId === b.integratorAgentId &&
+  Object.values(RUNTIME_SLOT_KEYS).every((key) => (a[key] ?? null) === (b[key] ?? null));
 
 const statusOf = (error: unknown): number | undefined =>
   typeof error === 'object' && error !== null ? (error as { status?: number }).status : undefined;
@@ -150,7 +158,10 @@ async function currentInstructions(ctx: AddAgentContext, agentId: string, compan
   }
 }
 
-/** Render AGENTS.md cho Trợ Lý: executor theo vai trò, agent BMAD giữ như file Trợ Lý hiện tại. */
+/**
+ * Render AGENTS.md cho Trợ Lý `agentId`: executor (kèm runtime) và reviewer Codex theo vai trò, agent BMAD giữ như file
+ * Trợ Lý hiện tại. Trợ Lý mới vốn là executor thì bỏ khỏi danh sách executor.
+ */
 async function assistantContent(
   ctx: AddAgentContext,
   run: SetupRun,
@@ -158,16 +169,34 @@ async function assistantContent(
   roles: ProjectRoles,
 ): Promise<{ content: string; current: string }> {
   const current = await currentInstructions(ctx, roles.assistantAgentId, run.companyId);
-  const executorIds = roles.executorAgentIds.filter((id) => id !== agentId);
-  const taken = new Set([agentId, ...executorIds].map((id) => id.toLowerCase()));
-  const bmadIds = assistantListsOf(current).bmadIds.filter((id) => !taken.has(id.toLowerCase()));
-  return { content: renderInstructions('assistant', { agentId, executorIds, bmadIds }), current };
+  const content = renderAssistantFor(
+    { ...roles, assistantAgentId: agentId, executorAgentIds: roles.executorAgentIds.filter((id) => id !== agentId) },
+    current,
+  );
+  return { content, current };
 }
 
 async function writeInstructions(ctx: AddAgentContext, run: SetupRun, agentId: string, content: string) {
   const saved = await putInstructions(ctx.api, agentId, content, { companyId: run.companyId });
   if (!saved.ok) throw new StepError('errors.instructionsConflict', { name: agentInputOf(run).name });
   return saved.hash;
+}
+
+/**
+ * PATCH (merge) phần cấu hình chạy Crew của agent có sẵn ở chế độ sửa (A1), trừ command/extraArgs (bước ghim lo) và
+ * model (giữ model đang dùng). Claude: `engine` + `env` rỗng; Codex: bỏ sandbox + CODEX_HOME; OpenCode: `env` rỗng.
+ */
+function adapterFix(slot: CrewRoleSlot, pinDir: string, projectKey: string): Record<string, unknown> {
+  const {
+    command: _command,
+    extraArgs: _extraArgs,
+    ...rest
+  } = crewRuntimeConfigOf(slot, pinDir, projectKey) as Record<string, unknown>;
+  if (runtimeOfSlot(slot) === 'codex_local') {
+    const { modelReasoningEffort: _effort, ...codex } = rest;
+    return codex;
+  }
+  return rest;
 }
 
 type StepWork = (ctx: AddAgentContext, run: SetupRun, refs: Record<string, string>) => Promise<void>;
@@ -192,18 +221,25 @@ const STEPS: Record<AddAgentStepId, StepWork> = {
       // Response tạo agent bị mất ở lần trước: agent cùng tên tạo sau khi run bắt đầu là của run này.
       const lost = same.find((a) => isTime(a.createdAt) >= isTime(run.createdAt));
       if (!lost && same.length > 0) throw new StepError('errors.agentNameTaken', { name });
-      const role = roleOfSlot(input.slot);
       agentId =
         lost?.id ??
-        (await api.agents.create(companyId, { ...crewAgentCreateBody({ name, role, model: input.model, pinDir }) })).id;
+        (
+          await api.agents.create(companyId, {
+            ...crewAgentCreateBody({ name, slot: input.slot, model: input.model, pinDir, projectKey: run.projectKey }),
+          })
+        ).id;
       refs.agent = agentId;
       refs.created = 'true';
     } else {
       refs.agent = agentId;
       // Agent có sẵn (chế độ sửa): chỉ PATCH (merge) phần cấu hình chạy chưa đạt, giữ model đang dùng.
       const agent = await api.agents.get(agentId, companyId);
-      if (agent.adapterType !== 'claude_local') throw new StepError('errors.notClaudeLocal');
-      if (!checkAdapter(agent)) {
+      const expected = runtimeOfSlot(input.slot);
+      if (agent.adapterType !== expected) {
+        if (expected === 'claude_local') throw new StepError('errors.notClaudeLocal');
+        throw new StepError('errors.wrongAdapter', { expected, actual: agent.adapterType });
+      }
+      if (!checkAdapter(agent, expected)) {
         const model = agent.adapterConfig.model;
         const runtime = agent.runtimeConfig ?? {};
         const heartbeat = runtime.heartbeat;
@@ -211,8 +247,7 @@ const STEPS: Record<AddAgentStepId, StepWork> = {
           agentId,
           {
             adapterConfig: {
-              engine: 'cli',
-              env: {},
+              ...adapterFix(input.slot, pinDir, run.projectKey),
               ...(typeof model === 'string' && model !== '' ? {} : { model: input.model }),
             },
             runtimeConfig: {
@@ -241,10 +276,16 @@ const STEPS: Record<AddAgentStepId, StepWork> = {
     const agentId = required(agentRunRefs(run), 'agent');
     const pinDir = await pinDirOf(ctx.api, run);
     const agent = await ctx.api.agents.get(agentId, companyId);
-    if (!checkPin(agent, { superpowers: { pinned: null, pinDir } })) {
+    const runtime = runtimeOfSlot(input.slot);
+    if (!checkPin(agent, { superpowers: { pinned: null, pinDir } }, runtime)) {
       await ctx.api.agents.update(
         agentId,
-        { adapterConfig: { command: crewWrapperCommand(pinDir), extraArgs: crewExtraArgs(pinDir) } },
+        {
+          adapterConfig: {
+            command: crewWrapperCommand(pinDir, runtime),
+            extraArgs: crewExtraArgsOf(pinDir, runtime),
+          },
+        },
         companyId,
       );
     }
@@ -337,10 +378,10 @@ const STEPS: Record<AddAgentStepId, StepWork> = {
   async 'assistant-instructions'(ctx, run, refs) {
     const roles = await rolesOf(ctx, run);
     const assistantId = roles.assistantAgentId;
-    // Chỉ ghi khi danh sách executor trong AGENTS.md của Trợ Lý khác vai trò hiện tại (thêm/thay executor). Đọc từ file
-    // nên lần chạy tiếp sau khi vai trò đã lưu vẫn nhận ra.
+    // Chỉ ghi khi danh sách executor (kèm runtime) hay reviewer Codex trong AGENTS.md của Trợ Lý khác vai trò hiện tại.
+    // Đọc từ file nên lần chạy tiếp sau khi vai trò đã lưu vẫn nhận ra.
     const { content, current } = await assistantContent(ctx, run, assistantId, roles);
-    if (!sameIds(assistantListsOf(current).executorIds, roles.executorAgentIds)) {
+    if (!assistantListsMatch(current, roles)) {
       refs.agent_assistant = assistantId;
       refs.instructions_assistant = await writeInstructions(ctx, run, assistantId, content);
     }
