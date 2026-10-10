@@ -3,7 +3,7 @@ import { initReactI18next, useTranslation } from 'react-i18next';
 import type { Lang } from './format';
 
 export type { Lang } from './format';
-export { formatDateTime, formatRelative } from './format';
+export { formatDateTime, formatRelative, formatUsd } from './format';
 
 const STORAGE_KEY = 'crew.lang';
 

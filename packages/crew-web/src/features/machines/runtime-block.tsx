@@ -13,7 +13,7 @@ import type {
 } from '@/api';
 import { api, queryKeys } from '@/api';
 import { Alert, Badge, Button, ConfirmDialog, MutedText, Section, ToggleSwitch } from '@/ds';
-import { formatDateTime, useT } from '@/i18n';
+import { formatDateTime, formatUsd, useT } from '@/i18n';
 
 const ORDER: readonly CrewRuntime[] = ['claude_local', 'codex_local', 'opencode_local'];
 const SHORT: Record<CrewRuntime, 'claude' | 'codex' | 'opencode'> = {
@@ -115,7 +115,8 @@ export function RuntimeBlock({ companyId, machine, switches, switchesError, jobs
       return lines;
     }
     const o = report.opencode;
-    const money = (v: number | null, limit: number) => `$${v ?? unknown}/${limit}`;
+    const money = (v: number | null, limit: number) =>
+      `${v === null ? `$${unknown}` : formatUsd(v, lang)}/${formatUsd(limit, lang)}`;
     return [
       t('runtime.opencode', {
         version: o.version ?? unknown,

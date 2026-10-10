@@ -36,9 +36,9 @@ describe('khối Runtime trên thẻ máy', () => {
     expect(b.getByText(/07:30/)).toBeTruthy(); // 00:30Z = 07:30 Asia/Ho_Chi_Minh
     expect(b.getByText(/1\.4\.0/)).toBeTruthy();
     expect(b.getByText(/Chưa có key/)).toBeTruthy();
-    expect(b.getByText(/\$3\.5\/12/)).toBeTruthy();
-    expect(b.getByText(/\$10\/30/)).toBeTruthy();
-    expect(b.getByText(/\$20\/60/)).toBeTruthy();
+    expect(b.getByText(/\$3,50\/\$12,00/)).toBeTruthy();
+    expect(b.getByText(/\$10,00\/\$30,00/)).toBeTruthy();
+    expect(b.getByText(/\$20,00\/\$60,00/)).toBeTruthy();
     expect(b.getByText(/crew-mac runtimes key opencode/)).toBeTruthy();
   });
 

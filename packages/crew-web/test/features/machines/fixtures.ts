@@ -79,7 +79,14 @@ export const ROUTE = 'POST /api/plugins/crew.core/api';
 
 export const RUNTIMES: RuntimesReport = {
   codex: { version: '0.9.1', loggedIn: true, primaryUsedPct: 42, resetsAt: '2026-10-12T00:30:00.000Z' },
-  opencode: { version: '1.4.0', keyPresent: false, costDay: 3.5, costWeek: 10, costMonth: 20, models: [] },
+  opencode: {
+    version: '1.4.0',
+    keyPresent: false,
+    costDay: 3.5,
+    costWeek: 10,
+    costMonth: 20.000000000000004,
+    models: [],
+  },
 };
 
 /** Trạng thái công tắc mẫu của một máy: Claude bật, Codex/OpenCode tắt, OpenCode khóa vì chưa có vá. */

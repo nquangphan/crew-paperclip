@@ -51,3 +51,12 @@ export function formatRelative(iso: string | Date | null | undefined, lang: Lang
   }
   return EMPTY;
 }
+
+/** Tiền USD 2 chữ số thập phân theo ngôn ngữ: vi `$2,93`, en `$2.93`. */
+export function formatUsd(value: number, lang: Lang): string {
+  const n = new Intl.NumberFormat(lang === 'en' ? 'en-US' : 'vi-VN', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(value);
+  return `$${n}`;
+}
