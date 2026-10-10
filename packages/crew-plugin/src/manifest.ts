@@ -78,6 +78,11 @@ const manifest: PaperclipPluginManifestV1 = {
     displayName: "Kiểm file đính kèm",
     description: "Cảnh báo file đính kèm agent sẽ không đọc",
     schedule: "* * * * *",
+  }, {
+    jobKey: "runtime-fallback",
+    displayName: "Chuyển runtime",
+    description: "Chuyển run đang chờ vì runtime tắt sang runtime khác cùng máy",
+    schedule: "* * * * *",
   }],
   webhooks: [
     { endpointKey: "machine-status", displayName: "Crew machine status" },

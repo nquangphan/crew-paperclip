@@ -126,7 +126,7 @@
         "approval": "Owner approval"
       },
       "current": "current",
-      "modelValue": "{{model}} · complexity {{complexity}} · effort {{effort}}",
+      "modelValue": "{{model}} · complexity {{complexity}} · effort {{effort}} · runtime {{runtime}}",
       "section": {
         "work": "Work",
         "relations": "Relationships",
@@ -221,7 +221,34 @@
   },
   "crew": {
     "mapFailed": "Could not load the Crew summary",
-    "docsFailed": "Could not load the docs check"
+    "docsFailed": "Could not load the docs check",
+    "runtime": {
+      "title": "Runtime",
+      "failed": "Could not load the runtime decisions",
+      "unknown": "unknown",
+      "complexity": "complexity {{complexity}}",
+      "role": {
+        "executor": "Executor",
+        "reviewer": "Reviewer"
+      },
+      "kind": {
+        "select": "Selected",
+        "fallback": "Switched",
+        "fallback_refused": "Switch refused"
+      },
+      "name": {
+        "claude_local": "Claude",
+        "codex_local": "Codex",
+        "opencode_local": "OpenCode"
+      },
+      "trigger": {
+        "quota": "quota exhausted",
+        "auth": "login or key error",
+        "unavailable": "runtime unavailable",
+        "switch_off": "runtime switch is off",
+        "other": "other error"
+      }
+    }
   },
   "interactions": {
     "loadFailed": "Could not load the assistant questions",

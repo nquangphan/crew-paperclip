@@ -111,3 +111,35 @@ it("keeps a valid attachmentCache and drops a malformed one", () => {
     expect(parsed.machineId).toBe(base.machineId);
   }
 });
+
+it("giữ khối runtimes hợp lệ, bỏ riêng khối sai dạng, phần còn lại của bản tin vẫn nhận", () => {
+  const runtimes = {
+    codex: { version: "codex-cli 0.130.0", loggedIn: true, primaryUsedPct: 42.5, resetsAt: "2026-10-12T01:00:00.000Z" },
+    opencode: { version: "1.18.35", keyPresent: false, costDay: 1.25, costWeek: 0, costMonth: 3.5,
+      models: ["opencode-go/glm-5.3", "opencode-go/kimi-k3"] },
+  };
+  expect(parseMachineReport({ ...base, runtimes }).runtimes).toEqual(runtimes);
+  const unknown = { codex: { version: null, loggedIn: null, primaryUsedPct: null, resetsAt: null },
+    opencode: { version: null, keyPresent: null, costDay: null, costWeek: null, costMonth: null, models: [] } };
+  expect(parseMachineReport({ ...base, runtimes: unknown }).runtimes).toEqual(unknown);
+  expect(parseMachineReport(base)).not.toHaveProperty("runtimes");
+  const sixtyOne = Array.from({ length: 61 }, (_, i) => `opencode-go/m${i}`);
+  for (const bad of [
+    { ...runtimes, opencode: { ...runtimes.opencode, models: ["opencode-go/glm 5.3"] } },
+    { ...runtimes, opencode: { ...runtimes.opencode, models: sixtyOne } },
+    { ...runtimes, opencode: { ...runtimes.opencode, models: [`opencode-go/${"x".repeat(120)}`] } },
+    { ...runtimes, opencode: { ...runtimes.opencode, costDay: -1 } },
+    { ...runtimes, opencode: { ...runtimes.opencode, costMonth: 100_001 } },
+    { ...runtimes, opencode: { ...runtimes.opencode, keyPresent: "yes" } },
+    { ...runtimes, codex: { ...runtimes.codex, primaryUsedPct: 101 } },
+    { ...runtimes, codex: { ...runtimes.codex, version: "x".repeat(51) } },
+    { ...runtimes, codex: { ...runtimes.codex, resetsAt: "mai" } },
+    { ...runtimes, codex: { ...runtimes.codex, extra: 1 } },
+    { codex: runtimes.codex },
+    "x", null,
+  ]) {
+    const parsed = parseMachineReport({ ...base, runtimes: bad });
+    expect(parsed).not.toHaveProperty("runtimes");
+    expect(parsed.machineId).toBe(base.machineId);
+  }
+});
