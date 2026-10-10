@@ -10,6 +10,7 @@ import { handleRuntimeSwitchesApi } from "./runtimes/switches.js";
 import { handleSetupApi } from "./setup/api.js";
 import { registerAttachmentsAudit } from "./attachments/audit.js";
 import { registerRuntimeDecisions } from "./runtimes/decisions.js";
+import { registerRuntimeFallback } from "./runtimes/fallback.js";
 
 // onApiRequest receives no context, so keep the one handed to setup.
 let pluginCtx: PluginContext | undefined;
@@ -23,6 +24,7 @@ const plugin = definePlugin({
     registerFeatures(ctx);
     registerAttachmentsAudit(ctx);
     registerRuntimeDecisions(ctx);
+    registerRuntimeFallback(ctx);
   },
   onWebhook: dispatchCrewWebhook,
   onApiRequest: async (input) => {

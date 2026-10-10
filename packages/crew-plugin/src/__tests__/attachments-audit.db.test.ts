@@ -44,10 +44,10 @@ it("cảnh báo file đính kèm agent sẽ không đọc, mỗi file một lầ
   for (const capability of ["issue.attachments.read", "jobs.schedule", "authorization.audit.read", "companies.read"]) {
     expect(parsed.capabilities).toContain(capability);
   }
-  expect(parsed.jobs).toEqual([{
+  expect(parsed.jobs).toContainEqual({
     jobKey: "attachments-audit", displayName: "Kiểm file đính kèm",
     description: "Cảnh báo file đính kèm agent sẽ không đọc", schedule: "* * * * *",
-  }]);
+  });
 
   const database = await startEmbeddedPostgresTestDatabase("crew-attachments-");
   const sql = postgres(database.connectionString, { max: 2, onnotice: () => {} });
