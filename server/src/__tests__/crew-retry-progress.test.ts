@@ -67,6 +67,7 @@ describe("parseRetryProgressOutput", () => {
     expect(parseRetryProgressOutput(stdout, sameClock)).toEqual({
       ok: true,
       truncated: false,
+      detach: null,
       commits: [{ sha: SHA_A, committedAt: "2026-10-07T16:20:00+07:00", branch: "crew/ABC-1", subject: "feat: thêm long.txt" }],
     });
   });
@@ -228,6 +229,47 @@ suite("retry progress against the database", () => {
     });
   });
 
+  it("chuyển runtime: kiểm worktree của run cũ, tách khỏi nhánh crew/<mã issue>", async () => {
+    const { retryRun, issueId, previousRunId } = await seed();
+    await db.update(issues).set({ identifier: "ABC-7" }).where(eq(issues.id, issueId));
+    const fallbackRun = { ...retryRun, retryOfRunId: null };
+    const calls: string[] = [];
+    const check = createRetryProgressChecker(
+      db,
+      async (_config, command) => {
+        calls.push(command);
+        return { stdout: `crew-stop matched=0 killed=0 remaining=0\n${MAC_CLOCK}\n${COMMIT_LINE}\ncrew-retry-detach=dirty\n` };
+      },
+      () => CHECK_AT,
+    );
+    expect(await check(fallbackRun, { mode: "fallback", previousRunId })).toMatchObject({ kind: "checked", previousRunId, detach: "dirty" });
+    expect(calls[0]).toContain(buildRetryProgressCommand(previousRunId, "/Users/a/crew-agents/mac-claude", { detachBranch: "crew/ABC-7" }));
+
+    const silent = createRetryProgressChecker(db, async () => ({ stdout: `crew-stop matched=0 killed=0 remaining=0\n${MAC_CLOCK}\n` }), () => CHECK_AT);
+    expect(await silent(fallbackRun, { mode: "fallback", previousRunId })).toMatchObject({ kind: "error" });
+    await db.update(issues).set({ identifier: null }).where(eq(issues.id, issueId));
+    expect(await silent(fallbackRun, { mode: "fallback", previousRunId })).toMatchObject({ kind: "error" });
+  });
+
+  it("chuyển runtime: marker riêng, worktree bẩn ghi comment câu spec và trạng thái bẩn", async () => {
+    const { retryRun, issueId, previousRunId } = await seed();
+    const deps = defaultBeforeClaimDeps(db);
+    const comment = await deps.recordRetryProgress(retryRun, issueId, {
+      kind: "checked", previousRunId, previousStartedAt: new Date(), retryReason: null, cwd: "/w", truncated: false,
+      commits: [], detach: "dirty",
+    }, "fallback");
+    expect(comment).toBe(
+      `Crew: chuyển runtime sau run \`${previousRunId}\`: Worktree của run trước còn thay đổi chưa commit; Crew không mang sang. Owner xem rồi chuyển issue về todo.`,
+    );
+    expect(await deps.retryState(retryRun.id, "retry")).toEqual({ checked: false });
+    expect(await deps.retryState(retryRun.id, "fallback")).toEqual({ checked: true, pendingComment: comment, detach: "dirty" });
+    await deps.postRetryComment(retryRun, issueId, comment!, "fallback");
+    await deps.postRetryComment(retryRun, issueId, comment!, "fallback");
+    expect(await deps.retryState(retryRun.id, "fallback")).toEqual({ checked: true, pendingComment: null, detach: "dirty" });
+    const comments = await db.select({ body: issueComments.body }).from(issueComments).where(eq(issueComments.issueId, issueId));
+    expect(comments.map((c) => c.body)).toEqual([comment]);
+  });
+
   it("trả lỗi khi run trước còn process sót trên Mac", async () => {
     const { retryRun } = await seed();
     const check = createRetryProgressChecker(
@@ -257,7 +299,7 @@ suite("retry progress against the database", () => {
   it("ghi dấu đã kiểm kèm comment trước, comment sau, và không đăng lại comment đã có", async () => {
     const { retryRun, issueId, previousRunId } = await seed();
     const deps = defaultBeforeClaimDeps(db);
-    expect(await deps.retryState(retryRun.id)).toEqual({ checked: false });
+    expect(await deps.retryState(retryRun.id, "retry")).toEqual({ checked: false });
     const comment = await deps.recordRetryProgress(retryRun, issueId, {
       kind: "checked",
       previousRunId,
@@ -266,13 +308,14 @@ suite("retry progress against the database", () => {
       cwd: "/Users/a/crew-agents/mac-claude",
       truncated: false,
       commits: [{ sha: "c".repeat(40), committedAt: "2026-10-07T16:20:43+07:00", branch: "crew/ABC-1", subject: "feat: x" }],
-    });
+      detach: null,
+    }, "retry");
     expect(comment?.startsWith("Crew: lần chạy lại")).toBe(true);
-    expect(await deps.retryState(retryRun.id)).toEqual({ checked: true, pendingComment: comment });
-    await deps.postRetryComment(retryRun, issueId, comment!);
+    expect(await deps.retryState(retryRun.id, "retry")).toEqual({ checked: true, pendingComment: comment });
+    await deps.postRetryComment(retryRun, issueId, comment!, "retry");
     // A second post (marker written but seen as missing, or a racing claim) must not duplicate it.
-    await deps.postRetryComment(retryRun, issueId, comment!);
-    expect(await deps.retryState(retryRun.id)).toEqual({ checked: true, pendingComment: null });
+    await deps.postRetryComment(retryRun, issueId, comment!, "retry");
+    expect(await deps.retryState(retryRun.id, "retry")).toEqual({ checked: true, pendingComment: null });
     const comments = await db.select({ body: issueComments.body }).from(issueComments).where(eq(issueComments.issueId, issueId));
     expect(comments.map((c) => c.body)).toEqual([comment]);
     const [activity] = await db
@@ -287,9 +330,10 @@ suite("retry progress against the database", () => {
     const deps = defaultBeforeClaimDeps(db);
     const comment = await deps.recordRetryProgress(retryRun, issueId, {
       kind: "checked", previousRunId, previousStartedAt: new Date(), retryReason: null, cwd: "/w", truncated: false, commits: [],
-    });
+      detach: null,
+    }, "retry");
     expect(comment).toBeNull();
-    expect(await deps.retryState(retryRun.id)).toEqual({ checked: true, pendingComment: null });
+    expect(await deps.retryState(retryRun.id, "retry")).toEqual({ checked: true, pendingComment: null });
     expect(await db.select().from(issueComments).where(eq(issueComments.issueId, issueId))).toHaveLength(0);
   });
 
@@ -302,7 +346,7 @@ suite("retry progress against the database", () => {
       { companyId: company!.id, issueId, body, authorType: "agent", authorAgentId: retryRun.agentId },
       { companyId: company!.id, issueId, body, authorType: "system", deletedAt: new Date() },
     ]);
-    await deps.postRetryComment(retryRun, issueId, `${body} thật`);
+    await deps.postRetryComment(retryRun, issueId, `${body} thật`, "retry");
     const live = await db
       .select({ body: issueComments.body, authorType: issueComments.authorType })
       .from(issueComments)

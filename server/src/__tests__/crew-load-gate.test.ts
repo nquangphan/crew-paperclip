@@ -137,6 +137,8 @@ function harness(probe: HostProbe, now: Date, notices: Notices = {}, failComment
     checkRetryProgress: async () => ({ kind: "none" }),
     recordRetryProgress: async () => null,
     postRetryComment: async () => {},
+    runtimeGate: async () => false,
+    fallbackPreviousRunId: async () => null,
   };
   const input: BeforeClaimInput = { db: {} as Db, run: run() };
   return { deps, input, events, notices };

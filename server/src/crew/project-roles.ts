@@ -17,7 +17,7 @@ export type CrewRolesDb = Pick<Db, "execute" | "transaction">;
 
 type Row = Record<string, unknown>;
 
-function rowsOf(result: unknown): Row[] {
+export function rowsOf(result: unknown): Row[] {
   if (Array.isArray(result)) return result as Row[];
   const rows = (result as { rows?: unknown } | null)?.rows;
   return Array.isArray(rows) ? (rows as Row[]) : [];
@@ -26,7 +26,7 @@ function rowsOf(result: unknown): Row[] {
 const WARN_INTERVAL_MS = 60_000;
 const lastWarnAt = new Map<string, number>();
 
-function warnOncePerMinute(companyId: string, kind: string, details: Record<string, unknown>, message: string): void {
+export function warnOncePerMinute(companyId: string, kind: string, details: Record<string, unknown>, message: string): void {
   const key = `${companyId}\0${kind}`;
   const now = Date.now();
   const last = lastWarnAt.get(key);

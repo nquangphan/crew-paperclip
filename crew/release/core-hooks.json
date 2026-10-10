@@ -10,12 +10,15 @@
       "head": "async function claimQueuedRun(",
       "anchor": "    if (await crewCoreHooks.beforeClaim({ db, run })) return null;",
       "importLine": "import { crewCoreHooks } from \"../crew/core-hooks.js\";",
-      "description": "Keep a queued run queued while its environment is overloaded or unreachable; when claimed, resume the previous issue's session within a Crew bundle.",
+      "description": "Keep a queued run queued while its environment is overloaded or unreachable, or while its runtime is switched off on its machine (the held run is recorded in the Crew plugin table crew_runtime_waits, the only plugin table the server writes); cancel queued runs of an agent a runtime fallback moved the issue away from; before a runtime fallback run, stop the previous run and release its branch; when claimed, resume the previous issue's session within a Crew bundle.",
       "upstreamPr": null,
       "tests": [
         "server/src/__tests__/crew-before-claim.test.ts",
         "server/src/__tests__/crew-bundle-resume.test.ts",
-        "server/src/__tests__/crew-claim-resume-contract.test.ts"
+        "server/src/__tests__/crew-claim-resume-contract.test.ts",
+        "server/src/__tests__/crew-runtime-gate.test.ts",
+        "server/src/__tests__/crew-runtime-switch.db.test.ts",
+        "server/src/__tests__/crew-runtime-fallback-reconcile.test.ts"
       ]
     },
     {

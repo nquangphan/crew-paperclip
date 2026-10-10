@@ -14,11 +14,20 @@ import { emitAgentTaskRunById } from "../services/agent-task-run-telemetry.js";
 import { clearHeartbeatRunRuntimeStatus } from "../services/heartbeat-run-runtime-status.js";
 import { REMOTE_STOP_STARTED_ACTION, isRemoteStopPending } from "./remote-stop.js";
 import {
+  type DetachOutcome,
+  type ProgressTarget,
   type RetryProgress,
   createRetryProgressChecker,
   retryProgressComment,
-  retryProgressCommentPrefix,
 } from "./retry-progress.js";
+import { defaultRuntimeGateDeps, evaluateRuntimeGate } from "./runtime-gate.js";
+import {
+  CREW_RUNTIME_FALLBACK_DIRTY_CANCEL_REASON,
+  fallbackDirtyComment,
+  fallbackPreviousRunId,
+  fallbackProgressComment,
+  isRuntimeFallbackWake,
+} from "./runtime-fallback.js";
 
 /** Same shape as BeforeClaimInput in core-hooks.ts (not imported: implementations must not import the registry). */
 export interface BeforeClaimInput {
@@ -104,6 +113,15 @@ const TIME_FORMAT = new Intl.DateTimeFormat("vi-VN", {
 /** Activity `crew.load_gate.<kind>`: the bare kinds are the durable markers, `_comment` marks a posted comment. */
 export type NoticeKind = "waiting" | "expired" | "waiting_comment" | "expired_comment";
 
+/**
+ * Which previous run a claim checks first: `retry` (heartbeat_runs.retryOfRunId) or `fallback` (the run of the
+ * agent the issue was moved away from, before a runtime fallback run). Markers: `crew.retry_progress.*` and
+ * `crew.runtime_fallback.*`.
+ */
+export type ProgressMode = ProgressTarget["mode"];
+
+const PROGRESS_ACTION: Record<ProgressMode, string> = { retry: "crew.retry_progress", fallback: "crew.runtime_fallback" };
+
 export interface BeforeClaimDeps {
   loadTarget(run: BeforeClaimInput["run"]): Promise<{
     environmentId: string;
@@ -158,18 +176,31 @@ export interface BeforeClaimDeps {
   blockIssue(issueId: string): Promise<void>;
   now(): Date;
   /**
-   * Whether `crew.retry_progress.checked` exists for this run (the SSH check runs once per run) and,
-   * when it does, the comment it recorded that still has no `crew.retry_progress.comment` marker.
+   * Whether `<mode marker>.checked` exists for this run (the SSH check runs once per run) and,
+   * when it does, the comment it recorded that still has no `<mode marker>.comment` marker, and the
+   * detach outcome of a fallback check.
    */
-  retryState(runId: string): Promise<{ checked: false } | { checked: true; pendingComment: string | null }>;
-  checkRetryProgress(run: BeforeClaimInput["run"]): Promise<RetryProgress>;
+  retryState(
+    runId: string,
+    mode: ProgressMode,
+  ): Promise<{ checked: false } | { checked: true; pendingComment: string | null; detach?: DetachOutcome | null }>;
+  checkRetryProgress(run: BeforeClaimInput["run"], target: ProgressTarget): Promise<RetryProgress>;
   /**
-   * Persists `crew.retry_progress.checked` with the result and, when the previous run left commits
-   * and the run has an issue, the comment to post. Returns that comment (or null).
+   * Persists `<mode marker>.checked` with the result and, when the previous run left commits (or, for a
+   * fallback, a dirty worktree) and the run has an issue, the comment to post. Returns that comment (or null).
    */
-  recordRetryProgress(run: BeforeClaimInput["run"], issueId: string | null, progress: RetryProgress): Promise<string | null>;
-  /** Comments on the issue (unless already there), then persists `crew.retry_progress.comment`. */
-  postRetryComment(run: BeforeClaimInput["run"], issueId: string, body: string): Promise<void>;
+  recordRetryProgress(
+    run: BeforeClaimInput["run"],
+    issueId: string | null,
+    progress: RetryProgress,
+    mode: ProgressMode,
+  ): Promise<string | null>;
+  /** Comments on the issue (unless already there), then persists `<mode marker>.comment`. */
+  postRetryComment(run: BeforeClaimInput["run"], issueId: string, body: string, mode: ProgressMode): Promise<void>;
+  /** Runtime switch gate (runtime-gate.ts), asked once the load gate lets the run through. True = hold. */
+  runtimeGate(run: BeforeClaimInput["run"]): Promise<boolean>;
+  /** Previous run of a runtime fallback run (crew_runtime_decisions), or null. */
+  fallbackPreviousRunId(run: BeforeClaimInput["run"]): Promise<string | null>;
 }
 
 function readIssueId(contextSnapshot: unknown): string | null {
@@ -213,36 +244,47 @@ function errorMessage(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
 }
 
+type ProgressOutcome = { kind: "claim" } | { kind: "failure"; error: string } | { kind: "dirty" };
+
 /**
- * Runs the retry progress check once per run and returns null when the retry may be claimed, or the
- * reason it must be held. The `checked` marker (with the comment to post) is written before the
- * comment, so a failing comment is retried next tick without another SSH round trip.
+ * Runs the progress check of the previous run once per run: `claim` when the run may be claimed,
+ * `failure` with the reason it must be held, or `dirty` when a fallback found the previous run's
+ * worktree with uncommitted changes. The `checked` marker (with the comment to post) is written before
+ * the comment, so a failing comment is retried next tick without another SSH round trip.
  */
-async function retryCheckFailure(
+async function progressCheck(
   run: BeforeClaimInput["run"],
   issueId: string | null,
+  target: ProgressTarget,
   deps: BeforeClaimDeps,
-): Promise<string | null> {
+): Promise<ProgressOutcome> {
   let comment: string | null;
+  let detach: DetachOutcome | null = null;
   try {
-    const state = await deps.retryState(run.id);
+    const state = await deps.retryState(run.id, target.mode);
     if (state.checked) {
       comment = state.pendingComment;
+      detach = state.detach ?? null;
     } else {
-      const progress = await deps.checkRetryProgress(run);
-      if (progress.kind === "error") return progress.error;
-      comment = await deps.recordRetryProgress(run, issueId, progress);
+      const progress = await deps.checkRetryProgress(run, target);
+      if (progress.kind === "error") return { kind: "failure", error: progress.error };
+      if (progress.kind === "checked") detach = progress.detach;
+      comment = await deps.recordRetryProgress(run, issueId, progress, target.mode);
     }
   } catch (err) {
-    return `không ghi hoặc đọc được kết quả kiểm: ${errorMessage(err)}`;
+    return { kind: "failure", error: `không ghi hoặc đọc được kết quả kiểm: ${errorMessage(err)}` };
   }
-  if (!comment || !issueId) return null;
-  try {
-    await deps.postRetryComment(run, issueId, comment);
-    return null;
-  } catch (err) {
-    return `không ghi được comment tiến độ: ${errorMessage(err)}`;
+  const dirty = target.mode === "fallback" && detach === "dirty";
+  if (comment && issueId) {
+    try {
+      await deps.postRetryComment(run, issueId, comment, target.mode);
+    } catch (err) {
+      // A dirty fallback stays held either way; its comment is retried next tick.
+      if (!dirty) return { kind: "failure", error: `không ghi được comment tiến độ: ${errorMessage(err)}` };
+      logger.warn({ err, runId: run.id }, "crew-load-gate: dirty fallback comment failed; the run stays held");
+    }
   }
+  return dirty ? { kind: "dirty" } : { kind: "claim" };
 }
 
 /**
@@ -293,7 +335,8 @@ async function decideBeforeClaim(input: BeforeClaimInput, deps: BeforeClaimDeps)
   const { run } = input;
   if (run.status !== "queued") return false;
   const target = await deps.loadTarget(run);
-  if (!target) return false;
+  // No load gate on this environment: only the runtime switch applies (no progress check, like retries).
+  if (!target) return deps.runtimeGate(run);
   const expiredReason = `Crew: hết ${target.settings.maxWaitMinutes} phút chờ máy ${target.environmentName}`;
   // The previous run's processes may still be alive in the same worktree: wait for its stop (a few
   // seconds, bounded) before letting another run start there. No marker: this is not a host problem.
@@ -318,11 +361,34 @@ async function decideBeforeClaim(input: BeforeClaimInput, deps: BeforeClaimDeps)
   let decision = decideGate({ settings: target.settings, probe, waitingSince: waitingSince ?? now, now });
   const issueId = readIssueId(run.contextSnapshot);
   if (decision.action === "claim") {
-    // A retry first learns what its predecessor already committed. When that cannot be checked the
-    // run is held like an unreachable host (same marker and deadline), never rerun blind.
-    if (!run.retryOfRunId) return false;
-    const failure = await retryCheckFailure(run, issueId, deps);
-    if (!failure) return false;
+    if (await deps.runtimeGate(run)) return true;
+    // A retry, or the first run after a runtime fallback, first learns what the previous run already
+    // committed. When that cannot be checked the run is held like an unreachable host (same marker and
+    // deadline), never rerun blind.
+    let failure: string | null = null;
+    let progressTarget: ProgressTarget | null = null;
+    if (run.retryOfRunId) {
+      progressTarget = { mode: "retry", previousRunId: run.retryOfRunId };
+    } else if (isRuntimeFallbackWake(run.contextSnapshot)) {
+      try {
+        const previousRunId = await deps.fallbackPreviousRunId(run);
+        if (previousRunId) progressTarget = { mode: "fallback", previousRunId };
+      } catch (err) {
+        failure = `không đọc được run trước khi chuyển runtime: ${errorMessage(err)}`;
+      }
+    }
+    if (!failure) {
+      if (!progressTarget) return false;
+      const outcome = await progressCheck(run, issueId, progressTarget, deps);
+      if (outcome.kind === "claim") return false;
+      if (outcome.kind === "dirty") {
+        // The old worktree still holds the issue branch with uncommitted work: never start the new run there.
+        if (issueId) await logFailure(run.id, "block issue", () => deps.blockIssue(issueId));
+        deps.scheduleCancel(run.id, CREW_RUNTIME_FALLBACK_DIRTY_CANCEL_REASON);
+        return true;
+      }
+      failure = outcome.error;
+    }
     decision = decideGate({
       settings: target.settings,
       probe: { ok: false, error: `kiểm tiến độ lần chạy trước lỗi: ${failure}` },
@@ -481,7 +547,24 @@ async function hasCommentWithPrefix(db: Db, issueId: string, prefix: string): Pr
   return Boolean(row);
 }
 
+/** Start of a progress comment up to the previous run id (`… run \`<id>\``), used to find one already posted. */
+function progressCommentPrefix(body: string): string {
+  const open = body.indexOf("`");
+  const close = open < 0 ? -1 : body.indexOf("`", open + 1);
+  return close < 0 ? body : body.slice(0, close + 1);
+}
+
 export function defaultBeforeClaimDeps(db: Db): BeforeClaimDeps {
+  const scheduleCancel = (runId: string, reason: string) => {
+    setImmediate(() => {
+      void (async () => {
+        const options = await neverStartedCancelOptions(db, runId);
+        const { heartbeatService } = await import("../services/heartbeat.js");
+        await heartbeatService(db).cancelRun(runId, reason, options);
+      })().catch((err) => logger.warn({ err, runId }, "crew-load-gate: cancelling an expired run failed; retried next tick"));
+    });
+  };
+  const runtimeGateDeps = defaultRuntimeGateDeps(db, { scheduleCancel });
   return {
     async loadTarget(run) {
       const [agent] = await db
@@ -625,45 +708,45 @@ export function defaultBeforeClaimDeps(db: Db): BeforeClaimDeps {
         );
       return "claim";
     },
-    scheduleCancel(runId, reason) {
-      setImmediate(() => {
-        void (async () => {
-          const options = await neverStartedCancelOptions(db, runId);
-          const { heartbeatService } = await import("../services/heartbeat.js");
-          await heartbeatService(db).cancelRun(runId, reason, options);
-        })().catch((err) => logger.warn({ err, runId }, "crew-load-gate: cancelling an expired run failed; retried next tick"));
-      });
-    },
+    scheduleCancel,
     async blockIssue(issueId) {
       await issueService(db).update(issueId, { status: "blocked" });
     },
     now: () => new Date(),
-    async retryState(runId) {
+    async retryState(runId, mode) {
       const [checked] = await db
         .select({ details: activityLog.details })
         .from(activityLog)
-        .where(and(eq(activityLog.runId, runId), eq(activityLog.action, "crew.retry_progress.checked")))
+        .where(and(eq(activityLog.runId, runId), eq(activityLog.action, `${PROGRESS_ACTION[mode]}.checked`)))
         .orderBy(desc(activityLog.createdAt))
         .limit(1);
       if (!checked) return { checked: false };
-      const comment = (checked.details as Record<string, unknown> | null)?.comment;
-      if (typeof comment !== "string" || !comment) return { checked: true, pendingComment: null };
+      const details = (checked.details as Record<string, unknown> | null) ?? {};
+      const detach: DetachOutcome | null =
+        details.detach === "done" || details.detach === "dirty" || details.detach === "other-branch" ? details.detach : null;
+      const comment = details.comment;
+      const detachField = detach ? { detach } : {};
+      if (typeof comment !== "string" || !comment) return { checked: true, pendingComment: null, ...detachField };
       const [posted] = await db
         .select({ id: activityLog.id })
         .from(activityLog)
-        .where(and(eq(activityLog.runId, runId), eq(activityLog.action, "crew.retry_progress.comment")))
+        .where(and(eq(activityLog.runId, runId), eq(activityLog.action, `${PROGRESS_ACTION[mode]}.comment`)))
         .limit(1);
-      return { checked: true, pendingComment: posted ? null : comment };
+      return { checked: true, pendingComment: posted ? null : comment, ...detachField };
     },
     checkRetryProgress: createRetryProgressChecker(db),
-    async recordRetryProgress(run, issueId, progress) {
-      const comment =
-        progress.kind === "checked" && progress.commits.length > 0 && issueId ? retryProgressComment(progress) : null;
+    async recordRetryProgress(run, issueId, progress, mode) {
+      let comment: string | null = null;
+      if (progress.kind === "checked" && issueId) {
+        if (mode === "retry") comment = progress.commits.length > 0 ? retryProgressComment(progress) : null;
+        else if (progress.detach === "dirty") comment = fallbackDirtyComment(progress.previousRunId);
+        else comment = progress.commits.length > 0 ? fallbackProgressComment(progress) : null;
+      }
       await logActivity(db, {
         companyId: run.companyId,
         actorType: "system",
         actorId: "crew",
-        action: "crew.retry_progress.checked",
+        action: `${PROGRESS_ACTION[mode]}.checked`,
         entityType: "heartbeat_run",
         entityId: run.id,
         agentId: run.agentId,
@@ -676,22 +759,22 @@ export function defaultBeforeClaimDeps(db: Db): BeforeClaimDeps {
                 cwd: progress.cwd,
                 commits: progress.commits.map((c) => ({ sha: c.sha, branch: c.branch })),
                 truncated: progress.truncated,
+                ...(progress.detach ? { detach: progress.detach } : {}),
                 ...(comment ? { comment } : {}),
               }
-            : { previousRunId: run.retryOfRunId, skipped: true },
+            : { previousRunId: mode === "retry" ? run.retryOfRunId : null, skipped: true },
       });
       return comment;
     },
-    async postRetryComment(run, issueId, body) {
-      const prefix = retryProgressCommentPrefix(run.retryOfRunId ?? "");
-      if (!(await hasCommentWithPrefix(db, issueId, prefix))) {
+    async postRetryComment(run, issueId, body, mode) {
+      if (!(await hasCommentWithPrefix(db, issueId, progressCommentPrefix(body)))) {
         await issueService(db).addComment(issueId, body, {}, { authorType: "system" });
       }
       await logActivity(db, {
         companyId: run.companyId,
         actorType: "system",
         actorId: "crew",
-        action: "crew.retry_progress.comment",
+        action: `${PROGRESS_ACTION[mode]}.comment`,
         entityType: "heartbeat_run",
         entityId: run.id,
         agentId: run.agentId,
@@ -700,6 +783,8 @@ export function defaultBeforeClaimDeps(db: Db): BeforeClaimDeps {
         details: {},
       });
     },
+    runtimeGate: (run) => evaluateRuntimeGate({ db, run }, runtimeGateDeps),
+    fallbackPreviousRunId: (run) => fallbackPreviousRunId(db, run),
   };
 }
 
