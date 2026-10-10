@@ -92,9 +92,9 @@ test('PW-S0-3 đổi sang EN: mọi chuỗi đổi theo, tải lại vẫn giữ
   await page.goto(company.path('dashboard'));
   await page.getByRole('group', { name: 'Ngôn ngữ' }).getByRole('button', { name: 'Tiếng Anh' }).click();
   await expect(page.getByRole('navigation', { name: 'Main navigation' })).toBeVisible();
-  await expect(page.getByRole('heading', { name: 'Dashboard' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Recent activity' })).toBeVisible();
   await page.reload();
-  await expect(page.getByRole('heading', { name: 'Dashboard' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Recent activity' })).toBeVisible();
   expect(await page.evaluate(() => localStorage.getItem('crew.lang'))).toBe('en');
 
   // Quét từng trang: chữ có dấu tiếng Việt chỉ được nằm trong dữ liệu (dòng danh sách, tài liệu), không trong khung UI.
@@ -133,8 +133,9 @@ test('PW-S0-4 Ctrl/Cmd+K: gõ mã issue mở đúng issue @t1', async ({ page, c
     .getByRole('option', { name: new RegExp(issue.identifier) })
     .first()
     .click();
-  await expect(page).toHaveURL(new RegExp(`/${company.issuePrefix}/issues/${issue.identifier}$`));
-  await expect(page.getByText(issue.title).first()).toBeVisible();
+  // Chọn từ palette mở popup chi tiết phủ trang đang xem (`?issue=`), không rời Tổng quan.
+  await expect(page).toHaveURL(new RegExp(`/${company.issuePrefix}/dashboard\\?issue=${issue.identifier}$`));
+  await expect(page.getByRole('dialog').getByText(issue.title).first()).toBeVisible();
 });
 
 test('PW-S0-5 đổi trạng thái issue qua API: trang đang mở cập nhật trong 5 giây @t1', async ({

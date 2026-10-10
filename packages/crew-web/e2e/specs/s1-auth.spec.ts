@@ -26,7 +26,7 @@ test('PW-S1-1 đăng nhập: sai báo lỗi, đúng vào Tổng quan, không có
   await expect(page).not.toHaveURL(/\/login/);
   await page.goto('/');
   await expect(page).toHaveURL(/\/[A-Za-z0-9]+\/dashboard$/);
-  await expect(page.getByRole('heading', { name: 'Tổng quan' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Hoạt động gần đây' })).toBeVisible();
   const session = await page.request.get('/api/auth/get-session');
   expect((await session.json())?.user?.email).toBe(email());
 });
