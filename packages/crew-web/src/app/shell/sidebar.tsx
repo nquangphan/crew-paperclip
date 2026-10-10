@@ -23,6 +23,7 @@ import { companyPath, NAV_ITEMS, type NavId } from '../routes-util';
 import { AccountMenu } from './account-menu';
 import { CompanySwitcher } from './company-switcher';
 import { LanguageSwitch } from './language-switch';
+import { StockUiSidebarItem } from './stock-ui-link';
 
 /** Ký hiệu phím tắt, không phải chữ cần dịch. */
 const PALETTE_SHORTCUT = '⌘K';
@@ -82,6 +83,7 @@ export function Sidebar({ segments, onOpenPalette }: { segments: ReadonlySet<str
             />
           );
         })}
+        <StockUiSidebarItem />
       </SidebarBody>
       <SidebarFooter>
         <AccountMenu />

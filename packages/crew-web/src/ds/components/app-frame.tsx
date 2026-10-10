@@ -42,14 +42,18 @@ interface SidebarItemProps {
   active?: boolean;
   /** Click thường chạy onNavigate (SPA), vẫn giữ link thật để mở tab mới. */
   onNavigate?: () => void;
+  /** Link ra ngoài: mở tab mới, không dùng onNavigate. */
+  external?: boolean;
 }
 
-function SidebarItem({ href, label, icon, badge, active, onNavigate }: SidebarItemProps) {
+function SidebarItem({ href, label, icon, badge, active, onNavigate, external }: SidebarItemProps) {
   return (
     <a
       href={href}
       data-slot="sidebar-item"
       aria-current={active ? 'page' : undefined}
+      target={external ? '_blank' : undefined}
+      rel={external ? 'noopener noreferrer' : undefined}
       className={cn(
         'flex items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2 focus-visible:ring-sidebar-ring focus-visible:outline-none [&_svg]:size-4 [&_svg]:shrink-0',
         active && 'bg-sidebar-accent font-medium text-sidebar-accent-foreground',

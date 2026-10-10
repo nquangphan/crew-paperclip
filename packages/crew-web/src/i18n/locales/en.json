@@ -117,6 +117,9 @@
     "signOut": "Sign out",
     "signOutFailed": "Could not sign out"
   },
+  "stockUi": {
+    "open": "Open original Paperclip UI"
+  },
   "lang": {
     "label": "Language",
     "vi": "Vietnamese",

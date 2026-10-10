@@ -16,6 +16,7 @@ import {
 import { LogOut } from '@/ds/icons';
 import { useT } from '@/i18n';
 import { useMe } from '../hooks';
+import { StockUiMenuItem } from './stock-ui-link';
 
 export function AccountMenu() {
   const { t } = useT();
@@ -43,6 +44,7 @@ export function AccountMenu() {
       <DropdownMenuContent align="start">
         <DropdownMenuLabel>{me.email ?? display}</DropdownMenuLabel>
         <DropdownMenuSeparator />
+        <StockUiMenuItem />
         <DropdownMenuItem disabled={signOut.isPending} onSelect={() => signOut.mutate()}>
           <LogOut aria-hidden />
           {signOut.isError ? t('account.signOutFailed') : t('account.signOut')}
