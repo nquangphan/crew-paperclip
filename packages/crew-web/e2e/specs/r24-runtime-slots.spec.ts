@@ -99,7 +99,8 @@ test('PW-R24-1 Ô runtime: roles nhận đúng adapter, tab Vai trò và wizard 
 
     // Tab Vai trò: agent ô Codex hiện tên; ô OpenCode và reviewer Codex trống có lối thêm.
     await page.goto(company.path(`projects/${c.projectId}?tab=roles`));
-    await expect(page.getByText(c.agents.codex.name, { exact: true })).toBeVisible();
+    // Tên agent và huy hiệu sẵn sàng (hiện khi readiness tải xong) nằm chung một ô: so khớp một phần.
+    await expect(page.getByRole('tabpanel').getByText(c.agents.codex.name)).toBeVisible();
     await expect(page.getByText('Executor Codex (tùy chọn)')).toBeVisible();
     await expect(page.getByRole('link', { name: 'Thêm executor Codex' })).toHaveCount(0);
     await expect(page.getByRole('link', { name: 'Thêm reviewer Codex' })).toBeVisible();
@@ -119,7 +120,7 @@ test('PW-R24-1 Ô runtime: roles nhận đúng adapter, tab Vai trò và wizard 
 
     // Wizard Tạo agent từ lối "Thêm reviewer Codex": model cố định gpt-6-sol.
     await page.reload();
-    await expect(page.getByText(c.agents.opencode.name, { exact: true })).toBeVisible();
+    await expect(page.getByRole('tabpanel').getByText(c.agents.opencode.name)).toBeVisible();
     await expect(page.getByRole('link', { name: 'Thêm executor OpenCode' })).toHaveCount(0);
     await page.getByRole('link', { name: 'Thêm reviewer Codex' }).click();
     await expect(page).toHaveURL(new RegExp(`agents/new\\?project=${c.projectId}&slot=reviewer-codex`));
