@@ -285,8 +285,49 @@ describe("tiến độ wizard trên database thật của host", () => {
     await begin(run.id, "check");
     expect((await finish(run.id, "check", { status: "done" })).body).toMatchObject({ status: "done", runningStep: null });
     expect(await begin(run.id, "check")).toEqual({ status: 409, body: { error: "Lần cài đặt đã xong" } });
-    // Once done, the key is free for a new run.
-    expect((await call(request("setup.create", { body: createBody() }))).status).toBe(201);
+    // The project keeps its key after the run: checkouts and environments `<key>-<slot>` stay named after it.
+    expect(await call(request("setup.create", { body: createBody() })))
+      .toEqual({ status: 409, body: { error: "Khóa này đã dùng cho một project khác (kể cả project đã gỡ), chọn khóa khác" } });
+  });
+
+  it("thêm project bằng khóa của project đã có (kể cả đã gỡ, kể cả lần thêm dở có project) bị từ chối trước khi tạo gì", async () => {
+    const run = await create();
+    await begin(run.id, "project");
+    await finish(run.id, "project", { status: "done", projectId });
+    await begin(run.id, "environments");
+    await finish(run.id, "environments", { status: "failed", error: "x" });
+    // The failed run is still resumable: the web is offered it rather than a new run.
+    expect((await call(request("setup.create", { body: createBody() }))).body).toMatchObject({ setupRunId: run.id });
+    // Once the project is removed nothing resumes the run any more, yet the key stays taken.
+    await host.sql.unsafe(`UPDATE ${host.ns}.crew_setup_runs SET status = 'done' WHERE id = $1`, [run.id]);
+    expect(await call(request("setup.create", { body: createBody() })))
+      .toEqual({ status: 409, body: { error: "Khóa này đã dùng cho một project khác (kể cả project đã gỡ), chọn khóa khác" } });
+    expect(await host.sql.unsafe(`SELECT id FROM ${host.ns}.crew_setup_runs`)).toHaveLength(1);
+    // A run abandoned before it created a project does not hold the key.
+    const free = await create({ projectKey: "demo-2", input: { ...projectInput, key: "demo-2" } });
+    await abandon(free.id);
+    expect((await call(request("setup.create", { body: createBody({ projectKey: "demo-2", input: { ...projectInput, key: "demo-2" } }) }))).status).toBe(201);
+  });
+
+  it("gỡ được project mồ côi của lần thêm dở dùng lại khóa của project đã gỡ; project cũ không gỡ lại bằng khóa đó", async () => {
+    const removed = "30000000-0000-4000-8000-0000000000a1";
+    const orphan = "30000000-0000-4000-8000-0000000000a2";
+    // Data left by the old wizard, which let a key be used again: a done run, then a newer run failed after its project.
+    const legacy = (id: string, project: string, status: string, age: number) => host.sql.unsafe(
+      `INSERT INTO ${host.ns}.crew_setup_runs (id,company_id,kind,project_key,project_id,machine_id,input,status,created_by_user_id,created_at)
+       VALUES ($1,$2,'add-project','demo',$3,$4,$5::text::jsonb,$6,$7, now() - make_interval(mins => ${age}))`,
+      [id, companyId, project, machineId, JSON.stringify(projectInput), status, userId]);
+    await legacy("70000000-0000-4000-8000-0000000000a1", removed, "done", 60);
+    await legacy("70000000-0000-4000-8000-0000000000a2", orphan, "failed", 10);
+    const removal = (project: string) => call(request("setup.create", { body: removeProjectBody({ input: { projectId: project, projectName: "Mồ côi" } }) }));
+
+    const res = await removal(orphan);
+    expect(res.status).toBe(201);
+    expect(res.body).toMatchObject({ kind: "remove-project", projectKey: "demo", projectId: orphan });
+    expect(await removal(removed)).toEqual({ status: 400, body: { error: "Khóa project đã thuộc project khác" } });
+    // An agent cannot be added to the old project either: its key now names the orphan's checkouts.
+    expect(await call(request("setup.create", { body: createBody({ kind: "add-agent", input: { projectId: removed, slot: "executor", name: "A", model: "claude-sonnet-5" } }) })))
+      .toEqual({ status: 400, body: { error: "Khóa project đã thuộc project khác" } });
   });
 
   it("từ chối finish sai, bước lạ, run của company khác", async () => {
