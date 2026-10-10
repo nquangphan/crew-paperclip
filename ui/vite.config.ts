@@ -9,7 +9,12 @@ import { readBrowserBuildCommit } from "./src/lib/vite-build-commit";
 
 const apiProxy = createApiProxy();
 
+// PAPERCLIP_UI_BASE lets the stock UI be built for a sub-path (e.g. "/paperclip/") so it can be served
+// beside another UI on the same origin. Unset keeps the default root build.
+const uiBase = process.env.PAPERCLIP_UI_BASE || "/";
+
 export default defineConfig(({ mode }) => ({
+  base: uiBase,
   define: {
     __PAPERCLIP_BUILD_COMMIT__: JSON.stringify(
       readBrowserBuildCommit(__dirname),

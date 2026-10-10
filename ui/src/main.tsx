@@ -35,9 +35,13 @@ startPerfMeasureReaper();
 // re-checks /sw.js on tab focus and hourly, and applies a discovered update
 // with one reload while the tab is hidden — otherwise an old worker and its
 // cached shell can outlive a deploy indefinitely.
-window.addEventListener("load", () => {
-  startServiceWorkerUpdates();
-});
+// A sub-path build shares its origin with another UI; its root-scoped worker must not take over that UI.
+const uiBasePath = import.meta.env.BASE_URL.replace(/\/+$/, "");
+if (!uiBasePath) {
+  window.addEventListener("load", () => {
+    startServiceWorkerUpdates();
+  });
+}
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -66,7 +70,7 @@ getOrCreatePaperclipReactRoot(window, rootElement).render(
       <QueryClientProvider client={queryClient}>
         <SentryGate />
         <ThemeProvider>
-          <BrowserRouter>
+          <BrowserRouter basename={uiBasePath || undefined}>
             <CompanyProvider>
               <EditorAutocompleteProvider>
                 <ToastProvider>
