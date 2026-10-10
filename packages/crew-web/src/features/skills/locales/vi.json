@@ -63,7 +63,11 @@
     "syncNow": "Đồng bộ",
     "resync": "Đồng bộ lại",
     "retryFailed": "Không thử lại được",
-    "syncFailed": "Không xếp được việc đồng bộ"
+    "syncFailed": "Không xếp được việc đồng bộ",
+    "removeQueued": "Đang chờ gỡ khỏi {{host}}",
+    "removeClaimed": "Đang gỡ khỏi {{host}}",
+    "removeFailed": "Lỗi gỡ khỏi {{host}}: {{error}}",
+    "removeCancelled": "Việc gỡ khỏi {{host}} đã bị hủy"
   },
   "detail": {
     "loadFailed": "Không tải được skill",
@@ -81,6 +85,110 @@
       "agent": "Agent",
       "enabled": "Bật"
     },
-    "content": "Nội dung SKILL.md"
+    "content": "Nội dung SKILL.md",
+    "readOnly": "Skill chỉ đọc",
+    "readOnlyHint": "Nội dung skill này không sửa được trên web."
+  },
+  "deletedNotice": "Đã xóa skill {{name}}",
+  "leftover": {
+    "title": "Bản chép của skill đã xóa",
+    "hint": "Skill đã xóa nhưng máy còn bản chép trong ~/.crew/skills. App 2P Crew xóa bản chép khi nhận việc gỡ.",
+    "queued": "{{name}}: đang chờ gỡ khỏi {{host}}",
+    "claimed": "{{name}}: đang gỡ khỏi {{host}}",
+    "failed": "{{name}}: lỗi gỡ khỏi {{host}}: {{error}}",
+    "held": "{{name}}: bản chép còn trên {{host}}",
+    "remove": "Gỡ bản chép",
+    "waitingApp": "{{name}}: chờ app 2P Crew trên {{host}} để gỡ",
+    "actionFailed": "Không xếp được việc gỡ"
+  },
+  "pinned": {
+    "title": "Skill ghim (Superpowers)",
+    "hint": "Skill của bản Superpowers đã ghim trên máy, agent nạp qua --plugin-dir. Không sửa, không xóa từ web.",
+    "hintVersion": "Skill của bản Superpowers {{version}} đã ghim trên máy, agent nạp qua --plugin-dir. Không sửa, không xóa từ web.",
+    "unknown": "Chưa máy nào báo danh sách skill ghim"
+  },
+  "info": {
+    "open": "Sửa thông tin",
+    "title": "Sửa thông tin {{name}}",
+    "description": "Tên skill không đổi ở đây; đổi tên bằng dòng name: trong SKILL.md (skill sửa được).",
+    "fieldDescription": "Mô tả",
+    "fieldTagline": "Câu giới thiệu ngắn",
+    "fieldCategories": "Nhóm",
+    "categoriesHint": "Cách nhau bằng dấu phẩy",
+    "save": "Lưu",
+    "saveFailed": "Không lưu được thông tin skill"
+  },
+  "editor": {
+    "title": "Sửa nội dung",
+    "files": "File của skill",
+    "loadFailed": "Không đọc được file",
+    "notText": "File này không sửa được trên web",
+    "contentOf": "Nội dung {{path}}",
+    "clash": "Tên {{name}} trùng skill Superpowers đã ghim, không lưu được",
+    "save": "Lưu file",
+    "deleteFile": "Xóa file",
+    "newPath": "Đường dẫn file mới",
+    "newPathHint": "Ví dụ references/ghi-chu.md",
+    "addFile": "Thêm file",
+    "conflict": "Có người vừa sửa, tải lại",
+    "reload": "Tải lại",
+    "saveFailed": "Không lưu được",
+    "saved": "Đã lưu {{path}}",
+    "deleted": "Đã xóa {{path}}",
+    "queueFailed": "Chưa xếp được việc đồng bộ: {{error}}",
+    "deleteTitle": "Xóa file {{path}}",
+    "deleteBody": "File bị xóa khỏi skill. Agent nhận bản mới từ lần chạy sau."
+  },
+  "fork": {
+    "defaultName": "{{name}} (bản sửa)",
+    "title": "Tạo bản sửa được",
+    "description": "Chép skill này thành skill sửa được trên Paperclip. Agent đang bật skill này chuyển sang bản mới.",
+    "name": "Tên bản mới",
+    "clash": "Trùng skill Superpowers {{name}}, không tạo được",
+    "precheckFailed": "Không kiểm được skill trước khi chép",
+    "reassign": "Chuyển {{count}} agent đang dùng sang bản mới",
+    "failed": "Không tạo được bản sửa được",
+    "submit": "Tạo bản sửa được",
+    "heading": "Tạo bản sửa được",
+    "hint": "Muốn sửa nội dung skill chỉ đọc thì chép thành bản sửa được. Bản gốc giữ nguyên, xóa sau nếu không dùng.",
+    "open": "Tạo bản sửa được",
+    "originalLeft": "Bản gốc vẫn còn",
+    "openOriginal": "Mở bản gốc {{name}} để xóa nếu không dùng nữa"
+  },
+  "upstream": {
+    "title": "Nguồn và bản sửa",
+    "updateTitle": "Cập nhật từ nguồn",
+    "check": "Kiểm cập nhật",
+    "install": "Cập nhật từ nguồn",
+    "unsupported": "Không cập nhật được: {{reason}}",
+    "hasUpdate": "Có bản mới {{ref}}",
+    "upToDate": "Đã là bản mới nhất",
+    "hold": {
+      "local_modifications": "Skill đã bị sửa tại chỗ, cập nhật sẽ bị giữ lại",
+      "audit_hard_stop": "Bản mới không qua kiểm tra an toàn",
+      "origin_unavailable": "Không đọc được nguồn",
+      "compatibility_invalid": "Bản mới không tương thích",
+      "operator_hold": "Cập nhật đang bị giữ"
+    },
+    "checkFailed": "Không kiểm được cập nhật",
+    "installFailed": "Không cập nhật được từ nguồn",
+    "installed": "Đã cập nhật từ nguồn",
+    "changeTitle": "Đổi nguồn",
+    "changeHint": "Không đổi được repo hay nhánh của skill tại chỗ. Thêm skill từ nguồn mới, bật cho agent, rồi xóa skill này.",
+    "addNew": "Thêm từ nguồn mới"
+  },
+  "delete": {
+    "open": "Xóa skill",
+    "title": "Xóa skill {{name}}",
+    "confirm": "Xóa skill",
+    "body": "Skill bị gỡ khỏi mọi agent, bỏ chọn ở nguồn GitHub (nếu có) rồi xóa. Bản chép trên máy được gỡ bằng app 2P Crew.",
+    "agents": "Agent đang bật skill:",
+    "noAgents": "Không agent nào đang bật skill.",
+    "machines": "Máy đã có bản chép:",
+    "noMachines": "Chưa máy nào có bản chép.",
+    "waitingApp": "Chờ app 2P Crew trên {{hosts}} để gỡ bản chép",
+    "running": "Đang xóa skill",
+    "failed": "Xóa skill dừng giữa chừng",
+    "resume": "Chạy tiếp"
   }
 }

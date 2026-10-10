@@ -1,11 +1,13 @@
 // Danh sách skill company (S14.1) và nút Thêm skill (S14.2). Cột Đồng bộ tóm tắt số máy đã có skill (S14.4).
+// Dưới bảng: bản chép của skill đã xóa còn trên máy và khối skill ghim chỉ đọc (S14.7).
 import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import { api, queryKeys } from '@/api';
 import { useCompany } from '@/app/hooks';
 import { companyPath } from '@/app/routes-util';
 import {
+  Alert,
   Badge,
   Button,
   EmptyState,
@@ -23,6 +25,8 @@ import { Plus } from '@/ds/icons';
 import { useCrewMachines } from '@/features/machines/use-machines';
 import { useT } from '@/i18n';
 import { AddSkillDialog } from './add-skill-dialog';
+import { PinnedSkills } from './pinned-skills';
+import { LeftoverCopies } from './sync-status';
 import { useSkillSyncStates } from './use-skill-sync';
 
 export function SkillsPage() {
@@ -32,6 +36,7 @@ export function SkillsPage() {
   const skills = useQuery({ queryKey: queryKeys.skills(company.id), queryFn: () => api.skills.list(company.id) });
   const machines = useCrewMachines(company.id);
   const states = useSkillSyncStates(company.id);
+  const deleted = (useLocation().state as { deletedSkill?: string } | null)?.deletedSkill;
 
   const header = (
     <PageHeader
@@ -74,39 +79,46 @@ export function SkillsPage() {
   const doneOn = (skillId: string) =>
     (states.data ?? []).filter((s) => s.skillId === skillId && s.status === 'done').length;
 
+  const machineList = machines.data ?? [];
+
   return (
     <>
       {header}
-      {list.length === 0 ? (
-        <EmptyState title={t('empty')} description={t('emptyHint')} />
-      ) : (
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>{t('col.name')}</TableHead>
-              <TableHead>{t('col.source')}</TableHead>
-              <TableHead>{t('col.agents')}</TableHead>
-              <TableHead>{t('col.sync')}</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {list.map((skill) => (
-              <TableRow key={skill.id}>
-                <TableCell>
-                  <Link to={companyPath(company.issuePrefix, `skills/${skill.id}`)}>{skill.name}</Link>
-                </TableCell>
-                <TableCell>
-                  <Badge variant="outline">
-                    {skill.sourceLabel ?? t(`source.${skill.sourceBadge}`, { defaultValue: skill.sourceBadge })}
-                  </Badge>
-                </TableCell>
-                <TableCell>{skill.attachedAgentCount}</TableCell>
-                <TableCell>{t('syncSummary', { done: doneOn(skill.id), total })}</TableCell>
+      <div className="flex flex-col gap-6">
+        {deleted ? <Alert variant="info" title={t('deletedNotice', { name: deleted })} /> : null}
+        {list.length === 0 ? (
+          <EmptyState title={t('empty')} description={t('emptyHint')} />
+        ) : (
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>{t('col.name')}</TableHead>
+                <TableHead>{t('col.source')}</TableHead>
+                <TableHead>{t('col.agents')}</TableHead>
+                <TableHead>{t('col.sync')}</TableHead>
               </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      )}
+            </TableHeader>
+            <TableBody>
+              {list.map((skill) => (
+                <TableRow key={skill.id}>
+                  <TableCell>
+                    <Link to={companyPath(company.issuePrefix, `skills/${skill.id}`)}>{skill.name}</Link>
+                  </TableCell>
+                  <TableCell>
+                    <Badge variant="outline">
+                      {skill.sourceLabel ?? t(`source.${skill.sourceBadge}`, { defaultValue: skill.sourceBadge })}
+                    </Badge>
+                  </TableCell>
+                  <TableCell>{skill.attachedAgentCount}</TableCell>
+                  <TableCell>{t('syncSummary', { done: doneOn(skill.id), total })}</TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        )}
+        <LeftoverCopies skillIds={list.map((s) => s.id)} machines={machineList} />
+        <PinnedSkills machines={machineList} />
+      </div>
       {dialog}
     </>
   );

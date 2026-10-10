@@ -63,7 +63,11 @@
     "syncNow": "Sync",
     "resync": "Sync again",
     "retryFailed": "Could not retry",
-    "syncFailed": "Could not queue the sync job"
+    "syncFailed": "Could not queue the sync job",
+    "removeQueued": "Waiting to remove from {{host}}",
+    "removeClaimed": "Removing from {{host}}",
+    "removeFailed": "Could not remove from {{host}}: {{error}}",
+    "removeCancelled": "Removal from {{host}} was cancelled"
   },
   "detail": {
     "loadFailed": "Could not load the skill",
@@ -81,6 +85,110 @@
       "agent": "Agent",
       "enabled": "On"
     },
-    "content": "SKILL.md content"
+    "content": "SKILL.md content",
+    "readOnly": "Read-only skill",
+    "readOnlyHint": "This skill's content cannot be edited on the web."
+  },
+  "deletedNotice": "Deleted skill {{name}}",
+  "leftover": {
+    "title": "Copies of deleted skills",
+    "hint": "These skills were deleted but machines still hold a copy in ~/.crew/skills. The 2P Crew app removes the copy when it picks up the removal job.",
+    "queued": "{{name}}: waiting to remove from {{host}}",
+    "claimed": "{{name}}: removing from {{host}}",
+    "failed": "{{name}}: could not remove from {{host}}: {{error}}",
+    "held": "{{name}}: copy still on {{host}}",
+    "remove": "Remove copy",
+    "waitingApp": "{{name}}: waiting for the 2P Crew app on {{host}} to remove it",
+    "actionFailed": "Could not queue the removal"
+  },
+  "pinned": {
+    "title": "Pinned skills (Superpowers)",
+    "hint": "Skills of the Superpowers build pinned on the machines, loaded by agents via --plugin-dir. They cannot be edited or deleted from the web.",
+    "hintVersion": "Skills of Superpowers {{version}} pinned on the machines, loaded by agents via --plugin-dir. They cannot be edited or deleted from the web.",
+    "unknown": "No machine has reported its pinned skills yet"
+  },
+  "info": {
+    "open": "Edit details",
+    "title": "Edit details of {{name}}",
+    "description": "The skill name is not changed here; rename it with the name: line in SKILL.md (editable skills).",
+    "fieldDescription": "Description",
+    "fieldTagline": "Tagline",
+    "fieldCategories": "Categories",
+    "categoriesHint": "Separate with commas",
+    "save": "Save",
+    "saveFailed": "Could not save the skill details"
+  },
+  "editor": {
+    "title": "Edit content",
+    "files": "Skill files",
+    "loadFailed": "Could not read the file",
+    "notText": "This file cannot be edited on the web",
+    "contentOf": "Content of {{path}}",
+    "clash": "The name {{name}} clashes with a pinned Superpowers skill, cannot save",
+    "save": "Save file",
+    "deleteFile": "Delete file",
+    "newPath": "New file path",
+    "newPathHint": "For example references/notes.md",
+    "addFile": "Add file",
+    "conflict": "Someone just edited this, reload",
+    "reload": "Reload",
+    "saveFailed": "Could not save",
+    "saved": "Saved {{path}}",
+    "deleted": "Deleted {{path}}",
+    "queueFailed": "Could not queue the sync yet: {{error}}",
+    "deleteTitle": "Delete file {{path}}",
+    "deleteBody": "The file is removed from the skill. Agents get the new version from their next run."
+  },
+  "fork": {
+    "defaultName": "{{name}} (edited)",
+    "title": "Create an editable copy",
+    "description": "Copy this skill into an editable Paperclip skill. Agents using this skill move to the new copy.",
+    "name": "New copy name",
+    "clash": "Clashes with Superpowers skill {{name}}, cannot create",
+    "precheckFailed": "Could not check the skill before copying",
+    "reassign": "Move {{count}} agents using it to the new copy",
+    "failed": "Could not create the editable copy",
+    "submit": "Create editable copy",
+    "heading": "Create an editable copy",
+    "hint": "To edit a read-only skill, copy it into an editable one. The original stays; delete it later if unused.",
+    "open": "Create editable copy",
+    "originalLeft": "The original is still there",
+    "openOriginal": "Open the original {{name}} to delete it if no longer used"
+  },
+  "upstream": {
+    "title": "Source and copies",
+    "updateTitle": "Update from source",
+    "check": "Check for updates",
+    "install": "Update from source",
+    "unsupported": "Cannot update: {{reason}}",
+    "hasUpdate": "New version {{ref}} available",
+    "upToDate": "Already up to date",
+    "hold": {
+      "local_modifications": "The skill was modified in place, the update will be held",
+      "audit_hard_stop": "The new version failed the safety audit",
+      "origin_unavailable": "The source cannot be read",
+      "compatibility_invalid": "The new version is incompatible",
+      "operator_hold": "Updates are on hold"
+    },
+    "checkFailed": "Could not check for updates",
+    "installFailed": "Could not update from source",
+    "installed": "Updated from source",
+    "changeTitle": "Change source",
+    "changeHint": "The repo or branch of a skill cannot be changed in place. Add the skill from the new source, enable it for agents, then delete this skill.",
+    "addNew": "Add from a new source"
+  },
+  "delete": {
+    "open": "Delete skill",
+    "title": "Delete skill {{name}}",
+    "confirm": "Delete skill",
+    "body": "The skill is removed from every agent, deselected at its GitHub source (if any) and then deleted. Copies on machines are removed by the 2P Crew app.",
+    "agents": "Agents with this skill enabled:",
+    "noAgents": "No agent has this skill enabled.",
+    "machines": "Machines holding a copy:",
+    "noMachines": "No machine holds a copy yet.",
+    "waitingApp": "Waiting for the 2P Crew app on {{hosts}} to remove the copy",
+    "running": "Deleting the skill",
+    "failed": "Skill deletion stopped part-way",
+    "resume": "Resume"
   }
 }
