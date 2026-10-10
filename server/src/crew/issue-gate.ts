@@ -700,7 +700,12 @@ async function routeAssigneeOverrides(
       fromAgentId: from,
       toAgentId: to,
       ...(executorLeaving ? { executorOverrides: locked.assigneeAdapterOverrides ?? null } : {}),
-      assigneeAdapterOverrides: explicit ? (patch.assigneeAdapterOverrides ?? null) : (next ?? locked.assigneeAdapterOverrides ?? null),
+      // Giá trị cột sau lệnh ghi: `next === null` là override bị xóa, chỉ `undefined` mới giữ giá trị cũ.
+      assigneeAdapterOverrides: explicit
+        ? (patch.assigneeAdapterOverrides ?? null)
+        : next !== undefined
+          ? next
+          : (locked.assigneeAdapterOverrides ?? null),
     },
   });
 }
