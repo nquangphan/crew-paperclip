@@ -1,7 +1,15 @@
 import { agents, issues, labels, routines, routineTriggers, type Db } from "@paperclipai/db";
 import { and, eq, inArray, isNotNull, or, sql } from "drizzle-orm";
 import { unprocessable } from "../errors.js";
-import { CREW_OVERRIDE_FORBIDDEN_MESSAGE, checkAgentAdapterOverrides } from "./model-policy.js";
+import {
+  CREW_MODEL_LINE_RE,
+  CREW_OVERRIDE_FORBIDDEN_MESSAGE,
+  checkAgentAdapterOverrides,
+  chooseReviewer,
+  type CrewRuntime,
+  isCrewRuntime,
+  type ReviewerChoice,
+} from "./model-policy.js";
 import {
   buildCrewPolicy,
   CREW_RESEARCH_LABEL,
@@ -18,6 +26,8 @@ import {
   loadProjectAgentRoles,
   type ProjectAgentRoles,
 } from "./project-roles.js";
+import { readRuntimeSwitch, resolveAgentMachine } from "./runtime-switch.js";
+import { logger } from "../middleware/logger.js";
 
 /** Cùng shape với IssueCreateLike trong core-hooks.ts (không import registry). */
 export interface IssueCreateFields {
@@ -102,7 +112,9 @@ export function decideCreatePolicy(input: {
     if (data.status && AGENT_CREATE_FORBIDDEN_STATUSES.has(data.status)) {
       return { kind: "reject", code: "crew_gate_blocked" };
     }
-    const roleAgentIds = input.roleAgentIds ?? new Set([roles.reviewerAgentId, roles.integratorAgentId]);
+    const roleAgentIds =
+      input.roleAgentIds ??
+      new Set([roles.reviewerAgentId, roles.integratorAgentId, roles.codexReviewerAgentId ?? ""].filter(Boolean));
     if (data.assigneeAgentId && roleAgentIds.has(data.assigneeAgentId.toLowerCase())) {
       return { kind: "reject", code: "crew_role_assignee" };
     }
@@ -196,6 +208,56 @@ export async function loadAssigneeAdapterType(
     .where(and(eq(agents.id, agentId), eq(agents.companyId, companyId)))
     .limit(1);
   return row?.adapterType ?? null;
+}
+
+/**
+ * Runtime của executor issue con: marker `crew-model … runtime=<r>` trong mô tả (marker không có `runtime=` là Claude),
+ * không có marker thì `adapterType` của assignee; agent ngoài ba runtime hay chưa giao ai coi như Claude.
+ */
+export function executorRuntimeOf(description: string | null | undefined, assigneeAdapterType: string | null): CrewRuntime {
+  const marker = CREW_MODEL_LINE_RE.exec(description ?? "");
+  if (marker) return (marker[4] as CrewRuntime | undefined) ?? "claude_local";
+  return isCrewRuntime(assigneeAdapterType) ? assigneeAdapterType : "claude_local";
+}
+
+/**
+ * Reviewer của issue con code (H4): reviewer Codex của project khi `chooseReviewer` cho phép, công tắc `codex_local` đọc
+ * trên máy của reviewer Codex. Reviewer Codex không có environment thì không xác định máy (công tắc mặc định, tắt), như
+ * cổng H1. Đọc trạng thái/máy/công tắc lỗi thì reviewer Claude (không chặn tạo issue vì một ô tùy chọn).
+ */
+async function chooseChildReviewer(
+  db: Db,
+  companyId: string,
+  roles: CrewRoles,
+  data: IssueCreateFields,
+): Promise<ReviewerChoice | null> {
+  const codexReviewerAgentId = roles.codexReviewerAgentId;
+  if (!codexReviewerAgentId) return null;
+  try {
+    const [codex] = await db
+      .select({ status: agents.status, defaultEnvironmentId: agents.defaultEnvironmentId })
+      .from(agents)
+      .where(and(eq(agents.id, codexReviewerAgentId), eq(agents.companyId, companyId)))
+      .limit(1);
+    const marker = CREW_MODEL_LINE_RE.test(data.description ?? "");
+    const assigneeAdapterType = marker ? null : await loadAssigneeAdapterType(db, companyId, data.assigneeAgentId);
+    const base = {
+      template: "child" as const,
+      executorRuntime: executorRuntimeOf(data.description, assigneeAdapterType),
+      claudeReviewerAgentId: roles.reviewerAgentId,
+      codexReviewer: codex ? { agentId: codexReviewerAgentId, status: codex.status } : null,
+    };
+    // Chỉ đọc công tắc khi các điều kiện khác đã cho reviewer Codex.
+    if (chooseReviewer({ ...base, codexSwitchOn: true }).runtime !== "codex_local") return chooseReviewer({ ...base, codexSwitchOn: false });
+    const machineId = codex?.defaultEnvironmentId
+      ? await resolveAgentMachine(db, { companyId, agentId: codexReviewerAgentId })
+      : null;
+    const codexSwitchOn = await readRuntimeSwitch(db, { companyId, machineId, runtime: "codex_local" });
+    return chooseReviewer({ ...base, codexSwitchOn });
+  } catch (err) {
+    logger.warn({ err, companyId, codexReviewerAgentId }, "crew: choosing the Codex reviewer failed; using the Claude reviewer");
+    return null;
+  }
 }
 
 /** `originKind` của issue do routine sinh ra (`services/routines.ts`); `originId` là id routine. */
@@ -304,9 +366,14 @@ export async function crewBeforeIssueCreate<T extends IssueCreateFields>(input: 
     ...(decision.violations ? { violations: decision.violations } : {}),
   });
   // `roles` khác null ở mọi nhánh `set` của decideCreatePolicy.
-  const policy =
-    decision.template === "child"
-      ? buildCrewPolicy("child", roles as CrewRoles)
-      : buildCrewPolicy(decision.template, roles as CrewRoles, decision.ownerUserId);
+  let policy;
+  if (decision.template === "child") {
+    const reviewer = await chooseChildReviewer(input.db, input.companyId, roles as CrewRoles, data);
+    policy = buildCrewPolicy("child", roles as CrewRoles, null, {
+      codexReviewerAgentId: reviewer?.runtime === "codex_local" ? reviewer.agentId : null,
+    });
+  } else {
+    policy = buildCrewPolicy(decision.template, roles as CrewRoles, decision.ownerUserId);
+  }
   return { ...input.data, executionPolicy: policy };
 }

@@ -44,7 +44,8 @@ function readIssueId(contextSnapshot: unknown): string | null {
 /**
  * Cổng công tắc runtime của H1 (sau cổng tải). Trả `true` để giữ run ở `queued`:
  * - run của agent đã bị chuyển runtime (fallback) mà còn `queued`: hủy rồi giữ;
- * - agent `claude_local`/`codex_local`/`opencode_local` có environment, công tắc runtime đó trên máy của agent tắt.
+ * - agent `claude_local`/`codex_local`/`opencode_local`, công tắc runtime đó trên máy của agent tắt. Agent không có
+ *   environment thì không xác định máy (không tra bản tin): công tắc mặc định, nên Codex/OpenCode bị giữ, Claude chạy.
  * Không comment, không hủy vì công tắc: plugin lo fallback. Lỗi khi đọc thì cho claim (fail open), vì lỗi hạ tầng không
  * được chặn mọi run; bảng chưa có hay đọc công tắc lỗi thì `readRuntimeSwitch` đã trả mặc định.
  */
@@ -60,9 +61,11 @@ export async function evaluateRuntimeGate(input: { db: Db; run: Run }, deps: Run
     } catch (err) {
       logger.warn({ err, runId: run.id }, "crew-runtime-gate: checking for a superseded run failed; continuing");
     }
-    if (!isCrewRuntime(agent.adapterType) || !agent.defaultEnvironmentId) return false;
+    if (!isCrewRuntime(agent.adapterType)) return false;
     const runtime = agent.adapterType;
-    const machineId = await deps.resolveMachine({ companyId: run.companyId, agentId: run.agentId });
+    const machineId = agent.defaultEnvironmentId
+      ? await deps.resolveMachine({ companyId: run.companyId, agentId: run.agentId })
+      : null;
     if (await deps.switchOn({ companyId: run.companyId, machineId, runtime })) return false;
     try {
       if (!(await deps.hasWaitingMarker(run.id))) {

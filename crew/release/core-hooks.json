@@ -10,7 +10,7 @@
       "head": "async function claimQueuedRun(",
       "anchor": "    if (await crewCoreHooks.beforeClaim({ db, run })) return null;",
       "importLine": "import { crewCoreHooks } from \"../crew/core-hooks.js\";",
-      "description": "Keep a queued run queued while its environment is overloaded or unreachable, or while its runtime is switched off on its machine (the held run is recorded in the Crew plugin table crew_runtime_waits, the only plugin table the server writes); cancel queued runs of an agent a runtime fallback moved the issue away from; before a runtime fallback run, stop the previous run and release its branch; when claimed, resume the previous issue's session within a Crew bundle.",
+      "description": "Keep a queued run queued while its environment is overloaded or unreachable, or while its runtime is switched off on its machine (an agent without an environment gets the default switches, so Codex/OpenCode runs wait; the held run is recorded in the Crew plugin table crew_runtime_waits, the only plugin table the server writes); cancel queued runs of an agent a runtime fallback moved the issue away from; before a runtime fallback run, stop the previous run and release its branch; when claimed, resume the previous issue's session within a Crew bundle.",
       "upstreamPr": null,
       "tests": [
         "server/src/__tests__/crew-before-claim.test.ts",
@@ -29,7 +29,7 @@
       "head": "const runUpdate = async (tx: any) => {",
       "anchor": "        await crewCoreHooks.beforeIssueWrite({ tx, issueId: id, existing, patch, actorAgentId, actorUserId });",
       "importLine": "import { crewCoreHooks } from \"../crew/core-hooks.js\";",
-      "description": "Reject issue writes that skip execution-policy stages, let an agent change executionPolicy or move an issue to another project, or let an agent other than the project's assistant hand work to anyone but the project's executors (self-assignment only for issues no agent holds); agent writes fail closed when project roles are unreadable; a board override into done clears the dangling execution state; check model/effort overrides against the assignee's runtime; a system write may only swap the project's Codex reviewer for its Claude reviewer in review stages.",
+      "description": "Reject issue writes that skip execution-policy stages, let an agent change executionPolicy or move an issue to another project, or let an agent other than the project's assistant hand work to anyone but the project's executors of any runtime (never to a reviewer, integrator or Codex reviewer) (self-assignment only for issues no agent holds); agent writes fail closed when project roles are unreadable; a board override into done clears the dangling execution state; check model/effort overrides against the assignee's runtime; only a system write may move the pending review from the project's Codex reviewer to its Claude reviewer already in the stage (executionState.currentParticipant and assignee only, issue stays in_review, no board override); any other non-board change of the pending agent in a stage is rejected.",
       "upstreamPr": null,
       "tests": [
         "server/src/__tests__/crew-core-hooks.test.ts",
@@ -58,7 +58,7 @@
       "head": "    create: async (",
       "anchor": "      data = await crewCoreHooks.beforeIssueCreate({ db, companyId, data });",
       "importLine": "import { crewCoreHooks } from \"../crew/core-hooks.js\";",
-      "description": "Attach the Crew execution-policy template to new issues (owner approval for agent-created BMAD epic/story children), refuse agent-created root issues, agent-created children outside the parent's project, issues from agent-authored routines, and agent-created children assigned outside the project's assistant/executor rule; check model/effort overrides against the assignee's runtime.",
+      "description": "Attach the Crew execution-policy template to new issues (owner approval for agent-created BMAD epic/story children), refuse agent-created root issues, agent-created children outside the parent's project, issues from agent-authored routines, and agent-created children assigned outside the project's assistant/executor rule; check model/effort overrides against the assignee's runtime; code children whose executor does not run Codex get the project's Codex reviewer first and its Claude reviewer second in the review stage when Codex is switched on for the Codex reviewer's machine.",
       "upstreamPr": null,
       "tests": ["server/src/__tests__/crew-issue-create-policy.test.ts"]
     },

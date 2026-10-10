@@ -51,6 +51,12 @@ async function readRoleRows(db: CrewRolesDb, query: (table: string) => ReturnTyp
 
 const lower = (value: unknown) => String(value).toLowerCase();
 
+/**
+ * Cột ô runtime (migration `0012_runtimes.sql`: `codex_executor_agent_id`, `opencode_executor_agent_id`,
+ * `codex_reviewer_agent_id`) đọc qua `to_jsonb(r)`: plugin chưa áp 0012 thì cột chưa có và giá trị là NULL, như cũ.
+ */
+const optionalColumn = (column: string) => sql.raw(`(to_jsonb(r) ->> '${column}')`);
+
 /** Dòng của project đã xóa (bảng plugin không có FK tới `projects`) coi như không có. */
 const LIVE_PROJECT_JOIN = sql`JOIN "projects" p ON p.id = r.project_id AND p.company_id = r.company_id`;
 
@@ -89,11 +95,13 @@ export async function loadCrewRoles(input: {
       (table) => sql`SELECT r.reviewer_agent_id::text AS reviewer_agent_id,
           r.integrator_agent_id::text AS integrator_agent_id,
           ra.status AS reviewer_status,
-          ia.status AS integrator_status
+          ia.status AS integrator_status,
+          ca.id::text AS codex_reviewer_agent_id
         FROM ${sql.raw(table)} r
         ${LIVE_PROJECT_JOIN}
         LEFT JOIN "agents" ra ON ra.id = r.reviewer_agent_id AND ra.company_id = r.company_id
         LEFT JOIN "agents" ia ON ia.id = r.integrator_agent_id AND ia.company_id = r.company_id
+        LEFT JOIN "agents" ca ON ca.id::text = ${optionalColumn("codex_reviewer_agent_id")} AND ca.company_id = r.company_id
         WHERE r.company_id = ${companyId} AND r.project_id = ${projectId}
         LIMIT 1`,
     );
@@ -121,11 +129,15 @@ export async function loadCrewRoles(input: {
     warnOncePerMinute(companyId, "stale", { projectId, agentIds: gone }, "crew project roles point at missing agents; Crew gates fail closed for this project");
     return { kind: "invalid", reason };
   }
-  return { ...config, roles };
+  // Reviewer Codex là ô tùy chọn: agent không còn trong company thì coi như project không có; agent `paused`/`terminated`
+  // vẫn giữ id để hệ thống chuyển được participant của nó sang reviewer Claude (H2), H4 tự xét trạng thái.
+  const codexReviewerAgentId = row.codex_reviewer_agent_id == null ? null : lower(row.codex_reviewer_agent_id);
+  return { ...config, roles: { ...roles, codexReviewerAgentId } };
 }
 
 /**
- * Mọi agent reviewer/integrator của company: vai trò trong file ∪ mọi dòng vai trò theo project còn tồn tại.
+ * Mọi agent reviewer/integrator của company: vai trò trong file ∪ mọi dòng vai trò theo project còn tồn tại (gồm
+ * reviewer Codex).
  * Dùng cho luật "agent không giao việc cho reviewer/integrator" (bất kể project của issue). Lỗi đọc: `fallback`
  * (mặc định) chỉ dùng vai trò file và cảnh báo; `throw` (actor agent) ném `503 crew_roles_unavailable`.
  */
@@ -144,12 +156,14 @@ export async function loadCompanyRoleAgentIds(input: {
   try {
     const rows = await readRoleRows(
       input.db,
-      (table) => sql`SELECT r.reviewer_agent_id::text AS reviewer_agent_id, r.integrator_agent_id::text AS integrator_agent_id
+      (table) => sql`SELECT r.reviewer_agent_id::text AS reviewer_agent_id, r.integrator_agent_id::text AS integrator_agent_id,
+          ${optionalColumn("codex_reviewer_agent_id")} AS codex_reviewer_agent_id
         FROM ${sql.raw(table)} r ${LIVE_PROJECT_JOIN} WHERE r.company_id = ${input.companyId}`,
     );
     for (const row of rows ?? []) {
       ids.add(lower(row.reviewer_agent_id));
       ids.add(lower(row.integrator_agent_id));
+      if (row.codex_reviewer_agent_id != null) ids.add(lower(row.codex_reviewer_agent_id));
     }
   } catch (error) {
     warnOncePerMinute(
@@ -165,7 +179,7 @@ export async function loadCompanyRoleAgentIds(input: {
   return ids;
 }
 
-/** Trợ Lý và executor của một project theo bảng vai trò crew.core (cho luật giao việc giữa agent). */
+/** Trợ Lý và executor (mọi runtime) của một project theo bảng vai trò crew.core (cho luật giao việc giữa agent). */
 export interface ProjectAgentRoles {
   assistantAgentId: string;
   executorAgentIds: string[];
@@ -189,7 +203,9 @@ export async function loadProjectAgentRoles(input: {
     rows = await readRoleRows(
       input.db,
       (table) => sql`SELECT r.assistant_agent_id::text AS assistant_agent_id,
-          array_to_string(r.executor_agent_ids, ',') AS executor_agent_ids
+          array_to_string(r.executor_agent_ids, ',') AS executor_agent_ids,
+          ${optionalColumn("codex_executor_agent_id")} AS codex_executor_agent_id,
+          ${optionalColumn("opencode_executor_agent_id")} AS opencode_executor_agent_id
         FROM ${sql.raw(table)} r
         ${LIVE_PROJECT_JOIN}
         WHERE r.company_id = ${companyId} AND r.project_id = ${projectId}
@@ -211,7 +227,14 @@ export async function loadProjectAgentRoles(input: {
   if (!row) return null;
   return {
     assistantAgentId: lower(row.assistant_agent_id),
-    executorAgentIds: String(row.executor_agent_ids ?? "").split(",").filter(Boolean).map(lower),
+    // Executor của project = ô Claude (`executor_agent_ids`) ∪ executor Codex ∪ executor OpenCode.
+    executorAgentIds: [
+      ...String(row.executor_agent_ids ?? "").split(",").filter(Boolean),
+      row.codex_executor_agent_id,
+      row.opencode_executor_agent_id,
+    ]
+      .filter((id): id is string => typeof id === "string" && id.length > 0)
+      .map(lower),
   };
 }
 

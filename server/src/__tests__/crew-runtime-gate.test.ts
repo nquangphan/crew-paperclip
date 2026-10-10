@@ -91,7 +91,6 @@ describe("evaluateRuntimeGate", () => {
     ["run không queued", { run: run({ status: "running" }) }],
     ["agent ngoài 3 runtime", { agent: { adapterType: "hermes", defaultEnvironmentId: ENV } }],
     ["agent process (không phải runtime Crew)", { agent: { adapterType: "process", defaultEnvironmentId: ENV } }],
-    ["agent không có environment", { agent: { adapterType: "codex_local", defaultEnvironmentId: null } }],
     ["agent không còn", { agent: null }],
     ["company không phải Crew", { crew: false }],
   ] as const)("%s thì không giữ dù OFF", async (_name, c) => {
@@ -101,6 +100,29 @@ describe("evaluateRuntimeGate", () => {
       ...("crew" in c ? { isCrewCompany: async () => c.crew } : {}),
     });
     expect(await evaluateRuntimeGate({ db, run: "run" in c ? c.run : run() }, d)).toBe(false);
+    expect(d.recordWaiting).not.toHaveBeenCalled();
+  });
+
+  it.each(["codex_local", "opencode_local"] as const)("agent %s không có environment: công tắc mặc định (máy null), giữ run", async (runtime) => {
+    const switches: unknown[] = [];
+    const resolveMachine = vi.fn(async () => MACHINE);
+    const d = deps({
+      loadAgent: async () => ({ adapterType: runtime, defaultEnvironmentId: null }),
+      resolveMachine,
+      switchOn: async (input) => {
+        switches.push(input);
+        return false;
+      },
+    });
+    expect(await evaluateRuntimeGate({ db, run: run() }, d)).toBe(true);
+    expect(resolveMachine).not.toHaveBeenCalled();
+    expect(switches).toEqual([{ companyId: CO, machineId: null, runtime }]);
+    expect(d.recordWaiting).toHaveBeenCalledWith(expect.anything(), { runtime, machineId: null, issueId: ISSUE });
+  });
+
+  it("agent claude_local không có environment: công tắc mặc định bật, không giữ", async () => {
+    const d = deps({ loadAgent: async () => ({ adapterType: "claude_local", defaultEnvironmentId: null }), switchOn: async (input) => input.machineId === null });
+    expect(await evaluateRuntimeGate({ db, run: run() }, d)).toBe(false);
     expect(d.recordWaiting).not.toHaveBeenCalled();
   });
 

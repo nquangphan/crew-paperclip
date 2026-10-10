@@ -832,19 +832,12 @@ describe("evaluateIssueGate", () => {
     });
   });
 
-  describe("reviewer Codex lỗi hoặc bị tắt: hệ thống chuyển stage review về reviewer Claude", () => {
+  describe("reviewer Codex lỗi hoặc bị tắt: hệ thống chuyển participant đang chờ sang reviewer Claude", () => {
     const CODEX_REVIEWER = "66666666-6666-4666-8666-666666666666";
     const withCodex = { ...roles, codexReviewerAgentId: CODEX_REVIEWER };
-    const codexChild = normalizeIssueExecutionPolicy({
-      ...child,
-      stages: child.stages.map((s) => ({ ...s, participants: [{ type: "agent", agentId: CODEX_REVIEWER }] })),
-    })!;
+    // Issue con có reviewer Codex: stage review có cả hai reviewer, Codex đứng đầu (chốt lúc tạo, không đổi policy).
+    const codexChild = buildCrewPolicy("child", withCodex, null, { codexReviewerAgentId: CODEX_REVIEWER });
     const [cReview] = codexChild.stages.map((s) => s.id) as [string];
-    const swapped = (to: string) =>
-      normalizeIssueExecutionPolicy({
-        ...codexChild,
-        stages: codexChild.stages.map((s) => ({ ...s, participants: [{ type: "agent", agentId: to }] })),
-      })!;
     const codexParticipant = { type: "agent", agentId: CODEX_REVIEWER, userId: null };
     const atCodex = {
       status: "in_review",
@@ -853,40 +846,105 @@ describe("evaluateIssueGate", () => {
       assigneeAgentId: CODEX_REVIEWER,
       assigneeUserId: null,
     };
-    const fallbackPatch = {
-      executionPolicy: swapped(REVIEWER),
+    const swapPatch = {
       executionState: pending(codexChild, cReview, reviewerParticipant),
       assigneeAgentId: REVIEWER,
     };
+    const system = { kind: "system" } as const;
+    const blocked = { kind: "block", code: "crew_policy_locked", violations: ["participant_changed"] };
 
-    it("system đổi participant reviewer Codex sang reviewer Claude của project: cho qua, không phải override", () => {
-      expect(evaluateIssueGate(facts({ actor: { kind: "system" }, roles: withCodex, locked: atCodex, patch: fallbackPatch }))).toEqual({
+    it("template con có reviewer Codex: participants [Codex, Claude], Codex đứng đầu", () => {
+      expect(codexChild.stages).toHaveLength(1);
+      expect(codexChild.stages[0]!.participants.map((p) => p.agentId)).toEqual([CODEX_REVIEWER, REVIEWER]);
+      expect(codexChild.maxReviewRounds).toBe(CREW_MAX_REVIEW_ROUNDS);
+    });
+
+    it("hệ thống đổi đúng currentParticipant + assignee Codex → Claude: cho qua, không phải override", () => {
+      expect(evaluateIssueGate(facts({ actor: system, roles: withCodex, locked: atCodex, patch: swapPatch }))).toEqual({
         kind: "allow",
         notes: ["codex_reviewer_fallback"],
       });
+      // Gửi kèm status in_review hay policy y nguyên vẫn được.
+      expect(
+        evaluateIssueGate(
+          facts({ actor: system, roles: withCodex, locked: atCodex, patch: { ...swapPatch, status: "in_review", executionPolicy: codexChild } }),
+        ),
+      ).toEqual({ kind: "allow", notes: ["codex_reviewer_fallback"] });
     });
-    it("agent gửi cùng patch vẫn bị khóa", () => {
+
+    it("agent gửi cùng patch (tự sửa state) bị chặn", () => {
       for (const agentId of [EXECUTOR, CODEX_REVIEWER, REVIEWER]) {
         expect(
-          evaluateIssueGate(facts({ actor: { kind: "agent", agentId }, roles: withCodex, locked: atCodex, patch: fallbackPatch })),
-        ).toEqual({ kind: "block", code: "crew_policy_locked", violations: ["policy_changed"] });
+          evaluateIssueGate(facts({ actor: { kind: "agent", agentId }, roles: withCodex, locked: atCodex, patch: swapPatch })),
+        ).toEqual(blocked);
       }
     });
-    it("system đổi sang agent khác reviewer Claude, chiều ngược lại, hay project không có reviewer Codex: bị khóa", () => {
-      const blocked = { kind: "block", code: "crew_policy_locked", violations: ["policy_changed"] };
-      const system = { kind: "system" } as const;
-      expect(evaluateIssueGate(facts({ actor: system, roles: withCodex, locked: atCodex, patch: { executionPolicy: swapped(OTHER) } }))).toEqual(blocked);
-      expect(evaluateIssueGate(facts({ actor: system, roles: withCodex, locked: atCodex, patch: { executionPolicy: swapped(INTEGRATOR) } }))).toEqual(blocked);
-      expect(evaluateIssueGate(facts({ actor: system, roles, locked: atCodex, patch: fallbackPatch }))).toEqual(blocked);
+
+    it("đổi sang agent khác, chiều ngược lại, thiếu assignee, project không có reviewer Codex: bị chặn", () => {
+      const atClaude = { ...atCodex, executionState: pending(codexChild, cReview, reviewerParticipant), assigneeAgentId: REVIEWER };
+      const cases: [string, Partial<IssueGateFacts>][] = [
+        ["sang integrator", { patch: { executionState: pending(codexChild, cReview, { type: "agent", agentId: INTEGRATOR, userId: null }), assigneeAgentId: INTEGRATOR } }],
+        ["sang agent ngoài", { patch: { executionState: pending(codexChild, cReview, { type: "agent", agentId: OTHER, userId: null }), assigneeAgentId: OTHER } }],
+        ["Claude → Codex", { locked: atClaude, patch: { executionState: pending(codexChild, cReview, codexParticipant), assigneeAgentId: CODEX_REVIEWER } }],
+        ["thiếu assignee", { patch: { executionState: swapPatch.executionState } }],
+        ["assignee khác participant", { patch: { ...swapPatch, assigneeAgentId: EXECUTOR } }],
+        ["project không có reviewer Codex", { roles }],
+        ["issue không in_review", { locked: { ...atCodex, status: "in_progress" } }],
+        ["rời in_review cùng lúc", { patch: { ...swapPatch, status: "in_progress" } }],
+        ["đổi thêm trường khác của state", { patch: { ...swapPatch, executionState: { ...swapPatch.executionState, changesRequestedCount: 0, completedStageIds: [cReview] } } }],
+        ["đổi số vòng", { patch: { ...swapPatch, executionState: { ...swapPatch.executionState, changesRequestedCount: 3 } } }],
+      ];
+      for (const [name, over] of cases) {
+        expect([name, evaluateIssueGate(facts({ actor: system, roles: withCodex, locked: atCodex, patch: swapPatch, ...over }))]).toEqual([name, blocked]);
+      }
+    });
+
+    it("reviewer Claude không nằm trong stage (issue cũ chỉ có Codex): bị chặn", () => {
+      const onlyCodex = normalizeIssueExecutionPolicy({
+        ...child,
+        stages: child.stages.map((s) => ({ ...s, participants: [{ type: "agent", agentId: CODEX_REVIEWER }] })),
+      })!;
+      const [oReview] = onlyCodex.stages.map((s) => s.id) as [string];
+      const locked = { ...atCodex, executionPolicy: onlyCodex, executionState: pending(onlyCodex, oReview, codexParticipant) };
       expect(
-        evaluateIssueGate(facts({ actor: system, roles: withCodex, locked: { ...atCodex, executionPolicy: swapped(REVIEWER) }, patch: { executionPolicy: codexChild } })),
+        evaluateIssueGate(facts({ actor: system, roles: withCodex, locked, patch: { executionState: pending(onlyCodex, oReview, reviewerParticipant), assigneeAgentId: REVIEWER } })),
       ).toEqual(blocked);
+    });
+
+    it("không còn đường đổi policy: hệ thống thay reviewer Codex trong executionPolicy bị khóa", () => {
+      const swapped = normalizeIssueExecutionPolicy({
+        ...codexChild,
+        stages: codexChild.stages.map((s) => ({ ...s, participants: [{ type: "agent", agentId: REVIEWER }] })),
+      })!;
+      expect(evaluateIssueGate(facts({ actor: system, roles: withCodex, locked: atCodex, patch: { ...swapPatch, executionPolicy: swapped } }))).toEqual({
+        kind: "block",
+        code: "crew_policy_locked",
+        violations: ["policy_changed"],
+      });
+    });
+
+    it("reviewer Codex thuộc tập reviewer: agent không giao việc cho nó, workflow giao cho participant thì được", () => {
+      const executing = { status: "in_progress", executionPolicy: codexChild, executionState: null, assigneeAgentId: EXECUTOR, assigneeUserId: null };
       expect(
-        evaluateIssueGate(facts({ actor: system, roles: withCodex, locked: atCodex, patch: { executionPolicy: { ...swapped(REVIEWER), maxReviewRounds: 50 } } })),
-      ).toEqual(blocked);
+        evaluateIssueGate(facts({ roles: withCodex, locked: executing, patch: { assigneeAgentId: CODEX_REVIEWER } })),
+      ).toEqual({ kind: "block", code: "crew_role_assignee", violations: ["role_assignee"] });
       expect(
-        evaluateIssueGate(facts({ actor: system, roles: withCodex, locked: atCodex, patch: { executionPolicy: { ...swapped(REVIEWER), stages: [] } } })),
-      ).toEqual(blocked);
+        evaluateIssueGate(facts({ roles: withCodex, locked: executing, patch: { status: "in_review", assigneeAgentId: CODEX_REVIEWER, executionState: atCodex.executionState } })),
+      ).toEqual({ kind: "allow", notes: [] });
+    });
+
+    it("đường stock không bị chặn: reviewer Codex duyệt, trả về executor, leo thang lên owner; board đổi participant", () => {
+      const codex = { kind: "agent", agentId: CODEX_REVIEWER } as const;
+      expect(
+        evaluateIssueGate(facts({ actor: codex, roles: withCodex, locked: atCodex, patch: { status: "in_progress", assigneeAgentId: EXECUTOR, executionState: { ...atCodex.executionState, status: "changes_requested", lastDecisionOutcome: "changes_requested", changesRequestedCount: 1 } } })),
+      ).toEqual({ kind: "allow", notes: [] });
+      const escalated = { ...pending(codexChild, cReview, { type: "user", agentId: null, userId: "owner-1" }), changesRequestedCount: 5 };
+      expect(
+        evaluateIssueGate(facts({ actor: codex, roles: withCodex, locked: atCodex, patch: { assigneeAgentId: null, assigneeUserId: "owner-1", executionState: escalated } })),
+      ).toEqual({ kind: "allow", notes: [] });
+      expect(
+        evaluateIssueGate(facts({ actor: { kind: "board", userId: "owner-1" }, roles: withCodex, locked: atCodex, patch: swapPatch })),
+      ).toEqual({ kind: "allow", notes: [] });
     });
   });
 

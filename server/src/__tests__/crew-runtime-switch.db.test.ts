@@ -225,11 +225,24 @@ suite("công tắc runtime và hàng chờ trên Postgres", () => {
       expect((released?.resultJson as Record<string, unknown> | null)?.executionRecovery).toBeUndefined();
     });
 
-    it("không giữ agent ngoài runtime Crew, agent không environment, company không phải Crew", async () => {
+    it("không giữ agent ngoài runtime Crew, agent Claude không environment, company không phải Crew", async () => {
       const deps = { ...defaultBeforeClaimDeps(db), loadTarget: async () => null };
-      for (const opts of [{ adapterType: "process" }, { environment: false }, { crew: false }]) {
+      for (const opts of [{ adapterType: "process" }, { adapterType: "claude_local", environment: false }, { crew: false }]) {
         const s = await seed(opts);
         expect(await evaluateBeforeClaim({ db, run: s.run }, deps)).toBe(false);
+      }
+    });
+
+    it("agent Codex/OpenCode không environment: công tắc mặc định (tắt) dù company một máy đã bật Codex", async () => {
+      const deps = { ...defaultBeforeClaimDeps(db), loadTarget: async () => null };
+      process.env[CREW_OPENCODE_IN_PLACE_PATCH_ENV] = "1";
+      for (const adapterType of ["codex_local", "opencode_local"]) {
+        const s = await seed({ adapterType, environment: false });
+        await report(mini, s.companyId, "2026-10-10T05:00:00Z", []);
+        await setSwitch(s.companyId, mini, adapterType, true);
+        expect(await evaluateBeforeClaim({ db, run: s.run }, deps)).toBe(true);
+        const marks = await db.select().from(activityLog).where(and(eq(activityLog.runId, s.run.id), eq(activityLog.action, "crew.runtime_gate.waiting")));
+        expect(marks[0]?.details).toMatchObject({ runtime: adapterType, machineId: null });
       }
     });
 
