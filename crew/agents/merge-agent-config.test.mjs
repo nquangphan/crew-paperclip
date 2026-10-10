@@ -76,3 +76,72 @@ test("từ chối thư mục workflow lạ hoặc bmad/..", () => {
   assert.throws(() => mergeAgentConfig(agent({}), "/Users/a/.crew/workflows/bmad/.."), /pinned/);
   assert.throws(() => mergeAgentConfig(agent({}), "/Users/a/.crew/workflows/bmad/."), /pinned/);
 });
+
+const CODEX_CMD = "/Users/a/.crew/bin/crew-codex-run";
+const OPENCODE_CMD = "/Users/a/.crew/bin/crew-opencode-run";
+const codexAgent = (adapterConfig = {}) => ({
+  id: "c1",
+  adapterType: "codex_local",
+  adapterConfig: { command: CODEX_CMD, env: { CODEX_HOME: { type: "plain", value: "/opt/crew-v3-spike/codex-homes/c1" } }, ...adapterConfig },
+});
+const opencodeAgent = (adapterConfig = {}) => ({ id: "o1", adapterType: "opencode_local", adapterConfig: { command: OPENCODE_CMD, ...adapterConfig } });
+
+test("codex_local: nhận wrapper crew-codex-run, không thêm cờ của Claude", () => {
+  const out = mergeAgentConfig(codexAgent({ model: "gpt-6-luna", extraArgs: ["--search"] }), PIN);
+  assert.deepEqual(out.adapterConfig.extraArgs, ["--search"]);
+  assert.equal(out.adapterConfig.command, CODEX_CMD);
+  assert.equal(out.adapterConfig.model, "gpt-6-luna");
+});
+
+test("codex_local: bỏ cờ setting-sources/plugin-dir còn sót, extraArgs luôn là mảng", () => {
+  const out = mergeAgentConfig(codexAgent({ extraArgs: ["--plugin-dir", "/old", "--setting-sources=user"] }), PIN);
+  assert.deepEqual(out.adapterConfig.extraArgs, []);
+  assert.deepEqual(mergeAgentConfig(codexAgent(), PIN).adapterConfig.extraArgs, []);
+});
+
+test("opencode_local: nhận wrapper crew-opencode-run, không cần CODEX_HOME", () => {
+  const out = mergeAgentConfig(opencodeAgent({ model: "opencode-go/deepseek-v4-flash" }), PIN);
+  assert.deepEqual(out.adapterConfig.extraArgs, []);
+  assert.equal(out.adapterConfig.command, OPENCODE_CMD);
+});
+
+test("wrapper phải khớp adapterType (không lẫn Claude/Codex/OpenCode)", () => {
+  assert.throws(() => mergeAgentConfig({ ...codexAgent(), adapterConfig: { command: "/Users/a/.crew/bin/crew-claude-run" } }, PIN), /crew-codex-run/);
+  assert.throws(() => mergeAgentConfig({ ...opencodeAgent(), adapterConfig: { command: CODEX_CMD } }, PIN), /crew-opencode-run/);
+  assert.throws(() => mergeAgentConfig({ id: "a1", adapterType: "claude_local", adapterConfig: { command: CODEX_CMD } }, PIN), /crew-claude-run/);
+  assert.throws(() => mergeAgentConfig({ id: "a1", adapterType: "gemini_local", adapterConfig: { command: CODEX_CMD } }, PIN), /adapterType/);
+});
+
+test("adapterType vắng thì coi là claude_local; claude_local vẫn ghim như cũ", () => {
+  const out = mergeAgentConfig({ ...agent({}), adapterType: "claude_local" }, PIN);
+  assert.deepEqual(out.adapterConfig.extraArgs, ["--setting-sources", "project,local", "--plugin-dir", PIN]);
+});
+
+test("runtime mong đợi của ô vai trò phải khớp adapterType của agent", () => {
+  assert.throws(() => mergeAgentConfig(codexAgent(), PIN, "claude_local"), /codex_local.*claude_local/);
+  assert.throws(() => mergeAgentConfig(agent({}), PIN, "codex_local"), /claude_local.*codex_local/);
+  assert.doesNotThrow(() => mergeAgentConfig(codexAgent(), PIN, "codex_local"));
+  assert.throws(() => mergeAgentConfig(agent({}), PIN, "gemini_local"), /runtime/);
+});
+
+test("codex_local: bắt buộc env.CODEX_HOME tuyệt đối, ngoài cây companies/<companyId>", () => {
+  const withHome = (value) => codexAgent({ env: { CODEX_HOME: value } });
+  assert.throws(() => mergeAgentConfig(codexAgent({ env: {} }), PIN), /CODEX_HOME/);
+  assert.throws(() => mergeAgentConfig(withHome("relative/dir"), PIN), /CODEX_HOME.*tuyệt đối|absolute/);
+  assert.throws(() => mergeAgentConfig(withHome("/data/companies/0f3c1d3e-aaaa-bbbb-cccc-123456789abc/codex-home"), PIN), /companies/);
+  assert.throws(() => mergeAgentConfig(withHome({ type: "plain", value: "/data/companies/x/codex-home" }), PIN), /companies/);
+  assert.throws(() => mergeAgentConfig(withHome("***REDACTED***"), PIN), /CODEX_HOME/);
+  assert.throws(() => mergeAgentConfig(withHome({ type: "secret_ref", secretId: "s" }), PIN), /CODEX_HOME/);
+  assert.doesNotThrow(() => mergeAgentConfig(withHome("/opt/crew-v3-spike/codex-homes/c1"), PIN));
+  assert.doesNotThrow(() => mergeAgentConfig(withHome("/data/companies-archive/x"), PIN));
+});
+
+test("codex_local: không được đặt OPENAI_API_KEY (tránh configuration_incomplete và lộ key)", () => {
+  const env = { CODEX_HOME: "/opt/c", OPENAI_API_KEY: "sk-x" };
+  assert.throws(() => mergeAgentConfig(codexAgent({ env }), PIN), /OPENAI_API_KEY/);
+});
+
+test("codex_local: giữ nguyên env khi trả adapterConfig", () => {
+  const out = mergeAgentConfig(codexAgent({ env: { CODEX_HOME: "/opt/c", OTHER: "1" } }), PIN);
+  assert.deepEqual(out.adapterConfig.env, { CODEX_HOME: "/opt/c", OTHER: "1" });
+});

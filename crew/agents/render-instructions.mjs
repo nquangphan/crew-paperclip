@@ -2,7 +2,8 @@
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
-const ROLES = new Set(["executor", "reviewer", "integrator", "assistant", "bmad"]);
+const ROLES = new Set(["executor", "reviewer", "integrator", "assistant", "bmad", "executor-codex", "executor-opencode", "reviewer-codex"]);
+const RUNTIMES = new Set(["claude_local", "codex_local", "opencode_local"]);
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 function checkIds(ids, label, agentId, taken) {
@@ -17,27 +18,41 @@ function checkIds(ids, label, agentId, taken) {
   return seen;
 }
 
-export function renderInstructions(role, text, agentId, executorIds, bmadIds = []) {
+// An executor entry is "<uuid>" (claude_local) or "<uuid>:<runtime>".
+function parseExecutor(entry) {
+  const [id, ...rest] = entry.split(":");
+  if (rest.length === 0) return { id, runtime: "claude_local" };
+  const runtime = rest.join(":");
+  if (!RUNTIMES.has(runtime)) throw new Error(`runtime của executor không hợp lệ: ${entry}`);
+  return { id, runtime };
+}
+
+export function renderInstructions(role, text, agentId, executorIds, bmadIds = [], reviewerCodexId = "") {
   if (!ROLES.has(role)) throw new Error(`unknown role: ${role}`);
   if (role !== "assistant") {
     if (executorIds.length > 0) throw new Error("danh sách executor chỉ assistant nhận");
     if (bmadIds.length > 0) throw new Error("danh sách agent BMAD chỉ assistant nhận");
+    if (reviewerCodexId !== "") throw new Error("reviewer Codex chỉ assistant nhận");
     return text;
   }
   if (!UUID_RE.test(agentId)) throw new Error(`assistant phải là uuid: ${agentId}`);
   if (executorIds.length === 0) throw new Error("assistant cần ít nhất một executor");
-  const executors = checkIds(executorIds, "executor", agentId, new Set());
-  checkIds(bmadIds, "agent BMAD", agentId, executors);
-  const list = executorIds.map((id) => `- \`${id}\``).join("\n");
+  const parsed = executorIds.map(parseExecutor);
+  const executors = checkIds(parsed.map((e) => e.id), "executor", agentId, new Set());
+  const bmads = checkIds(bmadIds, "agent BMAD", agentId, executors);
+  const reviewer = reviewerCodexId === "" ? "Không có. Server tự chọn reviewer, bạn không giao việc cho reviewer." : null;
+  if (reviewer === null) checkIds([reviewerCodexId], "reviewer Codex", agentId, new Set([...executors, ...bmads]));
+  const list = parsed.map((e) => `- \`${e.id}\` — runtime \`${e.runtime}\``).join("\n");
   const bmad = bmadIds.length > 0 ? bmadIds.map((id) => `- \`${id}\``).join("\n") : "Không có. Luôn dùng Superpowers.";
-  return `${text.replace(/\n*$/, "\n")}\n## Executor của company\n\n${list}\n\n## Agent BMAD của company\n\n${bmad}\n`;
+  const reviewerBlock = reviewer ?? `- \`${reviewerCodexId}\` — runtime \`codex_local\``;
+  return `${text.replace(/\n*$/, "\n")}\n## Executor của company\n\n${list}\n\n## Agent BMAD của company\n\n${bmad}\n\n## Reviewer Codex của company\n\n${reviewerBlock}\n`;
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
   try {
-    const [role, file, agentId, executors = "", bmad = ""] = process.argv.slice(2);
+    const [role, file, agentId, executors = "", bmad = "", reviewerCodex = ""] = process.argv.slice(2);
     const split = (v) => v.split(",").map((s) => s.trim()).filter(Boolean);
-    const content = renderInstructions(role, readFileSync(file, "utf8"), agentId, split(executors), split(bmad));
+    const content = renderInstructions(role, readFileSync(file, "utf8"), agentId, split(executors), split(bmad), reviewerCodex.trim());
     process.stdout.write(JSON.stringify({ path: "AGENTS.md", content }));
   } catch (error) {
     process.stderr.write(`render-instructions: ${error.message}\n`);
