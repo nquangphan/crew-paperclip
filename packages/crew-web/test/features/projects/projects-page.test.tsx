@@ -122,11 +122,23 @@ describe('ProjectsPage', () => {
     await screen.findByText('Alpha');
     expect(screen.getByRole('button', { name: 'Đang dùng' }).getAttribute('aria-pressed')).toBe('true');
     fireEvent.click(screen.getByRole('button', { name: 'Đã gỡ' }));
-    expect(screen.getByText('Đã lưu trữ')).toBeTruthy();
+    expect(await screen.findByText('Đã lưu trữ')).toBeTruthy();
     expect(screen.queryByText('Alpha')).toBeNull();
     expect(screen.queryByRole('button', { name: /Gắn sao/ })).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: 'Đang dùng' }));
     expect(screen.getByText('Alpha')).toBeTruthy();
     expect(screen.queryByText('Đã lưu trữ')).toBeNull();
+  });
+
+  it('chọn Đã gỡ thì gửi includeArchived=true; mặc định không gửi', async () => {
+    readiness.value = [];
+    const s = server();
+    mount();
+    await screen.findByText('Alpha');
+    const listUrls = () => s.calls.filter((c) => /\/projects(\?|$)/.test(c.url)).map((c) => c.url);
+    expect(listUrls().every((u) => !u.includes('includeArchived'))).toBe(true);
+    fireEvent.click(screen.getByRole('button', { name: 'Đã gỡ' }));
+    await waitFor(() => expect(listUrls().some((u) => u.includes('includeArchived=true'))).toBe(true));
+    expect(await screen.findByText('Đã lưu trữ')).toBeTruthy();
   });
 });

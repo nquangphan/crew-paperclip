@@ -226,6 +226,8 @@
       "activeRuns": "{{count}} run đang chạy: sẽ dừng.",
       "impactFailed": "Không đọc được yêu cầu và run đang chạy: {{message}}",
       "checkouts": "Checkout trên máy:",
+      "checkoutsReportedAt": "Theo báo cáo máy lúc {{at}} (giờ Việt Nam).",
+      "checkoutsRecheck": "Trạng thái trên có thể đã cũ khoảng 1 phút; app sẽ kiểm lại khi gỡ, checkout có việc chưa commit vẫn được giữ.",
       "noCheckouts": "Máy chưa báo checkout nào.",
       "checkoutClean": "{{path}} · sạch, sẽ gỡ",
       "checkoutDirty": "{{path}} · có việc chưa commit, sẽ giữ lại",

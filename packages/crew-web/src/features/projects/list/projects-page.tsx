@@ -29,9 +29,10 @@ export function ProjectsPage() {
   const { company } = useCompany();
   const queryClient = useQueryClient();
   const [view, setView] = useState<'active' | 'removed'>('active');
+  const includeArchived = view === 'removed';
   const projects = useQuery({
-    queryKey: queryKeys.projects(company.id),
-    queryFn: () => api.projects.list(company.id),
+    queryKey: includeArchived ? [...queryKeys.projects(company.id), 'archived'] : queryKeys.projects(company.id),
+    queryFn: () => api.projects.list(company.id, { includeArchived }),
   });
   const readiness = useProjectReadiness(company.id, api);
   const prefs = useQuery({

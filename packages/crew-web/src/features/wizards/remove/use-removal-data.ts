@@ -59,14 +59,14 @@ export function checkoutsOf(
   machines: readonly CrewMachine[],
   key: string,
   slot?: string,
-): { path: string; clean: boolean | null; machineId: string }[] {
+): { path: string; clean: boolean | null; machineId: string; reportedAt: string }[] {
   if (!key) return [];
   const suffix = slot ? `/crew-agents/${key}/${slot}` : null;
   const under = `/crew-agents/${key}/`;
   return machines.flatMap((m) =>
     (m.latest?.checkouts ?? [])
       .filter((c) => (suffix ? c.path.endsWith(suffix) : c.path.includes(under)))
-      .map((c) => ({ path: c.path, clean: c.clean, machineId: m.machineId })),
+      .map((c) => ({ path: c.path, clean: c.clean, machineId: m.machineId, reportedAt: m.lastSeenAt })),
   );
 }
 
