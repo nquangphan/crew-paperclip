@@ -61,14 +61,17 @@ export async function activeRemovalRun(ctx: Db, companyId: string, kind: "remove
   return rows[0]?.id ?? null;
 }
 
-/** Add-project runs that created a project and either created this one or used this key: the key's known owners. */
-export async function projectKeyOwners(ctx: Db, companyId: string, projectId: string, projectKey: string): Promise<
+/**
+ * Add-project runs that created a project and either created this one or used this key: the key's known owners,
+ * oldest first. Without a project id, only the runs that used the key.
+ */
+export async function projectKeyOwners(ctx: Db, companyId: string, projectId: string | null, projectKey: string): Promise<
   { projectId: string; projectKey: string }[]
 > {
   const rows = await ctx.db.query<{ project_id: string; project_key: string }>(`SELECT project_id, project_key FROM ${table(ctx)}
     WHERE company_id = $1 AND kind = 'add-project' AND project_id IS NOT NULL AND project_key IS NOT NULL
-      AND (project_id = $2 OR project_key = $3)`,
-  [checkedId(companyId), checkedId(projectId), projectKey]);
+      AND (project_id = $2::uuid OR project_key = $3) ORDER BY created_at, id`,
+  [checkedId(companyId), projectId === null ? null : checkedId(projectId), projectKey]);
   return rows.map((row) => ({ projectId: row.project_id, projectKey: row.project_key }));
 }
 

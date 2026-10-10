@@ -32,6 +32,7 @@ const BUSY: Partial<Record<SetupRunKind, string>> = {
   "remove-agent": "Đang có lần gỡ agent dở",
 };
 const busy = (kind: SetupRunKind, setupRunId: string): PluginApiResponse => ({ status: 409, body: { error: BUSY[kind], setupRunId } });
+const KEY_USED = "Khóa này đã dùng cho một project khác (kể cả project đã gỡ), chọn khóa khác";
 const NOT_FOUND: PluginApiResponse = { status: 404, body: { error: "Không tìm thấy lần cài đặt" } };
 const FINAL_STATE: Partial<Record<SetupRun["status"], string>> = { done: "Lần cài đặt đã xong", abandoned: "Lần cài đặt đã bỏ" };
 const uuid = (value: unknown): value is string => typeof value === "string" && UUID.test(value);
@@ -208,7 +209,10 @@ async function createRoute(ctx: Ctx, input: PluginApiRequestInput, company: stri
     // Checkouts live under this key on the Mac: it must be the key the project was created with.
     const owners = await projectKeyOwners(ctx, company, projectId, projectKey);
     if (owners.some((owner) => owner.projectId === projectId && owner.projectKey !== projectKey)) return bad("projectKey không khớp project");
-    if (owners.some((owner) => owner.projectId !== projectId)) return bad("Khóa project đã thuộc project khác");
+    // The newest project made with the key holds it: the checkouts under the key are its own. The old wizard let a
+    // removed project's key be used again, so an older owner may still be listed; it is not the holder any more.
+    const holder = owners.filter((owner) => owner.projectKey === projectKey).at(-1);
+    if (holder && holder.projectId !== projectId) return bad("Khóa project đã thuộc project khác");
   }
   const activeRun = (): Promise<string | null> => {
     if (kind === "add-project") return activeProjectRun(ctx, company, projectKey);
@@ -218,6 +222,9 @@ async function createRoute(ctx: Ctx, input: PluginApiRequestInput, company: stri
   };
   const active = await activeRun();
   if (active) return busy(kind, active);
+  // A key is never reused, even after its project is removed: environment names `<key>-<slot>` are unique on the
+  // instance and archived environments keep them, and the machine keeps the key's checkout folder.
+  if (kind === "add-project" && (await projectKeyOwners(ctx, company, null, projectKey)).length > 0) return conflict(KEY_USED);
   const createdByUserId = input.actor.userId ?? input.actor.actorId;
   let run: SetupRun;
   try {
