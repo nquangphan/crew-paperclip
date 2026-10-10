@@ -185,7 +185,7 @@ function IssueHeader({ status, statusLabel, title, identifier, meta, actions }: 
           <StatusGlyph status={status} size="lg" title={statusLabel} />
         </span>
         <div data-slot="task-detail-title" className="flex min-w-0 flex-1 items-baseline gap-2">
-          <div className="min-w-0 flex-1 text-xl leading-normal font-semibold text-balance [&_h2]:text-xl [&_h2]:font-semibold">
+          <div className="min-w-0 flex-1 text-xl leading-normal font-semibold text-balance [&_h1]:text-xl [&_h1]:leading-normal [&_h1]:font-semibold">
             {title}
           </div>
           <span className="hidden shrink-0 font-mono text-sm text-muted-foreground md:inline">{identifier}</span>
@@ -310,10 +310,15 @@ function ComposerDock({ children }: { children: React.ReactNode }) {
 interface IssuePopupFrameProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  /** Tên hộp cho trình đọc màn hình (mã + tiêu đề). */
+  /** Mô tả mặc định của hộp; tên hộp là DialogTitle do nội dung (`children`) cung cấp. */
   title: string;
   description?: string;
   children: React.ReactNode;
+}
+
+/** Tên tạm của popup khi chưa có tiêu đề yêu cầu (đang tải, lỗi); có tiêu đề thì h1 của tiêu đề là DialogTitle. */
+function IssuePopupFallbackTitle({ children }: { children: React.ReactNode }) {
+  return <DialogTitle className="sr-only">{children}</DialogTitle>;
 }
 
 function IssuePopupFrame({ open, onOpenChange, title, description, children }: IssuePopupFrameProps) {
@@ -324,7 +329,6 @@ function IssuePopupFrame({ open, onOpenChange, title, description, children }: I
         showCloseButton={false}
         className="flex h-[92vh] max-h-[92vh] w-[96vw] max-w-[96vw] flex-col gap-0 overflow-y-auto p-0 sm:max-w-[min(1320px,96vw)]"
       >
-        <DialogTitle className="sr-only">{title}</DialogTitle>
         <DialogDescription className="sr-only">{description ?? title}</DialogDescription>
         {children}
       </DialogContent>
@@ -341,6 +345,7 @@ export {
   Identity,
   IssueDetailFrame,
   IssueHeader,
+  IssuePopupFallbackTitle,
   IssuePopupFrame,
   IssueTopBar,
   ProjectTag,

@@ -93,7 +93,7 @@ describe('popup chi tiết yêu cầu `?issue=`', () => {
     const dialog = await popup();
     expect(router.state.location.pathname).toBe('/TPS/inbox');
     expect(issueParam(router)).toBe('TPS-2');
-    expect(await within(dialog).findByText('Sửa trang đăng nhập', { selector: 'h2' })).toBeTruthy();
+    expect(await within(dialog).findByText('Sửa trang đăng nhập', { selector: 'h1' })).toBeTruthy();
     expect(screen.getByTestId('under')).toBeTruthy();
     // đủ ba khe Crew và cột Thuộc tính
     expect(within(dialog).getByTestId('properties-panel')).toBeTruthy();
@@ -168,7 +168,7 @@ describe('popup chi tiết yêu cầu `?issue=`', () => {
     const dialog = await popup();
     fireEvent.click(await within(dialog).findByRole('link', { name: 'TPS-1' }));
     await waitFor(() => expect(issueParam(router)).toBe('TPS-1'));
-    expect(await within(await popup()).findByText('Yêu cầu gốc', { selector: 'h2' })).toBeTruthy();
+    expect(await within(await popup()).findByText('Yêu cầu gốc', { selector: 'h1' })).toBeTruthy();
     fireEvent.click(within(await popup()).getByRole('button', { name: 'Đóng' }));
     await waitFor(() => expect(screen.queryByTestId('issue-popup')).toBeNull());
     expect(router.state.location.pathname).toBe('/TPS/inbox');
@@ -184,5 +184,20 @@ describe('popup chi tiết yêu cầu `?issue=`', () => {
     fireEvent.click(screen.getByRole('link', { name: 'TPS-1' }));
     await waitFor(() => expect(router.state.location.pathname).toBe('/TPS/issues/TPS-1'));
     expect(issueParam(router)).toBeNull();
+  });
+
+  it('a11y: tiêu đề yêu cầu là h1 duy nhất, ở trang đầy đủ và trong popup (popup đặt tên hộp bằng chính h1)', async () => {
+    server();
+    mountAt('/TPS/issues/TPS-2');
+    expect(await screen.findByTestId('properties-panel')).toBeTruthy();
+    expect(screen.getAllByRole('heading', { level: 1 }).map((h) => h.textContent)).toEqual(['Sửa trang đăng nhập']);
+    cleanup();
+
+    mountAt('/TPS/inbox?issue=TPS-2');
+    const dialog = await popup();
+    const h1 = await within(dialog).findByRole('heading', { level: 1, name: 'Sửa trang đăng nhập' });
+    expect(within(dialog).getAllByRole('heading', { level: 1 })).toHaveLength(1);
+    expect(h1.getAttribute('data-slot')).toBe('dialog-title');
+    expect(screen.getByRole('dialog', { name: 'Sửa trang đăng nhập' })).toBe(dialog);
   });
 });

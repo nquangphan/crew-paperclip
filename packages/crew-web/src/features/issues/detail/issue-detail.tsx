@@ -12,6 +12,7 @@ import {
   Identity,
   IssueDetailFrame,
   IssueHeader,
+  IssuePopupFallbackTitle,
   IssueTopBar,
   ProjectTag,
   SidePanelTitle,
@@ -93,19 +94,29 @@ export function IssueDetail({ issueRef, variant, onClose }: IssueDetailProps) {
   useMarkReadOnce(company.id, issue?.id);
   useScrollToHash(Boolean(issue));
 
-  if (issueQuery.isLoading) return <Skeleton />;
+  // Chưa có tiêu đề để làm tên hộp thoại thì popup tạm lấy mã yêu cầu; khi có, h1 của TitleEditor là DialogTitle.
+  const untitled = (node: ReactNode): ReactNode =>
+    variant === 'popup' ? (
+      <>
+        <IssuePopupFallbackTitle>{issueRef}</IssuePopupFallbackTitle>
+        {node}
+      </>
+    ) : (
+      node
+    );
+  if (issueQuery.isLoading) return untitled(<Skeleton />);
   if (loaded && !issue) {
     const owner = companies.find((c) => c.id === loaded.companyId);
-    if (!owner) return <NotFoundPage companyPrefix={company.issuePrefix} />;
+    if (!owner) return untitled(<NotFoundPage companyPrefix={company.issuePrefix} />);
     return <Navigate to={issuePageHref(owner.issuePrefix, loaded.identifier ?? loaded.id)} replace />;
   }
   if (issueQuery.error || !issue) {
-    return (
+    return untitled(
       <ErrorState
         title={t('detail.loadFailed')}
         message={issueQuery.error?.message}
         onRetry={() => void qc.invalidateQueries({ queryKey: queryKeys.issue(issueRef ?? '') })}
-      />
+      />,
     );
   }
 
@@ -162,7 +173,7 @@ export function IssueDetail({ issueRef, variant, onClose }: IssueDetailProps) {
       <IssueHeader
         status={issue.status}
         statusLabel={statusLabel}
-        title={<TitleEditor issue={issue} />}
+        title={<TitleEditor issue={issue} popup={variant === 'popup'} />}
         identifier={code}
         meta={
           projectName || assignee ? (

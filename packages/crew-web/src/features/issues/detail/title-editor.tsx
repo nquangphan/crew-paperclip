@@ -3,7 +3,7 @@ import type { Issue } from '@paperclipai/shared';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { api, queryKeys } from '@/api';
-import { Button, ChatMessage, ErrorState, Input, MarkdownView, MutedText, Textarea } from '@/ds';
+import { Button, ChatMessage, DialogTitle, ErrorState, Input, MarkdownView, MutedText, Textarea } from '@/ds';
 import { Pencil } from '@/ds/icons';
 import { useT } from '@/i18n';
 
@@ -71,8 +71,11 @@ function EditForm({
   );
 }
 
-/** Tiêu đề, sửa bằng PUT /issues/:id/title (S6.12). */
-export function TitleEditor({ issue }: { issue: Issue }) {
+/**
+ * Tiêu đề, sửa bằng PUT /issues/:id/title (S6.12). Luôn là `h1`; trong popup nó đồng thời là DialogTitle nên đặt tên
+ * cho hộp thoại.
+ */
+export function TitleEditor({ issue, popup = false }: { issue: Issue; popup?: boolean }) {
   const { t } = useT('issues');
   const [editing, setEditing] = useState(false);
   const refresh = useRefreshIssue(issue);
@@ -103,7 +106,13 @@ export function TitleEditor({ issue }: { issue: Issue }) {
   }
   return (
     <div className="flex items-center gap-2">
-      <h2 className="min-w-0 flex-1">{issue.title}</h2>
+      {popup ? (
+        <DialogTitle asChild>
+          <h1 className="min-w-0 flex-1">{issue.title}</h1>
+        </DialogTitle>
+      ) : (
+        <h1 className="min-w-0 flex-1">{issue.title}</h1>
+      )}
       <Button variant="ghost" size="icon-sm" aria-label={t('detail.title.edit')} onClick={() => setEditing(true)}>
         <Pencil aria-hidden />
       </Button>
