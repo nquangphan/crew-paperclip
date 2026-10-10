@@ -4,9 +4,12 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
-import { and, eq } from "drizzle-orm";
+import { and, desc, eq } from "drizzle-orm";
 import type { PluginContext } from "@paperclipai/plugin-sdk";
-import { agentWakeupRequests, agents, companies, createDb, environments, heartbeatRuns, issueComments, issues, plugins, projects } from "@paperclipai/db";
+import {
+  activityLog, agentWakeupRequests, agents, companies, createDb, environmentLeases, environments, heartbeatRuns, issueComments, issues,
+  plugins, projects,
+} from "@paperclipai/db";
 import { getEmbeddedPostgresTestSupport, startEmbeddedPostgresTestDatabase } from "./helpers/embedded-postgres.js";
 import manifest from "../../../packages/crew-plugin/src/manifest.ts";
 import { upsertProjectRoles } from "../../../packages/crew-plugin/src/roles/data.ts";
@@ -14,6 +17,7 @@ import { applyFallback, runRuntimeFallbackJob } from "../../../packages/crew-plu
 import { overrideCrewCoreHooksForTests } from "../crew/core-hooks.ts";
 import { buildCrewPolicy, CREW_POLICY_CONFIG_ENV } from "../crew/issue-policy.ts";
 import { defaultBeforeClaimDeps, evaluateBeforeClaim } from "../crew/load-gate.ts";
+import { buildRetryProgressCommand, createRetryProgressChecker } from "../crew/retry-progress.ts";
 import { heartbeatService } from "../services/heartbeat.js";
 import { applyIssueExecutionPolicyTransition, normalizeIssueExecutionPolicy } from "../services/issue-execution-policy.js";
 import { issueService } from "../services/issues.js";
@@ -141,7 +145,7 @@ suite("Crew: đổi người làm issue (override theo vai trò, đánh thức s
       assistantAgentId: assistant, executorAgentIds: [claudeExec], reviewerAgentId: reviewer, integratorAgentId: integrator,
       codexExecutorAgentId: codexExec, opencodeExecutorAgentId: null, codexReviewerAgentId: codexReviewer,
     }, OWNER);
-    return { companyId, projectId, assistant, claudeExec, codexExec, reviewer, codexReviewer, integrator };
+    return { companyId, projectId, environmentId, assistant, claudeExec, codexExec, reviewer, codexReviewer, integrator };
   }
   type Crew = Awaited<ReturnType<typeof crewCompany>>;
 
@@ -196,6 +200,11 @@ suite("Crew: đổi người làm issue (override theo vai trò, đánh thức s
 
       const inReview = await act(issueId, { agentId: c.codexExec }, "in_review");
       expect(inReview).toMatchObject({ status: "in_review", assigneeAgentId: c.reviewer, assigneeAdapterOverrides: null });
+      // Nhật ký ghi override thật của issue (null), không phải override executor vừa cất.
+      const [handoff] = await db.select({ details: activityLog.details }).from(activityLog)
+        .where(and(eq(activityLog.entityId, issueId), eq(activityLog.action, "crew.assignee_overrides.handoff")))
+        .orderBy(desc(activityLog.createdAt)).limit(1);
+      expect(handoff?.details).toMatchObject({ toAgentId: c.reviewer, executorOverrides: LUNA, assigneeAdapterOverrides: null });
 
       const back = await act(issueId, { agentId: c.reviewer }, "in_progress");
       expect(back).toMatchObject({ assigneeAgentId: c.codexExec, assigneeAdapterOverrides: LUNA });
@@ -248,12 +257,15 @@ suite("Crew: đổi người làm issue (override theo vai trò, đánh thức s
   });
 
   describe("fallback executor theo công tắc", () => {
-    /** H1 thật (không có cổng tải); run của agent nào trong `held` thì giữ `queued` để không chạy. */
-    function realGate(held: Set<string>) {
+    /**
+     * H1 thật (không có cổng tải) cho company `companyId`; run của agent nào trong `held`, hoặc run sót của ca trước
+     * (company khác), thì giữ `queued` để không chạy.
+     */
+    function realGate(companyId: string, held: Set<string>) {
       restore?.();
       restore = overrideCrewCoreHooksForTests({
         beforeClaim: async (input) => {
-          if (held.has(input.run.agentId)) return true;
+          if (held.has(input.run.agentId) || input.run.companyId !== companyId) return true;
           return evaluateBeforeClaim(input, { ...defaultBeforeClaimDeps(input.db), loadTarget: async () => null });
         },
       });
@@ -265,7 +277,7 @@ suite("Crew: đổi người làm issue (override theo vai trò, đánh thức s
         status: "todo", assigneeAgentId: c.codexExec, description: marker("small", "codex_local", "gpt-6-luna", "medium"),
         assigneeAdapterOverrides: LUNA,
       });
-      realGate(new Set([c.claudeExec]));
+      realGate(c.companyId, new Set([c.claudeExec]));
       const heartbeat = heartbeatService(db);
       const held = await heartbeat.wakeup(c.codexExec, {
         source: "assignment", triggerDetail: "system", reason: "issue_assigned",
@@ -325,6 +337,117 @@ suite("Crew: đổi người làm issue (override theo vai trò, đánh thức s
       expect(comments.map((comment) => comment.body)).toContainEqual(
         expect.stringContaining(`Crew: chuyển runtime sau run \`${held!.id}\``),
       );
+    }, 30_000);
+
+    /** Run Codex bị H1 giữ (công tắc tắt), plugin chuyển issue sang executor Claude, rồi H1 hủy run Codex. */
+    async function fallbackToClaude(c: Crew, issueId: string) {
+      realGate(c.companyId, new Set([c.claudeExec]));
+      const heartbeat = heartbeatService(db);
+      const held = await heartbeat.wakeup(c.codexExec, {
+        source: "assignment", triggerDetail: "system", reason: "issue_assigned",
+        payload: { issueId }, contextSnapshot: { issueId, wakeReason: "issue_assigned" },
+      });
+      expect(held).not.toBeNull();
+      await heartbeat.resumeQueuedRuns();
+      expect((await heartbeat.getRun(held!.id))?.status).toBe("queued");
+      expect(await applyFallback(ctx, { companyId: c.companyId, issueId, runId: held!.id, agentId: c.codexExec, trigger: "switch_off" }))
+        .toBe("applied");
+      await heartbeat.resumeQueuedRuns();
+      await vi.waitFor(async () => expect((await heartbeat.getRun(held!.id))?.status).toBe("cancelled"), { timeout: 5_000 });
+      return held!.id;
+    }
+
+    /** Recovery của lõi đánh thức executor Claude (không mang lý do `crew_runtime_fallback` của plugin). */
+    async function recoveryRun(c: Crew, issueId: string) {
+      const run = await heartbeatService(db).wakeup(c.claudeExec, {
+        source: "automation", triggerDetail: "system", reason: "issue_assignment_recovery",
+        payload: { issueId }, contextSnapshot: { issueId, wakeReason: "issue_assignment_recovery" },
+      });
+      expect(run).not.toBeNull();
+      const [row] = await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, run!.id));
+      expect((row!.contextSnapshot as Record<string, unknown>).wakeReason).toBe("issue_assignment_recovery");
+      return row!;
+    }
+
+    /** H1 thật trên environment có cổng tải; SSH tới Mac là `ssh`. */
+    function gatedDeps(ssh: (command: string) => string) {
+      return {
+        ...defaultBeforeClaimDeps(db),
+        loadTarget: async () => ({ environmentId: "env-1", environmentName: "mac-mini", settings: { maxLoad1: 8, maxWaitMinutes: 60 } }),
+        probeHost: async () => ({ ok: true as const, load1: 1 }),
+        checkRetryProgress: createRetryProgressChecker(db, async (_config, command) => ({ stdout: ssh(command) })),
+      };
+    }
+
+    const checkedActivities = (runId: string) => db.select({ details: activityLog.details }).from(activityLog)
+      .where(and(eq(activityLog.runId, runId), eq(activityLog.action, "crew.runtime_fallback.checked")));
+
+    it("recovery của lõi đánh thức agent đích trước plugin: H1 vẫn kiểm run cũ (0 commit) và ghi activity", async () => {
+      const c = await crewCompany();
+      const issueId = await childIssue(c, {
+        status: "todo", assigneeAgentId: c.codexExec, description: marker("small", "codex_local", "gpt-6-luna", "medium"),
+        assigneeAdapterOverrides: LUNA,
+      });
+      const heldId = await fallbackToClaude(c, issueId);
+      const run = await recoveryRun(c, issueId);
+
+      const commands: string[] = [];
+      expect(await evaluateBeforeClaim({ db, run }, gatedDeps((command) => {
+        commands.push(command);
+        return "";
+      }))).toBe(false);
+      // Run Codex bị giữ trước khi chạy: không có worktree để SSH, nhưng bước kiểm vẫn có dấu.
+      expect(commands).toEqual([]);
+      expect((await checkedActivities(run.id)).map((row) => row.details)).toEqual([{ previousRunId: heldId, skipped: true }]);
+      const comments = await db.select().from(issueComments).where(eq(issueComments.issueId, issueId));
+      expect(comments.some((comment) => comment.body.startsWith("Crew: chuyển runtime sau run"))).toBe(false);
+    }, 30_000);
+
+    it("issue quay về executor Codex đã có nhánh: H1 kiểm worktree Codex cũ, tách nhánh, comment; không kiểm lại lần sau", async () => {
+      const c = await crewCompany();
+      const issueId = await childIssue(c, {
+        status: "todo", assigneeAgentId: c.codexExec, description: marker("small", "codex_local", "gpt-6-luna", "medium"),
+        assigneeAdapterOverrides: LUNA, identifier: "TPS-7",
+      });
+      // Vòng đầu: executor Codex đã chạy và commit trên crew/TPS-7 trong worktree của nó, rồi issue qua review và quay về.
+      const startedAt = new Date(Date.now() - 10 * 60_000);
+      const [codexRun] = await db.insert(heartbeatRuns).values({
+        companyId: c.companyId, agentId: c.codexExec, status: "succeeded", invocationSource: "assignment", responsibleUserId: OWNER,
+        contextSnapshot: { issueId }, startedAt, finishedAt: new Date(Date.now() - 6 * 60_000),
+      }).returning();
+      const cwd = "/Users/owner/crew-agents/executor-codex";
+      await db.insert(environmentLeases).values({
+        companyId: c.companyId, environmentId: c.environmentId, issueId, heartbeatRunId: codexRun!.id, status: "released",
+        metadata: { remoteCwd: cwd },
+      });
+      await fallbackToClaude(c, issueId);
+      const run = await recoveryRun(c, issueId);
+
+      const commands: string[] = [];
+      const commitAt = Math.floor((Date.now() - 8 * 60_000) / 1000);
+      const ssh = (command: string) => {
+        commands.push(command);
+        return `crew-stop matched=0 killed=0 remaining=0\ncrew-retry-clock ${Math.floor(Date.now() / 1000)}\n` +
+          `${"c".repeat(40)}\t${commitAt}\t2026-10-10T17:00:00+07:00\tcrew/TPS-7\tfeat: phần đầu\ncrew-retry-detach=done\n`;
+      };
+      expect(await evaluateBeforeClaim({ db, run }, gatedDeps(ssh))).toBe(false);
+      expect(commands).toEqual([buildRetryProgressCommand(codexRun!.id, cwd, { detachBranch: "crew/TPS-7" })]);
+      expect((await checkedActivities(run.id)).map((row) => row.details)).toEqual([
+        expect.objectContaining({ previousRunId: codexRun!.id, detach: "done", commits: [{ sha: "c".repeat(40), branch: "crew/TPS-7" }] }),
+      ]);
+      const comments = await db.select().from(issueComments).where(eq(issueComments.issueId, issueId));
+      expect(comments.map((comment) => comment.body)).toContainEqual(
+        expect.stringContaining(`Crew: chuyển runtime sau run \`${codexRun!.id}\``),
+      );
+
+      // Run sau của executor Claude trên issue (vd. sau review): run cũ đã được kiểm, không SSH lại.
+      await db.update(heartbeatRuns).set({ status: "succeeded", startedAt: new Date(), finishedAt: new Date() })
+        .where(eq(heartbeatRuns.id, run.id));
+      const next = await recoveryRun(c, issueId);
+      expect(next.id).not.toBe(run.id);
+      expect(await evaluateBeforeClaim({ db, run: next }, gatedDeps(ssh))).toBe(false);
+      expect(commands).toHaveLength(1);
+      expect(await checkedActivities(next.id)).toEqual([]);
     }, 30_000);
   });
 });

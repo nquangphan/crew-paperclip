@@ -310,6 +310,46 @@ suite("công tắc runtime và hàng chờ trên Postgres", () => {
           ('${s.companyId}', '${s.issueId}', 'fallback_refused', '${randomUUID()}', '${s.agentId}', '${target}', 'c', '2026-10-10T05:10:00Z')`));
         expect(await fallbackPreviousRunId(db, newRun)).toBe(second);
         expect(await fallbackPreviousRunId(db, { ...newRun, companyId: randomUUID() })).toBeNull();
+
+        // Run cũ đã được run khác kiểm: không kiểm lại; kết quả bẩn thì kiểm lại; dấu của chính run này không tính.
+        const mark = (runId: string, details: Record<string, unknown>) => db.insert(activityLog).values({
+          companyId: s.companyId, actorType: "system", actorId: "crew", action: "crew.runtime_fallback.checked",
+          entityType: "heartbeat_run", entityId: runId, runId, details,
+        });
+        await mark(s.run.id, { previousRunId: second, detach: "dirty" });
+        expect(await fallbackPreviousRunId(db, newRun)).toBe(second);
+        expect(await fallbackPreviousRunId(db, { ...newRun, id: s.run.id })).toBe(second);
+        await mark(s.run.id, { previousRunId: second, skipped: true });
+        expect(await fallbackPreviousRunId(db, newRun)).toBeNull();
+        expect(await fallbackPreviousRunId(db, { ...newRun, id: s.run.id })).toBe(second);
+
+        // Quyết định fallback mới nhất trên issue chuyển sang agent khác: run của agent cũ không còn là run chuyển runtime.
+        await db.execute(sql.raw(`INSERT INTO ${ns()}.crew_runtime_decisions
+          (company_id, issue_id, kind, run_id, from_agent_id, to_agent_id, reason, decided_at) VALUES
+          ('${s.companyId}', '${s.issueId}', 'fallback', '${randomUUID()}', '${target}', '${s.agentId}', 'd', now())`));
+        expect(await fallbackPreviousRunId(db, { ...newRun, id: randomUUID() })).toBeNull();
+      });
+
+      it("run cũ bị giữ trước khi chạy: kiểm run gần nhất đã chạy của agent cũ trên issue", async () => {
+        const s = await seed();
+        const target = await newAgent(s.companyId);
+        const newRun = { ...s.run, id: randomUUID(), agentId: target };
+        const ran = randomUUID(), heldRun = randomUUID();
+        await db.insert(heartbeatRuns).values([
+          { id: ran, companyId: s.companyId, agentId: s.agentId, status: "succeeded", invocationSource: "assignment",
+            contextSnapshot: { issueId: s.issueId }, startedAt: new Date(Date.now() - 30 * 60_000) },
+          // Run của agent cũ trên issue khác không tính.
+          { id: randomUUID(), companyId: s.companyId, agentId: s.agentId, status: "succeeded", invocationSource: "assignment",
+            contextSnapshot: { issueId: randomUUID() }, startedAt: new Date(Date.now() - 20 * 60_000) },
+          { id: heldRun, companyId: s.companyId, agentId: s.agentId, status: "cancelled", invocationSource: "assignment",
+            contextSnapshot: { issueId: s.issueId } },
+        ]);
+        await db.execute(sql.raw(`INSERT INTO ${ns()}.crew_runtime_decisions
+          (company_id, issue_id, kind, run_id, from_agent_id, to_agent_id, reason, decided_at) VALUES
+          ('${s.companyId}', '${s.issueId}', 'fallback', '${heldRun}', '${s.agentId}', '${target}', 'tắt', now())`));
+        expect(await fallbackPreviousRunId(db, newRun)).toBe(ran);
+        await db.update(heartbeatRuns).set({ startedAt: null }).where(eq(heartbeatRuns.id, ran));
+        expect(await fallbackPreviousRunId(db, newRun)).toBe(heldRun);
       });
     });
   });

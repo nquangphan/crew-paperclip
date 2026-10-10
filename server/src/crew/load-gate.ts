@@ -26,7 +26,6 @@ import {
   fallbackDirtyComment,
   fallbackPreviousRunId,
   fallbackProgressComment,
-  isRuntimeFallbackWake,
 } from "./runtime-fallback.js";
 
 /** Same shape as BeforeClaimInput in core-hooks.ts (not imported: implementations must not import the registry). */
@@ -194,6 +193,8 @@ export interface BeforeClaimDeps {
     issueId: string | null,
     progress: RetryProgress,
     mode: ProgressMode,
+    /** Previous run that was checked; kept in the marker when nothing could be checked (it never started). */
+    previousRunId?: string,
   ): Promise<string | null>;
   /** Comments on the issue (unless already there), then persists `<mode marker>.comment`. */
   postRetryComment(run: BeforeClaimInput["run"], issueId: string, body: string, mode: ProgressMode): Promise<void>;
@@ -269,7 +270,7 @@ async function progressCheck(
       const progress = await deps.checkRetryProgress(run, target);
       if (progress.kind === "error") return { kind: "failure", error: progress.error };
       if (progress.kind === "checked") detach = progress.detach;
-      comment = await deps.recordRetryProgress(run, issueId, progress, target.mode);
+      comment = await deps.recordRetryProgress(run, issueId, progress, target.mode, target.previousRunId);
     }
   } catch (err) {
     return { kind: "failure", error: `không ghi hoặc đọc được kết quả kiểm: ${errorMessage(err)}` };
@@ -362,14 +363,15 @@ async function decideBeforeClaim(input: BeforeClaimInput, deps: BeforeClaimDeps)
   const issueId = readIssueId(run.contextSnapshot);
   if (decision.action === "claim") {
     if (await deps.runtimeGate(run)) return true;
-    // A retry, or the first run after a runtime fallback, first learns what the previous run already
-    // committed. When that cannot be checked the run is held like an unreachable host (same marker and
-    // deadline), never rerun blind.
+    // A retry, or the first run of the agent a runtime fallback moved the issue to, first learns what the
+    // previous run already committed. The fallback case is read from the decisions, whatever woke the run
+    // (stock recovery may wake the target agent before the plugin does). When that cannot be checked the
+    // run is held like an unreachable host (same marker and deadline), never rerun blind.
     let failure: string | null = null;
     let progressTarget: ProgressTarget | null = null;
     if (run.retryOfRunId) {
       progressTarget = { mode: "retry", previousRunId: run.retryOfRunId };
-    } else if (isRuntimeFallbackWake(run.contextSnapshot)) {
+    } else {
       try {
         const previousRunId = await deps.fallbackPreviousRunId(run);
         if (previousRunId) progressTarget = { mode: "fallback", previousRunId };
@@ -735,7 +737,7 @@ export function defaultBeforeClaimDeps(db: Db): BeforeClaimDeps {
       return { checked: true, pendingComment: posted ? null : comment, ...detachField };
     },
     checkRetryProgress: createRetryProgressChecker(db),
-    async recordRetryProgress(run, issueId, progress, mode) {
+    async recordRetryProgress(run, issueId, progress, mode, previousRunId) {
       let comment: string | null = null;
       if (progress.kind === "checked" && issueId) {
         if (mode === "retry") comment = progress.commits.length > 0 ? retryProgressComment(progress) : null;
@@ -762,7 +764,7 @@ export function defaultBeforeClaimDeps(db: Db): BeforeClaimDeps {
                 ...(progress.detach ? { detach: progress.detach } : {}),
                 ...(comment ? { comment } : {}),
               }
-            : { previousRunId: mode === "retry" ? run.retryOfRunId : null, skipped: true },
+            : { previousRunId: previousRunId ?? (mode === "retry" ? run.retryOfRunId : null), skipped: true },
       });
       return comment;
     },
