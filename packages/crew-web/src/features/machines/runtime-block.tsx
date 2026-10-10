@@ -24,6 +24,8 @@ const SHORT: Record<CrewRuntime, 'claude' | 'codex' | 'opencode'> = {
 /** Bật hai runtime này tốn quota riêng nên phải xác nhận. */
 const NEEDS_CONFIRM: readonly CrewRuntime[] = ['codex_local', 'opencode_local'];
 /** Hạn mức OpenCode Go theo ngày, tuần, tháng (USD). */
+/** Tắt runtime này giữ cả Trợ Lý, reviewer và integrator của máy nên cũng phải xác nhận. */
+const NEEDS_CONFIRM_OFF: readonly CrewRuntime[] = ['claude_local'];
 const OPENCODE_LIMITS = { day: 12, week: 30, month: 60 } as const;
 
 interface RuntimeBlockProps {
@@ -48,7 +50,7 @@ function latestSetupJob(jobs: readonly MachineJob[], machineId: string): Machine
 export function RuntimeBlock({ companyId, machine, switches, switchesError, jobs }: RuntimeBlockProps) {
   const { t, lang } = useT('machines');
   const queryClient = useQueryClient();
-  const [pending, setPending] = useState<CrewRuntime | null>(null);
+  const [pending, setPending] = useState<{ runtime: CrewRuntime; enabled: boolean } | null>(null);
   const report = runtimesOf(machine);
   const host = machine.hostname;
   const unknown = t('runtime.unknown');
@@ -79,7 +81,8 @@ export function RuntimeBlock({ companyId, machine, switches, switchesError, jobs
 
   const onToggle = (runtime: CrewRuntime, state: RuntimeSwitchState | undefined) => {
     const enabled = !(state?.enabled ?? false);
-    if (enabled && NEEDS_CONFIRM.includes(runtime)) setPending(runtime);
+    if (enabled ? NEEDS_CONFIRM.includes(runtime) : NEEDS_CONFIRM_OFF.includes(runtime))
+      setPending({ runtime, enabled });
     else toggle.mutate({ runtime, enabled });
   };
 
@@ -197,11 +200,30 @@ export function RuntimeBlock({ companyId, machine, switches, switchesError, jobs
         onOpenChange={(open) => {
           if (!open) setPending(null);
         }}
-        title={pending ? t('runtime.confirmTitle', { name: name(pending), host }) : ''}
-        body={pending ? t(`runtime.confirmBody.${SHORT[pending]}`) : ''}
-        confirmLabel={pending ? t('runtime.confirmAction', { name: name(pending) }) : ''}
+        title={
+          pending
+            ? t(pending.enabled ? 'runtime.confirmTitle' : 'runtime.disableConfirmTitle', {
+                name: name(pending.runtime),
+                host,
+              })
+            : ''
+        }
+        body={
+          pending
+            ? pending.enabled
+              ? t(`runtime.confirmBody.${SHORT[pending.runtime]}`)
+              : t('runtime.disableConfirmBody')
+            : ''
+        }
+        confirmLabel={
+          pending
+            ? t(pending.enabled ? 'runtime.confirmAction' : 'runtime.disableConfirmAction', {
+                name: name(pending.runtime),
+              })
+            : ''
+        }
         onConfirm={() => {
-          if (pending) toggle.mutate({ runtime: pending, enabled: true });
+          if (pending) toggle.mutate(pending);
           setPending(null);
         }}
       />

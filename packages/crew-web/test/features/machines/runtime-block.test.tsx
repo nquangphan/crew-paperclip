@@ -101,7 +101,7 @@ describe('khối Runtime trên thẻ máy', () => {
     expect(setCalls(s).length > 0).toBe(false);
   });
 
-  it('tắt Claude gọi ngay, không hỏi xác nhận', async () => {
+  it('tắt Claude phải qua hộp xác nhận nói rõ mọi run Claude trên máy bị giữ, rồi mới POST', async () => {
     const s = mockServer(
       base({
         [SWITCH_SET]: {
@@ -112,9 +112,24 @@ describe('khối Runtime trên thẻ máy', () => {
     mount();
     const b = await block();
     fireEvent.click(b.getByRole('switch', { name: 'Claude trên mac-mini' }));
+    const dialog = await screen.findByRole('alertdialog');
+    expect(within(dialog).getByText('Tắt Claude trên mac-mini?')).toBeTruthy();
+    expect(within(dialog).getByText(/Trợ Lý, reviewer, integrator/)).toBeTruthy();
+    expect(within(dialog).getByText(/bị giữ/)).toBeTruthy();
+    expect(setCalls(s).length > 0).toBe(false);
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Tắt Claude' }));
     await waitFor(() => expect(setCalls(s).length > 0).toBe(true));
-    expect(screen.queryByRole('alertdialog')).toBeNull();
     expect(setCalls(s)[0]?.body).toMatchObject({ runtime: 'claude_local', enabled: false });
+  });
+
+  it('Hủy hộp xác nhận tắt Claude thì không gọi server', async () => {
+    const s = mockServer(base());
+    mount();
+    const b = await block();
+    fireEvent.click(b.getByRole('switch', { name: 'Claude trên mac-mini' }));
+    const dialog = await screen.findByRole('alertdialog');
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Hủy' }));
+    expect(setCalls(s).length > 0).toBe(false);
   });
 
   it('403 và 409 hiện nguyên văn lời server', async () => {
@@ -122,6 +137,7 @@ describe('khối Runtime trên thẻ máy', () => {
     mount();
     const b = await block();
     fireEvent.click(b.getByRole('switch', { name: 'Claude trên mac-mini' }));
+    fireEvent.click(within(await screen.findByRole('alertdialog')).getByRole('button', { name: 'Tắt Claude' }));
     expect(await screen.findByText('Chỉ board được bật/tắt runtime')).toBeTruthy();
   });
 

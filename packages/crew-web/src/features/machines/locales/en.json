@@ -72,6 +72,9 @@
       "codex": "New runs of this runtime will use the owner's Codex plan quota on this machine.",
       "opencode": "New runs of this runtime will use OpenCode Go quota ($12 per 5 hours, $30 per week, $60 per month)."
     },
-    "confirmAction": "Enable {{name}}"
+    "confirmAction": "Enable {{name}}",
+    "disableConfirmTitle": "Disable {{name}} on {{host}}?",
+    "disableConfirmBody": "Every Claude run on this machine (Assistant, reviewer, integrator and Claude executor) will be held in the queue until you enable Claude again. Crew can only move executors to another runtime on its own; the other runs have to wait.",
+    "disableConfirmAction": "Disable {{name}}"
   }
 }

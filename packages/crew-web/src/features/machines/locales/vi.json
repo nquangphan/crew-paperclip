@@ -72,6 +72,9 @@
       "codex": "Run mới của runtime này sẽ dùng quota gói Codex của owner trên máy này.",
       "opencode": "Run mới của runtime này sẽ dùng quota OpenCode Go (12$ mỗi 5 giờ, 30$ mỗi tuần, 60$ mỗi tháng)."
     },
-    "confirmAction": "Bật {{name}}"
+    "confirmAction": "Bật {{name}}",
+    "disableConfirmTitle": "Tắt {{name}} trên {{host}}?",
+    "disableConfirmBody": "Mọi run Claude trên máy này (Trợ Lý, reviewer, integrator và executor Claude) sẽ bị giữ ở hàng chờ cho tới khi bạn bật lại Claude. Crew chỉ tự chuyển được executor sang runtime khác; các run còn lại phải chờ.",
+    "disableConfirmAction": "Tắt {{name}}"
   }
 }
