@@ -271,12 +271,55 @@ test("luật không bao giờ nằm trước các mục khác, integrator có lu
 const MODEL_POLICY_SOURCE = new URL("../../server/src/crew/model-policy.ts", import.meta.url);
 const BUNDLE_SOURCE = new URL("../../server/src/crew/bundle-resume.ts", import.meta.url);
 const BUNDLE_RE = /^crew-bundle id=([a-z0-9][a-z0-9-]{0,39}) seq=([1-9][0-9]{0,2})$/;
-const MODEL_LINE_RE = /^crew-model complexity=(trivial|small|medium|large) model=(claude-sonnet-5|claude-opus-5) effort=(low|medium|high) reason=(.+)$/;
+// Chép nguyên văn CREW_MODEL_LINE_RE của server (runtime= đặt sau effort= để parser cũ của crew-web vẫn khớp).
+// Marker không có runtime= là claude_local.
+const MODEL_LINE_RE =
+  /^crew-model complexity=(trivial|small|medium|large) model=(\S+) effort=(low|medium|high|default)(?: runtime=(claude_local|codex_local|opencode_local))? reason=(.+)$/m;
+// Chép nguyên văn CREW_RUNTIME_CATALOG / CREW_RUNTIME_ORDER của server (cùng literal với runtimes-catalog.test.ts của plugin).
+const RUNTIME_CATALOG = {
+  claude_local: {
+    effortKey: "effort",
+    models: { "claude-sonnet-5": { vision: true }, "claude-opus-5": { vision: true } },
+    byComplexity: {
+      trivial: { model: "claude-sonnet-5", effort: "low" },
+      small: { model: "claude-sonnet-5", effort: "medium" },
+      medium: { model: "claude-sonnet-5", effort: "high" },
+      large: { model: "claude-opus-5", effort: "high" },
+    },
+  },
+  codex_local: {
+    effortKey: "modelReasoningEffort",
+    models: { "gpt-6-luna": { vision: true }, "gpt-6-sol": { vision: true } },
+    byComplexity: {
+      trivial: { model: "gpt-6-luna", effort: "low" },
+      small: { model: "gpt-6-luna", effort: "medium" },
+      medium: { model: "gpt-6-sol", effort: "high" },
+    },
+  },
+  opencode_local: {
+    effortKey: null,
+    models: { "opencode-go/deepseek-v4-flash": { vision: false }, "opencode-go/kimi-k3": { vision: false }, "opencode-go/glm-5.3": { vision: false } },
+    byComplexity: {
+      trivial: { model: "opencode-go/deepseek-v4-flash", effort: null },
+      small: { model: "opencode-go/kimi-k3", effort: null },
+      medium: { model: "opencode-go/glm-5.3", effort: null },
+    },
+  },
+};
+const RUNTIME_ORDER = {
+  trivial: ["opencode_local", "claude_local", "codex_local"],
+  small: ["opencode_local", "claude_local", "codex_local"],
+  medium: ["claude_local", "codex_local", "opencode_local"],
+  large: ["claude_local"],
+};
+const RUNTIMES = ["claude_local", "codex_local", "opencode_local"];
 const STACK_RE = /^crew-stack on=([A-Z][A-Z0-9]*-[0-9]+)$/;
 const fillAssistant = (line) => line.replaceAll("<gói>", "greet").replaceAll("<n>", "2")
-  .replaceAll("<mức>", "small").replaceAll("<model>", "claude-sonnet-5")
-  .replaceAll("<effort>", "medium").replaceAll("<một dòng lý do>", "bám khuôn greet.js")
+  .replaceAll("<mức>", "small").replaceAll("<model>", "opencode-go/kimi-k3")
+  .replaceAll("<effort>", "default").replaceAll("<runtime>", "opencode_local")
+  .replaceAll("<một dòng lý do>", "bám khuôn greet.js")
   .replaceAll("<identifier>", "CRE-31");
+const importServerPolicy = async () => (existsSync(MODEL_POLICY_SOURCE) ? import(MODEL_POLICY_SOURCE.href) : {});
 
 test("assistant: dòng mẫu marker khớp regex", () => {
   const text = read("assistant");
@@ -286,18 +329,125 @@ test("assistant: dòng mẫu marker khớp regex", () => {
   assert.ok(text.split("\n").some((l) => l.trim().replace(/^`|`$/g, "") === "crew-kind research"));
 });
 
+test("assistant: marker crew-model đặt runtime= sau effort=, mọi ô của bảng điền vào mẫu đều khớp regex", () => {
+  const template = templateLine(read("assistant"), "crew-model complexity=");
+  assert.ok(template.indexOf(" effort=") < template.indexOf(" runtime=") && template.indexOf(" runtime=") < template.indexOf(" reason="));
+  // Parser cũ của crew-web (properties-panel.tsx) vẫn đọc được complexity/model/effort.
+  const legacyWeb = /^crew-model complexity=(\S+) model=(\S+) effort=(\S+)/;
+  for (const runtime of RUNTIMES) {
+    for (const [level, choice] of Object.entries(RUNTIME_CATALOG[runtime].byComplexity)) {
+      const line = template.replaceAll("<mức>", level).replaceAll("<model>", choice.model)
+        .replaceAll("<effort>", choice.effort ?? "default").replaceAll("<runtime>", runtime)
+        .replaceAll("<một dòng lý do>", "lý do");
+      const m = MODEL_LINE_RE.exec(line);
+      assert.ok(m, line);
+      assert.equal(m[4], runtime);
+      assert.deepEqual(legacyWeb.exec(line).slice(1), [level, choice.model, choice.effort ?? "default"]);
+    }
+  }
+  assert.match("crew-model complexity=large model=claude-opus-5 effort=high reason=bảo mật", MODEL_LINE_RE);
+  assert.doesNotMatch("crew-model complexity=small model=x effort=low runtime=gemini_local reason=y", MODEL_LINE_RE);
+  assert.doesNotMatch("crew-model complexity=small runtime=opencode_local model=opencode-go/kimi-k3 effort=default reason=y", MODEL_LINE_RE);
+});
+
+test("regex crew-model trong test trùng CREW_MODEL_LINE_RE của server", async (t) => {
+  const source = existsSync(MODEL_POLICY_SOURCE) ? readFileSync(MODEL_POLICY_SOURCE, "utf8") : "";
+  if (!source.includes("CREW_MODEL_LINE_RE")) return t.skip("model-policy.ts chưa có CREW_MODEL_LINE_RE trên nhánh này");
+  const server = await importServerPolicy();
+  assert.equal(server.CREW_MODEL_LINE_RE.source, MODEL_LINE_RE.source);
+  assert.equal(server.CREW_MODEL_LINE_RE.flags, MODEL_LINE_RE.flags);
+});
+
+const parseRuntimeTables = (text) => {
+  const body = section(text, "## Chọn runtime và model");
+  const catalog = Object.fromEntries(RUNTIMES.map((r) => [r, { effortKey: undefined, models: {}, byComplexity: {} }]));
+  const order = {};
+  for (const m of body.matchAll(/^\| `(trivial|small|medium|large)` \| ([^|]+) \| ([^|]+) \| ([^|]+) \| ([^|]+) \|/gm)) {
+    order[m[1]] = [...m[2].matchAll(/`([^`]+)`/g)].map((x) => x[1]);
+    RUNTIMES.forEach((runtime, i) => {
+      const cell = m[3 + i].trim();
+      if (cell === "—") return;
+      const choice = /^`([^`]+)` \/ `([^`]+)`$/.exec(cell);
+      assert.ok(choice, `ô ${m[1]}/${runtime} sai dạng: ${cell}`);
+      catalog[runtime].byComplexity[m[1]] = { model: choice[1], effort: choice[2] === "default" ? null : choice[2] };
+    });
+  }
+  for (const m of body.matchAll(/^\| `(claude_local|codex_local|opencode_local)` \| `([^`]+)` \| (có|không) \| (?:`([^`]+)`|—) \|$/gm)) {
+    catalog[m[1]].models[m[2]] = { vision: m[3] === "có" };
+    const key = m[4] ?? null;
+    if (catalog[m[1]].effortKey !== undefined) assert.equal(key, catalog[m[1]].effortKey, `${m[1]}: key effort lệch giữa các dòng`);
+    catalog[m[1]].effortKey = key;
+  }
+  return { catalog, order };
+};
+
+test("assistant: bảng runtime/model chép nguyên I1 (thứ tự runtime, model/effort, ảnh, key effort)", () => {
+  const { catalog, order } = parseRuntimeTables(read("assistant"));
+  assert.deepEqual(order, RUNTIME_ORDER);
+  assert.deepEqual(catalog, RUNTIME_CATALOG);
+});
+
+test("bảng runtime/model trong assistant.md trùng catalog của server", async () => {
+  const server = await importServerPolicy();
+  const { catalog, order } = parseRuntimeTables(read("assistant"));
+  if (server.CREW_COMPLEXITY_MODEL) assert.deepEqual(catalog.claude_local.byComplexity, { ...server.CREW_COMPLEXITY_MODEL });
+  if (server.CREW_RUNTIME_CATALOG) {
+    assert.deepEqual(JSON.parse(JSON.stringify(server.CREW_RUNTIME_CATALOG)), catalog);
+    assert.deepEqual(JSON.parse(JSON.stringify(server.CREW_RUNTIME_ORDER)), order);
+  }
+});
+
+const PLUGIN_CATALOG_SOURCE = new URL("../../packages/crew-plugin/src/runtimes/catalog.ts", import.meta.url);
+test("bảng runtime/model trong assistant.md trùng catalog chép ở plugin", { skip: !existsSync(PLUGIN_CATALOG_SOURCE) && "catalog plugin chưa có trên nhánh này" }, async () => {
+  const plugin = await import(PLUGIN_CATALOG_SOURCE.href);
+  const { catalog, order } = parseRuntimeTables(read("assistant"));
+  assert.deepEqual(JSON.parse(JSON.stringify(plugin.CREW_RUNTIME_CATALOG)), catalog);
+  assert.deepEqual(JSON.parse(JSON.stringify(plugin.CREW_RUNTIME_ORDER)), order);
+});
+
+const parseOverrideTemplates = (text) => Object.fromEntries(
+  [...section(text, "## Chọn runtime và model").matchAll(/^- `(claude_local|codex_local|opencode_local)`: `"assigneeAdapterOverrides":(\{.+\})`/gm)]
+    .map((m) => [m[1], m[2]]),
+);
+
+test("assistant: override theo runtime chỉ có model và key effort của runtime", async () => {
+  const templates = parseOverrideTemplates(read("assistant"));
+  assert.deepEqual(Object.keys(templates).sort(), [...RUNTIMES].sort());
+  const server = await importServerPolicy();
+  for (const runtime of RUNTIMES) {
+    const spec = RUNTIME_CATALOG[runtime];
+    for (const choice of Object.values(spec.byComplexity)) {
+      const value = JSON.parse(templates[runtime].replaceAll("<model>", choice.model).replaceAll("<effort>", choice.effort ?? ""));
+      assert.deepEqual(Object.keys(value), ["adapterConfig"]);
+      assert.deepEqual(value.adapterConfig, spec.effortKey ? { model: choice.model, [spec.effortKey]: choice.effort } : { model: choice.model });
+      if (server.CREW_RUNTIME_CATALOG) assert.deepEqual(server.checkAgentAdapterOverrides(value, runtime), [], `${runtime} ${choice.model}`);
+    }
+  }
+});
+
+test("assistant: luật chọn runtime, không theo công tắc, không chọn reviewer", () => {
+  const text = read("assistant");
+  const body = section(text, "## Chọn runtime và model");
+  for (const needle of [
+    "Không chọn runtime theo công tắc; Crew tự chuyển khi runtime tắt hoặc hỏng.",
+    "Không chọn reviewer",
+    "bảo mật/phân quyền, migration, hợp đồng công khai",
+    "cùng gói một runtime và một model",
+    "runtime đầu tiên trong cột \"Thứ tự runtime\"",
+    "dòng không ghi runtime là `claude_local`",
+    "`effort=default`",
+  ]) assert.ok(body.includes(needle), `thiếu: ${needle}`);
+  assert.match(body, /ảnh[^\n]*`có`/);
+  assert.ok(text.indexOf("## Chọn runtime và model") > text.indexOf("## Tách việc"));
+  assert.ok(text.indexOf("## Chọn runtime và model") < text.indexOf("## Ghi kế hoạch trước khi tạo con"));
+  // Trợ Lý không giao việc cho reviewer Codex và không đặt participant review.
+  assert.doesNotMatch(text, /reviewer-codex|codex_reviewer/);
+});
+
 test("regex crew-bundle trong test trùng chuỗi regex của server", { skip: !existsSync(BUNDLE_SOURCE) && "bundle-resume.ts chưa có trên nhánh này" }, () => {
   const match = /CREW_BUNDLE_RE\s*=\s*\/(.+)\/m;/.exec(readFileSync(BUNDLE_SOURCE, "utf8"));
   assert.ok(match);
   assert.equal(match[1], BUNDLE_RE.source);
-});
-
-test("bảng model trong assistant.md trùng CREW_COMPLEXITY_MODEL của server", { skip: !existsSync(MODEL_POLICY_SOURCE) && "model-policy.ts chưa có trên nhánh này" }, () => {
-  const source = readFileSync(MODEL_POLICY_SOURCE, "utf8");
-  const server = [...source.matchAll(/(trivial|small|medium|large): \{ model: "([^"]+)", effort: "([^"]+)" \}/g)].map((m) => m.slice(1).join(" "));
-  const doc = [...read("assistant").matchAll(/^\| `(trivial|small|medium|large)` \| `([^`]+)` \| `([^`]+)` \|/gm)].map((m) => m.slice(1).join(" "));
-  assert.equal(server.length, 4);
-  assert.deepEqual(doc, server);
 });
 
 test("assistant: chờ owner bằng blocked và hỏi trước khi tạo con", () => {
@@ -309,7 +459,7 @@ test("assistant: chờ owner bằng blocked và hỏi trước khi tạo con", (
 
 test("assistant: tạo con có blocker, override và không gửi policy", () => {
   const text = read("assistant");
-  for (const needle of ["/api/companies/<companyId>/issues", '"parentId":"<id gốc>"', '"blockedByIssueIds":', '"assigneeAdapterOverrides":{"adapterConfig":{"model":"<model>","effort":"<effort>"}}', "Tiêu chí nghiệm thu:", "crew_override_forbidden", "crew_role_assignee"]) assert.ok(text.includes(needle), needle);
+  for (const needle of ["/api/companies/<companyId>/issues", '"parentId":"<id gốc>"', '"blockedByIssueIds":', '"assigneeAdapterOverrides":<override của runtime>', '`claude_local`: `"assigneeAdapterOverrides":{"adapterConfig":{"model":"<model>","effort":"<effort>"}}`', "Tiêu chí nghiệm thu:", "crew_override_forbidden", "crew_role_assignee"]) assert.ok(text.includes(needle), needle);
   assert.doesNotMatch(text, /"acceptanceCriteria":|"blockParentUntilDone":/);
   assert.doesNotMatch(text, /"executionPolicy":/);
 });
@@ -548,7 +698,7 @@ test("assistant: chọn workflow, con BMAD và tạo story từ BMAD", () => {
   assert.match(choose, /Agent BMAD của company/);
   assert.ok(choose.includes("child-key=bmad-1"));
   assert.ok(choose.includes("crew-bundle id=bmad seq=1"));
-  const modelLine = /`(crew-model complexity=large model=claude-opus-5 effort=high reason=[^`]+)`/.exec(choose);
+  const modelLine = /`(crew-model complexity=large model=claude-opus-5 effort=high runtime=claude_local reason=[^`]+)`/.exec(choose);
   assert.ok(modelLine, "thiếu crew-model của con BMAD");
   assert.match(modelLine[1], MODEL_LINE_RE);
   const story = templateLine(text, "crew-bmad story=")
@@ -626,4 +776,45 @@ test("assistant: chỉ đặt gốc blocked khi còn blocker mở và chốt tr�
   assert.match(section, /`issue_blockers_resolved`/);
   assert.match(section, /chốt trạng thái gốc đúng một lần ở cuối run/);
   assert.match(text, /Chỉ đặt `blocked` theo mục "Chốt trạng thái gốc"/);
+});
+
+const SKILL_PATH = '"$CREW_SUPERPOWERS_DIR/skills/<tên>/SKILL.md"';
+
+test("executor: mục Codex/OpenCode đọc SKILL.md ghim, workflow-check theo runtime, xử lý comment chuyển runtime", () => {
+  const text = read("executor");
+  const body = section(text, "## Khi bạn chạy Codex hoặc OpenCode");
+  for (const needle of [
+    SKILL_PATH,
+    '"$HOME/.crew/bin/crew-mac" workflow-check --runtime "<codex_local|opencode_local>" --root "$(git rev-parse --show-toplevel)"',
+    "Crew: chuyển runtime sau run",
+    "Không có `--plugin-dir`",
+    "Mỗi lệnh shell là một shell mới",
+  ]) assert.ok(body.includes(needle), `thiếu: ${needle}`);
+  assert.ok(text.indexOf("## Khi bạn chạy Codex hoặc OpenCode") > text.indexOf("## Giữ worktree sạch cho lần chạy sau"));
+  assert.ok(text.indexOf("## Khi bạn chạy Codex hoặc OpenCode") < text.indexOf("## Báo xong"));
+  // Comment chuyển runtime đến với executor đích (kể cả Claude) nên nằm ở bước chung "Trước khi làm".
+  const before = section(text, "## Trước khi làm");
+  assert.match(before, /Comment bắt đầu bằng `Crew: chuyển runtime sau run …`[^\n]*như comment `Crew: lần chạy lại sau run …`/);
+  assert.match(before, /`git switch crew\/<identifier>`/);
+});
+
+test("reviewer: mục chạy bằng Codex giữ luật duyệt, chỉ nhận issue con code", () => {
+  const text = read("reviewer");
+  const body = section(text, "## Khi chạy bằng Codex");
+  for (const needle of [
+    SKILL_PATH,
+    "superpowers:requesting-code-review",
+    "Mỗi lệnh shell là một shell mới",
+    "`crew-commit`",
+    "`crew-review sha=<40 hex> verdict=approved`",
+    "`PATCH` là lệnh ghi cuối",
+    "không dùng công cụ riêng của Claude Code",
+    "chỉ issue con code",
+    "`crew-kind research`",
+    "`crew-kind bmad`",
+  ]) assert.ok(body.includes(needle), `thiếu: ${needle}`);
+  // Không đổi status khi nhận nhầm issue (stock hiểu status khác là yêu cầu sửa).
+  assert.doesNotMatch(body, /"status":/);
+  assert.ok(text.indexOf("## Khi chạy bằng Codex") > text.indexOf("## Cách review"));
+  assert.ok(text.indexOf("## Khi chạy bằng Codex") < text.indexOf("## Quyết định (một request, có comment)"));
 });
