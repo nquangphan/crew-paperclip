@@ -114,6 +114,8 @@ test('PW-S3-3 đánh dấu đã đọc / chưa đọc / tất cả đã đọc: 
 
   // Tất cả đã đọc: mọi mục chưa đọc của tab đang xem.
   await tabButton(page, /^Chưa đọc/).click();
+  // Nút này đánh dấu các mục đang hiện trong tab: chờ danh sách tải lại có mục vừa đánh dấu chưa đọc.
+  await expect(rowOf(page, a.identifier)).toHaveAttribute('data-unread', 'true');
   await page.getByRole('button', { name: 'Đánh dấu tất cả đã đọc' }).click();
   await expect.poll(() => isUnread(a.id)).toBe(false);
   await expect.poll(() => isUnread(b.id)).toBe(false);

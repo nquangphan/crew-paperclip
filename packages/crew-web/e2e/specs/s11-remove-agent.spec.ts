@@ -1,8 +1,8 @@
 // Gỡ agent (S11.9): executor thứ 2 của project dựng bằng wizard. Gỡ xong: còn một executor, AGENTS.md của Trợ Lý không
-// còn tên agent, agent paused, environment archived, checkout của vai đó mất. Reviewer: nút tắt kèm lý do.
+// còn id agent, agent paused, environment archived, checkout của vai đó mất. Reviewer: nút tắt kèm lý do.
 // Cần máy thật có app 2P Crew nên chỉ chạy ở T2.
-import { existsSync, readFileSync } from 'node:fs';
-import path from 'node:path';
+import { existsSync } from 'node:fs';
+import type { Api } from '../support/api';
 import { tier } from '../support/env';
 import { expect, test } from '../support/fixtures';
 import { addProjectViaWizard, checkoutDir, parkProject, rolesOf, type WizardProject } from '../support/r3x-project';
@@ -12,6 +12,12 @@ interface AgentRow {
   name: string;
   status: string;
   defaultEnvironmentId?: string | null;
+}
+
+async function assistantInstructions(api: Api, companyId: string, agentId: string): Promise<string> {
+  const q = `path=AGENTS.md&companyId=${companyId}`;
+  const file = await api.get<{ content?: string }>(`/api/agents/${agentId}/instructions-bundle/file?${q}`);
+  return file.content ?? '';
 }
 
 test('PW-S11-9 Gỡ executor thứ 2: rời vai trò, AGENTS.md cập nhật, paused, environment archived, checkout mất', async ({
@@ -31,8 +37,10 @@ test('PW-S11-9 Gỡ executor thứ 2: rời vai trò, AGENTS.md cập nhật, pa
     const agent = agentsBefore.find((a) => a.id === target);
     expect(agent).toBeTruthy();
     if (!agent) return;
-    const assistantMd = path.join(checkoutDir(key, 'assistant'), 'AGENTS.md');
-    if (existsSync(assistantMd)) expect(readFileSync(assistantMd, 'utf8')).toContain(agent.name);
+    // AGENTS.md của Trợ Lý là instructions bundle trên Paperclip (danh sách executor theo id); AGENTS.md trong
+    // checkout là file của repo, không phải của Trợ Lý.
+    const assistantMd = () => assistantInstructions(api, company.id, roles.assistantAgentId);
+    expect(await assistantMd()).toContain(target);
 
     // Reviewer: nút tắt kèm lý do và lối đổi vai trò.
     await page.goto(company.path(`agents/${roles.reviewerAgentId}`));
@@ -61,7 +69,7 @@ test('PW-S11-9 Gỡ executor thứ 2: rời vai trò, AGENTS.md cập nhật, pa
     }
     expect(existsSync(checkoutDir(key, 'executor-2'))).toBe(false);
     expect(existsSync(checkoutDir(key, 'executor'))).toBe(true);
-    if (existsSync(assistantMd)) expect(readFileSync(assistantMd, 'utf8')).not.toContain(agent.name);
+    expect(await assistantMd()).not.toContain(target);
 
     // Danh sách agent: mặc định ẩn agent đã gỡ, bộ lọc Đã gỡ hiện lại.
     await page.goto(company.path('agents'));

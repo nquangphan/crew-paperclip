@@ -10,8 +10,18 @@ export const CREW_E2E_PROD_COMPANY_ID = 'a7132a14-478e-4226-ae58-3dc03ce923e1';
 export const TPS_COMPANY_ID = '5befeb1a-1578-4656-b913-267494592e53';
 export const PROD_BASE_URL = 'https://crew.2p-solutions.com';
 export const T1_BASE_URL = 'http://127.0.0.1:5183';
-/** Project nền dựng một lần bằng wizard, dùng lại cho mọi ca. */
-export const BASE_PROJECT_KEY = 'e2e-base';
+/**
+ * Project nền dựng một lần bằng wizard, dùng lại cho mọi ca. Khóa đã gỡ không dựng lại được (environment
+ * `<khóa>-<vai trò>` đã archive vẫn giữ tên, tên environment là duy nhất trong instance), nên sau khi gỡ project nền
+ * thì đặt `CREW_E2E_BASE_KEY` sang khóa e2e-* mới.
+ */
+export const BASE_PROJECT_KEY = baseProjectKey(process.env.CREW_E2E_BASE_KEY);
+
+function baseProjectKey(raw: string | undefined): string {
+  const key = raw?.trim() || 'e2e-base';
+  if (!/^e2e-[a-z0-9][a-z0-9-]{0,40}$/.test(key)) throw new Error(`CREW_E2E_BASE_KEY phải dạng e2e-*: ${key}`);
+  return key;
+}
 
 export function tier(): Tier {
   const t = process.env.CREW_E2E_TIER ?? 't1';

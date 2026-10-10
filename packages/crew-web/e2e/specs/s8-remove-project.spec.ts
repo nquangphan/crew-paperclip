@@ -71,10 +71,16 @@ test('PW-S8-7 PW-F10 Gỡ project có checkout bẩn: dọn phần sạch, giữ
       if (req.method() === 'DELETE' && req.url().includes('/environments')) deletes.push(req.url());
     });
 
-    await page.goto(company.path(`projects/${projectId}`));
-    await page.getByRole('button', { name: 'Gỡ project', exact: true }).click();
+    // Dialog đọc báo cáo máy gần nhất (khoảng 1 phút một lần): ngay sau wizard máy có thể chưa báo checkout, hay báo
+    // trước khi tệp bẩn có. Mở lại dialog tới khi báo cáo mới có checkout bẩn.
     const dialog = page.getByRole('alertdialog');
-    await expect(dialog.getByText('có việc chưa commit, sẽ giữ lại', { exact: false })).toBeVisible();
+    await expect(async () => {
+      await page.goto(company.path(`projects/${projectId}`));
+      await page.getByRole('button', { name: 'Gỡ project', exact: true }).click();
+      await expect(dialog.getByText('có việc chưa commit, sẽ giữ lại', { exact: false })).toBeVisible({
+        timeout: 5_000,
+      });
+    }).toPass({ intervals: [20_000], timeout: 240_000 });
     // Gõ sai tên: nút xác nhận tắt; gõ đúng tên thì bật.
     const confirm = dialog.getByRole('button', { name: 'Gỡ project', exact: true });
     await dialog.getByRole('textbox').fill(`${name} sai`);

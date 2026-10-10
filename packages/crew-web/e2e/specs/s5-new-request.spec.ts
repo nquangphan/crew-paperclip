@@ -160,16 +160,18 @@ test('PW-S5-5 Tạo: 201, policy khớp vai trò, run của Trợ Lý xuất hi�
   expect(stages[2].participants[0].userId).toBe(session.user.id);
   expect(stages[3].participants[0].agentId).toBe(roles.integratorAgentId);
 
+  // Run của issue, cũ trước. Ở stub run không đổi trạng thái issue nên stock đánh thức lại Trợ Lý
+  // (issue_disposition_repair, có khi scheduled_retry): chỉ run đầu tiên (giao việc) phải thành công.
   const runs = async () =>
-    api.get<{ status: string; contextSnapshot?: { issueId?: string } }[]>(
-      `/api/companies/${company.id}/heartbeat-runs?agentId=${roles.assistantAgentId}`,
-    );
-  await expect
-    .poll(async () => (await runs()).some((r) => r.contextSnapshot?.issueId === issue.id), { timeout: 30_000 })
-    .toBe(true);
-  await expect
-    .poll(async () => (await runs()).find((r) => r.contextSnapshot?.issueId === issue.id)?.status, { timeout: 60_000 })
-    .toBe('succeeded');
+    (
+      await api.get<{ status: string; createdAt: string; contextSnapshot?: { issueId?: string } }[]>(
+        `/api/companies/${company.id}/heartbeat-runs?agentId=${roles.assistantAgentId}`,
+      )
+    )
+      .filter((r) => r.contextSnapshot?.issueId === issue.id)
+      .sort((x, y) => x.createdAt.localeCompare(y.createdAt));
+  await expect.poll(async () => (await runs()).length, { timeout: 30_000 }).toBeGreaterThan(0);
+  await expect.poll(async () => (await runs())[0]?.status, { timeout: 60_000 }).toBe('succeeded');
   await api.patch(`/api/issues/${issue.id}`, { status: 'cancelled' });
 });
 

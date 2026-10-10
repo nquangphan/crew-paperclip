@@ -35,6 +35,7 @@ Chạy từ thư mục `packages/crew-web`. `retries: 1`, `workers: 1`.
 | `CREW_E2E_COMPANY_ID` | Crew E2E `a7132a14-…` (prod); T1 lấy từ `board.env` | Company của ca. Trên prod chỉ nhận Crew E2E |
 | `CREW_E2E_AGENTS_ROOT` | `~/crew-agents` | Gốc checkout agent cho `stub.ts` |
 | `CREW_E2E_SSH_HOST` | `nhamoiplatform` | Host VPS cho mật khẩu và `db.ts` |
+| `CREW_E2E_BASE_KEY` | `e2e-base` | Khóa project nền (dạng `e2e-*`). Khóa đã gỡ không dựng lại được, xem mục Project nền |
 | `CREW_E2E_COVERAGE_STRICT` | — | `1` thì ca "mọi mã BA có ca" trong `test/e2e-coverage.test.ts` chạy chặt |
 | `CREW_E2E_SHOTS` | — | `1` thì chạy `specs/shots.spec.ts` (ảnh cho trang Hướng dẫn, ra `e2e/shots/`) |
 
@@ -65,6 +66,10 @@ T2 bật stub cho mọi project `e2e-*` trong `global-setup.ts` (5 giây) và t�
 T2 cần project `e2e-base` (folder `~/crew-e2e/repo`, 2 executor) dựng bằng wizard Thêm project. `global-setup.ts`
 tìm setup run `add-project` khóa `e2e-base` đã `done` mà project chưa archive; không còn (chưa dựng hoặc đã gỡ) thì
 dựng lại bằng wizard Thêm project (`addProjectViaWizard` trong `support/r3x-project.ts`).
+
+Khóa đã gỡ thì không dựng lại được: environment `<khóa>-<vai trò>` đã archive vẫn giữ tên, mà tên environment là duy
+nhất trong instance, nên wizard dừng ở bước `environments`. Sau khi gỡ project nền, lượt sau đặt `CREW_E2E_BASE_KEY`
+sang khóa mới (ví dụ `e2e-base2`).
 
 ## Bản đồ phủ nút
 

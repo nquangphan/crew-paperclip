@@ -77,7 +77,13 @@ for (const c of GATE_CASES) {
     expect(after.executionState ?? null).toBeNull();
 
     const rows = await issueActivity(api, issue.id);
-    expect(actionsOf(rows, 'crew.policy.board_override')).toHaveLength(c.kind === 'no-stage' ? 0 : 1);
+    // T1 (project theo dõi, không workflow): in_progress chưa vào stage thì không vi phạm gì. T2 (project Crew, workflow
+    // 4 stage): ép Done bỏ qua các stage chưa duyệt nên luôn có một board_override liệt kê stage_unapproved.
+    const overrides = actionsOf(rows, 'crew.policy.board_override');
+    expect(overrides).toHaveLength(c.kind === 'no-stage' && tier() === 't1' ? 0 : 1);
+    if (c.kind === 'no-stage' && tier() !== 't1') {
+      expect(JSON.stringify(overrides[0]?.details ?? {})).toContain('stage_unapproved:');
+    }
     const forced = actionsOf(rows, 'crew.issue.force_done');
     expect(forced).toHaveLength(1);
     expect(forced[0]?.details?.reason).toBe(REASON);
