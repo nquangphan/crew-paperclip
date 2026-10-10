@@ -152,7 +152,7 @@ Notes:
 Use it only in force-majeure cases, for example the work was finished by hand outside Crew, or the flow is stuck and you have checked the result yourself. It is an escape hatch, not the normal way to approve.
 
 - **When to use it:** the request is not Done or Cancelled yet, and you accept skipping the remaining gates (review, docs check, push). If unsure, use **Approve** or **Request changes**.
-- **How:** press **Force Done** at the top of the request page. The dialog lists **the gates that will be skipped** and how many running runs will be stopped. A box **also cancel unfinished sub-tasks** is ticked by default. Fill in **Reason** (required, 10 to 1000 characters) and press **Force Done**.
+- **How:** press **Force Done** at the top of the request page. The dialog lists **the gates that will be skipped** and the running runs that will be stopped. A box **also cancel unfinished sub-tasks** is ticked by default: only the sub-tasks listed in the dialog are cancelled, and only after the request is closed, so the request's holder is not woken up. Their own sub-tasks are not cancelled. If a sub-task cannot be cancelled the page says so, with a **Cancel the remaining sub-tasks** button. Fill in **Reason** (required, 10 to 1000 characters) and press **Force Done**.
 - **Consequences:** the request becomes **Done** immediately, unpassed gates are skipped, it does not count as an approval and no new review round starts. The reason is recorded as the Owner's comment. If the request has a parent and every other child is done, the Assistant on the parent is notified to continue. Code that was not pushed to the main branch is not pushed for you.
 - **History:** the request's **History** shows a **Force Done** line with the reason, who did it, the time (Asia/Ho_Chi_Minh time zone) and the skipped gates; the request carries a **Forced Done** badge.
 - Forced by mistake? Use **Reopen** to run it again from the start.
@@ -228,7 +228,7 @@ The Projects page also has **In use** and **Removed** filters: a removed project
 
 {{shot:agents}}
 
-The [Agents](/agents) page lists agents with role, status and **Readiness**. You can filter **Running**, **Paused**, **Error** and **Removed** (removed agents appear only under this filter). **Pause** stops the agent and cancels its running run; **Resume** lets it run again. Open an agent to see:
+The [Agents](/agents) page lists agents with role, status and **Readiness**. You can filter **Running**, **Paused**, **Error** and **Removed** (removed agents appear only under this filter and in no agent picker). **Pause** stops the agent and cancels its running run; **Resume** lets it run again. Open an agent to see:
 - **Overview**: latest run, the request it is working on, machine, roles and anything still missing.
 - **Instructions**: read `AGENTS.md`, read-only. **Re-render by role** writes the correct version for the current role. If someone just edited it you get a conflict and **nothing is overwritten**; reload and render again.
 - **Skills**: enable or disable company skills for this agent, effective from the next run.
