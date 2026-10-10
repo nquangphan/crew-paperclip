@@ -12,7 +12,9 @@ const manifest: PaperclipPluginManifestV1 = {
     "events.subscribe",
     "issues.read",
     "issues.update",
+    "issues.wakeup",
     "issue.comments.create",
+    "issue.comments.create_human_attributed",
     "issue.comments.read",
     "issue.relations.read",
     "issue.subtree.read",
@@ -107,6 +109,8 @@ const manifest: PaperclipPluginManifestV1 = {
     { routeKey: "setup.get", method: "GET", path: "/setup-runs/:id", auth: "board",
       capability: "api.routes.register", companyResolution: { from: "query", key: "companyId" } },
     { routeKey: "setup.abandon", method: "POST", path: "/setup-runs/:id/abandon", auth: "board",
+      capability: "api.routes.register", companyResolution: { from: "body", key: "companyId" } },
+    { routeKey: "issues.force-done", method: "POST", path: "/issues/:issueId/force-done", auth: "board",
       capability: "api.routes.register", companyResolution: { from: "body", key: "companyId" } },
   ],
   database: {
