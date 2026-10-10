@@ -145,12 +145,33 @@ describe("loadCrewRoles", () => {
     ]);
     await expect(loadCrewRoles({ db: db as never, companyId: COMPANY, projectId: PROJECT })).resolves.toEqual({
       kind: "ok",
-      roles: { reviewerAgentId: ROW_REVIEWER, integratorAgentId: ROW_INTEGRATOR },
+      roles: { reviewerAgentId: ROW_REVIEWER, integratorAgentId: ROW_INTEGRATOR, codexReviewerAgentId: null },
       ownerUserId: "owner-1",
       trackingProjectIds: okEntry.trackingProjectIds,
     });
     expect(db.statements[1]).toMatch(/FROM plugin_crew_core_0433ea20b6\.crew_project_roles/);
     expect(db.statements[1]).toMatch(/"agents"/);
+    // Cột ô runtime đọc qua to_jsonb: bảng chưa có cột (chưa áp 0012) vẫn chạy.
+    expect(db.statements[1]).toMatch(/to_jsonb\(r\) ->> 'codex_reviewer_agent_id'/);
+  });
+
+  it("có reviewer Codex còn trong company: điền codexReviewerAgentId (chữ thường)", async () => {
+    writeConfig(okEntry);
+    const CODEX = "77777777-7777-4777-8777-77777777777a";
+    const db = fakeDb([
+      [{ ok: true }],
+      [{
+        reviewer_agent_id: ROW_REVIEWER,
+        integrator_agent_id: ROW_INTEGRATOR,
+        reviewer_status: "idle",
+        integrator_status: "idle",
+        codex_reviewer_agent_id: CODEX.toUpperCase(),
+      }],
+    ]);
+    await expect(loadCrewRoles({ db: db as never, companyId: COMPANY, projectId: PROJECT })).resolves.toMatchObject({
+      kind: "ok",
+      roles: { reviewerAgentId: ROW_REVIEWER, integratorAgentId: ROW_INTEGRATOR, codexReviewerAgentId: CODEX },
+    });
   });
 
   it("dòng trỏ agent đã xóa, đã chuyển company hoặc terminated: invalid (fail closed), không rơi về vai trò file", async () => {

@@ -1,3 +1,4 @@
+import { isDeepStrictEqual } from "node:util";
 import { and, desc, eq, inArray, isNull, like, sql } from "drizzle-orm";
 import {
   activityLog,
@@ -174,31 +175,51 @@ export function pushGateStages(policy: IssueExecutionPolicy | null): IssueExecut
 
 export const CODEX_REVIEWER_FALLBACK_NOTE = "codex_reviewer_fallback";
 
+type ParsedState = NonNullable<ReturnType<typeof parseIssueExecutionState>>;
+
+/** So hai state bỏ qua `currentParticipant`; vòng JSON để key `undefined` và thứ tự key không làm lệch. */
+function sameStateExceptParticipant(a: ParsedState, b: ParsedState): boolean {
+  const strip = (state: ParsedState) => JSON.parse(JSON.stringify({ ...state, currentParticipant: null })) as unknown;
+  return isDeepStrictEqual(strip(a), strip(b));
+}
+
 /**
- * Dấu vân tay policy sau khi đổi reviewer Codex của project sang reviewer Claude (cùng project) ở mọi stage `review`;
- * `null` khi project không có reviewer Codex hoặc policy không có participant đó. Plugin dùng khi reviewer Codex lỗi
- * hay công tắc Codex bị tắt: lệnh ghi của hệ thống mang đúng policy này được qua cổng khóa policy, không thành
- * board override. Mọi thay đổi khác của stage vẫn bị khóa.
+ * Lệnh ghi đổi agent đang chờ ở cùng một stage `pending` (participant cũ là thành viên stage, mới là agent khác). Stock
+ * không làm việc này cho actor agent/hệ thống (leo thang sang owner là user, sửa thành viên stage chỉ khi participant cũ
+ * không còn trong stage), nên mọi lệnh như vậy ngoài board phải đúng phép chuyển reviewer Codex → reviewer Claude.
  */
-export function codexReviewerFallbackFingerprint(policy: unknown, roles: CrewRoles | null): string | null {
-  const from = roles?.codexReviewerAgentId;
-  const to = roles?.reviewerAgentId;
-  const stages = (policy as { stages?: unknown } | null)?.stages;
-  if (!from || !to || from === to || !Array.isArray(stages)) return null;
-  let swapped = false;
-  const next = stages.map((raw) => {
-    const stage = raw as { type?: unknown; participants?: unknown };
-    if (stage.type !== "review" || !Array.isArray(stage.participants)) return raw;
-    return {
-      ...stage,
-      participants: stage.participants.map((p: { type?: unknown; agentId?: unknown }) => {
-        if (p?.type !== "agent" || p.agentId !== from) return p;
-        swapped = true;
-        return { ...p, agentId: to };
-      }),
-    };
-  });
-  return swapped ? policyGateFingerprint({ stages: next }) : null;
+function pendingAgentSwap(
+  lockedState: ParsedState | null,
+  nextState: ParsedState | null,
+  policy: IssueExecutionPolicy | null,
+): boolean {
+  if (lockedState?.status !== "pending" || nextState?.status !== "pending") return false;
+  if (!lockedState.currentStageId || lockedState.currentStageId !== nextState.currentStageId) return false;
+  const from = lockedState.currentParticipant;
+  const to = nextState.currentParticipant;
+  if (from?.type !== "agent" || to?.type !== "agent" || !to.agentId || from.agentId === to.agentId) return false;
+  const stage = policy?.stages.find((s) => s.id === lockedState.currentStageId);
+  return !!stage?.participants.some((p) => p.type === "agent" && p.agentId === from.agentId);
+}
+
+/**
+ * Phép chuyển reviewer Codex → reviewer Claude (plugin gọi khi reviewer Codex lỗi hay công tắc Codex bị tắt): lệnh của
+ * hệ thống, issue đang `in_review` và ở lại `in_review`, stage `review` đang chờ reviewer Codex của project, reviewer
+ * Claude của project có trong stage, state mới chỉ khác `currentParticipant` (→ reviewer Claude) và assignee mới là
+ * reviewer Claude. Policy không đổi (đã khóa riêng), số vòng giữ nguyên, không mở lại vòng, không board override.
+ */
+function codexReviewerSwapAllowed(f: IssueGateFacts, lockedState: ParsedState, nextState: ParsedState, policy: IssueExecutionPolicy | null): boolean {
+  const from = f.roles?.codexReviewerAgentId;
+  const to = f.roles?.reviewerAgentId;
+  if (f.actor.kind !== "system" || !from || !to || from === to) return false;
+  if (f.locked.status !== "in_review" || (has(f.patch, "status") && f.patch.status !== "in_review")) return false;
+  if (lockedState.currentStageType !== "review" || lockedState.currentParticipant?.agentId !== from) return false;
+  if (nextState.currentParticipant?.agentId !== to || (nextState.currentParticipant.userId ?? null) !== null) return false;
+  const stage = policy?.stages.find((s) => s.id === lockedState.currentStageId);
+  if (!stage?.participants.some((p) => p.type === "agent" && p.agentId === to)) return false;
+  if (!has(f.patch, "assigneeAgentId") || f.patch.assigneeAgentId !== to) return false;
+  if (has(f.patch, "assigneeUserId") && f.patch.assigneeUserId !== null) return false;
+  return sameStateExceptParticipant(lockedState, nextState);
 }
 
 export function evaluateIssueGate(f: IssueGateFacts): IssueGateVerdict {
@@ -224,12 +245,7 @@ export function evaluateIssueGate(f: IssueGateFacts): IssueGateVerdict {
     const raised = roundsOf(next) !== null && roundsOf(next) !== roundsOf(f.locked.executionPolicy);
     const nextFingerprint = policyGateFingerprint(next);
     if (nextFingerprint !== policyGateFingerprint(f.locked.executionPolicy) || raised) {
-      const fallback =
-        f.actor.kind === "system" &&
-        !raised &&
-        nextFingerprint === codexReviewerFallbackFingerprint(f.locked.executionPolicy, f.roles);
-      if (!fallback) return { kind: "block", code: "crew_policy_locked", violations: ["policy_changed"] };
-      notes.push(CODEX_REVIEWER_FALLBACK_NOTE);
+      return { kind: "block", code: "crew_policy_locked", violations: ["policy_changed"] };
     }
   }
 
@@ -247,9 +263,17 @@ export function evaluateIssueGate(f: IssueGateFacts): IssueGateVerdict {
       ? null
       : lockedState;
 
+  if (f.actor.kind !== "board" && pendingAgentSwap(lockedState, nextState, policy)) {
+    if (!codexReviewerSwapAllowed(f, lockedState as ParsedState, nextState as ParsedState, policy)) {
+      return { kind: "block", code: "crew_policy_locked", violations: ["participant_changed"] };
+    }
+    notes.push(CODEX_REVIEWER_FALLBACK_NOTE);
+  }
+
   // Agent không tự giao việc cho reviewer/integrator; workflow stock giao cho participant stage thì được.
   const roleAgentIds =
-    f.roleAgentIds ?? new Set(f.roles ? [f.roles.reviewerAgentId, f.roles.integratorAgentId] : []);
+    f.roleAgentIds ??
+    new Set(f.roles ? [f.roles.reviewerAgentId, f.roles.integratorAgentId, f.roles.codexReviewerAgentId ?? ""].filter(Boolean) : []);
   if (f.actor.kind === "agent" && has(f.patch, "assigneeAgentId")) {
     const target = f.patch.assigneeAgentId as string | null;
     const workflowHandoff =
@@ -391,6 +415,8 @@ const BLOCK_MESSAGES: Record<string, string> = {
   crew_assignment_forbidden:
     "Crew: chỉ Trợ Lý của project giao việc cho agent khác; agent khác chỉ giao cho executor của project.",
   agent_cancel_forbidden: "Crew: chỉ board được hủy issue; agent muốn bỏ việc thì chuyển blocked kèm lý do.",
+  participant_changed:
+    "Crew: chỉ board đổi người đang review; hệ thống chỉ được chuyển reviewer Codex sang reviewer Claude của project.",
 };
 
 export async function crewBeforeIssueWrite(input: IssueWriteHookInput): Promise<void> {
@@ -524,8 +550,8 @@ export async function crewBeforeIssueWrite(input: IssueWriteHookInput): Promise<
   });
   if (verdict.kind === "block") {
     const message =
-      BLOCK_MESSAGES[verdict.code] ??
       BLOCK_MESSAGES[verdict.violations[0] ?? ""] ??
+      BLOCK_MESSAGES[verdict.code] ??
       `Crew: chưa đủ điều kiện để hoàn tất: ${verdict.violations.join(", ")}.`;
     throw unprocessable(message, { code: verdict.code, violations: verdict.violations });
   }

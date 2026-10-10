@@ -6,7 +6,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { and, eq } from "drizzle-orm";
 import { agents, companies, createDb, issues, labels, projects, routineTriggers } from "@paperclipai/db";
 import { getEmbeddedPostgresTestSupport, startEmbeddedPostgresTestDatabase } from "./helpers/embedded-postgres.js";
-import { decideCreatePolicy } from "../crew/issue-create-policy.ts";
+import { decideCreatePolicy, executorRuntimeOf } from "../crew/issue-create-policy.ts";
 import { buildCrewPolicy, CREW_POLICY_CONFIG_ENV } from "../crew/issue-policy.ts";
 import { heartbeatService } from "../services/heartbeat.ts";
 import { issueService } from "../services/issues.js";
@@ -74,6 +74,21 @@ describe("decideCreatePolicy", () => {
         decideCreatePolicy({ data: { createdByAgentId: "e", parentId: "p", assigneeAgentId }, roles, ownerUserId: null }),
       ).toEqual({ kind: "reject", code: "crew_role_assignee" });
     }
+  });
+  it("agent giao việc cho reviewer Codex của project bị từ chối (tập reviewer mặc định gồm cả nó)", () => {
+    expect(
+      decideCreatePolicy({ data: { createdByAgentId: "e", parentId: "p", assigneeAgentId: "cr" }, roles: { ...roles, codexReviewerAgentId: "cr" }, ownerUserId: null }),
+    ).toEqual({ kind: "reject", code: "crew_role_assignee" });
+  });
+  it("runtime executor của issue con: marker runtime= trước, không marker thì adapterType, ngoài ba runtime là Claude", () => {
+    const line = (runtime = "") => `Mô tả\ncrew-model complexity=small model=m effort=medium${runtime} reason=r\n`;
+    expect(executorRuntimeOf(line(" runtime=codex_local"), "claude_local")).toBe("codex_local");
+    expect(executorRuntimeOf(line(" runtime=opencode_local"), "codex_local")).toBe("opencode_local");
+    expect(executorRuntimeOf(line(), "codex_local")).toBe("claude_local");
+    expect(executorRuntimeOf("không marker", "codex_local")).toBe("codex_local");
+    expect(executorRuntimeOf(null, "opencode_local")).toBe("opencode_local");
+    expect(executorRuntimeOf(undefined, "process")).toBe("claude_local");
+    expect(executorRuntimeOf(undefined, null)).toBe("claude_local");
   });
   it("agent tạo khi company chưa có vai trò bị từ chối; board thì giữ nguyên", () => {
     expect(

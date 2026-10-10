@@ -184,7 +184,9 @@ export async function loadCrewCompanyConfig(
 
 /**
  * Template policy của Crew, đã normalize (có id stage/participant).
- * - con: `[review reviewer]`.
+ * - con: `[review reviewer]`; khi H4 chọn reviewer Codex (`chooseReviewer`): `[review [reviewer Codex, reviewer]]` — Codex
+ *   đứng đầu nên stock giao cho nó khi vào stage, reviewer Claude có sẵn trong stage để hệ thống chuyển sang khi Codex
+ *   lỗi hay bị tắt mà không phải sửa policy (H2 chỉ cho đúng phép đổi đó).
  * - gốc: `[review reviewer, review integrator (merge + docs), approval owner, review integrator (push)]`.
  * - research: `[review reviewer, approval owner]`.
  * - bmad: [review reviewer, approval owner] cho issue con lập epic/story (owner duyệt epic/story trước khi Trợ Lý tạo issue code).
@@ -193,9 +195,14 @@ export function buildCrewPolicy(
   kind: "root" | "child" | "research" | "bmad",
   roles: CrewRoles,
   ownerUserId: string | null = null,
+  options: { codexReviewerAgentId?: string | null } = {},
 ): IssueExecutionPolicy {
   const reviewer = { type: "review", participants: [{ type: "agent", agentId: roles.reviewerAgentId }] };
   let stages: unknown[] = [reviewer];
+  const codexReviewer = options.codexReviewerAgentId?.toLowerCase();
+  if (kind === "child" && codexReviewer && codexReviewer !== roles.reviewerAgentId) {
+    stages = [{ type: "review", participants: [{ type: "agent", agentId: codexReviewer }, ...reviewer.participants] }];
+  }
   if (kind !== "child") {
     if (!ownerUserId) throw new Error(`buildCrewPolicy: ${kind} policy needs an owner user id`);
     const owner = { type: "approval", participants: [{ type: "user", userId: ownerUserId }] };

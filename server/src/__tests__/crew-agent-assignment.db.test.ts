@@ -4,11 +4,12 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { eq, sql } from "drizzle-orm";
-import { agents, companies, createDb, issueExecutionDecisions, issues, projects } from "@paperclipai/db";
+import { and, eq, sql } from "drizzle-orm";
+import { activityLog, agents, companies, createDb, environments, issueExecutionDecisions, issues, projects } from "@paperclipai/db";
 import { getEmbeddedPostgresTestSupport, startEmbeddedPostgresTestDatabase } from "./helpers/embedded-postgres.js";
 import { buildCrewPolicy, CREW_POLICY_CONFIG_ENV } from "../crew/issue-policy.ts";
-import { crewRolesTable } from "../crew/project-roles.ts";
+import { crewRolesTable, loadCompanyRoleAgentIds, loadCrewRoles, loadProjectAgentRoles } from "../crew/project-roles.ts";
+import { crewRuntimeSwitchesTable } from "../crew/runtime-switch.ts";
 import { applyIssueExecutionPolicyTransition, normalizeIssueExecutionPolicy } from "../services/issue-execution-policy.js";
 import { issueService } from "../services/issues.js";
 
@@ -17,9 +18,11 @@ import { issueService } from "../services/issues.js";
 const support = await getEmbeddedPostgresTestSupport();
 const suite = support.supported ? describe : describe.skip;
 
-const migrationFile = fileURLToPath(
-  new URL("../../../packages/crew-plugin/migrations/0004_project_roles.sql", import.meta.url),
-);
+const migration = (file: string) =>
+  readFileSync(fileURLToPath(new URL(`../../../packages/crew-plugin/migrations/${file}`, import.meta.url)), "utf8")
+    .split(";")
+    .map((s) => s.trim())
+    .filter(Boolean);
 
 suite("crew agent-to-agent assignment", () => {
   let db: ReturnType<typeof createDb>;
@@ -35,9 +38,14 @@ suite("crew agent-to-agent assignment", () => {
     process.env[CREW_POLICY_CONFIG_ENV] = configFile;
     temporary = await startEmbeddedPostgresTestDatabase("crew-agent-assignment-");
     db = createDb(temporary.connectionString);
-    const table = crewRolesTable();
-    await db.execute(sql.raw(`CREATE SCHEMA IF NOT EXISTS ${table.split(".")[0]}`));
-    const statements = readFileSync(migrationFile, "utf8").split(";").map((s) => s.trim()).filter(Boolean);
+    const ns = crewRolesTable().split(".")[0]!;
+    await db.execute(sql.raw(`CREATE SCHEMA IF NOT EXISTS ${ns}`));
+    // Bảng vai trò (0004) + ba cột runtime, công tắc (0012) + bản tin máy (0003); bỏ phần của bảng việc máy.
+    const statements = [
+      ...migration("0004_project_roles.sql"),
+      ...migration("0003_machine_latest.sql").filter((s) => s.startsWith(`CREATE TABLE ${ns}.machine_latest`)),
+      ...migration("0012_runtimes.sql").filter((s) => s.startsWith("CREATE") || s.includes(".crew_project_roles")),
+    ];
     for (const statement of statements) await db.execute(sql.raw(statement));
   }, 60_000);
   afterAll(async () => {
@@ -163,6 +171,31 @@ suite("crew agent-to-agent assignment", () => {
     });
   });
 
+  // Như route PATCH: transition stock rồi updateIssue và chèn decision trong cùng transaction.
+  async function act(s: Seed, issueId: string, agentId: string, requestedStatus: string) {
+    const [row] = await db.select().from(issues).where(eq(issues.id, issueId));
+    const policy = normalizeIssueExecutionPolicy(row!.executionPolicy);
+    const transition = applyIssueExecutionPolicyTransition({
+      issue: row as never, policy, previousPolicy: policy, requestedStatus, requestedAssigneePatch: {},
+      actor: { agentId, userId: null }, allowBoardOverride: false, commentBody: "ok",
+    });
+    const decisionId = transition.decision ? randomUUID() : null;
+    if (decisionId) transition.patch.executionState = { ...(transition.patch.executionState as object), lastDecisionId: decisionId };
+    return db.transaction(async (tx) => {
+      const updated = await issueService(db).update(
+        issueId, { status: requestedStatus as never, ...transition.patch, actorAgentId: agentId }, tx, [], [],
+      );
+      if (transition.decision && decisionId) {
+        await tx.insert(issueExecutionDecisions).values({
+          id: decisionId, companyId: s.companyId, issueId, stageId: transition.decision.stageId,
+          stageType: transition.decision.stageType, actorAgentId: agentId, outcome: transition.decision.outcome,
+          body: transition.decision.body,
+        });
+      }
+      return updated;
+    });
+  }
+
   describe("H2 đổi assignee", () => {
     it("executor chuyển việc của mình cho agent ngoài vai trò hoặc Trợ Lý bị 422, DB không đổi", async () => {
       const s = await seed();
@@ -257,31 +290,6 @@ suite("crew agent-to-agent assignment", () => {
       expect((await issueService(db).update(issueId, { assigneeAgentId: s.x, actorAgentId: s.e1 }))?.assigneeAgentId).toBe(s.x);
     });
 
-    // Như route PATCH: transition stock rồi updateIssue và chèn decision trong cùng transaction.
-    async function act(s: Seed, issueId: string, agentId: string, requestedStatus: string) {
-      const [row] = await db.select().from(issues).where(eq(issues.id, issueId));
-      const policy = normalizeIssueExecutionPolicy(row!.executionPolicy);
-      const transition = applyIssueExecutionPolicyTransition({
-        issue: row as never, policy, previousPolicy: policy, requestedStatus, requestedAssigneePatch: {},
-        actor: { agentId, userId: null }, allowBoardOverride: false, commentBody: "ok",
-      });
-      const decisionId = transition.decision ? randomUUID() : null;
-      if (decisionId) transition.patch.executionState = { ...(transition.patch.executionState as object), lastDecisionId: decisionId };
-      return db.transaction(async (tx) => {
-        const updated = await issueService(db).update(
-          issueId, { status: requestedStatus as never, ...transition.patch, actorAgentId: agentId }, tx, [], [],
-        );
-        if (transition.decision && decisionId) {
-          await tx.insert(issueExecutionDecisions).values({
-            id: decisionId, companyId: s.companyId, issueId, stageId: transition.decision.stageId,
-            stageType: transition.decision.stageType, actorAgentId: agentId, outcome: transition.decision.outcome,
-            body: transition.decision.body,
-          });
-        }
-        return updated;
-      });
-    }
-
     it("workflow stock vẫn chạy: executor nộp → reviewer, reviewer trả về → executor, nộp lại → reviewer duyệt", async () => {
       const s = await seed();
       const policy = buildCrewPolicy("child", { reviewerAgentId: s.r, integratorAgentId: s.i });
@@ -291,6 +299,165 @@ suite("crew agent-to-agent assignment", () => {
       expect(await act(s, issueId, s.e1, "done")).toMatchObject({ status: "in_review", assigneeAgentId: s.r });
       expect(await act(s, issueId, s.r, "in_progress")).toMatchObject({ status: "in_progress", assigneeAgentId: s.e1 });
       expect(await act(s, issueId, s.e1, "done")).toMatchObject({ status: "in_review", assigneeAgentId: s.r });
+      expect((await act(s, issueId, s.r, "done"))?.status).toBe("done");
+    });
+  });
+  describe("ô runtime: executor Codex/OpenCode, reviewer Codex", () => {
+    const MACHINE = "50000000-0000-4000-8000-0000000000aa";
+    const WORKSPACE = "/Users/owner/crew-agents/repo-p/reviewer-codex";
+
+    /** Thêm vào seed: executor Codex EC, executor OpenCode EO, reviewer Codex CR (environment trỏ checkout trên máy M). */
+    async function seedRuntimes(opts: { reviewerEnvironment?: boolean; reviewerStatus?: string; switchOn?: boolean } = {}) {
+      const s = await seed();
+      const [ec, eo, cr] = [randomUUID(), randomUUID(), randomUUID()];
+      let environmentId: string | null = null;
+      if (opts.reviewerEnvironment !== false) {
+        environmentId = randomUUID();
+        await db.insert(environments).values({
+          id: environmentId, name: `repo-p-reviewer-codex-${environmentId.slice(0, 8)}`, driver: "ssh", status: "active",
+          config: { host: "mac.example.test", port: 22, username: "agent", remoteWorkspacePath: WORKSPACE },
+        });
+      }
+      const row = (id: string, name: string, adapterType: string, extra: Record<string, unknown> = {}) => ({
+        id, companyId: s.companyId, name, role: "engineer", status: "idle", adapterType, adapterConfig: {}, permissions: {},
+        runtimeConfig: { heartbeat: { enabled: false, wakeOnDemand: false, maxConcurrentRuns: 1 } }, ...extra,
+      });
+      await db.insert(agents).values([
+        row(ec, "Executor Codex", "codex_local"),
+        row(eo, "Executor OpenCode", "opencode_local"),
+        row(cr, "Reviewer Codex", "codex_local", { status: opts.reviewerStatus ?? "idle", defaultEnvironmentId: environmentId }),
+      ]);
+      await db.execute(sql`UPDATE ${sql.raw(crewRolesTable())} SET codex_executor_agent_id = ${ec},
+        opencode_executor_agent_id = ${eo}, codex_reviewer_agent_id = ${cr}
+        WHERE company_id = ${s.companyId} AND project_id = ${s.p}`);
+      const ns = crewRolesTable().split(".")[0]!;
+      await db.execute(sql.raw(`INSERT INTO ${ns}.machine_latest (company_id, machine_id, hostname, received_at, sent_at, report)
+        VALUES ('${s.companyId}', '${MACHINE}', 'mac', now(), now(), '${JSON.stringify({ checkouts: [{ path: WORKSPACE }] })}'::jsonb)`));
+      if (opts.switchOn !== false) await setCodex(s.companyId, true);
+      return { ...s, ec, eo, cr };
+    }
+    type RuntimeSeed = Awaited<ReturnType<typeof seedRuntimes>>;
+    const setCodex = (companyId: string, enabled: boolean) =>
+      db.execute(sql.raw(`INSERT INTO ${crewRuntimeSwitchesTable()} (company_id, machine_id, runtime, enabled, updated_by_user_id)
+        VALUES ('${companyId}', '${MACHINE}', 'codex_local', ${enabled}, 'owner')
+        ON CONFLICT (company_id, machine_id, runtime) DO UPDATE SET enabled = EXCLUDED.enabled`));
+
+    type Stage = { participants: { agentId?: string | null }[] };
+    const reviewers = (issue: { executionPolicy: unknown } | null | undefined) =>
+      ((issue?.executionPolicy as { stages: Stage[] } | null)?.stages ?? []).map((stage) => stage.participants.map((p) => p.agentId));
+    const childOf = (s: RuntimeSeed, values: Record<string, unknown>) =>
+      issueService(db).create(s.companyId, { title: "con", parentId: s.root, ...values } as never);
+
+    it("đọc ba cột mới: reviewer Codex vào vai trò, executor runtime vào tập executor, reviewer Codex vào tập cấm giao", async () => {
+      const s = await seedRuntimes();
+      const config = await loadCrewRoles({ db, companyId: s.companyId, projectId: s.p });
+      expect(config).toMatchObject({ kind: "ok", roles: { reviewerAgentId: s.r, integratorAgentId: s.i, codexReviewerAgentId: s.cr } });
+      const other = await loadCrewRoles({ db, companyId: s.companyId, projectId: s.q });
+      expect(other.kind === "ok" ? other.roles.codexReviewerAgentId ?? null : "x").toBeNull();
+      expect((await loadProjectAgentRoles({ db, companyId: s.companyId, projectId: s.p, onReadError: "throw" }))?.executorAgentIds).toEqual([
+        s.e1, s.e2, s.ec, s.eo,
+      ]);
+      expect(await loadCompanyRoleAgentIds({ db, companyId: s.companyId })).toEqual(new Set([s.r, s.i, s.cr]));
+    });
+
+    it("executor giao con cho executor Codex/OpenCode được; agent giao cho reviewer Codex bị 422 ở H4 và H2", async () => {
+      const s = await seedRuntimes();
+      expect((await child(s, s.e1, s.ec)).assigneeAgentId).toBe(s.ec);
+      expect((await child(s, s.ec, s.eo)).assigneeAgentId).toBe(s.eo);
+      await expect(child(s, s.a, s.cr)).rejects.toMatchObject({ status: 422, details: { code: "crew_role_assignee" } });
+      const issueId = await insertIssue(s.companyId, { projectId: s.p, parentId: s.root, assigneeAgentId: s.e1, status: "in_progress" });
+      await expect(issueService(db).update(issueId, { assigneeAgentId: s.cr, actorAgentId: s.a })).rejects.toMatchObject({
+        status: 422, details: { code: "crew_role_assignee" },
+      });
+      expect(await assigneeOf(issueId)).toBe(s.e1);
+    });
+
+    it("H4: issue con của executor Claude/OpenCode nhận [reviewer Codex, reviewer Claude] khi Codex bật trên máy reviewer", async () => {
+      const s = await seedRuntimes();
+      expect(reviewers(await childOf(s, { createdByAgentId: s.a, assigneeAgentId: s.e1 }))).toEqual([[s.cr, s.r]]);
+      expect(reviewers(await childOf(s, { createdByAgentId: s.a, assigneeAgentId: s.eo }))).toEqual([[s.cr, s.r]]);
+      // Chưa giao ai, board hay hệ thống tạo con: cũng là issue con code.
+      expect(reviewers(await childOf(s, { createdByAgentId: s.a }))).toEqual([[s.cr, s.r]]);
+      expect(reviewers(await childOf(s, { createdByUserId: "owner-1", assigneeAgentId: s.e1 }))).toEqual([[s.cr, s.r]]);
+    });
+
+    it("H4 giữ reviewer Claude: executor Codex (assignee hay marker runtime=), bmad, issue gốc, Codex tắt, reviewer pause, không environment", async () => {
+      const s = await seedRuntimes();
+      const marker = (runtime: string) =>
+        `Việc\ncrew-model complexity=small model=gpt-6-luna effort=medium runtime=${runtime} reason=thử\n`;
+      expect(reviewers(await childOf(s, { createdByAgentId: s.a, assigneeAgentId: s.ec }))).toEqual([[s.r]]);
+      expect(reviewers(await childOf(s, { createdByAgentId: s.a, description: marker("codex_local") }))).toEqual([[s.r]]);
+      // Marker thắng adapterType: assignee Claude mà marker Codex vẫn coi là executor Codex, và ngược lại.
+      expect(reviewers(await childOf(s, { createdByAgentId: s.a, assigneeAgentId: s.e1, description: marker("codex_local") }))).toEqual([[s.r]]);
+      expect(reviewers(await childOf(s, { createdByAgentId: s.a, assigneeAgentId: s.ec, description: marker("opencode_local") }))).toEqual([[s.cr, s.r]]);
+      expect(reviewers(await childOf(s, { createdByAgentId: s.a, assigneeAgentId: s.e1, description: "crew-kind bmad\n" }))[0]).toEqual([s.r]);
+      const root = await issueService(db).create(s.companyId, { title: "gốc", projectId: s.p, createdByUserId: "owner-1" } as never);
+      expect(reviewers(root)[0]).toEqual([s.r]);
+
+      await setCodex(s.companyId, false);
+      expect(reviewers(await childOf(s, { createdByAgentId: s.a, assigneeAgentId: s.e1 }))).toEqual([[s.r]]);
+
+      const paused = await seedRuntimes({ reviewerStatus: "paused" });
+      expect(reviewers(await childOf(paused, { createdByAgentId: paused.a, assigneeAgentId: paused.e1 }))).toEqual([[paused.r]]);
+      const terminated = await seedRuntimes({ reviewerStatus: "terminated" });
+      expect(reviewers(await childOf(terminated, { createdByAgentId: terminated.a, assigneeAgentId: terminated.e1 }))).toEqual([[terminated.r]]);
+      // Reviewer Codex không có environment: không xác định máy, dùng công tắc mặc định (tắt) dù company chỉ một máy.
+      const noEnv = await seedRuntimes({ reviewerEnvironment: false });
+      expect(reviewers(await childOf(noEnv, { createdByAgentId: noEnv.a, assigneeAgentId: noEnv.e1 }))).toEqual([[noEnv.r]]);
+    });
+
+    it("đầu-cuối: Codex review, trả về, nộp lại; hệ thống chuyển sang reviewer Claude; Claude duyệt done", async () => {
+      const s = await seedRuntimes();
+      const created = await childOf(s, { createdByAgentId: s.a, assigneeAgentId: s.e1 });
+      const issueId = created.id;
+      await db.update(issues).set({ status: "in_progress" }).where(eq(issues.id, issueId));
+      // Stock chọn participant đầu (Codex); sau changes_requested giữ Codex.
+      expect(await act(s, issueId, s.e1, "done")).toMatchObject({ status: "in_review", assigneeAgentId: s.cr });
+      expect(await act(s, issueId, s.cr, "in_progress")).toMatchObject({ status: "in_progress", assigneeAgentId: s.e1 });
+      expect(await act(s, issueId, s.e1, "done")).toMatchObject({ status: "in_review", assigneeAgentId: s.cr });
+
+      const [before] = await db.select().from(issues).where(eq(issues.id, issueId));
+      const lockedState = before!.executionState as Record<string, unknown>;
+      expect(lockedState).toMatchObject({ status: "pending", currentParticipant: { agentId: s.cr }, changesRequestedCount: 1 });
+      const swapped = { ...lockedState, currentParticipant: { type: "agent", agentId: s.r, userId: null } };
+
+      // Agent tự sửa state (kể cả reviewer Codex) bị chặn; DB không đổi.
+      for (const actorAgentId of [s.cr, s.e1, s.a]) {
+        await expect(
+          issueService(db).update(issueId, { executionState: swapped, assigneeAgentId: s.r, actorAgentId } as never),
+        ).rejects.toMatchObject({ status: 422, details: { code: "crew_policy_locked", violations: ["participant_changed"] } });
+      }
+      // Hệ thống chuyển sai đích hay thiếu assignee: chặn.
+      const toIntegrator = { ...lockedState, currentParticipant: { type: "agent", agentId: s.i, userId: null } };
+      await expect(issueService(db).update(issueId, { executionState: toIntegrator, assigneeAgentId: s.i } as never)).rejects.toMatchObject({
+        status: 422, details: { violations: ["participant_changed"] },
+      });
+      await expect(issueService(db).update(issueId, { executionState: swapped } as never)).rejects.toMatchObject({
+        status: 422, details: { violations: ["participant_changed"] },
+      });
+      const [unchanged] = await db.select().from(issues).where(eq(issues.id, issueId));
+      expect(unchanged).toMatchObject({ status: "in_review", assigneeAgentId: s.cr, executionState: lockedState });
+
+      // Lệnh đúng của hệ thống (không actor): chỉ đổi participant + assignee.
+      const moved = await issueService(db).update(issueId, { executionState: swapped, assigneeAgentId: s.r } as never);
+      expect(moved).toMatchObject({ status: "in_review", assigneeAgentId: s.r });
+      const [after] = await db.select().from(issues).where(eq(issues.id, issueId));
+      expect(after!.executionPolicy).toEqual(before!.executionPolicy);
+      expect(after!.executionState).toEqual(swapped);
+      const actions = async (action: string) =>
+        db.select().from(activityLog).where(and(eq(activityLog.entityId, issueId), eq(activityLog.action, action)));
+      expect(await actions("crew.gate.codex_reviewer_fallback")).toMatchObject([
+        { actorType: "system", details: { fromAgentId: s.cr, toAgentId: s.r } },
+      ]);
+      expect(await actions("crew.policy.board_override")).toEqual([]);
+
+      // Lặp lại lệnh cũ (state đã là Claude): chặn, không đổi về Codex.
+      const back = { ...swapped, currentParticipant: { type: "agent", agentId: s.cr, userId: null } };
+      await expect(issueService(db).update(issueId, { executionState: back, assigneeAgentId: s.cr } as never)).rejects.toMatchObject({
+        status: 422, details: { violations: ["participant_changed"] },
+      });
+      // Reviewer Codex không duyệt thay được nữa; reviewer Claude duyệt là done.
+      await expect(act(s, issueId, s.cr, "done")).rejects.toMatchObject({ status: 422 });
       expect((await act(s, issueId, s.r, "done"))?.status).toBe("done");
     });
   });
