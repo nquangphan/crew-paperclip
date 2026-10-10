@@ -1,23 +1,112 @@
 {
   "title": "Tổng quan",
-  "description": "Tình hình agent, yêu cầu và máy của company.",
   "cards": {
     "label": "Số liệu chính",
-    "running": "Agent đang chạy",
-    "paused": "Agent tạm dừng",
-    "open": "Yêu cầu đang mở",
+    "agents": "Agent đang bật",
+    "agentsHint": "{{running}} đang chạy, {{paused}} tạm dừng, {{error}} lỗi",
+    "inProgress": "Yêu cầu đang làm",
+    "inProgressHint": "{{open}} đang mở",
     "blocked": "Yêu cầu bị kẹt",
+    "blockedHint": "Cần người xử lý",
     "awaiting": "Chờ bạn duyệt",
-    "agentsHint": "{{active}} agent hoạt động, {{error}} lỗi",
-    "openHint": "{{inProgress}} đang làm"
+    "awaitingHint": "Đang đợi bạn xem xét"
   },
   "loadFailed": "Không tải được số liệu",
-  "runs": {
-    "heading": "Run gần đây",
-    "live": "{{count}} đang chạy",
-    "empty": "Chưa có run nào",
-    "view": "Xem run",
-    "loadFailed": "Không tải được run"
+  "banner": {
+    "noAgents": "Company chưa có agent nào.",
+    "noAgentsAction": "Tạo agent",
+    "allPaused": "Mọi agent đều tạm dừng, sẽ không có gì chạy.",
+    "allPausedHint": "Tiếp tục ít nhất một agent để yêu cầu được giao bắt đầu chạy.",
+    "allPausedAction": "Xem agent"
+  },
+  "agents": {
+    "heading": "Agent",
+    "empty": "Chưa có run nào gần đây.",
+    "moreRuns": "Còn {{count}} run khác",
+    "viewAll": "Xem tất cả run",
+    "noTask": "Không gắn yêu cầu nào",
+    "scheduled": "Chạy theo lịch",
+    "loadFailed": "Không tải được run",
+    "started": "Bắt đầu {{time}}",
+    "finished": "Xong {{time}}",
+    "queued": "Xếp hàng {{time}}"
+  },
+  "charts": {
+    "last14": "14 ngày qua",
+    "runs": "Run theo ngày",
+    "status": "Yêu cầu theo trạng thái",
+    "success": "Tỉ lệ thành công",
+    "noRuns": "Chưa có run",
+    "noTasks": "Chưa có yêu cầu",
+    "runTitle": "{{date}}: {{total}} run",
+    "succeeded": "Thành công",
+    "recovered": "Phục hồi",
+    "failed": "Lỗi",
+    "other": "Khác",
+    "issuesTitle": "{{date}}: {{total}} yêu cầu",
+    "rateTitle": "{{date}}: {{percent}}% ({{ok}}/{{total}})"
+  },
+  "activity": {
+    "heading": "Hoạt động gần đây",
+    "empty": "Chưa có hoạt động nào",
+    "loadFailed": "Không tải được hoạt động",
+    "system": "Hệ thống",
+    "user": "Thành viên",
+    "you": "Bạn",
+    "verbs": {
+      "issue": {
+        "created": "đã tạo",
+        "updated": "đã cập nhật",
+        "read_marked": "đã đánh dấu đã đọc",
+        "read_unmarked": "đã đánh dấu chưa đọc",
+        "checked_out": "đã nhận làm",
+        "released": "đã nhả",
+        "comment_added": "đã bình luận ở",
+        "commented": "đã bình luận ở",
+        "deleted": "đã xóa",
+        "attachment_added": "đã đính kèm tệp vào",
+        "attachment_removed": "đã gỡ tệp khỏi",
+        "document_created": "đã tạo tài liệu cho",
+        "document_updated": "đã cập nhật tài liệu ở",
+        "document_deleted": "đã xóa tài liệu khỏi",
+        "thread_interaction_created": "đã xin quyết định ở",
+        "thread_interaction_accepted": "đã chấp nhận yêu cầu ở",
+        "thread_interaction_rejected": "đã từ chối yêu cầu ở",
+        "thread_interaction_answered": "đã trả lời yêu cầu ở"
+      },
+      "agent": {
+        "created": "đã tạo",
+        "updated": "đã cập nhật",
+        "paused": "đã tạm dừng",
+        "resumed": "đã tiếp tục",
+        "error_cleared": "đã xóa lỗi của",
+        "terminated": "đã chấm dứt",
+        "runtime_session_reset": "đã đặt lại phiên của"
+      },
+      "heartbeat": {
+        "invoked": "đã gọi chạy",
+        "cancelled": "đã hủy lượt chạy của"
+      },
+      "approval": {
+        "created": "đã xin duyệt",
+        "approved": "đã duyệt",
+        "rejected": "đã từ chối"
+      },
+      "project": {
+        "created": "đã tạo",
+        "updated": "đã cập nhật",
+        "deleted": "đã xóa"
+      },
+      "goal": {
+        "created": "đã tạo",
+        "updated": "đã cập nhật",
+        "deleted": "đã xóa"
+      },
+      "company": {
+        "created": "đã tạo company",
+        "updated": "đã cập nhật company"
+      }
+    }
   },
   "machines": {
     "heading": "Máy",

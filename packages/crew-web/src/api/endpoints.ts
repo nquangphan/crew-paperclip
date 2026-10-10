@@ -41,6 +41,7 @@ export const ENDPOINTS = {
     path: '/api/companies/:companyId/sidebar-preferences/me',
   },
   'dashboard.summary': { ids: ['S2.1'], method: 'GET', path: '/api/companies/:companyId/dashboard' },
+  'activity.list': { ids: ['S2.5'], method: 'GET', path: '/api/companies/:companyId/activity' },
   'search.query': { ids: ['S19'], method: 'GET', path: '/api/companies/:companyId/search' },
 
   // Yêu cầu (S0.4, S2–S6, S8.1)

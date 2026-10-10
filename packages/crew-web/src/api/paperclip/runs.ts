@@ -8,10 +8,23 @@ export interface RunLogChunk {
   [key: string]: unknown;
 }
 
+/** Run trong GET /companies/:c/live-runs: run đang chạy cộng run gần đây cho đủ `minCount`. */
+export interface LiveRun {
+  id: string;
+  status: string;
+  agentId: string;
+  agentName: string;
+  issueId?: string | null;
+  startedAt: string | null;
+  finishedAt: string | null;
+  createdAt: string;
+  invocationSource?: string;
+}
+
 export const runsApi = {
   list: (companyId: string, opts: { agentId?: string; limit?: number } = {}): Promise<HeartbeatRun[]> =>
     call('runs.list', { companyId }, { query: opts }),
-  live: (companyId: string, opts: { minCount?: number; limit?: number } = {}): Promise<unknown[]> =>
+  live: (companyId: string, opts: { minCount?: number; limit?: number } = {}): Promise<LiveRun[]> =>
     call('runs.live', { companyId }, { query: opts }),
   get: (runId: string): Promise<HeartbeatRun> => call('runs.get', { runId }),
   events: (runId: string, afterSeq = 0, limit = 200): Promise<HeartbeatRunEvent[]> =>

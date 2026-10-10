@@ -1,63 +1,133 @@
 // crew: tự dựng
-import { Link, useNavigate } from 'react-router-dom';
-import { useCompany } from '@/app/hooks';
+import { useMemo } from 'react';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
+import type { LiveRun } from '@/api';
+import { useCompany, useMe } from '@/app/hooks';
 import {
+  ActivityRow,
+  AgentRunCard,
+  Alert,
+  BarChart,
   Card,
   CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
+  ChartCard,
+  DashboardHeading,
+  DashboardList,
+  DashboardMoreLink,
   ErrorState,
-  IssueRow,
   MachineCard,
+  MetricCard,
   MutedText,
-  PageHeader,
-  RunRow,
   resolveStageKey,
   Skeleton,
   StageBadge,
+  TaskRow,
 } from '@/ds';
-import { useT } from '@/i18n';
+import { AlertTriangle, Bot, CircleDot, ShieldCheck } from '@/ds/icons';
+import { formatRelative, useT } from '@/i18n';
+import {
+  activityTarget,
+  issueFullHref,
+  issuePopupHref,
+  issueStatusBars,
+  pausedBanner,
+  RUN_COLORS,
+  runActivityBars,
+  STATUS_COLORS,
+  successRateBars,
+} from './dashboard-logic';
 import { useDashboard } from './use-dashboard';
 
-interface StatProps {
-  label: string;
-  value: number | undefined;
-  hint?: string;
-  to?: string;
-}
-
-function Stat({ label, value, hint, to }: StatProps) {
-  const body = (
-    <Card data-testid="stat-card">
-      <CardHeader>
-        <CardDescription>{label}</CardDescription>
-        <CardTitle data-testid="stat-value">{value ?? '–'}</CardTitle>
-      </CardHeader>
-      {hint ? (
-        <CardContent>
-          <MutedText>{hint}</MutedText>
-        </CardContent>
-      ) : null}
-    </Card>
-  );
-  return to ? <Link to={to}>{body}</Link> : body;
-}
-
-/** Tổng quan (S2): số liệu, run gần đây, máy, yêu cầu gần đây. Không có chi phí, ngân sách hay nút điều khiển hàng loạt. */
+/** Tổng quan (S2), bố cục theo Dashboard Paperclip: banner, Agent, thẻ số, biểu đồ, hoạt động và yêu cầu, máy. */
 export function DashboardPage() {
-  const { t } = useT('dashboard');
+  const { t, lang } = useT('dashboard');
+  const common = useT();
   const { company } = useCompany();
+  const me = useMe();
   const navigate = useNavigate();
+  const location = useLocation();
   const d = useDashboard(company.id);
   const base = `/${company.issuePrefix}`;
   const s = d.summary.data;
-  const agentName = new Map((d.agents.data ?? []).map((a) => [a.id, a.name]));
   const now = Date.now();
+  const ago = (iso: string | Date) => formatRelative(iso, lang);
+
+  /** Yêu cầu mở popup trên trang hiện tại; Cmd/Ctrl+click mở trang đầy đủ ở tab mới. */
+  const issueNav = (identifier: string) => ({
+    href: issueFullHref(base, identifier),
+    onOpen: () => navigate(issuePopupHref(location.search, identifier)),
+  });
+
+  const agentName = useMemo(() => new Map((d.agents.data ?? []).map((a) => [a.id, a.name])), [d.agents.data]);
+  const ctx = useMemo(
+    () => ({
+      base,
+      issues: new Map((d.issues.data ?? []).map((i) => [i.id, { identifier: i.identifier, title: i.title }])),
+      agents: agentName,
+      projects: new Map((d.projects.data ?? []).map((p) => [p.id, p.name])),
+    }),
+    [base, d.issues.data, agentName, d.projects.data],
+  );
+
+  const banner = pausedBanner(d.agents.data);
+  const runBars = runActivityBars(s?.runActivity ?? [], (day) =>
+    t('charts.runTitle', { date: day.date, total: day.total }),
+  );
+  const rateBars = successRateBars(s?.runActivity ?? [], (day, rate) =>
+    t('charts.rateTitle', {
+      date: day.date,
+      percent: Math.round(rate * 100),
+      ok: day.succeeded + day.recovered,
+      total: day.total,
+    }),
+  );
+  const statusChart = issueStatusBars(d.issues.data ?? [], new Date(now), (date, total) =>
+    t('charts.issuesTitle', { date, total }),
+  );
+  const hasRecovered = (s?.runActivity ?? []).some((day) => day.recovered > 0);
+
+  const actorName = (e: { actorType: string; actorId: string }) => {
+    if (e.actorType === 'agent') return agentName.get(e.actorId) ?? t('activity.system');
+    if (e.actorType === 'user') return e.actorId === me?.id ? t('activity.you') : t('activity.user');
+    return t('activity.system');
+  };
+
+  const runCard = (run: LiveRun) => {
+    const issue = run.issueId ? d.issueById.get(run.issueId) : undefined;
+    const identifier = issue?.identifier ?? run.issueId?.slice(0, 8);
+    const time = run.finishedAt
+      ? t('agents.finished', { time: ago(run.finishedAt) })
+      : run.startedAt
+        ? t('agents.started', { time: ago(run.startedAt) })
+        : t('agents.queued', { time: ago(run.createdAt) });
+    const runHref = `${base}/runs/${run.id}`;
+    return (
+      <AgentRunCard
+        key={run.id}
+        agentName={run.agentName ?? agentName.get(run.agentId) ?? ''}
+        statusLabel={common.t(`status.${run.status}`, { defaultValue: run.status })}
+        running={run.status === 'running'}
+        timestamp={time}
+        timestampIso={run.finishedAt ?? run.startedAt ?? run.createdAt}
+        runHref={runHref}
+        onOpenRun={() => navigate(runHref)}
+        task={
+          run.issueId && identifier
+            ? {
+                identifier,
+                title: issue?.title ?? identifier,
+                status: issue?.status ?? 'backlog',
+                ...(issue?.identifier ? issueNav(issue.identifier) : { href: null }),
+              }
+            : null
+        }
+        noTaskText={run.invocationSource === 'timer' ? t('agents.scheduled') : t('agents.noTask')}
+      />
+    );
+  };
 
   return (
-    <div className="flex flex-col gap-4">
-      <PageHeader title={t('title')} description={t('description')} />
+    <div className="flex flex-col gap-6">
       {d.summary.error ? (
         <ErrorState
           title={t('loadFailed')}
@@ -65,97 +135,195 @@ export function DashboardPage() {
           onRetry={() => void d.summary.refetch()}
         />
       ) : null}
-      <section aria-label={t('cards.label')} className="grid grid-cols-2 gap-3 lg:grid-cols-5">
-        <Stat
-          label={t('cards.running')}
-          value={s?.agents.running}
-          hint={s ? t('cards.agentsHint', { active: s.agents.active, error: s.agents.error }) : undefined}
-          to={`${base}/agents`}
-        />
-        <Stat label={t('cards.paused')} value={s?.agents.paused} to={`${base}/agents`} />
-        <Stat
-          label={t('cards.open')}
-          value={s?.tasks.open}
-          hint={s ? t('cards.openHint', { inProgress: s.tasks.inProgress }) : undefined}
-          to={`${base}/issues`}
-        />
-        <Stat label={t('cards.blocked')} value={s?.tasks.blocked} to={`${base}/inbox?tab=stuck`} />
-        <Stat label={t('cards.awaiting')} value={d.issues.data ? d.awaiting : undefined} to={`${base}/inbox`} />
-      </section>
       {d.issues.error ? <ErrorState title={t('loadFailed')} message={d.issues.error.message} /> : null}
 
-      <Card>
-        <CardHeader>
-          <CardTitle>{t('runs.heading')}</CardTitle>
-          {d.live.data ? <MutedText>{t('runs.live', { count: d.live.data.length })}</MutedText> : null}
-        </CardHeader>
-        <CardContent className="flex flex-col">
-          {d.runs.isLoading ? <Skeleton /> : null}
-          {d.runs.error ? <ErrorState title={t('runs.loadFailed')} message={d.runs.error.message} /> : null}
-          {d.runs.data?.length === 0 ? <MutedText>{t('runs.empty')}</MutedText> : null}
-          {(d.runs.data ?? []).map((run) => {
-            const href = `${base}/runs/${run.id}`;
-            return (
-              <div key={run.id} data-testid="recent-run" className="flex items-center gap-2">
-                <div className="min-w-0 flex-1">
-                  <RunRow
-                    id={run.id}
-                    status={run.status}
-                    agentName={agentName.get(run.agentId)}
-                    startedAt={run.startedAt ? String(run.startedAt) : String(run.createdAt)}
-                    href={href}
-                    onOpen={() => navigate(href)}
-                  />
-                </div>
-                <Link to={href} className="shrink-0">
-                  {t('runs.view')}
-                </Link>
-              </div>
-            );
-          })}
-        </CardContent>
-      </Card>
+      {banner === 'all-paused' ? (
+        <Alert variant="warning" title={t('banner.allPaused')}>
+          {t('banner.allPausedHint')} <Link to={`${base}/agents`}>{t('banner.allPausedAction')}</Link>
+        </Alert>
+      ) : null}
+      {banner === 'no-agents' ? (
+        <Alert variant="warning" title={t('banner.noAgents')}>
+          <Link to={`${base}/agents`}>{t('banner.noAgentsAction')}</Link>
+        </Alert>
+      ) : null}
 
-      <Card>
-        <CardHeader>
-          <CardTitle>{t('machines.heading')}</CardTitle>
-        </CardHeader>
-        <CardContent className="flex flex-col gap-3">
-          {d.machines.isLoading ? <Skeleton /> : null}
-          {d.machines.error ? <ErrorState title={t('machines.loadFailed')} message={d.machines.error.message} /> : null}
-          {d.machines.data?.length === 0 ? <MutedText>{t('machines.empty')}</MutedText> : null}
-          <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-            {(d.machines.data ?? []).map((m) => (
-              <MachineCard key={m.machineId} report={m.latest} latestAt={m.lastSeenAt} now={now} load24h={m.load24h} />
-            ))}
+      <section aria-label={t('agents.heading')}>
+        <DashboardHeading>{t('agents.heading')}</DashboardHeading>
+        {d.live.isLoading ? <Skeleton /> : null}
+        {d.live.error ? <ErrorState title={t('agents.loadFailed')} message={d.live.error.message} /> : null}
+        {d.live.data && d.runs.length === 0 ? (
+          <Card>
+            <CardContent>
+              <MutedText>{t('agents.empty')}</MutedText>
+            </CardContent>
+          </Card>
+        ) : null}
+        <div className="flex flex-col gap-3">
+          <div className="grid grid-cols-1 items-start gap-2 sm:grid-cols-2 sm:gap-4 xl:grid-cols-4">
+            {d.runs.map(runCard)}
           </div>
-        </CardContent>
-      </Card>
+          {d.runs.length > 0 ? (
+            <div className="flex justify-end">
+              <DashboardMoreLink href={`${base}/runs`} onOpen={() => navigate(`${base}/runs`)}>
+                {(d.live.data?.length ?? 0) > d.runs.length
+                  ? t('agents.moreRuns', { count: (d.live.data?.length ?? 0) - d.runs.length })
+                  : t('agents.viewAll')}
+              </DashboardMoreLink>
+            </div>
+          ) : null}
+        </div>
+      </section>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>{t('recent.heading')}</CardTitle>
-        </CardHeader>
-        <CardContent className="flex flex-col">
+      <section aria-label={t('cards.label')} className="grid grid-cols-2 gap-1 sm:gap-2 xl:grid-cols-4">
+        <MetricCard
+          icon={Bot}
+          value={s ? s.agents.active + s.agents.running + s.agents.paused + s.agents.error : '–'}
+          label={t('cards.agents')}
+          description={
+            s
+              ? t('cards.agentsHint', { running: s.agents.running, paused: s.agents.paused, error: s.agents.error })
+              : undefined
+          }
+          href={`${base}/agents`}
+          onOpen={() => navigate(`${base}/agents`)}
+        />
+        <MetricCard
+          icon={CircleDot}
+          value={s?.tasks.inProgress ?? '–'}
+          label={t('cards.inProgress')}
+          description={s ? t('cards.inProgressHint', { open: s.tasks.open }) : undefined}
+          href={`${base}/issues`}
+          onOpen={() => navigate(`${base}/issues`)}
+        />
+        <MetricCard
+          icon={AlertTriangle}
+          value={s?.tasks.blocked ?? '–'}
+          label={t('cards.blocked')}
+          description={t('cards.blockedHint')}
+          href={`${base}/inbox?tab=stuck`}
+          onOpen={() => navigate(`${base}/inbox?tab=stuck`)}
+        />
+        <MetricCard
+          icon={ShieldCheck}
+          value={d.inbox.data ? d.awaiting : '–'}
+          label={t('cards.awaiting')}
+          description={t('cards.awaitingHint')}
+          href={`${base}/inbox`}
+          onOpen={() => navigate(`${base}/inbox`)}
+        />
+      </section>
+
+      <section className="grid grid-cols-2 gap-4 lg:grid-cols-3">
+        <ChartCard title={t('charts.runs')} subtitle={t('charts.last14')}>
+          <BarChart
+            bars={runBars}
+            emptyText={t('charts.noRuns')}
+            legend={[
+              { color: RUN_COLORS.succeeded, label: t('charts.succeeded') },
+              ...(hasRecovered ? [{ color: RUN_COLORS.recovered, label: t('charts.recovered') }] : []),
+              { color: RUN_COLORS.failed, label: t('charts.failed') },
+              { color: RUN_COLORS.other, label: t('charts.other') },
+            ]}
+          />
+        </ChartCard>
+        <ChartCard title={t('charts.status')} subtitle={t('charts.last14')}>
+          <BarChart
+            bars={statusChart.bars}
+            emptyText={t('charts.noTasks')}
+            legend={statusChart.statuses.map((st) => ({
+              color: STATUS_COLORS[st],
+              label: common.t(`status.${st}`, { defaultValue: st }),
+            }))}
+          />
+        </ChartCard>
+        <ChartCard title={t('charts.success')} subtitle={t('charts.last14')}>
+          <BarChart bars={rateBars} emptyText={t('charts.noRuns')} />
+        </ChartCard>
+      </section>
+
+      {d.machines.isLoading ? <Skeleton /> : null}
+      {d.machines.error ? <ErrorState title={t('machines.loadFailed')} message={d.machines.error.message} /> : null}
+      {d.machines.data?.length === 0 ? (
+        <Card>
+          <CardContent>
+            <MutedText>{t('machines.empty')}</MutedText>
+          </CardContent>
+        </Card>
+      ) : null}
+      {d.machines.data && d.machines.data.length > 0 ? (
+        <section aria-label={t('machines.heading')} className="grid gap-4 md:grid-cols-2">
+          {d.machines.data.map((m) => (
+            <MachineCard key={m.machineId} report={m.latest} latestAt={m.lastSeenAt} now={now} load24h={m.load24h} />
+          ))}
+        </section>
+      ) : null}
+
+      <div className="grid gap-4 md:grid-cols-2">
+        <div className="min-w-0">
+          <DashboardHeading>{t('activity.heading')}</DashboardHeading>
+          {d.activity.error ? <ErrorState title={t('activity.loadFailed')} message={d.activity.error.message} /> : null}
+          {d.activity.isLoading ? <Skeleton /> : null}
+          {d.activity.data?.length === 0 ? (
+            <Card>
+              <CardContent>
+                <MutedText>{t('activity.empty')}</MutedText>
+              </CardContent>
+            </Card>
+          ) : null}
+          {d.activity.data && d.activity.data.length > 0 ? (
+            <DashboardList>
+              {d.activity.data.map((e) => {
+                const target = activityTarget(e, ctx);
+                const nav = target.issueIdentifier
+                  ? issueNav(target.issueIdentifier)
+                  : { href: target.href, onOpen: target.href ? () => navigate(target.href as string) : undefined };
+                return (
+                  <ActivityRow
+                    key={e.id}
+                    actorName={actorName(e)}
+                    verb={t(`activity.verbs.${e.action}`, { defaultValue: e.action.replace(/[._]/g, ' ') })}
+                    isIssue={e.entityType === 'issue'}
+                    targetLabel={target.label}
+                    targetTitle={target.title}
+                    time={ago(e.createdAt)}
+                    nav={nav}
+                  />
+                );
+              })}
+            </DashboardList>
+          ) : null}
+        </div>
+
+        <div className="min-w-0">
+          <DashboardHeading>{t('recent.heading')}</DashboardHeading>
           {d.roots.isLoading ? <Skeleton /> : null}
           {d.roots.error ? <ErrorState title={t('recent.loadFailed')} message={d.roots.error.message} /> : null}
-          {d.roots.data && d.recentRoots.length === 0 ? <MutedText>{t('recent.empty')}</MutedText> : null}
-          {d.recentRoots.map((root) => {
-            const href = `${base}/issues/${root.identifier}`;
-            return (
-              <IssueRow
-                key={root.id}
-                identifier={root.identifier}
-                title={root.title}
-                status={root.status}
-                stage={<StageBadge stage={resolveStageKey(root.stage, root.kind)} />}
-                href={href}
-                onOpen={() => navigate(href)}
-              />
-            );
-          })}
-        </CardContent>
-      </Card>
+          {d.roots.data && d.recentRoots.length === 0 ? (
+            <Card>
+              <CardContent>
+                <MutedText>{t('recent.empty')}</MutedText>
+              </CardContent>
+            </Card>
+          ) : null}
+          {d.recentRoots.length > 0 ? (
+            <DashboardList testId="recent-roots">
+              {d.recentRoots.map((root) => (
+                <TaskRow
+                  key={root.id}
+                  identifier={root.identifier}
+                  title={root.title}
+                  status={root.status}
+                  statusLabel={common.t(`status.${root.status}`, { defaultValue: root.status })}
+                  extra={<StageBadge stage={resolveStageKey(root.stage, root.kind)} />}
+                  time={ago(root.updatedAt)}
+                  nav={issueNav(root.identifier)}
+                />
+              ))}
+            </DashboardList>
+          ) : null}
+        </div>
+      </div>
     </div>
   );
 }
