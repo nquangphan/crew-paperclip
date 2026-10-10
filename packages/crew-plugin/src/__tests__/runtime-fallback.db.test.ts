@@ -241,7 +241,7 @@ describe("executor", () => {
 });
 
 describe("job runtime-fallback (run bị công tắc giữ)", () => {
-  it("chỉ xử lý dòng quá 60 giây, run còn queued, công tắc vẫn tắt; đặt handled_at; chạy lại không làm gì", async () => {
+  it("chỉ xử lý dòng quá 60 giây, run còn queued, công tắc vẫn tắt; đánh thức sau khi run cũ bị hủy; chạy lại không làm gì", async () => {
     const issue = addIssue(20, { description: marker("small", "opencode_local", "opencode-go/kimi-k3", "default"), assigneeAgentId: opencodeExec, status: "todo" });
     const held = await addRun(50, opencodeExec, "queued");
     await addWait(held, issue, opencodeExec, "opencode_local", 120);
@@ -249,16 +249,47 @@ describe("job runtime-fallback (run bị công tắc giữ)", () => {
     await addWait(fresh, issue, opencodeExec, "opencode_local", 10);
     const started = await addRun(52, opencodeExec, "running");
     await addWait(started, issue, opencodeExec, "opencode_local", 120);
-    expect(await runRuntimeFallbackJob(ctx, new Date())).toEqual({ handled: 2, applied: 1 });
+    expect(await runRuntimeFallbackJob(ctx, new Date())).toEqual({ handled: 1, applied: 1 });
     expect(await decisions(issue)).toEqual([expect.objectContaining({ kind: "fallback", run_id: held, trigger: "switch_off", to_agent_id: executor,
       to_runtime: "claude_local", model: "claude-sonnet-5", reason: "runtime đang tắt trên máy" })]);
-    expect(of("wake")).toHaveLength(1);
-    expect(await handledAt(held)).not.toBeNull();
+    // Run cũ còn `queued` (H1 chưa hủy): wake lúc này sẽ nằm sau nó, nên chờ.
+    expect(of("wake")).toEqual([]);
+    expect(await handledAt(held)).toBeNull();
     expect(await handledAt(started)).not.toBeNull();
     expect(await handledAt(fresh)).toBeNull();
     calls = [];
     expect(await runRuntimeFallbackJob(ctx, new Date())).toEqual({ handled: 0, applied: 0 });
+    expect(calls.filter((call) => call.kind !== "get")).toEqual([]);
+    // H1 hủy run cũ ở lượt claim kế tiếp: phút sau đánh thức executor đích đúng một lần.
+    await host.sql`UPDATE heartbeat_runs SET status = 'cancelled' WHERE id = ${held}`;
+    expect(await runRuntimeFallbackJob(ctx, new Date())).toEqual({ handled: 1, applied: 0 });
+    expect(of("wake")).toEqual([[issue, companyId, { reason: "crew_runtime_fallback", idempotencyKey: `crew_runtime_fallback:${held}` }]]);
+    expect(await handledAt(held)).not.toBeNull();
+    calls = [];
+    expect(await runRuntimeFallbackJob(ctx, new Date())).toEqual({ handled: 0, applied: 0 });
     expect(calls).toEqual([]);
+  });
+
+  it("run cũ không bị hủy sau 30 phút: vẫn đánh thức agent đích (như trước)", async () => {
+    const issue = addIssue(23, { description: marker("small", "opencode_local", "opencode-go/kimi-k3", "default"), assigneeAgentId: opencodeExec, status: "todo" });
+    const held = await addRun(55, opencodeExec, "queued");
+    await addWait(held, issue, opencodeExec, "opencode_local", 120);
+    expect(await runRuntimeFallbackJob(ctx, new Date())).toEqual({ handled: 0, applied: 1 });
+    expect(of("wake")).toEqual([]);
+    expect(await runRuntimeFallbackJob(ctx, new Date(Date.now() + 31 * 60_000))).toEqual({ handled: 1, applied: 0 });
+    expect(of("wake")).toHaveLength(1);
+  });
+
+  it("agent đích đã có run trên issue sau quyết định: không đánh thức thêm", async () => {
+    const issue = addIssue(24, { description: marker("small", "opencode_local", "opencode-go/kimi-k3", "default"), assigneeAgentId: opencodeExec, status: "todo" });
+    const held = await addRun(56, opencodeExec, "queued");
+    await addWait(held, issue, opencodeExec, "opencode_local", 120);
+    expect(await runRuntimeFallbackJob(ctx, new Date())).toEqual({ handled: 0, applied: 1 });
+    await host.sql`UPDATE heartbeat_runs SET status = 'cancelled' WHERE id = ${held}`;
+    await host.sql`INSERT INTO heartbeat_runs (id,company_id,agent_id,status,context_snapshot)
+      VALUES (${runId(57)},${companyId},${executor},'queued',${host.sql.json({ issueId: issue })})`;
+    expect(await runRuntimeFallbackJob(ctx, new Date())).toEqual({ handled: 1, applied: 0 });
+    expect(of("wake")).toEqual([]);
   });
 
   it("công tắc đã bật lại: đặt handled_at, không chuyển", async () => {
@@ -313,8 +344,12 @@ describe("reviewer Codex → reviewer Claude", () => {
     await setSwitch("codex_local", false);
     const held = await addRun(61, codexReviewer, "queued");
     await addWait(held, issue, codexReviewer, "codex_local", 120);
-    expect(await runRuntimeFallbackJob(ctx, new Date())).toEqual({ handled: 1, applied: 1 });
+    expect(await runRuntimeFallbackJob(ctx, new Date())).toEqual({ handled: 0, applied: 1 });
     expect(await decisions(issue)).toEqual([expect.objectContaining({ role: "reviewer", kind: "fallback", trigger: "switch_off", reason: "runtime đang tắt trên máy" })]);
+    expect(of("wake")).toEqual([]);
+    await host.sql`UPDATE heartbeat_runs SET status = 'cancelled' WHERE id = ${held}`;
+    expect(await runRuntimeFallbackJob(ctx, new Date())).toEqual({ handled: 1, applied: 0 });
+    expect(of("wake")).toEqual([[issue, companyId, { reason: "crew_runtime_reviewer_fallback", idempotencyKey: `crew_runtime_reviewer_fallback:${held}` }]]);
   });
 
   it("issue cũ chỉ có reviewer Codex trong stage: fallback_refused, comment; quota thì block, công tắc tắt thì giữ", async () => {

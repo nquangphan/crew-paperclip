@@ -99,6 +99,52 @@ async function wake(ctx: Ctx, companyId: string, issueId: string, runId: string 
   }
 }
 
+/** Run cũ còn giữ issue: lõi xếp mọi wake của issue vào `deferred_issue_execution` sau nó. */
+const ACTIVE_RUN_STATUSES = new Set(["queued", "running"]);
+/** Run cũ vẫn chưa bị hủy sau chừng này thì đánh thức luôn (như trước), để issue không nằm im mãi. */
+export const FALLBACK_WAKE_MAX_WAIT_MS = 30 * 60_000;
+
+export type FallbackWakeOutcome = "none" | "waiting" | "woken" | "done";
+
+/**
+ * Đánh thức agent đích của quyết định `fallback` của run `runId`, chỉ khi run cũ không còn `queued`/`running`. Run bị
+ * công tắc giữ vẫn `queued` tới khi H1 hủy nó ở lượt claim kế tiếp (`cancelSuperseded`); đánh thức trước lúc đó thì wake
+ * nằm `deferred_issue_execution` sau run cũ và không được đẩy lên khi run cũ bị hủy, nên agent đích không chạy và H1
+ * không đối chiếu commit của run cũ. Còn chờ thì trả `waiting` (job phút sau gọi lại); không đánh thức hai lần: agent
+ * đích đã có run trên issue từ lúc quyết định thì trả `done`; issue đã đổi người hay đã đóng thì `done`.
+ */
+export async function wakeFallbackTarget(ctx: Ctx, companyId: string, runId: string, now = new Date()): Promise<FallbackWakeOutcome> {
+  const rows = await ctx.db.query<{ issue_id: string; to_agent_id: string | null; role: string; decided_at: string | Date; run_status: string | null }>(
+    `SELECT d.issue_id::text AS issue_id, d.to_agent_id::text AS to_agent_id, d.role, d.decided_at,
+       (SELECT r.status FROM public.heartbeat_runs r WHERE r.id = d.run_id AND r.company_id = d.company_id) AS run_status
+     FROM ${decisions(ctx)} d WHERE d.company_id = $1 AND d.run_id = $2 AND d.kind = 'fallback'
+     ORDER BY d.decided_at DESC, d.id DESC LIMIT 1`,
+    [companyId, runId],
+  );
+  const decision = rows[0];
+  if (!decision?.to_agent_id) return "none";
+  const decidedAt = new Date(decision.decided_at);
+  const overdue = now.getTime() - decidedAt.getTime() >= FALLBACK_WAKE_MAX_WAIT_MS;
+  if (ACTIVE_RUN_STATUSES.has(decision.run_status ?? "") && !overdue) return "waiting";
+  const issue = await ctx.issues.get(decision.issue_id, companyId);
+  if (!issue || CLOSED_STATUSES.has(issue.status) || issue.assigneeAgentId?.toLowerCase() !== decision.to_agent_id.toLowerCase()) return "done";
+  const started = await ctx.db.query(
+    `SELECT 1 AS found FROM public.heartbeat_runs WHERE company_id = $1 AND agent_id = $2 AND context_snapshot->>'issueId' = $3
+       AND created_at >= $4 LIMIT 1`,
+    [companyId, decision.to_agent_id, decision.issue_id, decidedAt.toISOString()],
+  );
+  if (started.length > 0) return "done";
+  const reason = decision.role === "reviewer" ? REVIEWER_FALLBACK_WAKE_REASON : RUNTIME_FALLBACK_WAKE_REASON;
+  await wake(ctx, companyId, decision.issue_id, runId, reason);
+  return "woken";
+}
+
+/** Không có run cũ (lượt quét reviewer) thì đánh thức ngay; có thì chờ run cũ rời issue (`wakeFallbackTarget`). */
+async function wakeAfterFallback(ctx: Ctx, companyId: string, issueId: string, runId: string | null, reason: string): Promise<void> {
+  if (runId === null) await wake(ctx, companyId, issueId, null, reason);
+  else await wakeFallbackTarget(ctx, companyId, runId);
+}
+
 async function blockIssue(ctx: Ctx, companyId: string, issueId: string, runId: string | null): Promise<void> {
   try {
     await ctx.issues.update(issueId, { status: "blocked" }, companyId);
@@ -188,7 +234,7 @@ async function executorFallback(
   await ctx.issues.createComment(issueId,
     `Crew: chuyển từ ${fromRuntime} (${from.name}) sang ${choice.toRuntime} (${choice.toAgentName}), model ${choice.model}. `
     + `Lý do: ${choice.reason}. Nhánh và commit của run trước được giữ.`, companyId);
-  await wake(ctx, companyId, issueId, runId, RUNTIME_FALLBACK_WAKE_REASON);
+  await wakeAfterFallback(ctx, companyId, issueId, runId, RUNTIME_FALLBACK_WAKE_REASON);
   return "applied";
 }
 
@@ -253,7 +299,7 @@ async function reviewerFallback(ctx: Ctx, input: FallbackInput, issue: Issue, ro
   await ctx.issues.createComment(issueId,
     `Crew: chuyển reviewer từ codex_local (${nameOf(agents, agentId)}) sang claude_local (${nameOf(agents, claudeId)}). `
     + `Lý do: ${reason}. Số vòng review giữ nguyên.`, companyId);
-  await wake(ctx, companyId, issueId, runId, REVIEWER_FALLBACK_WAKE_REASON);
+  await wakeAfterFallback(ctx, companyId, issueId, runId, REVIEWER_FALLBACK_WAKE_REASON);
   return "applied";
 }
 
@@ -306,8 +352,9 @@ type WaitRow = { run_id: string; issue_id: string | null; agent_id: string; mach
 
 /**
  * Job mỗi phút: run bị H1 giữ vì công tắc tắt (`crew_runtime_waits`) quá 60 giây mà vẫn `queued` và công tắc vẫn tắt thì
- * chuyển runtime với trigger `switch_off`. Dòng nào xử lý xong (kể cả khi không cần làm gì) được đặt `handled_at`; lỗi thì
- * để lại cho phút sau.
+ * chuyển runtime với trigger `switch_off`. Agent đích chỉ được đánh thức khi run cũ đã rời issue (H1 hủy nó ở lượt claim
+ * sau), nên dòng đã chuyển mà run cũ còn `queued` được giữ lại tới phút sau. Dòng nào xử lý xong (kể cả khi không cần làm
+ * gì) được đặt `handled_at`; lỗi thì để lại cho phút sau.
  */
 export async function runRuntimeFallbackJob(
   ctx: Ctx & Pick<PluginContext, "companies">, now: Date,
@@ -341,6 +388,8 @@ export async function runRuntimeFallbackJob(
           if (outcome === "applied") applied++;
           ctx.logger.info("crew runtime fallback job", { companyId, runId: row.run_id, outcome });
         }
+        // Đã chuyển mà H1 chưa hủy run cũ: giữ dòng (chưa `handled_at`) để phút sau đánh thức agent đích.
+        if (await wakeFallbackTarget(ctx, companyId, row.run_id, now) === "waiting") continue;
         await ctx.db.execute(`UPDATE ${waits} SET handled_at = now() WHERE company_id = $1 AND run_id = $2`, [companyId, row.run_id]);
         handled++;
       } catch (error) {
