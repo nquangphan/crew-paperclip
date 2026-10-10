@@ -251,9 +251,24 @@ describe("báo Trợ Lý ở issue cha", () => {
     expect(h.ctx.issues.getSubtree).not.toHaveBeenCalled();
   });
 
-  it("wakeup lỗi → 200 kèm wakeup_failed", async () => {
+  it("cha có conversationAgentId → không đánh thức", async () => {
+    const h = harness([parent({ conversationAgentId: ASSISTANT }), child()]);
+    const res = await handleIssuesApi(h.ctx, request());
+    expect(h.requestWakeup).not.toHaveBeenCalled();
+    expect((res.body as { warnings: string[] }).warnings).toEqual(["violations_unread"]);
+  });
+
+  it("cha còn blocker chưa xong → không đánh thức và không phải lỗi", async () => {
     const h = harness([parent(), child()]);
     h.requestWakeup.mockRejectedValueOnce(new Error("Issue is blocked by unresolved blockers"));
+    const res = await handleIssuesApi(h.ctx, request());
+    expect(res.status).toBe(200);
+    expect((res.body as { warnings: string[] }).warnings).toEqual(["violations_unread"]);
+  });
+
+  it("wakeup lỗi khác → 200 kèm wakeup_failed", async () => {
+    const h = harness([parent(), child()]);
+    h.requestWakeup.mockRejectedValueOnce(new Error("budget exceeded"));
     const res = await handleIssuesApi(h.ctx, request());
     expect(res.status).toBe(200);
     expect((res.body as { warnings: string[] }).warnings).toEqual(["violations_unread", "wakeup_failed"]);
