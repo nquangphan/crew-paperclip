@@ -45,14 +45,14 @@ function routes(over: Parameters<typeof mockServer>[0] = {}) {
   });
 }
 
-function mountAction(issue: Record<string, unknown> = ISSUE) {
+function mountAction(issue: Record<string, unknown> = ISSUE, childIssues: typeof CHILDREN = CHILDREN) {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   const spy = vi.spyOn(qc, 'invalidateQueries');
   render(
     <QueryClientProvider client={qc}>
       <CompanyContext.Provider value={{ company: COMPANY, companies: [COMPANY] }}>
         <MeContext.Provider value={ME}>
-          <ForceDoneAction issue={issue as never} childIssues={CHILDREN} />
+          <ForceDoneAction issue={issue as never} childIssues={childIssues} />
         </MeContext.Provider>
       </CompanyContext.Provider>
     </QueryClientProvider>,
@@ -92,6 +92,14 @@ describe('ForceDoneAction (S6.17)', () => {
     expect(within(dialog).queryByText('TPS-4')).toBeNull();
   });
 
+  it('dialog liệt kê run sẽ dừng theo agent và nói rõ việc cháu không bị hủy', async () => {
+    routes();
+    mountAction();
+    const dialog = await openDialog();
+    expect(await within(dialog).findByText('Run của Executor Alpha')).toBeTruthy();
+    expect(within(dialog).getByText(/Chỉ hủy các việc con liệt kê ở đây/)).toBeTruthy();
+  });
+
   it('nút xác nhận tắt khi lý do dưới 10 ký tự', async () => {
     routes();
     mountAction();
@@ -104,18 +112,19 @@ describe('ForceDoneAction (S6.17)', () => {
     expect(submit.disabled).toBe(false);
   });
 
-  it('xác nhận: hủy con chưa xong → dừng run → gọi route với lý do, rồi làm mới issue, lịch sử, danh sách', async () => {
+  it('xác nhận: dừng run → gọi route với lý do → rồi mới hủy con chưa xong, làm mới issue, lịch sử, danh sách', async () => {
     const s = routes();
     const { spy } = mountAction();
     const dialog = await openDialog();
     fireEvent.change(within(dialog).getByRole('textbox'), { target: { value: `  ${REASON} ` } });
     fireEvent.click(within(dialog).getByRole('button', { name: 'Ép Done' }));
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    await waitFor(() => expect(writes(s)).toHaveLength(4));
     expect(writes(s)).toEqual([
-      'PATCH /api/issues/k1',
-      'PATCH /api/issues/k3',
       'POST /api/heartbeat-runs/r1/cancel',
       FORCE,
+      'PATCH /api/issues/k1',
+      'PATCH /api/issues/k3',
     ]);
     expect(s.calls.find((c) => c.method === 'PATCH')?.body).toEqual({ status: 'cancelled' });
     expect(s.calls.find((c) => c.url.endsWith('/force-done'))?.body).toEqual({ companyId: 'c1', reason: REASON });
@@ -134,6 +143,57 @@ describe('ForceDoneAction (S6.17)', () => {
     fireEvent.click(within(dialog).getByRole('button', { name: 'Ép Done' }));
     await waitFor(() => expect(writes(s)).toContain(FORCE));
     expect(writes(s)).toEqual(['POST /api/heartbeat-runs/r1/cancel', FORCE]);
+  });
+
+  it('chỉ hủy con đã hiện trong dialog: con mới xuất hiện khi đọc lại thì để nguyên', async () => {
+    const s = routes({
+      'GET /api/companies/c1/issues': {
+        body: [...CHILDREN, { id: 'k9', identifier: 'TPS-9', title: 'Con mới', status: 'todo' }],
+      },
+      'PATCH /api/issues/k9': { body: {} },
+    });
+    mountAction();
+    const dialog = await openDialog();
+    fireEvent.change(within(dialog).getByRole('textbox'), { target: { value: REASON } });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Ép Done' }));
+    await waitFor(() => expect(writes(s)).toContain('PATCH /api/issues/k3'));
+    expect(writes(s)).not.toContain('PATCH /api/issues/k9');
+  });
+
+  it('không có con chưa xong nào hiện trong dialog thì không hủy con nào', async () => {
+    const s = routes();
+    mountAction(ISSUE, [CHILDREN[1]]);
+    const dialog = await openDialog();
+    expect(within(dialog).queryByRole('checkbox')).toBeNull();
+    fireEvent.change(within(dialog).getByRole('textbox'), { target: { value: REASON } });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Ép Done' }));
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    expect(writes(s)).toEqual(['POST /api/heartbeat-runs/r1/cancel', FORCE]);
+  });
+
+  it('hủy con lỗi sau khi đã ép: báo con chưa hủy được, nút hủy lại chỉ gửi con đó', async () => {
+    let k3 = 0;
+    const s = routes({
+      'PATCH /api/issues/k3': () => {
+        k3 += 1;
+        return k3 === 1 ? { status: 500, body: { error: 'Hết giờ' } } : { body: {} };
+      },
+    });
+    mountAction();
+    const dialog = await openDialog();
+    fireEvent.change(within(dialog).getByRole('textbox'), { target: { value: REASON } });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Ép Done' }));
+    const alert = await screen.findByText(/Đã ép Done nhưng chưa hủy được 1 việc con/);
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(screen.getByText(/TPS-5/)).toBeTruthy();
+    expect(alert).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Hủy các con còn lại' }));
+    await waitFor(() => expect(screen.queryByText(/chưa hủy được/)).toBeNull());
+    expect(writes(s).filter((w) => w.startsWith('PATCH'))).toEqual([
+      'PATCH /api/issues/k1',
+      'PATCH /api/issues/k3',
+      'PATCH /api/issues/k3',
+    ]);
   });
 
   it('lỗi server hiện nguyên văn trong dialog, giữ lý do, không gửi tiếp', async () => {

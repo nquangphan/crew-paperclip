@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  cancelShownChildren,
   type ForceDoneDeps,
   forceDoneAvailable,
   MAX_FORCE_REASON,
@@ -105,24 +106,38 @@ function fakeDeps(over: Partial<ForceDoneDeps> = {}) {
 }
 
 describe('runForceDone', () => {
-  it('gọi theo thứ tự: đọc lại issue → hủy con chưa xong → hủy run đang chạy → route', async () => {
+  it('gọi theo thứ tự: đọc lại issue → hủy run đang chạy → route → rồi mới hủy con chưa xong đã hiện', async () => {
     const { deps, log } = fakeDeps();
-    const out = await runForceDone(deps, { reason: '  Owner tự kiểm xong  ', cancelChildren: true });
-    expect(out.kind).toBe('done');
+    const out = await runForceDone(deps, { reason: '  Owner tự kiểm xong  ', childIds: ['k1', 'k2'] });
+    expect(out).toEqual({ kind: 'done', result: { issue: {}, violations: [], warnings: [] }, childFailures: [] });
     expect(log).toEqual([
       'getIssue',
-      'listChildren',
-      'cancelChild:k1',
       'listActiveRuns',
       'cancelRun:r1',
       'cancelRun:r3',
       'forceDone:Owner tự kiểm xong',
+      'listChildren',
+      'cancelChild:k1',
     ]);
   });
 
-  it('bỏ chọn hủy con thì không đọc hay hủy con', async () => {
+  it('chỉ hủy con owner đã thấy trong dialog: con mới tạo sau khi mở trang thì để nguyên', async () => {
+    const { deps, log } = fakeDeps({
+      listChildren: async () => {
+        log.push('listChildren');
+        return [
+          { id: 'k1', status: 'todo' },
+          { id: 'k9', status: 'todo' },
+        ];
+      },
+    });
+    await runForceDone(deps, { reason: 'Owner tự kiểm xong', childIds: ['k1'] });
+    expect(log.filter((l) => l.startsWith('cancelChild'))).toEqual(['cancelChild:k1']);
+  });
+
+  it('không có con nào được chọn thì không đọc hay hủy con', async () => {
     const { deps, log } = fakeDeps();
-    await runForceDone(deps, { reason: 'Owner tự kiểm xong', cancelChildren: false });
+    await runForceDone(deps, { reason: 'Owner tự kiểm xong', childIds: [] });
     expect(log).toEqual(['getIssue', 'listActiveRuns', 'cancelRun:r1', 'cancelRun:r3', 'forceDone:Owner tự kiểm xong']);
   });
 
@@ -134,28 +149,61 @@ describe('runForceDone', () => {
           return { status };
         },
       });
-      const out = await runForceDone(deps, { reason: 'Owner tự kiểm xong', cancelChildren: true });
+      const out = await runForceDone(deps, { reason: 'Owner tự kiểm xong', childIds: ['k1'] });
       expect(out).toEqual({ kind: 'stale', status });
       expect(log).toEqual(['getIssue']);
     }
   });
 
-  it('dừng ở lỗi đầu tiên, không gọi bước sau', async () => {
+  it('lỗi trước khi ép (hủy run, route) thì dừng, không hủy con', async () => {
     const { deps, log } = fakeDeps({
-      cancelChild: async (id) => {
-        log.push(`cancelChild:${id}`);
-        throw new Error('Không hủy được con');
+      forceDone: async () => {
+        log.push('forceDone');
+        throw new Error('update_failed');
       },
     });
-    await expect(runForceDone(deps, { reason: 'Owner tự kiểm xong', cancelChildren: true })).rejects.toThrow(
-      'Không hủy được con',
+    await expect(runForceDone(deps, { reason: 'Owner tự kiểm xong', childIds: ['k1'] })).rejects.toThrow(
+      'update_failed',
     );
-    expect(log).toEqual(['getIssue', 'listChildren', 'cancelChild:k1']);
+    expect(log).toEqual(['getIssue', 'listActiveRuns', 'cancelRun:r1', 'cancelRun:r3', 'forceDone']);
+  });
+
+  it('hủy con lỗi sau khi đã ép thì không ném: vẫn hủy các con khác, trả danh sách con chưa hủy được', async () => {
+    const { deps, log } = fakeDeps({
+      listChildren: async () => [
+        { id: 'k1', status: 'todo' },
+        { id: 'k3', status: 'in_progress' },
+      ],
+      cancelChild: async (id) => {
+        log.push(`cancelChild:${id}`);
+        if (id === 'k1') throw new Error('Không hủy được con');
+      },
+    });
+    const out = await runForceDone(deps, { reason: 'Owner tự kiểm xong', childIds: ['k1', 'k3'] });
+    expect(out.kind === 'done' && out.childFailures).toEqual([{ id: 'k1', message: 'Không hủy được con' }]);
+    expect(log.slice(-2)).toEqual(['cancelChild:k1', 'cancelChild:k3']);
   });
 
   it('lý do không hợp lệ thì ném lỗi, không gọi API', async () => {
     const { deps, log } = fakeDeps();
-    await expect(runForceDone(deps, { reason: 'ngắn', cancelChildren: true })).rejects.toThrow('reason_invalid');
+    await expect(runForceDone(deps, { reason: 'ngắn', childIds: ['k1'] })).rejects.toThrow('reason_invalid');
     expect(log).toEqual([]);
+  });
+});
+
+describe('cancelShownChildren', () => {
+  it('đọc lại danh sách con, bỏ con đã đóng, đọc danh sách con lỗi thì mọi id đều lỗi', async () => {
+    const { deps, log } = fakeDeps();
+    expect(await cancelShownChildren(deps, ['k1', 'k2'])).toEqual([]);
+    expect(log).toEqual(['listChildren', 'cancelChild:k1']);
+    const broken = fakeDeps({
+      listChildren: async () => {
+        throw new Error('mạng lỗi');
+      },
+    });
+    expect(await cancelShownChildren(broken.deps, ['k1', 'k3'])).toEqual([
+      { id: 'k1', message: 'mạng lỗi' },
+      { id: 'k3', message: 'mạng lỗi' },
+    ]);
   });
 });
