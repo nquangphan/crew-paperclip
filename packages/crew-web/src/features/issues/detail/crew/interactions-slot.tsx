@@ -6,13 +6,21 @@ import { ErrorState } from '@/ds';
 import { useT } from '@/i18n';
 import { CARD_KINDS, type CardInteraction, InteractionCard } from './interaction-card';
 
-/** Thẻ câu hỏi/xác nhận đang chờ của Trợ Lý, nằm trên ô soạn bình luận (S6.9). */
+const CLOSED = new Set(['done', 'cancelled']);
+
+/**
+ * Thẻ câu hỏi/xác nhận đang chờ của Trợ Lý, nằm trên ô soạn bình luận (S6.9). Yêu cầu đã done/cancelled thì không
+ * hiện (trả lời câu hỏi của việc đã đóng không còn tác dụng, ví dụ sau Ép Done).
+ */
 export function InteractionsSlot({ issue }: { issue: Issue }) {
   const { t } = useT('issues');
+  const closed = CLOSED.has(issue.status);
   const list = useQuery({
     queryKey: queryKeys.interactions(issue.id),
     queryFn: () => api.interactions.list(issue.id),
+    enabled: !closed,
   });
+  if (closed) return null;
   if (list.error) {
     return (
       <ErrorState

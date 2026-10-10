@@ -2,7 +2,16 @@
 import type { Issue } from '@paperclipai/shared';
 import type * as React from 'react';
 import { useMe } from '@/app/hooks';
-import { ProjectTag, PropertyChip, PropertyEmpty, PropertyRow, PropertySection, StatusGlyph, StatusLabel } from '@/ds';
+import {
+  Badge,
+  ProjectTag,
+  PropertyChip,
+  PropertyEmpty,
+  PropertyRow,
+  PropertySection,
+  StatusGlyph,
+  StatusLabel,
+} from '@/ds';
 import { formatDateTime, useT } from '@/i18n';
 import { IssueLink } from '../popup/issue-nav';
 import type { ChildSummary } from './use-issue';
@@ -21,6 +30,8 @@ interface PropertiesPanelProps {
   agentNames: Record<string, string>;
   projectName: string | null;
   childIssues: ChildSummary[];
+  /** Lần Ép Done mới nhất còn hiệu lực (sau lần mở lại gần nhất): hiện badge "Đã ép Done" cạnh trạng thái. */
+  forcedDone?: boolean;
 }
 
 interface IssueRef {
@@ -35,7 +46,13 @@ interface IssueRef {
  * Thông tin). Không có control sửa nào: các nút chọn trạng thái/người làm/người duyệt/nhãn của Paperclip bị bỏ
  * (BA mục 2: freeStatus, freeAssignee, pickReviewers, editRelations).
  */
-export function PropertiesPanel({ issue, agentNames, projectName, childIssues }: PropertiesPanelProps) {
+export function PropertiesPanel({
+  issue,
+  agentNames,
+  projectName,
+  childIssues,
+  forcedDone = false,
+}: PropertiesPanelProps) {
   const { t, lang } = useT('issues');
   const me = useMe();
   const none = <PropertyEmpty>{t('detail.props.none')}</PropertyEmpty>;
@@ -72,10 +89,13 @@ export function PropertiesPanel({ issue, agentNames, projectName, childIssues }:
     <div data-testid="properties-panel" className="flex flex-col">
       <PropertySection title={t('detail.props.section.work')} first>
         <PropertyRow label={t('detail.props.status')}>
-          <StatusLabel
-            status={issue.status}
-            label={t(`status.${issue.status}`, { ns: 'common', defaultValue: issue.status })}
-          />
+          <span className="flex flex-wrap items-center gap-2">
+            <StatusLabel
+              status={issue.status}
+              label={t(`status.${issue.status}`, { ns: 'common', defaultValue: issue.status })}
+            />
+            {forcedDone ? <Badge variant="destructive">{t('history.forcedBadge')}</Badge> : null}
+          </span>
         </PropertyRow>
         <PropertyRow label={t('detail.props.assignee')}>
           {assignee ?? <PropertyEmpty>{t('detail.props.unassigned')}</PropertyEmpty>}

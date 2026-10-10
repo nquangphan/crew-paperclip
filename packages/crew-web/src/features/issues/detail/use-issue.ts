@@ -1,4 +1,4 @@
-// Dữ liệu dùng chung của trang chi tiết yêu cầu: issue, tên agent, project, yêu cầu con, đã đọc.
+// Dữ liệu dùng chung của trang chi tiết yêu cầu: issue, tên agent, project, yêu cầu con, lịch sử, đã đọc.
 import type { Issue } from '@paperclipai/shared';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useRef } from 'react';
@@ -26,6 +26,15 @@ export function useProjectName(companyId: string, projectId: string | null): str
     enabled: Boolean(projectId),
   });
   return data?.find((p) => p.id === projectId)?.name ?? null;
+}
+
+/** Lịch sử của yêu cầu, mới nhất trước (S6.18). Khối Lịch sử và badge "Đã ép Done" dùng chung một lần tải. */
+export function useIssueActivity(issueId: string | undefined) {
+  return useQuery({
+    queryKey: queryKeys.issueActivity(issueId ?? ''),
+    queryFn: () => api.issues.activity(issueId as string),
+    enabled: Boolean(issueId),
+  });
 }
 
 export interface ChildSummary {

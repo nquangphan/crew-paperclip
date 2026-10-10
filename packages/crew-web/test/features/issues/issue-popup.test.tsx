@@ -32,6 +32,7 @@ function server() {
     [`GET /api/issues/${i.id}/runs`]: { body: [] },
     [`GET /api/issues/${i.id}/live-runs`]: { body: [] },
     [`GET /api/issues/${i.id}/interactions`]: { body: [] },
+    [`GET /api/issues/${i.id}/activity`]: { body: [] },
     [`POST /api/issues/${i.id}/read`]: { body: { id: i.id } },
   });
   return mockServer({
@@ -98,6 +99,9 @@ describe('popup chi tiết yêu cầu `?issue=`', () => {
     // đủ ba khe Crew và cột Thuộc tính
     expect(within(dialog).getByTestId('properties-panel')).toBeTruthy();
     expect(within(dialog).getByRole('button', { name: 'Gửi bình luận' })).toBeTruthy();
+    // Ép Done cạnh nút cổng, Lịch sử dưới Thuộc tính, chạy được trong popup
+    expect(within(dialog).getByRole('button', { name: 'Ép Done' })).toBeTruthy();
+    expect(await within(dialog).findByRole('region', { name: 'Lịch sử' })).toBeTruthy();
 
     fireEvent.click(within(dialog).getByRole('button', { name: 'Đóng' }));
     await waitFor(() => expect(screen.queryByTestId('issue-popup')).toBeNull());

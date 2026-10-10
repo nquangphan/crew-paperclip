@@ -26,6 +26,14 @@ const panel = (issue: unknown = ISSUE, over: Record<string, unknown> = {}) =>
   );
 
 describe('PropertiesPanel chỉ đọc (S6.13)', () => {
+  it('badge "Đã ép Done" chỉ khi được báo đã ép', () => {
+    panel({ ...ISSUE, status: 'done' }, { forcedDone: true });
+    expect(screen.getByText('Đã ép Done')).toBeTruthy();
+    cleanup();
+    panel({ ...ISSUE, status: 'done' });
+    expect(screen.queryByText('Đã ép Done')).toBeNull();
+  });
+
   it('hiển thị trạng thái, người làm, project, cha, con, blocked-by', () => {
     panel();
     const root = screen.getByTestId('properties-panel');
