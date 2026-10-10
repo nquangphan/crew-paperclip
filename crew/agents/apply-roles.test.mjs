@@ -16,10 +16,17 @@ const PIN = "/Users/a/.crew/workflows/superpowers/6.4.1-abc";
 const HASH = "b".repeat(64);
 const ALLOWED = new Set(["path", "content", "baseRevisionId", "baseHash", "clearLegacyPromptTemplate"]);
 
-function startMock({ entryHash = HASH, entryError = null } = {}) {
+const CODEX_ENV = { CODEX_HOME: { type: "plain", value: "/opt/crew-v3-spike/codex-homes/x" } };
+
+function startMock({ entryHash = HASH, entryError = null, agentType, agentConfig, others = {} } = {}) {
   const calls = [];
   const puts = [];
-  const agent = { id: AGENT, adapterConfig: { command: "/Users/a/.crew/bin/crew-claude-run", extraArgs: [] } };
+  const wrapper = { codex_local: "crew-codex-run", opencode_local: "crew-opencode-run" }[agentType] ?? "crew-claude-run";
+  const agent = {
+    id: AGENT,
+    ...(agentType ? { adapterType: agentType } : {}),
+    adapterConfig: { command: `/Users/a/.crew/bin/${wrapper}`, extraArgs: [], ...agentConfig },
+  };
   const server = createServer((req, res) => {
     let raw = "";
     req.on("data", (c) => (raw += c));
@@ -31,6 +38,8 @@ function startMock({ entryHash = HASH, entryError = null } = {}) {
       };
       calls.push(`${req.method} ${url.pathname}`);
       if (req.method === "GET" && url.pathname === `/agents/${AGENT}`) return send(200, agent);
+      const other = /^\/agents\/([^/]+)$/.exec(url.pathname);
+      if (req.method === "GET" && other && others[other[1]]) return send(200, { id: other[1], adapterType: others[other[1]] });
       if (url.pathname === `/agents/${AGENT}/instructions-bundle/file`) {
         if (req.method === "GET") return entryError ? send(404, { error: entryError }) : send(200, { contentHash: entryHash, content: "cũ" });
         const body = JSON.parse(raw);
@@ -126,16 +135,99 @@ test("pin sai loại thì thoát 2 và không ghi gì", async () => {
 });
 
 test("assistant nhận danh sách BMAD ở đối số thứ năm", async () => {
-  const { server, puts, port } = await startMock();
+  const { server, puts, port } = await startMock({ others: { [E1]: "claude_local" } });
   const result = await applyRoles(port, ["assistant", PIN, E1, B1]);
   server.close();
   assert.equal(result.code ?? 0, 0, result.stderr);
-  assert.match(puts[0].content, new RegExp(`## Agent BMAD của company\\n\\n- \`${B1}\`\\n$`));
+  assert.match(puts[0].content, new RegExp(`## Agent BMAD của company\\n\\n- \`${B1}\`\\n\\n## Reviewer Codex`));
 });
 
 test("vai bmad (hay vai khác) nhận danh sách thì thoát 2", async () => {
   const { server, calls, port } = await startMock();
   const result = await applyRoles(port, ["bmad", BMAD_PIN, B1]);
+  server.close();
+  assert.equal(result.code, 2);
+  assert.equal(calls.length, 0);
+});
+
+const E2 = "33333333-3333-4333-8333-333333333333";
+const R1 = "66666666-6666-4666-8666-666666666666";
+
+test("executor-codex: gửi executor.md, không thêm --plugin-dir, đo đúng adapterType", async () => {
+  const { server, puts, port } = await startMock({ agentType: "codex_local", agentConfig: { env: CODEX_ENV } });
+  const result = await applyRoles(port, ["executor-codex", PIN]);
+  server.close();
+  assert.equal(result.code ?? 0, 0, result.stderr);
+  assert.match(puts[0].content, /Codex \(`codex_local`\)/);
+  assert.match(result.stdout, /role=executor-codex extraArgs=\[\]/);
+});
+
+test("executor-opencode: nhận agent opencode_local, bỏ qua CODEX_HOME", async () => {
+  const { server, puts, port } = await startMock({ agentType: "opencode_local" });
+  const result = await applyRoles(port, ["executor-opencode", PIN]);
+  server.close();
+  assert.equal(result.code ?? 0, 0, result.stderr);
+  assert.match(puts[0].content, /^# Executor/m);
+});
+
+test("reviewer-codex: gửi reviewer.md có mục Codex", async () => {
+  const { server, puts, port } = await startMock({ agentType: "codex_local", agentConfig: { env: CODEX_ENV } });
+  const result = await applyRoles(port, ["reviewer-codex", PIN]);
+  server.close();
+  assert.equal(result.code ?? 0, 0, result.stderr);
+  assert.match(puts[0].content, /^# Reviewer/m);
+  assert.match(puts[0].content, /Codex/);
+});
+
+test("ô runtime sai adapterType hoặc thiếu CODEX_HOME thì dừng trước khi ghi", async () => {
+  for (const [opts, role] of [
+    [{ agentType: "claude_local" }, "executor-codex"],
+    [{ agentType: "codex_local", agentConfig: { env: CODEX_ENV } }, "executor"],
+    [{ agentType: "codex_local", agentConfig: { env: {} } }, "reviewer-codex"],
+    [{ agentType: "codex_local", agentConfig: { env: { ...CODEX_ENV, OPENAI_API_KEY: "sk-x" } } }, "executor-codex"],
+  ]) {
+    const { server, calls, port } = await startMock(opts);
+    const result = await applyRoles(port, [role, PIN]);
+    server.close();
+    assert.equal(result.code, 2, role);
+    assert.ok(!calls.some((c) => c.startsWith("PUT") || c.startsWith("PATCH")), `${role}: ${calls.join(" | ")}`);
+  }
+});
+
+test("assistant: runtime executor lấy từ adapterType, reviewer Codex vào instructions", async () => {
+  const { server, puts, port } = await startMock({ others: { [E1]: "claude_local", [E2]: "codex_local", [R1]: "codex_local" } });
+  const result = await applyRoles(port, ["assistant", PIN, `${E1},${E2}`, "", R1]);
+  server.close();
+  assert.equal(result.code ?? 0, 0, result.stderr);
+  assert.match(puts[0].content, new RegExp(`- \`${E1}\` — runtime \`claude_local\`\n- \`${E2}\` — runtime \`codex_local\``));
+  assert.match(puts[0].content, new RegExp(`## Reviewer Codex của company\\n\\n- \`${R1}\` — runtime \`codex_local\`\\n$`));
+  assert.match(result.stdout, new RegExp(`reviewer-codex=${R1}`));
+});
+
+test("assistant: không đọc được runtime executor hoặc reviewer Codex không phải codex_local thì không ghi", async () => {
+  for (const [others, args] of [
+    [{}, [`${E1}`]],
+    [{ [E1]: "claude_local", [R1]: "claude_local" }, [`${E1}`, "", R1]],
+  ]) {
+    const { server, calls, port } = await startMock({ others });
+    const result = await applyRoles(port, ["assistant", PIN, ...args]);
+    server.close();
+    assert.equal(result.code, 2);
+    assert.ok(!calls.some((c) => c.startsWith("PUT") || c.startsWith("PATCH")), calls.join(" | "));
+  }
+});
+
+test("assistant nhận executor kèm :runtime mà không gọi API đọc agent đó", async () => {
+  const { server, puts, port } = await startMock();
+  const result = await applyRoles(port, ["assistant", PIN, `${E1}:opencode_local`]);
+  server.close();
+  assert.equal(result.code ?? 0, 0, result.stderr);
+  assert.match(puts[0].content, new RegExp(`- \`${E1}\` — runtime \`opencode_local\``));
+});
+
+test("vai khác assistant không nhận reviewer Codex", async () => {
+  const { server, calls, port } = await startMock();
+  const result = await applyRoles(port, ["executor", PIN, "", "", R1]);
   server.close();
   assert.equal(result.code, 2);
   assert.equal(calls.length, 0);
