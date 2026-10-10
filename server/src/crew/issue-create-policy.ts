@@ -1,4 +1,4 @@
-import { issues, labels, routines, routineTriggers, type Db } from "@paperclipai/db";
+import { agents, issues, labels, routines, routineTriggers, type Db } from "@paperclipai/db";
 import { and, eq, inArray, isNotNull, or, sql } from "drizzle-orm";
 import { unprocessable } from "../errors.js";
 import { CREW_OVERRIDE_FORBIDDEN_MESSAGE, checkAgentAdapterOverrides } from "./model-policy.js";
@@ -89,6 +89,8 @@ export function decideCreatePolicy(input: {
   agentRoutine?: boolean;
   /** Project lõi sẽ gán cho issue con khác project của issue cha (kể cả không project). */
   projectOutsideParent?: boolean;
+  /** `adapterType` của assignee: override của agent kiểm theo runtime này; không truyền thì luật Claude. */
+  assigneeAdapterType?: string | null;
 }): CreatePolicyDecision {
   const { data, roles } = input;
   if (data.createdByAgentId) {
@@ -114,7 +116,7 @@ export function decideCreatePolicy(input: {
     ) {
       return { kind: "reject", code: "crew_assignment_forbidden" };
     }
-    const violations = checkAgentAdapterOverrides(data.assigneeAdapterOverrides);
+    const violations = checkAgentAdapterOverrides(data.assigneeAdapterOverrides, input.assigneeAdapterType);
     if (violations.length > 0) return { kind: "reject", code: "crew_override_forbidden", violations };
     if (CREW_BMAD_KIND_RE.test(data.description ?? "")) {
       if (!input.ownerUserId) return { kind: "reject", code: "crew_roles_unconfigured" };
@@ -176,9 +178,28 @@ async function issueProjectId(db: Db, companyId: string, issueId: string | null 
   return row ? row.projectId : undefined;
 }
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * `adapterType` của agent cùng company (assignee của issue), để kiểm override theo runtime. Không có id hoặc không
+ * tìm thấy thì `null` (luật Claude; lõi tự báo assignee lạ).
+ */
+export async function loadAssigneeAdapterType(
+  db: Db,
+  companyId: string,
+  agentId: string | null | undefined,
+): Promise<string | null> {
+  if (!agentId || !UUID_RE.test(agentId)) return null;
+  const [row] = await db
+    .select({ adapterType: agents.adapterType })
+    .from(agents)
+    .where(and(eq(agents.id, agentId), eq(agents.companyId, companyId)))
+    .limit(1);
+  return row?.adapterType ?? null;
+}
+
 /** `originKind` của issue do routine sinh ra (`services/routines.ts`); `originId` là id routine. */
 export const CREW_ROUTINE_ORIGIN_KIND = "routine_execution";
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /**
  * Routine (cùng company) do agent tạo hoặc sửa lần cuối, hoặc có trigger do agent tạo/sửa. Đọc bằng `db` chung:
@@ -260,6 +281,10 @@ export async function crewBeforeIssueCreate<T extends IssueCreateFields>(input: 
   const boardRoot = !data.createdByAgentId && !!data.createdByUserId?.trim() && !data.parentId && data.executionPolicy == null;
   const researchLabel = boardRoot ? await hasResearchLabel(input.db, input.companyId, data.labelIds) : false;
   const trackingProject = isTrackingProject(config, data.projectId);
+  const assigneeAdapterType =
+    data.createdByAgentId && data.assigneeAdapterOverrides != null
+      ? await loadAssigneeAdapterType(input.db, input.companyId, data.assigneeAgentId)
+      : null;
   const decision = decideCreatePolicy({
     data,
     roles,
@@ -271,6 +296,7 @@ export async function crewBeforeIssueCreate<T extends IssueCreateFields>(input: 
     projectAgentRoles,
     agentRoutine,
     projectOutsideParent,
+    assigneeAdapterType,
   });
   if (decision.kind === "keep") return input.data;
   if (decision.kind === "reject") throw unprocessable(MESSAGES[decision.code], {

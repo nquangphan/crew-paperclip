@@ -12,6 +12,7 @@ import type { IssueExecutionPolicy, IssueExecutionStage, IssueExecutionStagePrin
 import { unprocessable } from "../errors.js";
 import { persistActivity } from "../services/activity-log.js";
 import { normalizeIssueExecutionPolicy, parseIssueExecutionState } from "../services/issue-execution-policy.js";
+import { loadAssigneeAdapterType } from "./issue-create-policy.js";
 import { CREW_OVERRIDE_FORBIDDEN_MESSAGE, checkAgentAdapterOverrides } from "./model-policy.js";
 import {
   type CrewMergeEvidence,
@@ -171,6 +172,35 @@ export function pushGateStages(policy: IssueExecutionPolicy | null): IssueExecut
   return policy.stages.filter((s, index) => s.type === "review" && index > afterApproval);
 }
 
+export const CODEX_REVIEWER_FALLBACK_NOTE = "codex_reviewer_fallback";
+
+/**
+ * Dấu vân tay policy sau khi đổi reviewer Codex của project sang reviewer Claude (cùng project) ở mọi stage `review`;
+ * `null` khi project không có reviewer Codex hoặc policy không có participant đó. Plugin dùng khi reviewer Codex lỗi
+ * hay công tắc Codex bị tắt: lệnh ghi của hệ thống mang đúng policy này được qua cổng khóa policy, không thành
+ * board override. Mọi thay đổi khác của stage vẫn bị khóa.
+ */
+export function codexReviewerFallbackFingerprint(policy: unknown, roles: CrewRoles | null): string | null {
+  const from = roles?.codexReviewerAgentId;
+  const to = roles?.reviewerAgentId;
+  const stages = (policy as { stages?: unknown } | null)?.stages;
+  if (!from || !to || from === to || !Array.isArray(stages)) return null;
+  let swapped = false;
+  const next = stages.map((raw) => {
+    const stage = raw as { type?: unknown; participants?: unknown };
+    if (stage.type !== "review" || !Array.isArray(stage.participants)) return raw;
+    return {
+      ...stage,
+      participants: stage.participants.map((p: { type?: unknown; agentId?: unknown }) => {
+        if (p?.type !== "agent" || p.agentId !== from) return p;
+        swapped = true;
+        return { ...p, agentId: to };
+      }),
+    };
+  });
+  return swapped ? policyGateFingerprint({ stages: next }) : null;
+}
+
 export function evaluateIssueGate(f: IssueGateFacts): IssueGateVerdict {
   const notes: string[] = [];
   // Agent không chuyển issue sang project khác (kể cả về không project): luật giao việc đọc vai trò theo project, nên
@@ -192,8 +222,14 @@ export function evaluateIssueGate(f: IssueGateFacts): IssueGateVerdict {
   if (policyPatched && f.actor.kind !== "board") {
     const next = f.patch.executionPolicy ?? null;
     const raised = roundsOf(next) !== null && roundsOf(next) !== roundsOf(f.locked.executionPolicy);
-    if (policyGateFingerprint(next) !== policyGateFingerprint(f.locked.executionPolicy) || raised) {
-      return { kind: "block", code: "crew_policy_locked", violations: ["policy_changed"] };
+    const nextFingerprint = policyGateFingerprint(next);
+    if (nextFingerprint !== policyGateFingerprint(f.locked.executionPolicy) || raised) {
+      const fallback =
+        f.actor.kind === "system" &&
+        !raised &&
+        nextFingerprint === codexReviewerFallbackFingerprint(f.locked.executionPolicy, f.roles);
+      if (!fallback) return { kind: "block", code: "crew_policy_locked", violations: ["policy_changed"] };
+      notes.push(CODEX_REVIEWER_FALLBACK_NOTE);
     }
   }
 
@@ -360,7 +396,15 @@ const BLOCK_MESSAGES: Record<string, string> = {
 export async function crewBeforeIssueWrite(input: IssueWriteHookInput): Promise<void> {
   const patch = input.patch as Readonly<Record<string, unknown>>;
   if (input.actorAgentId && Object.hasOwn(patch, "assigneeAdapterOverrides")) {
-    const violations = checkAgentAdapterOverrides(patch.assigneeAdapterOverrides);
+    // Override kiểm theo runtime của assignee sau lệnh ghi (patch có `assigneeAgentId` thì lấy nó, kể cả null).
+    const assigneeAgentId = Object.hasOwn(patch, "assigneeAgentId")
+      ? (patch.assigneeAgentId as string | null | undefined)
+      : input.existing.assigneeAgentId;
+    const adapterType =
+      patch.assigneeAdapterOverrides != null
+        ? await loadAssigneeAdapterType(input.tx, input.existing.companyId, assigneeAgentId)
+        : null;
+    const violations = checkAgentAdapterOverrides(patch.assigneeAdapterOverrides, adapterType);
     if (violations.length > 0) {
       const config = await loadCrewCompanyConfig(input.existing.companyId);
       if (config.kind !== "absent") {
@@ -539,6 +583,12 @@ export async function crewBeforeIssueWrite(input: IssueWriteHookInput): Promise<
       input.patch.executionState = null;
     }
     await activity("crew.policy.board_override", { violations: verdict.violations, toStatus: patch.status ?? null });
+  }
+  if (verdict.kind === "allow" && verdict.notes.includes(CODEX_REVIEWER_FALLBACK_NOTE)) {
+    await activity("crew.gate.codex_reviewer_fallback", {
+      fromAgentId: roles?.codexReviewerAgentId ?? null,
+      toAgentId: roles?.reviewerAgentId ?? null,
+    });
   }
   if (verdict.kind === "allow" && verdict.notes.includes("docs_uninitialized")) {
     await activity("crew.docs_gate.uninitialized", { note: "repo chưa crew-docs init; docs gate cho qua" });

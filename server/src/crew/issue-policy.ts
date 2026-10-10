@@ -12,6 +12,11 @@ export const CREW_RESEARCH_LABEL = "research";
 export interface CrewRoles {
   reviewerAgentId: string;
   integratorAgentId: string;
+  /**
+   * Reviewer Codex (ô `reviewer-codex`) của project, khi bảng vai trò có. Chỉ hệ thống được đổi participant của nó
+   * sang `reviewerAgentId` khi reviewer Codex lỗi hoặc bị tắt (H2).
+   */
+  codexReviewerAgentId?: string | null;
 }
 
 /** Env trỏ tới file JSON chỉ đọc cấu hình vai trò Crew theo company. */

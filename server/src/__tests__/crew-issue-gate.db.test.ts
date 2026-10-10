@@ -216,6 +216,62 @@ suite("crew issue gate in issueService.update", () => {
     expect(row!.assigneeAdapterOverrides).toEqual({ adapterConfig: { extraArgs: ["--verbose"] } });
   });
 
+  async function runtimeAgent(c: Company, adapterType: string) {
+    const id = randomUUID();
+    await db.insert(agents).values({
+      id,
+      companyId: c.companyId,
+      name: `Executor ${adapterType}`,
+      role: "engineer",
+      status: "idle",
+      adapterType,
+      adapterConfig: {},
+      permissions: {},
+      runtimeConfig: { heartbeat: { enabled: false, wakeOnDemand: false, maxConcurrentRuns: 1 } },
+    });
+    return id;
+  }
+
+  it("agent PATCH giao sang executor codex kèm override: kiểm theo runtime của assignee mới", async () => {
+    const c = await company();
+    const codexId = await runtimeAgent(c, "codex_local");
+    const issueId = await issue(c, { status: "todo", assigneeAgentId: c.executorId });
+    await expect(issueService(db).update(issueId, {
+      assigneeAgentId: codexId,
+      assigneeAdapterOverrides: { adapterConfig: { model: "gpt-6-sol", effort: "high" } },
+      actorAgentId: c.executorId,
+    } as never)).rejects.toMatchObject({ status: 422, details: { code: "crew_override_forbidden", violations: ["adapterConfig.effort"] } });
+    let [row] = await db.select().from(issues).where(eq(issues.id, issueId));
+    expect(row!.assigneeAgentId).toBe(c.executorId);
+    await issueService(db).update(issueId, {
+      assigneeAgentId: codexId,
+      assigneeAdapterOverrides: { adapterConfig: { model: "gpt-6-sol", modelReasoningEffort: "high" } },
+      actorAgentId: c.executorId,
+    } as never);
+    [row] = await db.select().from(issues).where(eq(issues.id, issueId));
+    expect(row!.assigneeAgentId).toBe(codexId);
+    expect(row!.assigneeAdapterOverrides).toEqual({ adapterConfig: { model: "gpt-6-sol", modelReasoningEffort: "high" } });
+  });
+
+  it("agent PATCH chỉ override: kiểm theo runtime của assignee đang giữ issue; bỏ assignee thì luật Claude", async () => {
+    const c = await company();
+    const opencodeId = await runtimeAgent(c, "opencode_local");
+    const issueId = await issue(c, { status: "todo", assigneeAgentId: opencodeId });
+    await expect(issueService(db).update(issueId, {
+      assigneeAdapterOverrides: { adapterConfig: { model: "claude-opus-5" } },
+      actorAgentId: c.executorId,
+    } as never)).rejects.toMatchObject({ status: 422, details: { violations: ["adapterConfig.model:claude-opus-5@opencode_local"] } });
+    await expect(issueService(db).update(issueId, {
+      assigneeAdapterOverrides: { adapterConfig: { model: "opencode-go/glm-5.3" } },
+      actorAgentId: c.executorId,
+    } as never)).resolves.toBeDefined();
+    await expect(issueService(db).update(issueId, {
+      assigneeAgentId: null,
+      assigneeAdapterOverrides: { adapterConfig: { model: "opencode-go/glm-5.3" } },
+      actorAgentId: c.executorId,
+    } as never)).rejects.toMatchObject({ status: 422, details: { violations: ["adapterConfig.model:opencode-go/glm-5.3"] } });
+  });
+
   it("company ngoài cấu hình giữ cách PATCH stock", async () => {
     const c = await company("absent");
     const issueId = await issue(c, { status: "in_progress", assigneeAgentId: c.executorId });

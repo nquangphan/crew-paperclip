@@ -832,6 +832,64 @@ describe("evaluateIssueGate", () => {
     });
   });
 
+  describe("reviewer Codex lỗi hoặc bị tắt: hệ thống chuyển stage review về reviewer Claude", () => {
+    const CODEX_REVIEWER = "66666666-6666-4666-8666-666666666666";
+    const withCodex = { ...roles, codexReviewerAgentId: CODEX_REVIEWER };
+    const codexChild = normalizeIssueExecutionPolicy({
+      ...child,
+      stages: child.stages.map((s) => ({ ...s, participants: [{ type: "agent", agentId: CODEX_REVIEWER }] })),
+    })!;
+    const [cReview] = codexChild.stages.map((s) => s.id) as [string];
+    const swapped = (to: string) =>
+      normalizeIssueExecutionPolicy({
+        ...codexChild,
+        stages: codexChild.stages.map((s) => ({ ...s, participants: [{ type: "agent", agentId: to }] })),
+      })!;
+    const codexParticipant = { type: "agent", agentId: CODEX_REVIEWER, userId: null };
+    const atCodex = {
+      status: "in_review",
+      executionPolicy: codexChild,
+      executionState: pending(codexChild, cReview, codexParticipant),
+      assigneeAgentId: CODEX_REVIEWER,
+      assigneeUserId: null,
+    };
+    const fallbackPatch = {
+      executionPolicy: swapped(REVIEWER),
+      executionState: pending(codexChild, cReview, reviewerParticipant),
+      assigneeAgentId: REVIEWER,
+    };
+
+    it("system đổi participant reviewer Codex sang reviewer Claude của project: cho qua, không phải override", () => {
+      expect(evaluateIssueGate(facts({ actor: { kind: "system" }, roles: withCodex, locked: atCodex, patch: fallbackPatch }))).toEqual({
+        kind: "allow",
+        notes: ["codex_reviewer_fallback"],
+      });
+    });
+    it("agent gửi cùng patch vẫn bị khóa", () => {
+      for (const agentId of [EXECUTOR, CODEX_REVIEWER, REVIEWER]) {
+        expect(
+          evaluateIssueGate(facts({ actor: { kind: "agent", agentId }, roles: withCodex, locked: atCodex, patch: fallbackPatch })),
+        ).toEqual({ kind: "block", code: "crew_policy_locked", violations: ["policy_changed"] });
+      }
+    });
+    it("system đổi sang agent khác reviewer Claude, chiều ngược lại, hay project không có reviewer Codex: bị khóa", () => {
+      const blocked = { kind: "block", code: "crew_policy_locked", violations: ["policy_changed"] };
+      const system = { kind: "system" } as const;
+      expect(evaluateIssueGate(facts({ actor: system, roles: withCodex, locked: atCodex, patch: { executionPolicy: swapped(OTHER) } }))).toEqual(blocked);
+      expect(evaluateIssueGate(facts({ actor: system, roles: withCodex, locked: atCodex, patch: { executionPolicy: swapped(INTEGRATOR) } }))).toEqual(blocked);
+      expect(evaluateIssueGate(facts({ actor: system, roles, locked: atCodex, patch: fallbackPatch }))).toEqual(blocked);
+      expect(
+        evaluateIssueGate(facts({ actor: system, roles: withCodex, locked: { ...atCodex, executionPolicy: swapped(REVIEWER) }, patch: { executionPolicy: codexChild } })),
+      ).toEqual(blocked);
+      expect(
+        evaluateIssueGate(facts({ actor: system, roles: withCodex, locked: atCodex, patch: { executionPolicy: { ...swapped(REVIEWER), maxReviewRounds: 50 } } })),
+      ).toEqual(blocked);
+      expect(
+        evaluateIssueGate(facts({ actor: system, roles: withCodex, locked: atCodex, patch: { executionPolicy: { ...swapped(REVIEWER), stages: [] } } })),
+      ).toEqual(blocked);
+    });
+  });
+
   it("board ép done khi còn stage chờ: cho qua dưới dạng override", () => {
     const v = evaluateIssueGate(
       facts({ actor: { kind: "board", userId: "owner-1" }, patch: { status: "done", executionState: null } }),
