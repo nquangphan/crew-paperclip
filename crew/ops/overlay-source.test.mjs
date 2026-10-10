@@ -20,13 +20,13 @@ const git = (cwd, ...args) => {
 };
 
 /** A tiny fork: base tag v1.0.0, then one commit changing `changed`; returns the script's stderr and status. */
-function run(changed) {
+function run(changed, entries = []) {
   const root = mkdtempSync(path.join(tmpdir(), "crew-overlay-"));
   dirs.push(root);
   mkdirSync(path.join(root, "crew/ops"), { recursive: true });
   mkdirSync(path.join(root, "crew/release"), { recursive: true });
   cpSync(path.join(OPS, "overlay-source.sh"), path.join(root, "crew/ops/overlay-source.sh"));
-  writeFileSync(path.join(root, "crew/release/core-hooks.json"), JSON.stringify({ base: "v1.0.0" }));
+  writeFileSync(path.join(root, "crew/release/core-hooks.json"), JSON.stringify({ base: "v1.0.0", entries }));
   git(root, "init", "-q");
   git(root, "config", "user.email", "t@t");
   git(root, "config", "user.name", "t");
@@ -55,4 +55,39 @@ test("refuses a changed file outside the shippable areas", () => {
 test("accepts the stock UI files: ui/ is served by stock-ui.sh and never ships in the image", () => {
   const r = run(["ui/src/main.tsx", "ui/vite.config.ts"]);
   assert.doesNotMatch(r.stderr, /cannot ship/);
+});
+
+const ADAPTER_ENTRIES = [
+  { id: "P5", kind: "adapter-patch", file: "packages/adapters/codex-local/src/server/index.ts", tests: ["packages/adapters/codex-local/src/server/session-codec.crew.test.ts"] },
+  { id: "P6", kind: "adapter-patch", file: "packages/adapters/opencode-local/src/server/execute.ts", tests: ["packages/adapters/opencode-local/src/server/execute.in-place.crew.test.ts"] },
+  { id: "H1", kind: "hook", file: "server/src/services/heartbeat.ts", tests: ["server/src/__tests__/x.test.ts"] },
+];
+
+test("accepts the codex-local and opencode-local files and tests listed as adapter-patch", () => {
+  const r = run([
+    "packages/adapters/codex-local/src/server/index.ts",
+    "packages/adapters/codex-local/src/server/session-codec.crew.test.ts",
+    "packages/adapters/opencode-local/src/server/execute.ts",
+    "packages/adapters/opencode-local/src/server/execute.in-place.crew.test.ts",
+  ], ADAPTER_ENTRIES);
+  assert.doesNotMatch(r.stderr, /cannot ship/);
+});
+
+test("refuses an adapter file that is not an adapter-patch entry", () => {
+  const r = run([
+    "packages/adapters/codex-local/src/server/index.ts",
+    "packages/adapters/codex-local/src/server/execute.ts",
+    "packages/adapters/opencode-local/src/index.ts",
+  ], ADAPTER_ENTRIES);
+  assert.equal(r.status, 2);
+  assert.match(r.stderr, /cannot ship/);
+  assert.match(r.stderr, /codex-local\/src\/server\/execute\.ts/);
+  assert.match(r.stderr, /opencode-local\/src\/index\.ts/);
+  assert.doesNotMatch(r.stderr, /codex-local\/src\/server\/index\.ts/);
+});
+
+test("refuses codex-local files when core-hooks.json lists no adapter-patch for them", () => {
+  const r = run(["packages/adapters/codex-local/src/server/index.ts"]);
+  assert.equal(r.status, 2);
+  assert.match(r.stderr, /cannot ship/);
 });
