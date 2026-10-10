@@ -1,5 +1,5 @@
 // Issue: danh sách, chi tiết, tạo, thao tác cổng, đổi tiêu đề. Body PATCH theo server/src/routes/issues.ts:12728.
-import type { CompactIssue, Issue } from '@paperclipai/shared';
+import type { ActivityEvent, CompactIssue, Issue } from '@paperclipai/shared';
 import { call } from '../endpoints';
 import type { Query } from '../http';
 
@@ -39,8 +39,17 @@ export const issuesApi = {
   create: (companyId: string, body: Record<string, unknown>): Promise<Issue> =>
     call('issues.create', { companyId }, { body }),
   update: (id: string, body: IssueUpdate): Promise<Issue> => call('issues.update', { id }, { body }),
+  /** Lịch sử của issue, mới nhất trước (S6.18). `id` là uuid hoặc mã. */
+  activity: (id: string): Promise<ActivityEvent[]> => call('issues.activity', { id }),
   setTitle: (id: string, title: string): Promise<{ id: string; title: string; changed: boolean }> =>
     call('issues.setTitle', { id }, { body: { title } }),
 };
 
-export const __endpoints = ['issues.create', 'issues.get', 'issues.list', 'issues.setTitle', 'issues.update'];
+export const __endpoints = [
+  'issues.activity',
+  'issues.create',
+  'issues.get',
+  'issues.list',
+  'issues.setTitle',
+  'issues.update',
+];

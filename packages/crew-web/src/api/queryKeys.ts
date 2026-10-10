@@ -26,6 +26,7 @@ export const queryKeys = {
   documents: (issueId: string) => ['issue', issueId, 'documents'] as const,
   document: (issueId: string, key: string) => ['issue', issueId, 'documents', key] as const,
   interactions: (issueId: string) => ['issue', issueId, 'interactions'] as const,
+  issueActivity: (issueId: string) => ['issue', issueId, 'activity'] as const,
   issueRuns: (issueId: string) => ['issue', issueId, 'runs'] as const,
   issueLiveRuns: (issueId: string) => ['issue', issueId, 'live-runs'] as const,
 
@@ -49,6 +50,11 @@ export const queryKeys = {
   environments: (companyId: string) => ['environments', companyId] as const,
   skills: (companyId: string) => ['skills', companyId] as const,
   skill: (companyId: string, skillId: string) => ['skills', companyId, skillId] as const,
+  skillFile: (companyId: string, skillId: string, path: string) =>
+    ['skills', companyId, skillId, 'files', path] as const,
+  skillUpdateStatus: (companyId: string, skillId: string) => ['skills', companyId, skillId, 'update-status'] as const,
+  skillForkPrecheck: (companyId: string, skillId: string) => ['skills', companyId, skillId, 'fork-precheck'] as const,
+  skillSource: (companyId: string, sourceId: string) => ['skill-sources', companyId, sourceId] as const,
 
   /** Data plugin; `crew()` là tiền tố của mọi data plugin. */
   crew: (key?: string, params?: Filters) =>

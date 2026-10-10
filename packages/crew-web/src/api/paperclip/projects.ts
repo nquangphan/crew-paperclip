@@ -8,6 +8,9 @@ export const projectsApi = {
     call('projects.create', { companyId }, { body }),
   update: (id: string, body: Record<string, unknown>, companyId?: string): Promise<Project> =>
     call('projects.update', { id }, { body, query: { companyId } }),
+  /** Gỡ project = lưu trữ (S8.7); UI Crew không gọi DELETE /projects/:id. */
+  archive: (id: string, companyId?: string): Promise<Project> =>
+    call('projects.update', { id }, { body: { archivedAt: new Date().toISOString() }, query: { companyId } }),
 };
 
 export const __endpoints = ['projects.create', 'projects.get', 'projects.list', 'projects.update'];
