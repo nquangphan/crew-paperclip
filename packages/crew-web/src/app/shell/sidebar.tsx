@@ -1,7 +1,19 @@
 // S0.1: sidebar. Mục chỉ hiện khi feature đã có route (không link chết). Badge Hộp thư = sidebar-badges + issue chưa đọc.
-import type { ComponentType } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { type ComponentType, Fragment } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { Button, Kbd, Logo, SidebarBody, SidebarFooter, SidebarHeader, SidebarItem } from '@/ds';
+import { api, queryKeys } from '@/api';
+import {
+  Button,
+  Kbd,
+  Logo,
+  SidebarBody,
+  SidebarFooter,
+  SidebarGroup,
+  SidebarHeader,
+  SidebarItem,
+  SidebarProjectTile,
+} from '@/ds';
 import {
   BookOpen,
   Bot,
@@ -17,12 +29,14 @@ import {
   Sparkles,
 } from '@/ds/icons';
 import { useInboxBadge } from '@/features/inbox/use-inbox-badge';
+import { projectRef } from '@/features/projects/paths';
 import { useT } from '@/i18n';
 import { useCompany } from '../hooks';
-import { companyPath, NAV_ITEMS, type NavId } from '../routes-util';
+import { companyPath, groupNavItems, NAV_ITEMS, type NavId } from '../routes-util';
 import { AccountMenu } from './account-menu';
 import { CompanySwitcher } from './company-switcher';
 import { LanguageSwitch } from './language-switch';
+import { starredProjects } from './starred-projects';
 import { StockUiSidebarItem } from './stock-ui-link';
 
 /** Ký hiệu phím tắt, không phải chữ cần dịch. */
@@ -49,7 +63,20 @@ export function Sidebar({ segments, onOpenPalette }: { segments: ReadonlySet<str
   const { pathname, search } = useLocation();
   const { company } = useCompany();
   const inboxBadge = useInboxBadge(company.id, segments.has('inbox'));
-  const items = NAV_ITEMS.filter((i) => segments.has(i.segment));
+  const groups = groupNavItems(NAV_ITEMS.filter((i) => segments.has(i.segment)));
+  // Project gắn sao nằm ngay dưới mục "Project" như sidebar Paperclip; chưa tải xong thì không hiện gì.
+  const hasProjects = segments.has('projects');
+  const projects = useQuery({
+    queryKey: queryKeys.projects(company.id),
+    queryFn: () => api.projects.list(company.id),
+    enabled: hasProjects,
+  });
+  const prefs = useQuery({
+    queryKey: queryKeys.sidebarPreferences(company.id),
+    queryFn: () => api.sidebar.preferences(company.id),
+    enabled: hasProjects,
+  });
+  const starred = starredProjects(projects.data ?? [], prefs.data?.orderedIds ?? []);
   const isActive = (to: string) => {
     if (to.includes('?')) return `${pathname}${search}` === companyPath(company.issuePrefix, to);
     const base = companyPath(company.issuePrefix, to);
@@ -68,22 +95,43 @@ export function Sidebar({ segments, onOpenPalette }: { segments: ReadonlySet<str
         </Button>
       </SidebarHeader>
       <SidebarBody label={t('nav.label')}>
-        {items.map((item) => {
-          const Icon = ICONS[item.id];
-          const href = companyPath(company.issuePrefix, item.to);
-          return (
-            <SidebarItem
-              key={item.id}
-              href={href}
-              label={t(`nav.${item.id}`)}
-              icon={<Icon aria-hidden />}
-              badge={item.id === 'inbox' ? inboxBadge : null}
-              active={isActive(item.to)}
-              onNavigate={() => navigate(href)}
-            />
-          );
-        })}
-        <StockUiSidebarItem />
+        {groups.map((group) => (
+          <SidebarGroup key={group.id} label={group.id === 'main' ? undefined : t(`nav.group.${group.id}`)}>
+            {group.items.map((item) => {
+              const Icon = ICONS[item.id];
+              const href = companyPath(company.issuePrefix, item.to);
+              return (
+                <Fragment key={item.id}>
+                  <SidebarItem
+                    href={href}
+                    label={t(`nav.${item.id}`)}
+                    icon={<Icon aria-hidden />}
+                    badge={item.id === 'inbox' ? inboxBadge : null}
+                    active={isActive(item.to)}
+                    onNavigate={() => navigate(href)}
+                  />
+                  {item.id === 'projects'
+                    ? starred.map((project) => {
+                        const projectHref = companyPath(company.issuePrefix, `projects/${projectRef(project)}`);
+                        return (
+                          <SidebarItem
+                            key={project.id}
+                            nested
+                            href={projectHref}
+                            label={project.name}
+                            icon={<SidebarProjectTile color={project.color} />}
+                            active={pathname === projectHref || pathname.startsWith(`${projectHref}/`)}
+                            onNavigate={() => navigate(projectHref)}
+                          />
+                        );
+                      })
+                    : null}
+                </Fragment>
+              );
+            })}
+            {group.id === 'system' ? <StockUiSidebarItem /> : null}
+          </SidebarGroup>
+        ))}
       </SidebarBody>
       <SidebarFooter>
         <AccountMenu />

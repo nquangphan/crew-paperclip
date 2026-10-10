@@ -29,6 +29,10 @@ test('PW-S0-1 mỗi link sidebar mở đúng route, không 404; badge Hộp thư
   await page.goto(company.path('dashboard'));
   const nav = NAV(page);
   await expect(nav).toBeVisible();
+  // Chia nhóm như Paperclip: nhóm đầu không tên, rồi Công việc, Tổ chức, Hệ thống (bấm tiêu đề để thu gọn).
+  for (const group of ['Công việc', 'Tổ chức', 'Hệ thống']) {
+    await expect(nav.getByRole('button', { name: group, exact: true })).toBeVisible();
+  }
   for (const [name, to] of PAGES) {
     await (name === 'Hộp thư'
       ? nav.getByRole('link', { name: /^Hộp thư/ })

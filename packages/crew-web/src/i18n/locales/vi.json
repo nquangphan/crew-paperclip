@@ -104,6 +104,11 @@
     "docs": "Docs",
     "guide": "Hướng dẫn",
     "settings": "Cài đặt",
+    "group": {
+      "work": "Công việc",
+      "org": "Tổ chức",
+      "system": "Hệ thống"
+    },
     "quickSearch": "Tìm nhanh"
   },
   "company": {

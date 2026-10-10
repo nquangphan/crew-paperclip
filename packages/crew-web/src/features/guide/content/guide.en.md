@@ -37,16 +37,20 @@ Notes:
 
 {{shot:dashboard}}
 
-**Left sidebar**, from top to bottom:
-- **New request**: opens the dialog to create a request. This is the button you use most.
-- **Search**: search requests and documents. You can also press Ctrl+K (Cmd+K on a Mac), type a request code such as `TPS-12` and press Enter to open it quickly.
-- **Dashboard**: the number of agents running or paused, open requests, requests **awaiting your approval**, recent runs and the machine card.
-- **Inbox**: everything waiting for you. The number next to it is the count of unread items.
-- **Requests**: all requests of the company, with child requests under their parent.
-- **Projects**, **Agents**: lists with readiness (section 10).
-- **Skills**, **Machines**, **Docs**: sections 11, 12 and 13.
-- **Guide**: the page you are reading.
-- **Settings**: profile, language, system information.
+The **left sidebar** is grouped like the original Paperclip interface, from top to bottom:
+- First group (no title):
+  - **New request**: opens the dialog to create a request. This is the button you use most.
+  - **Search**: search requests and documents. You can also press Ctrl+K (Cmd+K on a Mac), type a request code such as `TPS-12` and press Enter to open it quickly.
+  - **Dashboard**: the number of agents running or paused, open requests, requests **awaiting your approval**, recent runs and the machine card.
+  - **Inbox**: everything waiting for you. The number next to it is the count of unread items.
+- **Work**:
+  - **Requests**: all requests of the company, with child requests under their parent.
+  - **Projects**: lists with readiness (section 10). Projects you starred show right below it; click one to open it directly.
+  - **Docs**: section 13.
+- **Org**: **Agents** (section 10), **Skills** (section 11), **Machines** (section 12).
+- **System**: **Settings** (profile, language, system information), **Guide** (the page you are reading) and **Open original Paperclip UI** (when configured).
+
+Click a group title (Work, Org, System) to collapse or expand that group.
 
 The screen updates by itself: when an agent finishes a step, the status on the page changes and you do not need to reload.
 
