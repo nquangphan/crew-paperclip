@@ -32,24 +32,28 @@ export function AccountMenu() {
   });
   const display = me.name ?? me.email ?? me.id;
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button variant="ghost" size="sm" aria-label={t('account.menu')}>
-          <Avatar>
-            <AvatarFallback>{display.slice(0, 2).toUpperCase()}</AvatarFallback>
-          </Avatar>
-          <span className="min-w-0 truncate">{display}</span>
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="start">
-        <DropdownMenuLabel>{me.email ?? display}</DropdownMenuLabel>
-        <DropdownMenuSeparator />
-        <StockUiMenuItem />
-        <DropdownMenuItem disabled={signOut.isPending} onSelect={() => signOut.mutate()}>
-          <LogOut aria-hidden />
-          {signOut.isError ? t('account.signOutFailed') : t('account.signOut')}
-        </DropdownMenuItem>
-      </DropdownMenuContent>
-    </DropdownMenu>
+    <div className="min-w-0 flex-1">
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button variant="ghost" size="sm" aria-label={t('account.menu')} className="w-full justify-start">
+            <Avatar>
+              <AvatarFallback>{display.slice(0, 2).toUpperCase()}</AvatarFallback>
+            </Avatar>
+            <span className="min-w-0 truncate" title={display}>
+              {display}
+            </span>
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="start">
+          <DropdownMenuLabel>{me.email ?? display}</DropdownMenuLabel>
+          <DropdownMenuSeparator />
+          <StockUiMenuItem />
+          <DropdownMenuItem disabled={signOut.isPending} onSelect={() => signOut.mutate()}>
+            <LogOut aria-hidden />
+            {signOut.isError ? t('account.signOutFailed') : t('account.signOut')}
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </div>
   );
 }

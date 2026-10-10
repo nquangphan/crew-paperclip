@@ -226,6 +226,8 @@
       "activeRuns": "{{count}} running run(s): will be stopped.",
       "impactFailed": "Could not read issues and running runs: {{message}}",
       "checkouts": "Checkouts on the machine:",
+      "checkoutsReportedAt": "As reported by the machine at {{at}} (Vietnam time).",
+      "checkoutsRecheck": "The state above may be about a minute old; the app checks again on removal and checkouts with uncommitted work are still kept.",
       "noCheckouts": "The machine has not reported any checkout.",
       "checkoutClean": "{{path}} · clean, will be removed",
       "checkoutDirty": "{{path}} · has uncommitted work, will be kept",

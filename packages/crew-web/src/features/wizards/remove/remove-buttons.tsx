@@ -27,7 +27,7 @@ import {
   SelectValue,
   Spinner,
 } from '@/ds';
-import { useT } from '@/i18n';
+import { formatDateTime, type Lang, useT } from '@/i18n';
 import { companyHref } from '../resume';
 import { removeAgentEligibility } from './eligibility';
 import { removalState } from './removal-state';
@@ -95,11 +95,22 @@ function DisabledButton({ label, reason, children }: { label: string; reason?: s
   );
 }
 
-function CheckoutLines({ t, checkouts }: { t: Translate; checkouts: { path: string; clean: boolean | null }[] }) {
+function CheckoutLines({
+  t,
+  lang,
+  checkouts,
+}: {
+  t: Translate;
+  lang: Lang;
+  checkouts: { path: string; clean: boolean | null; reportedAt: string }[];
+}) {
   if (checkouts.length === 0) return <p>{t('remove.confirm.noCheckouts')}</p>;
+  // Trạng thái sạch/bẩn lấy từ bản tin máy gần nhất, có thể cũ ~1 phút: ghi rõ mốc giờ, app kiểm lại khi gỡ.
+  const at = formatDateTime(checkouts.map((c) => c.reportedAt).sort()[checkouts.length - 1], lang);
   return (
     <div className="flex flex-col gap-1">
       <p>{t('remove.confirm.checkouts')}</p>
+      <MutedText>{t('remove.confirm.checkoutsReportedAt', { at })}</MutedText>
       <ul>
         {checkouts.map((c) => (
           <li key={c.path}>
@@ -114,6 +125,7 @@ function CheckoutLines({ t, checkouts }: { t: Translate; checkouts: { path: stri
           </li>
         ))}
       </ul>
+      <MutedText>{t('remove.confirm.checkoutsRecheck')}</MutedText>
     </div>
   );
 }
@@ -155,7 +167,7 @@ function MachinePicker(props: {
 }
 
 export function RemoveProjectButton({ project }: { project: { id: string; name: string } }) {
-  const { t } = useT('wizards');
+  const { t, lang } = useT('wizards');
   const { company } = useCompany();
   const base = useRemovalBase(company.id);
   const { roles } = useAllRoles(company.id);
@@ -232,7 +244,7 @@ export function RemoveProjectButton({ project }: { project: { id: string; name: 
                 : t('removeProject.confirm.noAgents')}
             </p>
             <ImpactLines t={t} impact={impact} />
-            <CheckoutLines t={t} checkouts={checkoutsOf(machines, key)} />
+            <CheckoutLines t={t} lang={lang} checkouts={checkoutsOf(machines, key)} />
             {derived ? null : <MachinePicker t={t} machines={machines} value={picked} onChange={setPicked} />}
             <p>{t('removeProject.confirm.keeps')}</p>
           </div>
@@ -243,7 +255,7 @@ export function RemoveProjectButton({ project }: { project: { id: string; name: 
 }
 
 export function RemoveAgentButton({ agent }: { agent: { id: string; name: string; status: string } }) {
-  const { t } = useT('wizards');
+  const { t, lang } = useT('wizards');
   const { company } = useCompany();
   const base = useRemovalBase(company.id);
   const { projects, roles } = useAllRoles(company.id, agent.status !== 'terminated');
@@ -345,7 +357,9 @@ export function RemoveAgentButton({ agent }: { agent: { id: string; name: string
                 : t('removeAgent.confirm.noRole')}
             </p>
             <ImpactLines t={t} impact={impact} />
-            {projectId && role ? <CheckoutLines t={t} checkouts={checkoutsOf(machines, key, role)} /> : null}
+            {projectId && role ? (
+              <CheckoutLines t={t} lang={lang} checkouts={checkoutsOf(machines, key, role)} />
+            ) : null}
             {derived ? null : <MachinePicker t={t} machines={machines} value={picked} onChange={setPicked} />}
             <p>{t('removeAgent.confirm.keeps')}</p>
           </div>

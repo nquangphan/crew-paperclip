@@ -68,6 +68,7 @@ const MACHINES = [
     machineId: M1,
     hostname: 'mac-mini',
     online: true,
+    lastSeenAt: '2026-10-10T04:11:00.000Z',
     latest: {
       checkouts: [
         { path: '/Users/owner/crew-agents/demo/assistant', head: null, clean: true },
@@ -125,6 +126,8 @@ describe('RemoveProjectButton', () => {
     ).toBeTruthy();
     expect(within(dialog).getByText('/Users/owner/crew-agents/demo/assistant · sạch, sẽ gỡ')).toBeTruthy();
     expect(within(dialog).queryByText(/crew-agents\/other/)).toBeNull();
+    expect(within(dialog).getByText(/Theo báo cáo máy lúc 10\/10\/2026 11:11/)).toBeTruthy();
+    expect(within(dialog).getByText(/app sẽ kiểm lại khi gỡ/)).toBeTruthy();
 
     const confirm = within(dialog).getByRole('button', { name: 'Gỡ project' }) as HTMLButtonElement;
     expect(confirm.disabled).toBe(true);

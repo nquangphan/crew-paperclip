@@ -2,7 +2,9 @@ import type { Project } from '@paperclipai/shared';
 import { call } from '../endpoints';
 
 export const projectsApi = {
-  list: (companyId: string): Promise<Project[]> => call('projects.list', { companyId }),
+  /** Mặc định server bỏ project đã gỡ (archive); `includeArchived` chỉ để màn lọc "Đã gỡ" dùng. */
+  list: (companyId: string, opts: { includeArchived?: boolean } = {}): Promise<Project[]> =>
+    call('projects.list', { companyId }, opts.includeArchived ? { query: { includeArchived: 'true' } } : {}),
   get: (id: string, companyId?: string): Promise<Project> => call('projects.get', { id }, { query: { companyId } }),
   create: (companyId: string, body: Record<string, unknown>): Promise<Project> =>
     call('projects.create', { companyId }, { body }),

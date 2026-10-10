@@ -7,7 +7,7 @@ const LANGS: Lang[] = ['vi', 'en'];
 export function LanguageSwitch() {
   const { t, lang } = useT();
   return (
-    <fieldset aria-label={t('lang.label')} className="flex items-center gap-0">
+    <fieldset aria-label={t('lang.label')} className="flex shrink-0 items-center gap-0">
       {LANGS.map((l) => (
         <Button
           key={l}
