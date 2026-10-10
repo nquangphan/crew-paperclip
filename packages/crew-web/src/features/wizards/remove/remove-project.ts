@@ -34,6 +34,7 @@ export interface RemoveApi {
   agents: {
     list(companyId: string): Promise<AgentRow[]>;
     pause(id: string, companyId?: string): Promise<unknown>;
+    setPermissions(id: string, body: Record<string, unknown>, companyId?: string): Promise<unknown>;
   };
   environments: {
     list(companyId: string): Promise<EnvironmentRow[]>;
@@ -66,6 +67,13 @@ export function projectInputOf(run: SetupRun): RemoveProjectInput {
   if (run.kind !== 'remove-project') throw new StepError('remove.errors.wrongKind');
   return run.input as RemoveProjectInput;
 }
+
+/** Quyền của agent đã gỡ: không giữ `tasks:assign`, không tạo agent hay skill. Ghi lại nhiều lần vẫn như nhau. */
+export const REMOVED_AGENT_PERMISSIONS = Object.freeze({
+  canAssignTasks: false,
+  canCreateAgents: false,
+  canCreateSkills: false,
+} as const);
 
 /** Agent tạm dừng được: chưa dừng, chưa terminated; agent chờ duyệt không chạy nên để nguyên (pause bỏ qua bước duyệt). */
 export const pausable = (status: string) => !['paused', 'terminated', 'pending_approval'].includes(status);
@@ -139,9 +147,13 @@ const STEPS: Record<RemoveProjectStepId, StepWork> = {
       const agentId = refs[`agent_${slot}`];
       const agent = agentId ? agents.find((a) => a.id === agentId) : undefined;
       // Hủy run đang chạy của agent (route pause); ghi ngay để lần lỗi sau vẫn biết agent nào đã pause.
-      if (!agent || !pausable(agent.status)) continue;
-      await ctx.api.agents.pause(agent.id, run.companyId);
-      refs[`paused_${slot}`] = agent.id;
+      if (!agent || agent.status === 'terminated') continue;
+      if (pausable(agent.status)) {
+        await ctx.api.agents.pause(agent.id, run.companyId);
+        refs[`paused_${slot}`] = agent.id;
+      }
+      // Thu quyền giao việc để agent đã gỡ không giữ `tasks:assign`; agent đã paused sẵn cũng được ghi lại.
+      await ctx.api.agents.setPermissions(agent.id, { ...REMOVED_AGENT_PERMISSIONS }, run.companyId);
     }
   },
 

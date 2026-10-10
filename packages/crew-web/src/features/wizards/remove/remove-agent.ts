@@ -12,7 +12,14 @@ import {
 import { executeStep, StepError } from '../add-project/run-step';
 import { blockOf, rolesWithout, slotOfAgent } from './eligibility';
 import { exclusiveEnvironments } from './exclusive-environments';
-import { pausable, type RemoveApi, type RemoveContext, removeCheckouts, runSteps } from './remove-project';
+import {
+  pausable,
+  REMOVED_AGENT_PERMISSIONS,
+  type RemoveApi,
+  type RemoveContext,
+  removeCheckouts,
+  runSteps,
+} from './remove-project';
 
 /** Thứ tự bước remove-agent, cùng danh sách bước của plugin; bước cuối làm run thành done. */
 export const REMOVE_AGENT_STEPS = [
@@ -99,9 +106,12 @@ const STEPS: Record<RemoveAgentStepId, StepWork> = {
     refs.agent = agentId;
     const agent = (await ctx.api.agents.list(run.companyId)).find((a) => a.id.toLowerCase() === agentId.toLowerCase());
     if (!agent) throw new StepError('remove.errors.agentMissing');
-    if (!pausable(agent.status)) return;
-    await ctx.api.agents.pause(agent.id, run.companyId);
-    refs.paused = 'true';
+    if (agent.status === 'terminated') return;
+    if (pausable(agent.status)) {
+      await ctx.api.agents.pause(agent.id, run.companyId);
+      refs.paused = 'true';
+    }
+    await ctx.api.agents.setPermissions(agent.id, { ...REMOVED_AGENT_PERMISSIONS }, run.companyId);
   },
 
   async environment(ctx, run, refs) {

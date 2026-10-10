@@ -170,6 +170,9 @@ describe('runRemoveAgent', () => {
     expect(f.calls.filter((c) => c.fn === 'agents.pause').map((c) => c.args[0])).toEqual([ID.spare]);
     expect(f.calls.filter((c) => c.fn === 'environments.archive').map((c) => c.args[0])).toEqual(['env-old']);
     expect(f.names().some((n) => n.startsWith('roles.') || n.startsWith('jobs.'))).toBe(false);
+    expect(f.calls.filter((c) => c.fn === 'agents.setPermissions').map((c) => c.args)).toEqual([
+      [ID.spare, { canAssignTasks: false, canCreateAgents: false, canCreateSkills: false }, COMPANY],
+    ]);
     expect(run.steps['pause-agent']?.refs).toEqual({ agent: ID.spare, paused: 'true' });
     expect(run.steps.environment?.refs).toEqual({ environment: 'env-old' });
   });
@@ -182,6 +185,8 @@ describe('runRemoveAgent', () => {
     const run = await runRemoveAgent(ctxOf(f.api), run0);
     expect(run.status).toBe('done');
     expect(f.names()).not.toContain('agents.pause');
+    // Đã paused sẵn vẫn tắt quyền (ghi lại an toàn khi chạy tiếp).
+    expect(f.calls.filter((c) => c.fn === 'agents.setPermissions').map((c) => c.args[0])).toEqual([ID.spare]);
     expect(run.steps['pause-agent']?.refs).toEqual({ agent: ID.spare });
   });
 });

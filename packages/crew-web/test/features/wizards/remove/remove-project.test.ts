@@ -82,11 +82,21 @@ describe('runRemoveProject', () => {
     const writes = f
       .names()
       .filter((n) =>
-        ['agents.pause', 'roles.remove', 'environments.archive', 'jobs.create', 'projects.archive'].includes(n),
+        [
+          'agents.pause',
+          'agents.setPermissions',
+          'roles.remove',
+          'environments.archive',
+          'jobs.create',
+          'projects.archive',
+        ].includes(n),
       );
     expect(writes).toEqual([
       'agents.pause',
+      'agents.setPermissions',
       'agents.pause',
+      'agents.setPermissions',
+      'agents.setPermissions',
       'roles.remove',
       'environments.archive',
       'environments.archive',
@@ -100,6 +110,13 @@ describe('runRemoveProject', () => {
     expect(paused).toEqual([
       [ID.assistant, COMPANY],
       [ID.executor, COMPANY],
+    ]);
+    // Tắt luôn quyền giao việc/tạo agent/tạo skill của agent chưa terminated (cả agent đã paused sẵn); terminated bỏ qua.
+    const off = { canAssignTasks: false, canCreateAgents: false, canCreateSkills: false };
+    expect(f.calls.filter((c) => c.fn === 'agents.setPermissions').map((c) => c.args)).toEqual([
+      [ID.assistant, off, COMPANY],
+      [ID.executor, off, COMPANY],
+      [ID.reviewer, off, COMPANY],
     ]);
     expect(run.steps['pause-agents']?.refs).toEqual({
       agent_assistant: ID.assistant,
