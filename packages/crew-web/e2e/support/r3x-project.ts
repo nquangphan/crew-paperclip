@@ -81,6 +81,20 @@ export async function addProjectViaWizard(
 }
 
 /**
+ * Gỡ project thử qua luồng gỡ trên UI (nút "Gỡ project", gõ đúng tên, chờ "Đã gỡ project."): agent paused, environment
+ * riêng archived, checkout sạch gỡ khỏi máy, project archived. Dùng để dọn sau ca, không để lại environment active hay
+ * checkout như `parkProject`.
+ */
+export async function removeProjectViaUi(page: Page, company: E2eCompany, p: WizardProject): Promise<void> {
+  await page.goto(company.path(`projects/${p.projectId}`));
+  await page.getByRole('button', { name: 'Gỡ project', exact: true }).click();
+  const dialog = page.getByRole('alertdialog');
+  await dialog.getByRole('textbox').fill(p.name);
+  await dialog.getByRole('button', { name: 'Gỡ project', exact: true }).click();
+  await expect(page.getByText('Đã gỡ project.')).toBeVisible({ timeout: 300_000 });
+}
+
+/**
  * Dọn project thử khi ca dừng giữa chừng: tạm dừng agent trong vai trò, lưu trữ project. Không xóa gì (agent và
  * project có lịch sử không xóa được); checkout trên máy gỡ bằng `git worktree remove` thủ công nếu cần.
  */
