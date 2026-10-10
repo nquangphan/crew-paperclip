@@ -247,6 +247,32 @@ describe('computeAgentReadiness', () => {
   });
 
   describe('A5 checkout trên máy', () => {
+    const LEGACY = `${HOME}/crew-agents/executor`;
+    const legacyEnv = () => environment({ config: { remoteWorkspacePath: LEGACY } });
+
+    it('thư mục kiểu cũ (không dưới crew-agents/<khóa>/<ô>) mà bản tin quét kiểu mới không liệt kê → đạt', () => {
+      const r = computeAgentReadiness(input({ environment: legacyEnv() }));
+      expect(ids(r)).toEqual([]);
+    });
+
+    it('thư mục kiểu cũ có trong bản tin → đạt', () => {
+      const r = computeAgentReadiness(
+        input({ environment: legacyEnv(), report: report({ checkouts: [{ path: LEGACY }] }) }),
+      );
+      expect(ids(r)).toEqual([]);
+    });
+
+    it('thư mục kiểu mới không có trong bản tin vẫn → A5', () => {
+      const r = computeAgentReadiness(input({ report: report({ checkouts: [{ path: LEGACY }] }) }));
+      expect(ids(r)).toEqual(['A5']);
+    });
+
+    it('kiểu cũ nhưng bản tin thiếu key checkouts vẫn báo "Không rõ"', () => {
+      const { checkouts: _c, ...old } = report();
+      const r = computeAgentReadiness(input({ environment: legacyEnv(), report: old }));
+      expect(r.failed.map((f) => f.detail)).toEqual(['detail.checkoutsUnknown']);
+    });
+
     it('report.checkouts không có path → A5, bước workspace', () => {
       const r = computeAgentReadiness(input({ report: report({ checkouts: [] }) }));
       expect(r.failed).toEqual([
@@ -441,6 +467,18 @@ describe('agent runtime Codex/OpenCode', () => {
     const home = (codexBody.adapterConfig.env as { CODEX_HOME: string }).CODEX_HOME;
     const a = codex({ env: { CODEX_HOME: { type: 'plain', value: home } } });
     expect(ids(computeAgentReadiness(input({ agent: a, roleOf: 'executor-codex' })))).toEqual([]);
+  });
+
+  it.each([
+    ['binding plain bị che', { CODEX_HOME: { type: 'plain', value: '***REDACTED***' } }],
+    ['chuỗi bị che', { CODEX_HOME: '***REDACTED***' }],
+  ])('CODEX_HOME %s (API Paperclip) vẫn đạt vì có khóa', (_n, env) => {
+    expect(ids(computeAgentReadiness(input({ agent: codex({ env }), roleOf: 'executor-codex' })))).toEqual([]);
+  });
+
+  it('CODEX_HOME bị che nhưng có thêm OPENAI_API_KEY → A1', () => {
+    const env = { CODEX_HOME: { type: 'plain', value: '***REDACTED***' }, OPENAI_API_KEY: '***REDACTED***' };
+    expect(ids(computeAgentReadiness(input({ agent: codex({ env }), roleOf: 'executor-codex' })))).toEqual(['A1']);
   });
 
   it.each([

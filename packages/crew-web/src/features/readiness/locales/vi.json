@@ -7,7 +7,7 @@
     "untracked": "Không theo dõi"
   },
   "detail": {
-    "A1": "Cấu hình agent chưa đúng: cần claude_local, engine cli, env rỗng, chạy một run một lúc, tắt heartbeat",
+    "A1": "Cấu hình agent chưa đúng theo runtime (Claude: engine cli, env rỗng; Codex: chỉ CODEX_HOME; OpenCode: env rỗng), chạy một run một lúc, tắt heartbeat",
     "A2": "Chưa ghim Superpowers đúng bản của máy hoặc lệnh chạy không phải wrapper Crew",
     "A3": "AGENTS.md chưa có hoặc khác bản render theo vai trò",
     "A4": "Environment chưa đúng: cần SSH, đang hoạt động, in_place, trỏ đúng checkout của agent",

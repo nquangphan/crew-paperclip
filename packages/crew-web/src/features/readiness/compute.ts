@@ -134,6 +134,21 @@ function envString(env: Record<string, unknown>, key: string): string | undefine
   return typeof value === 'string' ? value : undefined;
 }
 
+/** API Paperclip che giá trị env nhạy cảm bằng chuỗi này (kể cả trong binding `{type:'plain', value}`). */
+const REDACTED = '***REDACTED***';
+
+/**
+ * CODEX_HOME hợp lệ. Khi API che giá trị thì không kiểm được đường, nên chấp nhận vì khóa có mặt (server đã ghi đường
+ * đúng lúc tạo); giá trị thật không bao giờ có trong dữ liệu web nên không lộ ra UI.
+ */
+function isCodexHomeOk(env: Record<string, unknown>): boolean {
+  const value = envString(env, 'CODEX_HOME');
+  return value === REDACTED || isUnmanagedCodexHome(value);
+}
+
+/** Checkout kiểu mới `<home>/crew-agents/<khóa>/<ô>`: bản tin máy quét đúng bố cục này. */
+const CHECKOUT_LAYOUT_RE = /\/crew-agents\/[^/]+\/[^/]+$/;
+
 /**
  * Runtime mà agent phải chạy: ô runtime quyết định; ô khác (Claude, vai trò file, chưa giữ vai trò) theo adapter của agent
  * nếu là một trong ba runtime Crew, còn lại là Claude. Route vai trò đã chặn agent sai adapter cho từng ô.
@@ -161,11 +176,7 @@ export function checkAdapter(agent: ReadinessAgent, runtime: CrewRuntime = 'clau
   const envKeys = Object.keys(config.env);
   if (runtime === 'codex_local') {
     // Chỉ CODEX_HOME ngoài cây companies/<id>; không OPENAI_API_KEY (key sẽ lên server).
-    return (
-      config.dangerouslyBypassApprovalsAndSandbox === true &&
-      envKeys.length === 1 &&
-      isUnmanagedCodexHome(envString(config.env, 'CODEX_HOME'))
-    );
+    return config.dangerouslyBypassApprovalsAndSandbox === true && envKeys.length === 1 && isCodexHomeOk(config.env);
   }
   if (runtime === 'opencode_local') return envKeys.length === 0;
   return config.engine === 'cli' && envKeys.length === 0;
@@ -273,7 +284,10 @@ export function computeAgentReadiness(input: AgentReadinessInput): AgentReadines
     // crew-mac bản cũ chưa gửi `checkouts`: không biết checkout có trên máy hay không.
     failed.push({ id: 'A5', detail: 'detail.checkoutsUnknown', resume: { none: true } });
   } else if (checkout !== undefined && !report.checkouts.some((c) => c?.path === checkout)) {
-    fail('A5');
+    // Agent kiểu cũ (trước R3, không có checkout trong setup run, cwd ngoài `crew-agents/<khóa>/<ô>`): bản tin chỉ quét
+    // bố cục mới nên không liệt kê được; A4 đã kiểm environment trỏ đúng cwd, nên không chặn. Kiểu mới thiếu vẫn là A5.
+    const legacy = refs.checkout === undefined && !CHECKOUT_LAYOUT_RE.test(checkout);
+    if (!legacy) fail('A5');
   }
   // Không biết đường checkout (thiếu environment) thì A4 đã báo; A5 kiểm lại sau khi sửa environment.
 

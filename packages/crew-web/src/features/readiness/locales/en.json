@@ -7,7 +7,7 @@
     "untracked": "Not tracked"
   },
   "detail": {
-    "A1": "Agent config is wrong: needs claude_local, cli engine, empty env, one run at a time, heartbeat off",
+    "A1": "Agent config is wrong for its runtime (Claude: cli engine, empty env; Codex: only CODEX_HOME; OpenCode: empty env), one run at a time, heartbeat off",
     "A2": "Superpowers is not pinned to the machine's version, or the command is not the Crew wrapper",
     "A3": "AGENTS.md is missing or differs from the role render",
     "A4": "Environment is wrong: needs SSH, active, in_place, pointing at the agent's checkout",
