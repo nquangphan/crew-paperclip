@@ -35,11 +35,13 @@ run 4 corepack pnpm --filter "@paperclipai/plugin-sdk..." build
 run 5 corepack pnpm --filter @paperclipai/server exec vitest run src/__tests__/crew- src/crew/ src/adapters/plugin-loader.test.ts
 run 5 corepack pnpm --filter @paperclipai/adapter-claude-local exec vitest run src/server/execute.remote.crew.test.ts src/server/session-codec.crew.test.ts src/server/execute.remote.test.ts
 run 5 corepack pnpm --filter @paperclipai/adapter-codex-local exec vitest run src/server/session-codec.crew.test.ts src/server/execute.remote.test.ts
+run 5 corepack pnpm --filter @paperclipai/adapter-opencode-local exec vitest run src/server/execute.in-place.crew.test.ts src/server/session-codec.crew.test.ts src/server/execute.remote.test.ts
 run 5 corepack pnpm --filter @crew/paperclip-plugin test
 run 5 node --test crew/agents/*.test.mjs
 run 6 corepack pnpm --filter @paperclipai/server exec tsc --noEmit
 run 6 corepack pnpm --filter @paperclipai/adapter-claude-local exec tsc --noEmit
 run 6 corepack pnpm --filter @paperclipai/adapter-codex-local exec tsc --noEmit
+run 6 corepack pnpm --filter @paperclipai/adapter-opencode-local exec tsc --noEmit
 run 6 corepack pnpm --filter @crew/paperclip-plugin exec tsc --noEmit
 run 6 corepack pnpm --filter @crew/paperclip-plugin build
 

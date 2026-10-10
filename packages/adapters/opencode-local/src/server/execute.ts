@@ -381,11 +381,14 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
     let remoteRuntimeRootDir: string | null = null;
     let paperclipBridge: Awaited<ReturnType<typeof startAdapterExecutionTargetPaperclipBridge>> = null;
 
+    const inPlaceRoot = executionTarget?.workspaceRealization?.mode === "in_place"
+      ? executionTarget.workspaceRealization.authoritativeRoot
+      : null;
     if (executionTarget?.kind === "remote") {
       localSkillsDir = await buildOpenCodeSkillsDir(config);
       await onLog(
         "stdout",
-        `[paperclip] Syncing workspace and OpenCode runtime assets to ${describeAdapterExecutionTarget(executionTarget)}.\n`,
+        `[paperclip] Syncing ${inPlaceRoot ? "OpenCode runtime assets" : "workspace and OpenCode runtime assets"} to ${describeAdapterExecutionTarget(executionTarget)}.\n`,
       );
       const preparedExecutionTargetRuntime = await prepareAdapterExecutionTargetRuntime({
         runId,
@@ -393,6 +396,8 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
         adapterKey: "opencode",
         timeoutSec,
         workspaceLocalDir: cwd,
+        workspaceRemoteDir: inPlaceRoot ?? undefined,
+        syncWorkspace: inPlaceRoot === null,
         installCommand: SANDBOX_INSTALL_COMMAND,
         detectCommand: command,
         onProgress: (line) => onLog("stdout", line),
@@ -413,7 +418,7 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
       });
       restoreRemoteWorkspace = () =>
         preparedExecutionTargetRuntime.restoreWorkspace((line) => onLog("stdout", line));
-      effectiveExecutionCwd = preparedExecutionTargetRuntime.workspaceRemoteDir ?? effectiveExecutionCwd;
+      effectiveExecutionCwd = inPlaceRoot ?? preparedExecutionTargetRuntime.workspaceRemoteDir ?? effectiveExecutionCwd;
       refreshPaperclipWorkspaceEnvForExecution({
         env: preparedRuntimeConfig.env,
         envConfig,
@@ -453,7 +458,7 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
             graceSec,
             onLog,
           });
-      if (remoteHomeDir && preparedExecutionTargetRuntime.assetDirs.skills) {
+      if (!inPlaceRoot && remoteHomeDir && preparedExecutionTargetRuntime.assetDirs.skills) {
         const remoteSkillsDir = path.posix.join(remoteHomeDir, ".claude", "skills");
         await runAdapterExecutionTargetShellCommand(
           runId,
