@@ -2,7 +2,7 @@
 // kê những gì sẽ dừng/giữ; xác nhận thì tạo setup run gỡ (đã có lần gỡ dở thì plugin trả 409 kèm id → mở lần đó) rồi
 // sang trang tiến độ. Lần gỡ dở thì nút thành "Chạy tiếp"; lần gỡ không bỏ được.
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { type ReactNode, useState } from 'react';
+import { type ReactNode, useId, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import {
   ApiError,
@@ -81,14 +81,15 @@ function ResumeLink({ run, path, label }: { run: SetupRun; path: string; label: 
 }
 
 function DisabledButton({ label, reason, children }: { label: string; reason?: string; children?: ReactNode }) {
+  const reasonId = useId();
   return (
     <div className="flex flex-col gap-1">
       <div>
-        <Button variant="destructive" disabled>
+        <Button variant="destructive" disabled title={reason} aria-describedby={reason ? reasonId : undefined}>
           {label}
         </Button>
       </div>
-      {reason ? <MutedText>{reason}</MutedText> : null}
+      {reason ? <MutedText id={reasonId}>{reason}</MutedText> : null}
       {children}
     </div>
   );

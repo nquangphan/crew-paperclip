@@ -194,9 +194,19 @@ describe('RemoveProjectButton', () => {
     server({ runs: [], extra: { [`GET ${PLUGIN}/projects/${P}/roles`]: { body: { roles: null } } } });
     mountProject();
     expect(await screen.findByText(/Không suy ra được khóa project/)).toBeTruthy();
-    expect((screen.getByRole('button', { name: 'Gỡ project' }) as HTMLButtonElement).disabled).toBe(true);
+    const button = screen.getByRole('button', { name: 'Gỡ project' }) as HTMLButtonElement;
+    expect(button.disabled).toBe(true);
+    expectReasonOnButton(button, /Không suy ra được khóa project/);
   });
 });
+
+/** Luật no-dead-controls: nút tắt phải có lý do ở title hoặc aria-describedby trỏ tới chữ thật. */
+function expectReasonOnButton(button: HTMLElement, reason: RegExp) {
+  const describedBy = button.getAttribute('aria-describedby');
+  expect(describedBy).toBeTruthy();
+  expect(document.getElementById(describedBy as string)?.textContent).toMatch(reason);
+  expect(button.getAttribute('title')).toMatch(reason);
+}
 
 const mountAgent = (a: { id: string; name: string; status: string }) =>
   renderPage(<RemoveAgentButton agent={a} />, { route: 'agents/:id', at: `/TPS/agents/${a.id}` });
@@ -206,7 +216,9 @@ describe('RemoveAgentButton', () => {
     server();
     mountAgent({ id: ID.reviewer, name: 'demo-reviewer', status: 'idle' });
     expect(await screen.findByText(/đang là reviewer của Demo/)).toBeTruthy();
-    expect((screen.getByRole('button', { name: 'Gỡ agent' }) as HTMLButtonElement).disabled).toBe(true);
+    const button = screen.getByRole('button', { name: 'Gỡ agent' }) as HTMLButtonElement;
+    expect(button.disabled).toBe(true);
+    expectReasonOnButton(button, /đang là reviewer của Demo/);
     expect(screen.getByRole('link', { name: 'Đổi vai trò' }).getAttribute('href')).toBe(`/TPS/projects/${P}?tab=roles`);
     expect(screen.getByRole('link', { name: 'Gỡ cả project' }).getAttribute('href')).toBe(`/TPS/projects/${P}`);
   });
@@ -215,7 +227,9 @@ describe('RemoveAgentButton', () => {
     server({ extra: { [`GET ${PLUGIN}/projects/${P}/roles`]: { body: { roles: roles([ID.executor]) } } } });
     mountAgent({ id: ID.executor, name: 'demo-executor', status: 'running' });
     expect(await screen.findByText(/executor duy nhất của Demo/)).toBeTruthy();
-    expect((screen.getByRole('button', { name: 'Gỡ agent' }) as HTMLButtonElement).disabled).toBe(true);
+    const button = screen.getByRole('button', { name: 'Gỡ agent' }) as HTMLButtonElement;
+    expect(button.disabled).toBe(true);
+    expectReasonOnButton(button, /executor duy nhất của Demo/);
   });
 
   it('agent terminated → không có nút', async () => {
