@@ -11,7 +11,7 @@ import { expect, test } from '../support/fixtures';
 import {
   agentSkills,
   createSkill,
-  dropSkill,
+  removeSkillViaUi,
   type SkillLite,
   setAgentSkills,
   skillAgent,
@@ -79,7 +79,7 @@ test('PW-S14-5 Sửa SKILL.md của skill tạo trên Paperclip: file đổi, c�
         .not.toBeNull();
     }
   } finally {
-    await dropSkill(api, company.id, skill.id);
+    await removeSkillViaUi(page, api, company, { id: skill.id, slug });
   }
 });
 
@@ -102,7 +102,7 @@ test('PW-S14-5b Sửa thông tin skill: mô tả đổi trên Paperclip, tên v�
     expect(after.slug).toBe(slug);
     expect(after.name).toBe(slug);
   } finally {
-    await dropSkill(api, company.id, skill.id);
+    await removeSkillViaUi(page, api, company, { id: skill.id, slug });
   }
 });
 
@@ -118,6 +118,7 @@ test('PW-S14-6 Skill chỉ đọc: không có nút sửa nội dung; "Tạo bả
   const { id: workerId } = await skillAgent(api, company.id);
   const prior = (await agentSkills(api, workerId)).desiredSkills ?? [];
   let forkId: string | null = null;
+  let forkSlug = '';
   try {
     await setAgentSkills(api, workerId, [original.key]);
     await page.goto(company.path(`skills/${original.id}`));
@@ -135,6 +136,7 @@ test('PW-S14-6 Skill chỉ đọc: không có nút sửa nội dung; "Tạo bả
     expect(fork, 'skill bản sửa').toBeTruthy();
     if (!fork) return;
     forkId = fork.id;
+    forkSlug = fork.slug;
     expect(fork.sourceType).toBe('local_path');
     expect(fork.key).not.toBe(original.key);
     const desired = (await agentSkills(api, workerId)).desiredSkills ?? [];
@@ -144,7 +146,19 @@ test('PW-S14-6 Skill chỉ đọc: không có nút sửa nội dung; "Tạo bả
     await expect(page.getByLabel('Nội dung SKILL.md')).toBeVisible();
   } finally {
     await setAgentSkills(api, workerId, prior).catch(() => undefined);
-    if (forkId) await dropSkill(api, company.id, forkId);
+    if (forkId) {
+      // Chờ app tải xong bản sửa rồi mới xóa, để không sinh skill-sync failed (404).
+      if (tier() !== 't1') {
+        await expect
+          .poll(async () => (await syncStates(api, company.id, forkId as string)).some((s) => s.status === 'done'), {
+            timeout: 120_000,
+            intervals: [2_000],
+          })
+          .toBe(true)
+          .catch(() => undefined);
+      }
+      await removeSkillViaUi(page, api, company, { id: forkId, slug: forkSlug });
+    }
   }
 });
 
@@ -168,7 +182,7 @@ test('PW-S14-5c Đổi name: thành tên skill Superpowers đã ghim: chặn, kh
     expect(writes).toEqual([]);
     expect(await readSkillMd(api, company.id, skill.id)).toContain(`name: ${slug}`);
   } finally {
-    await dropSkill(api, company.id, skill.id);
+    await removeSkillViaUi(page, api, company, { id: skill.id, slug });
   }
 });
 
@@ -211,6 +225,6 @@ test('PW-S14-7 Xóa skill đang bật cho agent: gỡ khỏi agent, 404, không 
     }
   } finally {
     await setAgentSkills(api, workerId, prior).catch(() => undefined);
-    await dropSkill(api, company.id, skill.id);
+    await removeSkillViaUi(page, api, company, { id: skill.id, slug });
   }
 });

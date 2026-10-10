@@ -48,11 +48,17 @@ export async function rolesOf(api: Api, companyId: string, projectId: string): P
 }
 
 /** Thêm project bằng wizard (1 máy, folder ~/crew-e2e/repo, 2 executor) và chờ "Đã thêm project xong.". */
-export async function addProjectViaWizard(page: Page, api: Api, company: E2eCompany): Promise<WizardProject> {
-  const key = newProjectKey();
-  const name = `E2E gỡ ${key}`;
+export async function addProjectViaWizard(
+  page: Page,
+  api: Api,
+  company: E2eCompany,
+  opts: { key?: string; name?: string } = {},
+): Promise<WizardProject> {
+  const key = opts.key ?? newProjectKey();
+  const name = opts.name ?? `E2E gỡ ${key}`;
   await page.goto(company.path('projects/new'));
-  await page.getByLabel('Máy').click();
+  // Chính xác tên "Máy": getByLabel('Máy') còn khớp ô "Folder repo trên máy" (strict mode).
+  await page.getByRole('combobox', { name: 'Máy', exact: true }).click();
   await page.getByRole('option').first().click();
   await page.getByLabel('Folder repo trên máy').fill(E2E_REPO);
   await page.getByLabel('Khóa project').fill(key);

@@ -7,9 +7,9 @@ import { isProd } from '../support/env';
 import { expect, test } from '../support/fixtures';
 import {
   createSkill,
-  dropSkill,
   ensureSkillDenyRule,
   gateAgents,
+  removeSkillViaUi,
   skillAgent,
   skillMarkdown,
   skillSlug,
@@ -77,7 +77,7 @@ test('PW-X-AX6 Token agent không sửa, xóa, chép skill hay tự đổi skill
     await expect(pinned.getByRole('button')).toHaveCount(0);
     await expect(pinned.getByRole('link')).toHaveCount(0);
   } finally {
-    await dropSkill(api, company.id, skill.id, [agentId]);
+    await removeSkillViaUi(page, api, company, { id: skill.id, slug }, [agentId]);
   }
 });
 

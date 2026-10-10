@@ -63,8 +63,8 @@ T2 bật stub cho mọi project `e2e-*` trong `global-setup.ts` (5 giây) và t�
 ## Project nền `e2e-base`
 
 T2 cần project `e2e-base` (folder `~/crew-e2e/repo`, 2 executor) dựng bằng wizard Thêm project. `global-setup.ts`
-tìm setup run `add-project` khóa `e2e-base` đã `done`; chưa có thì dừng lượt và báo. Phần chạy wizard tự động được
-nối khi ca wizard (`specs/s9-add-project.spec.ts`) có.
+tìm setup run `add-project` khóa `e2e-base` đã `done` mà project chưa archive; không còn (chưa dựng hoặc đã gỡ) thì
+dựng lại bằng wizard Thêm project (`addProjectViaWizard` trong `support/r3x-project.ts`).
 
 ## Bản đồ phủ nút
 

@@ -1,5 +1,6 @@
 // Dữ liệu và kiểm tra dùng chung cho spec R3X: Ép Done, sửa/xóa skill, gỡ project/agent, ca âm bằng token agent.
 // Mọi thứ nằm trong company e2e; spec dọn bản ghi của mình ở cuối ca (skill xóa, key agent thu hồi, issue hủy).
+import type { Page } from '@playwright/test';
 import type { Api } from './api';
 import { trackIssue } from './cleanup';
 import { createIssue, ensurePlaceholderAgent, type IssueLite, meId, trackingProject } from './data';
@@ -153,6 +154,32 @@ export async function dropSkill(api: Api, companyId: string, skillId: string, ag
   for (const agentId of agentIds) await setAgentSkills(api, agentId, []).catch(() => undefined);
   const res = await api.raw('DELETE', `/api/companies/${companyId}/skills/${skillId}`);
   if (res.status >= 400 && res.status !== 404) throw new Error(`Không xóa được skill thử ${skillId}: ${res.status}`);
+}
+
+/**
+ * Dọn skill thử bằng đúng luồng xóa của UI (trang skill → "Xóa skill" → gõ slug), để plugin xếp việc máy
+ * `skill-remove` và bản chép trên máy mất. Nếu UI không xóa được thì dùng `dropSkill` (API) làm dự phòng.
+ * Dùng ở T2/T3 sau khi việc `skill-sync` đã xong (xóa trước khi app tải xong sinh `skill-sync failed`).
+ */
+export async function removeSkillViaUi(
+  page: Page,
+  api: Api,
+  company: { id: string; path(to?: string): string },
+  skill: { id: string; slug: string },
+  agentIds: string[] = [],
+): Promise<void> {
+  try {
+    for (const agentId of agentIds) await setAgentSkills(api, agentId, []).catch(() => undefined);
+    if ((await api.raw('GET', `/api/companies/${company.id}/skills/${skill.id}`)).status === 404) return;
+    await page.goto(company.path(`skills/${skill.id}`));
+    await page.getByRole('button', { name: 'Xóa skill', exact: true }).click();
+    const dialog = page.getByRole('alertdialog');
+    await dialog.getByRole('textbox').fill(skill.slug);
+    await dialog.getByRole('button', { name: 'Xóa skill', exact: true }).click();
+    await page.getByText(`Đã xóa skill ${skill.slug}`).waitFor({ timeout: 15_000 });
+  } catch {
+    await dropSkill(api, company.id, skill.id, agentIds);
+  }
 }
 
 /**

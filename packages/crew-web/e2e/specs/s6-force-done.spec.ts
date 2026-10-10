@@ -56,7 +56,14 @@ for (const c of GATE_CASES) {
     const dialog = page.getByRole('dialog');
     await expect(dialog).toBeVisible();
     if (c.gateText) await expect(dialog.getByText(c.gateText)).toBeVisible();
-    else await expect(dialog.getByText('Yêu cầu không có stage nào đang chờ theo workflow.')).toBeVisible();
+    else {
+      // T1 (project theo dõi) không có stage nào; T2 (project Crew) luôn có workflow 4 stage nên liệt kê các cổng.
+      await expect(
+        dialog
+          .getByText('Yêu cầu không có stage nào đang chờ theo workflow.')
+          .or(dialog.getByText(/Stage \d+: /).first()),
+      ).toBeVisible();
+    }
     // Lý do 9 ký tự: nút gửi tắt.
     await dialog.getByLabel('Lý do').fill('123456789');
     await expect(dialog.getByRole('button', { name: 'Ép Done', exact: true })).toBeDisabled();
@@ -138,10 +145,14 @@ test('PW-S6-17d Ép Done việc con cuối: báo cho yêu cầu cha, không cả
   const parentNow = await api.get<IssueLite>(`/api/issues/${parent.id}`);
   expect(parentNow.status, 'cha không bị đóng theo').toBe('in_progress');
   // Chỉ T2 đọc được bảng đánh thức; ở T1 người làm giữ chỗ không tự đánh thức nên không có run.
+  // Cha giao agent giữ chỗ (wakeOnDemand=false) thì stock ghi yêu cầu bị bỏ qua với reason khác, nên nhận cả
+  // lời đánh thức do plugin gửi (payload.mutation) và khóa idempotency `force-done:<con>`.
   if (tier() !== 't1') {
     const wakeups = await db.query(
-      `select reason from agent_wakeup_requests where payload->>'issueId' = $1 and reason = 'issue_children_completed'`,
-      [parent.id],
+      `select reason from agent_wakeup_requests
+        where (payload->>'issueId' = $1 and (reason = 'issue_children_completed' or payload->>'mutation' = 'plugin_wakeup'))
+           or idempotency_key like $2`,
+      [parent.id, `force-done:${child.id}%`],
     );
     expect(wakeups.length).toBeGreaterThan(0);
   } else {
@@ -174,7 +185,10 @@ test('PW-S6-17e Ép Done việc gốc còn con mở với "Hủy luôn": các co
   await expect(dialog).toBeHidden();
 
   await expect.poll(async () => (await api.get<IssueLite>(`/api/issues/${root.id}`)).status).toBe('done');
-  for (const k of kids) expect((await api.get<IssueLite>(`/api/issues/${k.id}`)).status).toBe('cancelled');
+  // Hủy con chạy sau khi cha xong, nên chờ thay vì đọc ngay.
+  for (const k of kids) {
+    await expect.poll(async () => (await api.get<IssueLite>(`/api/issues/${k.id}`)).status).toBe('cancelled');
+  }
   for (const k of kids) {
     const runs = (await api.get<{ status: string }[]>(`/api/issues/${k.id}/runs`)).filter((r) =>
       ['running', 'queued'].includes(r.status),
