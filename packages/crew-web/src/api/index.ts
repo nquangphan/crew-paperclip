@@ -1,5 +1,6 @@
 // Cổng vào lớp dữ liệu: feature chỉ import từ '@/api'.
 import { crewDataApi } from './crew/data';
+import { forceDoneApi } from './crew/force-done';
 import { jobsApi } from './crew/jobs';
 import { rolesApi } from './crew/roles';
 import { setupApi } from './crew/setup';
@@ -23,7 +24,7 @@ import { projectsApi } from './paperclip/projects';
 import { runsApi } from './paperclip/runs';
 import { searchApi } from './paperclip/search';
 import { sidebarApi } from './paperclip/sidebar';
-import { skillsApi } from './paperclip/skills';
+import { skillSourcesApi, skillsApi } from './paperclip/skills';
 
 export const api = {
   auth: authApi,
@@ -47,7 +48,8 @@ export const api = {
   agents: agentsApi,
   environments: environmentsApi,
   skills: skillsApi,
-  crew: crewDataApi,
+  skillSources: skillSourcesApi,
+  crew: { ...crewDataApi, ...forceDoneApi },
   roles: rolesApi,
   jobs: jobsApi,
   setup: setupApi,

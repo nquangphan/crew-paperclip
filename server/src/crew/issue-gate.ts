@@ -39,7 +39,10 @@ export interface IssueWriteHookInput {
   tx: Db;
   issueId: string;
   existing: typeof issues.$inferSelect;
-  /** Chỉ được sửa một chỗ: `executionState = null` khi issue Crew rời `done`/`cancelled`. */
+  /**
+   * Chỉ được sửa hai chỗ: `executionState = null` (kèm trả việc cho executor) khi issue Crew rời `done`/`cancelled`,
+   * và `executionState = null` khi board ép issue vào `done` mà lệnh ghi không tự đặt `executionState`.
+   */
   patch: Partial<typeof issues.$inferInsert>;
   actorAgentId: string | null | undefined;
   actorUserId: string | null | undefined;
@@ -530,6 +533,11 @@ export async function crewBeforeIssueWrite(input: IssueWriteHookInput): Promise<
     }
   }
   if (verdict.kind === "override") {
+    // Board ép vào `done` mà không qua transition stock (ví dụ plugin gọi thẳng service): không để stage `pending`
+    // treo trên issue đã đóng. Cùng kết quả với stock khi board ép issue đang chờ stage.
+    if (nextStatus === "done" && locked.status !== "done" && !has(patch, "executionState")) {
+      input.patch.executionState = null;
+    }
     await activity("crew.policy.board_override", { violations: verdict.violations, toStatus: patch.status ?? null });
   }
   if (verdict.kind === "allow" && verdict.notes.includes("docs_uninitialized")) {

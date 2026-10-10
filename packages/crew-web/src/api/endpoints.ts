@@ -55,6 +55,7 @@ export const ENDPOINTS = {
   'issues.create': { ids: ['S5.5', 'S5.6'], method: 'POST', path: '/api/companies/:companyId/issues' },
   'issues.update': { ids: ['S6.7', 'S6.8', 'S6.10', 'S6.11', 'S6.12'], method: 'PATCH', path: '/api/issues/:id' },
   'issues.setTitle': { ids: ['S6.12'], method: 'PUT', path: '/api/issues/:id/title' },
+  'issues.activity': { ids: ['S6.18'], method: 'GET', path: '/api/issues/:id/activity' },
   'issues.markRead': { ids: ['S3.3', 'S6.16'], method: 'POST', path: '/api/issues/:id/read' },
   'issues.markUnread': { ids: ['S3.3'], method: 'DELETE', path: '/api/issues/:id/read' },
   'issues.archive': { ids: ['S3.4'], method: 'POST', path: '/api/issues/:id/inbox-archive' },
@@ -108,7 +109,7 @@ export const ENDPOINTS = {
   'projects.list': { ids: ['S5.1', 'S7.1'], method: 'GET', path: '/api/companies/:companyId/projects' },
   'projects.get': { ids: ['S8.1'], method: 'GET', path: '/api/projects/:id' },
   'projects.create': { ids: ['S9.2'], method: 'POST', path: '/api/companies/:companyId/projects' },
-  'projects.update': { ids: ['S8.6'], method: 'PATCH', path: '/api/projects/:id' },
+  'projects.update': { ids: ['S8.6', 'S8.7'], method: 'PATCH', path: '/api/projects/:id' },
 
   // Agent (S9.5, S10, S11, S12.3–4, S13)
   'agents.list': { ids: ['S10.1'], method: 'GET', path: '/api/companies/:companyId/agents' },
@@ -132,9 +133,38 @@ export const ENDPOINTS = {
   'environments.list': { ids: ['S9.4'], method: 'GET', path: '/api/companies/:companyId/environments' },
   'environments.create': { ids: ['S9.4', 'S13.3'], method: 'POST', path: '/api/companies/:companyId/environments' },
 
+  'environments.update': { ids: ['S8.7', 'S11.9'], method: 'PATCH', path: '/api/environments/:id' },
+
   // Skills (S14)
   'skills.list': { ids: ['S14.1'], method: 'GET', path: '/api/companies/:companyId/skills' },
   'skills.get': { ids: ['S14.1'], method: 'GET', path: '/api/companies/:companyId/skills/:skillId' },
+  'skills.update': { ids: ['S14.5'], method: 'PATCH', path: '/api/companies/:companyId/skills/:skillId' },
+  'skills.readFile': { ids: ['S14.5'], method: 'GET', path: '/api/companies/:companyId/skills/:skillId/files' },
+  'skills.writeFile': { ids: ['S14.5'], method: 'PATCH', path: '/api/companies/:companyId/skills/:skillId/files' },
+  'skills.deleteFile': { ids: ['S14.5'], method: 'DELETE', path: '/api/companies/:companyId/skills/:skillId/files' },
+  'skills.updateStatus': {
+    ids: ['S14.6'],
+    method: 'GET',
+    path: '/api/companies/:companyId/skills/:skillId/update-status',
+  },
+  'skills.installUpdate': {
+    ids: ['S14.6'],
+    method: 'POST',
+    path: '/api/companies/:companyId/skills/:skillId/install-update',
+  },
+  'skills.forkPrecheck': {
+    ids: ['S14.6'],
+    method: 'GET',
+    path: '/api/companies/:companyId/skills/:skillId/fork-precheck',
+  },
+  'skills.fork': { ids: ['S14.6'], method: 'POST', path: '/api/companies/:companyId/skills/:skillId/fork' },
+  'skills.remove': { ids: ['S14.7'], method: 'DELETE', path: '/api/companies/:companyId/skills/:skillId' },
+  'skillSources.get': { ids: ['S14.7'], method: 'GET', path: '/api/companies/:companyId/skill-sources/:sourceId' },
+  'skillSources.select': {
+    ids: ['S14.7'],
+    method: 'PATCH',
+    path: '/api/companies/:companyId/skill-sources/:sourceId',
+  },
   'skillSources.discover': {
     ids: ['S14.2'],
     method: 'POST',
@@ -151,13 +181,27 @@ export const ENDPOINTS = {
   },
   'roles.get': { ids: ['S8.2'], method: 'GET', path: `${PLUGIN}/api/projects/:projectId/roles` },
   'roles.set': { ids: ['S8.3', 'S9.6', 'S13.5'], method: 'POST', path: `${PLUGIN}/api/projects/:projectId/roles` },
-  'jobs.create': { ids: ['S9.3', 'S9.7', 'S13.4', 'S14.4'], method: 'POST', path: `${PLUGIN}/api/machine-jobs` },
+  // Ép Done (S6.17): board ép issue sang done kèm lý do; chỉ board gọi được (agent 403).
+  'crew.forceDone': { ids: ['S6.17'], method: 'POST', path: `${PLUGIN}/api/issues/:issueId/force-done` },
+  'jobs.create': {
+    ids: ['S9.3', 'S9.7', 'S13.4', 'S14.4', 'S8.7', 'S11.9', 'S14.7'],
+    method: 'POST',
+    path: `${PLUGIN}/api/machine-jobs`,
+  },
   'jobs.list': { ids: ['S15.2'], method: 'GET', path: `${PLUGIN}/api/machine-jobs` },
   'jobs.retry': { ids: ['S15.2'], method: 'POST', path: `${PLUGIN}/api/machine-jobs/:jobId/retry` },
-  'setup.create': { ids: ['S9', 'S13'], method: 'POST', path: `${PLUGIN}/api/setup-runs` },
-  'setup.get': { ids: ['S9', 'S13'], method: 'GET', path: `${PLUGIN}/api/setup-runs/:id` },
-  'setup.begin': { ids: ['S9', 'S13'], method: 'POST', path: `${PLUGIN}/api/setup-runs/:id/steps/:stepId/begin` },
-  'setup.finish': { ids: ['S9', 'S13'], method: 'POST', path: `${PLUGIN}/api/setup-runs/:id/steps/:stepId/finish` },
+  'setup.create': { ids: ['S9', 'S13', 'S8.7', 'S11.9'], method: 'POST', path: `${PLUGIN}/api/setup-runs` },
+  'setup.get': { ids: ['S9', 'S13', 'S8.7', 'S11.9'], method: 'GET', path: `${PLUGIN}/api/setup-runs/:id` },
+  'setup.begin': {
+    ids: ['S9', 'S13', 'S8.7', 'S11.9'],
+    method: 'POST',
+    path: `${PLUGIN}/api/setup-runs/:id/steps/:stepId/begin`,
+  },
+  'setup.finish': {
+    ids: ['S9', 'S13', 'S8.7', 'S11.9'],
+    method: 'POST',
+    path: `${PLUGIN}/api/setup-runs/:id/steps/:stepId/finish`,
+  },
   // BA không có mã riêng cho nút "Bỏ lần dở" nên gắn S9 (wizard Thêm project).
   'setup.abandon': { ids: ['S9'], method: 'POST', path: `${PLUGIN}/api/setup-runs/:id/abandon` },
 } as const satisfies Record<string, EndpointDef>;

@@ -60,7 +60,7 @@ export interface ReadinessReport {
 }
 export interface ReadinessSetupRun {
   id: string;
-  kind: 'add-project' | 'add-agent';
+  kind: 'add-project' | 'add-agent' | 'remove-project' | 'remove-agent';
   status: 'running' | 'failed' | 'done' | 'abandoned';
   steps: Partial<Record<string, { status: string; refs?: Record<string, string> } | undefined>>;
 }
