@@ -1,5 +1,6 @@
 #!/bin/sh
-# Checks a built overlay image before deploy. Usage: inspect-image.sh <image-tag>
+# Checks a built overlay image before deploy. Usage: inspect-image.sh <image-tag> [<commit>]
+# After the image checks, the adapter patches (core-hooks.json adapter-patch) are compared with <commit> (default: fork HEAD).
 # The plugin is a self-contained esbuild bundle: it must import with plain node, without the tsx loader.
 docker run --rm --entrypoint sh "$1" -c '
   S=/app/server/dist/services
@@ -28,3 +29,6 @@ docker run --rm --entrypoint sh "$1" -c '
   if grep -q -E "from ?[\"]@paperclipai/" "$P/dist/worker.js" "$P/dist/manifest.js" 2>/dev/null; then echo "plugin bundle FAIL: still imports @paperclipai/*"; fi
   cd "$P" && node --input-type=module -e "import(\"./dist/manifest.js\").then((m) => console.log(\"plugin bundle ok; manifest \" + m.default.id + \" \" + m.default.capabilities.join(\",\")), (e) => console.log(\"plugin bundle FAIL \" + e.message))"
 '
+RC=$?
+node "$(dirname "$0")/inspect-adapters.mjs" "$1" ${2:+"$2"} || RC=1
+exit $RC

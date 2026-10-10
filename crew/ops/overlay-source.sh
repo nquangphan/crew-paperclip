@@ -20,14 +20,25 @@ cd "$FORK"
 CHANGED=$(git diff --name-only --diff-filter=ACMR "$BASE" "$COMMIT")
 # ui/ (the stock Paperclip UI at /paperclip/) is allowed as a whole: it is built and served by stock-ui.sh, and the
 # SHIP list below never includes it, so its changes cannot reach the image.
-UNKNOWN=$(printf '%s\n' "$CHANGED" | grep -v -E '^(ui/|server/src/|packages/adapters/claude-local/src/|packages/crew-plugin/|packages/crew-web/|crew/|pnpm-lock\.yaml$|.*\.md$)' || true)
+# Adapter files beyond claude-local/src/ ship only when core-hooks.json lists them as adapter-patch (the file and its tests).
+ADAPTER_PATHS=$(node -e '
+  const j = require(process.argv[1]);
+  const out = new Set();
+  for (const e of j.entries ?? []) {
+    if (e.kind !== "adapter-patch") continue;
+    for (const f of [e.file, ...(e.tests ?? [])]) if (f.startsWith("packages/adapters/")) out.add(f);
+  }
+  process.stdout.write([...out].join("\n"));
+' "$FORK/crew/release/core-hooks.json")
+UNKNOWN=$(printf '%s\n' "$CHANGED" | grep -v -E '^(ui/|server/src/|packages/adapters/claude-local/src/|packages/crew-plugin/|packages/crew-web/|crew/|pnpm-lock\.yaml$|.*\.md$)' | { [ -n "$ADAPTER_PATHS" ] && grep -v -F -x -e "$ADAPTER_PATHS" || cat; } || true)
 if [ -n "$UNKNOWN" ]; then
   echo "overlay: v3 changes files the overlay cannot ship:" >&2
   printf '%s\n' "$UNKNOWN" >&2
   exit 2
 fi
 
-SHIP=$(printf '%s\n' "$CHANGED" | grep -E '^(server/src/|packages/adapters/claude-local/src/)' | grep -v -E '\.test\.ts$|/__tests__/' || true)
+SHIP=$({ printf '%s\n' "$CHANGED" | grep -E '^(server/src/|packages/adapters/claude-local/src/)' || true
+  [ -z "$ADAPTER_PATHS" ] || printf '%s\n' "$CHANGED" | grep -F -x -e "$ADAPTER_PATHS" || true; } | grep -v -E '\.test\.ts$|/__tests__/' | sort -u || true)
 mkdir -p "$WORK/app"
 printf '%s\n' "$SHIP" | grep -E '^server/src/.*\.ts$' | sed 's#^server/##' > "$WORK/app/crew-transpile.txt" || true
 echo "$COMMIT" > "$WORK/app/crew-commit.txt"
