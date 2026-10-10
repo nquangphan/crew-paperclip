@@ -167,6 +167,8 @@ test('PW-S6-17e Ép Done việc gốc còn con mở với "Hủy luôn": các co
   await page.getByRole('button', { name: 'Ép Done', exact: true }).click();
   const dialog = page.getByRole('dialog');
   await expect(dialog.getByRole('checkbox', { name: 'Hủy luôn 2 việc con chưa xong' })).toBeChecked();
+  await expect(dialog.getByText('Chỉ hủy các việc con liệt kê ở đây.', { exact: false })).toBeVisible();
+  await expect(dialog.getByText('Hủy các con còn lại')).toHaveCount(0);
   await dialog.getByLabel('Lý do').fill(REASON);
   await dialog.getByRole('button', { name: 'Ép Done', exact: true }).click();
   await expect(dialog).toBeHidden();
