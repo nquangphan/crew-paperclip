@@ -55,9 +55,12 @@ async function decidedForRun(ctx: Pick<PluginContext, "db">, companyId: string, 
 }
 
 /** Lệnh ghi issue bị từ chối sau khi đã ghi `fallback`: đổi dòng đó thành `fallback_refused` để không ai tưởng đã chuyển. */
-async function demoteDecision(ctx: Pick<PluginContext, "db">, companyId: string, runId: string, reason: string): Promise<void> {
+async function demoteDecision(ctx: Pick<PluginContext, "db">, companyId: string, runId: string | null, reason: string): Promise<void> {
+  // Không có run (lượt quét reviewer): đổi đúng dòng `fallback` mới nhất của company, vừa được ghi cùng lượt.
   await ctx.db.execute(
-    `UPDATE ${decisions(ctx)} SET kind = 'fallback_refused', reason = $3 WHERE company_id = $1 AND run_id = $2 AND kind = 'fallback'`,
+    `UPDATE ${decisions(ctx)} SET kind = 'fallback_refused', reason = $3
+     WHERE id = (SELECT id FROM ${decisions(ctx)} WHERE company_id = $1 AND run_id IS NOT DISTINCT FROM $2::uuid AND kind = 'fallback'
+       ORDER BY decided_at DESC, id DESC LIMIT 1)`,
     [companyId, runId, reason.slice(0, 500)],
   );
 }
@@ -88,15 +91,15 @@ async function issueHasImages(ctx: Ctx, companyId: string, issueId: string): Pro
   }
 }
 
-async function wake(ctx: Ctx, companyId: string, issueId: string, runId: string, reason: string): Promise<void> {
+async function wake(ctx: Ctx, companyId: string, issueId: string, runId: string | null, reason: string): Promise<void> {
   try {
-    await ctx.issues.requestWakeup(issueId, companyId, { reason, idempotencyKey: `${reason}:${runId}` });
+    await ctx.issues.requestWakeup(issueId, companyId, { reason, idempotencyKey: `${reason}:${runId ?? `${issueId}:${Date.now()}`}` });
   } catch (error) {
     ctx.logger.warn("crew runtime fallback: wakeup failed", { companyId, issueId, runId, err: errorText(error) });
   }
 }
 
-async function blockIssue(ctx: Ctx, companyId: string, issueId: string, runId: string): Promise<void> {
+async function blockIssue(ctx: Ctx, companyId: string, issueId: string, runId: string | null): Promise<void> {
   try {
     await ctx.issues.update(issueId, { status: "blocked" }, companyId);
   } catch (error) {
@@ -104,7 +107,8 @@ async function blockIssue(ctx: Ctx, companyId: string, issueId: string, runId: s
   }
 }
 
-interface FallbackInput { companyId: string; issueId: string; runId: string; agentId: string; trigger: ReviewerTrigger }
+/** `runId` rỗng: không có run (reviewer Codex bị pause/terminate sau khi đã được chọn), chỉ reviewer Codex đi đường này. */
+interface FallbackInput { companyId: string; issueId: string; runId: string | null; agentId: string; trigger: ReviewerTrigger }
 
 /**
  * Chuyển runtime cho run hỏng (`agentId` là agent của run). Dừng (`skipped`) khi issue không thuộc project Crew, không có
@@ -113,7 +117,7 @@ interface FallbackInput { companyId: string; issueId: string; runId: string; age
  */
 export async function applyFallback(ctx: Ctx, raw: FallbackInput): Promise<FallbackOutcome> {
   const input = { ...raw, companyId: checkedId(raw.companyId).toLowerCase(), issueId: checkedId(raw.issueId).toLowerCase(),
-    runId: checkedId(raw.runId).toLowerCase(), agentId: checkedId(raw.agentId).toLowerCase() };
+    runId: raw.runId === null ? null : checkedId(raw.runId).toLowerCase(), agentId: checkedId(raw.agentId).toLowerCase() };
   const issue = await ctx.issues.get(input.issueId, input.companyId);
   if (!issue || CLOSED_STATUSES.has(issue.status) || issue.assigneeAgentId?.toLowerCase() !== input.agentId) return "skipped";
   if (!issue.projectId || !hasCrewPolicy(issue.executionPolicy)) return "skipped";
@@ -121,8 +125,9 @@ export async function applyFallback(ctx: Ctx, raw: FallbackInput): Promise<Fallb
   if (!roles) return "skipped";
   const reviewer = input.agentId === roles.codexReviewerAgentId;
   if (!reviewer && (!projectExecutors(roles).includes(input.agentId) || input.trigger === "other")) return "skipped";
-  if (await decidedForRun(ctx, input.companyId, input.runId)) return "duplicate";
-  return reviewer ? reviewerFallback(ctx, input, issue, roles) : executorFallback(ctx, { ...input, trigger: input.trigger as FallbackTrigger }, issue, roles);
+  if (input.runId !== null && await decidedForRun(ctx, input.companyId, input.runId)) return "duplicate";
+  if (!reviewer && input.runId === null) return "skipped";
+  return reviewer ? reviewerFallback(ctx, input, issue, roles) : executorFallback(ctx, { ...input, runId: input.runId!, trigger: input.trigger as FallbackTrigger }, issue, roles);
 }
 
 async function executorFallback(
@@ -346,7 +351,49 @@ export async function runRuntimeFallbackJob(
   return { handled, applied };
 }
 
+/**
+ * Reviewer Codex bị pause/terminate SAU khi lượt review đã giao cho nó: không có run nên không có `agent.run.failed` và
+ * không có hàng chờ. Quét issue `in_review` có `currentParticipant` là agent `codex_local` đang `paused`/`terminated` rồi
+ * xử lý như reviewer Codex lỗi (`unavailable`). Lượt đã chuyển thì `currentParticipant` đổi nên không bị quét lại.
+ */
+export async function runStuckReviewerSweep(ctx: Ctx & Pick<PluginContext, "companies">): Promise<{ applied: number; refused: number }> {
+  let applied = 0;
+  let refused = 0;
+  for (const company of await storedVerifiedCrewCompanies(ctx)) {
+    const companyId = company.id.toLowerCase();
+    let rows: { issue_id: string; agent_id: string }[];
+    try {
+      rows = await ctx.db.query<{ issue_id: string; agent_id: string }>(
+        `SELECT i.id::text AS issue_id, a.id::text AS agent_id
+         FROM public.issues i
+         JOIN public.agents a ON a.company_id = i.company_id AND a.id::text = lower(i.execution_state->'currentParticipant'->>'agentId')
+         WHERE i.company_id = $1 AND i.status = 'in_review' AND i.execution_state->>'status' = 'pending'
+           AND a.adapter_type = 'codex_local' AND a.status IN ('paused', 'terminated')
+         ORDER BY i.updated_at, i.id LIMIT ${WAIT_BATCH}`,
+        [companyId],
+      );
+    } catch (error) {
+      ctx.logger.error("crew reviewer sweep: reading stuck reviews failed", { companyId, err: errorText(error) });
+      continue;
+    }
+    for (const row of rows) {
+      try {
+        const outcome = await applyFallback(ctx, { companyId, issueId: row.issue_id, runId: null, agentId: row.agent_id, trigger: "unavailable" });
+        if (outcome === "applied") applied++;
+        if (outcome === "refused") refused++;
+        if (outcome !== "skipped") ctx.logger.info("crew reviewer sweep", { companyId, issueId: row.issue_id, outcome });
+      } catch (error) {
+        ctx.logger.warn("crew reviewer sweep: issue left for the next minute", { companyId, issueId: row.issue_id, err: errorText(error) });
+      }
+    }
+  }
+  return { applied, refused };
+}
+
 export function registerRuntimeFallback(ctx: PluginContext): void {
   ctx.events.on("agent.run.failed", async (event) => { await handleRunFailed(ctx, event); });
-  ctx.jobs.register(RUNTIME_FALLBACK_JOB_KEY, async () => { await runRuntimeFallbackJob(ctx, new Date()); });
+  ctx.jobs.register(RUNTIME_FALLBACK_JOB_KEY, async () => {
+    await runRuntimeFallbackJob(ctx, new Date());
+    await runStuckReviewerSweep(ctx);
+  });
 }

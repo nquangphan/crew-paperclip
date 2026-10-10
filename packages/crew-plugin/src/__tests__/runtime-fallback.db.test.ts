@@ -3,7 +3,7 @@ import type { Issue, PluginContext, PluginEvent } from "@paperclipai/plugin-sdk"
 import { pluginManifestV1Schema } from "../../../shared/src/validators/plugin.js";
 import manifest from "../manifest.js";
 import { upsertProjectRoles } from "../roles/data.js";
-import { applyFallback, handleRunFailed, registerRuntimeFallback, runRuntimeFallbackJob } from "../runtimes/fallback.js";
+import { applyFallback, handleRunFailed, registerRuntimeFallback, runRuntimeFallbackJob, runStuckReviewerSweep } from "../runtimes/fallback.js";
 import { type PluginHost, startPluginHost } from "./plugin-host-db.js";
 
 const companyId = "10000000-0000-4000-8000-000000000001";
@@ -115,6 +115,8 @@ afterAll(async () => { await host?.cleanup(); });
 beforeEach(async () => {
   for (const table of ["crew_runtime_decisions", "crew_runtime_switches", "crew_runtime_waits"]) await host.sql.unsafe(`DELETE FROM ${host.ns}.${table}`);
   await host.sql`DELETE FROM heartbeat_runs`;
+  await host.sql`DELETE FROM issues`;
+  await host.sql`UPDATE agents SET status = 'idle'`;
   await setSwitch("codex_local", true);
   issues.clear();
   attachments.clear();
@@ -342,5 +344,69 @@ describe("reviewer Codex → reviewer Claude", () => {
     const moved = inReview(35, [codexReviewer, reviewer]);
     issues.set(moved, { ...issues.get(moved)!, status: "in_progress" } as Issue);
     expect(await applyFallback(ctx, { companyId, issueId: moved, runId: await addRun(65, codexReviewer), agentId: codexReviewer, trigger: "quota" })).toBe("skipped");
+  });
+});
+
+describe("reviewer Codex bị pause/terminate sau khi đã được chọn", () => {
+  const stuck = async (n: number, stage: string[], status = "in_review") => {
+    const issue = addIssue(n, {
+      status: status as never, assigneeAgentId: codexReviewer, description: marker("medium", "claude_local", "claude-sonnet-5", "high"),
+      executionPolicy: childPolicy(...stage) as never, executionState: pendingState(codexReviewer) as never,
+    });
+    await host.sql`INSERT INTO issues (id,company_id,project_id,identifier,title,status,execution_state)
+      VALUES (${issue},${companyId},${projectId},${`CRE-${n}`},'Việc',${status},${host.sql.json(pendingState(codexReviewer))})`;
+    return issue;
+  };
+  const setAgentStatus = (status: string) => host.sql`UPDATE agents SET status = ${status} WHERE id = ${codexReviewer}`;
+
+  it("pause hoặc terminate: chuyển sang reviewer Claude như reviewer Codex lỗi (không run)", async () => {
+    for (const status of ["paused", "terminated"]) {
+      calls = [];
+      await host.sql`DELETE FROM issues`;
+      await host.sql.unsafe(`DELETE FROM ${host.ns}.crew_runtime_decisions`);
+      const issue = await stuck(70, [codexReviewer, reviewer]);
+      await setAgentStatus(status);
+      expect(await runStuckReviewerSweep(ctx)).toEqual({ applied: 1, refused: 0 });
+      expect(of("update")).toEqual([[issue, { executionState: { ...pendingState(codexReviewer), currentParticipant: { type: "agent", agentId: reviewer, userId: null } },
+        assigneeAgentId: reviewer }, companyId]]);
+      expect(await decisions(issue)).toEqual([expect.objectContaining({ role: "reviewer", kind: "fallback", run_id: null, from_agent_id: codexReviewer,
+        to_agent_id: reviewer, trigger: "unavailable", reason: "runtime không chạy được trên máy" })]);
+      expect(of("comment")).toHaveLength(1);
+      expect(of("wake")).toEqual([[issue, companyId, expect.objectContaining({ reason: "crew_runtime_reviewer_fallback" })]]);
+      // Lượt review đã sang Claude: quét lại không làm gì thêm.
+      calls = [];
+      await host.sql`UPDATE issues SET execution_state = ${host.sql.json({ ...pendingState(codexReviewer), currentParticipant: { type: "agent", agentId: reviewer, userId: null } })} WHERE id = ${issue}`;
+      expect(await runStuckReviewerSweep(ctx)).toEqual({ applied: 0, refused: 0 });
+      expect(calls).toEqual([]);
+    }
+  });
+
+  it("agent không pause thì bỏ qua; issue không in_review thì bỏ qua", async () => {
+    await stuck(71, [codexReviewer, reviewer]);
+    expect(await runStuckReviewerSweep(ctx)).toEqual({ applied: 0, refused: 0 });
+    await setAgentStatus("paused");
+    await host.sql`UPDATE issues SET status = 'in_progress'`;
+    expect(await runStuckReviewerSweep(ctx)).toEqual({ applied: 0, refused: 0 });
+    expect(calls).toEqual([]);
+  });
+
+  it("stage không có reviewer Claude: fallback_refused, comment, block", async () => {
+    const issue = await stuck(72, [codexReviewer]);
+    await setAgentStatus("paused");
+    expect(await runStuckReviewerSweep(ctx)).toEqual({ applied: 0, refused: 1 });
+    expect(await decisions(issue)).toEqual([expect.objectContaining({ kind: "fallback_refused", run_id: null, trigger: "unavailable" })]);
+    expect(of("update")).toEqual([[issue, { status: "blocked" }, companyId]]);
+    calls = [];
+    expect(await runStuckReviewerSweep(ctx)).toEqual({ applied: 0, refused: 0 });
+    expect(calls.filter((c) => c.kind !== "get")).toEqual([]);
+  });
+
+  it("job runtime-fallback gọi cả lượt quét này", async () => {
+    const jobs: Record<string, () => Promise<void>> = {};
+    registerRuntimeFallback({ ...ctx, events: { on: () => undefined }, jobs: { register: (key: string, fn: () => Promise<void>) => { jobs[key] = fn; } } } as unknown as PluginContext);
+    const issue = await stuck(73, [codexReviewer, reviewer]);
+    await setAgentStatus("paused");
+    await jobs["runtime-fallback"]();
+    expect(await decisions(issue)).toEqual([expect.objectContaining({ kind: "fallback", run_id: null })]);
   });
 });
