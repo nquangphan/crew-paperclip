@@ -176,7 +176,13 @@ export function checkAdapter(agent: ReadinessAgent, runtime: CrewRuntime = 'clau
   const envKeys = Object.keys(config.env);
   if (runtime === 'codex_local') {
     // Chỉ CODEX_HOME ngoài cây companies/<id>; không OPENAI_API_KEY (key sẽ lên server).
-    return config.dangerouslyBypassApprovalsAndSandbox === true && envKeys.length === 1 && isCodexHomeOk(config.env);
+    // `engine` phải là `cli`: thiếu thì adapter chạy ACP và từ chối workspace in_place.
+    return (
+      config.engine === 'cli' &&
+      config.dangerouslyBypassApprovalsAndSandbox === true &&
+      envKeys.length === 1 &&
+      isCodexHomeOk(config.env)
+    );
   }
   if (runtime === 'opencode_local') return envKeys.length === 0;
   return config.engine === 'cli' && envKeys.length === 0;

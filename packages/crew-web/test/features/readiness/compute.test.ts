@@ -491,6 +491,8 @@ describe('agent runtime Codex/OpenCode', () => {
     ['có OPENAI_API_KEY', { env: { ...codexBody.adapterConfig.env, OPENAI_API_KEY: 'k' } }],
     ['còn sandbox', { dangerouslyBypassApprovalsAndSandbox: false }],
     ['model trống', { model: '' }],
+    ['thiếu engine (adapter mặc định acp)', { engine: undefined }],
+    ['engine acp', { engine: 'acp' }],
   ])('Codex %s → A1', (_name, over) => {
     expect(ids(computeAgentReadiness(input({ agent: codex(over), roleOf: 'executor-codex' })))).toEqual(['A1']);
   });

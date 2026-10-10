@@ -387,6 +387,39 @@ describe('chế độ sửa (agent do app tạo, không có setup run)', () => {
     expect(f.calls.some((c) => c.fn === 'agents.pause' || c.fn === 'agents.resume')).toBe(false);
   });
 
+  it('thêm executor-codex: engine cli trong body tạo agent; environment mẫu chỉ lấy của company, không chọn chéo', async () => {
+    const f = setup(addAgentRun('executor-codex'));
+    f.state.environments.push({
+      ...structuredClone(TEMPLATE_ENV),
+      id: 'env-company-khac',
+      name: 'e2e',
+      config: {
+        ...TEMPLATE_ENV.config,
+        host: 'e2e.local',
+        privateKeySecretRef: { type: 'secret_ref', secretId: 'sec-khac', version: 'latest' },
+      },
+      createdAt: '2026-10-09T21:16:00Z',
+    });
+    const run = await runAddAgent(ctxOf(f.api), f.state.run);
+    expect(run.status).toBe('done');
+    expect(f.calls.find((c) => c.fn === 'agents.create')?.args[1]).toMatchObject({
+      adapterType: 'codex_local',
+      adapterConfig: { engine: 'cli' },
+    });
+    expect(f.calls.find((c) => c.fn === 'environments.create')?.args[1]).toMatchObject({
+      config: { host: TEMPLATE_ENV.config.host, privateKeySecretRef: { secretId: 'sec-1' } },
+    });
+  });
+
+  it('thêm agent: chỉ có environment mẫu của company khác thì dừng ở bước environment với noTemplate', async () => {
+    const f = setup(addAgentRun('executor-2'));
+    f.state.secrets = [{ id: 'sec-cua-company-nay' }];
+    const run = await runAddAgent(ctxOf(f.api), f.state.run);
+    expect(run.status).toBe('failed');
+    expect(run.steps.environment?.error).toContain('errors.noTemplate');
+    expect(f.names()).not.toContain('environments.create');
+  });
+
   it('sửa từ bước pin vì AGENTS.md lệch (A3): ghi lại AGENTS.md theo mẫu, cả khi chạy tiếp ở trình duyệt khác', async () => {
     const f = setup(
       addAgentRun('executor', {
@@ -544,7 +577,7 @@ describe('ô runtime Codex/OpenCode', () => {
     expect(f.state.roles?.executorAgentIds).toEqual([ID.executor]);
   });
 
-  it('sửa agent Codex có sẵn từ bước agent: PATCH bỏ sandbox, CODEX_HOME, heartbeat; không engine', async () => {
+  it('sửa agent Codex có sẵn từ bước agent: PATCH engine cli, bỏ sandbox, CODEX_HOME, heartbeat', async () => {
     const CODEX = 'd6666666-6666-4666-8666-666666666666';
     const f = setup(
       addAgentRun('executor-codex', {
@@ -568,6 +601,7 @@ describe('ô runtime Codex/OpenCode', () => {
       CODEX,
       {
         adapterConfig: {
+          engine: 'cli',
           dangerouslyBypassApprovalsAndSandbox: true,
           env: { CODEX_HOME: '/paperclip/instances/default/crew-codex-home/demo/executor-codex' },
         },

@@ -36,7 +36,7 @@ import {
   isTime,
   lockOf,
   pauseAgents,
-  pickTemplate,
+  pickCompanyTemplate,
   pinDirOf,
   required,
   resultOf,
@@ -54,6 +54,7 @@ export interface AddAgentApi {
   setup: AddProjectApi['setup'];
   jobs: AddProjectApi['jobs'];
   environments: AddProjectApi['environments'];
+  secrets: AddProjectApi['secrets'];
   projects: Pick<AddProjectApi['projects'], 'list'>;
   agents: AddProjectApi['agents'] & {
     get(id: string, companyId?: string): Promise<AgentDetail>;
@@ -323,7 +324,7 @@ const STEPS: Record<AddAgentStepId, StepWork> = {
       if (reuse) {
         environmentId = reuse.id;
       } else {
-        const template = pickTemplate(envs);
+        const template = await pickCompanyTemplate(api, companyId, envs);
         if (!template) throw new StepError('errors.noTemplate');
         const description = ctx.t('addAgent.environmentDescription', { role: input.slot, project: run.projectKey });
         environmentId = (

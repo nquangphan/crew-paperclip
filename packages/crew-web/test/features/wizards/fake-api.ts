@@ -140,6 +140,8 @@ export function fakeApi(opts: { run?: SetupRun; busy?: boolean; jobOutcome?: Job
     jobs: [] as MachineJob[],
     projects: [] as { id: string; name: string; urlKey: string; createdAt: string; archivedAt: string | null }[],
     environments: [structuredClone(TEMPLATE_ENV)] as Record<string, unknown>[],
+    /** Secret của company đang chạy wizard (environment mẫu phải trỏ vào đây). */
+    secrets: [{ id: 'sec-1' }] as { id: string }[],
     agents: [] as FakeAgent[],
     files: new Map<string, { content: string; contentHash: string }>(),
     roles: null as ProjectRoles | null,
@@ -269,6 +271,12 @@ export function fakeApi(opts: { run?: SetupRun; busy?: boolean; jobOutcome?: Job
         if (!project) throw new ApiError(404, 'Project not found');
         project.archivedAt = '2026-10-10T02:00:00.000Z';
         return structuredClone(project);
+      },
+    },
+    secrets: {
+      list: async (companyId: string) => {
+        record('secrets.list', companyId);
+        return structuredClone(state.secrets);
       },
     },
     environments: {

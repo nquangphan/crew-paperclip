@@ -133,6 +133,8 @@ export const ENDPOINTS = {
   'environments.list': { ids: ['S9.4'], method: 'GET', path: '/api/companies/:companyId/environments' },
   'environments.create': { ids: ['S9.4', 'S13.3'], method: 'POST', path: '/api/companies/:companyId/environments' },
 
+  'secrets.list': { ids: ['S13.3'], method: 'GET', path: '/api/companies/:companyId/secrets' },
+
   'environments.update': { ids: ['S8.7', 'S11.9'], method: 'PATCH', path: '/api/environments/:id' },
 
   // Skills (S14)
