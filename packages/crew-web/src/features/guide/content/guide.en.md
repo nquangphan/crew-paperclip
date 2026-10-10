@@ -41,7 +41,7 @@ The **left sidebar** is grouped like the original Paperclip interface, from top 
 - First group (no title):
   - **New request**: opens the dialog to create a request. This is the button you use most.
   - **Search**: search requests and documents. You can also press Ctrl+K (Cmd+K on a Mac), type a request code such as `TPS-12` and press Enter to open it quickly.
-  - **Dashboard**: the number of agents running or paused, open requests, requests **awaiting your approval**, recent runs and the machine card.
+  - **Dashboard**: the **Agents** block (recent runs), four number cards (agents enabled, requests in progress, blocked requests, requests **awaiting your approval**), 14-day charts, recent activity and requests, and the machine card.
   - **Inbox**: everything waiting for you. The number next to it is the count of unread items.
 - **Work**:
   - **Requests**: all requests of the company, with child requests under their parent.
@@ -105,7 +105,7 @@ A small request usually takes 15 to 30 minutes, depending on difficulty and how 
 
 {{shot:issue-detail}}
 
-Open a request from the **Requests** or **Inbox** page. On the **Requests** page you can search, filter by status, project, assignee and type (Research or Code / Bug), sort, group and choose columns. Two columns belong to Crew:
+Click a request in any list (**Requests**, **Inbox**, **Search**, **Dashboard**, the Requests tab of a project or agent, or Ctrl/Cmd+K) to open its detail as a **popup** over the page you are on; the address gains `?issue=ID`, and **Esc**, the close button, the backdrop or the browser Back button returns you to the same spot. Click **Open full page** (or Cmd/Ctrl+click the request) to see the full page in a new tab. On the **Requests** page you can search, filter by status, project, assignee and type (Research or Code / Bug), sort, group and choose columns. Two columns belong to Crew:
 - **Crew stage**: which step the request is at.
 - **Child requests**: shown like "1/3 children done".
 
@@ -155,7 +155,7 @@ The **Inbox** collects everything that needs you. Its tabs:
 - **Mine**, **Unread**, **Stuck**, **All**: filter as you need.
 - A dot on the left means unread. You can **Mark as read** or unread per item, **Mark all as read**, search by id or title, filter by status, and **Archive** an item (it only leaves the Inbox, the request stays).
 
-The **Dashboard** gives the overall picture: number cards (**Agents running**, **Agents paused**, **Open requests**, **Blocked requests**, **Awaiting your approval**), **Recent runs** with a "View run" link to read what the agent did, the **Machines** card and recent requests.
+The **Dashboard** gives the overall picture: an **Agents** block with recent run cards (click one to read what the agent did, with a **View all runs** link), four number cards (**Agents enabled**, **Requests in progress**, **Blocked requests**, **Awaiting your approval**), three 14-day charts (**Run activity**, **Requests by status**, **Success rate**), the **Machines** card, **Recent activity** and **Recent requests**. Clicking a request here opens its detail as a popup.
 
 ## 8. Adding a new project
 

@@ -17,6 +17,7 @@ import {
   RunRow,
   Spinner,
 } from '@/ds';
+import { useIssueOpener } from '@/features/issues';
 import type { AgentReadiness } from '@/features/readiness';
 import { useT } from '@/i18n';
 import { agentRef, companyHref, resumeHref } from '../paths';
@@ -29,6 +30,7 @@ export function OverviewTab({ agent, readiness }: { agent: Agent; readiness: Age
   const { t } = useT('agents');
   const { company } = useCompany();
   const navigate = useNavigate();
+  const opener = useIssueOpener();
   const runFilters = { agentId: agent.id, limit: 1 };
   const runs = useQuery({
     queryKey: queryKeys.runs(company.id, runFilters),
@@ -102,15 +104,15 @@ export function OverviewTab({ agent, readiness }: { agent: Agent; readiness: Age
             <CardDescription>{t('overview.noIssue')}</CardDescription>
           ) : (
             working.map((issue) => {
-              const href = companyHref(company.issuePrefix, `issues/${issue.identifier ?? issue.id}`);
+              const ref = issue.identifier ?? issue.id;
               return (
                 <IssueRow
                   key={issue.id}
                   identifier={issue.identifier ?? ''}
                   title={issue.title}
                   status={issue.status}
-                  href={href}
-                  onOpen={() => navigate(href)}
+                  href={opener.href(ref)}
+                  onOpen={() => opener.open(ref)}
                 />
               );
             })

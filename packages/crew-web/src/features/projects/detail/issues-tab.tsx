@@ -1,16 +1,15 @@
 // Tab Yêu cầu (S8.1): issue của project, dùng lại IssueRow.
 import { useQuery } from '@tanstack/react-query';
-import { useNavigate } from 'react-router-dom';
 import { api, queryKeys } from '@/api';
 import { useCompany } from '@/app/hooks';
 import { EmptyState, ErrorState, IssueRow, Spinner } from '@/ds';
+import { useIssueOpener } from '@/features/issues';
 import { useT } from '@/i18n';
-import { companyHref } from '../paths';
 
 export function IssuesTab({ projectId }: { projectId: string }) {
   const { t } = useT('projects');
   const { company } = useCompany();
-  const navigate = useNavigate();
+  const opener = useIssueOpener();
   const filters = { projectId };
   const issues = useQuery({
     queryKey: queryKeys.issues(company.id, filters),
@@ -34,7 +33,7 @@ export function IssuesTab({ projectId }: { projectId: string }) {
   return (
     <div className="flex flex-col">
       {list.map((issue) => {
-        const href = companyHref(company.issuePrefix, `issues/${issue.identifier ?? issue.id}`);
+        const ref = issue.identifier ?? issue.id;
         return (
           <IssueRow
             key={issue.id}
@@ -42,8 +41,8 @@ export function IssuesTab({ projectId }: { projectId: string }) {
             title={issue.title}
             status={issue.status}
             assignee={issue.assigneeAgentId ? (nameOf.get(issue.assigneeAgentId) ?? null) : null}
-            href={href}
-            onOpen={() => navigate(href)}
+            href={opener.href(ref)}
+            onOpen={() => opener.open(ref)}
           />
         );
       })}

@@ -1,6 +1,6 @@
 // crew: tự dựng
 import { useMemo } from 'react';
-import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import type { LiveRun } from '@/api';
 import { useCompany, useMe } from '@/app/hooks';
 import {
@@ -24,11 +24,10 @@ import {
   TaskRow,
 } from '@/ds';
 import { AlertTriangle, Bot, CircleDot, ShieldCheck } from '@/ds/icons';
+import { useIssueOpener } from '@/features/issues';
 import { formatRelative, useT } from '@/i18n';
 import {
   activityTarget,
-  issueFullHref,
-  issuePopupHref,
   issueStatusBars,
   pausedBanner,
   RUN_COLORS,
@@ -45,7 +44,6 @@ export function DashboardPage() {
   const { company } = useCompany();
   const me = useMe();
   const navigate = useNavigate();
-  const location = useLocation();
   const d = useDashboard(company.id);
   const base = `/${company.issuePrefix}`;
   const s = d.summary.data;
@@ -53,10 +51,8 @@ export function DashboardPage() {
   const ago = (iso: string | Date) => formatRelative(iso, lang);
 
   /** Yêu cầu mở popup trên trang hiện tại; Cmd/Ctrl+click mở trang đầy đủ ở tab mới. */
-  const issueNav = (identifier: string) => ({
-    href: issueFullHref(base, identifier),
-    onOpen: () => navigate(issuePopupHref(location.search, identifier)),
-  });
+  const opener = useIssueOpener();
+  const issueNav = (identifier: string) => ({ href: opener.href(identifier), onOpen: () => opener.open(identifier) });
 
   const agentName = useMemo(() => new Map((d.agents.data ?? []).map((a) => [a.id, a.name])), [d.agents.data]);
   const ctx = useMemo(

@@ -1,8 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
   activityTarget,
-  issueFullHref,
-  issuePopupHref,
   issueStatusBars,
   last14Days,
   pausedBanner,
@@ -20,19 +18,6 @@ const day = (date: string, o: Partial<Record<string, number>> = {}) => ({
   total: 0,
   failedByErrorCode: {},
   ...o,
-});
-
-describe('href yêu cầu (popup)', () => {
-  it('thêm ?issue= vào trang hiện tại và giữ tham số khác', () => {
-    expect(issuePopupHref('', 'TPS-1')).toBe('?issue=TPS-1');
-    expect(issuePopupHref('?tab=stuck', 'TPS-1')).toBe('?tab=stuck&issue=TPS-1');
-  });
-  it('thay issue cũ chứ không nhân đôi', () => {
-    expect(issuePopupHref('?issue=TPS-9&x=1', 'TPS-1')).toBe('?issue=TPS-1&x=1');
-  });
-  it('trang đầy đủ cho Cmd/Ctrl+click', () => {
-    expect(issueFullHref('/TPS', 'TPS-1')).toBe('/TPS/issues/TPS-1');
-  });
 });
 
 describe('last14Days', () => {
@@ -114,7 +99,7 @@ describe('activityTarget', () => {
       label: 'TPS-1',
       title: 'Làm A',
       issueIdentifier: 'TPS-1',
-      href: '/TPS/issues/TPS-1',
+      href: null,
     });
   });
   it('issue chưa có trong danh sách lấy tiêu đề từ details', () => {

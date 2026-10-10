@@ -41,7 +41,7 @@ Lưu ý:
 - Nhóm đầu (không có tiêu đề):
   - **Yêu cầu mới**: mở hộp thoại tạo yêu cầu. Đây là nút dùng nhiều nhất.
   - **Tìm kiếm**: tìm yêu cầu và tài liệu. Có thể bấm Ctrl+K (hoặc Cmd+K trên Mac), gõ mã yêu cầu như `TPS-12` rồi Enter để mở nhanh.
-  - **Tổng quan**: số agent đang chạy hoặc tạm dừng, số yêu cầu đang mở, số yêu cầu **chờ bạn duyệt**, các run gần đây và thẻ máy.
+  - **Tổng quan**: khối **Agent** (các run gần đây), bốn thẻ số (agent đang bật, yêu cầu đang làm, yêu cầu bị kẹt, yêu cầu **chờ bạn duyệt**), biểu đồ 14 ngày, hoạt động và yêu cầu gần đây, thẻ máy.
   - **Hộp thư**: những thứ đang chờ bạn. Con số bên cạnh là số mục chưa đọc.
 - **Công việc**:
   - **Yêu cầu**: toàn bộ yêu cầu của company, yêu cầu con nằm dưới yêu cầu gốc.
@@ -105,7 +105,7 @@ Một yêu cầu nhỏ thường mất 15 đến 30 phút, tùy độ khó và �
 
 {{shot:issue-detail}}
 
-Mở yêu cầu từ trang **Yêu cầu** hoặc **Hộp thư**. Ở trang **Yêu cầu** bạn có thể tìm, lọc theo trạng thái, project, người làm, loại (Nghiên cứu hoặc Code / Bug), sắp xếp, nhóm và chọn cột. Hai cột của Crew:
+Bấm một yêu cầu ở bất kỳ danh sách nào (trang **Yêu cầu**, **Hộp thư**, **Tìm kiếm**, **Tổng quan**, tab Yêu cầu của project hoặc agent, hay Ctrl/Cmd+K) để mở chi tiết dạng **cửa sổ nổi** ngay trên trang đang xem; địa chỉ có thêm `?issue=mã`, bấm **Esc**, nút đóng, vùng nền hoặc nút Back của trình duyệt để quay lại đúng chỗ cũ. Bấm **Mở toàn trang** (hoặc Cmd/Ctrl+click vào yêu cầu) để xem trang đầy đủ ở tab mới. Ở trang **Yêu cầu** bạn có thể tìm, lọc theo trạng thái, project, người làm, loại (Nghiên cứu hoặc Code / Bug), sắp xếp, nhóm và chọn cột. Hai cột của Crew:
 - **Giai đoạn Crew**: yêu cầu đang ở bước nào.
 - **Yêu cầu con**: dạng "1/3 con xong".
 
@@ -155,7 +155,7 @@ Lưu ý:
 - **Của tôi**, **Chưa đọc**, **Đang kẹt**, **Tất cả**: lọc theo nhu cầu.
 - Chấm bên trái nghĩa là chưa đọc. Có thể **Đánh dấu đã đọc** hoặc **Đánh dấu chưa đọc** từng mục, **Đánh dấu tất cả đã đọc**, tìm theo mã hoặc tiêu đề, lọc theo trạng thái, và **Lưu trữ** một mục (mục chỉ rời khỏi Hộp thư, yêu cầu vẫn còn).
 
-**Tổng quan** cho bức tranh chung: thẻ số liệu (**Agent đang chạy**, **Agent tạm dừng**, **Yêu cầu đang mở**, **Yêu cầu bị kẹt**, **Chờ bạn duyệt**), **Run gần đây** kèm link "Xem run" để đọc nội dung agent đã chạy, thẻ **Máy** và yêu cầu gần đây.
+**Tổng quan** cho bức tranh chung: khối **Agent** với thẻ run gần đây (bấm để đọc nội dung agent đã chạy, có link **Xem tất cả run**), bốn thẻ số (**Agent đang bật**, **Yêu cầu đang làm**, **Yêu cầu bị kẹt**, **Chờ bạn duyệt**), ba biểu đồ 14 ngày (**Run theo ngày**, **Yêu cầu theo trạng thái**, **Tỉ lệ thành công**), thẻ **Máy**, **Hoạt động gần đây** và **Yêu cầu gần đây**. Bấm một yêu cầu ở đây sẽ mở chi tiết dạng cửa sổ nổi.
 
 ## 8. Thêm một project mới
 

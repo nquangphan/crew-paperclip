@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api, queryKeys } from '@/api';
 import { CommandDialog, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/ds';
+import { useIssueOpener } from '@/features/issues';
 import { useT } from '@/i18n';
 import { useCompany } from '../hooks';
 import { companyPath, ISSUE_REF_RE, NAV_ITEMS } from '../routes-util';
@@ -56,6 +57,12 @@ export function CommandPalette({
     enabled: searchEnabled,
   });
 
+  const opener = useIssueOpener();
+  const openIssue = (identifier: string) => {
+    onOpenChange(false);
+    opener.open(identifier);
+  };
+
   const go = (to: string) => {
     onOpenChange(false);
     navigate(companyPath(company.issuePrefix, to));
@@ -85,7 +92,7 @@ export function CommandPalette({
         ) : null}
         {issueRef && segments.has('issues') ? (
           <CommandGroup heading={t('palette.issues')}>
-            <CommandItem value={`ref ${issueRef}`} keywords={[q]} onSelect={() => go(`issues/${issueRef}`)}>
+            <CommandItem value={`ref ${issueRef}`} keywords={[q]} onSelect={() => openIssue(issueRef)}>
               {t('palette.openIssue', { ref: issueRef })}
             </CommandItem>
           </CommandGroup>
@@ -97,7 +104,7 @@ export function CommandPalette({
                 key={issue.id}
                 value={`issue ${issue.id}`}
                 keywords={[q, issue.identifier ?? '', issue.title]}
-                onSelect={() => go(`issues/${issue.identifier ?? issue.id}`)}
+                onSelect={() => openIssue(issue.identifier ?? issue.id)}
               >
                 <span className="shrink-0">{issue.identifier}</span>
                 <span className="min-w-0 truncate">{issue.title}</span>

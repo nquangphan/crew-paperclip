@@ -1,59 +1,12 @@
 // clone: ui/src/pages/IssueDetail.tsx + ui/src/components/{StatusGlyph,Identity,issue-properties/primitives,task-chat/TaskChatBubble}.tsx @ v2026.1005.0 (rút gọn cho Crew)
 // Bố cục trang chi tiết task của Paperclip: thanh breadcrumb trên cùng, cột chính (tiêu đề, mô tả, luồng trao đổi,
 // ô soạn cố định đáy) và cột Thuộc tính bên phải chia nhóm. Bỏ mọi control sửa của Paperclip; chữ do màn hình truyền vào.
-import {
-  Ban,
-  ChevronRight,
-  Circle,
-  CircleCheck,
-  CircleDashed,
-  CircleDot,
-  CircleMinus,
-  createLucideIcon,
-  Folder,
-  type LucideIcon,
-} from 'lucide-react';
+import { ChevronRight, Folder } from 'lucide-react';
 import type * as React from 'react';
 import { cn } from '../cn';
 import { Avatar, AvatarFallback } from '../components/avatar';
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '../components/dialog';
-
-// ---------------------------------------------------------------------------------------------------------------
-// StatusGlyph (ui/src/components/StatusGlyph.tsx): một icon cho mỗi trạng thái, màu theo --status-task-icon-*.
-
-const TaskProgressSpinner = createLucideIcon('TaskProgressSpinner', [
-  ['circle', { cx: '12', cy: '12', r: '10', pathLength: '100', strokeDasharray: '80 20', key: 'progress' }],
-]);
-
-const STATUS_ICON: Record<string, LucideIcon> = {
-  idle: Circle,
-  backlog: CircleDashed,
-  todo: Circle,
-  in_progress: TaskProgressSpinner,
-  in_review: CircleDot,
-  done: CircleCheck,
-  blocked: CircleMinus,
-  cancelled: Ban,
-};
-
-const KNOWN_STATUS = new Set(['backlog', 'todo', 'in_progress', 'in_review', 'done', 'blocked', 'cancelled']);
-const SIZE_PX = { sm: 14, md: 16, lg: 20 } as const;
-
-function StatusGlyph({ status, size = 'md', label }: { status: string; size?: keyof typeof SIZE_PX; label?: string }) {
-  const Icon = STATUS_ICON[status] ?? CircleDashed;
-  const cssVar = KNOWN_STATUS.has(status) ? `--status-task-icon-${status}` : '--status-task-icon-backlog';
-  const a11y = label ? ({ role: 'img', 'aria-label': label } as const) : ({ 'aria-hidden': true } as const);
-  return (
-    <Icon
-      data-slot="status-glyph"
-      data-status={status}
-      size={SIZE_PX[size]}
-      className={cn('inline-block shrink-0 align-middle', status === 'in_progress' && 'motion-safe:animate-spin')}
-      style={{ color: `var(${cssVar})` }}
-      {...a11y}
-    />
-  );
-}
+import { StatusGlyph } from './status-glyph';
 
 /** Glyph kèm nhãn trạng thái (dòng Trạng thái của cột Thuộc tính). */
 function StatusLabel({ status, label }: { status: string; label: string }) {
@@ -229,7 +182,7 @@ function IssueHeader({ status, statusLabel, title, identifier, meta, actions }: 
     <header data-testid="issue-detail-header" className="flex flex-col gap-2">
       <div className="flex min-w-0 items-start gap-2">
         <span className="pt-1.5">
-          <StatusGlyph status={status} size="lg" label={statusLabel} />
+          <StatusGlyph status={status} size="lg" title={statusLabel} />
         </span>
         <div data-slot="task-detail-title" className="flex min-w-0 flex-1 items-baseline gap-2">
           <div className="min-w-0 flex-1 text-xl leading-normal font-semibold text-balance [&_h2]:text-xl [&_h2]:font-semibold">
@@ -396,6 +349,5 @@ export {
   PropertyRow,
   PropertySection,
   SidePanelTitle,
-  StatusGlyph,
   StatusLabel,
 };

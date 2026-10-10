@@ -1,18 +1,6 @@
 // crew: tự dựng. Logic thuần của Tổng quan: href yêu cầu, dữ liệu biểu đồ 14 ngày, banner agent, đích của dòng hoạt động.
 import type { DashboardRunActivityDay } from '@paperclipai/shared';
 
-/** href tới popup chi tiết yêu cầu: giữ trang hiện tại, thêm/thay `?issue=<mã>` và giữ tham số khác. */
-export function issuePopupHref(search: string, identifier: string): string {
-  const params = new URLSearchParams(search);
-  params.set('issue', identifier);
-  return `?${params.toString()}`;
-}
-
-/** Trang đầy đủ của yêu cầu (Cmd/Ctrl+click mở tab mới). */
-export function issueFullHref(base: string, identifier: string): string {
-  return `${base}/issues/${identifier}`;
-}
-
 const VN_OFFSET_MS = 7 * 3600 * 1000;
 
 /** Ngày `YYYY-MM-DD` theo giờ Asia/Ho_Chi_Minh. */
@@ -178,7 +166,7 @@ export function activityTarget(event: ActivityRef, ctx: ActivityCtx): ActivityTa
       const identifier = known?.identifier ?? str(event.details?.identifier);
       const title = known?.title ?? str(event.details?.issueTitle);
       if (!identifier) return { label: null, title, href: null };
-      return { label: identifier, title, issueIdentifier: identifier, href: issueFullHref(ctx.base, identifier) };
+      return { label: identifier, title, issueIdentifier: identifier, href: null };
     }
     case 'agent':
       return { label: ctx.agents.get(event.entityId) ?? null, href: `${ctx.base}/agents/${event.entityId}` };
