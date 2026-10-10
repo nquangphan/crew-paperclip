@@ -140,6 +140,79 @@ describe('buildHistory', () => {
   });
 });
 
+describe('buildHistory: bản ghi do plugin ghi thay owner', () => {
+  const PLUGIN = { actorType: 'plugin' as const, actorId: 'plugin-1' };
+  const by = (user: string) => ({ initiatingActorType: 'user', initiatingActorId: user, initiatingUserId: user });
+
+  it('một lần Ép Done chỉ còn một dòng: dòng đổi trạng thái và bình luận lý do của plugin gộp vào', () => {
+    const rows = buildHistory(
+      [
+        ev('crew.issue.force_done', '2026-10-10T03:00:02.000Z', {
+          ...PLUGIN,
+          details: { reason: 'Owner tự kiểm trên máy', violations: [], actorUserId: 'u1', ...by('u1') },
+        }),
+        ev('issue.comment.created', '2026-10-10T03:00:01.500Z', {
+          ...PLUGIN,
+          details: { commentId: 'cm1', bodySnippet: '**Ép Done** — Owner tự kiểm trên máy', ...by('u1') },
+        }),
+        ev('issue.updated', '2026-10-10T03:00:01.000Z', {
+          ...PLUGIN,
+          details: { patch: { status: 'done' }, _previous: { status: 'in_review' }, ...by('u1') },
+        }),
+        ev('crew.policy.board_override', '2026-10-10T03:00:00.000Z', {
+          details: { violations: ['stage_unapproved:s2'], toStatus: 'done' },
+        }),
+        ev('issue.created', '2026-10-10T01:00:00.000Z'),
+      ],
+      ctx,
+    );
+    expect(rows.map((r) => r.text)).toEqual(['Ép Done', 'Tạo yêu cầu']);
+    expect(rows[0].actor).toEqual({ type: 'user', id: 'u1' });
+    expect(rows[0].skipped).toEqual(['thiếu duyệt stage Owner duyệt']);
+  });
+
+  it('plugin đổi trạng thái: đọc `details.patch.status`, hiện người đứng sau thay vì plugin', () => {
+    const rows = buildHistory(
+      [
+        ev('issue.updated', '2026-10-10T03:00:00.000Z', {
+          ...PLUGIN,
+          details: { patch: { status: 'in_progress' }, _previous: { status: 'todo' }, ...by('u2') },
+        }),
+      ],
+      ctx,
+    );
+    expect(rows[0].text).toBe('Đổi trạng thái: Cần làm → Đang làm');
+    expect(rows[0].actor).toEqual({ type: 'user', id: 'u2' });
+  });
+
+  it('bình luận do plugin ghi hiện "Bình luận"; không có người đứng sau thì vẫn đứng tên plugin', () => {
+    const rows = buildHistory(
+      [ev('issue.comment.created', '2026-10-10T03:00:00.000Z', { ...PLUGIN, details: { commentId: 'cm1' } })],
+      ctx,
+    );
+    expect(rows[0].text).toBe('Bình luận');
+    expect(rows[0].actor).toEqual({ type: 'plugin', id: 'plugin-1' });
+  });
+
+  it('không gộp dòng của plugin vào lần ép khi cách quá 5 giây hoặc khác người', () => {
+    const rows = buildHistory(
+      [
+        ev('crew.issue.force_done', '2026-10-10T03:00:10.000Z', {
+          ...PLUGIN,
+          details: { reason: 'Owner tự kiểm trên máy', actorUserId: 'u1', ...by('u1') },
+        }),
+        ev('issue.comment.created', '2026-10-10T03:00:09.000Z', { ...PLUGIN, details: { ...by('u2') } }),
+        ev('issue.updated', '2026-10-10T03:00:01.000Z', {
+          ...PLUGIN,
+          details: { patch: { status: 'done' }, _previous: { status: 'in_review' }, ...by('u1') },
+        }),
+      ],
+      ctx,
+    );
+    expect(rows.map((r) => r.text)).toEqual(['Ép Done', 'Bình luận', 'Đổi trạng thái: Đang duyệt → Hoàn thành']);
+  });
+});
+
 describe('forcedDoneActive', () => {
   const forced = ev('crew.issue.force_done', '2026-10-10T03:00:00.000Z', { details: { reason: 'Lý do đủ dài' } });
   it('đúng khi issue done và force_done mới nhất sau lần mở lại gần nhất', () => {
@@ -151,6 +224,13 @@ describe('forcedDoneActive', () => {
   it('sai khi đã mở lại sau lần ép', () => {
     const reopened = ev('issue.updated', '2026-10-10T04:00:00.000Z', {
       details: { status: 'todo', _previous: { status: 'done' } },
+    });
+    expect(forcedDoneActive([reopened, forced], 'done')).toBe(false);
+  });
+  it('sai khi plugin đã mở lại sau lần ép (trạng thái nằm trong `details.patch`)', () => {
+    const reopened = ev('issue.updated', '2026-10-10T04:00:00.000Z', {
+      actorType: 'plugin',
+      details: { patch: { status: 'todo' }, _previous: { status: 'done' } },
     });
     expect(forcedDoneActive([reopened, forced], 'done')).toBe(false);
   });
