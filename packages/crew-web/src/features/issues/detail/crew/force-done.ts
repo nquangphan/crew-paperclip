@@ -1,6 +1,8 @@
 // Ép Done của owner: đóng yêu cầu bỏ qua cổng, có lý do. Không dùng PATCH stock (board gửi `done` thành Duyệt khi là
 // người duyệt stage đang chờ, hoặc mở workflow khi chưa vào stage), mà gọi route board của plugin crew.core. Trước
-// route, web hủy việc con chưa xong (nếu owner chọn) và run đang chạy của chính yêu cầu: `done` không tự hủy run.
+// route, web hủy run đang chạy của chính yêu cầu (`done` không tự hủy run). Việc con owner chọn hủy chỉ bị hủy SAU khi
+// yêu cầu đã đóng: hủy con cuối cùng khi cha còn mở thì route stock đánh thức assignee của cha
+// (`issue_children_completed`), tức đánh thức đúng người đang giữ yêu cầu sắp bị ép.
 import type { ForceDoneResult } from '@/api';
 
 export const MIN_FORCE_REASON = 10;
@@ -89,26 +91,60 @@ export interface ForceDoneDeps {
   forceDone: (reason: string) => Promise<ForceDoneResult>;
 }
 
-export type ForceDoneOutcome = { kind: 'stale'; status: string } | { kind: 'done'; result: ForceDoneResult };
+export interface ChildFailure {
+  id: string;
+  message: string;
+}
+
+export type ForceDoneOutcome =
+  | { kind: 'stale'; status: string }
+  | { kind: 'done'; result: ForceDoneResult; childFailures: ChildFailure[] };
+
+const messageOf = (error: unknown) => (error instanceof Error ? error.message : String(error));
 
 /**
- * Chạy Ép Done theo thứ tự: đọc lại yêu cầu → hủy con chưa xong (nếu chọn) → hủy run đang chạy → route. Dừng ở lỗi
- * đầu tiên (ném lại nguyên lỗi). Bấm lại thì chạy lại từ đầu an toàn: con đã hủy và run đã dừng không còn trong danh
- * sách. Yêu cầu đã đóng khi đọc lại thì không làm gì (`stale`).
+ * Hủy các con owner đã thấy trong dialog (`ids`) mà còn mở theo danh sách đọc lại; con không có trong `ids` (vd. tạo sau
+ * khi trang tải) thì để nguyên. Không ném: con nào lỗi thì trả lại kèm lỗi để owner bấm hủy lại.
+ */
+export async function cancelShownChildren(
+  deps: Pick<ForceDoneDeps, 'listChildren' | 'cancelChild'>,
+  ids: readonly string[],
+): Promise<ChildFailure[]> {
+  if (ids.length === 0) return [];
+  const shown = new Set(ids);
+  let open: { id: string }[];
+  try {
+    open = openChildren(await deps.listChildren()).filter((c) => shown.has(c.id));
+  } catch (error) {
+    return ids.map((id) => ({ id, message: messageOf(error) }));
+  }
+  const failures: ChildFailure[] = [];
+  for (const child of open) {
+    try {
+      await deps.cancelChild(child.id);
+    } catch (error) {
+      failures.push({ id: child.id, message: messageOf(error) });
+    }
+  }
+  return failures;
+}
+
+/**
+ * Chạy Ép Done theo thứ tự: đọc lại yêu cầu → hủy run đang chạy → route → hủy các con đã chọn. Lỗi trước khi route
+ * xong thì dừng (ném lại nguyên lỗi), bấm lại chạy lại từ đầu an toàn. Lỗi khi hủy con (yêu cầu đã đóng) không ném mà
+ * trả trong `childFailures`. Yêu cầu đã đóng khi đọc lại thì không làm gì (`stale`).
  */
 export async function runForceDone(
   deps: ForceDoneDeps,
-  input: { reason: string; cancelChildren: boolean },
+  input: { reason: string; childIds: readonly string[] },
 ): Promise<ForceDoneOutcome> {
   if (!validReason(input.reason)) throw new Error('reason_invalid');
   const reason = input.reason.trim();
   const fresh = await deps.getIssue();
   if (CLOSED.has(fresh.status)) return { kind: 'stale', status: fresh.status };
-  if (input.cancelChildren) {
-    for (const child of openChildren(await deps.listChildren())) await deps.cancelChild(child.id);
-  }
   for (const run of await deps.listActiveRuns()) {
     if (ACTIVE_RUN.has(run.status)) await deps.cancelRun(run.id);
   }
-  return { kind: 'done', result: await deps.forceDone(reason) };
+  const result = await deps.forceDone(reason);
+  return { kind: 'done', result, childFailures: await cancelShownChildren(deps, input.childIds) };
 }

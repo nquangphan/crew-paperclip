@@ -313,6 +313,10 @@ describe('RemoveProjectPage', () => {
     expect(await screen.findByText('Đã gỡ project.')).toBeTruthy();
     expect(screen.getByText('Máy giữ lại 1 checkout')).toBeTruthy();
     expect(screen.getByText(/Executor: có việc chưa commit/)).toBeTruthy();
-    expect(screen.getByText('git worktree remove "/Users/owner/crew-agents/demo/executor"')).toBeTruthy();
+    expect(
+      screen.getByText(
+        'git -C "/Users/owner/crew-agents/demo/executor" worktree remove "/Users/owner/crew-agents/demo/executor"',
+      ),
+    ).toBeTruthy();
   });
 });

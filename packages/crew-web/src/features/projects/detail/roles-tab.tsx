@@ -14,6 +14,7 @@ import {
   type ReadinessBadgeState,
   Spinner,
 } from '@/ds';
+import { useSelectableAgents } from '@/features/wizards';
 import { useT } from '@/i18n';
 import { companyHref } from '../paths';
 import { RolesForm } from './roles-form';
@@ -49,7 +50,13 @@ export function RolesTab({ projectId }: { projectId: string }) {
     },
   });
   const agentsQuery = useQuery({ queryKey: queryKeys.agents(company.id), queryFn: () => api.agents.list(company.id) });
-  const { options, stateOf } = useRoleAgents(projectId, agentsQuery.data as Agent[] | undefined);
+  const selectable = useSelectableAgents(company.id);
+  // Người đang giữ ô vẫn hiện trong hộp chọn của ô đó, kể cả đã gỡ.
+  const current = rolesQuery.data;
+  const held = current
+    ? [current.assistantAgentId, ...current.executorAgentIds, current.reviewerAgentId, current.integratorAgentId]
+    : [];
+  const { options, stateOf } = useRoleAgents(projectId, selectable(agentsQuery.data as Agent[] | undefined, held));
   const { save, retryInstructions } = useSaveRoles(projectId);
 
   if (rolesQuery.isLoading || agentsQuery.isLoading) return <Spinner />;

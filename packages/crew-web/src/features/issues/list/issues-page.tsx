@@ -31,6 +31,7 @@ import {
   TableRow,
 } from '@/ds';
 import { ChevronDown, ChevronRight, Plus } from '@/ds/icons';
+import { useSelectableAgents } from '@/features/wizards';
 import { useT } from '@/i18n';
 import { NewRequestDialog } from '../new/new-request-dialog';
 import { IssueLink } from '../popup/issue-nav';
@@ -91,6 +92,7 @@ export function IssuesPage() {
   const [params, setParams] = useSearchParams();
   const state = useMemo(() => parseListState(params), [params]);
   const { issues, roots, projects, agents } = useIssuesData(company.id, state);
+  const selectable = useSelectableAgents(company.id);
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   const [notice, setNotice] = useState<Notice | null>(null);
   const [search, setSearch] = useState(state.q);
@@ -300,7 +302,7 @@ export function IssuesPage() {
           label={t('list.assignee')}
           value={state.assigneeAgentId}
           allLabel={t('list.all')}
-          options={(agents.data ?? []).map((a) => ({ value: a.id, label: a.name }))}
+          options={selectable(agents.data, [state.assigneeAgentId]).map((a) => ({ value: a.id, label: a.name }))}
           onChange={(v) => patch({ assigneeAgentId: v })}
         />
         <FilterSelect

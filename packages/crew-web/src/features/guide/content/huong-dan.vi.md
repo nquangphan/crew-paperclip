@@ -152,7 +152,7 @@ Lưu ý:
 Dùng khi bất khả kháng, ví dụ việc đã làm tay xong ngoài Crew, hoặc luồng bị kẹt mà bạn đã tự kiểm kết quả. Đây là lối thoát, không phải cách duyệt thông thường.
 
 - **Khi nào dùng:** yêu cầu chưa Hoàn thành hay Đã hủy, và bạn chấp nhận bỏ qua các cổng còn chờ (review, kiểm docs, đẩy code). Không chắc thì dùng **Duyệt** hoặc **Yêu cầu sửa**.
-- **Cách làm:** bấm **Ép Done** ở đầu trang yêu cầu. Hộp thoại liệt kê **các cổng sẽ bị bỏ qua** và số run đang chạy sẽ bị dừng. Có ô chọn **hủy luôn các việc con chưa xong** (bật sẵn). Điền **Lý do** (bắt buộc, 10 đến 1000 ký tự) rồi bấm **Ép Done**.
+- **Cách làm:** bấm **Ép Done** ở đầu trang yêu cầu. Hộp thoại liệt kê **các cổng sẽ bị bỏ qua** và các run đang chạy sẽ bị dừng. Có ô chọn **hủy luôn các việc con chưa xong** (bật sẵn): chỉ hủy đúng các việc con liệt kê trong hộp thoại, và chỉ hủy sau khi yêu cầu đã đóng, để không đánh thức người đang giữ yêu cầu. Việc con của chúng (cháu) không bị hủy. Việc con nào hủy lỗi thì trang báo kèm nút **Hủy các con còn lại**. Điền **Lý do** (bắt buộc, 10 đến 1000 ký tự) rồi bấm **Ép Done**.
 - **Hệ quả:** yêu cầu thành **Hoàn thành** ngay, các cổng chưa qua bị bỏ qua, không tính là Duyệt và không mở vòng review mới. Lý do được ghi thành bình luận của Owner. Nếu yêu cầu có việc cha và mọi việc con khác đã xong, Trợ Lý ở việc cha được báo để làm tiếp. Code chưa đẩy lên nhánh chính thì không tự được đẩy.
 - **Lịch sử:** phần **Lịch sử** của yêu cầu ghi dòng **Ép Done** kèm lý do, người ép, giờ (múi giờ Asia/Ho_Chi_Minh) và các cổng đã bỏ qua; yêu cầu mang nhãn **Đã ép Done**.
 - Ép nhầm thì dùng **Mở lại** để chạy lại từ đầu.
@@ -228,7 +228,7 @@ Trên trang Project có thêm lọc **Đang dùng** và **Đã gỡ**: project �
 
 {{shot:agents}}
 
-Trang [Agent](/agents) liệt kê agent kèm vai trò, trạng thái và **Sẵn sàng**. Có thể lọc **Đang chạy**, **Tạm dừng**, **Lỗi** và **Đã gỡ** (agent đã gỡ chỉ hiện ở bộ lọc này). Nút **Tạm dừng** dừng agent và hủy run đang chạy; **Tiếp tục** cho agent chạy lại. Bấm một agent để xem:
+Trang [Agent](/agents) liệt kê agent kèm vai trò, trạng thái và **Sẵn sàng**. Có thể lọc **Đang chạy**, **Tạm dừng**, **Lỗi** và **Đã gỡ** (agent đã gỡ chỉ hiện ở bộ lọc này và không có trong các hộp chọn agent). Nút **Tạm dừng** dừng agent và hủy run đang chạy; **Tiếp tục** cho agent chạy lại. Bấm một agent để xem:
 - **Tổng quan**: run gần nhất, yêu cầu đang làm, máy, vai trò, và các mục còn thiếu.
 - **Hướng dẫn**: xem `AGENTS.md`, chỉ đọc. Nút **Render lại theo vai trò** ghi lại bản đúng theo vai trò hiện tại. Có người vừa sửa thì báo xung đột và **không ghi đè**, bạn tải lại rồi render lại.
 - **Skills**: bật hoặc tắt skill của company cho agent này, hiệu lực từ run kế tiếp.

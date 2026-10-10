@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { SetupRun } from '@/api';
-import { removalState } from '@/features/wizards/remove/removal-state';
+import { removalState, withoutRemovedAgents } from '@/features/wizards/remove/removal-state';
 
 const A = 'a1111111-1111-4111-8111-111111111111';
 const P = 'p0000000-0000-4000-8000-000000000001';
@@ -49,5 +49,23 @@ describe('removalState', () => {
     });
     const add = run({ kind: 'add-project', projectId: P, status: 'done', updatedAt: '2026-10-11T00:00:00.000Z' });
     expect(removalState([remove, add, run({})], { projectId: P })).toEqual({ status: 'failed', run: remove });
+  });
+});
+
+describe('withoutRemovedAgents', () => {
+  const B = 'b2222222-2222-4222-8222-222222222222';
+  const removed = run({ status: 'done' });
+  const agents = [
+    { id: A, status: 'paused' },
+    { id: B, status: 'idle' },
+  ];
+  it('bỏ agent đã gỡ khỏi danh sách chọn', () => {
+    expect(withoutRemovedAgents(agents, [removed]).map((a) => a.id)).toEqual([B]);
+  });
+  it('giữ agent đang được chọn hoặc đang giữ ô, kể cả đã gỡ', () => {
+    expect(withoutRemovedAgents(agents, [removed], [A, null]).map((a) => a.id)).toEqual([A, B]);
+  });
+  it('agent đã gỡ rồi được chạy lại tay thì hiện lại', () => {
+    expect(withoutRemovedAgents([{ id: A, status: 'idle' }], [removed]).map((a) => a.id)).toEqual([A]);
   });
 });
