@@ -10,6 +10,8 @@ export const queryKeys = {
   sidebarBadges: (companyId: string) => ['sidebar-badges', companyId] as const,
   sidebarPreferences: (companyId: string) => ['sidebar-preferences', companyId] as const,
   dashboard: (companyId: string) => ['dashboard', companyId] as const,
+  activity: (companyId: string, filters?: Filters) =>
+    (filters ? ['activity', companyId, filters] : ['activity', companyId]) as readonly unknown[],
   search: (companyId: string, q: string) => ['search', companyId, q] as const,
 
   /** Danh sách issue; `issues(c)` là tiền tố của mọi bộ lọc. */

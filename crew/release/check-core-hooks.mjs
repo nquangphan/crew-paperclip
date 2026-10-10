@@ -5,7 +5,8 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 export const HOOK_BUDGET = 5;
-const KINDS = new Set(["hook", "adapter-patch", "driver-patch"]);
+// core-patch: sửa trực tiếp lõi (route, host plugin) ngoài ngân sách hook; mỗi vá phải có test riêng.
+const KINDS = new Set(["hook", "adapter-patch", "driver-patch", "core-patch"]);
 const REQUIRED = ["id", "kind", "file", "symbol", "anchor", "description"];
 
 function countOccurrences(text, needle) {
@@ -29,6 +30,7 @@ export function checkCoreHooks(repoRoot, registry) {
   if (registry.schemaVersion !== 1) errors.push("schemaVersion phải là 1");
   const entries = Array.isArray(registry.entries) ? registry.entries : [];
   const hookCount = entries.filter((entry) => entry.kind === "hook").length;
+  const corePatchCount = entries.filter((entry) => entry.kind === "core-patch").length;
   if (hookCount > HOOK_BUDGET) errors.push(`Ngân sách hook: ${hookCount} > ${HOOK_BUDGET}`);
   const ids = new Set();
 
@@ -52,6 +54,9 @@ export function checkCoreHooks(repoRoot, registry) {
       continue;
     }
     if (entry.kind !== "hook" && !entry.upstreamPr) warnings.push(`${id}: chưa có PR upstream`);
+    if (entry.kind === "core-patch" && !(Array.isArray(entry.tests) && entry.tests.length > 0)) {
+      errors.push(`${id}: vá lõi phải khai ít nhất một test`);
+    }
     for (const testFile of entry.tests ?? []) {
       if (!existsSync(path.join(repoRoot, testFile))) errors.push(`${id}: test ${testFile} không tồn tại`);
     }
@@ -96,16 +101,18 @@ export function checkCoreHooks(repoRoot, registry) {
       if (!signatureOnly) errors.push(`${id}: hook không phải lệnh đầu tiên của ${entry.symbol}`);
     }
   }
-  return { errors, warnings, hookCount };
+  return { errors, warnings, hookCount, corePatchCount };
 }
 
 const invokedPath = process.argv[1] ? realpathSync(process.argv[1]) : "";
 if (invokedPath === realpathSync(fileURLToPath(import.meta.url))) {
   const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
   const registry = JSON.parse(readFileSync(path.join(root, "crew/release/core-hooks.json"), "utf8"));
-  const { errors, warnings, hookCount } = checkCoreHooks(root, registry);
+  const { errors, warnings, hookCount, corePatchCount } = checkCoreHooks(root, registry);
   for (const warning of warnings) console.warn(`CẢNH BÁO ${warning}`);
   for (const error of errors) console.error(`LỖI ${error}`);
-  console.log(`Hook một dòng: ${hookCount}/${HOOK_BUDGET}; mục: ${registry.entries.length}; lỗi: ${errors.length}`);
+  console.log(
+    `Hook một dòng: ${hookCount}/${HOOK_BUDGET}; vá lõi: ${corePatchCount}; mục: ${registry.entries.length}; lỗi: ${errors.length}`,
+  );
   process.exit(errors.length > 0 ? 1 : 0);
 }

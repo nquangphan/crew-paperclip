@@ -59,6 +59,11 @@
     "tests": ["PW-S2-4 "],
     "tier": "T1"
   },
+  "S2.5": {
+    "spec": "e2e/specs/s2-dashboard.spec.ts",
+    "tests": ["PW-S2-5 "],
+    "tier": "T1"
+  },
   "S3.1": {
     "spec": "e2e/specs/s3-inbox.spec.ts",
     "tests": ["PW-S3-1 "],

@@ -1,23 +1,112 @@
 {
   "title": "Dashboard",
-  "description": "State of the company's agents, requests and machines.",
   "cards": {
     "label": "Key numbers",
-    "running": "Agents running",
-    "paused": "Agents paused",
-    "open": "Open requests",
+    "agents": "Agents enabled",
+    "agentsHint": "{{running}} running, {{paused}} paused, {{error}} errors",
+    "inProgress": "Requests in progress",
+    "inProgressHint": "{{open}} open",
     "blocked": "Blocked requests",
+    "blockedHint": "Needs someone to act",
     "awaiting": "Awaiting your approval",
-    "agentsHint": "{{active}} active, {{error}} in error",
-    "openHint": "{{inProgress}} in progress"
+    "awaitingHint": "Waiting for your review"
   },
   "loadFailed": "Could not load the numbers",
-  "runs": {
-    "heading": "Recent runs",
-    "live": "{{count}} running",
-    "empty": "No runs yet",
-    "view": "View run",
-    "loadFailed": "Could not load runs"
+  "banner": {
+    "noAgents": "This company has no agents.",
+    "noAgentsAction": "Create one",
+    "allPaused": "All agents are paused, nothing will run.",
+    "allPausedHint": "Resume at least one agent so assigned requests can start.",
+    "allPausedAction": "Review agents"
+  },
+  "agents": {
+    "heading": "Agents",
+    "empty": "No recent agent runs.",
+    "moreRuns": "{{count}} more runs",
+    "viewAll": "View all runs",
+    "noTask": "No linked request",
+    "scheduled": "Scheduled run",
+    "loadFailed": "Could not load runs",
+    "started": "Started {{time}}",
+    "finished": "Finished {{time}}",
+    "queued": "Queued {{time}}"
+  },
+  "charts": {
+    "last14": "Last 14 days",
+    "runs": "Run activity",
+    "status": "Requests by status",
+    "success": "Success rate",
+    "noRuns": "No runs yet",
+    "noTasks": "No requests",
+    "runTitle": "{{date}}: {{total}} runs",
+    "succeeded": "Succeeded",
+    "recovered": "Recovered",
+    "failed": "Failed",
+    "other": "Other",
+    "issuesTitle": "{{date}}: {{total}} requests",
+    "rateTitle": "{{date}}: {{percent}}% ({{ok}}/{{total}})"
+  },
+  "activity": {
+    "heading": "Recent activity",
+    "empty": "No activity yet",
+    "loadFailed": "Could not load activity",
+    "system": "System",
+    "user": "Member",
+    "you": "You",
+    "verbs": {
+      "issue": {
+        "created": "created",
+        "updated": "updated",
+        "read_marked": "marked read",
+        "read_unmarked": "marked unread",
+        "checked_out": "checked out",
+        "released": "released",
+        "comment_added": "commented on",
+        "commented": "commented on",
+        "deleted": "deleted",
+        "attachment_added": "attached a file to",
+        "attachment_removed": "removed an attachment from",
+        "document_created": "created a document for",
+        "document_updated": "updated a document on",
+        "document_deleted": "deleted a document from",
+        "thread_interaction_created": "asked for a decision on",
+        "thread_interaction_accepted": "accepted the request on",
+        "thread_interaction_rejected": "rejected the request on",
+        "thread_interaction_answered": "answered the request on"
+      },
+      "agent": {
+        "created": "created",
+        "updated": "updated",
+        "paused": "paused",
+        "resumed": "resumed",
+        "error_cleared": "cleared error on",
+        "terminated": "terminated",
+        "runtime_session_reset": "reset session for"
+      },
+      "heartbeat": {
+        "invoked": "invoked heartbeat for",
+        "cancelled": "cancelled heartbeat for"
+      },
+      "approval": {
+        "created": "requested approval",
+        "approved": "approved",
+        "rejected": "rejected"
+      },
+      "project": {
+        "created": "created",
+        "updated": "updated",
+        "deleted": "deleted"
+      },
+      "goal": {
+        "created": "created",
+        "updated": "updated",
+        "deleted": "deleted"
+      },
+      "company": {
+        "created": "created organization",
+        "updated": "updated organization"
+      }
+    }
   },
   "machines": {
     "heading": "Machines",

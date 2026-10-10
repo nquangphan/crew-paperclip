@@ -3,6 +3,7 @@ import { crewDataApi } from './crew/data';
 import { jobsApi } from './crew/jobs';
 import { rolesApi } from './crew/roles';
 import { setupApi } from './crew/setup';
+import { activityApi } from './paperclip/activity';
 import { agentsApi } from './paperclip/agents';
 import { attachmentsApi } from './paperclip/attachments';
 import { authApi } from './paperclip/auth';
@@ -32,6 +33,7 @@ export const api = {
   companies: companiesApi,
   sidebar: sidebarApi,
   dashboard: dashboardApi,
+  activity: activityApi,
   search: searchApi,
   issues: issuesApi,
   labels: labelsApi,
@@ -58,4 +60,5 @@ export { ENDPOINTS, type EndpointKey } from './endpoints';
 export { ApiError } from './http';
 export type { CliAuthChallenge } from './paperclip/cli-auth';
 export type { IssueListFilters, IssueUpdate } from './paperclip/issues';
+export type { LiveRun } from './paperclip/runs';
 export { queryKeys } from './queryKeys';

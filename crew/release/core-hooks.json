@@ -116,6 +116,83 @@
       "description": "Do not log the cwd mismatch / fresh session notice when the session is actually resumed.",
       "upstreamPr": null,
       "tests": ["packages/adapters/claude-local/src/server/execute.remote.crew.test.ts"]
+    },
+    {
+      "id": "C1",
+      "kind": "core-patch",
+      "file": "server/src/routes/onboarding-seed.ts",
+      "symbol": "onboardingSeedRoutes POST /companies/:companyId/onboarding-seed",
+      "anchor": "      assertBoard(req);",
+      "description": "Only the board (including the Cloud envelope actor, which is a board actor) may apply an onboarding seed; an agent could otherwise create a ceo agent, a goal, a project and a root task. assertBoard is added to the existing authz import.",
+      "upstreamPr": null,
+      "tests": [
+        "server/src/__tests__/crew-agent-board-only-routes.test.ts",
+        "server/src/__tests__/onboarding-seed-route.test.ts"
+      ]
+    },
+    {
+      "id": "C2",
+      "kind": "core-patch",
+      "file": "server/src/routes/projects.ts",
+      "symbol": "projectRoutes mutation middleware",
+      "anchor": "  router.use((req, _res, next) => { crewBeforeProjectMutation(req).then(() => next(), next); });",
+      "importLine": "import { crewBeforeProjectMutation } from \"../crew/agent-write-guard.js\";",
+      "description": "Agents in Crew companies cannot create, update, archive or delete projects or project workspaces (403 crew_board_only); the MCP create_project tool calls the same REST route with the agent token, so it is refused too. Workspace runtime controls stay stock.",
+      "upstreamPr": null,
+      "tests": [
+        "server/src/__tests__/crew-agent-board-only-routes.test.ts"
+      ]
+    },
+    {
+      "id": "C3",
+      "kind": "core-patch",
+      "file": "server/src/routes/issues.ts",
+      "symbol": "issueRoutes DELETE /issues/:id",
+      "anchor": "    await crewAssertBoardOnly(req, \"issue_delete\");",
+      "importLine": "import { crewAssertBoardOnly, crewBeforeAgentCheckout } from \"../crew/agent-write-guard.js\";",
+      "description": "Agents in Crew companies cannot hard-delete issues, even their own (403 crew_board_only); the delete path bypasses the issue write hook.",
+      "upstreamPr": null,
+      "tests": [
+        "server/src/__tests__/crew-agent-board-only-routes.test.ts"
+      ]
+    },
+    {
+      "id": "C4",
+      "kind": "core-patch",
+      "file": "server/src/routes/issues.ts",
+      "symbol": "issueRoutes POST /issues/:id/checkout",
+      "anchor": "      await crewBeforeAgentCheckout(req, issue);",
+      "importLine": "import { crewAssertBoardOnly, crewBeforeAgentCheckout } from \"../crew/agent-write-guard.js\";",
+      "description": "An agent in a Crew company checks out only issues that are unassigned or already assigned to itself (409 crew_checkout_forbidden): it cannot take an issue assigned to another agent or waiting on a user such as the owner. Board checkout on behalf of an agent stays stock.",
+      "upstreamPr": null,
+      "tests": [
+        "server/src/__tests__/crew-agent-board-only-routes.test.ts"
+      ]
+    },
+    {
+      "id": "C5",
+      "kind": "core-patch",
+      "file": "server/src/routes/execution-workspaces.ts",
+      "symbol": "executionWorkspaceRoutes PATCH /execution-workspaces/:id",
+      "anchor": "    await crewAssertBoardOnly(req, \"execution_workspace_update\");",
+      "importLine": "import { crewAssertBoardOnly } from \"../crew/agent-write-guard.js\";",
+      "description": "Agents in Crew companies cannot update execution workspaces (403 crew_board_only). Board only, because core has no per-agent workspace owner (runtime:manage is company-wide) and Crew agents run in place from their environment.",
+      "upstreamPr": null,
+      "tests": [
+        "server/src/__tests__/crew-agent-board-only-routes.test.ts"
+      ]
+    },
+    {
+      "id": "C6",
+      "kind": "core-patch",
+      "file": "server/src/services/plugin-worker-manager.ts",
+      "symbol": "createPluginWorkerHandle.notify (onEvent)",
+      "anchor": "      if (method === \"onEvent\") return deliverEventAsCall(params);",
+      "description": "Deliver plugin events to the worker as a call (deliverEventAsCall, same 15-minute ceiling) instead of a notification, so the event's invocation scope is cleared when the handlers settle; a lingering scope made every unscoped worker-to-host call fail with INVOCATION_SCOPE_DENIED for 15 minutes after each event. Other notifications are unchanged. Upstream text: plans/261010-0020-crew-v3-r3/reports/upstream-plugin-event-scope.md in the Crew repo.",
+      "upstreamPr": null,
+      "tests": [
+        "server/src/__tests__/crew-plugin-event-invocation-scope.test.ts"
+      ]
     }
   ]
 }

@@ -37,16 +37,20 @@ Lưu ý:
 
 {{shot:dashboard}}
 
-**Thanh bên trái**, từ trên xuống:
-- **Yêu cầu mới**: mở hộp thoại tạo yêu cầu. Đây là nút dùng nhiều nhất.
-- **Tìm kiếm**: tìm yêu cầu và tài liệu. Có thể bấm Ctrl+K (hoặc Cmd+K trên Mac), gõ mã yêu cầu như `TPS-12` rồi Enter để mở nhanh.
-- **Tổng quan**: số agent đang chạy hoặc tạm dừng, số yêu cầu đang mở, số yêu cầu **chờ bạn duyệt**, các run gần đây và thẻ máy.
-- **Hộp thư**: những thứ đang chờ bạn. Con số bên cạnh là số mục chưa đọc.
-- **Yêu cầu**: toàn bộ yêu cầu của company, yêu cầu con nằm dưới yêu cầu gốc.
-- **Project**, **Agent**: danh sách và tình trạng sẵn sàng (mục 10).
-- **Skills**, **Máy**, **Docs**: mục 11, 12 và 13.
-- **Hướng dẫn**: trang bạn đang đọc.
-- **Cài đặt**: hồ sơ, ngôn ngữ, thông tin hệ thống.
+**Thanh bên trái** chia nhóm giống giao diện Paperclip gốc, từ trên xuống:
+- Nhóm đầu (không có tiêu đề):
+  - **Yêu cầu mới**: mở hộp thoại tạo yêu cầu. Đây là nút dùng nhiều nhất.
+  - **Tìm kiếm**: tìm yêu cầu và tài liệu. Có thể bấm Ctrl+K (hoặc Cmd+K trên Mac), gõ mã yêu cầu như `TPS-12` rồi Enter để mở nhanh.
+  - **Tổng quan**: số agent đang chạy hoặc tạm dừng, số yêu cầu đang mở, số yêu cầu **chờ bạn duyệt**, các run gần đây và thẻ máy.
+  - **Hộp thư**: những thứ đang chờ bạn. Con số bên cạnh là số mục chưa đọc.
+- **Công việc**:
+  - **Yêu cầu**: toàn bộ yêu cầu của company, yêu cầu con nằm dưới yêu cầu gốc.
+  - **Project**: danh sách và tình trạng sẵn sàng (mục 10). Project bạn đã gắn sao hiện ngay bên dưới, bấm để mở thẳng project.
+  - **Docs**: mục 13.
+- **Tổ chức**: **Agent** (mục 10), **Skills** (mục 11), **Máy** (mục 12).
+- **Hệ thống**: **Cài đặt** (hồ sơ, ngôn ngữ, thông tin hệ thống), **Hướng dẫn** (trang bạn đang đọc) và **Mở giao diện Paperclip gốc** (khi đã cấu hình).
+
+Bấm tiêu đề một nhóm (Công việc, Tổ chức, Hệ thống) để thu gọn hoặc mở lại nhóm đó.
 
 Giao diện tự cập nhật: khi agent làm xong một bước, trạng thái trên trang đổi theo, bạn không cần tải lại.
 

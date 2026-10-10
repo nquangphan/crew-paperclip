@@ -113,3 +113,50 @@ test("test được khai báo mà không tồn tại thì đỏ", () => {
   const { errors } = checkCoreHooks(fixture(GOOD), registry([hook({ tests: ["src/missing.test.ts"] })]));
   assert.match(errors.join("\n"), /H1: test src\/missing\.test\.ts không tồn tại/);
 });
+
+function corePatch(overrides = {}) {
+  return {
+    id: "C9",
+    kind: "core-patch",
+    file: "src/service.ts",
+    symbol: "service.claim",
+    anchor: "    return run;",
+    description: "fixture core patch",
+    upstreamPr: null,
+    tests: ["src/service.ts"],
+    ...overrides,
+  };
+}
+
+test("vá lõi hợp lệ chỉ cảnh báo thiếu PR, không tính vào ngân sách hook và được đếm riêng", () => {
+  const entries = [...Array.from({ length: HOOK_BUDGET }, (_, index) => hook({ id: `H${index + 1}` })), corePatch()];
+  const result = checkCoreHooks(fixture(GOOD), registry(entries));
+  assert.deepEqual(result.errors, []);
+  assert.deepEqual(result.warnings, ["C9: chưa có PR upstream"]);
+  assert.equal(result.hookCount, HOOK_BUDGET);
+  assert.equal(result.corePatchCount, 1);
+});
+
+test("vá lõi mất anchor thì đỏ", () => {
+  const { errors } = checkCoreHooks(fixture(GOOD), registry([corePatch({ anchor: "    return other;" })]));
+  assert.match(errors.join("\n"), /C9: anchor xuất hiện 0 lần trong src\/service\.ts, cần 1/);
+});
+
+test("vá lõi không khai test thì đỏ", () => {
+  const { errors } = checkCoreHooks(fixture(GOOD), registry([corePatch({ tests: [] })]));
+  assert.match(errors.join("\n"), /C9: vá lõi phải khai ít nhất một test/);
+});
+
+test("registry thật khai vá lõi cho mọi điểm sửa route và host sự kiện plugin", () => {
+  const real = JSON.parse(readFileSync(path.join(repoRoot, "crew/release/core-hooks.json"), "utf8"));
+  const files = real.entries.filter((entry) => entry.kind === "core-patch").map((entry) => entry.file);
+  for (const file of [
+    "server/src/routes/onboarding-seed.ts",
+    "server/src/routes/projects.ts",
+    "server/src/routes/issues.ts",
+    "server/src/routes/execution-workspaces.ts",
+    "server/src/services/plugin-worker-manager.ts",
+  ]) {
+    assert.ok(files.includes(file), `thiếu vá lõi cho ${file}`);
+  }
+});

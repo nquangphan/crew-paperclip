@@ -104,6 +104,11 @@
     "docs": "Docs",
     "guide": "Guide",
     "settings": "Settings",
+    "group": {
+      "work": "Work",
+      "org": "Org",
+      "system": "System"
+    },
     "quickSearch": "Quick search"
   },
   "company": {

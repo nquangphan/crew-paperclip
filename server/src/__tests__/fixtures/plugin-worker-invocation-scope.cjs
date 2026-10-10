@@ -73,6 +73,8 @@ rl.on("line", (line) => {
   if (message.id && pendingNested.has(message.id)) {
     const originalId = pendingNested.get(message.id);
     pendingNested.delete(message.id);
+    // An onEvent notification has no request id to answer.
+    if (originalId === null) return;
     if (message.error) {
       send({
         jsonrpc: "2.0",
@@ -106,6 +108,21 @@ rl.on("line", (line) => {
 
   if (method === "getData" || method === "performAction") {
     sendNestedHostRequest(message, message.paperclipInvocation?.id);
+    return;
+  }
+
+  if (method === "onEvent") {
+    // Event handler that reads its own company through the host while it runs,
+    // echoing the invocation id the host attached to this delivery.
+    const nestedId = `nested-${nextRequestId++}`;
+    pendingNested.set(nestedId, message.id ?? null);
+    send({
+      jsonrpc: "2.0",
+      id: nestedId,
+      method: "companies.get",
+      params: { companyId: message.params?.event?.companyId },
+      ...(message.paperclipInvocation ? { paperclipInvocationId: message.paperclipInvocation.id } : {}),
+    });
     return;
   }
 

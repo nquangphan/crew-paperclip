@@ -1,4 +1,4 @@
-// S2 Tổng quan: số liệu, run gần đây, widget Máy, yêu cầu gần đây. Mỗi ca so giao diện với GET API/plugin data.
+// S2 Tổng quan (bố cục Dashboard Paperclip): thẻ số, thẻ run của agent, widget Máy, yêu cầu gần đây, hoạt động gần đây. Mỗi ca so giao diện với GET API/plugin data.
 import { awaitingApprovalIssues, createIssue, createOwnerStageIssue, uniqueToken } from '../support/data';
 import { expect, test } from '../support/fixtures';
 
@@ -8,8 +8,9 @@ interface DashboardSummary {
 }
 interface RunLite {
   id: string;
-  status: string;
-  createdAt: string;
+}
+interface ActivityLite {
+  id: string;
 }
 interface Machine {
   machineId: string;
@@ -37,31 +38,38 @@ test('PW-S2-1 thẻ số khớp API: agent chạy/tạm dừng, yêu cầu mở/
 
   await page.goto(company.path('dashboard'));
   const values = page.getByTestId('stat-value');
-  await expect(values).toHaveCount(5);
-  await expect(values.nth(0)).toHaveText(String(summary.agents.running));
-  await expect(values.nth(1)).toHaveText(String(summary.agents.paused));
-  await expect(values.nth(2)).toHaveText(String(summary.tasks.open));
-  await expect(values.nth(3)).toHaveText(String(summary.tasks.blocked));
-  await expect(values.nth(4)).toHaveText(String(awaiting));
-  await expect(page.getByTestId('stat-card').nth(4)).toContainText('Chờ bạn duyệt');
+  await expect(values).toHaveCount(4);
+  const enabled = summary.agents.active + summary.agents.running + summary.agents.paused + summary.agents.error;
+  await expect(values.nth(0)).toHaveText(String(enabled));
+  await expect(page.getByTestId('stat-card').nth(0)).toContainText(
+    `${summary.agents.running} đang chạy, ${summary.agents.paused} tạm dừng, ${summary.agents.error} lỗi`,
+  );
+  await expect(values.nth(1)).toHaveText(String(summary.tasks.inProgress));
+  await expect(values.nth(2)).toHaveText(String(summary.tasks.blocked));
+  await expect(values.nth(3)).toHaveText(String(awaiting));
+  await expect(page.getByTestId('stat-card').nth(3)).toContainText('Chờ bạn duyệt');
   expect(summary.tasks.blocked).toBeGreaterThan(0);
 });
 
-test('PW-S2-2 run gần đây khớp API; "Xem run" mở trang run @t1', async ({ page, company, api }) => {
-  const runs = await api.get<RunLite[]>(`/api/companies/${company.id}/heartbeat-runs?limit=6`);
+test('PW-S2-2 thẻ run của agent khớp live-runs; bấm mở trang run @t1', async ({ page, company, api }) => {
+  const runs = await api.get<RunLite[]>(`/api/companies/${company.id}/live-runs?minCount=4`);
   await page.goto(company.path('dashboard'));
-  const rows = page.getByTestId('recent-run');
+  const cards = page.getByTestId('agent-run-card');
   if (runs.length === 0) {
-    await expect(page.getByText('Chưa có run nào')).toBeVisible();
+    await expect(page.getByText('Chưa có run nào gần đây.')).toBeVisible();
     return;
   }
-  await expect(rows).toHaveCount(Math.min(6, runs.length));
-  const links = await rows
-    .getByRole('link', { name: 'Xem run' })
-    .evaluateAll((els) => els.map((e) => e.getAttribute('href')));
-  const ids = runs.slice(0, 6).map((r) => r.id);
-  expect(links.map((h) => h?.split('/').pop()).sort()).toEqual([...ids].sort());
-  await rows.first().getByRole('link', { name: 'Xem run' }).click();
+  await expect(cards).toHaveCount(Math.min(4, runs.length));
+  const hrefs = await cards.evaluateAll((els) =>
+    els.map((e) => e.querySelector('a[href*="/runs/"]')?.getAttribute('href') ?? ''),
+  );
+  expect(hrefs.map((h) => h.split('/').pop()).sort()).toEqual(
+    runs
+      .slice(0, 4)
+      .map((r) => r.id)
+      .sort(),
+  );
+  await cards.first().locator('a[href*="/runs/"]').first().click();
   await expect(page).toHaveURL(new RegExp(`/${company.issuePrefix}/runs/[0-9a-f-]{36}$`));
   await expect(page.getByText('Không tìm thấy trang')).toHaveCount(0);
 });
@@ -78,19 +86,32 @@ test('PW-S2-3 widget Máy khớp crew.machines @t1', async ({ page, company, api
   for (const m of machines) await expect(cards.filter({ hasText: m.latest.hostname }).first()).toBeVisible();
 });
 
-test('PW-S2-4 yêu cầu gần đây khớp crew.roots (6 mục cập nhật mới nhất) @t1', async ({ page, company, api }) => {
+test('PW-S2-4 yêu cầu gần đây khớp crew.roots (10 mục cập nhật mới nhất); bấm mở popup bằng ?issue= @t1', async ({
+  page,
+  company,
+  api,
+}) => {
   const roots = await api.crewData<Root[]>('crew.roots', company.id);
   await page.goto(company.path('dashboard'));
-  const recent = [...roots].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)).slice(0, 6);
+  const recent = [...roots].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)).slice(0, 10);
   if (recent.length === 0) {
     await expect(page.getByText('Chưa có yêu cầu nào')).toBeVisible();
     return;
   }
-  const card = page.locator('[data-slot="card"]').filter({ has: page.getByText('Yêu cầu gần đây', { exact: true }) });
-  for (const r of recent) await expect(card.getByText(r.identifier, { exact: true }).first()).toBeVisible();
-  await card
-    .getByRole('link', { name: new RegExp(recent[0].identifier) })
-    .first()
-    .click();
-  await expect(page).toHaveURL(new RegExp(`/issues/${recent[0].identifier}$`));
+  const list = page.getByTestId('recent-roots');
+  for (const r of recent) await expect(list.getByText(r.identifier, { exact: true }).first()).toBeVisible();
+  const first = list.getByRole('link', { name: new RegExp(recent[0].identifier) }).first();
+  await expect(first).toHaveAttribute('href', `/${company.issuePrefix}/issues/${recent[0].identifier}`);
+  await first.click();
+  await expect(page).toHaveURL(new RegExp(`/dashboard\\?issue=${recent[0].identifier}$`));
+});
+
+test('PW-S2-5 hoạt động gần đây khớp GET activity (10 dòng mới nhất) @t1', async ({ page, company, api }) => {
+  const events = await api.get<ActivityLite[]>(`/api/companies/${company.id}/activity?limit=10`);
+  await page.goto(company.path('dashboard'));
+  if (events.length === 0) {
+    await expect(page.getByText('Chưa có hoạt động nào')).toBeVisible();
+    return;
+  }
+  await expect(page.getByTestId('activity-row')).toHaveCount(Math.min(10, events.length));
 });

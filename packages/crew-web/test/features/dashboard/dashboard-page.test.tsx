@@ -32,6 +32,8 @@ const SUMMARY = {
 };
 const awaiting = (id: string, userId: string, status = 'in_review') => ({
   id,
+  createdAt: '2026-10-10T01:00:00.000Z',
+  updatedAt: '2026-10-10T01:00:00.000Z',
   companyId: 'c1',
   identifier: `TPS-${id}`,
   title: `Issue ${id}`,
@@ -57,11 +59,45 @@ const RUNS = [
   {
     id: 'run-aaaa-1111',
     agentId: 'a1',
+    agentName: 'Executor Alpha',
     status: 'running',
+    issueId: '1',
     startedAt: '2026-10-10T01:00:00.000Z',
+    finishedAt: null,
     createdAt: '2026-10-10T01:00:00.000Z',
   },
-  { id: 'run-bbbb-2222', agentId: 'a2', status: 'failed', startedAt: null, createdAt: '2026-10-10T00:00:00.000Z' },
+  {
+    id: 'run-bbbb-2222',
+    agentId: 'a2',
+    agentName: 'Reviewer Alpha',
+    status: 'failed',
+    issueId: null,
+    startedAt: null,
+    finishedAt: null,
+    createdAt: '2026-10-10T00:00:00.000Z',
+  },
+];
+const ACTIVITY = [
+  {
+    id: 'ev1',
+    actorType: 'agent',
+    actorId: 'a1',
+    action: 'issue.updated',
+    entityType: 'issue',
+    entityId: '1',
+    details: null,
+    createdAt: '2026-10-10T01:30:00.000Z',
+  },
+  {
+    id: 'ev2',
+    actorType: 'user',
+    actorId: 'u1',
+    action: 'agent.paused',
+    entityType: 'agent',
+    entityId: 'a2',
+    details: null,
+    createdAt: '2026-10-10T01:00:00.000Z',
+  },
 ];
 const MACHINE = {
   machineId: 'm-mini',
@@ -104,8 +140,9 @@ function server(extra: Record<string, never | object> = {}) {
   return mockServer({
     'GET /api/companies/c1/dashboard': { body: SUMMARY },
     'GET /api/companies/c1/issues': { body: ISSUES },
-    'GET /api/companies/c1/heartbeat-runs': { body: RUNS },
-    'GET /api/companies/c1/live-runs': { body: [RUNS[0]] },
+    'GET /api/companies/c1/live-runs': { body: RUNS },
+    'GET /api/companies/c1/activity': { body: ACTIVITY },
+    'GET /api/companies/c1/projects': { body: [] },
     'GET /api/companies/c1/agents': {
       body: [
         { id: 'a1', name: 'Executor Alpha' },
@@ -142,16 +179,19 @@ const stat = (label: string) => {
   const card = screen.getAllByTestId('stat-card').find((c) => c.textContent?.includes(label)) as HTMLElement;
   return within(card).getByTestId('stat-value').textContent;
 };
+const card = (label: string) =>
+  screen.getAllByTestId('stat-card').find((c) => c.textContent?.includes(label)) as HTMLElement;
 
 describe('DashboardPage thẻ số (S2.1)', () => {
-  it('lấy số từ /dashboard và đếm "chờ bạn duyệt" theo cùng quy tắc tab Hộp thư', async () => {
+  it('4 thẻ: tổng agent bật (kèm chạy/tạm dừng/lỗi), đang làm, kẹt, chờ bạn duyệt theo quy tắc tab Hộp thư', async () => {
     server();
     mount();
-    await screen.findByText(/Executor Alpha/);
     await screen.findByText('Yêu cầu mới');
-    expect(stat('Agent đang chạy')).toBe('2');
-    expect(stat('Agent tạm dừng')).toBe('1');
-    expect(stat('Yêu cầu đang mở')).toBe('7');
+    expect(screen.getAllByTestId('stat-card')).toHaveLength(4);
+    expect(stat('Agent đang bật')).toBe('8');
+    expect(card('Agent đang bật').textContent).toContain('2 đang chạy, 1 tạm dừng, 1 lỗi');
+    expect(stat('Yêu cầu đang làm')).toBe('3');
+    expect(card('Yêu cầu đang làm').textContent).toContain('7 đang mở');
     expect(stat('Yêu cầu bị kẹt')).toBe('2');
     // issue 1, 2 của u1; 3 của người khác; 4 đã done.
     await waitFor(() => expect(stat('Chờ bạn duyệt')).toBe('2'));
@@ -176,15 +216,41 @@ describe('DashboardPage thẻ số (S2.1)', () => {
   });
 });
 
-describe('DashboardPage run, máy, yêu cầu (S2.2–S2.4)', () => {
-  it('run gần đây có link Xem run tới trang run, kèm số run đang chạy', async () => {
+describe('DashboardPage khối Agent, biểu đồ, hoạt động, máy, yêu cầu (S2.2–S2.5)', () => {
+  it('thẻ run của agent: tên, yêu cầu gắn kèm, link run', async () => {
     server();
     mount();
-    const rows = await screen.findAllByTestId('recent-run');
+    const cards = await screen.findAllByTestId('agent-run-card');
+    expect(cards).toHaveLength(2);
+    expect(within(cards[0]).getByText('Executor Alpha')).toBeTruthy();
+    expect(within(cards[0]).getByText('Issue 1')).toBeTruthy();
+    expect(within(cards[0]).getAllByRole('link')[0].getAttribute('href')).toBe('/TPS/runs/run-aaaa-1111');
+    expect(within(cards[1]).getByText('Không gắn yêu cầu nào')).toBeTruthy();
+  });
+
+  it('có ba biểu đồ 14 ngày', async () => {
+    server();
+    mount();
+    await screen.findByText('Yêu cầu mới');
+    for (const title of ['Run theo ngày', 'Yêu cầu theo trạng thái', 'Tỉ lệ thành công']) {
+      expect(screen.getByText(title)).toBeTruthy();
+    }
+  });
+
+  it('hoạt động gần đây: ai làm gì, đích; yêu cầu mở popup bằng ?issue=', async () => {
+    server();
+    const router = mount();
+    const rows = await screen.findAllByTestId('activity-row');
     expect(rows).toHaveLength(2);
-    expect(within(rows[0]).getByText(/Executor Alpha/)).toBeTruthy();
-    expect(within(rows[0]).getByRole('link', { name: 'Xem run' }).getAttribute('href')).toBe('/TPS/runs/run-aaaa-1111');
-    expect(screen.getByText('1 đang chạy')).toBeTruthy();
+    expect(rows[0].textContent).toContain('Executor Alpha');
+    expect(rows[0].textContent).toContain('đã cập nhật');
+    expect(rows[0].textContent).toContain('Issue 1');
+    expect(rows[1].textContent).toContain('Bạn');
+    expect(rows[1].textContent).toContain('đã tạm dừng');
+    expect(rows[0].getAttribute('href')).toBe('/TPS/issues/TPS-1');
+    fireEvent.click(rows[0]);
+    expect(router.state.location.pathname).toBe('/TPS/dashboard');
+    expect(router.state.location.search).toBe('?issue=TPS-1');
   });
 
   it('widget Máy hiện máy từ crew.machines', async () => {
@@ -194,24 +260,34 @@ describe('DashboardPage run, máy, yêu cầu (S2.2–S2.4)', () => {
     expect(screen.getByText('Trực tuyến')).toBeTruthy();
   });
 
-  it('yêu cầu gần đây sắp theo cập nhật mới nhất và mở đúng issue', async () => {
+  it('yêu cầu gần đây sắp theo cập nhật mới nhất; click mở popup, Cmd+click giữ link trang đầy đủ', async () => {
     server();
     const router = mount();
     const first = await screen.findByRole('link', { name: /Yêu cầu mới/ });
     const second = screen.getByRole('link', { name: /Yêu cầu cũ/ });
     expect(first.compareDocumentPosition(second) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(first.getAttribute('href')).toBe('/TPS/issues/TPS-11');
+    fireEvent.click(first, { metaKey: true });
+    expect(router.state.location.search).toBe('');
     fireEvent.click(first);
-    expect(router.state.location.pathname).toBe('/TPS/issues/TPS-11');
+    expect(router.state.location.pathname).toBe('/TPS/dashboard');
+    expect(router.state.location.search).toBe('?issue=TPS-11');
   });
 
   it('mỗi khối lỗi độc lập, hiện nguyên văn', async () => {
     server({
-      'GET /api/companies/c1/heartbeat-runs': { status: 500, body: { error: 'bảng run hỏng' } },
+      'GET /api/companies/c1/live-runs': { status: 500, body: { error: 'bảng run hỏng' } },
       'GET /api/companies/c1/dashboard': { status: 500, body: { error: 'dashboard hỏng' } },
     });
     mount();
     expect(await screen.findByText(/bảng run hỏng/)).toBeTruthy();
     expect(await screen.findByText(/dashboard hỏng/)).toBeTruthy();
     expect(await screen.findByText('mac-mini')).toBeTruthy();
+  });
+
+  it('mọi agent tạm dừng thì có banner cảnh báo', async () => {
+    server({ 'GET /api/companies/c1/agents': { body: [{ id: 'a1', name: 'A', status: 'paused' }] } });
+    mount();
+    expect(await screen.findByText('Mọi agent đều tạm dừng, sẽ không có gì chạy.')).toBeTruthy();
   });
 });

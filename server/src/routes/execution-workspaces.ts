@@ -1139,6 +1139,7 @@ export function executionWorkspaceRoutes(db: Db, opts: { pluginWorkerManager?: P
     const id = req.params.id as string;
     const existing = await getAccessibleResource(req, res, svc.getById(id), "Execution workspace not found");
     if (!existing) return;
+    await crewAssertBoardOnly(req, "execution_workspace_update");
     if (!(await assertRuntimeManageAllowed(req, res, existing.companyId))) return;
     assertNoAgentHostWorkspaceCommandMutation(
       req,
@@ -1373,3 +1374,4 @@ export function executionWorkspaceRoutes(db: Db, opts: { pluginWorkerManager?: P
 
   return router;
 }
+import { crewAssertBoardOnly } from "../crew/agent-write-guard.js";

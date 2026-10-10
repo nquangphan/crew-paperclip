@@ -3,7 +3,7 @@ import type { Db } from "@paperclipai/db";
 import { applyOnboardingSeedSchema } from "@paperclipai/shared";
 import { validate } from "../middleware/index.js";
 import { onboardingSeedService } from "../services/onboarding-seed.js";
-import { assertCompanyAccess, getActorInfo } from "./authz.js";
+import { assertBoard, assertCompanyAccess, getActorInfo } from "./authz.js";
 
 /**
  * Receiver for the onboarding seed Paperclip Cloud collects at signup and
@@ -38,6 +38,7 @@ export function onboardingSeedRoutes(db: Db) {
     validate(applyOnboardingSeedSchema),
     async (req, res) => {
       const companyId = req.params.companyId as string;
+      assertBoard(req);
       assertCompanyAccess(req, companyId);
 
       // The audit entry is written inside `apply`'s own transaction, so it

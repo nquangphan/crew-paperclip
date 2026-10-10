@@ -40,29 +40,42 @@ export type NavId =
   | 'guide'
   | 'settings';
 
+/** Nhóm sidebar, chia theo Paperclip: nhóm đầu không tên, Công việc (Work), Tổ chức (Org); thêm Hệ thống cho mục còn lại. */
+export type NavGroupId = 'main' | 'work' | 'org' | 'system';
+
 export interface NavItem {
   id: NavId;
+  group: NavGroupId;
   /** Route feature phải có thì mục mới hiện (không dựng link chết). */
   segment: string;
   /** Đường tương đối dưới /:companyPrefix/. */
   to: string;
 }
 
-/** Thứ tự sidebar theo BA S0.1. "Yêu cầu mới" mở dialog tạo ở trang Yêu cầu (`?new=1`). */
+/** Thứ tự sidebar theo nhóm. "Yêu cầu mới" mở dialog tạo ở trang Yêu cầu (`?new=1`). */
 export const NAV_ITEMS: readonly NavItem[] = [
-  { id: 'newIssue', segment: 'issues', to: 'issues?new=1' },
-  { id: 'search', segment: 'search', to: 'search' },
-  { id: 'dashboard', segment: 'dashboard', to: 'dashboard' },
-  { id: 'inbox', segment: 'inbox', to: 'inbox' },
-  { id: 'issues', segment: 'issues', to: 'issues' },
-  { id: 'projects', segment: 'projects', to: 'projects' },
-  { id: 'agents', segment: 'agents', to: 'agents' },
-  { id: 'skills', segment: 'skills', to: 'skills' },
-  { id: 'machines', segment: 'machines', to: 'machines' },
-  { id: 'docs', segment: 'docs', to: 'docs' },
-  { id: 'guide', segment: 'guide', to: 'guide' },
-  { id: 'settings', segment: 'settings', to: 'settings' },
+  { id: 'newIssue', group: 'main', segment: 'issues', to: 'issues?new=1' },
+  { id: 'search', group: 'main', segment: 'search', to: 'search' },
+  { id: 'dashboard', group: 'main', segment: 'dashboard', to: 'dashboard' },
+  { id: 'inbox', group: 'main', segment: 'inbox', to: 'inbox' },
+  { id: 'issues', group: 'work', segment: 'issues', to: 'issues' },
+  { id: 'projects', group: 'work', segment: 'projects', to: 'projects' },
+  { id: 'docs', group: 'work', segment: 'docs', to: 'docs' },
+  { id: 'agents', group: 'org', segment: 'agents', to: 'agents' },
+  { id: 'skills', group: 'org', segment: 'skills', to: 'skills' },
+  { id: 'machines', group: 'org', segment: 'machines', to: 'machines' },
+  { id: 'settings', group: 'system', segment: 'settings', to: 'settings' },
+  { id: 'guide', group: 'system', segment: 'guide', to: 'guide' },
 ];
+
+const GROUP_ORDER: readonly NavGroupId[] = ['main', 'work', 'org', 'system'];
+
+/** Gom mục theo nhóm theo thứ tự cố định, giữ thứ tự mục; nhóm không còn mục nào thì bỏ. */
+export function groupNavItems(items: readonly NavItem[]): { id: NavGroupId; items: NavItem[] }[] {
+  return GROUP_ORDER.map((id) => ({ id, items: items.filter((i) => i.group === id) })).filter(
+    (g) => g.items.length > 0,
+  );
+}
 
 /** Đoạn đầu của mọi path route feature (để biết mục sidebar nào đã có trang). */
 export function routeSegments(routes: readonly RouteObject[]): Set<string> {
