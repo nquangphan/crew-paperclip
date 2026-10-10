@@ -14,15 +14,17 @@ import {
 } from '@/ds';
 import { formatDateTime, useT } from '@/i18n';
 import { IssueLink } from '../popup/issue-nav';
+import { RuntimeSlot } from './crew/runtime-slot';
 import type { ChildSummary } from './use-issue';
 
 const DEFAULT_MAX_ROUNDS = 5;
-const MODEL_LINE = /^crew-model complexity=(\S+) model=(\S+) effort=(\S+)/m;
+const MODEL_LINE =
+  /^crew-model complexity=(\S+) model=(\S+) effort=(\S+)(?: runtime=(claude_local|codex_local|opencode_local))?/m;
 
-/** Dòng `crew-model …` Trợ Lý ghi vào mô tả khi tách việc. */
+/** Dòng `crew-model …` Trợ Lý ghi vào mô tả khi tách việc. Không có `runtime=` thì là claude_local. */
 export function parseCrewModel(description: string | null | undefined) {
   const m = MODEL_LINE.exec(description ?? '');
-  return m ? { complexity: m[1], model: m[2], effort: m[3] } : null;
+  return m ? { complexity: m[1], model: m[2], effort: m[3], runtime: m[4] ?? 'claude_local' } : null;
 }
 
 interface PropertiesPanelProps {
@@ -107,7 +109,7 @@ export function PropertiesPanel({
           {isResearch ? t('detail.props.kindResearch') : t('detail.props.kindCode')}
         </PropertyRow>
         <PropertyRow label={t('detail.props.model')} wrap>
-          {model ? t('detail.props.modelValue', model) : none}
+          {model ? t('detail.props.modelValue', { ...model, runtime: t(`crew.runtime.name.${model.runtime}`) }) : none}
         </PropertyRow>
       </PropertySection>
       <PropertySection title={t('detail.props.section.relations')}>
@@ -136,6 +138,7 @@ export function PropertiesPanel({
           {policy ? `${state?.changesRequestedCount ?? 0}/${policy.maxReviewRounds ?? DEFAULT_MAX_ROUNDS}` : none}
         </PropertyRow>
       </PropertySection>
+      <RuntimeSlot issue={issue} />
       <PropertySection title={t('detail.props.section.about')}>
         <PropertyRow label={t('detail.props.started')}>{when(issue.startedAt)}</PropertyRow>
         <PropertyRow label={t('detail.props.completed')}>{when(issue.completedAt)}</PropertyRow>

@@ -109,3 +109,40 @@ describe('GUIDE_SHOTS', () => {
     }
   });
 });
+
+describe.each([
+  [
+    'vi',
+    [
+      'runtime=',
+      'Codex',
+      'OpenCode',
+      'Chỉ board',
+      'tắt sẵn',
+      'Reviewer Claude',
+      'tối đa **2 lần**',
+      'chờ Claude',
+      'kimi-k3',
+      'chưa nhận ảnh',
+    ],
+  ],
+  [
+    'en',
+    [
+      'runtime=',
+      'Codex',
+      'OpenCode',
+      'Only the board',
+      'off by default',
+      'Claude Reviewer',
+      'at most **2 times**',
+      'waits for Claude',
+      'kimi-k3',
+      'does not accept images',
+    ],
+  ],
+] as const)('mục runtime R2-4 (%s)', (lang, words) => {
+  it('nói về marker runtime=, công tắc, reviewer Codex, tự chuyển và kimi-k3', () => {
+    for (const w of words) expect(DOCS[lang], w).toContain(w);
+  });
+});

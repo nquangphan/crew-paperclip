@@ -114,6 +114,8 @@ Trong trang một yêu cầu, ngay đầu trang có dòng **Tóm tắt Crew**, v
 - **Giai đoạn**: *Reviewer*; *Integrator · merge + docs*; *Owner duyệt* (đang chờ bạn); *Integrator · push*; *Đã xong*.
 - **docs**: *Đạt* là tài liệu khớp code; *Lỗi* là Integrator sẽ sửa; *Chưa có* là chưa tới bước kiểm.
 
+Nhóm **Runtime** trong Thuộc tính (sau nhóm Thực thi) cho biết runtime và các lần chuyển (mục 5.4).
+
 Bấm **Mở map** để xem sơ đồ các việc. Mỗi ô là yêu cầu gốc hoặc một yêu cầu con, ghi loại việc, giai đoạn, người đang làm và số vòng sửa (ví dụ 0/5). Nét đứt nối các việc phải xong trước. Bấm **Đóng map** để thu lại. Mở map cũng hiện kết quả **Kiểm docs**.
 
 Bên dưới là **Thuộc tính** (trạng thái, người làm, project, loại, model đang dùng, giai đoạn và người duyệt, vòng sửa) và **Bình luận**: agent ghi lại từng bước ở đây, và run đang chạy hiện trực tiếp. Bạn có thể sửa tiêu đề và mô tả, viết bình luận, đính kèm file. Các dòng bình luận bắt đầu bằng `crew-` là bằng chứng máy đọc được, xem mục 16.
@@ -123,6 +125,29 @@ Bên dưới là **Thuộc tính** (trạng thái, người làm, project, loạ
 Nếu yêu cầu chưa rõ, Trợ Lý tạo một **thẻ câu hỏi** ngay trong yêu cầu, tiêu đề "Trợ Lý cần hỏi", có sẵn lựa chọn và ô **Khác** để tự gõ. Yêu cầu chuyển sang **Bị chặn** trong lúc chờ. Bạn chọn đáp án rồi bấm **Gửi trả lời**, Trợ Lý tự chạy tiếp.
 
 Có khi Trợ Lý cần **xác nhận** một việc: thẻ "Trợ Lý cần xác nhận" có hai nút **Đồng ý** và **Từ chối**. Từ chối thì nên ghi lý do vào ô **Lý do (khi từ chối)**.
+
+### 5.4 Runtime: Claude, Codex, OpenCode
+
+Mặc định mọi agent chạy bằng **Claude**. Ngoài ra có hai runtime phụ, **Codex** và **OpenCode**, do chủ dự án bật trên trang [Máy](/machines) (mục 12). Dòng `crew-model` trong mô tả yêu cầu con có thêm `runtime=` cho biết Executor của việc đó chạy bằng runtime nào (không có `runtime=` thì là Claude, xem mục 16).
+
+Trong cột **Thuộc tính** của yêu cầu có khối **Runtime** liệt kê các quyết định, mới nhất ở trên (tối đa 50 dòng), giờ theo Việt Nam:
+- **Chọn**: runtime, agent và model được chọn cho Executor hoặc Reviewer, kèm lý do.
+- **Chuyển**: Crew đã tự chuyển sang runtime khác, ghi rõ từ đâu sang đâu và nguyên nhân (hết quota, lỗi đăng nhập hoặc key, runtime không dùng được, công tắc đang tắt, lỗi khác).
+- **Từ chối chuyển**: Crew muốn chuyển nhưng không an toàn hoặc không có chỗ để chuyển; lý do ghi ngay trên dòng.
+
+Yêu cầu chưa có quyết định nào thì khối này không hiện.
+
+**Tự chuyển runtime** (Executor):
+- Chỉ chuyển khi run lỗi vì hết quota, lỗi đăng nhập hoặc key, hoặc runtime không dùng được; hoặc khi công tắc runtime của máy đang tắt mà việc đang chờ.
+- Chuyển sang một agent khác **cùng máy**, còn rảnh và có công tắc bật. Một yêu cầu chuyển tối đa **2 lần**; quá thì Crew dừng và báo.
+- Việc **large** (lớn) không bị chặn khi hết chỗ chuyển: nó chờ Claude có lại quota rồi chạy tiếp.
+- Nếu thư mục làm việc cũ còn thay đổi chưa commit thì Crew không chuyển, báo bằng bình luận và đặt yêu cầu **Bị chặn** để bạn xem.
+
+**Reviewer Codex:**
+- Chỉ dùng cho **yêu cầu con loại code**. Yêu cầu gốc, nghiên cứu và các luồng khác luôn do Reviewer Claude duyệt.
+- Khi Reviewer Codex lỗi (kể cả hết quota, hết giờ) hoặc công tắc Codex bị tắt giữa chừng, Crew **tự chuyển về Reviewer Claude** của project, số vòng sửa giữ nguyên và có bình luận ghi lại. Yêu cầu cũ không có Reviewer Claude trong bước duyệt thì không chuyển được, khối Runtime ghi **Từ chối chuyển**.
+
+Lưu ý model: **kimi-k3** (OpenCode) hiện **chưa nhận ảnh**. Việc có ảnh đính kèm nên để Claude hoặc Codex làm.
 
 ## 6. Duyệt, yêu cầu sửa, hủy và mở lại
 
@@ -275,6 +300,12 @@ Trang [Máy](/machines) có một thẻ cho mỗi máy Mac chạy agent, tự l�
 - **App 2P Crew**: phiên bản và trạng thái cập nhật.
 - Chữ **Không rõ** nghĩa là lần này máy không đọc được giá trị đó, chưa chắc là lỗi.
 
+**Runtime (công tắc theo máy):** thẻ máy có khối **Runtime** với ba công tắc Claude, Codex, OpenCode.
+- **Chỉ board** (chủ dự án) gạt được; người khác thấy nhưng không bấm được.
+- **Claude bật sẵn; Codex và OpenCode tắt sẵn.** Bật phải qua hộp xác nhận. Máy chưa từng chỉnh thì dùng mặc định này.
+- Tắt một runtime: việc đang chờ chạy bằng runtime đó được giữ lại (hoặc chuyển sang agent khác, xem mục 5.4), không bị mất.
+- OpenCode bị khóa nếu server chưa bật vá chạy đúng thư mục làm việc; thẻ ghi rõ lý do khóa.
+
 Bên dưới là **Hàng đợi việc trên máy**: các việc máy cần làm (xem thư mục repo, dựng checkout, đồng bộ skill, kiểm tra project) đang **Đang chờ**, **Đang làm** hoặc **Lỗi**. Việc đã xong không hiện. Việc lỗi có nút thử lại.
 
 ## 13. Docs
@@ -315,7 +346,7 @@ Bảng dưới liệt kê từng tính năng Paperclip không có trong Crew, n�
 |---|---|
 | `crew-plan root=… children=… bundles=…` | Kế hoạch của Trợ Lý: mấy yêu cầu con, mấy gói |
 | `crew-bundle id=… seq=…` | Yêu cầu con thuộc gói nào, thứ mấy. Cùng gói thì một Executor làm lần lượt và **nhớ** ngữ cảnh việc trước |
-| `crew-model complexity=… model=…` | Độ khó và model được chọn: Sonnet cho việc vừa và nhỏ, Opus cho việc lớn |
+| `crew-model complexity=… model=… effort=… runtime=…` | Độ khó, model và runtime được chọn: Sonnet cho việc vừa và nhỏ, Opus cho việc lớn. `runtime=` là `claude_local`, `codex_local` hoặc `opencode_local`; không có thì là Claude (mục 5.4) |
 | `crew-stack on=TPS-…` | Việc này xây tiếp trên code của việc kia |
 | `crew-kind research` | Việc nghiên cứu, không sửa code |
 | `crew-review … verdict=approved` | Reviewer đã duyệt |
@@ -337,7 +368,8 @@ Bảng dưới liệt kê từng tính năng Paperclip không có trong Crew, n�
 | Project không có trong hộp thoại Yêu cầu mới | Project chưa sẵn sàng | Mở tab **Sẵn sàng** của project, bấm **Làm tiếp** |
 | Wizard báo lỗi hoặc đứng ở một bước | Máy chưa làm xong, hoặc lỗi thật ở bước đó | Đọc lỗi, mở app trên Mac nếu có chữ "Chờ app", rồi bấm **Chạy tiếp** |
 | "Có người vừa sửa hướng dẫn của agent" | Hai nơi cùng ghi `AGENTS.md` | Bấm **Tải lại** rồi render lại. Hệ thống không bao giờ ghi đè |
-| Agent báo hết quota | Gói Claude trên Mac hết hạn mức (dùng chung với Claude Code của bạn) | Chờ hạn mức mở lại |
+| Agent báo hết quota | Gói Claude trên Mac hết hạn mức (dùng chung với Claude Code của bạn) | Chờ hạn mức mở lại, hoặc bật Codex/OpenCode ở trang Máy để Crew tự chuyển (mục 5.4) |
+| Khối Runtime ghi **Từ chối chuyển** | Không có agent cùng máy còn rảnh và bật công tắc, hoặc đã chuyển đủ 2 lần | Đọc lý do trên dòng; bật công tắc ở trang Máy hoặc chờ quota mở lại |
 
 ## 18. Thuật ngữ
 

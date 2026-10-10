@@ -226,3 +226,27 @@ export type {
 } from '@crew/paperclip-plugin/shared/docs-tree';
 export type { CrewMachine, MachineCardModel } from '@crew/paperclip-plugin/shared/machine-card';
 export type { CrewMap, CrewMapNode, CrewRoot, MapEdge, MapProjection } from '@crew/paperclip-plugin/shared/map';
+
+// I5. Quyết định runtime của một issue (data `crew.runtimeDecisions`): mới nhất trước, tối đa 50 dòng.
+export type RuntimeDecisionKind = 'select' | 'fallback' | 'fallback_refused';
+export type RuntimeDecisionRole = 'executor' | 'reviewer';
+export type RuntimeDecisionTrigger = 'quota' | 'auth' | 'unavailable' | 'switch_off' | 'other';
+export interface RuntimeDecision {
+  id: string;
+  role: RuntimeDecisionRole;
+  kind: RuntimeDecisionKind;
+  runId: string | null;
+  machineId: string | null;
+  fromAgentId: string | null;
+  fromAgentName: string | null;
+  toAgentId: string | null;
+  toAgentName: string | null;
+  fromRuntime: string | null;
+  toRuntime: string | null;
+  model: string | null;
+  complexity: string | null;
+  trigger: RuntimeDecisionTrigger | null;
+  reason: string;
+  /** ISO UTC. */
+  decidedAt: string;
+}

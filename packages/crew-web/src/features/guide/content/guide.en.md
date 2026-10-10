@@ -114,6 +114,8 @@ On a request page, the **Crew summary** line sits at the very top, for example "
 - **Stage**: *Reviewer*; *Integrator · merge + docs*; *Owner approval* (waiting for you); *Integrator · push*; *Finished*.
 - **docs**: *passed* means the docs match the code; *failed* means the Integrator will fix it; *none* means the check has not happened yet.
 
+The **Runtime** group in Properties (after the Execution group) shows the runtime and any switches (section 5.4).
+
 Press **Open map** to see a diagram of the work. Each box is the parent request or one child request, showing the kind of work, the stage, who is working on it and the fix round (for example 0/5). Dashed lines connect work that must finish first. Press **Close map** to fold it. Opening the map also shows the **Docs check** result.
 
 Below that you find **Properties** (status, assignee, project, type, the model in use, stages and approvers, fix round) and **Comments**: the agents log every step here, and a running run shows live. You can edit the title and description, write comments and attach files. Comment lines starting with `crew-` are machine-readable evidence, see section 16.
@@ -123,6 +125,29 @@ Below that you find **Properties** (status, assignee, project, type, the model i
 If the request is unclear, the Assistant puts a **question card** right in the request, titled "The assistant has a question", with ready-made choices and an **Other** box where you can type. The request is **Blocked** while it waits. Pick your answers and press **Send answer**, and the Assistant continues by itself.
 
 Sometimes the Assistant needs you to **confirm** something: the card "The assistant needs confirmation" has two buttons, **Accept** and **Decline**. When declining, please put the reason in the **Reason (when declining)** box.
+
+### 5.4 Runtime: Claude, Codex, OpenCode
+
+By default every agent runs on **Claude**. There are also two secondary runtimes, **Codex** and **OpenCode**, which the project owner turns on in the [Machines](/machines) page (section 12). The `crew-model` line in a child request's description now has `runtime=`, which says which runtime that request's Executor runs on (no `runtime=` means Claude, see section 16).
+
+In the **Properties** column of a request there is a **Runtime** block listing the decisions, newest first (up to 50 rows), in Vietnam time:
+- **Selected**: the runtime, agent and model chosen for the Executor or the Reviewer, with the reason.
+- **Switched**: Crew moved the work to another runtime on its own, showing from where to where and why (quota exhausted, login or key error, runtime unavailable, switch off, other error).
+- **Switch refused**: Crew wanted to switch but it was unsafe or there was nowhere to go; the reason is on the row.
+
+A request with no decisions does not show this block.
+
+**Automatic runtime switch** (Executor):
+- It only switches when a run fails because of quota, a login or key error, or an unavailable runtime, or when the machine's runtime switch is off while the work waits.
+- It switches to another agent **on the same machine** that is free and has its switch on. One request is switched at most **2 times**; after that Crew stops and reports.
+- **Large** work is not blocked when there is nowhere to switch: it waits for Claude to have quota again and then continues.
+- If the old working folder has uncommitted changes, Crew does not switch; it leaves a comment and sets the request to **Blocked** for you to look at.
+
+**Codex Reviewer:**
+- Only used for **code child requests**. The parent request, research and other flows are always reviewed by the Claude Reviewer.
+- When the Codex Reviewer fails (including quota or timeout) or the Codex switch is turned off midway, Crew **switches back to the project's Claude Reviewer** by itself; the fix round count is kept and a comment records it. An older request whose review step has no Claude Reviewer cannot be switched, and the Runtime block shows **Switch refused**.
+
+Model note: **kimi-k3** (OpenCode) **does not accept images yet**. Give work with attached images to Claude or Codex.
 
 ## 6. Approving, requesting changes, cancelling and reopening
 
@@ -275,6 +300,12 @@ The [Machines](/machines) page has one card per Mac that runs agents, refreshed 
 - **2P Crew app**: version and update state.
 - **Unknown** means the machine could not read that value this time, which is not necessarily an error.
 
+**Runtime (per-machine switches):** a machine card has a **Runtime** block with three switches: Claude, Codex, OpenCode.
+- **Only the board** (project owner) can flip them; others see them but cannot press.
+- **Claude is on by default; Codex and OpenCode are off by default.** Turning one on goes through a confirmation box. A machine nobody has changed uses these defaults.
+- Turning a runtime off: work waiting for that runtime is held (or moved to another agent, see section 5.4), not lost.
+- OpenCode is locked when the server has not enabled the patch that runs in the right working folder; the card states the reason.
+
 Below is the **Machine job queue**: jobs the machine has to do (inspect a repo folder, prepare checkouts, sync a skill, check a project) that are **Queued**, **Running** or **Failed**. Finished jobs are not listed. A failed job has a retry button.
 
 ## 13. Docs
@@ -315,7 +346,7 @@ The table below lists each Paperclip feature that Crew does not have, where it l
 |---|---|
 | `crew-plan root=… children=… bundles=…` | The Assistant's plan: how many child requests, how many bundles |
 | `crew-bundle id=… seq=…` | Which bundle a child request belongs to, and its order. Requests in the same bundle are done one after another by one Executor, who **remembers** the earlier context |
-| `crew-model complexity=… model=…` | The difficulty and the chosen model: Sonnet for small and medium work, Opus for big work |
+| `crew-model complexity=… model=… effort=… runtime=…` | The difficulty, model and runtime chosen: Sonnet for small and medium work, Opus for big work. `runtime=` is `claude_local`, `codex_local` or `opencode_local`; missing means Claude (section 5.4) |
 | `crew-stack on=TPS-…` | This work builds on the code of that other work |
 | `crew-kind research` | Research work, no code change |
 | `crew-review … verdict=approved` | The Reviewer approved |
@@ -337,7 +368,8 @@ The table below lists each Paperclip feature that Crew does not have, where it l
 | A project is missing from the New request dialog | The project is not ready | Open the project's **Readiness** tab and press **Continue** |
 | A wizard shows an error or stops at a step | The machine has not finished, or the step really failed | Read the error, open the app on the Mac if it says "Waiting for the app", then press **Continue** |
 | "Someone just edited this agent's instructions" | Two places wrote `AGENTS.md` at once | Press **Reload**, then render again. The system never overwrites |
-| The agent reports out of quota | The Claude plan on the Mac hit its limit (shared with your own Claude Code) | Wait for the limit to reset |
+| The agent reports out of quota | The Claude plan on the Mac hit its limit (shared with your own Claude Code) | Wait for the limit to reset, or turn on Codex/OpenCode in the Machines page so Crew can switch by itself (section 5.4) |
+| The Runtime block shows **Switch refused** | No free agent on the same machine with its switch on, or it already switched twice | Read the reason on the row; turn the switch on in the Machines page or wait for quota to reset |
 
 ## 18. Glossary
 

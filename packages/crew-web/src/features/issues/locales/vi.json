@@ -126,7 +126,7 @@
         "approval": "Owner duyệt"
       },
       "current": "đang ở đây",
-      "modelValue": "{{model}} · độ khó {{complexity}} · effort {{effort}}",
+      "modelValue": "{{model}} · độ khó {{complexity}} · effort {{effort}} · runtime {{runtime}}",
       "section": {
         "work": "Công việc",
         "relations": "Liên kết",
@@ -221,7 +221,34 @@
   },
   "crew": {
     "mapFailed": "Không tải được tóm tắt Crew",
-    "docsFailed": "Không tải được kết quả kiểm docs"
+    "docsFailed": "Không tải được kết quả kiểm docs",
+    "runtime": {
+      "title": "Runtime",
+      "failed": "Không tải được quyết định runtime",
+      "unknown": "chưa rõ",
+      "complexity": "độ khó {{complexity}}",
+      "role": {
+        "executor": "Executor",
+        "reviewer": "Reviewer"
+      },
+      "kind": {
+        "select": "Chọn",
+        "fallback": "Chuyển",
+        "fallback_refused": "Từ chối chuyển"
+      },
+      "name": {
+        "claude_local": "Claude",
+        "codex_local": "Codex",
+        "opencode_local": "OpenCode"
+      },
+      "trigger": {
+        "quota": "hết quota",
+        "auth": "lỗi đăng nhập hoặc key",
+        "unavailable": "runtime không dùng được",
+        "switch_off": "công tắc runtime đang tắt",
+        "other": "lỗi khác"
+      }
+    }
   },
   "interactions": {
     "loadFailed": "Không tải được câu hỏi của Trợ Lý",

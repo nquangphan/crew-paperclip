@@ -55,6 +55,17 @@ describe('PropertiesPanel chỉ đọc (S6.13)', () => {
     expect(within(root).getByText(/medium/)).toBeTruthy();
   });
 
+  it('đọc runtime= của marker crew-model; không có runtime= thì là Claude', () => {
+    panel({
+      ...ISSUE,
+      description: 'x\n\ncrew-model complexity=medium model=gpt-6-sol effort=high runtime=codex_local reason=việc vừa',
+    });
+    expect(within(screen.getByTestId('properties-panel')).getByText(/gpt-6-sol .*runtime Codex/)).toBeTruthy();
+    cleanup();
+    panel();
+    expect(within(screen.getByTestId('properties-panel')).getByText(/claude-sonnet-5 .*runtime Claude/)).toBeTruthy();
+  });
+
   it('loại Nghiên cứu theo nhãn research, còn lại là Code / Bug', () => {
     panel({ ...ISSUE, labels: [{ id: 'l1', name: 'research' }] });
     expect(within(screen.getByTestId('properties-panel')).getByText('Nghiên cứu')).toBeTruthy();
