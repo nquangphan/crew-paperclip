@@ -234,5 +234,76 @@
     "accept": "Accept",
     "reject": "Decline",
     "rejectReason": "Reason (when declining)"
+  },
+  "forceDone": {
+    "button": "Force Done",
+    "title": "Force this request to Done?",
+    "body": "The request goes straight to Done, skipping any gates not yet passed. It does not count as an approval and starts no new review round.",
+    "gates": "Gates that will be skipped",
+    "noGates": "The request has no pending workflow stage.",
+    "gateLine": "Stage {{n}}: {{type}}",
+    "gateCurrent": "waiting on {{holder}}",
+    "runs_one": "{{count}} running run of this request will be stopped.",
+    "runs_other": "{{count}} running runs of this request will be stopped.",
+    "cancelChildren_one": "Also cancel {{count}} unfinished sub-task",
+    "cancelChildren_other": "Also cancel {{count}} unfinished sub-tasks",
+    "reason": "Reason",
+    "reasonHint": "Required, {{min}}–{{max}} characters. The reason is posted as a comment and kept in History.",
+    "submit": "Force Done",
+    "sending": "Forcing",
+    "close": "Close",
+    "failed": "Could not force Done",
+    "stale": "The request just changed status ({{status}}); nothing was sent. The page has been reloaded.",
+    "warnings": "Forced to Done, but some follow-ups failed",
+    "warning": {
+      "comment_failed": "the reason comment was not posted",
+      "wakeup_failed": "the assistant on the parent request was not notified",
+      "activity_failed": "the History entry was not written",
+      "violations_unread": "the list of skipped gates could not be read"
+    }
+  },
+  "history": {
+    "heading": "History",
+    "empty": "No activity yet.",
+    "loadFailed": "Could not load history",
+    "forced": "Forced Done",
+    "forcedBadge": "Forced Done",
+    "reason": "Reason: {{reason}}",
+    "skipped": "Skipped gates: {{list}}",
+    "actor": {
+      "you": "You",
+      "owner": "Owner",
+      "agent": "Agent",
+      "system": "System",
+      "plugin": "Crew"
+    },
+    "action": {
+      "created": "Created the request",
+      "updated": "Updated the request",
+      "statusChanged": "Status changed: {{from}} → {{to}}",
+      "commentAdded": "Commented",
+      "childCreated": "Created a sub-task",
+      "attachmentAdded": "Added an attachment",
+      "attachmentRemoved": "Removed an attachment",
+      "documentChanged": "Edited a document",
+      "documentDeleted": "Deleted a document",
+      "interactionCreated": "The assistant asked a question",
+      "interactionAnswered": "Answered the assistant",
+      "cycleReset": "Reopened, new round started",
+      "docsUninitialized": "Repo has no docs setup; docs gate passed",
+      "boardOverride": "Owner closed past the gates",
+      "forceDone": "Forced Done"
+    },
+    "violation": {
+      "stage_unapproved": "stage {{stage}} not approved",
+      "docs_missing": "docs check result missing",
+      "docs_stale": "docs check older than the latest change",
+      "docs_failed": "docs check failed (code {{code}})",
+      "push_missing": "not pushed",
+      "push_stale": "push older than the owner's approval",
+      "push_sha_mismatch": "pushed commit differs from the docs-checked commit",
+      "policy_missing": "no review workflow",
+      "roles_unconfigured": "project roles not configured"
+    }
   }
 }

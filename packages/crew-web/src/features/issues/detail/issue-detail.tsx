@@ -25,13 +25,23 @@ import { Attachments } from './attachments';
 import { Comments } from './comments';
 import { Composer } from './composer';
 import { ActionsSlot } from './crew/actions-slot';
+import { ForceDoneAction } from './crew/force-done-dialog';
 import { InteractionsSlot } from './crew/interactions-slot';
 import { SummarySlot } from './crew/summary-slot';
 import { Documents } from './documents';
+import { History } from './history';
+import { forcedDoneActive } from './history-format';
 import { IssueRuns } from './issue-runs';
 import { PropertiesPanel } from './properties-panel';
 import { DescriptionEditor, TitleEditor } from './title-editor';
-import { useAgentNames, useChildIssues, useIssue, useMarkReadOnce, useProjectName } from './use-issue';
+import {
+  useAgentNames,
+  useChildIssues,
+  useIssue,
+  useIssueActivity,
+  useMarkReadOnce,
+  useProjectName,
+} from './use-issue';
 
 function CopyButton({ text, label }: { text: string; label: string }) {
   const { t } = useT('issues');
@@ -73,8 +83,8 @@ interface IssueDetailProps {
 /**
  * Nội dung chi tiết yêu cầu, dùng chung cho trang đầy đủ và popup `?issue=` (S6.4 đến S6.6, S6.12 đến S6.16).
  * Bố cục theo trang IssueDetail của Paperclip: thanh breadcrumb, cột chính (tiêu đề, mô tả, tài liệu, đính kèm,
- * run, luồng trao đổi, ô soạn cố định đáy) và cột Thuộc tính bên phải. Phần Crew gắn qua ba khe trong ./crew:
- * tóm tắt/map/docs dưới tiêu đề, nút cổng cạnh tiêu đề, thẻ câu hỏi trên ô soạn.
+ * run, luồng trao đổi, ô soạn cố định đáy) và cột Thuộc tính bên phải (thuộc tính, Lịch sử). Phần Crew gắn qua các
+ * khe trong ./crew: tóm tắt/map/docs dưới tiêu đề, nút cổng và Ép Done cạnh tiêu đề, thẻ câu hỏi trên ô soạn.
  *
  * Yêu cầu thuộc company khác prefix trên URL thì chuyển sang trang đầy đủ ở prefix đúng (hoặc 404 nếu không có
  * quyền company đó), không hiện ở company sai: sự kiện trực tiếp, danh sách con và thao tác cổng đều theo company
@@ -91,6 +101,7 @@ export function IssueDetail({ issueRef, variant, onClose }: IssueDetailProps) {
   const agentNames = useAgentNames(company.id);
   const projectName = useProjectName(company.id, issue?.projectId ?? null);
   const childIssues = useChildIssues(company.id, issue?.id);
+  const activity = useIssueActivity(issue?.id);
   useMarkReadOnce(company.id, issue?.id);
   useScrollToHash(Boolean(issue));
 
@@ -166,7 +177,14 @@ export function IssueDetail({ issueRef, variant, onClose }: IssueDetailProps) {
       side={
         <>
           <SidePanelTitle>{t('detail.props.heading')}</SidePanelTitle>
-          <PropertiesPanel issue={issue} agentNames={agentNames} projectName={projectName} childIssues={childIssues} />
+          <PropertiesPanel
+            issue={issue}
+            agentNames={agentNames}
+            projectName={projectName}
+            childIssues={childIssues}
+            forcedDone={forcedDoneActive(activity.data ?? [], issue.status)}
+          />
+          <History issue={issue} agentNames={agentNames} />
         </>
       }
     >
@@ -183,7 +201,12 @@ export function IssueDetail({ issueRef, variant, onClose }: IssueDetailProps) {
             </>
           ) : null
         }
-        actions={<ActionsSlot issue={issue} />}
+        actions={
+          <div className="flex flex-wrap items-start gap-2">
+            <ActionsSlot issue={issue} />
+            <ForceDoneAction issue={issue} childIssues={childIssues} />
+          </div>
+        }
       />
       <SummarySlot issue={issue} />
       <DescriptionEditor issue={issue} author={creator ?? undefined} />
