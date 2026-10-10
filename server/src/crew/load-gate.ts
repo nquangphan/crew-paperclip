@@ -26,7 +26,9 @@ import {
   fallbackDirtyComment,
   fallbackPreviousRunId,
   fallbackProgressComment,
+  isRuntimeFallbackWake,
 } from "./runtime-fallback.js";
+import { warnOncePerMinute } from "./project-roles.js";
 
 /** Same shape as BeforeClaimInput in core-hooks.ts (not imported: implementations must not import the registry). */
 export interface BeforeClaimInput {
@@ -376,7 +378,19 @@ async function decideBeforeClaim(input: BeforeClaimInput, deps: BeforeClaimDeps)
         const previousRunId = await deps.fallbackPreviousRunId(run);
         if (previousRunId) progressTarget = { mode: "fallback", previousRunId };
       } catch (err) {
-        failure = `không đọc được run trước khi chuyển runtime: ${errorMessage(err)}`;
+        // Only a run the plugin woke after a fallback surely has a previous run to check: it is held like a
+        // retry. Any other run (assistant, reviewer, integrator...) is not blocked by an infrastructure
+        // error; the check is skipped this time.
+        if (isRuntimeFallbackWake(run.contextSnapshot)) {
+          failure = `không đọc được run trước khi chuyển runtime: ${errorMessage(err)}`;
+        } else {
+          warnOncePerMinute(
+            run.companyId,
+            "runtime-fallback-previous-read",
+            { runId: run.id, err },
+            "crew-load-gate: runtime fallback decisions unreadable; claiming without the previous run check",
+          );
+        }
       }
     }
     if (!failure) {

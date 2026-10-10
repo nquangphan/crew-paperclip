@@ -17,6 +17,12 @@ export const CREW_RUNTIME_FALLBACK_CHECKED_ACTION = "crew.runtime_fallback.check
 
 type Run = typeof heartbeatRuns.$inferSelect;
 
+/** Run do plugin đánh thức sau fallback: chắc chắn có run cũ cần kiểm. */
+export function isRuntimeFallbackWake(contextSnapshot: unknown): boolean {
+  if (!contextSnapshot || typeof contextSnapshot !== "object") return false;
+  return (contextSnapshot as Record<string, unknown>).wakeReason === CREW_RUNTIME_FALLBACK_WAKE_REASON;
+}
+
 /**
  * Run cũ H1 cần kiểm trước khi claim `run`, quyết định theo dữ liệu chứ không theo lý do đánh thức (agent đích có thể
  * được recovery của lõi đánh thức trước plugin):

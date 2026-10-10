@@ -242,6 +242,13 @@ describe("crewBeforeClaim trước run chuyển runtime", () => {
     expect(h2.events).toContain("mark:waiting");
   });
 
+  it("đọc quyết định lỗi với run không do plugin đánh thức: không giữ, bỏ qua bước kiểm lần này", async () => {
+    const h = harness({ previous: new Error("db down") });
+    const run = fallbackRun({ contextSnapshot: { issueId: "issue-1", wakeReason: "issue_assigned" } });
+    expect(await evaluateBeforeClaim({ db: {} as Db, run }, h.deps)).toBe(false);
+    expect(h.events).toEqual(["runtime-gate", "previous:run-new"]);
+  });
+
   it("run do recovery của lõi đánh thức (không mang lý do chuyển runtime) vẫn tìm và kiểm run cũ theo quyết định", async () => {
     const h = harness();
     const run = fallbackRun({ contextSnapshot: { issueId: "issue-1", wakeReason: "issue_assignment_recovery" } });
