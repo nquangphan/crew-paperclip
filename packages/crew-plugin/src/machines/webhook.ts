@@ -15,6 +15,16 @@ export interface MachineReport {
   checkouts?: CheckoutReport[];
   /** Present while the 2P Crew app polls the machine job queue. */
   jobsAgent?: JobsAgentReport;
+  /** Trạng thái runtime Codex/OpenCode trên máy (crew-mac `status/runtimes.ts`); `null` ở trường = không đọc được. */
+  runtimes?: RuntimesReport;
+}
+
+export interface RuntimesReport {
+  codex: { version: string | null; loggedIn: boolean | null; primaryUsedPct: number | null; resetsAt: string | null };
+  opencode: {
+    version: string | null; keyPresent: boolean | null;
+    costDay: number | null; costWeek: number | null; costMonth: number | null; models: string[];
+  };
 }
 
 /** `pinDir` is the pinned copy agents load with `--plugin-dir` (null before pinning); `skills` lists its skill folders. */
@@ -73,13 +83,36 @@ function checkoutsReport(value: unknown): value is CheckoutReport[] {
 const skillsReport = (value: unknown): value is string[] =>
   Array.isArray(value) && value.length <= MAX_SKILLS && value.every(label);
 
+const MAX_RUNTIME_VERSION = 50;
+const MAX_RUNTIME_MODELS = 60;
+const MAX_RUNTIME_MODEL_ID = 120;
+const MAX_RUNTIME_COST = 100_000;
+const RUNTIME_MODEL_ID = /^[a-z0-9._/-]+$/;
+const runtimeVersion = (value: unknown): value is string | null =>
+  value === null || typeof value === "string" && value.length > 0 && value.length <= MAX_RUNTIME_VERSION && !CONTROL.test(value);
+const nullableBool = (value: unknown): value is boolean | null => value === null || typeof value === "boolean";
+
+function runtimesReport(value: unknown): value is RuntimesReport {
+  if (!fields(value, ["codex", "opencode"])) return false;
+  const { codex, opencode } = value;
+  return fields(codex, ["version", "loggedIn", "primaryUsedPct", "resetsAt"])
+    && runtimeVersion(codex.version) && nullableBool(codex.loggedIn) && bounded(codex.primaryUsedPct, 0, 100)
+    && (codex.resetsAt === null || iso(codex.resetsAt))
+    && fields(opencode, ["version", "keyPresent", "costDay", "costWeek", "costMonth", "models"])
+    && runtimeVersion(opencode.version) && nullableBool(opencode.keyPresent)
+    && bounded(opencode.costDay, 0, MAX_RUNTIME_COST) && bounded(opencode.costWeek, 0, MAX_RUNTIME_COST)
+    && bounded(opencode.costMonth, 0, MAX_RUNTIME_COST)
+    && Array.isArray(opencode.models) && opencode.models.length <= MAX_RUNTIME_MODELS
+    && opencode.models.every((id) => typeof id === "string" && id.length <= MAX_RUNTIME_MODEL_ID && RUNTIME_MODEL_ID.test(id));
+}
+
 function jobsAgentReport(value: unknown): value is JobsAgentReport {
   return fields(value, ["version", "lastPollAt"])
     && typeof value.version === "string" && value.version.length <= 32 && SEMVER.test(value.version) && iso(value.lastPollAt);
 }
 
 /**
- * Optional keys (`app`, `attachmentCache`, `checkouts`, `jobsAgent`, `superpowers.pinDir`, `superpowers.skills`) are
+ * Optional keys (`app`, `attachmentCache`, `checkouts`, `jobsAgent`, `runtimes`, `superpowers.pinDir`, `superpowers.skills`) are
  * dropped one by one when malformed, and the rest of the report is still accepted: an older or newer crew-mac must
  * not lose its whole heartbeat over one field. Unknown keys and malformed required keys still reject the report.
  */
@@ -88,7 +121,7 @@ export function parseMachineReport(input: unknown): MachineReport {
   const optional: Partial<MachineReport> = {};
   const superpowersExtra: Pick<SuperpowersReport, "pinDir" | "skills"> = {};
   if (object(input)) {
-    const { app, attachmentCache, checkouts, jobsAgent, ...rest } = input;
+    const { app, attachmentCache, checkouts, jobsAgent, runtimes, ...rest } = input;
     value = rest;
     if (appReport(app)) optional.app = { version: app.version, sshdOwner: app.sshdOwner, updateState: app.updateState };
     if (attachmentCacheReport(attachmentCache)) {
@@ -97,6 +130,14 @@ export function parseMachineReport(input: unknown): MachineReport {
     }
     if (checkoutsReport(checkouts)) optional.checkouts = checkouts.map(({ path, head, clean }) => ({ path, head, clean }));
     if (jobsAgentReport(jobsAgent)) optional.jobsAgent = { version: jobsAgent.version, lastPollAt: jobsAgent.lastPollAt };
+    if (runtimesReport(runtimes)) {
+      const { codex, opencode } = runtimes;
+      optional.runtimes = {
+        codex: { version: codex.version, loggedIn: codex.loggedIn, primaryUsedPct: codex.primaryUsedPct, resetsAt: codex.resetsAt },
+        opencode: { version: opencode.version, keyPresent: opencode.keyPresent, costDay: opencode.costDay,
+          costWeek: opencode.costWeek, costMonth: opencode.costMonth, models: [...opencode.models] },
+      };
+    }
     if (object(rest.superpowers)) {
       const { pinDir, skills, ...required } = rest.superpowers;
       rest.superpowers = required;
