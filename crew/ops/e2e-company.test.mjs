@@ -269,6 +269,35 @@ test("lần hai: 0 lời gọi tạo, policy không ghi lại, output báo prese
   }
 });
 
+test("secret webhook gửi lên server đã cắt khoảng trắng và xuống dòng hai đầu (tạo mới)", () => {
+  const root = setup();
+  try {
+    const r = run(root);
+    assert.equal(r.status, 0, r.stderr);
+    const file = path.join(root, "crew-e2e", "status-webhook-secret");
+    const value = readFileSync(file, "utf8").trim();
+    const call = calls(root).find((c) => c.stdin.includes(value) && /\/secrets$/.test(c.argv[1]));
+    assert.equal(JSON.parse(call.stdin).value, value, "giá trị lưu lên server không kèm xuống dòng cuối");
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("secret webhook file có sẵn kèm khoảng trắng/CRLF hai đầu thì giá trị gửi lên vẫn được cắt", () => {
+  const root = setup();
+  try {
+    mkdirSync(path.join(root, "crew-e2e"), { recursive: true, mode: 0o700 });
+    const file = path.join(root, "crew-e2e", "status-webhook-secret");
+    writeFileSync(file, "  abc123def\r\n\n", { mode: 0o600 });
+    const r = run(root);
+    assert.equal(r.status, 0, r.stderr);
+    const call = calls(root).find((c) => c.stdin.includes("abc123def") && /\/secrets$/.test(c.argv[1]));
+    assert.equal(JSON.parse(call.stdin).value, "abc123def");
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test("mất file secret webhook thì rotate secret trên server sang giá trị mới, không tạo secret thứ hai", () => {
   const root = setup();
   try {
@@ -281,7 +310,7 @@ test("mất file secret webhook thì rotate secret trên server sang giá trị 
     assert.equal(creates.length, 1);
     assert.match(creates[0].argv[1], /^\/secrets\/[0-9a-f-]+\/rotate$/);
     const value = readFileSync(path.join(root, "crew-e2e", "status-webhook-secret"), "utf8").trim();
-    assert.equal(JSON.parse(creates[0].stdin).value.trim(), value);
+    assert.equal(JSON.parse(creates[0].stdin).value, value, "giá trị rotate không kèm xuống dòng cuối");
     assert.ok(!r.stdout.includes(value));
   } finally {
     rmSync(root, { recursive: true, force: true });
