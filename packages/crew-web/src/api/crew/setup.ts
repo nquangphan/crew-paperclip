@@ -1,6 +1,13 @@
 // Tiến độ wizard (I2). Mọi lời gọi truyền companyId của setup run, không lấy company đang chọn.
 import { call } from '../endpoints';
-import type { AddAgentInput, AddProjectInput, SetupRun, SetupStepId } from './types';
+import type {
+  AddAgentInput,
+  AddProjectInput,
+  RemoveAgentInput,
+  RemoveProjectInput,
+  SetupRun,
+  SetupStepId,
+} from './types';
 
 export const setupApi = {
   create: (body: {
@@ -8,7 +15,9 @@ export const setupApi = {
     kind: SetupRun['kind'];
     projectKey: string;
     machineId: string;
-    input: AddProjectInput | AddAgentInput;
+    input: AddProjectInput | AddAgentInput | RemoveProjectInput | RemoveAgentInput;
+    /** Bắt buộc với remove-project (IX2). */
+    projectId?: string;
   }): Promise<SetupRun> => call('setup.create', {}, { body }),
   get: (companyId: string, id: string): Promise<SetupRun> => call('setup.get', { id }, { query: { companyId } }),
   /** 409 khi bước khác đang chạy (khóa running_step). */
