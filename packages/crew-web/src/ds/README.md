@@ -6,7 +6,7 @@ Câu hỏi thiết kế 8 của spec tạm theo khuyên; đổi giao diện sau 
 ## Cấu trúc
 
 - `tokens.css`: biến màu, bán kính, chuyển động; theme sáng (`:root`) và tối (`.dark`). Chép từ `ui/src/index.css` và `ui/src/motion-tokens.css`, bỏ selector riêng của trang stock.
-- `components/`: 23 component chép từ `ui/src/components/ui/*` (dòng 1 ghi nguồn) và component tự dựng (`table`, `field`, `empty-state`, `error-state`, `spinner`, `theme-scope`, `app-frame`; dòng 1 ghi `crew: tự dựng`). `app-frame` gồm khung trang (`AppFrame`, `SidebarHeader/Body/Footer/Item`, `CenteredPage`, `Kbd`) cho shell ở `src/app`.
+- `components/`: 23 component chép từ `ui/src/components/ui/*` (dòng 1 ghi nguồn) và component tự dựng (`table`, `field`, `empty-state`, `error-state`, `spinner`, `theme-scope`, `app-frame`; dòng 1 ghi `crew: tự dựng`). `app-frame` gồm khung trang (`AppFrame`, `SidebarHeader/Body/Footer/Group/Item`, `SidebarProjectTile`, `CenteredPage`, `Kbd`) cho shell ở `src/app`.
 - `brand/`: logo chữ "2P Crew" (một màu `currentColor`).
 - `cn.ts`: `cn(...classes)`. `icons.ts`: icon lucide được phép dùng ngoài ds.
 - `index.ts`: cổng export duy nhất.

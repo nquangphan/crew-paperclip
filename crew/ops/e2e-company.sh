@@ -76,18 +76,23 @@ def cmd_get(*keys):
         print(data.get(key, ""))
 
 
-def cmd_secret_body(name, description):
-    """Builds a create-secret body; the value is the whole of stdin, kept byte for byte."""
+def cmd_secret_body(name, description, mode=""):
+    """Builds a create-secret body; the value is the whole of stdin, kept byte for byte (mode "trim": whitespace at both
+    ends dropped, for a token read from a file, where a trailing newline would make the stored value differ)."""
     value = sys.stdin.read()
     if not value.strip():
         fail("empty secret value")
+    if mode == "trim":
+        value = value.strip()
     json.dump({"name": name, "description": description, "value": value}, sys.stdout)
 
 
-def cmd_rotate_body():
+def cmd_rotate_body(mode=""):
     value = sys.stdin.read()
     if not value.strip():
         fail("empty secret value")
+    if mode == "trim":
+        value = value.strip()
     json.dump({"value": value}, sys.stdout)
 
 
@@ -318,7 +323,7 @@ prod() {
     if [ -n "$status_id" ]; then
       # The value on the server cannot be read back: rotate it to the new local value. The new value stays in the
       # .tmp file until the server accepted it, so a failed rotate leaves no file that disagrees with the server.
-      out=$(j rotate-body < "$STATUS_FILE.tmp" | api_body POST "/secrets/$status_id/rotate") \
+      out=$(j rotate-body trim < "$STATUS_FILE.tmp" | api_body POST "/secrets/$status_id/rotate") \
         || { rm -f "$STATUS_FILE.tmp"; die "rotate status secret failed"; }
       printf '%s' "$out" | j get id >/dev/null || { rm -f "$STATUS_FILE.tmp"; die "rotate status secret failed"; }
       echo "secret $STATUS_SECRET rotated $(short "$status_id")"
@@ -326,7 +331,7 @@ prod() {
     mv "$STATUS_FILE.tmp" "$STATUS_FILE"
   fi
   if [ -z "$status_id" ]; then
-    out=$(j secret-body "$STATUS_SECRET" "Secret webhook bản tin máy của company Crew E2E" < "$STATUS_FILE" \
+    out=$(j secret-body "$STATUS_SECRET" "Secret webhook bản tin máy của company Crew E2E" trim < "$STATUS_FILE" \
       | api_body POST "/companies/$cid/secrets") || die "create status secret failed"
     status_id=$(printf '%s' "$out" | j get id) || die "create status secret failed"
     echo "secret $STATUS_SECRET created $(short "$status_id")"

@@ -84,8 +84,10 @@ import {
   SheetTrigger,
   SidebarBody,
   SidebarFooter,
+  SidebarGroup,
   SidebarHeader,
   SidebarItem,
+  SidebarProjectTile,
   Skeleton,
   Spinner,
   StageBadge,
@@ -220,9 +222,14 @@ function WidgetShowcase() {
           <Logo />
         </SidebarHeader>
         <SidebarBody label="Điều hướng mẫu">
-          <SidebarItem href="#" label="Tổng quan" icon={<LayoutDashboard aria-hidden />} active />
-          <SidebarItem href="#" label="Hộp thư" icon={<Inbox aria-hidden />} badge={4} />
-          <SidebarItem href="#" label="Yêu cầu" icon={<ListChecks aria-hidden />} />
+          <SidebarGroup>
+            <SidebarItem href="#" label="Tổng quan" icon={<LayoutDashboard aria-hidden />} active />
+            <SidebarItem href="#" label="Hộp thư" icon={<Inbox aria-hidden />} badge={4} />
+          </SidebarGroup>
+          <SidebarGroup label="Công việc">
+            <SidebarItem href="#" label="Yêu cầu" icon={<ListChecks aria-hidden />} />
+            <SidebarItem href="#" label="Dự án mẫu" icon={<SidebarProjectTile color="#6366f1" />} nested />
+          </SidebarGroup>
         </SidebarBody>
         <SidebarFooter>
           <Kbd>⌘K</Kbd>

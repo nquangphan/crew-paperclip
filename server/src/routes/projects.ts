@@ -50,6 +50,7 @@ const SHARED_WORKSPACE_STOP_AND_RESTART_ACTIONS = new Set(["stop", "restart"]);
 
 export function projectRoutes(db: Db) {
   const router = Router();
+  router.use((req, _res, next) => { crewBeforeProjectMutation(req).then(() => next(), next); });
   const svc = projectService(db);
 
   async function repositoryViewer(req: Request) {
@@ -798,3 +799,4 @@ export function projectRoutes(db: Db) {
 
   return router;
 }
+import { crewBeforeProjectMutation } from "../crew/agent-write-guard.js";

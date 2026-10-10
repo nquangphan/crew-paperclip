@@ -3389,6 +3389,20 @@ export function createPluginWorkerHandle(
     return rpcPromise;
   }
 
+  /**
+   * Plugin events go out as a call, not a notification: the invocation scope the
+   * host registers for the event's company is then cleared as soon as the
+   * worker's handlers settle, instead of living for the notification TTL. While
+   * any invocation is live, worker→host calls without an invocation id are
+   * denied, so a lingering event scope broke unscoped data and job calls for up
+   * to MAX_RPC_TIMEOUT_MS after every event. The handler keeps the same ceiling.
+   */
+  function deliverEventAsCall(params: unknown): void {
+    callInternal("onEvent", params as HostToWorkerMethods["onEvent"][0], MAX_RPC_TIMEOUT_MS).catch((err) => {
+      log.warn({ err, eventType: (params as { event?: { eventType?: unknown } } | null)?.event?.eventType }, "plugin event delivery failed");
+    });
+  }
+
   // -----------------------------------------------------------------------
   // Public API
   // -----------------------------------------------------------------------
@@ -3459,6 +3473,7 @@ export function createPluginWorkerHandle(
 
     notify(method: string, params: unknown) {
       if (status !== "running") return;
+      if (method === "onEvent") return deliverEventAsCall(params);
       const invocationScope = deriveInvocationScope(method, params);
       // Notifications have no response to settle on, so the invocation scope
       // is GC'd by TTL. Call-path invocations are registered without a TTL and

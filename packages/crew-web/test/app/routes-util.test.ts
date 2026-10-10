@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { safeNext } from '@/app/routes-util';
+import { groupNavItems, NAV_ITEMS, safeNext } from '@/app/routes-util';
 
 describe('safeNext', () => {
   it('nhận đường nội bộ, giữ query và hash', () => {
@@ -22,5 +22,27 @@ describe('safeNext', () => {
     ]) {
       expect(safeNext(v), JSON.stringify(v)).toBe('/');
     }
+  });
+});
+
+describe('groupNavItems', () => {
+  const segs = (...s: string[]) => NAV_ITEMS.filter((i) => s.includes(i.segment));
+
+  it('chia theo Paperclip: nhóm đầu không tên, rồi Công việc, Tổ chức, Hệ thống', () => {
+    const groups = groupNavItems(NAV_ITEMS);
+    expect(groups.map((g) => g.id)).toEqual(['main', 'work', 'org', 'system']);
+    const ids = (g: string) => groups.find((x) => x.id === g)?.items.map((i) => i.id);
+    expect(ids('main')).toEqual(['newIssue', 'search', 'dashboard', 'inbox']);
+    expect(ids('work')).toEqual(['issues', 'projects', 'docs']);
+    expect(ids('org')).toEqual(['agents', 'skills', 'machines']);
+    expect(ids('system')).toEqual(['settings', 'guide']);
+  });
+  it('mọi mục thuộc đúng một nhóm', () => {
+    const all = groupNavItems(NAV_ITEMS).flatMap((g) => g.items.map((i) => i.id));
+    expect([...all].sort()).toEqual(NAV_ITEMS.map((i) => i.id).sort());
+  });
+  it('bỏ nhóm không còn mục nào (route chưa có)', () => {
+    const groups = groupNavItems(segs('dashboard', 'settings'));
+    expect(groups.map((g) => g.id)).toEqual(['main', 'system']);
   });
 });
