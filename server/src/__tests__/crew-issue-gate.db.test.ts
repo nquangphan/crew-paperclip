@@ -835,4 +835,97 @@ suite("crew issue gate in issueService.update", () => {
       await issueService(db).update(explicit, { status: "todo", assigneeAgentId: other, actorUserId: "owner-1" }),
     ).toMatchObject({ assigneeAgentId: other });
   });
+
+  // Ép Done: plugin gọi thẳng issueService.update({status:'done'}) đứng tên owner, không đi qua transition của route.
+  async function forceDone(issueId: string) {
+    return issueService(db).update(issueId, { status: "done", actorUserId: "owner-1" });
+  }
+
+  async function overridesOf(issueId: string) {
+    return db
+      .select()
+      .from(activityLog)
+      .where(and(eq(activityLog.entityId, issueId), eq(activityLog.action, "crew.policy.board_override")));
+  }
+
+  async function decisionCount(issueId: string) {
+    return (await db.select().from(issueExecutionDecisions).where(eq(issueExecutionDecisions.issueId, issueId))).length;
+  }
+
+  it("board ép done issue đang chờ stage review của agent: xóa execution state, một activity override", async () => {
+    const c = await company();
+    const issueId = await rootAtReviewer(c);
+    const updated = await forceDone(issueId);
+    expect(updated?.status).toBe("done");
+    expect(updated?.executionState).toBeNull();
+    const [row] = await db.select().from(issues).where(eq(issues.id, issueId));
+    expect(row!.executionState).toBeNull();
+    expect(row!.executionPolicy).not.toBeNull();
+    const overrides = await overridesOf(issueId);
+    expect(overrides).toHaveLength(1);
+    expect(overrides[0]!.actorType).toBe("user");
+    expect(await decisionCount(issueId)).toBe(0);
+  });
+
+  it("board ép done issue đang chờ chính mình duyệt: không thành Duyệt, không có decision mới", async () => {
+    const c = await company();
+    const issueId = await issue(c, { status: "in_progress", assigneeAgentId: c.executorId, executionPolicy: c.root });
+    const sOwner = c.root.stages[2]!.id;
+    await act(c, issueId, { agentId: c.executorId }, "done");
+    await act(c, issueId, { agentId: c.reviewerId }, "done");
+    await postComment(c, issueId, c.integratorId, docsLine(0));
+    expect(await act(c, issueId, { agentId: c.integratorId }, "done")).toMatchObject({
+      assigneeUserId: "owner-1",
+      executionState: { status: "pending", currentStageId: sOwner },
+    });
+    const decisionsBefore = await decisionCount(issueId);
+
+    const updated = await forceDone(issueId);
+    expect(updated?.status).toBe("done");
+    expect(updated?.executionState).toBeNull();
+    expect(await decisionCount(issueId)).toBe(decisionsBefore);
+    const overrides = await overridesOf(issueId);
+    expect(overrides).toHaveLength(1);
+    expect((overrides[0]!.details as { violations: string[] }).violations).toEqual(
+      expect.arrayContaining([`stage_unapproved:${sOwner}`]),
+    );
+  });
+
+  it("board ép done issue chưa vào stage nào: done, không mở workflow, override liệt kê stage chưa duyệt", async () => {
+    const c = await company();
+    const issueId = await issue(c, { status: "in_progress", assigneeAgentId: c.executorId, executionPolicy: c.root });
+    const updated = await forceDone(issueId);
+    expect(updated?.status).toBe("done");
+    expect(updated?.executionState).toBeNull();
+    expect(updated?.assigneeAgentId).toBe(c.executorId);
+    const overrides = await overridesOf(issueId);
+    expect(overrides).toHaveLength(1);
+    expect((overrides[0]!.details as { violations: string[] }).violations).toEqual(
+      expect.arrayContaining(c.root.stages.map((s) => `stage_unapproved:${s.id}`)),
+    );
+    expect(await decisionCount(issueId)).toBe(0);
+  });
+
+  it("board ép done mà lệnh ghi đã có executionState: giữ nguyên giá trị của lệnh ghi", async () => {
+    const c = await company();
+    const issueId = await rootAtReviewer(c);
+    const own = state(c, "completed", null, null, [c.root.stages[0]!.id]);
+    const updated = await issueService(db).update(issueId, { status: "done", executionState: own, actorUserId: "owner-1" });
+    expect(updated?.status).toBe("done");
+    expect(updated?.executionState).toMatchObject({ status: "completed", completedStageIds: [c.root.stages[0]!.id] });
+    expect(await overridesOf(issueId)).toHaveLength(1);
+  });
+
+  it("agent vào done thiếu cổng vẫn bị chặn và execution state không đổi", async () => {
+    const c = await company();
+    const issueId = await rootAtReviewer(c);
+    const [before] = await db.select().from(issues).where(eq(issues.id, issueId));
+    await expect(
+      issueService(db).update(issueId, { status: "done", actorAgentId: c.executorId }),
+    ).rejects.toMatchObject({ status: 422, details: { code: "crew_gate_blocked" } });
+    const [after] = await db.select().from(issues).where(eq(issues.id, issueId));
+    expect(after!.status).toBe("in_review");
+    expect(after!.executionState).toEqual(before!.executionState);
+    expect(await overridesOf(issueId)).toHaveLength(0);
+  });
 });
