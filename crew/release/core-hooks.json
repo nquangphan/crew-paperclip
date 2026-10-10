@@ -118,6 +118,38 @@
       "tests": ["packages/adapters/claude-local/src/server/execute.remote.crew.test.ts"]
     },
     {
+      "id": "P5",
+      "kind": "adapter-patch",
+      "file": "packages/adapters/codex-local/src/server/index.ts",
+      "symbol": "sessionCodec.serialize/deserialize",
+      "anchor": "      ...(remoteExecution ? { remoteExecution } : {}),",
+      "occurrences": 2,
+      "description": "Session codec keeps remoteExecution so SSH runs can resume their Codex session.",
+      "upstreamPr": null,
+      "tests": ["packages/adapters/codex-local/src/server/session-codec.crew.test.ts"]
+    },
+    {
+      "id": "P6",
+      "kind": "adapter-patch",
+      "file": "packages/adapters/opencode-local/src/server/execute.ts",
+      "symbol": "execute (inPlaceRoot)",
+      "anchor": "  const inPlaceRoot = executionTarget?.workspaceRealization?.mode === \"in_place\"",
+      "description": "opencode_local runs in the authoritative root for in_place realization: no workspace upload/restore and no copy into the remote $HOME/.claude/skills.",
+      "upstreamPr": null,
+      "tests": ["packages/adapters/opencode-local/src/server/execute.in-place.crew.test.ts"]
+    },
+    {
+      "id": "P7",
+      "kind": "adapter-patch",
+      "file": "packages/adapters/opencode-local/src/server/index.ts",
+      "symbol": "sessionCodec.serialize/deserialize",
+      "anchor": "      ...(remoteExecution ? { remoteExecution } : {}),",
+      "occurrences": 2,
+      "description": "Session codec keeps remoteExecution so SSH runs can resume their OpenCode session.",
+      "upstreamPr": null,
+      "tests": ["packages/adapters/opencode-local/src/server/session-codec.crew.test.ts"]
+    },
+    {
       "id": "C1",
       "kind": "core-patch",
       "file": "server/src/routes/onboarding-seed.ts",
