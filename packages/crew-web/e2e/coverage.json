@@ -144,6 +144,50 @@
     "tests": ["PW-S5-7 "],
     "tier": "T1"
   },
+  "S6.17": {
+    "spec": "e2e/specs/s6-force-done.spec.ts",
+    "tests": [
+      "PW-S6-17a ",
+      "PW-S6-17b ",
+      "PW-S6-17c ",
+      "PW-S6-17d ",
+      "PW-S6-17e ",
+      "PW-S6-17f ",
+      "PW-S6-17g ",
+      "PW-S6-7R "
+    ],
+    "tier": "T1"
+  },
+  "S6.18": {
+    "spec": "e2e/specs/s6-force-done.spec.ts",
+    "tests": ["PW-S6-18 "],
+    "tier": "T1"
+  },
+  "S8.7": {
+    "spec": "e2e/specs/s8-remove-project.spec.ts",
+    "tests": ["PW-S8-7 "],
+    "tier": "T2"
+  },
+  "S11.9": {
+    "spec": "e2e/specs/s11-remove-agent.spec.ts",
+    "tests": ["PW-S11-9 "],
+    "tier": "T2"
+  },
+  "S14.5": {
+    "spec": "e2e/specs/s14-skill-edit.spec.ts",
+    "tests": ["PW-S14-5 ", "PW-S14-5b ", "PW-S14-5c "],
+    "tier": "T1"
+  },
+  "S14.6": {
+    "spec": "e2e/specs/s14-skill-edit.spec.ts",
+    "tests": ["PW-S14-6 "],
+    "tier": "T1"
+  },
+  "S14.7": {
+    "spec": "e2e/specs/s14-skill-edit.spec.ts",
+    "tests": ["PW-S14-7 "],
+    "tier": "T1"
+  },
   "S19": {
     "spec": "e2e/specs/s19-search.spec.ts",
     "tests": ["PW-S19-1 "],
@@ -159,5 +203,10 @@
     "tests": [],
     "tier": "T3",
     "skip": "Máy quá tải (H1, tải > 8) không dựng được an toàn trên Mac mini dùng chung; BA ghi PW-F9 là tùy chọn. H1 đã nghiệm thu ở spike S5 R1."
+  },
+  "F10": {
+    "spec": "e2e/specs/s8-remove-project.spec.ts",
+    "tests": ["PW-F10 "],
+    "tier": "T2"
   }
 }
