@@ -23,7 +23,9 @@ export interface BeforeIssueWriteInput {
   existing: typeof issues.$inferSelect;
   /**
    * Các cột sắp ghi, kể cả `status` và `executionPolicy` nếu request gửi lên. Chính object này được ghi xuống DB.
-   * Ngoại lệ duy nhất được sửa: Crew đặt `executionState = null` khi issue có policy rời `done`/`cancelled`.
+   * Ngoại lệ được sửa: Crew đặt `executionState = null` khi issue có policy rời `done`/`cancelled`, và đặt
+   * `assigneeAdapterOverrides` theo vai trò khi issue có policy đổi giữa executor và agent của stage (override của
+   * executor không theo issue sang reviewer).
    */
   patch: Partial<typeof issues.$inferInsert>;
   actorAgentId: string | null | undefined;

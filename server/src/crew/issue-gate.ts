@@ -14,7 +14,12 @@ import { unprocessable } from "../errors.js";
 import { persistActivity } from "../services/activity-log.js";
 import { normalizeIssueExecutionPolicy, parseIssueExecutionState } from "../services/issue-execution-policy.js";
 import { loadAssigneeAdapterType } from "./issue-create-policy.js";
-import { CREW_OVERRIDE_FORBIDDEN_MESSAGE, checkAgentAdapterOverrides } from "./model-policy.js";
+import {
+  CREW_CODEX_REVIEWER_MODEL,
+  CREW_OVERRIDE_FORBIDDEN_MESSAGE,
+  CREW_RUNTIME_CATALOG,
+  checkAgentAdapterOverrides,
+} from "./model-policy.js";
 import {
   type CrewMergeEvidence,
   type CrewRoles,
@@ -42,8 +47,9 @@ export interface IssueWriteHookInput {
   issueId: string;
   existing: typeof issues.$inferSelect;
   /**
-   * Chỉ được sửa hai chỗ: `executionState = null` (kèm trả việc cho executor) khi issue Crew rời `done`/`cancelled`,
-   * và `executionState = null` khi board ép issue vào `done` mà lệnh ghi không tự đặt `executionState`.
+   * Chỉ được sửa ba chỗ: `executionState = null` (kèm trả việc cho executor) khi issue Crew rời `done`/`cancelled`,
+   * `executionState = null` khi board ép issue vào `done` mà lệnh ghi không tự đặt `executionState`, và
+   * `assigneeAdapterOverrides` khi issue Crew đổi giữa executor và agent của stage (`routeAssigneeOverrides`).
    */
   patch: Partial<typeof issues.$inferInsert>;
   actorAgentId: string | null | undefined;
@@ -619,6 +625,112 @@ export async function crewBeforeIssueWrite(input: IssueWriteHookInput): Promise<
   if (verdict.kind === "allow" && verdict.notes.includes("docs_uninitialized")) {
     await activity("crew.docs_gate.uninitialized", { note: "repo chưa crew-docs init; docs gate cho qua" });
   }
+  await routeAssigneeOverrides(tx, locked, input.patch, pinnedPolicy, roles);
+}
+
+/** Activity của hệ thống ghi override khi issue Crew đổi người làm; `executorOverrides` là override executor để lại. */
+export const CREW_ASSIGNEE_OVERRIDES_ACTION = "crew.assignee_overrides.handoff";
+
+/** Override cố định của reviewer Codex (model và effort theo vai trò, không theo issue). */
+export const CREW_CODEX_REVIEWER_OVERRIDES = Object.freeze({
+  adapterConfig: Object.freeze({
+    model: CREW_CODEX_REVIEWER_MODEL.model,
+    [CREW_RUNTIME_CATALOG.codex_local.effortKey as string]: CREW_CODEX_REVIEWER_MODEL.effort,
+  }),
+});
+
+/**
+ * `assigneeAdapterOverrides` là một cột trên issue và lõi áp nó cho bất kỳ agent nào đang là assignee, nên override
+ * Trợ Lý (hay fallback) đặt cho executor sẽ theo issue sang reviewer khi stock chuyển stage. Trên issue có policy Crew,
+ * khi assignee đổi mà lệnh ghi không tự đặt override:
+ * - giao cho agent của stage (reviewer, reviewer Codex, integrator): override theo vai trò, reviewer Codex là
+ *   `gpt-6-sol`/`high`, còn lại `null` (chạy theo cấu hình agent);
+ * - giao cho executor: override executor đó để lại lần trước (activity hệ thống), nếu còn hợp với runtime của nó;
+ *   không có mà vừa rời agent của stage thì `null`; executor sang executor khác thì giữ như stock.
+ * Executor rời issue thì override của nó được ghi lại (kể cả `null`), để vòng sau trả về đúng override.
+ */
+async function routeAssigneeOverrides(
+  tx: Db,
+  locked: typeof issues.$inferSelect,
+  patch: Partial<typeof issues.$inferInsert>,
+  policy: IssueExecutionPolicy | null,
+  roles: CrewRoles | null,
+): Promise<void> {
+  if (!policy || policyGateFingerprint(policy) === "none") return;
+  if (!Object.hasOwn(patch, "assigneeAgentId") || patch.assigneeAgentId === undefined) return;
+  const from = locked.assigneeAgentId?.toLowerCase() ?? null;
+  const to = patch.assigneeAgentId?.toLowerCase() ?? null;
+  if (from === to) return;
+  const participants = new Set(
+    [
+      ...policy.stages.flatMap((s) => s.participants.flatMap((p) => (p.type === "agent" && p.agentId ? [p.agentId] : []))),
+      roles?.reviewerAgentId,
+      roles?.integratorAgentId,
+      roles?.codexReviewerAgentId,
+    ].flatMap((id) => (id ? [id.toLowerCase()] : [])),
+  );
+  const executorLeaving = from !== null && !participants.has(from);
+  const explicit = Object.hasOwn(patch, "assigneeAdapterOverrides") && patch.assigneeAdapterOverrides !== undefined;
+
+  let next: Record<string, unknown> | null | undefined;
+  if (!explicit && to !== null) {
+    if (participants.has(to)) {
+      next = to === roles?.codexReviewerAgentId?.toLowerCase() ? structuredClone(CREW_CODEX_REVIEWER_OVERRIDES) : null;
+    } else {
+      const stashed = await lastExecutorOverrides(tx, locked, to);
+      if (stashed !== undefined) {
+        const adapterType = stashed === null ? null : await loadAssigneeAdapterType(tx, locked.companyId, to);
+        next = stashed === null || checkAgentAdapterOverrides(stashed, adapterType).length === 0 ? stashed : null;
+      } else if (from !== null && participants.has(from)) {
+        next = null;
+      }
+    }
+  }
+  if (next !== undefined) patch.assigneeAdapterOverrides = next;
+  if (!executorLeaving && next === undefined) return;
+  await persistActivity(tx, {
+    companyId: locked.companyId,
+    actorType: "system",
+    actorId: "crew",
+    action: CREW_ASSIGNEE_OVERRIDES_ACTION,
+    entityType: "issue",
+    entityId: locked.id,
+    issueId: locked.id,
+    details: {
+      fromAgentId: from,
+      toAgentId: to,
+      ...(executorLeaving ? { executorOverrides: locked.assigneeAdapterOverrides ?? null } : {}),
+      assigneeAdapterOverrides: explicit ? (patch.assigneeAdapterOverrides ?? null) : (next ?? locked.assigneeAdapterOverrides ?? null),
+    },
+  });
+}
+
+/** Override executor `agentId` để lại lần gần nhất rời issue; `undefined` khi chưa từng rời (activity chỉ hệ thống ghi). */
+async function lastExecutorOverrides(
+  tx: Db,
+  locked: typeof issues.$inferSelect,
+  agentId: string,
+): Promise<Record<string, unknown> | null | undefined> {
+  const [row] = await tx
+    .select({ details: activityLog.details })
+    .from(activityLog)
+    .where(
+      and(
+        eq(activityLog.companyId, locked.companyId),
+        eq(activityLog.entityType, "issue"),
+        eq(activityLog.entityId, locked.id),
+        eq(activityLog.action, CREW_ASSIGNEE_OVERRIDES_ACTION),
+        eq(activityLog.actorType, "system"),
+        eq(activityLog.actorId, "crew"),
+        sql`${activityLog.details}->>'fromAgentId' = ${agentId}`,
+        sql`jsonb_exists(${activityLog.details}, 'executorOverrides')`,
+      ),
+    )
+    .orderBy(desc(activityLog.createdAt), desc(activityLog.id))
+    .limit(1);
+  if (!row) return undefined;
+  const value = row.details?.executorOverrides;
+  return value && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>) : null;
 }
 
 type ReopenHandBack = { kind: "none" } | { kind: "executor"; agentId: string } | { kind: "unknown"; reason: string };
