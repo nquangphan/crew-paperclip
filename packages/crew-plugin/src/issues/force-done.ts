@@ -9,6 +9,8 @@ export type ForceDoneWarning = "comment_failed" | "wakeup_failed" | "activity_fa
 const TERMINAL = new Set(["done", "cancelled"]);
 /** Parent states the host refuses to wake (`requestWakeup`); skipping them is not a failure. */
 const UNWAKEABLE_PARENT = new Set(["backlog", "done", "cancelled"]);
+/** Host `requestWakeup` refusal for a parent with unresolved blockers: expected, not a failure. */
+const BLOCKED_PARENT = /blocked by unresolved blockers/i;
 /** Control characters other than tab, line feed and carriage return (C0, DEL, C1). */
 const CONTROL = /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f-\u009f]/;
 
@@ -96,12 +98,18 @@ export async function handleIssuesApi(ctx: Ctx, input: PluginApiRequestInput): P
 async function wakeParentIfLastChild(ctx: Ctx, issue: Issue, companyId: string, actorUserId: string): Promise<void> {
   const parentId = issue.parentId!;
   const parent = await ctx.issues.get(parentId, companyId);
-  if (!parent?.assigneeAgentId || UNWAKEABLE_PARENT.has(parent.status)) return;
+  // Stock rule: a conversation issue is never woken by its children.
+  if (!parent?.assigneeAgentId || parent.conversationAgentId || UNWAKEABLE_PARENT.has(parent.status)) return;
   const subtree = await ctx.issues.getSubtree(parentId, companyId, { includeRoot: false });
   const open = subtree.issues.some((child) =>
     child.parentId === parentId && child.id !== issue.id && !TERMINAL.has(child.status));
   if (open) return;
-  await ctx.issues.requestWakeup(parentId, companyId, {
-    reason: "issue_children_completed", idempotencyKey: `force-done:${issue.id}`, actorUserId,
-  });
+  try {
+    await ctx.issues.requestWakeup(parentId, companyId, {
+      reason: "issue_children_completed", idempotencyKey: `force-done:${issue.id}`, actorUserId,
+    });
+  } catch (error) {
+    // The host refuses to wake a parent that still has unresolved blockers; it will be woken when they clear.
+    if (!BLOCKED_PARENT.test(errText(error))) throw error;
+  }
 }
