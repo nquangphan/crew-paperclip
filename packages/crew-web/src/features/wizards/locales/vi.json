@@ -112,6 +112,8 @@
     "key": "Khóa chỉ gồm chữ thường, số, gạch ngang, bắt đầu bằng chữ, dài 2–31 ký tự",
     "e2eKey": "Khóa e2e-* chỉ dùng cho company Crew E2E",
     "keyTaken": "Company đã có project dùng khóa này",
+    "keyRemoved": "Khóa này đã dùng cho project đã gỡ, chọn khóa khác",
+    "keyEnvTaken": "Đã có environment mang tên theo khóa này (<khóa>-<vai trò>), chọn khóa khác",
     "name": "Tên project không được trống (tối đa 120 ký tự)",
     "executors": "Số executor phải là 1 hoặc 2",
     "project": "Chọn project",

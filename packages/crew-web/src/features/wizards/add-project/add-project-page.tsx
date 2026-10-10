@@ -70,9 +70,14 @@ function AddProjectFormView() {
     queryKey: queryKeys.crew('crew.machines', { companyId: company.id }),
     queryFn: () => api.crew.machines(company.id),
   });
+  // Kể cả project đã gỡ và environment đã lưu trữ: khóa của chúng không dùng lại được (validate.ts).
   const projects = useQuery({
-    queryKey: queryKeys.projects(company.id),
-    queryFn: () => api.projects.list(company.id),
+    queryKey: [...queryKeys.projects(company.id), 'archived'],
+    queryFn: () => api.projects.list(company.id, { includeArchived: true }),
+  });
+  const environments = useQuery({
+    queryKey: queryKeys.environments(company.id),
+    queryFn: () => api.environments.list(company.id),
   });
   const jobs = useQuery({
     queryKey: queryKeys.crew('crew.machineJobs', { companyId: company.id, machineId: form.machineId, status: 'done' }),
@@ -105,7 +110,11 @@ function AddProjectFormView() {
 
   const submit = (event: FormEvent) => {
     event.preventDefault();
-    const found = validateAddProject(form, { companyName: company.name, projects: projects.data ?? [] });
+    const found = validateAddProject(form, {
+      companyName: company.name,
+      projects: projects.data ?? [],
+      environments: environments.data ?? [],
+    });
     setErrors(found);
     if (Object.keys(found).length > 0) return;
     create.mutate({
@@ -222,7 +231,7 @@ function AddProjectFormView() {
           ) : null}
 
           <div className="flex gap-2">
-            <Button type="submit" disabled={create.isPending || projects.isLoading}>
+            <Button type="submit" disabled={create.isPending || projects.isLoading || environments.isLoading}>
               {t('addProject.form.submit')}
             </Button>
           </div>

@@ -58,6 +58,7 @@ const RUN = {
 function server(extra: Record<string, unknown> = {}) {
   return mockServer({
     'GET /api/companies/c-tps/projects': { body: [{ id: 'p0', name: 'Landing', urlKey: 'landing' }] },
+    'GET /api/companies/c-tps/environments': { body: [] },
     ...data('crew.machines', MACHINES),
     ...data('crew.machineJobs', INSPECTED),
     ...(extra as Record<string, { body: unknown }>),
@@ -97,6 +98,30 @@ describe('AddProjectPage', () => {
     fireEvent.change(screen.getByLabelText('Tên project'), { target: { value: 'Demo' } });
     fireEvent.click(screen.getByRole('button', { name: 'Bắt đầu' }));
     expect(await screen.findByText('Khóa e2e-* chỉ dùng cho company Crew E2E')).toBeTruthy();
+    expect(calls.some((c) => c.method === 'POST' && c.url.startsWith(`${PLUGIN}/setup-runs`))).toBe(false);
+  });
+
+  it('khóa của project đã gỡ bị chặn ngay bước 1, không tạo setup run', async () => {
+    const { calls } = server({
+      'GET /api/companies/c-tps/projects?includeArchived=true': {
+        body: [{ id: 'p-old', name: 'Demo cũ', urlKey: 'demo-cu', archivedAt: '2026-10-10T03:00:00.000Z' }],
+      },
+      'GET /api/companies/c-tps/environments': { body: [{ id: 'env-1', name: 'demo-assistant', status: 'archived' }] },
+    });
+    mount();
+    await chooseMachine(/^mac-mini$/);
+    fireEvent.change(screen.getByLabelText('Folder repo trên máy'), { target: { value: '/Users/owner/code/demo' } });
+    fireEvent.change(screen.getByLabelText('Khóa project'), { target: { value: 'demo' } });
+    fireEvent.change(screen.getByLabelText('Tên project'), { target: { value: 'Demo' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Bắt đầu' }));
+    expect(await screen.findByText('Khóa này đã dùng cho project đã gỡ, chọn khóa khác')).toBeTruthy();
+    // Project đã gỡ (archive) cũng chặn khóa.
+    fireEvent.change(screen.getByLabelText('Khóa project'), { target: { value: 'demo-cu' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Bắt đầu' }));
+    await waitFor(() =>
+      expect(screen.getAllByText('Khóa này đã dùng cho project đã gỡ, chọn khóa khác')).toHaveLength(1),
+    );
+    expect(calls.some((c) => c.url === '/api/companies/c-tps/projects?includeArchived=true')).toBe(true);
     expect(calls.some((c) => c.method === 'POST' && c.url.startsWith(`${PLUGIN}/setup-runs`))).toBe(false);
   });
 

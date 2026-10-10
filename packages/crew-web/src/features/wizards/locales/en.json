@@ -112,6 +112,8 @@
     "key": "The key may contain lowercase letters, digits and dashes, start with a letter, 2–31 characters",
     "e2eKey": "e2e-* keys are only allowed in the Crew E2E company",
     "keyTaken": "The company already has a project using this key",
+    "keyRemoved": "This key was used by a removed project, choose another key",
+    "keyEnvTaken": "An environment named after this key (<key>-<role>) already exists, choose another key",
     "name": "Project name must not be empty (at most 120 characters)",
     "executors": "Executors must be 1 or 2",
     "project": "Choose a project",

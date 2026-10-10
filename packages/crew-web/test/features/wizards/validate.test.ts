@@ -40,6 +40,24 @@ describe('validateAddProject', () => {
     expect(validateAddProject(FORM, ctx({ projects: [{ name: 'Alpha', urlKey: 'alpha' }] })).key).toBeUndefined();
   });
 
+  it('khóa của project đã gỡ (archive) bị từ chối với lời báo riêng', () => {
+    const archived = { name: 'Demo cũ', urlKey: 'demo', archivedAt: '2026-10-10T03:00:00.000Z' };
+    expect(validateAddProject(FORM, ctx({ projects: [archived] })).key).toBe('validate.keyRemoved');
+    expect(validateAddProject(FORM, ctx({ projects: [{ ...archived, archivedAt: null }] })).key).toBe(
+      'validate.keyTaken',
+    );
+  });
+
+  it('khóa trùng tên environment <khóa>-<ô> đã có (kể cả đã lưu trữ) bị từ chối', () => {
+    const env = (name: string, status: string) => ({ environments: [{ name, status }] });
+    expect(validateAddProject(FORM, ctx(env('demo-assistant', 'archived'))).key).toBe('validate.keyRemoved');
+    expect(validateAddProject(FORM, ctx(env('demo-executor-2', 'archived'))).key).toBe('validate.keyRemoved');
+    expect(validateAddProject(FORM, ctx(env('demo-reviewer', 'active'))).key).toBe('validate.keyEnvTaken');
+    // Khóa khác có tiền tố giống: không trùng.
+    expect(validateAddProject(FORM, ctx(env('demo-2-assistant', 'archived'))).key).toBeUndefined();
+    expect(validateAddProject(FORM, ctx(env('demo', 'active'))).key).toBeUndefined();
+  });
+
   it('số executor chỉ 1 hoặc 2', () => {
     expect(validateAddProject({ ...FORM, executors: 0 }, ctx()).executors).toBe('validate.executors');
     expect(validateAddProject({ ...FORM, executors: 3 }, ctx()).executors).toBe('validate.executors');
