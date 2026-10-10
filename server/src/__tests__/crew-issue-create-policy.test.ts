@@ -43,6 +43,17 @@ describe("decideCreatePolicy", () => {
       data: { createdByUserId: "owner-1", parentId: "p", assigneeAdapterOverrides: { adapterConfig: { extraArgs: [] } } }, roles, ownerUserId: "owner-1",
     })).toEqual({ kind: "set", template: "child" });
   });
+  it("override của agent kiểm theo adapterType của assignee", () => {
+    const child = (adapterConfig: Record<string, unknown>, assigneeAdapterType?: string | null) =>
+      decideCreatePolicy({
+        data: { createdByAgentId: "e", parentId: "p", assigneeAdapterOverrides: { adapterConfig } }, roles, ownerUserId: null, assigneeAdapterType,
+      });
+    expect(child({ model: "claude-opus-5" }, "opencode_local")).toEqual({ kind: "reject", code: "crew_override_forbidden", violations: ["adapterConfig.model:claude-opus-5@opencode_local"] });
+    expect(child({ model: "opencode-go/kimi-k3" }, "opencode_local")).toEqual({ kind: "set", template: "child" });
+    expect(child({ model: "gpt-6-sol", modelReasoningEffort: "high" }, "codex_local")).toEqual({ kind: "set", template: "child" });
+    expect(child({ model: "gpt-6-sol", modelReasoningEffort: "high" })).toEqual({ kind: "reject", code: "crew_override_forbidden", violations: ["adapterConfig.model:gpt-6-sol", "adapterConfig.modelReasoningEffort"] });
+    expect(child({ model: "claude-opus-5", effort: "high" }, "process")).toEqual({ kind: "set", template: "child" });
+  });
   it("agent tạo issue gốc bị từ chối", () => {
     expect(decideCreatePolicy({ data: { createdByAgentId: "e" }, roles, ownerUserId: "owner-1" })).toEqual({
       kind: "reject",
@@ -366,6 +377,34 @@ suite("crew policy in issueService.create", () => {
     } as never);
     const [row] = await db.select().from(issues).where(eq(issues.id, issue.id));
     expect(row!.assigneeAdapterOverrides).toEqual({ adapterConfig: { model: "claude-opus-5", effort: "high" } });
+  });
+
+  it("override kiểm theo runtime của assignee: executor opencode_local nhận model OpenCode, chặn model Claude", async () => {
+    const { companyId, executorId, rootId } = await seed();
+    const opencodeId = randomUUID();
+    await db.insert(agents).values({
+      id: opencodeId,
+      companyId,
+      name: "Executor OpenCode",
+      role: "engineer",
+      status: "idle",
+      adapterType: "opencode_local",
+      adapterConfig: {},
+      permissions: {},
+      runtimeConfig: { heartbeat: { enabled: false, wakeOnDemand: false, maxConcurrentRuns: 1 } },
+    });
+    const before = await db.select().from(issues).where(eq(issues.companyId, companyId));
+    await expect(issueService(db).createChild(rootId, {
+      title: "con", createdByAgentId: executorId, assigneeAgentId: opencodeId,
+      assigneeAdapterOverrides: { adapterConfig: { model: "claude-opus-5" } },
+    } as never)).rejects.toMatchObject({ status: 422, details: { code: "crew_override_forbidden", violations: ["adapterConfig.model:claude-opus-5@opencode_local"] } });
+    expect(await db.select().from(issues).where(eq(issues.companyId, companyId))).toHaveLength(before.length);
+    const { issue } = await issueService(db).createChild(rootId, {
+      title: "con", createdByAgentId: executorId, assigneeAgentId: opencodeId,
+      assigneeAdapterOverrides: { adapterConfig: { model: "opencode-go/kimi-k3" } },
+    } as never);
+    const [row] = await db.select().from(issues).where(eq(issues.id, issue.id));
+    expect(row!.assigneeAdapterOverrides).toEqual({ adapterConfig: { model: "opencode-go/kimi-k3" } });
   });
 
   it("company ngoài cấu hình giữ cách tạo stock", async () => {
