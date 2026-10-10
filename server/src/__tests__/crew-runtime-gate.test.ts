@@ -133,9 +133,40 @@ describe("evaluateRuntimeGate", () => {
   });
 
   it("deps ném lỗi thì không giữ (fail open cho công tắc)", async () => {
-    expect(await evaluateRuntimeGate({ db, run: run() }, deps({ switchOn: async () => { throw new Error("x"); } }))).toBe(false);
+    expect(await evaluateRuntimeGate({ db, run: run() }, deps({ loadAgent: async () => ({ adapterType: "claude_local", defaultEnvironmentId: ENV }), switchOn: async () => { throw new Error("x"); } }))).toBe(false);
     expect(await evaluateRuntimeGate({ db, run: run() }, deps({ loadAgent: async () => { throw new Error("x"); } }))).toBe(false);
-    expect(await evaluateRuntimeGate({ db, run: run() }, deps({ resolveMachine: async () => { throw new Error("x"); } }))).toBe(false);
+    expect(await evaluateRuntimeGate({ db, run: run({}) }, deps({ loadAgent: async () => ({ adapterType: "claude_local", defaultEnvironmentId: ENV }), resolveMachine: async () => { throw new Error("x"); } }))).toBe(false);
+  });
+
+  describe("lỗi đọc DB khi tra máy hay công tắc", () => {
+    it("Codex/OpenCode: tra máy lỗi thì coi như công tắc mặc định (tắt), giữ run và ghi hàng chờ không máy", async () => {
+      for (const adapterType of ["codex_local", "opencode_local"]) {
+        const switchOn = vi.fn(async () => false);
+        const d = deps({
+          loadAgent: async () => ({ adapterType, defaultEnvironmentId: ENV }),
+          resolveMachine: async () => { throw new Error("db down"); },
+          switchOn,
+        });
+        expect(await evaluateRuntimeGate({ db, run: run() }, d)).toBe(true);
+        expect(switchOn).toHaveBeenCalledWith({ companyId: CO, machineId: null, runtime: adapterType });
+        expect(d.recordWaiting).toHaveBeenCalledWith(expect.anything(), { runtime: adapterType, machineId: null, issueId: ISSUE });
+      }
+    });
+
+    it("Codex/OpenCode: đọc công tắc lỗi thì giữ run", async () => {
+      const d = deps({ switchOn: async () => { throw new Error("db down"); } });
+      expect(await evaluateRuntimeGate({ db, run: run() }, d)).toBe(true);
+      expect(d.recordWaiting).toHaveBeenCalledWith(expect.anything(), { runtime: "codex_local", machineId: MACHINE, issueId: ISSUE });
+    });
+
+    it("Claude: lỗi hạ tầng không chặn run", async () => {
+      const claude = async () => ({ adapterType: "claude_local", defaultEnvironmentId: ENV });
+      const d1 = deps({ loadAgent: claude, switchOn: async () => { throw new Error("db down"); } });
+      expect(await evaluateRuntimeGate({ db, run: run() }, d1)).toBe(false);
+      const d2 = deps({ loadAgent: claude, resolveMachine: async () => { throw new Error("db down"); } });
+      expect(await evaluateRuntimeGate({ db, run: run() }, d2)).toBe(false);
+      expect(d1.recordWaiting).not.toHaveBeenCalled();
+    });
   });
 
   describe("run của agent đã bị chuyển đi", () => {

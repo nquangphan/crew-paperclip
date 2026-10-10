@@ -46,8 +46,8 @@ function readIssueId(contextSnapshot: unknown): string | null {
  * - run của agent đã bị chuyển runtime (fallback) mà còn `queued`: hủy rồi giữ;
  * - agent `claude_local`/`codex_local`/`opencode_local`, công tắc runtime đó trên máy của agent tắt. Agent không có
  *   environment thì không xác định máy (không tra bản tin): công tắc mặc định, nên Codex/OpenCode bị giữ, Claude chạy.
- * Không comment, không hủy vì công tắc: plugin lo fallback. Lỗi khi đọc thì cho claim (fail open), vì lỗi hạ tầng không
- * được chặn mọi run; bảng chưa có hay đọc công tắc lỗi thì `readRuntimeSwitch` đã trả mặc định.
+ * Không comment, không hủy vì công tắc: plugin lo fallback. Lỗi đọc khi tra máy hay công tắc: Codex/OpenCode coi như công tắc mặc định (tắt) và giữ run
+ * (ghi cảnh báo); Claude cho claim (fail open), vì lỗi hạ tầng không được chặn Claude. Lỗi ở các bước khác cũng fail open.
  */
 export async function evaluateRuntimeGate(input: { db: Db; run: Run }, deps: RuntimeGateDeps): Promise<boolean> {
   const { run } = input;
@@ -63,10 +63,26 @@ export async function evaluateRuntimeGate(input: { db: Db; run: Run }, deps: Run
     }
     if (!isCrewRuntime(agent.adapterType)) return false;
     const runtime = agent.adapterType;
-    const machineId = agent.defaultEnvironmentId
-      ? await deps.resolveMachine({ companyId: run.companyId, agentId: run.agentId })
-      : null;
-    if (await deps.switchOn({ companyId: run.companyId, machineId, runtime })) return false;
+    // Lỗi hạ tầng không được chặn Claude (fail open); Codex/OpenCode coi như công tắc mặc định (tắt) và giữ run.
+    const failSoft = (err: unknown, what: string): void => {
+      if (runtime === "claude_local") throw err;
+      logger.warn({ err, runId: run.id, runtime }, `crew-runtime-gate: ${what} failed; treating the switch as default (off)`);
+    };
+    let machineId: string | null = null;
+    if (agent.defaultEnvironmentId) {
+      try {
+        machineId = await deps.resolveMachine({ companyId: run.companyId, agentId: run.agentId });
+      } catch (err) {
+        failSoft(err, "resolving the agent machine");
+      }
+    }
+    let on = false;
+    try {
+      on = await deps.switchOn({ companyId: run.companyId, machineId, runtime });
+    } catch (err) {
+      failSoft(err, "reading the runtime switch");
+    }
+    if (on) return false;
     try {
       if (!(await deps.hasWaitingMarker(run.id))) {
         await deps.recordWaiting(run, { runtime, machineId, issueId: readIssueId(run.contextSnapshot) });
