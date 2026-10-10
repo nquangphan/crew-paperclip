@@ -22,6 +22,7 @@ const KEYS: Record<MachineJobKind, readonly string[]> = {
   check: ["projectKey"],
   "remove-checkouts": ["projectId", "projectKey", "roles", "removeStatusRepo"],
   "skill-remove": ["skillId", "slug"],
+  "runtimes-setup": [],
 };
 
 const isObject = (value: unknown): value is Record<string, unknown> =>
@@ -70,7 +71,7 @@ function roleListError(roles: unknown): string | null {
     const error = roleError(role);
     if (error) return error;
   }
-  if (roles.length < 1 || roles.length > CREW_ROLE_SLOTS.length) return "roles phải có 1 đến 5 vai trò";
+  if (roles.length < 1 || roles.length > CREW_ROLE_SLOTS.length) return `roles phải có 1 đến ${CREW_ROLE_SLOTS.length} vai trò`;
   const seen = new Set<string>();
   for (const role of roles as CrewRoleSlot[]) {
     if (seen.has(role)) return `role ${role} bị trùng`;
@@ -122,6 +123,8 @@ export function validateJobPayload(kind: MachineJobKind, payload: unknown): JobP
       if (typeof p.skillId !== "string" || !UUID.test(p.skillId)) return "skillId phải là uuid";
       if (typeof p.slug !== "string" || !SLUG.test(p.slug)) return "slug không hợp lệ";
       return { kind, skillId: p.skillId.toLowerCase(), slug: p.slug };
+    case "runtimes-setup":
+      return { kind };
   }
 }
 
@@ -131,6 +134,10 @@ const str = (value: unknown): value is string => typeof value === "string";
 const strOrNull = (value: unknown): value is string | null => value === null || typeof value === "string";
 const checkout = (value: unknown): value is { role: CrewRoleSlot; path: string; head: string } =>
   isObject(value) && roleError(value.role) === null && str(value.path) && str(value.head);
+
+const boolOrNull = (value: unknown): value is boolean | null => value === null || typeof value === "boolean";
+const version = (value: unknown): value is string | null =>
+  value === null || typeof value === "string" && value.length > 0 && value.length <= 200 && !CONTROL.test(value);
 
 const roleOnly = (value: unknown): value is CrewRoleSlot => roleError(value) === null;
 const removedCheckout = (value: unknown): value is { role: CrewRoleSlot; path: string } =>
@@ -186,6 +193,19 @@ export function validateJobResult(kind: MachineJobKind, result: Record<string, u
     }
     case "skill-remove":
       return typeof r.removed === "boolean" ? { kind, removed: r.removed } : RESULT_ERROR;
+    case "runtimes-setup": {
+      const { wrappers, codex, opencode } = r;
+      if (!isObject(wrappers) || typeof wrappers.codex !== "boolean" || typeof wrappers.opencode !== "boolean"
+        || !isObject(codex) || !version(codex.version) || !boolOrNull(codex.loggedIn)
+        || !isObject(opencode) || !version(opencode.version) || !boolOrNull(opencode.keyPresent)) return RESULT_ERROR;
+      // Chỉ chép trường của hợp đồng: kết quả hiện trên web, không được mang key, token hay path auth.
+      return {
+        kind,
+        wrappers: { codex: wrappers.codex, opencode: wrappers.opencode },
+        codex: { version: codex.version, loggedIn: codex.loggedIn },
+        opencode: { version: opencode.version, keyPresent: opencode.keyPresent },
+      };
+    }
   }
   return RESULT_ERROR;
 }

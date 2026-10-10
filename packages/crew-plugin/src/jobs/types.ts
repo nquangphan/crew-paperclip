@@ -1,14 +1,19 @@
 /** Work the board queues for a Mac; the 2P Crew app claims it with a board key and reports the result. */
 export type MachineJobKind = "inspect-folder" | "prepare-checkouts" | "agent-workspace" | "skill-sync" | "check"
-  | "remove-checkouts" | "skill-remove";
+  | "remove-checkouts" | "skill-remove" | "runtimes-setup";
 export type MachineJobStatus = "queued" | "claimed" | "done" | "failed" | "cancelled";
-export type CrewRoleSlot = "assistant" | "executor" | "executor-2" | "reviewer" | "integrator";
+/** `executor-codex`, `executor-opencode`, `reviewer-codex`: agent chạy runtime ngoài Claude, mỗi ô một agent. */
+export type CrewRoleSlot = "assistant" | "executor" | "executor-2" | "reviewer" | "integrator"
+  | "executor-codex" | "executor-opencode" | "reviewer-codex";
 
 export const MACHINE_JOB_KINDS: readonly MachineJobKind[] = [
   "inspect-folder", "prepare-checkouts", "agent-workspace", "skill-sync", "check", "remove-checkouts", "skill-remove",
+  "runtimes-setup",
 ];
 export const MACHINE_JOB_STATUSES: readonly MachineJobStatus[] = ["queued", "claimed", "done", "failed", "cancelled"];
-export const CREW_ROLE_SLOTS: readonly CrewRoleSlot[] = ["assistant", "executor", "executor-2", "reviewer", "integrator"];
+export const CREW_ROLE_SLOTS: readonly CrewRoleSlot[] = [
+  "assistant", "executor", "executor-2", "reviewer", "integrator", "executor-codex", "executor-opencode", "reviewer-codex",
+];
 
 /** `result` is set when a job is `done`, and also when a `check` job is `failed` (the doctor items the board lists). */
 export interface MachineJob {
@@ -26,7 +31,9 @@ export type JobPayload =
   /** Removes the project's checkouts under `~/crew-agents/<projectKey>/`; a dirty, busy or foreign checkout is kept. */
   | { kind: "remove-checkouts"; projectId: string; projectKey: string; roles: CrewRoleSlot[]; removeStatusRepo: boolean }
   /** Removes the copy under `~/.crew/skills/<companyId>/<slug>`. */
-  | { kind: "skill-remove"; skillId: string; slug: string };
+  | { kind: "skill-remove"; skillId: string; slug: string }
+  /** Cài/cập nhật wrapper runtime trên Mac rồi báo trạng thái. Key OpenCode không bao giờ đi qua hàng đợi. */
+  | { kind: "runtimes-setup" };
 
 /** Why a checkout was kept by `remove-checkouts`; keeping one is a `done` result, never a failure. */
 export type KeptCheckoutReason = "dirty" | "busy" | "not_worktree" | "git_failed";
@@ -44,7 +51,13 @@ export type JobResult =
     kept: { role: CrewRoleSlot; path: string; reason: KeptCheckoutReason; detail?: string }[];
     absent: CrewRoleSlot[];
   }
-  | { kind: "skill-remove"; removed: boolean };
+  | { kind: "skill-remove"; removed: boolean }
+  | {
+    kind: "runtimes-setup";
+    wrappers: { codex: boolean; opencode: boolean };
+    codex: { version: string | null; loggedIn: boolean | null };
+    opencode: { version: string | null; keyPresent: boolean | null };
+  };
 
 export type JobErrorCode =
   | "folder_not_git" | "folder_forbidden" | "folder_missing" | "checkout_exists" | "git_failed"

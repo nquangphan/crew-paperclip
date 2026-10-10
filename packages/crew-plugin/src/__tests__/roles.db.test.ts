@@ -1,5 +1,5 @@
 import { readFile } from "node:fs/promises";
-import { afterAll, expect, it } from "vitest";
+import { afterAll, describe, expect, it } from "vitest";
 import type { PluginApiRequestInput, PluginContext } from "@paperclipai/plugin-sdk";
 import postgres from "../../../db/node_modules/postgres";
 import { startEmbeddedPostgresTestDatabase } from "../../../db/src/test-embedded-postgres.js";
@@ -12,6 +12,7 @@ import {
 } from "../../../../server/src/services/plugin-database.js";
 import manifest from "../manifest.js";
 import { handleRolesApi } from "../roles/api.js";
+import { type PluginHost, startPluginHost } from "./plugin-host-db.js";
 
 const companyId = "10000000-0000-4000-8000-000000000001";
 const otherCompany = "10000000-0000-4000-8000-000000000002";
@@ -23,6 +24,7 @@ const [assistant, executorA, executorB, reviewer, integrator, spare] = [1, 2, 3,
 const foreignAgent = "40000000-0000-4000-8000-000000000099";
 const [retired, fresh] = ["40000000-0000-4000-8000-000000000007", "40000000-0000-4000-8000-000000000008"];
 const userId = "user-board-1";
+const NO_RUNTIME_SLOTS = { codexExecutorAgentId: null, opencodeExecutorAgentId: null, codexReviewerAgentId: null };
 const ns = derivePluginDatabaseNamespace("crew.core");
 let cleanup: (() => Promise<void>) | undefined;
 afterAll(async () => { await cleanup?.(); });
@@ -65,6 +67,8 @@ it("declares the role, machine job, setup run and force done routes as board-onl
     ["setup.finish", "POST", "/setup-runs/:id/steps/:stepId/finish", "board", { from: "body", key: "companyId" }],
     ["setup.get", "GET", "/setup-runs/:id", "board", { from: "query", key: "companyId" }],
     ["setup.abandon", "POST", "/setup-runs/:id/abandon", "board", { from: "body", key: "companyId" }],
+    ["runtimes.switches.get", "GET", "/runtime-switches", "board", { from: "query", key: "companyId" }],
+    ["runtimes.switches.set", "POST", "/runtime-switches", "board", { from: "body", key: "companyId" }],
     ["issues.force-done", "POST", "/issues/:issueId/force-done", "board", { from: "body", key: "companyId" }],
   ]);
 });
@@ -81,7 +85,9 @@ it("stores project roles for a company, validates every id against the company a
   await sql`INSERT INTO agents (id,company_id,name) VALUES (${foreignAgent},${otherCompany},'Foreign')`;
   await sql.unsafe(`CREATE SCHEMA ${ns}`);
   const migration = await readFile(new URL("../../migrations/0004_project_roles.sql", import.meta.url), "utf8");
-  for (const statement of migration.split(";").map((part) => part.trim()).filter(Boolean)) {
+  const runtimeColumns = (await readFile(new URL("../../migrations/0012_runtimes.sql", import.meta.url), "utf8"))
+    .split(";").map((part) => part.trim()).filter((part) => part.includes("crew_project_roles"));
+  for (const statement of [...migration.split(";").map((part) => part.trim()).filter(Boolean), ...runtimeColumns]) {
     validatePluginMigrationStatement(statement, ns, manifest.database!.coreReadTables);
     await sql.unsafe(statement);
   }
@@ -110,7 +116,10 @@ it("stores project roles for a company, validates every id against the company a
   // 1. Valid set, read back, upsert replaces the row.
   expect(await handleRolesApi(ctx, request("roles.get"))).toEqual({ status: 200, body: { roles: null } });
   const set = await handleRolesApi(ctx, request("roles.set", { body: validBody({ reviewerAgentId: reviewer.toUpperCase() }) }));
-  const expected = { assistantAgentId: assistant, executorAgentIds: [executorA, executorB], reviewerAgentId: reviewer, integratorAgentId: integrator };
+  const expected = {
+    assistantAgentId: assistant, executorAgentIds: [executorA, executorB], reviewerAgentId: reviewer, integratorAgentId: integrator,
+    ...NO_RUNTIME_SLOTS,
+  };
   expect(set).toEqual({ status: 200, body: { roles: expected } });
   expect(await handleRolesApi(ctx, request("roles.get"))).toEqual({ status: 200, body: { roles: expected } });
   const replaced = { ...expected, executorAgentIds: [spare], reviewerAgentId: executorB };
@@ -249,6 +258,7 @@ it("stores project roles for a company, validates every id against the company a
   expect((await handleRolesApi(ctx, request("roles.set", { project: auditProject, body: validBody({ reviewerAgentId: "x" }) }))).status).toBe(400);
   const asRoles = (b: Record<string, unknown>) => ({
     assistantAgentId: b.assistantAgentId, executorAgentIds: b.executorAgentIds, reviewerAgentId: b.reviewerAgentId, integratorAgentId: b.integratorAgentId,
+    ...NO_RUNTIME_SLOTS,
   });
   expect(logs.filter((l) => l.level === "info").map((l) => [l.message, l.meta])).toEqual([
     ["crew project roles changed", { action: "set", actorUserId: userId, companyId, projectId: auditProject, before: null, after: asRoles(before) }],
@@ -272,3 +282,81 @@ it("stores project roles for a company, validates every id against the company a
     ]);
   }
 }, 90_000);
+
+describe("ô runtime: executor Codex/OpenCode và reviewer Codex", () => {
+  let host: PluginHost | undefined;
+  afterAll(async () => { await host?.cleanup(); });
+
+  it("lưu, giữ khi không gửi, xóa bằng null, kiểm adapterType của ô, không trùng và không chéo vai trò giữa project", async () => {
+    host = await startPluginHost("crew-roles-runtime-");
+    const { sql, ctx, ns } = host;
+    const [codexExec, opencodeExec, codexReview, codexOther, claudeSpare] = [21, 22, 23, 24, 25].map((n) => `40000000-0000-4000-8000-0000000000${n}`);
+    await sql`INSERT INTO companies (id,name,issue_prefix) VALUES (${companyId},'Crew','CRE')`;
+    await sql`INSERT INTO projects (id,company_id,name) VALUES (${projectId},${companyId},'Repo A'),(${thirdProject},${companyId},'Repo C')`;
+    for (const [id, adapterType] of [
+      [assistant, "claude_local"], [executorA, "claude_local"], [executorB, "claude_local"], [reviewer, "claude_local"],
+      [integrator, "claude_local"], [claudeSpare, "claude_local"], [codexExec, "codex_local"], [opencodeExec, "opencode_local"],
+      [codexReview, "codex_local"], [codexOther, "codex_local"],
+    ] as const) {
+      await sql`INSERT INTO agents (id,company_id,name,adapter_type) VALUES (${id},${companyId},${`Agent ${id.slice(-2)}`},${adapterType})`;
+    }
+    const roles = (body: Record<string, unknown>, project = projectId) => handleRolesApi(ctx, request("roles.set", { project, body: validBody(body) }));
+    const base = { executorAgentIds: [executorA] };
+    const full = { ...base, codexExecutorAgentId: codexExec, opencodeExecutorAgentId: opencodeExec.toUpperCase(), codexReviewerAgentId: codexReview };
+    const saved = {
+      assistantAgentId: assistant, executorAgentIds: [executorA], reviewerAgentId: reviewer, integratorAgentId: integrator,
+      codexExecutorAgentId: codexExec, opencodeExecutorAgentId: opencodeExec, codexReviewerAgentId: codexReview,
+    };
+    expect(await roles(full)).toEqual({ status: 200, body: { roles: saved } });
+    expect(await handleRolesApi(ctx, request("roles.get"))).toEqual({ status: 200, body: { roles: saved } });
+
+    // Client cũ không gửi ba trường: giữ nguyên ô runtime; null thì xóa ô.
+    expect(await roles({ executorAgentIds: [executorA, executorB] })).toEqual({ status: 200, body: { roles: { ...saved, executorAgentIds: [executorA, executorB] } } });
+    expect(await roles({ ...base, opencodeExecutorAgentId: null })).toEqual({ status: 200, body: { roles: { ...saved, opencodeExecutorAgentId: null } } });
+    const snapshot = JSON.stringify(await sql.unsafe(`SELECT * FROM ${ns}.crew_project_roles`));
+    const unchanged = async () => expect(JSON.stringify(await sql.unsafe(`SELECT * FROM ${ns}.crew_project_roles`))).toBe(snapshot);
+
+    // Ô quyết định runtime: agent sai adapterType bị 400; agent Codex/OpenCode không vào ô Claude.
+    for (const [body, error] of [
+      [{ ...base, codexExecutorAgentId: opencodeExec }, `agent ${opencodeExec} chạy opencode_local, ô executor-codex cần codex_local`],
+      [{ ...base, opencodeExecutorAgentId: codexOther }, `agent ${codexOther} chạy codex_local, ô executor-opencode cần opencode_local`],
+      [{ ...base, codexReviewerAgentId: claudeSpare }, `agent ${claudeSpare} chạy claude_local, ô reviewer-codex cần codex_local`],
+      [{ executorAgentIds: [codexOther] }, `agent ${codexOther} chạy codex_local, ô executor không nhận runtime ngoài Claude`],
+      [{ ...base, reviewerAgentId: codexOther }, `agent ${codexOther} chạy codex_local, ô reviewer không nhận runtime ngoài Claude`],
+    ] as const) {
+      expect(await roles(body)).toEqual({ status: 400, body: { error } });
+    }
+    await unchanged();
+
+    // Mỗi agent một ô, kể cả ô mới; sai dạng bị chặn trước DB.
+    for (const body of [
+      { ...base, codexExecutorAgentId: codexReview, codexReviewerAgentId: codexReview },
+      { ...base, codexReviewerAgentId: executorA },
+      { ...base, codexExecutorAgentId: "codex" },
+      { ...base, codexReviewerAgentId: 1 },
+    ]) {
+      const res = await roles(body);
+      expect(res.status).toBe(400);
+      expect(res.body).toEqual({ error: expect.any(String) });
+    }
+    const ghost = "40000000-0000-4000-8000-0000000000ee";
+    expect(await roles({ ...base, codexExecutorAgentId: ghost })).toEqual({ status: 400, body: { error: `agent ${ghost} không thuộc company` } });
+    await unchanged();
+
+    // Giữa các project: executor runtime là người làm, reviewer Codex là cổng duyệt.
+    for (const [body, needle] of [
+      [{ assistantAgentId: claudeSpare, executorAgentIds: [executorB], reviewerAgentId: reviewer, integratorAgentId: integrator, codexExecutorAgentId: codexReview }, `agent ${codexReview} đang là reviewer/integrator`],
+      [{ assistantAgentId: claudeSpare, executorAgentIds: [executorB], reviewerAgentId: reviewer, integratorAgentId: integrator, codexReviewerAgentId: codexExec }, `agent ${codexExec} đang là assistant/executor`],
+    ] as const) {
+      const res = await handleRolesApi(ctx, request("roles.set", { project: thirdProject, body: { companyId, ...body } }));
+      expect(res.status).toBe(400);
+      expect((res.body as { error: string }).error).toContain(needle);
+      expect((res.body as { error: string }).error).toContain("Repo A");
+    }
+    // Cùng reviewer Codex cho hai project được (cùng loại vai trò).
+    const shared = { assistantAgentId: claudeSpare, executorAgentIds: [executorB], reviewerAgentId: reviewer, integratorAgentId: integrator, codexReviewerAgentId: codexReview };
+    expect((await handleRolesApi(ctx, request("roles.set", { project: thirdProject, body: { companyId, ...shared } }))).status).toBe(200);
+    expect(await sql.unsafe(`SELECT project_id, codex_reviewer_agent_id FROM ${ns}.crew_project_roles ORDER BY project_id`))
+      .toEqual([{ project_id: projectId, codex_reviewer_agent_id: codexReview }, { project_id: thirdProject, codex_reviewer_agent_id: codexReview }]);
+  }, 180_000);
+});

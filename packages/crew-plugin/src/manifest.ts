@@ -67,6 +67,10 @@ const manifest: PaperclipPluginManifestV1 = {
           required: ["companyId", "webhookSecretRef"],
         },
       },
+      opencodeInPlacePatch: {
+        type: "boolean",
+        title: "Server đã có vá chạy OpenCode đúng worktree (mở khóa công tắc OpenCode)",
+      },
     },
   },
   jobs: [{
@@ -109,6 +113,10 @@ const manifest: PaperclipPluginManifestV1 = {
     { routeKey: "setup.get", method: "GET", path: "/setup-runs/:id", auth: "board",
       capability: "api.routes.register", companyResolution: { from: "query", key: "companyId" } },
     { routeKey: "setup.abandon", method: "POST", path: "/setup-runs/:id/abandon", auth: "board",
+      capability: "api.routes.register", companyResolution: { from: "body", key: "companyId" } },
+    { routeKey: "runtimes.switches.get", method: "GET", path: "/runtime-switches", auth: "board",
+      capability: "api.routes.register", companyResolution: { from: "query", key: "companyId" } },
+    { routeKey: "runtimes.switches.set", method: "POST", path: "/runtime-switches", auth: "board",
       capability: "api.routes.register", companyResolution: { from: "body", key: "companyId" } },
     { routeKey: "issues.force-done", method: "POST", path: "/issues/:issueId/force-done", auth: "board",
       capability: "api.routes.register", companyResolution: { from: "body", key: "companyId" } },

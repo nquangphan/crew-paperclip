@@ -1,34 +1,51 @@
 import type { PluginContext } from "@paperclipai/plugin-sdk";
 import { pluginNamespace, uuidArray } from "../shared/db.js";
 
-/** Agent roles of one project. Every id is a lowercase agent uuid of the project's company. */
+/**
+ * Agent roles of one project. Every id is a lowercase agent uuid of the project's company. The three runtime slots
+ * (`executor-codex`, `executor-opencode`, `reviewer-codex`) are optional; `null` means the slot is empty.
+ */
 export interface ProjectRoles {
   assistantAgentId: string;
   executorAgentIds: string[];
   reviewerAgentId: string;
   integratorAgentId: string;
+  codexExecutorAgentId: string | null;
+  opencodeExecutorAgentId: string | null;
+  codexReviewerAgentId: string | null;
 }
+
+export const RUNTIME_SLOT_KEYS = ["codexExecutorAgentId", "opencodeExecutorAgentId", "codexReviewerAgentId"] as const;
+export type RuntimeSlotKey = (typeof RUNTIME_SLOT_KEYS)[number];
+
+type RolesRow = {
+  assistant_agent_id: string; executor_agent_ids: string; reviewer_agent_id: string; integrator_agent_id: string;
+  codex_executor_agent_id: string | null; opencode_executor_agent_id: string | null; codex_reviewer_agent_id: string | null;
+};
+const ROLE_COLUMNS = `r.assistant_agent_id::text AS assistant_agent_id, array_to_string(r.executor_agent_ids, ',') AS executor_agent_ids,
+  r.reviewer_agent_id::text AS reviewer_agent_id, r.integrator_agent_id::text AS integrator_agent_id,
+  r.codex_executor_agent_id::text AS codex_executor_agent_id, r.opencode_executor_agent_id::text AS opencode_executor_agent_id,
+  r.codex_reviewer_agent_id::text AS codex_reviewer_agent_id`;
+const lower = (id: string | null) => id === null ? null : id.toLowerCase();
+const rolesOf = (row: RolesRow): ProjectRoles => ({
+  assistantAgentId: row.assistant_agent_id.toLowerCase(),
+  executorAgentIds: row.executor_agent_ids.split(",").map((id) => id.toLowerCase()),
+  reviewerAgentId: row.reviewer_agent_id.toLowerCase(),
+  integratorAgentId: row.integrator_agent_id.toLowerCase(),
+  codexExecutorAgentId: lower(row.codex_executor_agent_id),
+  opencodeExecutorAgentId: lower(row.opencode_executor_agent_id),
+  codexReviewerAgentId: lower(row.codex_reviewer_agent_id),
+});
 
 type Ctx = Pick<PluginContext, "db">;
 const table = (ctx: Ctx) => `${pluginNamespace(ctx)}.crew_project_roles`;
 
 export async function readProjectRoles(ctx: Ctx, companyId: string, projectId: string): Promise<ProjectRoles | null> {
-  const rows = await ctx.db.query<{
-    assistant_agent_id: string; executor_agent_ids: string; reviewer_agent_id: string; integrator_agent_id: string;
-  }>(
-    `SELECT assistant_agent_id::text, array_to_string(executor_agent_ids, ',') AS executor_agent_ids,
-      reviewer_agent_id::text, integrator_agent_id::text
-     FROM ${table(ctx)} WHERE company_id = $1 AND project_id = $2`,
+  const rows = await ctx.db.query<RolesRow>(
+    `SELECT ${ROLE_COLUMNS} FROM ${table(ctx)} r WHERE r.company_id = $1 AND r.project_id = $2`,
     [companyId, projectId],
   );
-  const row = rows[0];
-  if (!row) return null;
-  return {
-    assistantAgentId: row.assistant_agent_id,
-    executorAgentIds: row.executor_agent_ids.split(","),
-    reviewerAgentId: row.reviewer_agent_id,
-    integratorAgentId: row.integrator_agent_id,
-  };
+  return rows[0] ? rolesOf(rows[0]) : null;
 }
 
 export async function upsertProjectRoles(
@@ -36,14 +53,16 @@ export async function upsertProjectRoles(
 ): Promise<void> {
   const target = table(ctx);
   await ctx.db.execute(
-    `INSERT INTO ${target} (company_id,project_id,assistant_agent_id,executor_agent_ids,reviewer_agent_id,integrator_agent_id,updated_at,updated_by_user_id)
-     VALUES ($1,$2,$3,$4::uuid[],$5,$6,now(),$7)
+    `INSERT INTO ${target} (company_id,project_id,assistant_agent_id,executor_agent_ids,reviewer_agent_id,integrator_agent_id,
+       codex_executor_agent_id,opencode_executor_agent_id,codex_reviewer_agent_id,updated_at,updated_by_user_id)
+     VALUES ($1,$2,$3,$4::uuid[],$5,$6,$7,$8,$9,now(),$10)
      ON CONFLICT (company_id,project_id) DO UPDATE SET assistant_agent_id=EXCLUDED.assistant_agent_id,
        executor_agent_ids=EXCLUDED.executor_agent_ids,reviewer_agent_id=EXCLUDED.reviewer_agent_id,
-       integrator_agent_id=EXCLUDED.integrator_agent_id,updated_at=EXCLUDED.updated_at,
-       updated_by_user_id=EXCLUDED.updated_by_user_id`,
+       integrator_agent_id=EXCLUDED.integrator_agent_id,codex_executor_agent_id=EXCLUDED.codex_executor_agent_id,
+       opencode_executor_agent_id=EXCLUDED.opencode_executor_agent_id,codex_reviewer_agent_id=EXCLUDED.codex_reviewer_agent_id,
+       updated_at=EXCLUDED.updated_at,updated_by_user_id=EXCLUDED.updated_by_user_id`,
     [companyId, projectId, roles.assistantAgentId, uuidArray(roles.executorAgentIds), roles.reviewerAgentId,
-      roles.integratorAgentId, userId],
+      roles.integratorAgentId, roles.codexExecutorAgentId, roles.opencodeExecutorAgentId, roles.codexReviewerAgentId, userId],
   );
 }
 
@@ -68,31 +87,27 @@ export async function firstUnusableAgent(
   return null;
 }
 
+/** `adapter_type` of each agent of `companyId` among `agentIds` (lowercase id → adapter type). */
+export async function agentAdapterTypes(ctx: Ctx, companyId: string, agentIds: string[]): Promise<Map<string, string>> {
+  const rows = await ctx.db.query<{ id: string; adapter_type: string }>(
+    "SELECT id::text, adapter_type FROM public.agents WHERE company_id = $1 AND id = ANY($2::uuid[])",
+    [companyId, uuidArray(agentIds)],
+  );
+  return new Map(rows.map((row) => [row.id.toLowerCase(), row.adapter_type]));
+}
+
 /** Roles of the company's other projects that still exist (rows of deleted projects are ignored). */
 export async function otherProjectRoles(
   ctx: Ctx, companyId: string, projectId: string,
 ): Promise<{ projectName: string; roles: ProjectRoles }[]> {
-  const rows = await ctx.db.query<{
-    project_name: string; assistant_agent_id: string; executor_agent_ids: string; reviewer_agent_id: string;
-    integrator_agent_id: string;
-  }>(
-    `SELECT p.name AS project_name, r.assistant_agent_id::text AS assistant_agent_id,
-      array_to_string(r.executor_agent_ids, ',') AS executor_agent_ids,
-      r.reviewer_agent_id::text AS reviewer_agent_id, r.integrator_agent_id::text AS integrator_agent_id
+  const rows = await ctx.db.query<RolesRow & { project_name: string }>(
+    `SELECT p.name AS project_name, ${ROLE_COLUMNS}
      FROM ${table(ctx)} r
      JOIN public.projects p ON p.id = r.project_id AND p.company_id = r.company_id
      WHERE r.company_id = $1 AND r.project_id <> $2`,
     [companyId, projectId],
   );
-  return rows.map((row) => ({
-    projectName: row.project_name,
-    roles: {
-      assistantAgentId: row.assistant_agent_id.toLowerCase(),
-      executorAgentIds: row.executor_agent_ids.split(",").map((id) => id.toLowerCase()),
-      reviewerAgentId: row.reviewer_agent_id.toLowerCase(),
-      integratorAgentId: row.integrator_agent_id.toLowerCase(),
-    },
-  }));
+  return rows.map((row) => ({ projectName: row.project_name, roles: rolesOf(row) }));
 }
 
 export async function projectInCompany(ctx: Ctx, companyId: string, projectId: string): Promise<boolean> {

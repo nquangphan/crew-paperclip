@@ -7,6 +7,8 @@ const fullRoles = [
   { role: "reviewer", branch: "crew/demo/reviewer" }, { role: "integrator", branch: "crew/demo/integrator" },
 ];
 
+const allSlots = ["assistant", "executor", "executor-2", "reviewer", "integrator", "executor-codex", "executor-opencode", "reviewer-codex"];
+
 const removeCheckouts = {
   projectId: "30000000-0000-4000-8000-000000000001", projectKey: "demo", roles: ["executor-2"], removeStatusRepo: false,
 };
@@ -41,12 +43,17 @@ describe("validateJobPayload", () => {
     ["reboot", { projectKey: "demo" }, "kind không hợp lệ"],
     ["remove-checkouts", { ...removeCheckouts, projectId: "x" }, "projectId phải là uuid"],
     ["remove-checkouts", { ...removeCheckouts, projectKey: "../x" }, "projectKey không hợp lệ"],
-    ["remove-checkouts", { ...removeCheckouts, roles: [] }, "roles phải có 1 đến 5 vai trò"],
+    ["remove-checkouts", { ...removeCheckouts, roles: [] }, "roles phải có 1 đến 8 vai trò"],
     ["remove-checkouts", { ...removeCheckouts, roles: "executor" }, "roles phải là mảng"],
     ["remove-checkouts", { ...removeCheckouts, roles: ["executor", "executor"] }, "role executor bị trùng"],
     ["remove-checkouts", { ...removeCheckouts, roles: ["boss"] }, "role không hợp lệ"],
     ["remove-checkouts", { ...removeCheckouts, roles: [{ role: "executor" }] }, "role không hợp lệ"],
-    ["remove-checkouts", { ...removeCheckouts, roles: ["assistant", "executor", "executor-2", "reviewer", "integrator", "executor"] }, "roles phải có 1 đến 5 vai trò"],
+    ["remove-checkouts", { ...removeCheckouts, roles: [...allSlots, "executor"] }, "roles phải có 1 đến 8 vai trò"],
+    ["remove-checkouts", { ...removeCheckouts, roles: ["executor-codex", "executor-codex"] }, "role executor-codex bị trùng"],
+    ["agent-workspace", { projectKey: "demo", folder: "/x", role: "reviewer-claude", branch: "x" }, "role không hợp lệ"],
+    ["runtimes-setup", { force: true }, "trường force không được hỗ trợ"],
+    ["runtimes-setup", { kind: "check" }, "kind trong payload không khớp"],
+    ["runtimes-setup", null, "payload phải là object"],
     ["remove-checkouts", { ...removeCheckouts, removeStatusRepo: "yes" }, "removeStatusRepo phải là boolean"],
     ["remove-checkouts", { projectId: removeCheckouts.projectId, projectKey: "demo", roles: ["executor"] }, "removeStatusRepo phải là boolean"],
     ["remove-checkouts", { ...removeCheckouts, folder: "/x" }, "trường folder không được hỗ trợ"],
@@ -80,12 +87,23 @@ describe("validateJobPayload", () => {
     });
     expect(validateJobPayload("remove-checkouts", { kind: "remove-checkouts", ...removeCheckouts }))
       .toEqual({ kind: "remove-checkouts", ...removeCheckouts });
+    for (const role of ["executor-codex", "executor-opencode", "reviewer-codex"]) {
+      expect(validateJobPayload("agent-workspace", { projectKey: "demo", folder: "/Users/a/repo", role, branch: `crew/demo/${role}` }))
+        .toEqual({ kind: "agent-workspace", projectKey: "demo", folder: "/Users/a/repo", role, branch: `crew/demo/${role}` });
+    }
+    expect(validateJobPayload("remove-checkouts", { ...removeCheckouts, roles: allSlots })).toEqual({ kind: "remove-checkouts", ...removeCheckouts, roles: allSlots });
+    expect(validateJobPayload("runtimes-setup", {})).toEqual({ kind: "runtimes-setup" });
+    expect(validateJobPayload("runtimes-setup", { kind: "runtimes-setup" })).toEqual({ kind: "runtimes-setup" });
     expect(validateJobPayload("skill-remove", { skillId: "30000000-0000-4000-8000-00000000000A", slug: "my-skill" }))
       .toEqual({ kind: "skill-remove", skillId: "30000000-0000-4000-8000-00000000000a", slug: "my-skill" });
   });
 });
 
 describe("validateJobResult", () => {
+  const runtimesSetup = {
+    kind: "runtimes-setup", wrappers: { codex: true, opencode: false },
+    codex: { version: "0.130.0", loggedIn: true }, opencode: { version: null, keyPresent: null },
+  };
   const inspect = { kind: "inspect-folder", root: "/Users/a/repo", branch: "main", remote: null, docsBundle: null, clean: true };
   it.each([
     ["inspect-folder", { ...inspect, root: 1 }],
@@ -111,6 +129,14 @@ describe("validateJobResult", () => {
     ["remove-checkouts", { kind: "remove-checkouts", removed: [], kept: "x", absent: [] }],
     ["skill-remove", { kind: "skill-remove", removed: "yes" }],
     ["skill-remove", { kind: "skill-remove" }],
+    ["runtimes-setup", { ...runtimesSetup, wrappers: { codex: true } }],
+    ["runtimes-setup", { ...runtimesSetup, wrappers: "yes" }],
+    ["runtimes-setup", { ...runtimesSetup, codex: { version: 1, loggedIn: true } }],
+    ["runtimes-setup", { ...runtimesSetup, codex: { version: null } }],
+    ["runtimes-setup", { ...runtimesSetup, opencode: { version: null, keyPresent: "yes" } }],
+    ["runtimes-setup", { ...runtimesSetup, opencode: null }],
+    ["runtimes-setup", { ...runtimesSetup, codex: { version: "x".repeat(201), loggedIn: true } }],
+    ["agent-workspace", { kind: "agent-workspace", role: "executor-claude", path: "/p", head: "abc" }],
   ])("%s từ chối %j", (kind, result) => {
     expect(validateJobResult(kind as MachineJobKind, result as Record<string, unknown>)).toBe("result không hợp lệ");
   });
@@ -125,6 +151,17 @@ describe("validateJobResult", () => {
     const items = [{ id: "git", status: "warn", title: "Git" }];
     expect(validateJobResult("check", { kind: "check", items })).toEqual({ kind: "check", items });
     expect(validateJobResult("skill-remove", { kind: "skill-remove", removed: false, extra: 1 })).toEqual({ kind: "skill-remove", removed: false });
+  });
+
+  it("runtimes-setup chỉ giữ trường của hợp đồng, bỏ mọi trường lạ (không mang key, token, path auth)", () => {
+    expect(validateJobResult("runtimes-setup", {
+      ...runtimesSetup, authPath: "/Users/a/.codex/auth.json",
+      wrappers: { ...runtimesSetup.wrappers, path: "/x" },
+      codex: { ...runtimesSetup.codex, token: "sk-secret" },
+      opencode: { version: "1.18.35", keyPresent: false, key: "sk-secret" },
+    })).toEqual({ ...runtimesSetup, opencode: { version: "1.18.35", keyPresent: false } });
+    const json = JSON.stringify(validateJobResult("runtimes-setup", { ...runtimesSetup, codex: { ...runtimesSetup.codex, token: "sk-secret" } }));
+    expect(json).not.toContain("sk-secret");
   });
 
   it("remove-checkouts giữ trường đã biết, làm sạch và cắt detail 300 ký tự", () => {
