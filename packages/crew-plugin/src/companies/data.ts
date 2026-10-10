@@ -91,6 +91,19 @@ export async function allCrewCompanies(ctx: Ctx, source: string, options: { logC
 }
 
 /**
+ * The Crew companies a job may scan: only those stored by an earlier lookup, each re-checked against its own
+ * config. No other company is listed or has its config read, so the host logs no error for a company without
+ * Crew config. New Crew companies enter the stored list when the web loads `crew.companies` for them.
+ */
+export async function storedVerifiedCrewCompanies(ctx: Ctx): Promise<CrewCompany[]> {
+  const candidates = await storedCrewCompanies(ctx);
+  const checked = await Promise.all(candidates.map(async (company) => ({ company, crew: await isCrewCompany(ctx, company.id, false) })));
+  const crew = checked.filter(({ crew: isCrew }) => isCrew).map(({ company }) => company);
+  await rememberCrewCompanies(ctx, candidates, crew, false);
+  return crew;
+}
+
+/**
  * Data key `crew.companies`. Plugin config is stored per company, so a company is checked against its own
  * config. When the host scoped the call to one company (the web always does), only that company is read, with
  * `companies.get`. Called without a company the host only lets an instance admin through, and every Crew

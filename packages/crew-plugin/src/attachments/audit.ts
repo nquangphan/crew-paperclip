@@ -1,6 +1,6 @@
 import type { PluginAuthorizationAuditEntry, PluginContext } from "@paperclipai/plugin-sdk";
 import { pluginNamespace, UUID, uuidArray } from "../shared/db.js";
-import { allCrewCompanies } from "../companies/data.js";
+import { storedVerifiedCrewCompanies } from "../companies/data.js";
 import { type AuditVerdict, judgeBytes, judgeByName, sanitizeFilename } from "./rules.js";
 
 /**
@@ -90,12 +90,9 @@ function toUpload(entry: PluginAuthorizationAuditEntry): Upload | null {
   };
 }
 
-/**
- * Companies whose own plugin config lists them; the job never touches any other company. When the host refuses
- * the unscoped `companies.list` (an event invocation is alive), the stored Crew companies are scanned instead.
- */
+/** The stored Crew companies whose own plugin config still lists them; the job never touches any other company. */
 async function configuredCompanies(ctx: Ctx): Promise<string[]> {
-  return (await allCrewCompanies(ctx, JOB_KEY, { logConfigErrors: false })).map((company) => company.id);
+  return (await storedVerifiedCrewCompanies(ctx)).map((company) => company.id);
 }
 
 /** New uploads, oldest first. Pages newest-first and stops at a page holding an already audited id. */

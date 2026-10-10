@@ -61,6 +61,9 @@ it("cảnh báo file đính kèm agent sẽ không đọc, mỗi file một lầ
     }
   }
 
+  // The job scans the stored Crew companies only; the other two companies exist in the host but were never stored.
+  await sql.unsafe(`INSERT INTO ${ns}.crew_companies (company_id, name) VALUES ($1, 'Crew')`, [companyId]);
+
   const now = new Date();
   const at = (secondsAgo: number) => now.getTime() - secondsAgo * 1000;
   const uploads: Upload[] = [];
@@ -72,6 +75,7 @@ it("cảnh báo file đính kèm agent sẽ không đọc, mỗi file một lầ
       ? { attachmentId: u.id, source: "paperclip_runner_protocol" }
       : { attachmentId: u.id, originalFilename: u.name, contentType: u.type, ...(u.size === null ? {} : { byteSize: u.size ?? 10 }) },
   });
+  const configReads: string[] = [];
   const searches: { companyId: string; offset: number }[] = [];
   const contentReads: string[] = [];
   const listCalls: string[] = [];
@@ -84,9 +88,10 @@ it("cảnh báo file đính kèm agent sẽ không đọc, mỗi file một lầ
   const ctx = {
     logger: { debug: record("debug"), info: record("info"), warn: record("warn"), error: record("error") },
     jobs: { register: (key: string, fn: () => Promise<void>) => { registered = { key, fn }; } },
-    companies: { list: async () => [{ id: companyId }, { id: unconfigured }, { id: brokenConfig }] },
+    companies: { list: async () => { throw new Error("the job must not list every company"); } },
     config: {
       get: async (id: string) => {
+        configReads.push(id);
         if (id === brokenConfig) throw new Error("company context is required");
         return id === companyId ? { companies: [{ companyId }] } : { companies: [] };
       },
@@ -169,6 +174,9 @@ it("cảnh báo file đính kèm agent sẽ không đọc, mỗi file một lầ
   expect(contentReads).toEqual([attId(2), attId(3)]);
   // 6. A company without its own entry in the config (or whose config cannot be read) is never scanned.
   expect(searches.map((s) => s.companyId)).toEqual([companyId]);
+  // ...and its config is never read, so the host logs no "company context is required" error for it.
+  expect(configReads.length).toBeGreaterThan(0);
+  expect(new Set(configReads)).toEqual(new Set([companyId]));
 
   // 2. A second run warns nothing again and reads no bytes again.
   searches.length = 0;

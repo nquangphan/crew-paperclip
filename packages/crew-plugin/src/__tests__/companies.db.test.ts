@@ -96,23 +96,31 @@ it("lỗi khác của companies.list vẫn ném ra", async () => {
   await expect(loadCrewCompanies(ctx, {})).rejects.toThrow("db down");
 });
 
-it("job attachments-audit: host từ chối companies.list (-32005) thì quét company Crew đã lưu, chỉ cảnh báo, không lỗi", async () => {
-  registerAttachmentsAudit(ctx);
-  await runAttachmentsAudit(ctx, new Date());
-  expect(searched).toEqual([A, B]);
+it("job attachments-audit: chỉ quét company Crew đã lưu, không gọi companies.list, không đọc config company khác", async () => {
+  await loadCrewCompanies(ctx, { companyId: A });
+  await loadCrewCompanies(ctx, { companyId: B });
+  await loadCrewCompanies(ctx, { companyId: C });
   expect(await stored()).toEqual([{ id: A, name: "TPS" }, { id: B, name: "E2E" }]);
+  const listed = listCalls;
+  const configReads = vi.spyOn(ctx.config, "get");
 
-  denied = true;
-  searched = [];
-  await expect(registered!()).resolves.toBeUndefined();
-  expect([...searched].sort()).toEqual([A, B]);
-  expect(warnings()).toHaveLength(1);
+  registerAttachmentsAudit(ctx);
+  for (const denyList of [false, true]) {
+    denied = denyList;
+    searched = [];
+    configReads.mockClear();
+    await expect(registered!()).resolves.toBeUndefined();
+    expect([...searched].sort()).toEqual([A, B]);
+    expect(configReads.mock.calls.map(([id]) => id).sort()).toEqual([A, B]);
+  }
+  expect(listCalls).toBe(listed);
+  expect(warnings()).toEqual([]);
   expect(host.logs.filter((log) => log.level === "error")).toEqual([]);
 });
 
-it("job attachments-audit: chưa lưu company nào mà bị -32005 thì không quét gì, không lỗi", async () => {
-  denied = true;
+it("job attachments-audit: chưa lưu company nào thì không quét gì, không gọi companies.list, không lỗi", async () => {
   expect(await runAttachmentsAudit(ctx, new Date())).toEqual({ checked: 0, warned: 0 });
   expect(searched).toEqual([]);
-  expect(warnings()).toHaveLength(1);
+  expect(listCalls).toBe(0);
+  expect(warnings()).toEqual([]);
 });
