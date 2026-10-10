@@ -1,6 +1,6 @@
 // Đồng bộ skill lên máy (S14.4): việc `skill-sync` mỗi máy một việc; trạng thái đọc từ data crew.skillSync.
 
-import { useQuery } from '@tanstack/react-query';
+import { type QueryClient, useQuery } from '@tanstack/react-query';
 import type { CrewMachine, MachineJob } from '@/api';
 import { api, queryKeys } from '@/api';
 
@@ -37,4 +37,42 @@ export function queueSkillSync(companyId: string, machineId: string, skill: Sync
     kind: 'skill-sync',
     payload: { kind: 'skill-sync', skillId: skill.id, slug: skill.slug, version: skill.version },
   });
+}
+
+export interface QueueAllResult {
+  queued: number;
+  waitingApp: boolean;
+  failures: string[];
+}
+
+/**
+ * Xếp `skill-sync` bản mới nhất của skill lên mọi máy có app nhận việc (sau khi sửa nội dung, cập nhật từ nguồn,
+ * tạo bản sửa được). Đọc lại máy và skill ngay lúc xếp để lấy phiên bản vừa ghi.
+ */
+export async function queueSyncOnAllMachines(
+  queryClient: QueryClient,
+  companyId: string,
+  skillId: string,
+): Promise<QueueAllResult> {
+  const machines = await queryClient.fetchQuery({
+    queryKey: queryKeys.crew('crew.machines', { companyId }),
+    queryFn: () => api.crew.machines(companyId),
+    staleTime: 0,
+  });
+  const targets = machines.filter(hasJobsAgent);
+  if (targets.length === 0) return { queued: 0, waitingApp: true, failures: [] };
+  const skill = await api.skills.get(companyId, skillId);
+  const sync = { id: skillId, slug: skill.slug, version: skillVersion(skill) };
+  const settled = await Promise.allSettled(targets.map((m) => queueSkillSync(companyId, m.machineId, sync)));
+  const failures = settled.flatMap((r) =>
+    r.status === 'rejected' ? [r.reason instanceof Error ? r.reason.message : String(r.reason)] : [],
+  );
+  return { queued: targets.length - failures.length, waitingApp: false, failures };
+}
+
+/** Làm mới skill (danh sách, chi tiết, file) và trạng thái đồng bộ sau một thao tác ghi. */
+export function invalidateSkills(queryClient: QueryClient, companyId: string): void {
+  void queryClient.invalidateQueries({ queryKey: queryKeys.skills(companyId) });
+  void queryClient.invalidateQueries({ queryKey: queryKeys.crew() });
+  void queryClient.invalidateQueries({ queryKey: queryKeys.machineJobs(companyId) });
 }

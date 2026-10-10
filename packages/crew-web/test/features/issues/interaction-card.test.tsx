@@ -197,6 +197,17 @@ describe('InteractionsSlot (S6.9)', () => {
     expect(await within(card).findByText('Interaction is already resolved')).toBeTruthy();
   });
 
+  it('yêu cầu đã done/cancelled thì không hiện thẻ, không tải câu hỏi', async () => {
+    for (const status of ['done', 'cancelled']) {
+      const s = mockServer({ 'GET /api/issues/i1/interactions': { body: [QUESTION] } });
+      const { container } = mount(<InteractionsSlot issue={{ ...ISSUE, status } as never} />);
+      await new Promise((r) => setTimeout(r, 20));
+      expect(container.textContent).toBe('');
+      expect(s.calls).toHaveLength(0);
+      cleanup();
+    }
+  });
+
   it('không có thẻ đang chờ thì không render gì', async () => {
     const s = mockServer({ 'GET /api/issues/i1/interactions': { body: [] } });
     const { container } = mount(<InteractionsSlot issue={ISSUE as never} />);

@@ -161,6 +161,8 @@ export interface CrewCompany {
 export interface SkillSyncState {
   skillId: string;
   machineId: string;
+  /** Việc mới nhất của cặp skill/máy: đồng bộ hay gỡ (cặp có `skill-remove` đã xong không còn trong danh sách). */
+  kind: 'skill-sync' | 'skill-remove';
   status: MachineJobStatus;
   sha256: string | null;
   finishedAt: string | null;

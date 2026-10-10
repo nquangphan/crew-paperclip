@@ -234,5 +234,76 @@
     "accept": "Đồng ý",
     "reject": "Từ chối",
     "rejectReason": "Lý do (khi từ chối)"
+  },
+  "forceDone": {
+    "button": "Ép Done",
+    "title": "Ép Done yêu cầu này?",
+    "body": "Yêu cầu chuyển thẳng sang Hoàn thành, bỏ qua các cổng chưa qua. Không tính là Duyệt, không mở vòng review mới.",
+    "gates": "Cổng sẽ bị bỏ qua",
+    "noGates": "Yêu cầu không có stage nào đang chờ theo workflow.",
+    "gateLine": "Stage {{n}}: {{type}}",
+    "gateCurrent": "đang chờ {{holder}}",
+    "runs_one": "{{count}} run đang chạy của yêu cầu sẽ bị dừng.",
+    "runs_other": "{{count}} run đang chạy của yêu cầu sẽ bị dừng.",
+    "cancelChildren_one": "Hủy luôn {{count}} việc con chưa xong",
+    "cancelChildren_other": "Hủy luôn {{count}} việc con chưa xong",
+    "reason": "Lý do",
+    "reasonHint": "Bắt buộc, {{min}}–{{max}} ký tự. Lý do được ghi thành bình luận và vào Lịch sử.",
+    "submit": "Ép Done",
+    "sending": "Đang ép",
+    "close": "Đóng",
+    "failed": "Không ép Done được",
+    "stale": "Yêu cầu vừa đổi trạng thái ({{status}}), không gửi gì. Trang đã tải lại.",
+    "warnings": "Đã ép Done nhưng còn việc phụ chưa làm được",
+    "warning": {
+      "comment_failed": "không ghi được bình luận lý do",
+      "wakeup_failed": "không báo được cho Trợ Lý ở yêu cầu cha",
+      "activity_failed": "không ghi được Lịch sử",
+      "violations_unread": "không đọc được danh sách cổng đã bỏ qua"
+    }
+  },
+  "history": {
+    "heading": "Lịch sử",
+    "empty": "Chưa có hoạt động nào.",
+    "loadFailed": "Không tải được lịch sử",
+    "forced": "Ép Done",
+    "forcedBadge": "Đã ép Done",
+    "reason": "Lý do: {{reason}}",
+    "skipped": "Cổng bỏ qua: {{list}}",
+    "actor": {
+      "you": "Bạn",
+      "owner": "Owner",
+      "agent": "Agent",
+      "system": "Hệ thống",
+      "plugin": "Crew"
+    },
+    "action": {
+      "created": "Tạo yêu cầu",
+      "updated": "Cập nhật yêu cầu",
+      "statusChanged": "Đổi trạng thái: {{from}} → {{to}}",
+      "commentAdded": "Bình luận",
+      "childCreated": "Tạo việc con",
+      "attachmentAdded": "Thêm đính kèm",
+      "attachmentRemoved": "Gỡ đính kèm",
+      "documentChanged": "Sửa tài liệu",
+      "documentDeleted": "Xóa tài liệu",
+      "interactionCreated": "Trợ Lý đặt câu hỏi",
+      "interactionAnswered": "Trả lời câu hỏi của Trợ Lý",
+      "cycleReset": "Mở lại, bắt đầu vòng mới",
+      "docsUninitialized": "Repo chưa khởi tạo docs, cổng docs cho qua",
+      "boardOverride": "Owner đóng vượt cổng",
+      "forceDone": "Ép Done"
+    },
+    "violation": {
+      "stage_unapproved": "thiếu duyệt stage {{stage}}",
+      "docs_missing": "thiếu kết quả kiểm docs",
+      "docs_stale": "kết quả kiểm docs cũ hơn lần sửa gần nhất",
+      "docs_failed": "kiểm docs lỗi (mã {{code}})",
+      "push_missing": "chưa push",
+      "push_stale": "push cũ hơn lần owner duyệt",
+      "push_sha_mismatch": "commit đã push khác commit đã kiểm docs",
+      "policy_missing": "thiếu workflow duyệt",
+      "roles_unconfigured": "project chưa cấu hình vai trò"
+    }
   }
 }

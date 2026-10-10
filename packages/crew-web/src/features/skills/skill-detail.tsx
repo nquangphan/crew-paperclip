@@ -1,14 +1,23 @@
-// Chi tiết skill (S14.1, S14.3, S14.4): nội dung SKILL.md, trạng thái đồng bộ theo máy, bật/tắt cho agent.
-// Giới hạn skill của agent (SEC-2) chỉ chặn agent tự sửa; người dùng board vẫn bật/tắt ở đây.
-import type { Agent } from '@paperclipai/shared';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Link, useParams } from 'react-router-dom';
-import { api, queryKeys } from '@/api';
+// Chi tiết skill (S14.1, S14.3–S14.7): nội dung SKILL.md, trạng thái đồng bộ theo máy, bật/tắt cho agent, sửa
+// thông tin, sửa nội dung (skill sửa được), cập nhật/tạo bản sửa được/đổi nguồn (skill chỉ đọc), xóa skill.
+// Giới hạn skill của agent chỉ chặn agent tự sửa; người dùng board vẫn làm các thao tác này ở đây.
+import type { Agent, CompanySkillDetail } from '@paperclipai/shared';
+import {
+  type UseMutationResult,
+  type UseQueryResult,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from '@tanstack/react-query';
+import { useState } from 'react';
+import { Link, useLocation, useParams } from 'react-router-dom';
+import { api, type CrewMachine, queryKeys } from '@/api';
 import { useCompany } from '@/app/hooks';
 import { companyPath } from '@/app/routes-util';
 import {
   Alert,
   Badge,
+  Button,
   EmptyState,
   ErrorState,
   MarkdownView,
@@ -25,9 +34,15 @@ import {
   TableRow,
   ToggleSwitch,
 } from '@/ds';
+import { Pencil, Trash2 } from '@/ds/icons';
 import { useCrewMachines } from '@/features/machines/use-machines';
 import { useT } from '@/i18n';
+import { DeleteSkillDialog, DeleteSkillStatus, useDeleteSkill } from './delete-skill-dialog';
+import { EditSkillInfoDialog } from './edit-skill';
+import type { ForkedFromState } from './fork-skill-dialog';
+import { SkillFilesEditor } from './skill-files-editor';
 import { SyncStatus } from './sync-status';
+import { ReadOnlySkillActions } from './update-from-source';
 import { skillVersion } from './use-skill-sync';
 
 const agentRef = (a: Pick<Agent, 'id' | 'urlKey'>): string => a.urlKey || a.id;
@@ -74,7 +89,32 @@ export function SkillDetail() {
       />
     );
   }
-  const data = skill.data;
+  // key: sang skill khác (vd. mở bản sửa được vừa tạo) thì dựng lại trạng thái sửa/xóa.
+  return (
+    <SkillDetailView
+      key={skill.data.id}
+      data={skill.data}
+      agents={agents}
+      toggle={toggle}
+      machines={machines.data ?? []}
+    />
+  );
+}
+
+interface SkillDetailViewProps {
+  data: CompanySkillDetail;
+  agents: UseQueryResult<Agent[]>;
+  toggle: UseMutationResult<unknown, Error, { agent: Agent; on: boolean }>;
+  machines: CrewMachine[];
+}
+
+function SkillDetailView({ data, agents, toggle, machines }: SkillDetailViewProps) {
+  const { t } = useT('skills');
+  const { company } = useCompany();
+  const forkedFrom = (useLocation().state as ForkedFromState | null)?.forkedFrom;
+  const [editingInfo, setEditingInfo] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const removal = useDeleteSkill(data, machines);
   const enabledFor = new Set(data.usedByAgents.filter((a) => a.desired).map((a) => a.id));
   const rows = (agents.data ?? [])
     .filter((a) => a.status !== 'terminated')
@@ -86,8 +126,28 @@ export function SkillDetail() {
         title={data.name}
         description={data.description ?? undefined}
         breadcrumb={<Link to={companyPath(company.issuePrefix, 'skills')}>{t('detail.back')}</Link>}
+        actions={
+          <>
+            <Button variant="outline" onClick={() => setEditingInfo(true)}>
+              <Pencil aria-hidden />
+              {t('info.open')}
+            </Button>
+            <Button variant="destructive" disabled={removal.run.isPending} onClick={() => setDeleting(true)}>
+              <Trash2 aria-hidden />
+              {t('delete.open')}
+            </Button>
+          </>
+        }
       />
       <div className="flex flex-col gap-6">
+        <DeleteSkillStatus state={removal} />
+        {forkedFrom && forkedFrom.id !== data.id ? (
+          <Alert variant="info" title={t('fork.originalLeft')}>
+            <Link to={companyPath(company.issuePrefix, `skills/${forkedFrom.id}`)}>
+              {t('fork.openOriginal', { name: forkedFrom.name })}
+            </Link>
+          </Alert>
+        ) : null}
         <PropertyList
           items={[
             { label: t('detail.slug'), value: data.slug },
@@ -96,10 +156,7 @@ export function SkillDetail() {
           ]}
         />
         <Section title={t('detail.sync')}>
-          <SyncStatus
-            skill={{ id: data.id, slug: data.slug, version: skillVersion(data) }}
-            machines={machines.data ?? []}
-          />
+          <SyncStatus skill={{ id: data.id, slug: data.slug, version: skillVersion(data) }} machines={machines} />
         </Section>
         <Section title={t('detail.agents')}>
           <MutedText>{t('detail.agentsHint')}</MutedText>
@@ -139,10 +196,26 @@ export function SkillDetail() {
             </Table>
           ) : null}
         </Section>
-        <Section title={t('detail.content')}>
-          <MarkdownView markdown={data.markdown} />
-        </Section>
+        {data.editable ? (
+          <Section title={t('editor.title')}>
+            <SkillFilesEditor skill={data} />
+          </Section>
+        ) : (
+          <>
+            <Section title={t('upstream.title')}>
+              <Alert variant="info" title={t('detail.readOnly')}>
+                {data.editableReason ?? t('detail.readOnlyHint')}
+              </Alert>
+              <ReadOnlySkillActions skill={data} />
+            </Section>
+            <Section title={t('detail.content')}>
+              <MarkdownView markdown={data.markdown} />
+            </Section>
+          </>
+        )}
       </div>
+      {editingInfo ? <EditSkillInfoDialog skill={data} open onOpenChange={setEditingInfo} /> : null}
+      <DeleteSkillDialog skill={data} state={removal} open={deleting} onOpenChange={setDeleting} />
     </>
   );
 }
