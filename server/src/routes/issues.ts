@@ -14918,6 +14918,7 @@ export function issueRoutes(
       "Issue not found",
     );
     if (!existing) return;
+    await crewAssertBoardOnly(req, "issue_delete");
     if (!(await assertAgentIssueMutationAllowed(req, res, existing))) return;
     const attachments = await svc.listAttachments(id);
 
@@ -14967,6 +14968,7 @@ export function issueRoutes(
         "Issue not found",
       );
       if (!issue) return;
+      await crewBeforeAgentCheckout(req, issue);
 
       if (issue.projectId) {
         const project = await projectsSvc.getById(issue.projectId);
@@ -18679,3 +18681,4 @@ export function issueRoutes(
 
   return router;
 }
+import { crewAssertBoardOnly, crewBeforeAgentCheckout } from "../crew/agent-write-guard.js";
