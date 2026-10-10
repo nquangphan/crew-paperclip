@@ -62,5 +62,6 @@ export const queryKeys = {
   crewCompanies: ['crew', 'crew.companies'] as const,
   machineJobs: (companyId: string, filters?: Filters) =>
     (filters ? ['machine-jobs', companyId, filters] : ['machine-jobs', companyId]) as readonly unknown[],
+  runtimeSwitches: (companyId: string) => ['runtime-switches', companyId] as const,
   setupRun: (id: string) => ['setup-run', id] as const,
 };

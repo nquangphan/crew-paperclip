@@ -24,12 +24,54 @@
       "prepare-checkouts": "Dựng checkout",
       "agent-workspace": "Dựng chỗ làm của agent",
       "skill-sync": "Đồng bộ skill",
-      "check": "Kiểm tra project"
+      "check": "Kiểm tra project",
+      "runtimes-setup": "Cài runtime"
     },
     "status": {
       "queued": "Đang chờ",
       "claimed": "Đang làm",
-      "failed": "Lỗi"
+      "failed": "Lỗi",
+      "cancelled": "Đã hủy",
+      "done": "Xong"
     }
+  },
+  "runtime": {
+    "title": "Runtime {{host}}",
+    "unknown": "chưa rõ",
+    "noReport": "Chưa có bản tin runtime",
+    "name": {
+      "claude": "Claude",
+      "codex": "Codex",
+      "opencode": "OpenCode"
+    },
+    "toggle": "{{name}} trên {{host}}",
+    "toggleFailed": "Không đổi được công tắc runtime",
+    "loggedIn": "đã đăng nhập",
+    "loggedOut": "chưa đăng nhập",
+    "keyPresent": "có key",
+    "keyMissing": "Chưa có key",
+    "claude": "Phiên bản {{version}} · {{login}}",
+    "codex": "Phiên bản {{version}} · {{login}}",
+    "codexQuota": "Quota Codex ước tính: đã dùng {{pct}}%",
+    "codexQuotaReset": "Quota Codex ước tính: đã dùng {{pct}}%, đặt lại lúc {{time}}",
+    "opencode": "Phiên bản {{version}} · {{key}}",
+    "opencodeCost": "Chi phí OpenCode: ngày {{day}} · tuần {{week}} · tháng {{month}} (USD)",
+    "locked": {
+      "opencode-patch-missing": "Đang khóa: server chưa có vá chạy OpenCode đúng worktree (cần env CREW_OPENCODE_IN_PLACE_PATCH=1 và cấu hình plugin opencodeInPlacePatch)."
+    },
+    "keyHint": "Máy chưa có key OpenCode. Chạy crew-mac runtimes key opencode trong Terminal của Mac rồi gõ key vào đó; web không nhận key.",
+    "setup": "Cài runtime trên máy",
+    "wrapperCodexOk": "Wrapper Codex: đã cài",
+    "wrapperCodexNo": "Wrapper Codex: chưa cài",
+    "wrapperOpencodeOk": "Wrapper OpenCode: đã cài",
+    "wrapperOpencodeNo": "Wrapper OpenCode: chưa cài",
+    "setupCodex": "Codex sau khi cài: phiên bản {{version}} · {{login}}",
+    "setupOpencode": "OpenCode sau khi cài: phiên bản {{version}} · {{key}}",
+    "confirmTitle": "Bật {{name}} trên {{host}}?",
+    "confirmBody": {
+      "codex": "Run mới của runtime này sẽ dùng quota gói Codex của owner trên máy này.",
+      "opencode": "Run mới của runtime này sẽ dùng quota OpenCode Go (12$ mỗi 5 giờ, 30$ mỗi tuần, 60$ mỗi tháng)."
+    },
+    "confirmAction": "Bật {{name}}"
   }
 }

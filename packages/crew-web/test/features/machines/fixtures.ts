@@ -1,4 +1,11 @@
-import type { CrewMachine, MachineJob } from '@/api';
+import type {
+  CrewMachine,
+  CrewRuntime,
+  MachineJob,
+  MachineRuntimeSwitches,
+  RuntimeSwitchState,
+  RuntimesReport,
+} from '@/api';
 
 export const M1 = '11111111-1111-4111-8111-111111111111';
 export const M2 = '22222222-2222-4222-8222-222222222222';
@@ -8,7 +15,13 @@ const SUPERPOWERS = ['brainstorming', 'writing-plans', 'test-driven-development'
 
 /** Máy mẫu: bản tin đủ khóa, có app nhận việc (`jobsAgent`) và danh sách skill Superpowers. */
 export function machine(
-  over: { machineId?: string; hostname?: string; jobsAgent?: boolean; skills?: string[] | null } = {},
+  over: {
+    machineId?: string;
+    hostname?: string;
+    jobsAgent?: boolean;
+    skills?: string[] | null;
+    runtimes?: RuntimesReport;
+  } = {},
 ) {
   const { machineId = M1, hostname = 'mac-mini', jobsAgent = true, skills = SUPERPOWERS } = over;
   const now = new Date().toISOString();
@@ -35,6 +48,7 @@ export function machine(
         ...(skills ? { skills } : {}),
       },
       checks: [],
+      ...(over.runtimes ? { runtimes: over.runtimes } : {}),
       ...(jobsAgent ? { jobsAgent: { version: '1.0.0', lastPollAt: now } } : {}),
     },
     load24h: [],
@@ -62,3 +76,34 @@ export function job(over: Partial<MachineJob> & { id: string }): MachineJob {
 
 export const DATA = 'POST /api/plugins/crew.core/data';
 export const ROUTE = 'POST /api/plugins/crew.core/api';
+
+export const RUNTIMES: RuntimesReport = {
+  codex: { version: '0.9.1', loggedIn: true, primaryUsedPct: 42, resetsAt: '2026-10-12T00:30:00.000Z' },
+  opencode: { version: '1.4.0', keyPresent: false, costDay: 3.5, costWeek: 10, costMonth: 20, models: [] },
+};
+
+/** Trạng thái công tắc mẫu của một máy: Claude bật, Codex/OpenCode tắt, OpenCode khóa vì chưa có vá. */
+export function switches(
+  machineId = M1,
+  hostname = 'mac-mini',
+  over: Partial<Record<CrewRuntime, Partial<RuntimeSwitchState>>> = {},
+): MachineRuntimeSwitches {
+  const base = (enabled: boolean, locked: RuntimeSwitchState['locked'] = null): RuntimeSwitchState => ({
+    enabled,
+    updatedAt: null,
+    updatedByUserId: null,
+    locked,
+  });
+  return {
+    machineId,
+    hostname,
+    runtimes: {
+      claude_local: { ...base(true), ...over.claude_local },
+      codex_local: { ...base(false), ...over.codex_local },
+      opencode_local: { ...base(false, 'opencode-patch-missing'), ...over.opencode_local },
+    },
+  };
+}
+
+export const SWITCHES_URL = 'GET /api/plugins/crew.core/api/runtime-switches';
+export const SWITCH_SET = 'POST /api/plugins/crew.core/api/runtime-switches';

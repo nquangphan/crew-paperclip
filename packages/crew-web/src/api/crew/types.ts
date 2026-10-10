@@ -13,7 +13,8 @@ export type MachineJobKind =
   | 'skill-sync'
   | 'check'
   | 'remove-checkouts'
-  | 'skill-remove';
+  | 'skill-remove'
+  | 'runtimes-setup';
 export type MachineJobStatus = 'queued' | 'claimed' | 'done' | 'failed' | 'cancelled';
 export type JobPayload =
   | { kind: 'inspect-folder'; folder: string }
@@ -28,7 +29,8 @@ export type JobPayload =
       roles: CrewRoleSlot[];
       removeStatusRepo: boolean;
     }
-  | { kind: 'skill-remove'; skillId: string; slug: string };
+  | { kind: 'skill-remove'; skillId: string; slug: string }
+  | { kind: 'runtimes-setup' };
 export type JobResult =
   | {
       kind: 'inspect-folder';
@@ -53,7 +55,13 @@ export type JobResult =
       }[];
       absent: CrewRoleSlot[];
     }
-  | { kind: 'skill-remove'; removed: boolean };
+  | { kind: 'skill-remove'; removed: boolean }
+  | {
+      kind: 'runtimes-setup';
+      wrappers: { codex: boolean; opencode: boolean };
+      codex: { version: string | null; loggedIn: boolean | null };
+      opencode: { version: string | null; keyPresent: boolean | null };
+    };
 export type JobErrorCode =
   | 'folder_not_git'
   | 'folder_forbidden'
@@ -79,6 +87,32 @@ export interface MachineJob {
   createdAt: string;
   claimedAt: string | null;
   finishedAt: string | null;
+}
+
+// I3. Công tắc runtime theo máy (GET/POST /runtime-switches) và I8. Bản tin `runtimes` của máy.
+export type CrewRuntime = 'claude_local' | 'codex_local' | 'opencode_local';
+export type RuntimeSwitchLock = 'opencode-patch-missing';
+export interface RuntimeSwitchState {
+  enabled: boolean;
+  updatedAt: string | null;
+  updatedByUserId: string | null;
+  locked: RuntimeSwitchLock | null;
+}
+export interface MachineRuntimeSwitches {
+  machineId: string;
+  hostname: string;
+  runtimes: Record<CrewRuntime, RuntimeSwitchState>;
+}
+export interface RuntimesReport {
+  codex: { version: string | null; loggedIn: boolean | null; primaryUsedPct: number | null; resetsAt: string | null };
+  opencode: {
+    version: string | null;
+    keyPresent: boolean | null;
+    costDay: number | null;
+    costWeek: number | null;
+    costMonth: number | null;
+    models: string[];
+  };
 }
 
 // I2. Tiến độ wizard

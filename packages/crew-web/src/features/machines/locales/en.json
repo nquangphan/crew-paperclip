@@ -24,12 +24,54 @@
       "prepare-checkouts": "Prepare checkouts",
       "agent-workspace": "Prepare agent workspace",
       "skill-sync": "Sync skill",
-      "check": "Check project"
+      "check": "Check project",
+      "runtimes-setup": "Install runtimes"
     },
     "status": {
       "queued": "Queued",
       "claimed": "Running",
-      "failed": "Failed"
+      "failed": "Failed",
+      "cancelled": "Cancelled",
+      "done": "Done"
     }
+  },
+  "runtime": {
+    "title": "Runtime {{host}}",
+    "unknown": "unknown",
+    "noReport": "No runtime report yet",
+    "name": {
+      "claude": "Claude",
+      "codex": "Codex",
+      "opencode": "OpenCode"
+    },
+    "toggle": "{{name}} on {{host}}",
+    "toggleFailed": "Could not change the runtime switch",
+    "loggedIn": "signed in",
+    "loggedOut": "signed out",
+    "keyPresent": "key present",
+    "keyMissing": "No key",
+    "claude": "Version {{version}} · {{login}}",
+    "codex": "Version {{version}} · {{login}}",
+    "codexQuota": "Estimated Codex quota: {{pct}}% used",
+    "codexQuotaReset": "Estimated Codex quota: {{pct}}% used, resets at {{time}}",
+    "opencode": "Version {{version}} · {{key}}",
+    "opencodeCost": "OpenCode cost: day {{day}} · week {{week}} · month {{month}} (USD)",
+    "locked": {
+      "opencode-patch-missing": "Locked: the server has no patch to run OpenCode in the right worktree (needs env CREW_OPENCODE_IN_PLACE_PATCH=1 and the plugin setting opencodeInPlacePatch)."
+    },
+    "keyHint": "This machine has no OpenCode key. Run crew-mac runtimes key opencode in the Mac's Terminal and type the key there; the web never takes keys.",
+    "setup": "Install runtimes on the machine",
+    "wrapperCodexOk": "Codex wrapper: installed",
+    "wrapperCodexNo": "Codex wrapper: not installed",
+    "wrapperOpencodeOk": "OpenCode wrapper: installed",
+    "wrapperOpencodeNo": "OpenCode wrapper: not installed",
+    "setupCodex": "Codex after install: version {{version}} · {{login}}",
+    "setupOpencode": "OpenCode after install: version {{version}} · {{key}}",
+    "confirmTitle": "Enable {{name}} on {{host}}?",
+    "confirmBody": {
+      "codex": "New runs of this runtime will use the owner's Codex plan quota on this machine.",
+      "opencode": "New runs of this runtime will use OpenCode Go quota ($12 per 5 hours, $30 per week, $60 per month)."
+    },
+    "confirmAction": "Enable {{name}}"
   }
 }
