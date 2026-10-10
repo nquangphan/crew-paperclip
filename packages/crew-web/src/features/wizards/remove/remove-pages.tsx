@@ -13,7 +13,8 @@ function KeptNotice({ run }: { run: SetupRun }) {
   const { t } = useT('wizards');
   const kept = keptCheckouts(run);
   if (kept.length === 0) return null;
-  const commands = kept.filter((k) => k.path).map((k) => `git worktree remove "${k.path}"`);
+  // `-C`: owner chạy lệnh từ bất kỳ thư mục nào (ngoài repo thì `git worktree` báo "not a git repository").
+  const commands = kept.filter((k) => k.path).map((k) => `git -C "${k.path}" worktree remove "${k.path}"`);
   return (
     <Alert variant="warning" title={t('remove.kept.title', { count: kept.length })}>
       <div className="flex flex-col gap-2">
