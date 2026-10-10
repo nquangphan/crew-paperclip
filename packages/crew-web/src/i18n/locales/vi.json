@@ -117,6 +117,9 @@
     "signOut": "Đăng xuất",
     "signOutFailed": "Không đăng xuất được"
   },
+  "stockUi": {
+    "open": "Mở giao diện Paperclip gốc"
+  },
   "lang": {
     "label": "Ngôn ngữ",
     "vi": "Tiếng Việt",

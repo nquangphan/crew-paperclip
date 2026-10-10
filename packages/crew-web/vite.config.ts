@@ -18,6 +18,8 @@ function crewUiCommit(): Plugin {
 
 export default defineConfig({
   plugins: [react(), tailwindcss(), crewUiCommit()],
+  // Mặc định /paperclip (cùng domain). Đặt CREW_STOCK_UI_URL rỗng thì UI ẩn nút "Mở giao diện Paperclip gốc".
+  define: { __CREW_STOCK_UI_URL__: JSON.stringify(process.env.CREW_STOCK_UI_URL ?? '/paperclip') },
   resolve: { alias: { '@': path.resolve(import.meta.dirname, './src') } },
   server: {
     port: 5183,
