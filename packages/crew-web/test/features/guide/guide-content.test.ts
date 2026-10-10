@@ -69,6 +69,22 @@ describe.each(['vi', 'en'] as const)('nội dung hướng dẫn %s', (lang) => {
   });
 });
 
+describe.each([
+  ['vi', ['Ép Done', 'Xóa skill', 'Đổi nguồn', 'Gỡ project', 'Gỡ agent', 'Đã gỡ']],
+  ['en', ['Force Done', 'Delete skill', 'Change source', 'Remove project', 'Remove agent', 'Removed']],
+] as const)('mục mới R3X (%s)', (lang, words) => {
+  it('nói về Ép Done, sửa/xóa skill, gỡ agent/project', () => {
+    for (const w of words) expect(DOCS[lang], w).toContain(w);
+  });
+  it('không còn câu khẳng định thiếu các nút đã làm', () => {
+    const banned =
+      lang === 'vi'
+        ? [/không thể tự đặt trạng thái thành "Hoàn thành"/, /không có nút gỡ/i, /không có nút xóa skill/i]
+        : [/cannot set the status to "Done" by hand\. The reason/, /no remove button/i, /no delete skill button/i];
+    for (const re of banned) expect(DOCS[lang]).not.toMatch(re);
+  });
+});
+
 describe('hai ngôn ngữ cùng cấu trúc', () => {
   const flat = (lang: 'vi' | 'en') => {
     const doc = parseGuide(DOCS[lang]);

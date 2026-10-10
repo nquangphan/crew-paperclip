@@ -23,7 +23,8 @@
       "all": "All",
       "running": "Running",
       "paused": "Paused",
-      "error": "Error"
+      "error": "Error",
+      "removed": "Removed"
     }
   },
   "role": {

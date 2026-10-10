@@ -114,4 +114,19 @@ describe('ProjectsPage', () => {
     await waitFor(() => expect(s.calls.some((c) => c.method === 'PUT')).toBe(true));
     expect(s.calls.find((c) => c.method === 'PUT')?.body).toEqual({ orderedIds: [] });
   });
+
+  it('bộ lọc Đã gỡ chỉ hiện project đã lưu trữ, mặc định ẩn', async () => {
+    readiness.value = [];
+    server();
+    mount();
+    await screen.findByText('Alpha');
+    expect(screen.getByRole('button', { name: 'Đang dùng' }).getAttribute('aria-pressed')).toBe('true');
+    fireEvent.click(screen.getByRole('button', { name: 'Đã gỡ' }));
+    expect(screen.getByText('Đã lưu trữ')).toBeTruthy();
+    expect(screen.queryByText('Alpha')).toBeNull();
+    expect(screen.queryByRole('button', { name: /Gắn sao/ })).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Đang dùng' }));
+    expect(screen.getByText('Alpha')).toBeTruthy();
+    expect(screen.queryByText('Đã lưu trữ')).toBeNull();
+  });
 });

@@ -139,12 +139,23 @@ Then choose a button at the top of the request page:
 | **Request changes** | You do not agree | Write **What needs fixing** (at least 5 characters) and press **Send change request**. The work goes back to the previous worker and counts as one more fix round |
 | **Cancel request** | It is no longer needed | A confirmation box appears. The request becomes **Cancelled** and any run on the machine stops |
 | **Reopen** | A done or cancelled request needs to be redone | A confirmation box appears. The request goes back to **To do** and every stage runs again in a new round |
+| **Force Done** | Force majeure: the request must be closed now although some gates are not passed | See section 6.1 below |
 
 Notes:
 - **Approve** and **Request changes** appear only at the Owner approval stage, and only for the person assigned to approve.
 - If 5 fix rounds are used up and the result still falls short, the request is escalated to you. Then you reply with a **comment** (say how to proceed); there is no Approve button.
-- You cannot set the status to "Done" by hand. The reason is in section 15.
+- There is no free status picker. To close a request while skipping gates use **Force Done** (section 6.1); the reason is in section 15.
 - A running run shows a **Stop run** button (with a confirmation box) in the request's run list.
+
+### 6.1 Force Done
+
+Use it only in force-majeure cases, for example the work was finished by hand outside Crew, or the flow is stuck and you have checked the result yourself. It is an escape hatch, not the normal way to approve.
+
+- **When to use it:** the request is not Done or Cancelled yet, and you accept skipping the remaining gates (review, docs check, push). If unsure, use **Approve** or **Request changes**.
+- **How:** press **Force Done** at the top of the request page. The dialog lists **the gates that will be skipped** and how many running runs will be stopped. A box **also cancel unfinished sub-tasks** is ticked by default. Fill in **Reason** (required, 10 to 1000 characters) and press **Force Done**.
+- **Consequences:** the request becomes **Done** immediately, unpassed gates are skipped, it does not count as an approval and no new review round starts. The reason is recorded as the Owner's comment. If the request has a parent and every other child is done, the Assistant on the parent is notified to continue. Code that was not pushed to the main branch is not pushed for you.
+- **History:** the request's **History** shows a **Force Done** line with the reason, who did it, the time (Asia/Ho_Chi_Minh time zone) and the skipped gates; the request carries a **Forced Done** badge.
+- Forced by mistake? Use **Reopen** to run it again from the start.
 
 ## 7. Inbox and Dashboard
 
@@ -213,14 +224,26 @@ The [Projects](/projects) page lists projects with a **Readiness** column, the n
 - **Readiness**: the checklist. A failing item has a **Continue** button that leads into the wizard.
 - **Rename**: name, description, color, icon.
 
+The Projects page also has **In use** and **Removed** filters: a removed project only appears under **Removed**. Opening a removed project shows a **Project removed at …** banner.
+
 {{shot:agents}}
 
-The [Agents](/agents) page lists agents with role, status and **Readiness**. You can filter **Running**, **Paused**, **Error**. **Pause** stops the agent and cancels its running run; **Resume** lets it run again. Open an agent to see:
+The [Agents](/agents) page lists agents with role, status and **Readiness**. You can filter **Running**, **Paused**, **Error** and **Removed** (removed agents appear only under this filter). **Pause** stops the agent and cancels its running run; **Resume** lets it run again. Open an agent to see:
 - **Overview**: latest run, the request it is working on, machine, roles and anything still missing.
 - **Instructions**: read `AGENTS.md`, read-only. **Re-render by role** writes the correct version for the current role. If someone just edited it you get a conflict and **nothing is overwritten**; reload and render again.
 - **Skills**: enable or disable company skills for this agent, effective from the next run.
 - **Runtime**: view the adapter, command, environment and machine. Only the **Default model** can be changed, chosen from Crew's model table.
 - **Runs**: the agent's runs.
+
+### 10.1 Removing a project or an agent
+
+Removing means **stop using but keep the data**; nothing is deleted:
+
+- **Remove project** (button at the top of the project page): the confirmation box makes you type the exact project name and lists what will happen. Crew pauses the agents in its roles, deletes the roles, archives their own environments, removes **clean** checkouts on the machine and then archives the project. Git branches are not deleted, the original folder is not touched, unfinished requests stay as they are.
+- **Remove agent** (button at the top of the agent page): the agent leaves its role (the Assistant's `AGENTS.md` is updated), is paused, its own environment is archived and its clean checkout is removed. The agent is not deleted. If it is the Assistant, reviewer, integrator or the only executor of a project, the button is disabled with a reason and links **Change roles** or **Remove whole project**.
+- **Dirty checkouts are kept:** a folder with uncommitted changes or stray files is not removed. The progress page warns you and shows the `git worktree remove` command to run yourself after you have looked.
+- **Resume if interrupted:** removal runs step by step. If it fails midway the button becomes **Continue removing project** or **Continue removing agent**.
+- To use it again: a project goes through the **Add project** wizard; a removed agent can be **Resumed** and given a role again.
 
 **Readiness** covers these checks: agent configuration is correct, Superpowers is pinned correctly, `AGENTS.md` matches the role, the SSH environment is correct, the working folder exists on the machine, and the agent holds a role. A project that is **not ready** does not appear in the New request dialog.
 
@@ -233,6 +256,12 @@ The [Skills](/skills) page lists the company's skills (extra abilities for agent
 **Add a skill:** press **Add skill**, paste a GitHub repo address (a branch or tag is optional), press **Scan repo**, choose the skills to add, optionally **Preview**, then press **Add skill**. A skill with the same name as a Superpowers skill that Crew has pinned cannot be added.
 
 Open a skill to see its details, **Enable for agents** (one agent at a time) and the **Sync to machines** section showing whether each machine is synced, waiting or failed. There is a **Sync** or **Sync again** button. "Waiting for the 2P Crew app" means the app on the machine has not picked up the job; open the app and it is done.
+
+**Edit a skill:** in the skill's details, **Edit details** changes the display name and description; to edit a file, pick it, edit and press **Save file** (there is **Delete file**, type the path again to confirm). Only skills managed by Crew can be edited. If two people save at once, **the last save wins**, with no version warning.
+
+**Delete a skill:** press **Delete skill** and type the skill name again. If the skill is enabled for agents, Crew first removes it from those agents, then deletes it. Copies on the machines are cleaned up through the job queue: a machine whose app is not open shows "waiting for the app", or use the **Remove copy** button.
+
+**Skill source (GitHub):** **Check for updates** looks for a newer version at the source, **Update from source** pulls it. For a skill that cannot be edited, press **Create editable copy** to get the company's own copy. **Change source** is three steps: **Add from a new source**, enable it for the agents that need it, then **Delete skill** the old one.
 
 ## 12. Machines
 
@@ -272,9 +301,9 @@ The [Settings](/settings) page has three parts:
 ## 15. Why there is no button X
 
 If you know the original Paperclip and cannot find a button, it is almost always on purpose. There are three main reasons:
-- **Rules that protect the approval flow.** Crew has automatic rules: a request always goes through the Assistant; you cannot set "Done" by hand to skip review, the docs check and the push; agent configuration cannot be edited freely.
+- **Rules that protect the approval flow.** Crew has automatic rules: a request always goes through the Assistant; there is no free status picker to skip review, the docs check and the push (in a force-majeure case use **Force Done** with a reason, section 6.1); agent configuration cannot be edited freely.
 - **Strict permissions.** **An agent cannot create another agent** and cannot grant itself permissions. **An agent cannot edit a project** (roles, name, settings). Only a person on the web can do that, through the wizards and the Projects and Agents pages, which check every step.
-- **A complete flow instead.** Creating a project, creating an agent and adding a skill each have their own wizard in place of a bare form.
+- **A complete flow instead.** Creating a project, creating an agent, adding a skill, removing a project and removing an agent each have their own step-by-step flow in place of a bare form or delete button.
 
 The table below lists each Paperclip feature that Crew does not have, where it lives in Paperclip, why, and what to do instead. Reason codes: **Not used by Crew**, **Blocked by rules**, **No flow yet**, **Later release**.
 

@@ -132,7 +132,7 @@
     "freeStatus": {
       "feature": "Đổi trạng thái tự do, kéo thả bảng Kanban",
       "where": "Danh sách yêu cầu, bảng thuộc tính",
-      "note": "Đặt thẳng \"Hoàn thành\" sẽ bỏ qua bước review, kiểm tài liệu và đẩy code. Thay vào đó dùng các nút Duyệt, Yêu cầu sửa và Hủy yêu cầu."
+      "note": "Đặt thẳng \"Hoàn thành\" sẽ bỏ qua bước review, kiểm tài liệu và đẩy code. Thay vào đó dùng các nút Duyệt, Yêu cầu sửa và Hủy yêu cầu. Trường hợp bất khả kháng có nút riêng Ép Done (mục 6), ghi rõ lý do và vào Lịch sử."
     },
     "editRelations": {
       "feature": "Đổi project, nhãn, yêu cầu cha, \"bị chặn bởi\" sau khi tạo",
@@ -229,11 +229,6 @@
       "where": "Menu của agent",
       "note": "Bản sao không có thư mục làm việc và vai trò. Đặt lại phiên làm mất trí nhớ mà các việc cùng gói đang dùng."
     },
-    "terminateAgent": {
-      "feature": "Dừng hẳn hoặc xóa agent",
-      "where": "Menu của agent",
-      "note": "Agent đang giữ vai trò mà bị dừng hẳn thì project sẽ không chạy được. Cần có luồng \"gỡ\" riêng gồm sửa vai trò và lưu trữ environment, hiện chưa có. Muốn ngừng việc thì dùng Tạm dừng."
-    },
     "approvals": {
       "feature": "Duyệt tuyển agent, trang Approvals (tuyển agent, ngân sách)",
       "where": "Mục /approvals",
@@ -258,11 +253,6 @@
       "feature": "Thêm repo GitHub, đặt thư mục cục bộ, biến môi trường của project",
       "where": "Tab Configuration của project",
       "note": "Repo nằm trên máy Mac. Agent chạy trong thư mục riêng của chính nó."
-    },
-    "archiveProject": {
-      "feature": "Lưu trữ hoặc xóa project",
-      "where": "Tab Configuration",
-      "note": "Phải tạm dừng agent, lưu trữ environment và xóa vai trò theo đúng thứ tự. Luồng này chưa có trên web."
     },
     "budgetTab": {
       "feature": "Tab Ngân sách của project",
@@ -312,7 +302,7 @@
     "skillStudio": {
       "feature": "Skill Studio (viết, thử, tách nhánh, đánh phiên bản skill), danh mục, skill thử nghiệm",
       "where": "Mục /skills/studio",
-      "note": "Bản này chỉ có: xem danh sách, thêm skill từ repo GitHub, bật cho agent và xem trạng thái đồng bộ."
+      "note": "Bản này có: xem danh sách, thêm skill từ repo GitHub, sửa thông tin và file, xóa skill, kiểm và cập nhật từ nguồn, tạo bản sửa được, bật cho agent và xem trạng thái đồng bộ. Chưa có viết, thử và đánh phiên bản trong Studio."
     },
     "signUp": {
       "feature": "Đăng ký tài khoản",

@@ -1,5 +1,5 @@
-// Chi tiết agent (S11): tab Tổng quan, Hướng dẫn, Skills, Cấu hình chạy, Run; đổi tên. Không có thao tác xóa, dừng hẳn,
-// sửa quyền hay khóa API (SEC-2 tắt quyền tạo agent/skill, UI không bật lại).
+// Chi tiết agent (S11): tab Tổng quan, Hướng dẫn, Skills, Cấu hình chạy, Run; đổi tên; Gỡ agent (S11.9, không xóa agent).
+// Không có thao tác xóa, dừng hẳn, sửa quyền hay khóa API (SEC-2 tắt quyền tạo agent/skill, UI không bật lại).
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
@@ -19,6 +19,7 @@ import {
 } from '@/ds';
 import { ArrowLeft, Pencil } from '@/ds/icons';
 import { useProjectReadiness } from '@/features/readiness';
+import { RemoveAgentButton } from '@/features/wizards';
 import { useT } from '@/i18n';
 import { companyHref } from '../paths';
 import { InstructionsTab } from './instructions-tab';
@@ -81,6 +82,7 @@ export function AgentPage() {
               <Pencil aria-hidden />
               {t('detail.rename')}
             </Button>
+            <RemoveAgentButton agent={{ id: data.id, name: data.name, status: data.status }} />
           </>
         }
       />

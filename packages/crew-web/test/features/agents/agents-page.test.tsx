@@ -3,7 +3,7 @@ import { cleanup, fireEvent, screen, waitFor, within } from '@testing-library/re
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { initI18n, setLanguage } from '@/i18n';
 import { mockServer } from '../../app/fetch-mock';
-import { agent, ID, project, ROLES, renderPage } from './helpers';
+import { agent, data, ID, project, ROLES, renderPage } from './helpers';
 
 const readiness = vi.hoisted(() => ({ value: [] as unknown[] }));
 vi.mock('@/features/readiness', async (orig) => ({
@@ -151,5 +151,35 @@ describe('AgentsPage', () => {
     const rev = await rowOf('Reviewer Bot');
     const link = within(rev).getByRole('link', { name: 'Làm tiếp' });
     expect(link.getAttribute('href')).toBe(`/TPS/agents/new?fix=${ID.reviewer}&step=pin`);
+  });
+
+  it('agent đã gỡ ẩn mặc định, bộ lọc Đã gỡ hiện riêng chúng', async () => {
+    readiness.value = [];
+    server({
+      'GET /api/companies/c-tps/agents': {
+        body: [
+          agent({ id: ID.assistant, name: 'Trợ Lý', urlKey: 'tro-ly', status: 'running' }),
+          agent({ id: ID.spare, name: 'Agent Cũ', urlKey: 'agent-cu', status: 'paused' }),
+        ],
+      },
+      ...data('crew.setupRuns', [
+        {
+          id: 'run-rm',
+          kind: 'remove-agent',
+          status: 'done',
+          input: { agentId: ID.spare, agentName: 'Agent Cũ', projectId: null, role: null },
+          steps: {},
+          updatedAt: '2026-10-10T02:30:00Z',
+        },
+      ]),
+    });
+    mount();
+    await screen.findByText('Trợ Lý');
+    await waitFor(() => expect(screen.queryByText('Agent Cũ')).toBeNull());
+    fireEvent.click(screen.getByRole('button', { name: 'Đã gỡ' }));
+    expect(screen.getByText('Agent Cũ')).toBeTruthy();
+    expect(screen.queryByText('Trợ Lý')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Tất cả' }));
+    expect(screen.queryByText('Agent Cũ')).toBeNull();
   });
 });

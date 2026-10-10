@@ -1,5 +1,6 @@
-// Danh sách project (S7): trạng thái sẵn sàng, Làm tiếp, Thêm project, gắn sao.
+// Danh sách project (S7): trạng thái sẵn sàng, Làm tiếp, Thêm project, gắn sao; bộ lọc Đang dùng / Đã gỡ.
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api, queryKeys } from '@/api';
 import { useCompany } from '@/app/hooks';
@@ -7,6 +8,7 @@ import {
   Button,
   EmptyState,
   ErrorState,
+  FilterBar,
   PageHeader,
   ReadinessBadge,
   Spinner,
@@ -26,6 +28,7 @@ export function ProjectsPage() {
   const { t } = useT('projects');
   const { company } = useCompany();
   const queryClient = useQueryClient();
+  const [view, setView] = useState<'active' | 'removed'>('active');
   const projects = useQuery({
     queryKey: queryKeys.projects(company.id),
     queryFn: () => api.projects.list(company.id),
@@ -82,13 +85,33 @@ export function ProjectsPage() {
     return i < 0 ? Number.MAX_SAFE_INTEGER : i;
   };
   const rows = (projects.data ?? [])
-    .filter((p) => !p.archivedAt)
+    .filter((p) => (view === 'removed' ? !!p.archivedAt : !p.archivedAt))
     .sort((a, b) => rank(a.id) - rank(b.id) || a.name.localeCompare(b.name));
+  const viewFilter = (
+    <FilterBar>
+      {(['active', 'removed'] as const).map((id) => (
+        <Button
+          key={id}
+          variant={view === id ? 'secondary' : 'outline'}
+          size="sm"
+          aria-pressed={view === id}
+          onClick={() => setView(id)}
+        >
+          {t(`list.view.${id}`)}
+        </Button>
+      ))}
+    </FilterBar>
+  );
   if (rows.length === 0) {
     return (
       <>
         {header}
-        <EmptyState title={t('list.empty')} description={t('list.emptyHint')} />
+        {viewFilter}
+        {view === 'removed' ? (
+          <EmptyState title={t('list.emptyRemoved')} />
+        ) : (
+          <EmptyState title={t('list.empty')} description={t('list.emptyHint')} />
+        )}
       </>
     );
   }
@@ -100,6 +123,7 @@ export function ProjectsPage() {
   return (
     <>
       {header}
+      {viewFilter}
       <Table>
         <TableHeader>
           <TableRow>
@@ -121,16 +145,18 @@ export function ProjectsPage() {
             return (
               <TableRow key={project.id}>
                 <TableCell>
-                  <Button
-                    variant="ghost"
-                    size="icon-sm"
-                    aria-pressed={isStarred}
-                    aria-label={t(isStarred ? 'star.remove' : 'star.add', { name: project.name })}
-                    disabled={star.isPending}
-                    onClick={() => toggleStar(project.id)}
-                  >
-                    <span aria-hidden>{isStarred ? '★' : '☆'}</span>
-                  </Button>
+                  {view === 'removed' ? null : (
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      aria-pressed={isStarred}
+                      aria-label={t(isStarred ? 'star.remove' : 'star.add', { name: project.name })}
+                      disabled={star.isPending}
+                      onClick={() => toggleStar(project.id)}
+                    >
+                      <span aria-hidden>{isStarred ? '★' : '☆'}</span>
+                    </Button>
+                  )}
                 </TableCell>
                 <TableCell>
                   <Link to={companyHref(company.issuePrefix, `projects/${projectRef(project)}`)}>{project.name}</Link>
@@ -138,7 +164,7 @@ export function ProjectsPage() {
                 <TableCell>{project.taskCount ?? 0}</TableCell>
                 <TableCell>{entry ? <ReadinessBadge state={entry.state} failed={entry.failed} /> : null}</TableCell>
                 <TableCell>
-                  {entry?.state === 'not_ready' ? (
+                  {view === 'active' && entry?.state === 'not_ready' ? (
                     <Button asChild variant="outline" size="sm">
                       <Link to={resume}>{t('resume')}</Link>
                     </Button>

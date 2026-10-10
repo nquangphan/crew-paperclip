@@ -23,7 +23,8 @@
       "all": "Tất cả",
       "running": "Đang chạy",
       "paused": "Tạm dừng",
-      "error": "Lỗi"
+      "error": "Lỗi",
+      "removed": "Đã gỡ"
     }
   },
   "role": {

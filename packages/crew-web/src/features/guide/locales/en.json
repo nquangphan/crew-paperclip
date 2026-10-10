@@ -132,7 +132,7 @@
     "freeStatus": {
       "feature": "Changing status freely, dragging cards on a Kanban board",
       "where": "Request list, properties panel",
-      "note": "Setting \"Done\" directly would skip review, the docs check and the push. Use the Approve, Request changes and Cancel request buttons instead."
+      "note": "Setting \"Done\" directly would skip review, the docs check and the push. Use the Approve, Request changes and Cancel request buttons instead. For the rare case you must close a request anyway there is a separate Force Done button (section 6) that records a reason in the History."
     },
     "editRelations": {
       "feature": "Changing project, labels, parent, \"blocked by\" after creation",
@@ -229,11 +229,6 @@
       "where": "Agent menu",
       "note": "A copy has no work folder or role. Resetting a session erases the memory that tasks in the same bundle rely on."
     },
-    "terminateAgent": {
-      "feature": "Terminate or delete an agent",
-      "where": "Agent menu",
-      "note": "If an agent that holds a role is terminated, the project can no longer run. A separate \"remove\" flow (edit roles, archive the environment) is needed and does not exist yet. To stop work, use Pause."
-    },
     "approvals": {
       "feature": "Approve hires, Approvals page (hiring, budget)",
       "where": "/approvals",
@@ -258,11 +253,6 @@
       "feature": "Adding GitHub repos, setting a local folder, project environment variables",
       "where": "Project Configuration tab",
       "note": "The repo lives on the Mac. Agents run in their own folder."
-    },
-    "archiveProject": {
-      "feature": "Archiving or deleting a project",
-      "where": "Configuration tab",
-      "note": "Agents must be paused, environments archived and roles removed in the right order. This flow does not exist on the web yet."
     },
     "budgetTab": {
       "feature": "Project Budget tab",
@@ -312,7 +302,7 @@
     "skillStudio": {
       "feature": "Skill Studio (write, test, fork, version skills), catalog, beta skills",
       "where": "/skills/studio",
-      "note": "This release only lists skills, adds skills from a GitHub repo, enables them for agents and shows sync status."
+      "note": "This release has: the list, adding skills from a GitHub repo, editing details and files, deleting a skill, checking and updating from the source, making an editable copy, enabling for agents and sync status. It has no writing, testing or versioning in a Studio."
     },
     "signUp": {
       "feature": "Account sign-up",

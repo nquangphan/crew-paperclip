@@ -22,6 +22,7 @@ import {
 } from '@/ds';
 import { Pause, Play, Plus } from '@/ds/icons';
 import { useProjectReadiness } from '@/features/readiness';
+import { removalState } from '@/features/wizards';
 import { useT } from '@/i18n';
 import { agentRef, companyHref, resumeHref } from '../paths';
 import { useAgentHoldings } from '../use-agent-roles';
@@ -39,6 +40,10 @@ export function AgentsPage() {
     queryFn: () => api.agents.list(company.id),
   });
   const readiness = useProjectReadiness(company.id, api);
+  const setupRuns = useQuery({
+    queryKey: queryKeys.crew('crew.setupRuns', { companyId: company.id }),
+    queryFn: () => api.crew.setupRuns(company.id),
+  });
   const { byAgent } = useAgentHoldings();
   const toggle = useMutation({
     mutationFn: (agent: Agent) =>
@@ -89,7 +94,9 @@ export function AgentsPage() {
       </>
     );
   }
-  const rows = all.filter((a) => matches(a.status));
+  const isRemoved = (a: Agent) =>
+    removalState(setupRuns.data ?? [], { agentId: a.id, agentStatus: a.status }).status === 'removed';
+  const rows = all.filter((a) => matches(a.status, isRemoved(a)));
   const readinessOf = (agentId: string) => readiness.data?.flatMap((p) => p.agents).find((a) => a.agentId === agentId);
 
   return (

@@ -14,8 +14,11 @@ export interface MissingFeature {
   reason: MissingReason;
 }
 
-/** Số dòng của BA mục 2, đếm từ ba-report.md ngày 10/10 (13 + 12 + 14 + 5 + 9). */
-export const BA_MISSING_ROWS = 53;
+/**
+ * Số dòng của BA mục 2 (ba-report.md ngày 10/10: 13 + 12 + 14 + 5 + 9 = 53) trừ hai dòng đã có luồng riêng từ R3X:
+ * gỡ agent và gỡ project. Còn 13 + 12 + 13 + 4 + 9.
+ */
+export const BA_MISSING_ROWS = 51;
 
 const rows = (group: MissingGroup, list: readonly (readonly [string, MissingReason])[]): MissingFeature[] =>
   list.map(([id, reason]) => ({ id, group, reason }));
@@ -61,7 +64,6 @@ export const MISSING_FEATURES: readonly MissingFeature[] = [
     ['agentPermissions', 'HK'],
     ['agentApiKeys', 'KD'],
     ['duplicateReset', 'HK'],
-    ['terminateAgent', 'CL'],
     ['approvals', 'KD'],
     ['followAgent', 'KD'],
     ['builtInAgents', 'KD'],
@@ -69,7 +71,6 @@ export const MISSING_FEATURES: readonly MissingFeature[] = [
   ...rows('project', [
     ['plainProject', 'CL'],
     ['repositories', 'KD'],
-    ['archiveProject', 'CL'],
     ['budgetTab', 'KD'],
     ['workspacesTab', 'KD'],
   ]),

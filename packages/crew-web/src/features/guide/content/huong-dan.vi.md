@@ -139,12 +139,23 @@ Rồi chọn một trong các nút ở đầu trang yêu cầu:
 | **Yêu cầu sửa** | Chưa đồng ý | Viết **Lý do cần sửa** (ít nhất 5 ký tự) rồi **Gửi yêu cầu sửa**. Việc quay về người làm vòng trước và tính thêm một vòng sửa |
 | **Hủy yêu cầu** | Không cần nữa | Có hộp xác nhận. Yêu cầu chuyển sang **Đã hủy** và run đang chạy trên máy bị dừng |
 | **Mở lại** | Yêu cầu đã hoàn thành hoặc đã hủy mà cần làm lại | Có hộp xác nhận. Yêu cầu về **Cần làm**, các bước chạy lại từ đầu ở vòng mới |
+| **Ép Done** | Bất khả kháng: cần đóng yêu cầu ngay dù chưa qua hết các cổng | Xem mục 6.1 bên dưới |
 
 Lưu ý:
 - Nút **Duyệt** và **Yêu cầu sửa** chỉ hiện đúng ở bước Owner duyệt, và chỉ với người được giao duyệt.
 - Nếu hết 5 vòng sửa mà vẫn chưa đạt, yêu cầu được chuyển cho bạn quyết định. Lúc này bạn trả lời bằng **bình luận** (nói rõ hướng xử lý), không có nút Duyệt.
-- Bạn không thể tự đặt trạng thái thành "Hoàn thành". Lý do ở mục 15.
+- Không có ô chọn trạng thái tự do. Muốn đóng yêu cầu mà bỏ qua cổng thì dùng **Ép Done** (mục 6.1); lý do ở mục 15.
 - Run đang chạy hiện nút **Dừng run** (có hộp xác nhận) ở danh sách run của yêu cầu.
+
+### 6.1 Ép Done
+
+Dùng khi bất khả kháng, ví dụ việc đã làm tay xong ngoài Crew, hoặc luồng bị kẹt mà bạn đã tự kiểm kết quả. Đây là lối thoát, không phải cách duyệt thông thường.
+
+- **Khi nào dùng:** yêu cầu chưa Hoàn thành hay Đã hủy, và bạn chấp nhận bỏ qua các cổng còn chờ (review, kiểm docs, đẩy code). Không chắc thì dùng **Duyệt** hoặc **Yêu cầu sửa**.
+- **Cách làm:** bấm **Ép Done** ở đầu trang yêu cầu. Hộp thoại liệt kê **các cổng sẽ bị bỏ qua** và số run đang chạy sẽ bị dừng. Có ô chọn **hủy luôn các việc con chưa xong** (bật sẵn). Điền **Lý do** (bắt buộc, 10 đến 1000 ký tự) rồi bấm **Ép Done**.
+- **Hệ quả:** yêu cầu thành **Hoàn thành** ngay, các cổng chưa qua bị bỏ qua, không tính là Duyệt và không mở vòng review mới. Lý do được ghi thành bình luận của Owner. Nếu yêu cầu có việc cha và mọi việc con khác đã xong, Trợ Lý ở việc cha được báo để làm tiếp. Code chưa đẩy lên nhánh chính thì không tự được đẩy.
+- **Lịch sử:** phần **Lịch sử** của yêu cầu ghi dòng **Ép Done** kèm lý do, người ép, giờ (múi giờ Asia/Ho_Chi_Minh) và các cổng đã bỏ qua; yêu cầu mang nhãn **Đã ép Done**.
+- Ép nhầm thì dùng **Mở lại** để chạy lại từ đầu.
 
 ## 7. Hộp thư và Tổng quan
 
@@ -213,14 +224,26 @@ Trang [Project](/projects) liệt kê project kèm cột **Sẵn sàng**, số y
 - **Sẵn sàng**: danh sách kiểm. Mục nào chưa đạt có nút **Làm tiếp** dẫn vào wizard.
 - **Đổi tên**: tên, mô tả, màu, biểu tượng.
 
+Trên trang Project có thêm lọc **Đang dùng** và **Đã gỡ**: project đã gỡ chỉ hiện ở **Đã gỡ**. Mở một project đã gỡ thấy khung **Project đã gỡ lúc …**.
+
 {{shot:agents}}
 
-Trang [Agent](/agents) liệt kê agent kèm vai trò, trạng thái và **Sẵn sàng**. Có thể lọc **Đang chạy**, **Tạm dừng**, **Lỗi**. Nút **Tạm dừng** dừng agent và hủy run đang chạy; **Tiếp tục** cho agent chạy lại. Bấm một agent để xem:
+Trang [Agent](/agents) liệt kê agent kèm vai trò, trạng thái và **Sẵn sàng**. Có thể lọc **Đang chạy**, **Tạm dừng**, **Lỗi** và **Đã gỡ** (agent đã gỡ chỉ hiện ở bộ lọc này). Nút **Tạm dừng** dừng agent và hủy run đang chạy; **Tiếp tục** cho agent chạy lại. Bấm một agent để xem:
 - **Tổng quan**: run gần nhất, yêu cầu đang làm, máy, vai trò, và các mục còn thiếu.
 - **Hướng dẫn**: xem `AGENTS.md`, chỉ đọc. Nút **Render lại theo vai trò** ghi lại bản đúng theo vai trò hiện tại. Có người vừa sửa thì báo xung đột và **không ghi đè**, bạn tải lại rồi render lại.
 - **Skills**: bật hoặc tắt skill của company cho agent này, hiệu lực từ run kế tiếp.
 - **Cấu hình chạy**: xem adapter, lệnh, environment, máy. Chỉ đổi được **Model mặc định**, chọn trong bảng model của Crew.
 - **Run**: các lần chạy của agent.
+
+### 10.1 Gỡ project và gỡ agent
+
+Gỡ nghĩa là **ngừng dùng mà giữ dữ liệu**, không xóa gì:
+
+- **Gỡ project** (nút ở đầu trang project): hộp xác nhận bắt gõ đúng tên project và liệt kê điều sẽ xảy ra. Crew tạm dừng các agent trong vai trò, xóa vai trò, lưu trữ environment riêng, gỡ checkout **sạch** trên máy rồi lưu trữ project. Không xóa nhánh git, không đụng thư mục gốc, yêu cầu chưa xong giữ nguyên.
+- **Gỡ agent** (nút ở đầu trang agent): agent rời vai trò (`AGENTS.md` của Trợ Lý được cập nhật), bị tạm dừng, environment riêng được lưu trữ, checkout sạch được gỡ. Agent không bị xóa. Agent đang là Trợ Lý, reviewer, integrator hay executor duy nhất của một project thì nút tắt kèm lý do, cùng link **Đổi vai trò** hoặc **Gỡ cả project**.
+- **Checkout bẩn được giữ:** thư mục có thay đổi chưa commit hoặc tệp lạ không bị gỡ. Trang tiến độ cảnh báo và đưa lệnh `git worktree remove` để bạn tự làm sau khi xem lại.
+- **Làm dở thì chạy tiếp:** gỡ theo từng bước. Lỗi giữa chừng thì nút đổi thành **Chạy tiếp gỡ project** hoặc **Chạy tiếp gỡ agent**.
+- Muốn dùng lại: project dùng wizard **Thêm project**; agent đã gỡ bấm **Tiếp tục** rồi gán lại vai trò.
 
 **Sẵn sàng** gồm các kiểm tra: cấu hình agent đúng, ghim đúng Superpowers, `AGENTS.md` khớp vai trò, environment SSH đúng, thư mục làm việc có trên máy, agent đang giữ vai trò. Project **chưa sẵn sàng** thì không có trong hộp thoại Yêu cầu mới.
 
@@ -233,6 +256,12 @@ Trang [Skills](/skills) liệt kê skill của company (khả năng bổ sung ch
 **Thêm skill:** bấm **Thêm skill**, dán địa chỉ repo GitHub (có thể thêm nhánh hoặc tag), bấm **Quét repo**, chọn skill muốn thêm, có thể **Xem trước**, rồi bấm **Thêm skill**. Skill trùng tên với skill Superpowers mà Crew đã ghim sẽ không thêm được.
 
 Bấm một skill để xem chi tiết, **Bật cho agent** (từng agent một) và xem mục **Đồng bộ lên máy**, cho biết từng máy đã đồng bộ, đang chờ hay lỗi. Có nút **Đồng bộ** hoặc **Đồng bộ lại**. Chữ "Chờ app 2P Crew" nghĩa là app trên máy chưa nhận việc, mở app là xong.
+
+**Sửa skill:** trong chi tiết skill, **Sửa thông tin** đổi tên hiển thị và mô tả; sửa file thì chọn file, sửa rồi bấm **Lưu file** (có **Xóa file**, gõ lại đường dẫn để xác nhận). Chỉ sửa được skill do Crew quản lý. Hai người lưu cùng lúc thì **người lưu sau thắng**, không có cảnh báo phiên bản.
+
+**Xóa skill:** bấm **Xóa skill** và gõ lại tên skill. Skill đang bật cho agent thì Crew gỡ khỏi các agent đó trước, rồi mới xóa. Bản chép trên các máy được dọn qua hàng đợi việc: máy chưa mở app sẽ báo "chờ app", hoặc dùng nút **Gỡ bản chép**.
+
+**Nguồn skill (GitHub):** **Kiểm cập nhật** xem nguồn có bản mới không, **Cập nhật từ nguồn** kéo về. Skill không sửa được thì bấm **Tạo bản sửa được** để có bản riêng của company. **Đổi nguồn** làm bằng ba bước: **Thêm từ nguồn mới**, bật cho các agent cần, rồi **Xóa skill** bản cũ.
 
 ## 12. Máy
 
@@ -272,9 +301,9 @@ Trang [Cài đặt](/settings) có ba mục:
 ## 15. Vì sao không có nút X
 
 Nếu bạn quen Paperclip gốc và tìm không thấy một nút, đa số là cố ý. Có ba lý do chính:
-- **Luật bảo vệ luồng duyệt.** Crew có các luật tự động: yêu cầu luôn đi qua Trợ Lý; không thể đặt "Hoàn thành" bằng tay để bỏ qua review, kiểm tài liệu và đẩy code; cấu hình agent không bị sửa tùy ý.
+- **Luật bảo vệ luồng duyệt.** Crew có các luật tự động: yêu cầu luôn đi qua Trợ Lý; không có ô đổi trạng thái tự do để bỏ qua review, kiểm tài liệu và đẩy code (bất khả kháng thì dùng **Ép Done** có lý do, mục 6.1); cấu hình agent không bị sửa tùy ý.
 - **Luật phân quyền chặt.** **Agent không tạo được agent khác** và không tự cấp quyền cho mình. **Agent không sửa được project** (vai trò, tên, cài đặt). Việc đó chỉ người dùng làm được trên web, qua các wizard và trang Project, Agent có kiểm tra từng bước.
-- **Thay bằng luồng đầy đủ.** Tạo project, tạo agent và thêm skill có wizard riêng thay cho form trơn.
+- **Thay bằng luồng đầy đủ.** Tạo project, tạo agent, thêm skill, gỡ project và gỡ agent có luồng riêng từng bước thay cho form hay nút xóa trơn.
 
 Bảng dưới liệt kê từng tính năng Paperclip không có trong Crew, nằm ở đâu trong Paperclip, vì sao, và cách làm thay thế. Mã lý do: **Crew không dùng**, **Bị luật chặn**, **Chưa có luồng**, **Để bản sau**.
 

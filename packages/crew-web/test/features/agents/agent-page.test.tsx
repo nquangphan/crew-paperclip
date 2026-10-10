@@ -131,11 +131,12 @@ describe('AgentPage', () => {
     expect(tabs).toEqual(['Tổng quan', 'Hướng dẫn', 'Skills', 'Cấu hình chạy', 'Run']);
   });
 
-  it('không có nút xóa, terminate, quyền hay API key', async () => {
+  it('S11.9: có nút Gỡ agent, không có nút xóa, quyền hay API key', async () => {
     readiness.value = [];
     server();
     mount();
     await screen.findByRole('heading', { name: 'Executor Một' });
+    expect(await screen.findByRole('button', { name: 'Gỡ agent' })).toBeTruthy();
     const names = screen.getAllByRole('button').map((b) => b.textContent ?? '');
     expect(names.join('|')).not.toMatch(/xóa|dừng hẳn|quyền|api key|permission/i);
   });

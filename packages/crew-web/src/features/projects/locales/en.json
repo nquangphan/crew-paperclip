@@ -12,7 +12,12 @@
       "tasks": "Requests",
       "readiness": "Readiness",
       "actions": "Actions"
-    }
+    },
+    "view": {
+      "active": "In use",
+      "removed": "Removed"
+    },
+    "emptyRemoved": "No removed projects yet"
   },
   "star": {
     "add": "Star {{name}}",
@@ -28,7 +33,9 @@
       "roles": "Roles",
       "docs": "Docs",
       "readiness": "Readiness"
-    }
+    },
+    "removed": "Project removed at {{time}}",
+    "removedHint": "Data is kept (the project is only archived). Add it again with the Add project wizard."
   },
   "issues": {
     "empty": "This project has no requests",

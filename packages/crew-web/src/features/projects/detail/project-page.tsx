@@ -1,10 +1,12 @@
-// Chi tiết project (S8): tab Yêu cầu, Vai trò, Docs, Sẵn sàng; đổi tên. Không có thao tác xóa hay lưu trữ project.
+// Chi tiết project (S8): tab Yêu cầu, Vai trò, Docs, Sẵn sàng; đổi tên; Gỡ project (S8.7, không xóa dữ liệu). Project đã
+// gỡ hiện banner với giờ gỡ.
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { api, queryKeys } from '@/api';
 import { useCompany } from '@/app/hooks';
 import {
+  Alert,
   Button,
   ErrorState,
   PageHeader,
@@ -17,7 +19,8 @@ import {
 } from '@/ds';
 import { ArrowLeft, Pencil } from '@/ds/icons';
 import { useProjectReadiness } from '@/features/readiness';
-import { useT } from '@/i18n';
+import { RemoveProjectButton } from '@/features/wizards';
+import { formatDateTime, useT } from '@/i18n';
 import { companyHref } from '../paths';
 import { DocsTab } from './docs-tab';
 import { IssuesTab } from './issues-tab';
@@ -29,7 +32,7 @@ const TABS = ['issues', 'roles', 'docs', 'readiness'] as const;
 type Tab = (typeof TABS)[number];
 
 export function ProjectPage() {
-  const { t } = useT('projects');
+  const { t, lang } = useT('projects');
   const { company } = useCompany();
   const { projectRef = '' } = useParams();
   const [params, setParams] = useSearchParams();
@@ -77,9 +80,15 @@ export function ProjectPage() {
               <Pencil aria-hidden />
               {t('detail.rename')}
             </Button>
+            <RemoveProjectButton project={{ id: data.id, name: data.name }} />
           </>
         }
       />
+      {data.archivedAt ? (
+        <Alert variant="info" title={t('detail.removed', { time: formatDateTime(data.archivedAt, lang) })}>
+          {t('detail.removedHint')}
+        </Alert>
+      ) : null}
       <Tabs value={tab} onValueChange={(next) => setParams({ tab: next }, { replace: true })}>
         <TabsList variant="line">
           {TABS.map((id) => (

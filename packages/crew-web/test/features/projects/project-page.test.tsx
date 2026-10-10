@@ -215,11 +215,36 @@ describe('ProjectPage', () => {
     expect(within(dialog).getByLabelText('Tên project')).toBeTruthy();
   });
 
-  it('không có nút xóa hay lưu trữ project', async () => {
+  it('S8.7: header có nút Gỡ project, không có nút xóa', async () => {
     readiness.value = [];
     server();
     mount();
     await screen.findByRole('heading', { name: 'Alpha' });
-    expect(screen.queryByRole('button', { name: /xóa|lưu trữ|archive/i })).toBeNull();
+    expect(await screen.findByRole('button', { name: 'Gỡ project' })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: /xóa/i })).toBeNull();
+    expect(screen.queryByText(/Project đã gỡ/)).toBeNull();
+  });
+
+  it('project đã gỡ (archivedAt) hiện banner kèm giờ Asia/Ho_Chi_Minh và không còn nút Gỡ project', async () => {
+    readiness.value = [];
+    server({
+      'GET /api/projects/alpha': { body: project({ archivedAt: '2026-10-10T02:30:00Z' }) },
+      'GET /api/companies/c-tps/environments': { body: [] },
+      ...data('crew.machines', []),
+      ...data('crew.setupRuns', [
+        {
+          id: 'run-rm',
+          kind: 'remove-project',
+          status: 'done',
+          projectId: 'p1',
+          input: { projectId: 'p1', projectName: 'Alpha' },
+          steps: {},
+          updatedAt: '2026-10-10T02:30:00Z',
+        },
+      ]),
+    });
+    mount();
+    expect(await screen.findByText(/Project đã gỡ lúc 10\/10\/2026 09:30/)).toBeTruthy();
+    await waitFor(() => expect(screen.queryByRole('button', { name: 'Gỡ project' })).toBeNull());
   });
 });

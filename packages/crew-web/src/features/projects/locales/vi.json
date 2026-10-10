@@ -12,7 +12,12 @@
       "tasks": "Yêu cầu",
       "readiness": "Sẵn sàng",
       "actions": "Thao tác"
-    }
+    },
+    "view": {
+      "active": "Đang dùng",
+      "removed": "Đã gỡ"
+    },
+    "emptyRemoved": "Chưa có project nào đã gỡ"
   },
   "star": {
     "add": "Gắn sao {{name}}",
@@ -28,7 +33,9 @@
       "roles": "Vai trò",
       "docs": "Docs",
       "readiness": "Sẵn sàng"
-    }
+    },
+    "removed": "Project đã gỡ lúc {{time}}",
+    "removedHint": "Dữ liệu được giữ nguyên (project chỉ lưu trữ). Thêm lại project bằng wizard Thêm project."
   },
   "issues": {
     "empty": "Project chưa có yêu cầu",
