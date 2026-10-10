@@ -1,5 +1,6 @@
-// Khung tiến độ dùng chung của wizard (thêm project, tạo agent): danh sách bước theo setup run, chạy tiếp từ bước dở,
-// lỗi bước kèm nút "Chạy tiếp", báo khi có người khác đang chạy, "Bỏ lần dở" cho lần thêm project chưa tạo project.
+// Khung tiến độ dùng chung của wizard (thêm project, tạo agent, gỡ project, gỡ agent): danh sách bước theo setup run,
+// chạy tiếp từ bước dở, lỗi bước kèm nút "Chạy tiếp", báo khi có người khác đang chạy, "Bỏ lần dở" cho lần thêm project
+// chưa tạo project (lần gỡ không bỏ được).
 // Câu chữ lấy theo tiền tố khóa của từng wizard. Link dựng theo company của setup run, không theo company đang chọn.
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { type ReactNode, useCallback, useEffect, useRef, useState } from 'react';
@@ -28,8 +29,9 @@ export interface SetupProgressProps {
   runId: string;
   kind: SetupRun['kind'];
   /** Tiền tố khóa dịch: `<prefix>.steps.<bước>`, `.loadFailed`, `.wrongKind`, `.busy`, `.runFailed`, `.continue`. */
-  prefix: 'addProject' | 'addAgent';
-  steps: readonly SetupStepId[];
+  prefix: 'addProject' | 'addAgent' | 'removeProject' | 'removeAgent';
+  /** Bước của run; dạng hàm khi danh sách bước tùy input (gỡ agent có hay không có vai trò). */
+  steps: readonly SetupStepId[] | ((run: SetupRun) => readonly SetupStepId[]);
   run: (hooks: RunHooks, run: SetupRun, state: unknown) => Promise<SetupRun>;
   summary: (run: SetupRun) => ReactNode;
   /** `prefix` là issuePrefix của company sở hữu setup run. */
@@ -38,6 +40,8 @@ export interface SetupProgressProps {
   restartPath?: string;
   /** Query cần làm mới sau mỗi lần chạy (ngoài setup run). */
   invalidate?: (run: SetupRun) => readonly (readonly unknown[])[];
+  /** Cảnh báo theo kết quả bước đã xong (vd. checkout máy giữ lại), hiện cả khi run chưa xong. */
+  notice?: (run: SetupRun) => ReactNode;
 }
 
 function stepsOf(t: Translate, prefix: string, ids: readonly SetupStepId[], run: SetupRun, active: SetupStepId | null) {
@@ -137,7 +141,8 @@ export function SetupProgress(props: SetupProgressProps) {
   const run = query.data;
   if (run.kind !== props.kind) return <Alert variant="warning" title={t(`${prefix}.wrongKind`)} />;
 
-  const steps = stepsOf((key, params) => t(key, params), prefix, props.steps, run, active);
+  const stepIds = typeof props.steps === 'function' ? props.steps(run) : props.steps;
+  const steps = stepsOf((key, params) => t(key, params), prefix, stepIds, run, active);
   const failedStep = steps.find((s) => s.state === 'failed');
   const done = run.status === 'done';
   const abandoned = (run.status as string) === 'abandoned';
@@ -167,6 +172,7 @@ export function SetupProgress(props: SetupProgressProps) {
           {abandon.error.message}
         </Alert>
       ) : null}
+      {props.notice?.(run)}
       {done ? props.done(run, runPrefix) : null}
       {abandoned ? (
         <Alert title={t(`${prefix}.abandoned`)}>

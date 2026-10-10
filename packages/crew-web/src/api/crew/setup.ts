@@ -15,9 +15,12 @@ export const setupApi = {
     kind: SetupRun['kind'];
     projectKey: string;
     machineId: string;
+    /**
+     * Gỡ project/agent: id project nằm trong `input` (`{projectId, projectName}`, `{agentId, agentName, projectId,
+     * role}`), không có `projectId` ở cấp trên cùng (plugin từ chối khóa lạ). Đã có lần gỡ dở cùng project/agent thì
+     * plugin trả 409 kèm `setupRunId` của lần đó.
+     */
     input: AddProjectInput | AddAgentInput | RemoveProjectInput | RemoveAgentInput;
-    /** Bắt buộc với remove-project (IX2). */
-    projectId?: string;
   }): Promise<SetupRun> => call('setup.create', {}, { body }),
   get: (companyId: string, id: string): Promise<SetupRun> => call('setup.get', { id }, { query: { companyId } }),
   /** 409 khi bước khác đang chạy (khóa running_step). */

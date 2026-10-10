@@ -150,5 +150,111 @@
       "lease_expired": "The machine took the job but never reported back: {{text}}",
       "app_error": "The app on the machine reported an error: {{text}}"
     }
+  },
+  "removeProject": {
+    "button": "Remove project",
+    "resume": "Continue removing project",
+    "title": "Remove project",
+    "description": "Pause agents, clear roles, archive their own environments, remove clean checkouts on the machine, then archive the project. No data is deleted.",
+    "confirm": {
+      "title": "Remove project {{name}}?",
+      "agents": "Role agents will be paused: {{names}}.",
+      "noAgents": "The project has no role agents.",
+      "keeps": "Agents' own environments are archived (not deleted); the project is archived last. No branch is deleted and the root folder is untouched."
+    },
+    "steps": {
+      "pause-agents": "Pause role agents",
+      "roles": "Clear roles",
+      "environments": "Archive own environments",
+      "checkouts": "Remove checkouts on the machine",
+      "project": "Archive project"
+    },
+    "loadFailed": "Could not load the project removal progress",
+    "wrongKind": "This is not a project removal.",
+    "summary": "{{name}} · key {{key}}",
+    "busy": "Someone else is running this step. Wait a moment, then click Continue.",
+    "runFailed": "Step failed",
+    "continue": "Continue",
+    "done": "Project removed.",
+    "openProjects": "Back to projects"
+  },
+  "removeAgent": {
+    "button": "Remove agent",
+    "resume": "Continue removing agent",
+    "title": "Remove agent",
+    "description": "Take the agent out of its role, pause it, archive its own environment and remove its clean checkout on the machine. The agent is not deleted.",
+    "blocked": {
+      "assistant": "The agent is the Assistant of {{project}}: change roles first or remove the whole project.",
+      "reviewer": "The agent is the reviewer of {{project}}: change roles first or remove the whole project.",
+      "integrator": "The agent is the integrator of {{project}}: change roles first or remove the whole project.",
+      "onlyExecutor": "The agent is the only executor of {{project}}: add another executor first or remove the whole project."
+    },
+    "changeRoles": "Change roles",
+    "removeProject": "Remove whole project",
+    "confirm": {
+      "title": "Remove agent {{name}}?",
+      "role": "The agent is {{slot}} of {{project}}: it leaves the role and the Assistant's AGENTS.md is updated.",
+      "noRole": "The agent holds no role.",
+      "keeps": "The agent is only paused (can be resumed), never deleted; its own environment is archived, not deleted."
+    },
+    "steps": {
+      "roles": "Leave the role, update the Assistant's AGENTS.md",
+      "pause-agent": "Pause agent",
+      "environment": "Archive own environment",
+      "checkout": "Remove checkout on the machine"
+    },
+    "loadFailed": "Could not load the agent removal progress",
+    "wrongKind": "This is not an agent removal.",
+    "summary": "{{name}} · {{slot}} · key {{key}}",
+    "summaryNoRole": "{{name}} · no role",
+    "busy": "Someone else is running this step. Wait a moment, then click Continue.",
+    "runFailed": "Step failed",
+    "continue": "Continue",
+    "done": "Agent removed.",
+    "openAgent": "Open agent"
+  },
+  "remove": {
+    "loadFailed": "Could not load data for removal: {{message}}",
+    "createFailed": "Could not start the removal",
+    "noRun": "No removal to continue.",
+    "blocked": {
+      "noKey": "Could not work out the project key on the machine (the project has no Crew roles).",
+      "noMachine": "No machine reports to this company yet."
+    },
+    "confirm": {
+      "openIssues": "{{count}} unfinished issue(s): kept as is, not cancelled.",
+      "activeRuns": "{{count}} running run(s): will be stopped.",
+      "impactFailed": "Could not read issues and running runs: {{message}}",
+      "checkouts": "Checkouts on the machine:",
+      "noCheckouts": "The machine has not reported any checkout.",
+      "checkoutClean": "{{path}} · clean, will be removed",
+      "checkoutDirty": "{{path}} · has uncommitted work, will be kept",
+      "checkoutUnknown": "{{path}} · unknown, checked by the machine on removal",
+      "machine": "Machine to remove checkouts",
+      "machinePlaceholder": "Choose machine",
+      "machineMissing": "Choose the machine to remove checkouts, then confirm again."
+    },
+    "kept": {
+      "title": "The machine kept {{count}} checkout(s)",
+      "item": "{{role}}: {{reason}} · {{path}}",
+      "howTo": "Uncommitted work is never deleted. Once handled (commit or discard), remove it yourself with the command below, run in the project's root repo:",
+      "commandLabel": "Checkout removal command",
+      "reasons": {
+        "dirty": "has uncommitted work",
+        "busy": "in use by a process",
+        "not_worktree": "not a linked worktree",
+        "git_failed": "git command failed"
+      }
+    },
+    "errors": {
+      "wrongKind": "The setup run is not a removal",
+      "agentMissing": "Agent not found in the company",
+      "blocked": {
+        "assistant": "{{name}} is the Assistant: change roles, then click Continue",
+        "reviewer": "{{name}} is the reviewer: change roles, then click Continue",
+        "integrator": "{{name}} is the integrator: change roles, then click Continue",
+        "onlyExecutor": "{{name}} is the only executor: add another executor, then click Continue"
+      }
+    }
   }
 }

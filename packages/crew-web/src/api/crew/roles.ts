@@ -14,6 +14,9 @@ export const rolesApi = {
     const res: RolesResponse = await call('roles.set', { projectId }, { body: { companyId, ...roles } });
     return res.roles;
   },
+  /** Xóa dòng vai trò của project (gỡ project, S8.7). `deleted: false` khi project chưa có dòng vai trò. */
+  remove: (companyId: string, projectId: string): Promise<{ deleted: boolean }> =>
+    call('roles.delete', { projectId }, { query: { companyId } }),
 };
 
-export const __endpoints = ['roles.get', 'roles.set'];
+export const __endpoints = ['roles.delete', 'roles.get', 'roles.set'];

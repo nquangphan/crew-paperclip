@@ -201,3 +201,48 @@ describe('kiểu IX1/IX2', () => {
     expect(first(m)[2]).toMatchObject({ kind: 'remove-project', input: { projectId: 'p1' } });
   });
 });
+
+describe('hợp đồng setup run gỡ của plugin', () => {
+  it('setup.create gỡ project gửi projectId trong input, không ở cấp trên cùng', async () => {
+    const m = mockFetch({});
+    await api.setup.create({
+      companyId: 'c1',
+      kind: 'remove-project',
+      projectKey: 'demo',
+      machineId: 'm1',
+      input: { projectId: 'p1', projectName: 'Demo' },
+    });
+    const body = first(m)[2] as Record<string, unknown>;
+    expect(Object.keys(body).sort()).toEqual(['companyId', 'input', 'kind', 'machineId', 'projectKey']);
+    expect(body.input).toEqual({ projectId: 'p1', projectName: 'Demo' });
+  });
+
+  it('setup.create gỡ agent gửi {agentId, agentName, projectId, role}', async () => {
+    const m = mockFetch({});
+    await api.setup.create({
+      companyId: 'c1',
+      kind: 'remove-agent',
+      projectKey: 'agent-a1111111',
+      machineId: 'm1',
+      input: { agentId: 'a1', agentName: 'A', projectId: null, role: null },
+    });
+    expect(first(m)[2]).toEqual({
+      companyId: 'c1',
+      kind: 'remove-agent',
+      projectKey: 'agent-a1111111',
+      machineId: 'm1',
+      input: { agentId: 'a1', agentName: 'A', projectId: null, role: null },
+    });
+  });
+
+  it('roles.remove là DELETE vai trò project (S8.7) kèm companyId', async () => {
+    expect(ENDPOINTS['roles.delete']).toMatchObject({
+      ids: ['S8.7'],
+      method: 'DELETE',
+      path: '/api/plugins/crew.core/api/projects/:projectId/roles',
+    });
+    const m = mockFetch({ deleted: true });
+    expect(await api.roles.remove('c1', 'p1')).toEqual({ deleted: true });
+    expect(first(m).slice(0, 2)).toEqual(['DELETE', '/api/plugins/crew.core/api/projects/p1/roles?companyId=c1']);
+  });
+});

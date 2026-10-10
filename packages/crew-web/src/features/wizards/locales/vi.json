@@ -150,5 +150,111 @@
       "lease_expired": "Máy nhận việc nhưng không báo kết quả: {{text}}",
       "app_error": "App trên máy báo lỗi: {{text}}"
     }
+  },
+  "removeProject": {
+    "button": "Gỡ project",
+    "resume": "Chạy tiếp gỡ project",
+    "title": "Gỡ project",
+    "description": "Tạm dừng agent, xóa vai trò, lưu trữ environment riêng, gỡ checkout sạch trên máy rồi lưu trữ project. Không xóa dữ liệu.",
+    "confirm": {
+      "title": "Gỡ project {{name}}?",
+      "agents": "Agent trong vai trò sẽ tạm dừng: {{names}}.",
+      "noAgents": "Project chưa có agent trong vai trò.",
+      "keeps": "Environment riêng của agent được lưu trữ (không xóa), project lưu trữ sau cùng. Không xóa nhánh, không đụng folder gốc."
+    },
+    "steps": {
+      "pause-agents": "Tạm dừng agent trong vai trò",
+      "roles": "Xóa vai trò",
+      "environments": "Lưu trữ environment riêng",
+      "checkouts": "Gỡ checkout trên máy",
+      "project": "Lưu trữ project"
+    },
+    "loadFailed": "Không tải được tiến độ gỡ project",
+    "wrongKind": "Đây không phải lần gỡ project.",
+    "summary": "{{name}} · khóa {{key}}",
+    "busy": "Đang có người chạy bước này. Đợi một lát rồi bấm Chạy tiếp.",
+    "runFailed": "Chạy bước lỗi",
+    "continue": "Chạy tiếp",
+    "done": "Đã gỡ project.",
+    "openProjects": "Về danh sách project"
+  },
+  "removeAgent": {
+    "button": "Gỡ agent",
+    "resume": "Chạy tiếp gỡ agent",
+    "title": "Gỡ agent",
+    "description": "Bỏ agent khỏi vai trò, tạm dừng, lưu trữ environment riêng và gỡ checkout sạch trên máy. Không xóa agent.",
+    "blocked": {
+      "assistant": "Agent đang là Trợ Lý của {{project}}: đổi vai trò trước hoặc gỡ cả project.",
+      "reviewer": "Agent đang là reviewer của {{project}}: đổi vai trò trước hoặc gỡ cả project.",
+      "integrator": "Agent đang là integrator của {{project}}: đổi vai trò trước hoặc gỡ cả project.",
+      "onlyExecutor": "Agent là executor duy nhất của {{project}}: thêm executor khác trước hoặc gỡ cả project."
+    },
+    "changeRoles": "Đổi vai trò",
+    "removeProject": "Gỡ cả project",
+    "confirm": {
+      "title": "Gỡ agent {{name}}?",
+      "role": "Agent đang là {{slot}} của {{project}}: sẽ rời vai trò, AGENTS.md của Trợ Lý được cập nhật.",
+      "noRole": "Agent không giữ vai trò nào.",
+      "keeps": "Agent chỉ tạm dừng (chạy lại được), không bị xóa; environment riêng được lưu trữ, không xóa."
+    },
+    "steps": {
+      "roles": "Bỏ khỏi vai trò, cập nhật AGENTS.md của Trợ Lý",
+      "pause-agent": "Tạm dừng agent",
+      "environment": "Lưu trữ environment riêng",
+      "checkout": "Gỡ checkout trên máy"
+    },
+    "loadFailed": "Không tải được tiến độ gỡ agent",
+    "wrongKind": "Đây không phải lần gỡ agent.",
+    "summary": "{{name}} · {{slot}} · khóa {{key}}",
+    "summaryNoRole": "{{name}} · không giữ vai trò",
+    "busy": "Đang có người chạy bước này. Đợi một lát rồi bấm Chạy tiếp.",
+    "runFailed": "Chạy bước lỗi",
+    "continue": "Chạy tiếp",
+    "done": "Đã gỡ agent.",
+    "openAgent": "Mở agent"
+  },
+  "remove": {
+    "loadFailed": "Không tải được dữ liệu để gỡ: {{message}}",
+    "createFailed": "Không bắt đầu được lần gỡ",
+    "noRun": "Thiếu lần gỡ cần chạy tiếp.",
+    "blocked": {
+      "noKey": "Không suy ra được khóa project trên máy (project chưa có vai trò Crew).",
+      "noMachine": "Chưa có máy nào báo về company này."
+    },
+    "confirm": {
+      "openIssues": "{{count}} yêu cầu chưa xong: giữ nguyên, không hủy.",
+      "activeRuns": "{{count}} run đang chạy: sẽ dừng.",
+      "impactFailed": "Không đọc được yêu cầu và run đang chạy: {{message}}",
+      "checkouts": "Checkout trên máy:",
+      "noCheckouts": "Máy chưa báo checkout nào.",
+      "checkoutClean": "{{path}} · sạch, sẽ gỡ",
+      "checkoutDirty": "{{path}} · có việc chưa commit, sẽ giữ lại",
+      "checkoutUnknown": "{{path}} · chưa rõ, máy kiểm khi gỡ",
+      "machine": "Máy gỡ checkout",
+      "machinePlaceholder": "Chọn máy",
+      "machineMissing": "Chọn máy gỡ checkout rồi xác nhận lại."
+    },
+    "kept": {
+      "title": "Máy giữ lại {{count}} checkout",
+      "item": "{{role}}: {{reason}} · {{path}}",
+      "howTo": "Dữ liệu chưa commit không bị xóa. Xử lý xong (commit hoặc bỏ thay đổi) thì tự gỡ bằng lệnh dưới, chạy trong repo gốc của project:",
+      "commandLabel": "Lệnh gỡ checkout",
+      "reasons": {
+        "dirty": "có việc chưa commit",
+        "busy": "đang có tiến trình dùng",
+        "not_worktree": "không phải worktree phụ",
+        "git_failed": "lệnh git lỗi"
+      }
+    },
+    "errors": {
+      "wrongKind": "Setup run không phải lần gỡ",
+      "agentMissing": "Không thấy agent trong company",
+      "blocked": {
+        "assistant": "{{name}} đang là Trợ Lý: đổi vai trò rồi bấm Chạy tiếp",
+        "reviewer": "{{name}} đang là reviewer: đổi vai trò rồi bấm Chạy tiếp",
+        "integrator": "{{name}} đang là integrator: đổi vai trò rồi bấm Chạy tiếp",
+        "onlyExecutor": "{{name}} là executor duy nhất: thêm executor khác rồi bấm Chạy tiếp"
+      }
+    }
   }
 }

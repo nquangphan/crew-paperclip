@@ -98,8 +98,9 @@ export type SetupStepId =
   | 'assistant-instructions'
   // remove-project
   | 'pause-agents'
-  // remove-agent (dùng chung 'roles')
-  | 'pause-agent';
+  // remove-agent (dùng chung 'roles', 'environment')
+  | 'pause-agent'
+  | 'checkout';
 export interface SetupStepState {
   status: 'done' | 'failed';
   at: string;

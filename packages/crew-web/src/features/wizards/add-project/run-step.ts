@@ -122,6 +122,7 @@ export const JOB_TIMEOUT_MS: Record<WizardJobPayload['kind'], number> = {
   'prepare-checkouts': 10 * 60_000,
   'agent-workspace': 10 * 60_000,
   check: 10 * 60_000,
+  'remove-checkouts': 10 * 60_000,
 };
 
 /** Bước bị khóa: người khác (tab khác) đang chạy bước này. Không ghi gì, không pause gì. */
@@ -177,7 +178,7 @@ export function stepErrorText(t: Translate, error: unknown): string {
 
 export type WizardJobPayload = Extract<
   JobPayload,
-  { kind: 'inspect-folder' | 'prepare-checkouts' | 'agent-workspace' | 'check' }
+  { kind: 'inspect-folder' | 'prepare-checkouts' | 'agent-workspace' | 'check' | 'remove-checkouts' }
 >;
 
 /** Phần ngữ cảnh mà việc trên máy cần (chung cho wizard thêm project và tạo agent). */

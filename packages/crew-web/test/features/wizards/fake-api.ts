@@ -10,6 +10,8 @@ import {
 } from '@/api';
 import { ADD_AGENT_STEPS } from '@/features/wizards/add-agent/steps';
 import { ADD_PROJECT_STEPS } from '@/features/wizards/add-project/steps';
+import { removeAgentSteps } from '@/features/wizards/remove/remove-agent';
+import { REMOVE_PROJECT_STEPS } from '@/features/wizards/remove/remove-project';
 
 export const PIN = '/Users/owner/.crew/workflows/superpowers/5.0.7';
 export const COMPANY = 'c-run';
@@ -108,11 +110,26 @@ const defaultOutcome: JobOutcome = (payload) => {
     };
   } else if (payload.kind === 'check') {
     result = { kind: 'check', items: [{ id: 'doctor', status: 'ok', title: 'Máy ổn' }] };
+  } else if (payload.kind === 'remove-checkouts') {
+    result = {
+      kind: 'remove-checkouts',
+      removed: payload.roles.map((role) => ({ role, path: `/Users/owner/crew-agents/${payload.projectKey}/${role}` })),
+      kept: [],
+      absent: [],
+    };
   } else {
     throw new Error(`job ${payload.kind} không dùng trong wizard`);
   }
   return { status: 'done', result };
 };
+
+/** Danh sách bước theo kind như plugin (`setupStepsOf`): bước cuối xong thì run `done`. */
+export function stepsOfRun(run: SetupRun): readonly string[] {
+  if (run.kind === 'add-agent') return ADD_AGENT_STEPS;
+  if (run.kind === 'remove-project') return REMOVE_PROJECT_STEPS;
+  if (run.kind === 'remove-agent') return removeAgentSteps(run);
+  return ADD_PROJECT_STEPS;
+}
 
 export function fakeApi(opts: { run?: SetupRun; busy?: boolean; jobOutcome?: JobOutcome } = {}) {
   const calls: Call[] = [];
@@ -121,7 +138,7 @@ export function fakeApi(opts: { run?: SetupRun; busy?: boolean; jobOutcome?: Job
   const state = {
     run: structuredClone(opts.run ?? addProjectRun()),
     jobs: [] as MachineJob[],
-    projects: [] as { id: string; name: string; urlKey: string; createdAt: string; archivedAt: null }[],
+    projects: [] as { id: string; name: string; urlKey: string; createdAt: string; archivedAt: string | null }[],
     environments: [structuredClone(TEMPLATE_ENV)] as Record<string, unknown>[],
     agents: [] as FakeAgent[],
     files: new Map<string, { content: string; contentHash: string }>(),
@@ -169,7 +186,7 @@ export function fakeApi(opts: { run?: SetupRun; busy?: boolean; jobOutcome?: Job
           throw new ApiError(409, `Bước ${stepId} không đang chạy`);
         }
         state.lockToken = null;
-        const order: readonly string[] = state.run.kind === 'add-agent' ? ADD_AGENT_STEPS : ADD_PROJECT_STEPS;
+        const order = stepsOfRun(state.run);
         const last = order[order.length - 1] === stepId;
         state.run = {
           ...state.run,
@@ -240,6 +257,19 @@ export function fakeApi(opts: { run?: SetupRun; busy?: boolean; jobOutcome?: Job
         state.projects.push(project);
         return structuredClone(project);
       },
+      get: async (id: string, companyId?: string) => {
+        record('projects.get', id, companyId);
+        const project = state.projects.find((p) => p.id === id);
+        if (!project) throw new ApiError(404, 'Project not found');
+        return structuredClone(project);
+      },
+      archive: async (id: string, companyId?: string) => {
+        record('projects.archive', id, companyId);
+        const project = state.projects.find((p) => p.id === id);
+        if (!project) throw new ApiError(404, 'Project not found');
+        project.archivedAt = '2026-10-10T02:00:00.000Z';
+        return structuredClone(project);
+      },
     },
     environments: {
       list: async (companyId: string) => {
@@ -250,6 +280,13 @@ export function fakeApi(opts: { run?: SetupRun; busy?: boolean; jobOutcome?: Job
         record('environments.create', companyId, structuredClone(body));
         const env = { ...body, id: uuid('env'), status: 'active', createdAt: new Date().toISOString() };
         state.environments.push(env);
+        return structuredClone(env);
+      },
+      archive: async (id: string) => {
+        record('environments.archive', id);
+        const env = state.environments.find((e) => e.id === id);
+        if (!env) throw new ApiError(404, 'Environment not found');
+        env.status = 'archived';
         return structuredClone(env);
       },
     },
@@ -331,6 +368,12 @@ export function fakeApi(opts: { run?: SetupRun; busy?: boolean; jobOutcome?: Job
         record('roles.set', companyId, projectId, structuredClone(roles));
         state.roles = roles as ProjectRoles;
         return structuredClone(roles);
+      },
+      remove: async (companyId: string, projectId: string) => {
+        record('roles.remove', companyId, projectId);
+        const deleted = state.roles !== null;
+        state.roles = null;
+        return { deleted };
       },
     },
     crew: {

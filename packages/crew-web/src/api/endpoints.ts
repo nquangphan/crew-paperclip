@@ -181,6 +181,7 @@ export const ENDPOINTS = {
   },
   'roles.get': { ids: ['S8.2'], method: 'GET', path: `${PLUGIN}/api/projects/:projectId/roles` },
   'roles.set': { ids: ['S8.3', 'S9.6', 'S13.5'], method: 'POST', path: `${PLUGIN}/api/projects/:projectId/roles` },
+  'roles.delete': { ids: ['S8.7'], method: 'DELETE', path: `${PLUGIN}/api/projects/:projectId/roles` },
   // Ép Done (S6.17): board ép issue sang done kèm lý do; chỉ board gọi được (agent 403).
   'crew.forceDone': { ids: ['S6.17'], method: 'POST', path: `${PLUGIN}/api/issues/:issueId/force-done` },
   'jobs.create': {
