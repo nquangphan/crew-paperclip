@@ -3,6 +3,7 @@ import { crewDataApi } from './crew/data';
 import { forceDoneApi } from './crew/force-done';
 import { jobsApi } from './crew/jobs';
 import { rolesApi } from './crew/roles';
+import { runtimesApi } from './crew/runtimes';
 import { setupApi } from './crew/setup';
 import { activityApi } from './paperclip/activity';
 import { agentsApi } from './paperclip/agents';
@@ -51,6 +52,7 @@ export const api = {
   skillSources: skillSourcesApi,
   crew: { ...crewDataApi, ...forceDoneApi },
   roles: rolesApi,
+  runtimes: runtimesApi,
   jobs: jobsApi,
   setup: setupApi,
 };

@@ -20,3 +20,12 @@ export function useMachineJobs(companyId: string) {
     refetchInterval: MACHINE_REFRESH_MS,
   });
 }
+
+/** Công tắc runtime theo máy (I3). */
+export function useRuntimeSwitches(companyId: string) {
+  return useQuery({
+    queryKey: queryKeys.runtimeSwitches(companyId),
+    queryFn: () => api.runtimes.get(companyId),
+    refetchInterval: MACHINE_REFRESH_MS,
+  });
+}

@@ -1,5 +1,6 @@
 // crew: tự dựng
 import type { CrewMachine } from '@crew/paperclip-plugin/shared/machine-card';
+import type * as React from 'react';
 import { formatDateTime, useT } from '@/i18n';
 import { Badge } from '../../components/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '../../components/card';
@@ -17,6 +18,8 @@ interface MachineCardProps {
   now: Date | number;
   /** `crew.machines` → `load24h`; bỏ trống thì không vẽ biểu đồ. */
   load24h?: LoadPoint[];
+  /** Khối riêng của màn hình (vd. Runtime), đặt cuối thẻ. */
+  children?: React.ReactNode;
 }
 
 function LoadChart({ points }: { points: LoadPoint[] }) {
@@ -40,7 +43,7 @@ function LoadChart({ points }: { points: LoadPoint[] }) {
 }
 
 /** Thẻ một máy chạy agent: trạng thái liên lạc, tải, Claude, app 2P Crew, Superpowers, TCC và cảnh báo. */
-function MachineCard({ report, latestAt, now, load24h }: MachineCardProps) {
+function MachineCard({ report, latestAt, now, load24h, children }: MachineCardProps) {
   const { t, lang } = useT();
   const unknown = t('machine.unknown');
   const nowMs = typeof now === 'number' ? now : now.getTime();
@@ -117,6 +120,7 @@ function MachineCard({ report, latestAt, now, load24h }: MachineCardProps) {
             ))}
           </ul>
         ) : null}
+        {children}
       </CardContent>
     </Card>
   );

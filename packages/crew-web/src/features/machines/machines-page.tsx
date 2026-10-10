@@ -3,13 +3,15 @@ import { useCompany } from '@/app/hooks';
 import { EmptyState, ErrorState, MachineCard, PageHeader, Spinner } from '@/ds';
 import { useT } from '@/i18n';
 import { JobsQueue } from './jobs-queue';
-import { useCrewMachines, useMachineJobs } from './use-machines';
+import { RuntimeBlock } from './runtime-block';
+import { useCrewMachines, useMachineJobs, useRuntimeSwitches } from './use-machines';
 
 export function MachinesPage() {
   const { t } = useT('machines');
   const { company } = useCompany();
   const machines = useCrewMachines(company.id);
   const jobs = useMachineJobs(company.id);
+  const switches = useRuntimeSwitches(company.id);
   const header = <PageHeader title={t('title')} description={t('description')} />;
 
   if (machines.isLoading) {
@@ -44,7 +46,15 @@ export function MachinesPage() {
         ) : (
           <div className="grid gap-4 md:grid-cols-2">
             {list.map((m) => (
-              <MachineCard key={m.machineId} report={m.latest} latestAt={m.lastSeenAt} now={now} load24h={m.load24h} />
+              <MachineCard key={m.machineId} report={m.latest} latestAt={m.lastSeenAt} now={now} load24h={m.load24h}>
+                <RuntimeBlock
+                  companyId={company.id}
+                  machine={m}
+                  switches={switches.data?.find((x) => x.machineId === m.machineId)}
+                  switchesError={switches.error?.message ?? null}
+                  jobs={jobs.data ?? []}
+                />
+              </MachineCard>
             ))}
           </div>
         )}

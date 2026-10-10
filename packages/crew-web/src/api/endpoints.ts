@@ -185,11 +185,14 @@ export const ENDPOINTS = {
   // Ép Done (S6.17): board ép issue sang done kèm lý do; chỉ board gọi được (agent 403).
   'crew.forceDone': { ids: ['S6.17'], method: 'POST', path: `${PLUGIN}/api/issues/:issueId/force-done` },
   'jobs.create': {
-    ids: ['S9.3', 'S9.7', 'S13.4', 'S14.4', 'S8.7', 'S11.9', 'S14.7'],
+    ids: ['S9.3', 'S9.7', 'S13.4', 'S14.4', 'S8.7', 'S11.9', 'S14.7', 'S15.3'],
     method: 'POST',
     path: `${PLUGIN}/api/machine-jobs`,
   },
   'jobs.list': { ids: ['S15.2'], method: 'GET', path: `${PLUGIN}/api/machine-jobs` },
+  // Công tắc runtime theo máy (S15.3): GET đọc, POST đặt (host không có PUT cho route plugin); chỉ board đặt được.
+  'runtimes.switches': { ids: ['S15.3'], method: 'GET', path: `${PLUGIN}/api/runtime-switches` },
+  'runtimes.setSwitch': { ids: ['S15.3'], method: 'POST', path: `${PLUGIN}/api/runtime-switches` },
   'jobs.retry': { ids: ['S15.2'], method: 'POST', path: `${PLUGIN}/api/machine-jobs/:jobId/retry` },
   'setup.create': { ids: ['S9', 'S13', 'S8.7', 'S11.9'], method: 'POST', path: `${PLUGIN}/api/setup-runs` },
   'setup.get': { ids: ['S9', 'S13', 'S8.7', 'S11.9'], method: 'GET', path: `${PLUGIN}/api/setup-runs/:id` },
