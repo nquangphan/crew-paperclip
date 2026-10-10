@@ -97,7 +97,8 @@
       "label": "Mô tả",
       "edit": "Sửa mô tả",
       "empty": "Chưa có mô tả",
-      "failed": "Không sửa được mô tả"
+      "failed": "Không sửa được mô tả",
+      "creator": "Người tạo"
     },
     "props": {
       "heading": "Thuộc tính",
@@ -108,7 +109,7 @@
       "parent": "Yêu cầu cha",
       "children": "Yêu cầu con",
       "blockedBy": "Bị chặn bởi",
-      "stages": "Giai đoạn và người duyệt",
+      "stages": "Giai đoạn",
       "round": "Vòng sửa",
       "model": "Model",
       "created": "Tạo lúc",
@@ -125,7 +126,13 @@
         "approval": "Owner duyệt"
       },
       "current": "đang ở đây",
-      "modelValue": "{{model}} · độ khó {{complexity}} · effort {{effort}}"
+      "modelValue": "{{model}} · độ khó {{complexity}} · effort {{effort}}",
+      "section": {
+        "work": "Công việc",
+        "relations": "Liên kết",
+        "execution": "Thực thi",
+        "about": "Thông tin"
+      }
     },
     "comments": {
       "heading": "Bình luận",
@@ -174,7 +181,11 @@
       "stopBody": "Run {{id}} sẽ bị dừng, tiến trình trên máy chạy việc kết thúc. Agent có thể phải làm lại phần đang dở.",
       "stopFailed": "Không dừng được run",
       "unknownAgent": "agent không rõ"
-    }
+    },
+    "root": "Yêu cầu",
+    "openFull": "Mở toàn trang",
+    "close": "Đóng",
+    "popupDescription": "Chi tiết yêu cầu {{code}}"
   },
   "gate": {
     "failed": "Server từ chối thao tác",

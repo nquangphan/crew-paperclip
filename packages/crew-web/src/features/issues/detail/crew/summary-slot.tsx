@@ -2,21 +2,19 @@
 import type { Issue } from '@paperclipai/shared';
 import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { api, queryKeys } from '@/api';
-import { useCompany } from '@/app/hooks';
 import { CrewMap, CrewSummary, DocsCheckPanel, ErrorState } from '@/ds';
 import { useT } from '@/i18n';
+import { useIssueOpener } from '../../popup/issue-nav';
 
 /**
  * Tóm tắt Crew trên đầu trang (S6.1–S6.3): "x/y con xong · giai đoạn · docs", nút Mở/Đóng map; mở ra thì có
- * bản đồ (bấm ô mở issue) và panel kiểm docs. Kiểm docs hỏi theo yêu cầu gốc, như tab Crew của plugin.
+ * bản đồ (bấm ô mở issue: trong popup thì thay popup, trên trang đầy đủ thì sang trang đó) và panel kiểm docs. Kiểm docs hỏi theo yêu cầu gốc, như tab Crew của plugin.
  * Issue không thuộc yêu cầu Crew (`not_crew_root`) thì không hiện gì.
  */
 export function SummarySlot({ issue }: { issue: Issue }) {
   const { t } = useT('issues');
-  const { company } = useCompany();
-  const navigate = useNavigate();
+  const { open } = useIssueOpener();
   const [expanded, setExpanded] = useState(false);
   const companyId = issue.companyId;
   const mapQuery = useQuery({
@@ -45,7 +43,7 @@ export function SummarySlot({ issue }: { issue: Issue }) {
 
   const openIssue = (id: string) => {
     const node = map.nodes.find((n) => n.id === id);
-    navigate(`/${company.issuePrefix}/issues/${node?.identifier ?? id}`);
+    open(node?.identifier ?? id);
   };
   return (
     <div className="flex flex-col gap-2">

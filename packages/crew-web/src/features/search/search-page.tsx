@@ -1,6 +1,6 @@
 // crew: tự dựng
 import { useQuery } from '@tanstack/react-query';
-import { useEffect, useState } from 'react';
+import { type ReactNode, useEffect, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { api, queryKeys } from '@/api';
 import { useCompany } from '@/app/hooks';
@@ -25,6 +25,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/ds';
+import { IssueLink, parseIssuePath } from '@/features/issues';
 import { useT } from '@/i18n';
 
 const SCOPES = ['all', 'issues', 'comments', 'documents', 'artifacts', 'agents', 'projects'] as const;
@@ -41,6 +42,19 @@ const asScope = (value: string | null): Scope =>
 function resultHref(href: string, prefix: string, fallback: string | undefined): string {
   if (href.startsWith(`/${prefix}/`) && !href.startsWith('//')) return href;
   return fallback ? `/${prefix}/issues/${fallback}` : `/${prefix}/issues`;
+}
+
+/** Kết quả trỏ tới một yêu cầu thì mở popup chi tiết (kèm neo); còn lại (agent, project...) điều hướng như cũ. */
+function ResultLink({ to, prefix, children }: { to: string; prefix: string; children: ReactNode }) {
+  const target = parseIssuePath(to, prefix);
+  if (target) {
+    return (
+      <IssueLink identifier={target.identifier} hash={target.hash}>
+        {children}
+      </IssueLink>
+    );
+  }
+  return <Link to={to}>{children}</Link>;
 }
 
 /** Tìm kiếm (S19): GET /companies/:c/search. Bấm kết quả mở đúng issue (kèm neo bình luận/tài liệu nếu có). */
@@ -132,11 +146,12 @@ export function SearchPage() {
                     <Badge variant="outline">{t(`type.${r.type}`)}</Badge>
                   </TableCell>
                   <TableCell>
-                    <Link
+                    <ResultLink
                       to={resultHref(r.href, company.issuePrefix, r.issue?.identifier ?? r.artifact?.issueIdentifier)}
+                      prefix={company.issuePrefix}
                     >
                       {r.title}
-                    </Link>
+                    </ResultLink>
                     {r.snippets.length > 0
                       ? r.snippets.map((s) => (
                           <MutedText key={`${s.field}:${s.text.slice(0, 24)}`}>{`${s.label}: ${s.text}`}</MutedText>

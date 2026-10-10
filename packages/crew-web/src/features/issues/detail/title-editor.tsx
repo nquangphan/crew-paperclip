@@ -3,7 +3,7 @@ import type { Issue } from '@paperclipai/shared';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { api, queryKeys } from '@/api';
-import { Button, ErrorState, Input, MarkdownView, Textarea } from '@/ds';
+import { Button, ChatMessage, ErrorState, Input, MarkdownView, MutedText, Textarea } from '@/ds';
 import { Pencil } from '@/ds/icons';
 import { useT } from '@/i18n';
 
@@ -111,8 +111,11 @@ export function TitleEditor({ issue }: { issue: Issue }) {
   );
 }
 
-/** Mô tả markdown, sửa bằng PATCH /issues/:id chỉ với `description` (S6.12). */
-export function DescriptionEditor({ issue }: { issue: Issue }) {
+/**
+ * Mô tả markdown, sửa bằng PATCH /issues/:id chỉ với `description` (S6.12). Hiện như bong bóng mô tả đầu luồng của
+ * Paperclip, có tên người tạo; `author` thiếu thì ghi "Mô tả".
+ */
+export function DescriptionEditor({ issue, author }: { issue: Issue; author?: string }) {
   const { t } = useT('issues');
   const [editing, setEditing] = useState(false);
   const refresh = useRefreshIssue(issue);
@@ -142,13 +145,26 @@ export function DescriptionEditor({ issue }: { issue: Issue }) {
     );
   }
   return (
-    <div className="flex items-start gap-2">
-      <div className="min-w-0 flex-1">
-        {issue.description ? <MarkdownView markdown={issue.description} /> : <p>{t('detail.description.empty')}</p>}
-      </div>
-      <Button variant="ghost" size="icon-sm" aria-label={t('detail.description.edit')} onClick={() => setEditing(true)}>
-        <Pencil aria-hidden />
-      </Button>
-    </div>
+    <ChatMessage
+      kind="brief"
+      data-testid="issue-description"
+      author={author ?? t('detail.description.label')}
+      aside={
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          aria-label={t('detail.description.edit')}
+          onClick={() => setEditing(true)}
+        >
+          <Pencil aria-hidden />
+        </Button>
+      }
+    >
+      {issue.description ? (
+        <MarkdownView markdown={issue.description} />
+      ) : (
+        <MutedText>{t('detail.description.empty')}</MutedText>
+      )}
+    </ChatMessage>
   );
 }

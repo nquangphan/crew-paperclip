@@ -24,6 +24,7 @@ import {
   Transcript,
   type TranscriptEntry,
 } from '@/ds';
+import { useIssueOpener } from '@/features/issues';
 import { formatDateTime, useT } from '@/i18n';
 import { formatRunLog, type RunAction, type RunActionId, runActionsFor, wakeupOutcome } from './run-actions';
 
@@ -85,9 +86,9 @@ function RunLog({ runId, active }: { runId: string; active: boolean }) {
   );
 }
 
-function TouchedIssues({ runId, prefix }: { runId: string; prefix: string }) {
+function TouchedIssues({ runId }: { runId: string }) {
   const { t } = useT('runs');
-  const navigate = useNavigate();
+  const opener = useIssueOpener();
   const list = useQuery({
     queryKey: queryKeys.runIssues(runId),
     queryFn: async () => (await api.runs.issues(runId)) as TouchedIssue[],
@@ -101,15 +102,15 @@ function TouchedIssues({ runId, prefix }: { runId: string; prefix: string }) {
         {list.error ? <ErrorState title={t('issues.loadFailed')} message={list.error.message} /> : null}
         {list.data?.length === 0 ? <MutedText>{t('issues.empty')}</MutedText> : null}
         {(list.data ?? []).map((issue) => {
-          const href = `/${prefix}/issues/${issue.identifier ?? issue.issueId}`;
+          const ref = issue.identifier ?? issue.issueId;
           return (
             <IssueRow
               key={issue.issueId}
               identifier={issue.identifier ?? issue.issueId.slice(0, 8)}
               title={issue.title}
               status={issue.status}
-              href={href}
-              onOpen={() => navigate(href)}
+              href={opener.href(ref)}
+              onOpen={() => opener.open(ref)}
             />
           );
         })}
@@ -230,7 +231,7 @@ export function RunPage() {
       </Card>
       <RunTranscript runId={data.id} active={active} />
       <RunLog runId={data.id} active={active} />
-      <TouchedIssues runId={data.id} prefix={company.issuePrefix} />
+      <TouchedIssues runId={data.id} />
       {asking ? (
         <ConfirmDialog
           open

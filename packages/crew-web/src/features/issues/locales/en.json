@@ -97,7 +97,8 @@
       "label": "Description",
       "edit": "Edit description",
       "empty": "No description yet",
-      "failed": "Could not change the description"
+      "failed": "Could not change the description",
+      "creator": "Creator"
     },
     "props": {
       "heading": "Properties",
@@ -108,7 +109,7 @@
       "parent": "Parent request",
       "children": "Child requests",
       "blockedBy": "Blocked by",
-      "stages": "Stages and reviewers",
+      "stages": "Stages",
       "round": "Revision round",
       "model": "Model",
       "created": "Created",
@@ -125,7 +126,13 @@
         "approval": "Owner approval"
       },
       "current": "current",
-      "modelValue": "{{model}} · complexity {{complexity}} · effort {{effort}}"
+      "modelValue": "{{model}} · complexity {{complexity}} · effort {{effort}}",
+      "section": {
+        "work": "Work",
+        "relations": "Relationships",
+        "execution": "Execution",
+        "about": "About"
+      }
     },
     "comments": {
       "heading": "Comments",
@@ -174,7 +181,11 @@
       "stopBody": "Run {{id}} will be stopped and its process on the work machine ends. The agent may have to redo unfinished work.",
       "stopFailed": "Could not stop the run",
       "unknownAgent": "unknown agent"
-    }
+    },
+    "root": "Requests",
+    "openFull": "Open full page",
+    "close": "Close",
+    "popupDescription": "Request {{code}} details"
   },
   "gate": {
     "failed": "The server rejected the action",

@@ -7,3 +7,17 @@ export const NEW_REQUEST_PATH = 'issues?new=1';
 export function openNewRequest(navigate: (to: string) => void, companyPrefix: string): void {
   navigate(`/${encodeURIComponent(companyPrefix)}/${NEW_REQUEST_PATH}`);
 }
+
+// Popup chi tiết `?issue=<mã>` trên mọi trang (hợp đồng ở ./popup/issue-href). Nội dung chi tiết nạp lười.
+export {
+  closeIssueHref,
+  ISSUE_PARAM,
+  isNewTabClick,
+  issueHref,
+  issueNavMode,
+  issuePageHref,
+  parseIssuePath,
+  popupIssueRef,
+} from './popup/issue-href';
+export { IssueLink, useCloseIssuePopup, useIssueOpener } from './popup/issue-nav';
+export { IssuePopupHost } from './popup/issue-popup-host';

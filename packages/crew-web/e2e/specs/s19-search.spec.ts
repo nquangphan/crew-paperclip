@@ -1,4 +1,5 @@
-// S19 Tìm kiếm: GET /companies/:c/search → issue, bình luận, tài liệu; bấm kết quả mở đúng issue.
+// S19 Tìm kiếm: GET /companies/:c/search → issue, bình luận, tài liệu; bấm kết quả mở popup đúng issue (`?issue=`)
+// ngay trên trang Tìm kiếm, giữ neo bình luận/tài liệu.
 import { createIssue, uniqueToken } from '../support/data';
 import { expect, test } from '../support/fixtures';
 
@@ -38,20 +39,24 @@ test('PW-S19-1 tìm theo tiêu đề, bình luận, tài liệu: kết quả kh�
     .getByRole('link', { name: new RegExp(issue.identifier) })
     .first()
     .click();
-  await expect(page).toHaveURL(new RegExp(`/${company.issuePrefix}/issues/${issue.identifier}`));
-  await expect(page.getByText(`PW-S19 ${token}`).first()).toBeVisible();
+  await expect(page).toHaveURL(new RegExp(`/${company.issuePrefix}/search\\?.*issue=${issue.identifier}`));
+  await expect(page.getByTestId('issue-popup').getByText(`PW-S19 ${token}`).first()).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(page.getByTestId('issue-popup')).toHaveCount(0);
 
   // Theo bình luận: kết quả có neo bình luận.
   const byComment = await search(`${token}cmt`);
   expect(byComment[0].href).toContain('#comment-');
   await page.getByTestId('search-result').getByRole('link').first().click();
-  await expect(page).toHaveURL(new RegExp(`/issues/${issue.identifier}#comment-`));
+  await expect(page).toHaveURL(new RegExp(`issue=${issue.identifier}#comment-`));
+  await page.keyboard.press('Escape');
 
   // Theo tài liệu: kết quả có neo tài liệu.
   const byDoc = await search(`${token}doc`);
   expect(byDoc[0].href).toContain('#document-plan');
   await page.getByTestId('search-result').getByRole('link').first().click();
-  await expect(page).toHaveURL(new RegExp(`/issues/${issue.identifier}#document-plan`));
+  await expect(page).toHaveURL(new RegExp(`issue=${issue.identifier}#document-plan`));
+  await page.keyboard.press('Escape');
 
   // Không có kết quả: thông báo rõ.
   await page.goto(company.path(`search?q=khong-co-${token}`));

@@ -4,7 +4,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { api, queryKeys } from '@/api';
 import { useMe } from '@/app/hooks';
-import { Button, Card, CardContent, CardHeader, CardTitle, ConfirmDialog, ErrorState, Skeleton } from '@/ds';
+import { Button, ConfirmDialog, DetailSection, ErrorState, MutedText, Skeleton } from '@/ds';
 import { Trash2 } from '@/ds/icons';
 import { useT } from '@/i18n';
 
@@ -25,51 +25,44 @@ export function Attachments({ issueId }: { issueId: string }) {
   const nameOf = (a: IssueAttachment) => a.originalFilename ?? t('detail.attachments.unnamed');
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>{t('detail.attachments.heading')}</CardTitle>
-      </CardHeader>
-      <CardContent className="flex flex-col gap-2">
-        {list.isLoading ? <Skeleton /> : null}
-        {list.error ? (
-          <ErrorState
-            title={t('detail.attachments.loadFailed')}
-            message={list.error.message}
-            onRetry={() => void list.refetch()}
-          />
-        ) : null}
-        {list.data?.length === 0 ? <p>{t('detail.attachments.empty')}</p> : null}
-        <ul className="flex flex-col gap-1">
-          {(list.data ?? []).map((a) => (
-            <li key={a.id} className="flex items-center gap-2">
-              <a
-                className="min-w-0 flex-1 truncate"
-                href={api.attachments.contentUrl(a.id)}
-                target="_blank"
-                rel="noreferrer noopener"
+    <DetailSection title={t('detail.attachments.heading')} count={list.data?.length}>
+      {list.isLoading ? <Skeleton /> : null}
+      {list.error ? (
+        <ErrorState
+          title={t('detail.attachments.loadFailed')}
+          message={list.error.message}
+          onRetry={() => void list.refetch()}
+        />
+      ) : null}
+      {list.data?.length === 0 ? <MutedText>{t('detail.attachments.empty')}</MutedText> : null}
+      <ul className="flex flex-col gap-1">
+        {(list.data ?? []).map((a) => (
+          <li key={a.id} className="flex items-center gap-2">
+            <a
+              className="min-w-0 flex-1 truncate"
+              href={api.attachments.contentUrl(a.id)}
+              target="_blank"
+              rel="noreferrer noopener"
+            >
+              {nameOf(a)} · {t('detail.attachments.size', { kb: Math.max(1, Math.round(a.byteSize / 1024)) })}
+            </a>
+            {a.createdByUserId === me.id ? (
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                aria-label={t('detail.attachments.deleteFile', { name: nameOf(a) })}
+                onClick={() => {
+                  remove.reset();
+                  setToDelete(a);
+                }}
               >
-                {nameOf(a)} · {t('detail.attachments.size', { kb: Math.max(1, Math.round(a.byteSize / 1024)) })}
-              </a>
-              {a.createdByUserId === me.id ? (
-                <Button
-                  variant="ghost"
-                  size="icon-sm"
-                  aria-label={t('detail.attachments.deleteFile', { name: nameOf(a) })}
-                  onClick={() => {
-                    remove.reset();
-                    setToDelete(a);
-                  }}
-                >
-                  <Trash2 aria-hidden />
-                </Button>
-              ) : null}
-            </li>
-          ))}
-        </ul>
-        {remove.error ? (
-          <ErrorState title={t('detail.attachments.deleteFailed')} message={remove.error.message} />
-        ) : null}
-      </CardContent>
+                <Trash2 aria-hidden />
+              </Button>
+            ) : null}
+          </li>
+        ))}
+      </ul>
+      {remove.error ? <ErrorState title={t('detail.attachments.deleteFailed')} message={remove.error.message} /> : null}
       <ConfirmDialog
         open={toDelete !== null}
         onOpenChange={(open) => {
@@ -81,6 +74,6 @@ export function Attachments({ issueId }: { issueId: string }) {
         destructive
         onConfirm={() => toDelete && remove.mutate(toDelete.id)}
       />
-    </Card>
+    </DetailSection>
   );
 }

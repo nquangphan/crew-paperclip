@@ -1,7 +1,7 @@
 // crew: tự dựng
 import type { CompactIssue } from '@paperclipai/shared';
 import { Fragment, useEffect, useMemo, useState } from 'react';
-import { Link, useSearchParams } from 'react-router-dom';
+import { useSearchParams } from 'react-router-dom';
 import type { CrewRoot } from '@/api';
 import { useCompany } from '@/app/hooks';
 import {
@@ -33,6 +33,7 @@ import {
 import { ChevronDown, ChevronRight, Plus } from '@/ds/icons';
 import { useT } from '@/i18n';
 import { NewRequestDialog } from '../new/new-request-dialog';
+import { IssueLink } from '../popup/issue-nav';
 import { buildIssueTree, flattenTree, type TreeNode } from './tree';
 import {
   COLUMN_IDS,
@@ -179,9 +180,9 @@ export function IssuesPage() {
                 {isOpen ? <ChevronDown aria-hidden /> : <ChevronRight aria-hidden />}
               </Button>
             ) : null}
-            <Link to={issue.identifier ?? issue.id} className="min-w-0 truncate">
-              {issue.title}
-            </Link>
+            <span className="min-w-0 truncate">
+              <IssueLink identifier={issue.identifier ?? issue.id}>{issue.title}</IssueLink>
+            </span>
           </span>
         </TableCell>
         <TableCell>
@@ -265,7 +266,7 @@ export function IssuesPage() {
           <CardContent className="flex flex-col gap-2">
             <span className="flex items-center gap-2">
               {t(notice.draft ? 'page.createdDraft' : 'page.created', { identifier: notice.identifier })}
-              <Link to={notice.identifier}>{t('page.open')}</Link>
+              <IssueLink identifier={notice.identifier}>{t('page.open')}</IssueLink>
             </span>
             {notice.failedUploads.length > 0 ? (
               <ErrorState title={t('page.uploadFailed', { names: notice.failedUploads.join(', ') })} />

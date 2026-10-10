@@ -2,6 +2,7 @@
 import { type ReactNode, useState } from 'react';
 import { Navigate, Outlet, useParams } from 'react-router-dom';
 import { AppFrame, CenteredPage, EmptyState, ErrorState, Spinner } from '@/ds';
+import { IssuePopupHost } from '@/features/issues';
 import { useT } from '@/i18n';
 import { CompanyContext, findCompany, useCompany, useCrewCompanies } from '../hooks';
 import { LiveEventsProvider } from '../live/live-events';
@@ -55,6 +56,7 @@ export function CompanyShell({ segments }: { segments: ReadonlySet<string> }) {
           <Outlet />
         </AppFrame>
         <CommandPalette open={paletteOpen} onOpenChange={setPaletteOpen} segments={segments} />
+        <IssuePopupHost />
       </LiveEventsProvider>
     </CompanyContext.Provider>
   );

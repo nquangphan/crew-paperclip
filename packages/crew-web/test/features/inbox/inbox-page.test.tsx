@@ -252,10 +252,16 @@ describe('InboxPage đọc và lưu trữ (S3.3, S3.4)', () => {
     expect(await screen.findByText(/agent không được đánh dấu/)).toBeTruthy();
   });
 
-  it('bấm dòng mở issue theo mã', async () => {
+  it('bấm dòng mở popup chi tiết theo mã trên Hộp thư; link vẫn là trang đầy đủ cho tab mới', async () => {
     server();
     const { router } = mount();
-    fireEvent.click(await screen.findByRole('link', { name: /Chờ owner duyệt/ }));
-    await waitFor(() => expect(router.state.location.pathname).toBe('/TPS/issues/TPS-1'));
+    const row = await screen.findByRole('link', { name: /Chờ owner duyệt/ });
+    expect(row.getAttribute('href')).toBe('/TPS/issues/TPS-1');
+    const before = router.state.location.pathname;
+    fireEvent.click(row, { metaKey: true });
+    expect(router.state.location.search).not.toContain('issue=');
+    fireEvent.click(row);
+    await waitFor(() => expect(new URLSearchParams(router.state.location.search).get('issue')).toBe('TPS-1'));
+    expect(router.state.location.pathname).toBe(before);
   });
 });

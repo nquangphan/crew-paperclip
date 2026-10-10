@@ -4,15 +4,13 @@ import { useQuery } from '@tanstack/react-query';
 import { api, queryKeys } from '@/api';
 import {
   Button,
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
   Collapsible,
   CollapsibleContent,
   CollapsibleTrigger,
+  DetailSection,
   ErrorState,
   MarkdownView,
+  MutedText,
   Skeleton,
 } from '@/ds';
 import { useT } from '@/i18n';
@@ -41,33 +39,28 @@ export function Documents({ issueId }: { issueId: string }) {
   const { t } = useT('issues');
   const list = useQuery({ queryKey: queryKeys.documents(issueId), queryFn: () => api.documents.list(issueId) });
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>{t('detail.documents.heading')}</CardTitle>
-      </CardHeader>
-      <CardContent className="flex flex-col gap-2">
-        {list.isLoading ? <Skeleton /> : null}
-        {list.error ? (
-          <ErrorState
-            title={t('detail.documents.loadFailed')}
-            message={list.error.message}
-            onRetry={() => void list.refetch()}
-          />
-        ) : null}
-        {list.data?.length === 0 ? <p>{t('detail.documents.empty')}</p> : null}
-        {(list.data ?? []).map((doc: IssueDocumentSummary) => (
-          <Collapsible key={doc.id}>
-            <CollapsibleTrigger asChild>
-              <Button variant="outline" size="sm">
-                {doc.title ?? doc.key} · {doc.key}
-              </Button>
-            </CollapsibleTrigger>
-            <CollapsibleContent>
-              <DocumentBody issueId={issueId} docKey={doc.key} />
-            </CollapsibleContent>
-          </Collapsible>
-        ))}
-      </CardContent>
-    </Card>
+    <DetailSection title={t('detail.documents.heading')} count={list.data?.length}>
+      {list.isLoading ? <Skeleton /> : null}
+      {list.error ? (
+        <ErrorState
+          title={t('detail.documents.loadFailed')}
+          message={list.error.message}
+          onRetry={() => void list.refetch()}
+        />
+      ) : null}
+      {list.data?.length === 0 ? <MutedText>{t('detail.documents.empty')}</MutedText> : null}
+      {(list.data ?? []).map((doc: IssueDocumentSummary) => (
+        <Collapsible key={doc.id} id={`document-${doc.key}`}>
+          <CollapsibleTrigger asChild>
+            <Button variant="outline" size="sm">
+              {doc.title ?? doc.key} · {doc.key}
+            </Button>
+          </CollapsibleTrigger>
+          <CollapsibleContent>
+            <DocumentBody issueId={issueId} docKey={doc.key} />
+          </CollapsibleContent>
+        </Collapsible>
+      ))}
+    </DetailSection>
   );
 }

@@ -43,6 +43,7 @@ export * from './widgets/crew/docs-check-panel';
 export * from './widgets/crew/machine-card';
 export * from './widgets/crew/readiness-badge';
 export * from './widgets/filter-bar';
+export * from './widgets/issue-detail';
 export * from './widgets/issue-row';
 export * from './widgets/markdown-view';
 export * from './widgets/page-header';

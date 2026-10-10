@@ -4,12 +4,11 @@ import { useQuery } from '@tanstack/react-query';
 import { api, queryKeys } from '@/api';
 import { useMe } from '@/app/hooks';
 import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
+  ChatDivider,
+  ChatMessage,
   ErrorState,
   MarkdownView,
+  MutedText,
   Skeleton,
   Transcript,
   type TranscriptEntry,
@@ -38,7 +37,7 @@ function LiveRunTranscript({ run, agentName }: { run: LiveRun; agentName: string
   }));
   return (
     <section data-testid="live-run" className="flex flex-col gap-2">
-      <h3>{t('detail.comments.liveRun', { name: agentName })}</h3>
+      <ChatDivider>{t('detail.comments.liveRun', { name: agentName })}</ChatDivider>
       {events.error ? <ErrorState title={t('detail.comments.liveFailed')} message={events.error.message} /> : null}
       <Transcript entries={entries} />
     </section>
@@ -50,7 +49,10 @@ interface CommentsProps {
   agentNames: Record<string, string>;
 }
 
-/** Luồng bình luận kèm transcript của run đang chạy (S6.4). */
+/**
+ * Luồng trao đổi kiểu chat của Paperclip (S6.4): bình luận của người nằm phải trong bong bóng, của agent nằm trái
+ * có tên; cuối luồng là transcript của run đang chạy. Không có nút like/dislike (BA mục 2: feedbackVote).
+ */
 export function Comments({ issueId, agentNames }: CommentsProps) {
   const { t, lang } = useT('issues');
   const me = useMe();
@@ -70,33 +72,43 @@ export function Comments({ issueId, agentNames }: CommentsProps) {
   };
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>{t('detail.comments.heading')}</CardTitle>
-      </CardHeader>
-      <CardContent className="flex flex-col gap-3">
-        {list.isLoading ? <Skeleton /> : null}
-        {list.error ? (
-          <ErrorState
-            title={t('detail.comments.loadFailed')}
-            message={list.error.message}
-            onRetry={() => void list.refetch()}
-          />
-        ) : null}
-        {list.data?.length === 0 ? <p>{t('detail.comments.empty')}</p> : null}
-        {(list.data ?? []).map((c) => (
-          <article key={c.id} data-testid="comment" className="flex flex-col gap-1">
-            <header className="flex items-center gap-2">
-              <strong>{author(c)}</strong>
-              <time dateTime={String(c.createdAt)}>{formatDateTime(c.createdAt, lang)}</time>
-            </header>
+    <section aria-label={t('detail.comments.heading')} className="flex flex-col gap-5">
+      {list.isLoading ? <Skeleton /> : null}
+      {list.error ? (
+        <ErrorState
+          title={t('detail.comments.loadFailed')}
+          message={list.error.message}
+          onRetry={() => void list.refetch()}
+        />
+      ) : null}
+      {list.data?.length === 0 ? <MutedText>{t('detail.comments.empty')}</MutedText> : null}
+      {(list.data ?? []).map((c) => {
+        const human = !c.authorAgentId && !!c.authorUserId;
+        const time = <time dateTime={String(c.createdAt)}>{formatDateTime(c.createdAt, lang)}</time>;
+        return (
+          <ChatMessage
+            key={c.id}
+            id={`comment-${c.id}`}
+            data-testid="comment"
+            kind={human ? 'human' : 'agent'}
+            author={author(c)}
+            footer={
+              human ? (
+                <>
+                  {author(c)} · {time}
+                </>
+              ) : (
+                time
+              )
+            }
+          >
             <MarkdownView markdown={c.body} />
-          </article>
-        ))}
-        {(live.data ?? []).map((run) => (
-          <LiveRunTranscript key={run.id} run={run} agentName={agentNames[run.agentId] ?? t('detail.comments.agent')} />
-        ))}
-      </CardContent>
-    </Card>
+          </ChatMessage>
+        );
+      })}
+      {(live.data ?? []).map((run) => (
+        <LiveRunTranscript key={run.id} run={run} agentName={agentNames[run.agentId] ?? t('detail.comments.agent')} />
+      ))}
+    </section>
   );
 }

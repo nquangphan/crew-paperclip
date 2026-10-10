@@ -102,11 +102,15 @@ describe('SearchPage (S19)', () => {
     expect(screen.getAllByTestId('search-result')).toHaveLength(3);
   });
 
-  it('bấm kết quả mở đúng issue, giữ neo bình luận', async () => {
+  it('bấm kết quả mở popup đúng issue trên trang Tìm kiếm, giữ neo bình luận', async () => {
     mockServer({ 'GET /api/companies/c1/search': { body: RESPONSE } });
     const router = mount('/TPS/search?q=đăng nhập');
-    fireEvent.click(await screen.findByRole('link', { name: 'TPS-3 Làm form' }));
-    await waitFor(() => expect(router.state.location.pathname).toBe('/TPS/issues/TPS-3'));
+    const link = await screen.findByRole('link', { name: 'TPS-3 Làm form' });
+    expect(link.getAttribute('href')).toBe('/TPS/issues/TPS-3#comment-c1');
+    fireEvent.click(link);
+    await waitFor(() => expect(new URLSearchParams(router.state.location.search).get('issue')).toBe('TPS-3'));
+    expect(router.state.location.pathname).toBe('/TPS/search');
+    expect(new URLSearchParams(router.state.location.search).get('q')).toBe('đăng nhập');
     expect(router.state.location.hash).toBe('#comment-c1');
   });
 

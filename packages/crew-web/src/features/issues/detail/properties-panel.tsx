@@ -1,9 +1,10 @@
 // crew: tự dựng
 import type { Issue } from '@paperclipai/shared';
-import { Link } from 'react-router-dom';
-import { useCompany, useMe } from '@/app/hooks';
-import { Card, CardContent, CardHeader, CardTitle, type PropertyItem, PropertyList, StatusBadge } from '@/ds';
+import type * as React from 'react';
+import { useMe } from '@/app/hooks';
+import { ProjectTag, PropertyChip, PropertyEmpty, PropertyRow, PropertySection, StatusGlyph, StatusLabel } from '@/ds';
 import { formatDateTime, useT } from '@/i18n';
+import { IssueLink } from '../popup/issue-nav';
 import type { ChildSummary } from './use-issue';
 
 const DEFAULT_MAX_ROUNDS = 5;
@@ -22,17 +23,32 @@ interface PropertiesPanelProps {
   childIssues: ChildSummary[];
 }
 
-/** Thuộc tính chỉ đọc (S6.13): không có control sửa nào. */
+interface IssueRef {
+  id: string;
+  identifier: string | null;
+  title: string;
+  status?: string;
+}
+
+/**
+ * Cột Thuộc tính chỉ đọc (S6.13), chia nhóm như cột Properties của Paperclip (Công việc, Liên kết, Thực thi,
+ * Thông tin). Không có control sửa nào: các nút chọn trạng thái/người làm/người duyệt/nhãn của Paperclip bị bỏ
+ * (BA mục 2: freeStatus, freeAssignee, pickReviewers, editRelations).
+ */
 export function PropertiesPanel({ issue, agentNames, projectName, childIssues }: PropertiesPanelProps) {
   const { t, lang } = useT('issues');
-  const { company } = useCompany();
   const me = useMe();
-  const none = t('detail.props.none');
-  const issueLink = (i: { id: string; identifier: string | null; title: string }) => (
-    <Link key={i.id} to={`/${company.issuePrefix}/issues/${i.identifier ?? i.id}`}>
-      {i.identifier ?? i.id} · {i.title}
-    </Link>
+  const none = <PropertyEmpty>{t('detail.props.none')}</PropertyEmpty>;
+  const issueChip = (i: IssueRef) => (
+    <PropertyChip key={i.id}>
+      {i.status ? <StatusGlyph status={i.status} size="sm" /> : null}
+      <IssueLink identifier={i.identifier ?? i.id}>
+        <span title={i.title}>{i.identifier ?? i.id}</span>
+      </IssueLink>
+    </PropertyChip>
   );
+  const chips = (refs: IssueRef[]) =>
+    refs.length ? <span className="flex flex-wrap items-center gap-1">{refs.map(issueChip)}</span> : none;
   const stack = (nodes: React.ReactNode[]) => (nodes.length ? <span className="flex flex-col">{nodes}</span> : none);
   const person = (p: { type: 'agent' | 'user'; agentId?: string | null; userId?: string | null }) =>
     p.type === 'agent'
@@ -40,6 +56,7 @@ export function PropertiesPanel({ issue, agentNames, projectName, childIssues }:
       : p.userId === me.id
         ? t('detail.comments.you')
         : t('detail.props.owner');
+  const when = (value: Date | string | null | undefined) => (value ? formatDateTime(value, lang) : none);
 
   const policy = issue.executionPolicy;
   const state = issue.executionState;
@@ -49,49 +66,62 @@ export function PropertiesPanel({ issue, agentNames, projectName, childIssues }:
     ? (agentNames[issue.assigneeAgentId] ?? t('detail.comments.agent'))
     : issue.assigneeUserId
       ? person({ type: 'user', userId: issue.assigneeUserId })
-      : t('detail.props.unassigned');
-
-  const items: PropertyItem[] = [
-    { label: t('detail.props.status'), value: <StatusBadge status={issue.status} /> },
-    { label: t('detail.props.assignee'), value: assignee },
-    { label: t('detail.props.project'), value: projectName ?? none },
-    { label: t('detail.props.kind'), value: isResearch ? t('detail.props.kindResearch') : t('detail.props.kindCode') },
-    { label: t('detail.props.parent'), value: issue.ancestors?.[0] ? issueLink(issue.ancestors[0]) : none },
-    { label: t('detail.props.children'), value: stack(childIssues.map(issueLink)) },
-    { label: t('detail.props.blockedBy'), value: stack((issue.blockedBy ?? []).map(issueLink)) },
-    {
-      label: t('detail.props.stages'),
-      value: stack(
-        (policy?.stages ?? []).map((stage) => (
-          <span key={stage.id}>
-            {t(`detail.props.stageType.${stage.type}`)}: {stage.participants.map(person).join(', ')}
-            {state?.currentStageId === stage.id ? ` (${t('detail.props.current')})` : ''}
-          </span>
-        )),
-      ),
-    },
-    {
-      label: t('detail.props.round'),
-      value: policy ? `${state?.changesRequestedCount ?? 0}/${policy.maxReviewRounds ?? DEFAULT_MAX_ROUNDS}` : none,
-    },
-    {
-      label: t('detail.props.model'),
-      value: model ? t('detail.props.modelValue', model) : none,
-    },
-    { label: t('detail.props.created'), value: formatDateTime(issue.createdAt, lang) },
-    { label: t('detail.props.updated'), value: formatDateTime(issue.updatedAt, lang) },
-    { label: t('detail.props.started'), value: formatDateTime(issue.startedAt, lang) },
-    { label: t('detail.props.completed'), value: formatDateTime(issue.completedAt, lang) },
-  ];
+      : null;
 
   return (
-    <Card data-testid="properties-panel">
-      <CardHeader>
-        <CardTitle>{t('detail.props.heading')}</CardTitle>
-      </CardHeader>
-      <CardContent>
-        <PropertyList items={items} />
-      </CardContent>
-    </Card>
+    <div data-testid="properties-panel" className="flex flex-col">
+      <PropertySection title={t('detail.props.section.work')} first>
+        <PropertyRow label={t('detail.props.status')}>
+          <StatusLabel
+            status={issue.status}
+            label={t(`status.${issue.status}`, { ns: 'common', defaultValue: issue.status })}
+          />
+        </PropertyRow>
+        <PropertyRow label={t('detail.props.assignee')}>
+          {assignee ?? <PropertyEmpty>{t('detail.props.unassigned')}</PropertyEmpty>}
+        </PropertyRow>
+        <PropertyRow label={t('detail.props.project')}>
+          {projectName ? <ProjectTag name={projectName} /> : none}
+        </PropertyRow>
+        <PropertyRow label={t('detail.props.kind')}>
+          {isResearch ? t('detail.props.kindResearch') : t('detail.props.kindCode')}
+        </PropertyRow>
+        <PropertyRow label={t('detail.props.model')} wrap>
+          {model ? t('detail.props.modelValue', model) : none}
+        </PropertyRow>
+      </PropertySection>
+      <PropertySection title={t('detail.props.section.relations')}>
+        <PropertyRow label={t('detail.props.parent')} wrap>
+          {issue.ancestors?.[0] ? chips([issue.ancestors[0]]) : none}
+        </PropertyRow>
+        <PropertyRow label={t('detail.props.blockedBy')} wrap>
+          {chips(issue.blockedBy ?? [])}
+        </PropertyRow>
+        <PropertyRow label={t('detail.props.children')} wrap>
+          {chips(childIssues)}
+        </PropertyRow>
+      </PropertySection>
+      <PropertySection title={t('detail.props.section.execution')}>
+        <PropertyRow label={t('detail.props.stages')} wrap>
+          {stack(
+            (policy?.stages ?? []).map((stage) => (
+              <span key={stage.id}>
+                {t(`detail.props.stageType.${stage.type}`)}: {stage.participants.map(person).join(', ')}
+                {state?.currentStageId === stage.id ? ` (${t('detail.props.current')})` : ''}
+              </span>
+            )),
+          )}
+        </PropertyRow>
+        <PropertyRow label={t('detail.props.round')}>
+          {policy ? `${state?.changesRequestedCount ?? 0}/${policy.maxReviewRounds ?? DEFAULT_MAX_ROUNDS}` : none}
+        </PropertyRow>
+      </PropertySection>
+      <PropertySection title={t('detail.props.section.about')}>
+        <PropertyRow label={t('detail.props.started')}>{when(issue.startedAt)}</PropertyRow>
+        <PropertyRow label={t('detail.props.completed')}>{when(issue.completedAt)}</PropertyRow>
+        <PropertyRow label={t('detail.props.created')}>{when(issue.createdAt)}</PropertyRow>
+        <PropertyRow label={t('detail.props.updated')}>{when(issue.updatedAt)}</PropertyRow>
+      </PropertySection>
+    </div>
   );
 }

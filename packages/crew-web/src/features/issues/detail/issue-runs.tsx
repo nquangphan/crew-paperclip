@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api, queryKeys } from '@/api';
 import { useCompany } from '@/app/hooks';
-import { Button, Card, CardContent, CardHeader, CardTitle, ConfirmDialog, ErrorState, RunRow, Skeleton } from '@/ds';
+import { Button, ConfirmDialog, DetailSection, ErrorState, MutedText, RunRow, Skeleton } from '@/ds';
 import { useT } from '@/i18n';
 
 /** Một dòng của GET /issues/:id/runs (server/src/services/activity.ts runsForIssue). */
@@ -40,51 +40,46 @@ export function IssueRuns({ issueId, agentNames }: { issueId: string; agentNames
   });
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>{t('detail.runs.heading')}</CardTitle>
-      </CardHeader>
-      <CardContent className="flex flex-col gap-2">
-        {list.isLoading ? <Skeleton /> : null}
-        {list.error ? (
-          <ErrorState
-            title={t('detail.runs.loadFailed')}
-            message={list.error.message}
-            onRetry={() => void list.refetch()}
-          />
-        ) : null}
-        {list.data?.length === 0 ? <p>{t('detail.runs.empty')}</p> : null}
-        {(list.data ?? []).map((run) => {
-          const href = `/${company.issuePrefix}/runs/${run.runId}`;
-          return (
-            <div key={run.runId} data-testid="issue-run" className="flex items-center gap-2">
-              <div className="min-w-0 flex-1">
-                <RunRow
-                  id={run.runId}
-                  status={run.status}
-                  agentName={agentNames[run.agentId] ?? t('detail.runs.unknownAgent')}
-                  startedAt={run.startedAt ?? run.createdAt}
-                  href={href}
-                  onOpen={() => navigate(href)}
-                />
-              </div>
-              {ACTIVE.has(run.status) ? (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => {
-                    stop.reset();
-                    setToStop(run);
-                  }}
-                >
-                  {t('detail.runs.stop')}
-                </Button>
-              ) : null}
+    <DetailSection title={t('detail.runs.heading')} count={list.data?.length}>
+      {list.isLoading ? <Skeleton /> : null}
+      {list.error ? (
+        <ErrorState
+          title={t('detail.runs.loadFailed')}
+          message={list.error.message}
+          onRetry={() => void list.refetch()}
+        />
+      ) : null}
+      {list.data?.length === 0 ? <MutedText>{t('detail.runs.empty')}</MutedText> : null}
+      {(list.data ?? []).map((run) => {
+        const href = `/${company.issuePrefix}/runs/${run.runId}`;
+        return (
+          <div key={run.runId} data-testid="issue-run" className="flex items-center gap-2">
+            <div className="min-w-0 flex-1">
+              <RunRow
+                id={run.runId}
+                status={run.status}
+                agentName={agentNames[run.agentId] ?? t('detail.runs.unknownAgent')}
+                startedAt={run.startedAt ?? run.createdAt}
+                href={href}
+                onOpen={() => navigate(href)}
+              />
             </div>
-          );
-        })}
-        {stop.error ? <ErrorState title={t('detail.runs.stopFailed')} message={stop.error.message} /> : null}
-      </CardContent>
+            {ACTIVE.has(run.status) ? (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  stop.reset();
+                  setToStop(run);
+                }}
+              >
+                {t('detail.runs.stop')}
+              </Button>
+            ) : null}
+          </div>
+        );
+      })}
+      {stop.error ? <ErrorState title={t('detail.runs.stopFailed')} message={stop.error.message} /> : null}
       <ConfirmDialog
         open={toStop !== null}
         onOpenChange={(open) => {
@@ -96,6 +91,6 @@ export function IssueRuns({ issueId, agentNames }: { issueId: string; agentNames
         destructive
         onConfirm={() => toStop && stop.mutate(toStop.runId)}
       />
-    </Card>
+    </DetailSection>
   );
 }

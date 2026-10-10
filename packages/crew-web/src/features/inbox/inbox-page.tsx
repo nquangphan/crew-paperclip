@@ -2,7 +2,7 @@
 import type { Issue } from '@paperclipai/shared';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Fragment, useMemo, useState } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useSearchParams } from 'react-router-dom';
 import { api, queryKeys } from '@/api';
 import { useCompany, useMe } from '@/app/hooks';
 import {
@@ -22,6 +22,7 @@ import {
   SelectValue,
   Skeleton,
 } from '@/ds';
+import { useIssueOpener } from '@/features/issues';
 import { awaitingMyApproval } from '@/features/issues/detail/crew/gate-actions';
 import { useT } from '@/i18n';
 import { hasPendingUserInteraction, INBOX_TAB_IDS, type InboxTabId, inboxTabs, isMyExecutionStage } from './tabs';
@@ -41,7 +42,7 @@ export function InboxPage() {
   const { t: tc } = useT();
   const { company } = useCompany();
   const me = useMe();
-  const navigate = useNavigate();
+  const opener = useIssueOpener();
   const qc = useQueryClient();
   const [params, setParams] = useSearchParams();
   const tab = asTab(params.get('tab'));
@@ -91,7 +92,7 @@ export function InboxPage() {
   const renderRow = (issue: Issue) => {
     const unread = issue.isUnreadForMe === true;
     const identifier = issue.identifier ?? issue.id.slice(0, 8);
-    const href = `/${company.issuePrefix}/issues/${issue.identifier ?? issue.id}`;
+    const ref = issue.identifier ?? issue.id;
     const reason = reasonOf(issue);
     return (
       <div key={issue.id} data-testid="inbox-row" data-unread={unread} className="flex items-center gap-2">
@@ -106,8 +107,8 @@ export function InboxPage() {
                 {reason ? <Badge variant="outline">{reason}</Badge> : null}
               </>
             }
-            href={href}
-            onOpen={() => navigate(href)}
+            href={opener.href(ref)}
+            onOpen={() => opener.open(ref)}
           />
         </div>
         <Button
