@@ -12,6 +12,8 @@ import { registerAttachmentsAudit } from "./attachments/audit.js";
 let pluginCtx: PluginContext | undefined;
 
 const plugin = definePlugin({
+  // The worker keeps no global config: every read is per company, so the host may deliver several companies' configs.
+  multiCompanyConfig: true,
   async setup(ctx) {
     pluginCtx = ctx;
     registerRunCancelledHandler(ctx);
