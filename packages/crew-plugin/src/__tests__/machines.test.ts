@@ -123,23 +123,30 @@ it("giữ khối runtimes hợp lệ, bỏ riêng khối sai dạng, phần còn
     opencode: { version: null, keyPresent: null, costDay: null, costWeek: null, costMonth: null, models: [] } };
   expect(parseMachineReport({ ...base, runtimes: unknown }).runtimes).toEqual(unknown);
   expect(parseMachineReport(base)).not.toHaveProperty("runtimes");
-  const sixtyOne = Array.from({ length: 61 }, (_, i) => `opencode-go/m${i}`);
-  for (const bad of [
-    { ...runtimes, opencode: { ...runtimes.opencode, models: ["opencode-go/glm 5.3"] } },
-    { ...runtimes, opencode: { ...runtimes.opencode, models: sixtyOne } },
-    { ...runtimes, opencode: { ...runtimes.opencode, models: [`opencode-go/${"x".repeat(120)}`] } },
-    { ...runtimes, opencode: { ...runtimes.opencode, costDay: -1 } },
-    { ...runtimes, opencode: { ...runtimes.opencode, costMonth: 100_001 } },
-    { ...runtimes, opencode: { ...runtimes.opencode, keyPresent: "yes" } },
-    { ...runtimes, codex: { ...runtimes.codex, primaryUsedPct: 101 } },
-    { ...runtimes, codex: { ...runtimes.codex, version: "x".repeat(51) } },
-    { ...runtimes, codex: { ...runtimes.codex, resetsAt: "mai" } },
-    { ...runtimes, codex: { ...runtimes.codex, extra: 1 } },
-    { codex: runtimes.codex },
-    "x", null,
-  ]) {
+  for (const bad of ["x", null, [], 7, {}, { codex: "x", opencode: null }]) {
     const parsed = parseMachineReport({ ...base, runtimes: bad });
     expect(parsed).not.toHaveProperty("runtimes");
     expect(parsed.machineId).toBe(base.machineId);
   }
+});
+
+it("runtimes: trường sai dạng thành null, các trường hợp lệ còn lại được giữ", () => {
+  const codex = { version: "codex-cli 0.130.0", loggedIn: true, primaryUsedPct: 42.5, resetsAt: "2026-10-12T01:00:00.000Z" };
+  const opencode = { version: "1.18.35", keyPresent: false, costDay: 1.25, costWeek: 0, costMonth: 3.5, models: ["opencode-go/glm-5.3"] };
+  const nulls = { version: null, loggedIn: null, primaryUsedPct: null, resetsAt: null };
+  const parse = (r: unknown) => parseMachineReport({ ...base, runtimes: r }).runtimes;
+  expect(parse({ codex: { ...codex, version: "x".repeat(51) }, opencode })).toEqual({ codex: { ...codex, version: null }, opencode });
+  expect(parse({ codex: { ...codex, version: "a\nb" }, opencode })?.codex.version).toBeNull();
+  expect(parse({ codex: { ...codex, primaryUsedPct: 101, resetsAt: "mai", loggedIn: "yes" }, opencode })?.codex)
+    .toEqual({ ...codex, primaryUsedPct: null, resetsAt: null, loggedIn: null });
+  expect(parse({ codex, opencode: { ...opencode, costDay: -1, costMonth: 100_001, costWeek: "5", keyPresent: "yes", version: 5 } })?.opencode)
+    .toEqual({ ...opencode, costDay: null, costMonth: null, costWeek: null, keyPresent: null, version: null });
+  expect(parse({ codex: { ...codex, extra: 1 }, opencode })?.codex).toEqual(codex);
+  expect(parse({ codex, opencode: { ...opencode, models: ["opencode-go/glm-5.3", "Opencode-Go/GLM", "opencode-go/glm 5.3", 5, `x/${"y".repeat(120)}`, "ok/m"] } })?.opencode.models)
+    .toEqual(["opencode-go/glm-5.3", "ok/m"]);
+  const sixtyOne = Array.from({ length: 61 }, (_, i) => `opencode-go/m${i}`);
+  expect(parse({ codex, opencode: { ...opencode, models: sixtyOne } })?.opencode.models).toEqual(sixtyOne.slice(0, 60));
+  expect(parse({ codex, opencode: { ...opencode, models: "x" } })?.opencode.models).toEqual([]);
+  expect(parse({ codex }) ).toEqual({ codex, opencode: { version: null, keyPresent: null, costDay: null, costWeek: null, costMonth: null, models: [] } });
+  expect(parse({ opencode })?.codex).toEqual(nulls);
 });

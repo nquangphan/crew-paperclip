@@ -92,18 +92,34 @@ const runtimeVersion = (value: unknown): value is string | null =>
   value === null || typeof value === "string" && value.length > 0 && value.length <= MAX_RUNTIME_VERSION && !CONTROL.test(value);
 const nullableBool = (value: unknown): value is boolean | null => value === null || typeof value === "boolean";
 
-function runtimesReport(value: unknown): value is RuntimesReport {
-  if (!fields(value, ["codex", "opencode"])) return false;
-  const { codex, opencode } = value;
-  return fields(codex, ["version", "loggedIn", "primaryUsedPct", "resetsAt"])
-    && runtimeVersion(codex.version) && nullableBool(codex.loggedIn) && bounded(codex.primaryUsedPct, 0, 100)
-    && (codex.resetsAt === null || iso(codex.resetsAt))
-    && fields(opencode, ["version", "keyPresent", "costDay", "costWeek", "costMonth", "models"])
-    && runtimeVersion(opencode.version) && nullableBool(opencode.keyPresent)
-    && bounded(opencode.costDay, 0, MAX_RUNTIME_COST) && bounded(opencode.costWeek, 0, MAX_RUNTIME_COST)
-    && bounded(opencode.costMonth, 0, MAX_RUNTIME_COST)
-    && Array.isArray(opencode.models) && opencode.models.length <= MAX_RUNTIME_MODELS
-    && opencode.models.every((id) => typeof id === "string" && id.length <= MAX_RUNTIME_MODEL_ID && RUNTIME_MODEL_ID.test(id));
+const orNull = <T>(ok: boolean, value: T): T | null => (ok ? value : null);
+const modelId = (id: unknown): id is string => typeof id === "string" && id.length <= MAX_RUNTIME_MODEL_ID && RUNTIME_MODEL_ID.test(id);
+
+/**
+ * Làm sạch từng trường của khối runtimes: trường sai dạng thành `null`, model id không hợp lệ bị lọc, danh sách cắt ở
+ * MAX_RUNTIME_MODELS. Chỉ trả `undefined` (bỏ cả khối) khi `runtimes` không phải object hoặc thiếu cả codex lẫn opencode.
+ * Id có chữ hoa bị bỏ chứ không hạ chữ thường: catalog so khớp id chữ thường nguyên văn, hạ chữ sẽ bịa ra id không có thật.
+ * Ký tự điều khiển vẫn bị chặn như trước.
+ */
+function sanitizeRuntimes(value: unknown): RuntimesReport | undefined {
+  if (!object(value) || !(object(value.codex) || object(value.opencode))) return undefined;
+  const codex = object(value.codex) ? value.codex : {};
+  const opencode = object(value.opencode) ? value.opencode : {};
+  const cost = (v: unknown) => orNull(bounded(v, 0, MAX_RUNTIME_COST), v as number | null);
+  return {
+    codex: {
+      version: orNull(runtimeVersion(codex.version), codex.version as string | null),
+      loggedIn: orNull(nullableBool(codex.loggedIn), codex.loggedIn as boolean | null),
+      primaryUsedPct: orNull(bounded(codex.primaryUsedPct, 0, 100), codex.primaryUsedPct as number | null),
+      resetsAt: orNull(iso(codex.resetsAt), codex.resetsAt as string | null),
+    },
+    opencode: {
+      version: orNull(runtimeVersion(opencode.version), opencode.version as string | null),
+      keyPresent: orNull(nullableBool(opencode.keyPresent), opencode.keyPresent as boolean | null),
+      costDay: cost(opencode.costDay), costWeek: cost(opencode.costWeek), costMonth: cost(opencode.costMonth),
+      models: Array.isArray(opencode.models) ? opencode.models.filter(modelId).slice(0, MAX_RUNTIME_MODELS) : [],
+    },
+  };
 }
 
 function jobsAgentReport(value: unknown): value is JobsAgentReport {
@@ -130,14 +146,8 @@ export function parseMachineReport(input: unknown): MachineReport {
     }
     if (checkoutsReport(checkouts)) optional.checkouts = checkouts.map(({ path, head, clean }) => ({ path, head, clean }));
     if (jobsAgentReport(jobsAgent)) optional.jobsAgent = { version: jobsAgent.version, lastPollAt: jobsAgent.lastPollAt };
-    if (runtimesReport(runtimes)) {
-      const { codex, opencode } = runtimes;
-      optional.runtimes = {
-        codex: { version: codex.version, loggedIn: codex.loggedIn, primaryUsedPct: codex.primaryUsedPct, resetsAt: codex.resetsAt },
-        opencode: { version: opencode.version, keyPresent: opencode.keyPresent, costDay: opencode.costDay,
-          costWeek: opencode.costWeek, costMonth: opencode.costMonth, models: [...opencode.models] },
-      };
-    }
+    const cleanRuntimes = sanitizeRuntimes(runtimes);
+    if (cleanRuntimes) optional.runtimes = cleanRuntimes;
     if (object(rest.superpowers)) {
       const { pinDir, skills, ...required } = rest.superpowers;
       rest.superpowers = required;
