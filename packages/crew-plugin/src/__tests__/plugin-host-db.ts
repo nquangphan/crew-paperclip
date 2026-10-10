@@ -16,11 +16,16 @@ export interface PluginHost {
   logs: { level: string; message: string; meta?: unknown }[];
   /** Set to make every `ctx.db` call throw, to check how routes report database failures. */
   fail: { error: Error | null };
+  /** Applies the migrations found under `<root>/migrations` that are not applied yet. */
+  applyMigrations: (root: string) => Promise<void>;
   cleanup: () => Promise<void>;
 }
 
-/** Embedded Postgres with every plugin migration applied through the real host plugin-database service. */
-export async function startPluginHost(prefix: string): Promise<PluginHost> {
+/**
+ * Embedded Postgres with every plugin migration applied through the real host plugin-database service. `root` is a
+ * package folder whose `migrations/` holds a subset, to test a migration against data written before it.
+ */
+export async function startPluginHost(prefix: string, root = packageRoot): Promise<PluginHost> {
   const database = await startEmbeddedPostgresTestDatabase(prefix);
   const sql = postgres(database.connectionString, { max: 4, onnotice: () => {} });
   const hostDb = createDb(database.connectionString);
@@ -29,7 +34,8 @@ export async function startPluginHost(prefix: string): Promise<PluginHost> {
     apiVersion: manifest.apiVersion, categories: manifest.categories, manifestJson: manifest, status: "installed",
   });
   const pluginDb = pluginDatabaseService(hostDb);
-  await pluginDb.applyMigrations(hostPluginId, manifest, packageRoot);
+  const applyMigrations = (from: string) => pluginDb.applyMigrations(hostPluginId, manifest, from);
+  await applyMigrations(root);
   const ns = await pluginDb.getRuntimeNamespace(hostPluginId);
   const logs: PluginHost["logs"] = [];
   const fail: PluginHost["fail"] = { error: null };
@@ -48,5 +54,5 @@ export async function startPluginHost(prefix: string): Promise<PluginHost> {
     },
     logger: { info: record("info"), debug: record("debug"), error: record("error"), warn: record("warn") },
   } as unknown as PluginContext;
-  return { sql, ctx, ns, logs, fail, cleanup: async () => { await sql.end(); await database.cleanup(); } };
+  return { sql, ctx, ns, logs, fail, applyMigrations, cleanup: async () => { await sql.end(); await database.cleanup(); } };
 }

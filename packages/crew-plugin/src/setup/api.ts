@@ -3,9 +3,10 @@ import { UUID } from "../shared/db.js";
 import { sanitizeJobError } from "../jobs/sanitize.js";
 import { CREW_ROLE_SLOTS, type CrewRoleSlot } from "../jobs/types.js";
 import { folderError, unknownKeyError } from "../jobs/validate.js";
-import { abandonSetupRun, activeProjectRun, beginStep, finishStep, getSetupRun, insertSetupRun, projectKeyOwners } from "./data.js";
+import { abandonSetupRun, activeProjectRun, activeRemovalRun, beginStep, finishStep, getSetupRun, insertSetupRun, projectKeyOwners } from "./data.js";
 import {
-  type AddAgentInput, type AddProjectInput, SETUP_RUN_KINDS, SETUP_STEPS, type SetupRun, type SetupRunKind, type SetupStepId, type SetupStepState,
+  type AddAgentInput, type RemoveAgentInput, type RemoveProjectInput, SETUP_RUN_KINDS, type SetupRun, type SetupRunInput, type SetupRunKind, type SetupStepId,
+  type SetupStepState, setupStepsOf,
 } from "./types.js";
 
 type Ctx = Pick<PluginContext, "db" | "logger">;
@@ -21,9 +22,16 @@ const CONTROL = /[\x00-\x1f\x7f]/;
 
 const bad = (error: string): PluginApiResponse => ({ status: 400, body: { error } });
 const conflict = (error: string): PluginApiResponse => ({ status: 409, body: { error } });
-/** An unfinished add-project run already holds the key; the wizard offers to resume it. */
-const busy = (setupRunId: string): PluginApiResponse =>
-  ({ status: 409, body: { error: "Đang có lần thêm project dở cho khóa này", setupRunId } });
+/**
+ * An unfinished run already holds the key (add-project) or the project/agent being removed; the web offers to resume
+ * it. A failed removal is resumed with "Chạy tiếp", never replaced.
+ */
+const BUSY: Partial<Record<SetupRunKind, string>> = {
+  "add-project": "Đang có lần thêm project dở cho khóa này",
+  "remove-project": "Đang có lần gỡ project dở",
+  "remove-agent": "Đang có lần gỡ agent dở",
+};
+const busy = (kind: SetupRunKind, setupRunId: string): PluginApiResponse => ({ status: 409, body: { error: BUSY[kind], setupRunId } });
 const NOT_FOUND: PluginApiResponse = { status: 404, body: { error: "Không tìm thấy lần cài đặt" } };
 const FINAL_STATE: Partial<Record<SetupRun["status"], string>> = { done: "Lần cài đặt đã xong", abandoned: "Lần cài đặt đã bỏ" };
 const uuid = (value: unknown): value is string => typeof value === "string" && UUID.test(value);
@@ -40,8 +48,16 @@ function parseBody(input: PluginApiRequestInput, keys: readonly string[], compan
   return input.body;
 }
 
-function parseInput(kind: SetupRunKind, projectKey: string, input: unknown): AddProjectInput | AddAgentInput | string {
+function parseInput(kind: SetupRunKind, projectKey: string, input: unknown): SetupRunInput | string {
   if (!isObject(input)) return "input phải là object";
+  if (kind === "remove-project") {
+    const unknown = unknownKeyError(input, ["projectId", "projectName"]);
+    if (unknown) return unknown;
+    if (!uuid(input.projectId)) return "projectId phải là uuid";
+    if (!text(input.projectName, 200)) return "projectName không hợp lệ";
+    return { projectId: input.projectId.toLowerCase(), projectName: input.projectName };
+  }
+  if (kind === "remove-agent") return parseRemoveAgent(projectKey, input);
   if (kind === "add-project") {
     const unknown = unknownKeyError(input, ["name", "key", "folder", "executors"]);
     if (unknown) return unknown;
@@ -59,6 +75,24 @@ function parseInput(kind: SetupRunKind, projectKey: string, input: unknown): Add
   if (!text(input.name, 200)) return "name không hợp lệ";
   if (typeof input.model !== "string" || !MODEL.test(input.model)) return "model không hợp lệ";
   return { projectId: input.projectId.toLowerCase(), slot: input.slot as CrewRoleSlot, name: input.name, model: input.model };
+}
+
+function parseRemoveAgent(projectKey: string, input: Record<string, unknown>): RemoveAgentInput | string {
+  const unknown = unknownKeyError(input, ["agentId", "agentName", "projectId", "role"]);
+  if (unknown) return unknown;
+  if (!uuid(input.agentId)) return "agentId phải là uuid";
+  if (!text(input.agentName, 200)) return "agentName không hợp lệ";
+  const agentId = input.agentId.toLowerCase();
+  const base = { agentId, agentName: input.agentName };
+  if ((input.projectId === null) !== (input.role === null)) return "projectId và role phải cùng có hoặc cùng không";
+  if (input.projectId === null) {
+    // No role, no checkout: the key only names the run, derived from the agent so it is the same on every retry.
+    const key = `agent-${agentId.slice(0, 8)}`;
+    return projectKey === key ? { ...base, projectId: null, role: null } : `projectKey phải là ${key}`;
+  }
+  if (!uuid(input.projectId)) return "projectId phải là uuid";
+  if (!CREW_ROLE_SLOTS.includes(input.role as CrewRoleSlot)) return "role không hợp lệ";
+  return { ...base, projectId: input.projectId.toLowerCase(), role: input.role as CrewRoleSlot };
 }
 
 function parseRefs(refs: unknown): Record<string, string> | string {
@@ -105,7 +139,7 @@ async function routeSetupApi(ctx: Ctx, input: PluginApiRequestInput): Promise<Pl
   if (typeof body === "string") return bad(body);
   const run = await getSetupRun(ctx, company, id, now);
   if (!run) return NOT_FOUND;
-  const steps: readonly string[] = SETUP_STEPS[run.kind];
+  const steps: readonly string[] = setupStepsOf(run);
   const stepId = input.params.stepId;
   if (!steps.includes(stepId)) return bad("stepId không hợp lệ");
   const step = stepId as SetupStepId;
@@ -147,7 +181,7 @@ async function routeSetupApi(ctx: Ctx, input: PluginApiRequestInput): Promise<Pl
   }
   let projectId: string | null = null;
   if (body.projectId !== undefined) {
-    if (step !== "project" || state.status !== "done") return bad("projectId chỉ gửi khi xong bước project");
+    if (run.kind !== "add-project" || step !== "project" || state.status !== "done") return bad("projectId chỉ gửi khi xong bước project");
     if (!uuid(body.projectId)) return bad("projectId phải là uuid");
     projectId = body.projectId.toLowerCase();
   }
@@ -168,28 +202,34 @@ async function createRoute(ctx: Ctx, input: PluginApiRequestInput, company: stri
   const parsed = parseInput(kind, projectKey, body.input);
   if (typeof parsed === "string") return bad(parsed);
 
-  if (kind === "add-project") {
-    const active = await activeProjectRun(ctx, company, projectKey);
-    if (active) return busy(active);
-  } else {
-    // The agent's checkout lives under this key on the Mac: it must be the key the project was created with.
-    const projectId = (parsed as AddAgentInput).projectId;
+  // Added agents and removals keep the project id of their input on the run (null for an agent without a role).
+  const projectId = kind === "add-project" ? null : (parsed as AddAgentInput | RemoveProjectInput | RemoveAgentInput).projectId;
+  if (projectId !== null) {
+    // Checkouts live under this key on the Mac: it must be the key the project was created with.
     const owners = await projectKeyOwners(ctx, company, projectId, projectKey);
     if (owners.some((owner) => owner.projectId === projectId && owner.projectKey !== projectKey)) return bad("projectKey không khớp project");
     if (owners.some((owner) => owner.projectId !== projectId)) return bad("Khóa project đã thuộc project khác");
   }
+  const activeRun = (): Promise<string | null> => {
+    if (kind === "add-project") return activeProjectRun(ctx, company, projectKey);
+    if (kind === "remove-project") return activeRemovalRun(ctx, company, kind, projectId!);
+    if (kind === "remove-agent") return activeRemovalRun(ctx, company, kind, (parsed as RemoveAgentInput).agentId);
+    return Promise.resolve(null);
+  };
+  const active = await activeRun();
+  if (active) return busy(kind, active);
   const createdByUserId = input.actor.userId ?? input.actor.actorId;
   let run: SetupRun;
   try {
     run = await insertSetupRun(ctx, {
-      companyId: company, kind, projectKey, projectId: kind === "add-agent" ? (parsed as AddAgentInput).projectId : null,
+      companyId: company, kind, projectKey, projectId,
       machineId: body.machineId.toLowerCase(), input: parsed, createdByUserId,
     });
   } catch (error) {
-    // Two tabs racing past the check: the partial unique index lets one insert win; report the winner.
-    const active = kind === "add-project" ? await activeProjectRun(ctx, company, projectKey) : null;
-    if (!active) throw error;
-    return busy(active);
+    // Two tabs racing past the check: a partial unique index lets one insert win; report the winner.
+    const winner = await activeRun();
+    if (!winner) throw error;
+    return busy(kind, winner);
   }
   ctx.logger.info("crew setup run created", { setupRunId: run.id, kind, projectKey, companyId: company, actorUserId: createdByUserId });
   return { status: 201, body: run };

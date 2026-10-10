@@ -7,6 +7,10 @@ const fullRoles = [
   { role: "reviewer", branch: "crew/demo/reviewer" }, { role: "integrator", branch: "crew/demo/integrator" },
 ];
 
+const removeCheckouts = {
+  projectId: "30000000-0000-4000-8000-000000000001", projectKey: "demo", roles: ["executor-2"], removeStatusRepo: false,
+};
+
 describe("validateJobPayload", () => {
   it.each([
     ["inspect-folder", { folder: "relative/path" }, "folder phải là đường tuyệt đối"],
@@ -35,6 +39,21 @@ describe("validateJobPayload", () => {
     ["check", { projectKey: "d" }, "projectKey không hợp lệ"],
     ["check", { projectKey: "demo", kind: "inspect-folder" }, "kind trong payload không khớp"],
     ["reboot", { projectKey: "demo" }, "kind không hợp lệ"],
+    ["remove-checkouts", { ...removeCheckouts, projectId: "x" }, "projectId phải là uuid"],
+    ["remove-checkouts", { ...removeCheckouts, projectKey: "../x" }, "projectKey không hợp lệ"],
+    ["remove-checkouts", { ...removeCheckouts, roles: [] }, "roles phải có 1 đến 5 vai trò"],
+    ["remove-checkouts", { ...removeCheckouts, roles: "executor" }, "roles phải là mảng"],
+    ["remove-checkouts", { ...removeCheckouts, roles: ["executor", "executor"] }, "role executor bị trùng"],
+    ["remove-checkouts", { ...removeCheckouts, roles: ["boss"] }, "role không hợp lệ"],
+    ["remove-checkouts", { ...removeCheckouts, roles: [{ role: "executor" }] }, "role không hợp lệ"],
+    ["remove-checkouts", { ...removeCheckouts, roles: ["assistant", "executor", "executor-2", "reviewer", "integrator", "executor"] }, "roles phải có 1 đến 5 vai trò"],
+    ["remove-checkouts", { ...removeCheckouts, removeStatusRepo: "yes" }, "removeStatusRepo phải là boolean"],
+    ["remove-checkouts", { projectId: removeCheckouts.projectId, projectKey: "demo", roles: ["executor"] }, "removeStatusRepo phải là boolean"],
+    ["remove-checkouts", { ...removeCheckouts, folder: "/x" }, "trường folder không được hỗ trợ"],
+    ["skill-remove", { skillId: "x", slug: "demo" }, "skillId phải là uuid"],
+    ["skill-remove", { skillId: removeCheckouts.projectId, slug: ".." }, "slug không hợp lệ"],
+    ["skill-remove", { skillId: removeCheckouts.projectId, slug: "a/b" }, "slug không hợp lệ"],
+    ["skill-remove", { skillId: removeCheckouts.projectId, slug: "demo", version: "1" }, "trường version không được hỗ trợ"],
   ])("%s từ chối %j", (kind, payload, error) => {
     expect(validateJobPayload(kind as MachineJobKind, payload)).toBe(error);
   });
@@ -53,6 +72,16 @@ describe("validateJobPayload", () => {
     expect(validateJobPayload("skill-sync", { skillId: "30000000-0000-4000-8000-00000000000A", slug: "superpowers", version: "2.1.0" }))
       .toEqual({ kind: "skill-sync", skillId: "30000000-0000-4000-8000-00000000000a", slug: "superpowers", version: "2.1.0" });
     expect(validateJobPayload("check", { projectKey: "e2e-demo" })).toEqual({ kind: "check", projectKey: "e2e-demo" });
+    const allRoles = ["assistant", "executor", "executor-2", "reviewer", "integrator"];
+    expect(validateJobPayload("remove-checkouts", {
+      ...removeCheckouts, projectId: "30000000-0000-4000-8000-00000000000A", roles: allRoles, removeStatusRepo: true,
+    })).toEqual({
+      kind: "remove-checkouts", projectId: "30000000-0000-4000-8000-00000000000a", projectKey: "demo", roles: allRoles, removeStatusRepo: true,
+    });
+    expect(validateJobPayload("remove-checkouts", { kind: "remove-checkouts", ...removeCheckouts }))
+      .toEqual({ kind: "remove-checkouts", ...removeCheckouts });
+    expect(validateJobPayload("skill-remove", { skillId: "30000000-0000-4000-8000-00000000000A", slug: "my-skill" }))
+      .toEqual({ kind: "skill-remove", skillId: "30000000-0000-4000-8000-00000000000a", slug: "my-skill" });
   });
 });
 
@@ -73,6 +102,15 @@ describe("validateJobResult", () => {
     ["check", { kind: "check", items: [{ id: "git", status: "fail", title: "Git" }] }],
     ["check", { kind: "check", items: [{ id: "git", status: "ok" }] }],
     ["check", { kind: "check", items: [null] }],
+    ["remove-checkouts", { kind: "remove-checkouts", removed: [], kept: [] }],
+    ["remove-checkouts", { kind: "remove-checkouts", removed: [{ role: "boss", path: "/p" }], kept: [], absent: [] }],
+    ["remove-checkouts", { kind: "remove-checkouts", removed: [{ role: "executor" }], kept: [], absent: [] }],
+    ["remove-checkouts", { kind: "remove-checkouts", removed: [], kept: [{ role: "executor", path: "/p", reason: "locked" }], absent: [] }],
+    ["remove-checkouts", { kind: "remove-checkouts", removed: [], kept: [{ role: "executor", path: "/p", reason: "dirty", detail: 3 }], absent: [] }],
+    ["remove-checkouts", { kind: "remove-checkouts", removed: [], kept: [], absent: ["boss"] }],
+    ["remove-checkouts", { kind: "remove-checkouts", removed: [], kept: "x", absent: [] }],
+    ["skill-remove", { kind: "skill-remove", removed: "yes" }],
+    ["skill-remove", { kind: "skill-remove" }],
   ])("%s từ chối %j", (kind, result) => {
     expect(validateJobResult(kind as MachineJobKind, result as Record<string, unknown>)).toBe("result không hợp lệ");
   });
@@ -86,5 +124,33 @@ describe("validateJobResult", () => {
     expect(validateJobResult("skill-sync", { kind: "skill-sync", sha256: "ab", files: 0 })).toEqual({ kind: "skill-sync", sha256: "ab", files: 0 });
     const items = [{ id: "git", status: "warn", title: "Git" }];
     expect(validateJobResult("check", { kind: "check", items })).toEqual({ kind: "check", items });
+    expect(validateJobResult("skill-remove", { kind: "skill-remove", removed: false, extra: 1 })).toEqual({ kind: "skill-remove", removed: false });
+  });
+
+  it("remove-checkouts giữ trường đã biết, làm sạch và cắt detail 300 ký tự", () => {
+    const path = "/Users/a/crew-agents/demo/executor-2";
+    expect(validateJobResult("remove-checkouts", {
+      kind: "remove-checkouts",
+      removed: [{ role: "executor-2", path, extra: 1 }],
+      kept: [
+        { role: "executor", path: "/Users/a/crew-agents/demo/executor", reason: "dirty", detail: `M a.ts \x1b[31m${"AKIA"}IOSFODNN7EXAMPLE` },
+        { role: "reviewer", path: "/Users/a/crew-agents/demo/reviewer", reason: "git_failed", detail: "x".repeat(400) },
+        { role: "integrator", path: "/Users/a/crew-agents/demo/integrator", reason: "busy" },
+      ],
+      absent: ["assistant"],
+    })).toEqual({
+      kind: "remove-checkouts",
+      removed: [{ role: "executor-2", path }],
+      kept: [
+        { role: "executor", path: "/Users/a/crew-agents/demo/executor", reason: "dirty", detail: "M a.ts [ĐÃ CHE]" },
+        { role: "reviewer", path: "/Users/a/crew-agents/demo/reviewer", reason: "git_failed", detail: "x".repeat(300) },
+        { role: "integrator", path: "/Users/a/crew-agents/demo/integrator", reason: "busy" },
+      ],
+      absent: ["assistant"],
+    });
+    for (const reason of ["dirty", "busy", "not_worktree", "git_failed"]) {
+      expect(validateJobResult("remove-checkouts", { kind: "remove-checkouts", removed: [], kept: [{ role: "executor", path, reason }], absent: [] }))
+        .toMatchObject({ kept: [{ reason }] });
+    }
   });
 });

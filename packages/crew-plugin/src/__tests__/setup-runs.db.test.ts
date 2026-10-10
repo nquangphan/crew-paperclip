@@ -1,3 +1,7 @@
+import { copyFile, mkdir, mkdtemp, readdir, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import type { PluginApiRequestInput, PluginApiResponse } from "@paperclipai/plugin-sdk";
 import { handleSetupApi } from "../setup/api.js";
@@ -321,10 +325,169 @@ describe("tiến độ wizard trên database thật của host", () => {
     await expect(loadSetupRuns(host.ctx, { companyId: "x" })).rejects.toThrow();
   });
 
+  const agentId = "40000000-0000-4000-8000-0000000000ab";
+  const removeProjectBody = (overrides: Record<string, unknown> = {}) => createBody({
+    kind: "remove-project", projectKey: "demo", input: { projectId, projectName: "Demo" }, ...overrides,
+  });
+  const removeAgentBody = (input: Record<string, unknown>, projectKey: string) => createBody({
+    kind: "remove-agent", projectKey, input: { agentId, agentName: "Thợ 2", ...input },
+  });
+
+  it("tạo run remove-project gắn projectId; 409 kèm id khi đã có run gỡ dở cùng project", async () => {
+    const run = await create({ kind: "remove-project", input: { projectId, projectName: "Demo" } });
+    expect(run).toMatchObject({ kind: "remove-project", projectKey: "demo", projectId, input: { projectId, projectName: "Demo" }, status: "running" });
+    expect(await call(request("setup.create", { body: removeProjectBody() })))
+      .toEqual({ status: 409, body: { error: "Đang có lần gỡ project dở", setupRunId: run.id } });
+    // A failed removal is resumed with "Chạy tiếp", not replaced.
+    await begin(run.id, "checkouts");
+    await finish(run.id, "checkouts", { status: "failed", error: "x" });
+    expect((await call(request("setup.create", { body: removeProjectBody() }))).status).toBe(409);
+    // An add-project run on the same key does not block the removal, nor the other way round.
+    expect((await call(request("setup.create", { body: createBody() }))).status).toBe(201);
+    // Another project, another company: no conflict.
+    const other = "30000000-0000-4000-8000-000000000002";
+    expect((await call(request("setup.create", { body: removeProjectBody({ projectKey: "other", input: { projectId: other, projectName: "B" } }) }))).status).toBe(201);
+    expect((await call(request("setup.create", { body: removeProjectBody({ companyId: otherCompany }), company: otherCompany }))).status).toBe(201);
+    // Removal cannot be abandoned.
+    expect((await abandon(run.id)).status).toBe(409);
+  });
+
+  it("hai tab tạo run gỡ cùng lúc chỉ một run được tạo", async () => {
+    const results = await Promise.all([call(request("setup.create", { body: removeProjectBody() })), call(request("setup.create", { body: removeProjectBody() }))]);
+    expect(results.map((res) => res.status).sort()).toEqual([201, 409]);
+    const agentResults = await Promise.all([1, 2].map(() => call(request("setup.create", { body: removeAgentBody({ projectId: null, role: null }, "agent-40000000") }))));
+    expect(agentResults.map((res) => res.status).sort()).toEqual([201, 409]);
+  });
+
+  it("remove-project đi đủ bước theo thứ tự, bước project done kết thúc run, không nhận projectId", async () => {
+    const run = await create({ kind: "remove-project", input: { projectId, projectName: "Demo" } });
+    for (const step of ["pause-agents", "roles", "environments", "checkouts"]) {
+      await begin(run.id, step);
+      expect((await finish(run.id, step, { status: "done", refs: { [`${step}_1`]: "x" } })).body).toMatchObject({ status: "running" });
+    }
+    expect(await begin(run.id, "inspect")).toEqual({ status: 400, body: { error: "stepId không hợp lệ" } });
+    await begin(run.id, "project");
+    expect(await finish(run.id, "project", { status: "done", projectId })).toEqual({ status: 400, body: { error: "projectId chỉ gửi khi xong bước project" } });
+    const done = (await finish(run.id, "project", { status: "done" })).body as SetupRun;
+    expect(done).toMatchObject({ status: "done", projectId });
+    expect(Object.keys(done.steps)).toEqual(expect.arrayContaining(["pause-agents", "roles", "environments", "checkouts", "project"]));
+    // Once done, the project can be removed again (e.g. after an owner restored it).
+    expect((await call(request("setup.create", { body: removeProjectBody() }))).status).toBe(201);
+  });
+
+  it("remove-agent có vai trò: dùng khóa project, bước cuối checkout; 409 khi agent đang có run gỡ dở", async () => {
+    const run = await create({ kind: "remove-agent", projectKey: "demo", input: { agentId, agentName: "Thợ 2", projectId, role: "executor-2" } });
+    expect(run).toMatchObject({ kind: "remove-agent", projectKey: "demo", projectId, input: { agentId, agentName: "Thợ 2", projectId, role: "executor-2" } });
+    expect(await call(request("setup.create", { body: removeAgentBody({ projectId, role: "executor-2" }, "demo") })))
+      .toEqual({ status: 409, body: { error: "Đang có lần gỡ agent dở", setupRunId: run.id } });
+    expect(await begin(run.id, "pause-agents")).toEqual({ status: 400, body: { error: "stepId không hợp lệ" } });
+    for (const step of ["roles", "pause-agent", "environment"]) {
+      await begin(run.id, step);
+      expect((await finish(run.id, step, { status: "done" })).body).toMatchObject({ status: "running" });
+    }
+    await begin(run.id, "checkout");
+    expect((await finish(run.id, "checkout", { status: "done" })).body).toMatchObject({ status: "done" });
+  });
+
+  it("remove-agent không vai trò: khóa agent-<8 hex>, chỉ pause-agent và environment", async () => {
+    const run = await create({ kind: "remove-agent", projectKey: "agent-40000000", input: { agentId, agentName: "Lẻ", projectId: null, role: null } });
+    expect(run).toMatchObject({ projectKey: "agent-40000000", projectId: null });
+    expect(await begin(run.id, "roles")).toEqual({ status: 400, body: { error: "stepId không hợp lệ" } });
+    expect(await begin(run.id, "checkout")).toEqual({ status: 400, body: { error: "stepId không hợp lệ" } });
+    await begin(run.id, "pause-agent");
+    await finish(run.id, "pause-agent", { status: "done" });
+    await begin(run.id, "environment");
+    expect((await finish(run.id, "environment", { status: "done" })).body).toMatchObject({ status: "done" });
+  });
+
+  it("từ chối run gỡ có input sai hoặc khóa không khớp", async () => {
+    const project = await create();
+    await begin(project.id, "project");
+    await finish(project.id, "project", { status: "done", projectId });
+    for (const [body, error] of [
+      [removeProjectBody({ input: { projectId: "x", projectName: "Demo" } }), "projectId phải là uuid"],
+      [removeProjectBody({ input: { projectId, projectName: "" } }), "projectName không hợp lệ"],
+      [removeProjectBody({ input: { projectId, projectName: "Demo", extra: 1 } }), "trường extra không được hỗ trợ"],
+      [removeProjectBody({ projectKey: "demo-b" }), "projectKey không khớp project"],
+      [removeAgentBody({ agentId: "x", projectId: null, role: null }, "agent-40000000"), "agentId phải là uuid"],
+      [removeAgentBody({ agentName: " ", projectId: null, role: null }, "agent-40000000"), "agentName không hợp lệ"],
+      [removeAgentBody({ projectId: null, role: null }, "agent-40000001"), "projectKey phải là agent-40000000"],
+      [removeAgentBody({ projectId, role: null }, "demo"), "projectId và role phải cùng có hoặc cùng không"],
+      [removeAgentBody({ projectId: null, role: "executor" }, "demo"), "projectId và role phải cùng có hoặc cùng không"],
+      [removeAgentBody({ projectId, role: "boss" }, "demo"), "role không hợp lệ"],
+      [removeAgentBody({ projectId: "x", role: "executor" }, "demo"), "projectId phải là uuid"],
+      [removeAgentBody({ projectId, role: "executor" }, "demo-b"), "projectKey không khớp project"],
+      [removeAgentBody({ projectId: null }, "agent-40000000"), "projectId và role phải cùng có hoặc cùng không"],
+    ] as const) {
+      expect(await call(request("setup.create", { body }))).toEqual({ status: 400, body: { error } });
+    }
+    expect(await call(request("setup.create", { body: removeProjectBody(), actor: agent })))
+      .toEqual({ status: 403, body: { error: "Chỉ board được dùng tiến độ cài đặt" } });
+  });
+
+  it("data crew.setupRuns lọc được theo kind gỡ", async () => {
+    const run = await create({ kind: "remove-agent", projectKey: "agent-40000000", input: { agentId, agentName: "Lẻ", projectId: null, role: null } });
+    await create();
+    expect((await loadSetupRuns(host.ctx, { companyId, kind: "remove-agent" })).map((item) => item.id)).toEqual([run.id]);
+    expect(await loadSetupRuns(host.ctx, { companyId, kind: "remove-project" })).toEqual([]);
+  });
+
   it("lỗi database trả câu cố định, không lộ SQL", async () => {
     host.fail.error = new Error(`relation ${host.ns}.crew_setup_runs does not exist`);
     const res = await call(request("setup.create", { body: createBody() }));
     expect(res).toEqual({ status: 500, body: { error: SETUP_ERROR } });
     expect(host.logs.find((log) => log.level === "error")?.meta).toMatchObject({ routeKey: "setup.create" });
   });
+});
+
+describe("migration thêm kind gỡ trên database đã có các migration trước", () => {
+  it("giữ dữ liệu cũ, tên constraint đúng, nhận kind mới và vẫn chặn kind lạ", async () => {
+    const packageRoot = fileURLToPath(new URL("../..", import.meta.url));
+    const root = await mkdtemp(join(tmpdir(), "crew-removal-kinds-"));
+    let host: PluginHost | undefined;
+    try {
+      await mkdir(join(root, "migrations"));
+      const files = (await readdir(join(packageRoot, "migrations"))).filter((file) => file.endsWith(".sql")).sort();
+      const removal = files.find((file) => file.startsWith("0011_"));
+      expect(removal).toBe("0011_removal_kinds.sql");
+      for (const file of files.filter((name) => name < "0011_")) await copyFile(join(packageRoot, "migrations", file), join(root, "migrations", file));
+      host = await startPluginHost("crew-removal-kinds-", root);
+      const { sql, ns } = host;
+      const constraints = async () => (await sql.unsafe(`SELECT c.conrelid::regclass::text AS tbl, c.conname, pg_get_constraintdef(c.oid) AS def
+        FROM pg_constraint c JOIN pg_namespace n ON n.oid = c.connamespace
+        WHERE n.nspname = $1 AND c.contype = 'c' AND c.conname LIKE '%kind_check' ORDER BY c.conname`, [ns]))
+        .map((row) => ({ name: row.conname as string, def: row.def as string }));
+      expect((await constraints()).map((row) => row.name)).toEqual(["crew_machine_jobs_kind_check", "crew_setup_runs_kind_check"]);
+      await sql.unsafe(`INSERT INTO ${ns}.crew_machine_jobs (company_id,machine_id,kind,payload,created_by_user_id)
+        VALUES ($1,$2,'skill-sync',$3::text::jsonb,'u')`, [companyId, machineId, JSON.stringify({ kind: "skill-sync" })]);
+      await sql.unsafe(`INSERT INTO ${ns}.crew_setup_runs (company_id,kind,project_key,machine_id,input,created_by_user_id)
+        VALUES ($1,'add-project','demo',$2,'{}'::jsonb,'u')`, [companyId, machineId]);
+
+      await copyFile(join(packageRoot, "migrations", removal!), join(root, "migrations", removal!));
+      await host.applyMigrations(root);
+      const defs = await constraints();
+      expect(defs.map((row) => row.name)).toEqual(["crew_machine_jobs_kind_check", "crew_setup_runs_kind_check"]);
+      expect(defs[0]!.def).toContain("remove-checkouts");
+      expect(defs[0]!.def).toContain("skill-remove");
+      expect(defs[1]!.def).toContain("remove-project");
+      expect(defs[1]!.def).toContain("remove-agent");
+      expect(await sql.unsafe(`SELECT kind FROM ${ns}.crew_machine_jobs`)).toEqual([{ kind: "skill-sync" }]);
+      expect(await sql.unsafe(`SELECT kind, project_key FROM ${ns}.crew_setup_runs`)).toEqual([{ kind: "add-project", project_key: "demo" }]);
+      for (const kind of ["remove-checkouts", "skill-remove"]) {
+        await sql.unsafe(`INSERT INTO ${ns}.crew_machine_jobs (company_id,machine_id,kind,payload,created_by_user_id)
+          VALUES ($1,$2,$3,'{}'::jsonb,'u')`, [companyId, machineId, kind]);
+      }
+      for (const kind of ["remove-project", "remove-agent"]) {
+        await sql.unsafe(`INSERT INTO ${ns}.crew_setup_runs (company_id,kind,project_key,machine_id,input,created_by_user_id)
+          VALUES ($1,$2,'demo',$3,'{}'::jsonb,'u')`, [companyId, kind, machineId]);
+      }
+      await expect(sql.unsafe(`INSERT INTO ${ns}.crew_machine_jobs (company_id,machine_id,kind,payload,created_by_user_id)
+        VALUES ($1,$2,'reboot','{}'::jsonb,'u')`, [companyId, machineId])).rejects.toThrow(/kind_check/);
+      await expect(sql.unsafe(`INSERT INTO ${ns}.crew_setup_runs (company_id,kind,project_key,machine_id,input,created_by_user_id)
+        VALUES ($1,'remove-skill','demo',$2,'{}'::jsonb,'u')`, [companyId, machineId])).rejects.toThrow(/kind_check/);
+    } finally {
+      await host?.cleanup();
+      await rm(root, { recursive: true, force: true });
+    }
+  }, 180_000);
 });

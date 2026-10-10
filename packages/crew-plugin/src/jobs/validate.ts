@@ -1,6 +1,9 @@
 import { UUID } from "../shared/db.js";
-import { maskUrlUserinfo } from "./sanitize.js";
-import { CREW_ROLE_SLOTS, type CrewRoleSlot, type JobPayload, type JobResult, MACHINE_JOB_KINDS, type MachineJobKind } from "./types.js";
+import { maskUrlUserinfo, sanitizeJobError } from "./sanitize.js";
+import {
+  CREW_ROLE_SLOTS, type CrewRoleSlot, type JobPayload, type JobResult, KEPT_CHECKOUT_REASONS, type KeptCheckoutReason, MACHINE_JOB_KINDS,
+  type MachineJobKind,
+} from "./types.js";
 
 /** Same rule as the app's project key. */
 const PROJECT_KEY = /^[a-z][a-z0-9-]{1,30}$/;
@@ -17,6 +20,8 @@ const KEYS: Record<MachineJobKind, readonly string[]> = {
   "agent-workspace": ["projectKey", "folder", "role", "branch"],
   "skill-sync": ["skillId", "slug", "version"],
   check: ["projectKey"],
+  "remove-checkouts": ["projectId", "projectKey", "roles", "removeStatusRepo"],
+  "skill-remove": ["skillId", "slug"],
 };
 
 const isObject = (value: unknown): value is Record<string, unknown> =>
@@ -58,6 +63,22 @@ function rolesError(roles: unknown): string | null {
   return missing ? `roles thiếu ${missing}` : null;
 }
 
+/** Role names for `remove-checkouts`: 1 to 5 distinct slots. */
+function roleListError(roles: unknown): string | null {
+  if (!Array.isArray(roles)) return "roles phải là mảng";
+  for (const role of roles) {
+    const error = roleError(role);
+    if (error) return error;
+  }
+  if (roles.length < 1 || roles.length > CREW_ROLE_SLOTS.length) return "roles phải có 1 đến 5 vai trò";
+  const seen = new Set<string>();
+  for (const role of roles as CrewRoleSlot[]) {
+    if (seen.has(role)) return `role ${role} bị trùng`;
+    seen.add(role);
+  }
+  return null;
+}
+
 /**
  * Checks a job payload against its kind before it is queued. Returns the payload tagged with its kind,
  * or the fixed Vietnamese sentence describing the first problem. The app validates again before acting.
@@ -88,6 +109,19 @@ export function validateJobPayload(kind: MachineJobKind, payload: unknown): JobP
       return { kind, skillId: p.skillId.toLowerCase(), slug: p.slug, version: p.version };
     case "check":
       return projectKeyError(p.projectKey) ?? { kind, projectKey: p.projectKey as string };
+    case "remove-checkouts": {
+      const error = (typeof p.projectId === "string" && UUID.test(p.projectId) ? null : "projectId phải là uuid")
+        ?? projectKeyError(p.projectKey) ?? roleListError(p.roles)
+        ?? (typeof p.removeStatusRepo === "boolean" ? null : "removeStatusRepo phải là boolean");
+      return error ?? {
+        kind, projectId: (p.projectId as string).toLowerCase(), projectKey: p.projectKey as string,
+        roles: [...p.roles as CrewRoleSlot[]], removeStatusRepo: p.removeStatusRepo as boolean,
+      };
+    }
+    case "skill-remove":
+      if (typeof p.skillId !== "string" || !UUID.test(p.skillId)) return "skillId phải là uuid";
+      if (typeof p.slug !== "string" || !SLUG.test(p.slug)) return "slug không hợp lệ";
+      return { kind, skillId: p.skillId.toLowerCase(), slug: p.slug };
   }
 }
 
@@ -97,6 +131,13 @@ const str = (value: unknown): value is string => typeof value === "string";
 const strOrNull = (value: unknown): value is string | null => value === null || typeof value === "string";
 const checkout = (value: unknown): value is { role: CrewRoleSlot; path: string; head: string } =>
   isObject(value) && roleError(value.role) === null && str(value.path) && str(value.head);
+
+const roleOnly = (value: unknown): value is CrewRoleSlot => roleError(value) === null;
+const removedCheckout = (value: unknown): value is { role: CrewRoleSlot; path: string } =>
+  isObject(value) && roleOnly(value.role) && str(value.path);
+const keptCheckout = (value: unknown): value is { role: CrewRoleSlot; path: string; reason: KeptCheckoutReason; detail?: unknown } =>
+  removedCheckout(value) && KEPT_CHECKOUT_REASONS.includes((value as Record<string, unknown>).reason as KeptCheckoutReason)
+  && ((value as Record<string, unknown>).detail === undefined || str((value as Record<string, unknown>).detail));
 
 /**
  * Checks the result a Mac reports against the job's kind, so the web can read every field it expects. Returns a copy
@@ -128,6 +169,23 @@ export function validateJobResult(kind: MachineJobKind, result: Record<string, u
         items: (items as { id: string; status: "ok" | "warn" | "error"; title: string }[]).map(({ id, status, title }) => ({ id, status, title })),
       };
     }
+    case "remove-checkouts": {
+      const { removed, kept, absent } = r;
+      if (!Array.isArray(removed) || !removed.every(removedCheckout) || !Array.isArray(kept) || !kept.every(keptCheckout)
+        || !Array.isArray(absent) || !absent.every(roleOnly)) return RESULT_ERROR;
+      return {
+        kind,
+        removed: removed.map(({ role, path }) => ({ role, path })),
+        kept: kept.map(({ role, path, reason, detail }) => {
+          // The detail is git output from the Mac: shown on the web, so cleaned like an error text.
+          const clean = typeof detail === "string" ? sanitizeJobError(detail) : "";
+          return clean === "" ? { role, path, reason } : { role, path, reason, detail: clean };
+        }),
+        absent: [...absent],
+      };
+    }
+    case "skill-remove":
+      return typeof r.removed === "boolean" ? { kind, removed: r.removed } : RESULT_ERROR;
   }
   return RESULT_ERROR;
 }

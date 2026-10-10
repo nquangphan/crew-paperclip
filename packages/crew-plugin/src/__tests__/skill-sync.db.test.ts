@@ -21,8 +21,9 @@ async function job(options: {
   const kind = options.kind ?? "skill-sync";
   const payload = kind === "skill-sync"
     ? { kind, skillId: options.skill ?? skillA, slug: "demo", version: "1" }
-    : { kind, folder: "/Users/a/repo" };
-  const result = options.sha256 ? { kind, sha256: options.sha256, files: 3 } : null;
+    : kind === "skill-remove" ? { kind, skillId: options.skill ?? skillA, slug: "demo" } : { kind, folder: "/Users/a/repo" };
+  const result = options.sha256 ? { kind, sha256: options.sha256, files: 3 }
+    : kind === "skill-remove" && options.status === "done" ? { kind, removed: true } : null;
   const finished = ["done", "failed", "cancelled"].includes(options.status);
   await host.sql.unsafe(`INSERT INTO ${host.ns}.crew_machine_jobs
       (company_id,machine_id,kind,payload,status,result,created_by_user_id,created_at,finished_at)
@@ -72,4 +73,33 @@ it("trả jobId và lỗi đã làm sạch của lần sync mới nhất; null k
   const [{ id: doneId }] = await host.sql.unsafe(`SELECT id FROM ${host.ns}.crew_machine_jobs WHERE status='done'`);
   const rows = await loadSkillSync(host.ctx, { companyId });
   expect(rows[0]).toMatchObject({ jobId: String(doneId), status: "done", errorCode: null, errorText: null });
+});
+
+it("bỏ cặp skill/máy khi việc mới nhất là skill-remove đã xong; sync lại sau đó thì cặp hiện lại", async () => {
+  await job({ status: "done", minutesAgo: 30, sha256: sha("1") });
+  await job({ kind: "skill-remove", status: "done", minutesAgo: 20 });
+  await job({ machine: machine2, status: "done", minutesAgo: 30, sha256: sha("2") });
+  expect((await loadSkillSync(host.ctx, { companyId })).map(({ machineId, kind }) => ({ machineId, kind })))
+    .toEqual([{ machineId: machine2, kind: "skill-sync" }]);
+
+  await job({ status: "queued", minutesAgo: 10 });
+  const rows = await loadSkillSync(host.ctx, { companyId });
+  expect(rows.map(({ machineId, kind, status }) => ({ machineId, kind, status }))).toEqual([
+    { machineId: machine1, kind: "skill-sync", status: "queued" },
+    { machineId: machine2, kind: "skill-sync", status: "done" },
+  ]);
+});
+
+it("skill-remove đang chờ hoặc lỗi trả status của việc đó kèm kind, giữ sha256 bản chép đang có", async () => {
+  await job({ status: "done", minutesAgo: 30, sha256: sha("1") });
+  await job({ kind: "skill-remove", status: "queued", minutesAgo: 5 });
+  await job({ machine: machine2, status: "done", minutesAgo: 30, sha256: sha("2") });
+  await job({ machine: machine2, kind: "skill-remove", status: "failed", minutesAgo: 5 });
+  // A remove job of another skill does not touch skill A.
+  await job({ skill: skillB, kind: "skill-remove", status: "done", minutesAgo: 1 });
+  const rows = await loadSkillSync(host.ctx, { companyId });
+  expect(rows.map(({ skillId, machineId, kind, status, sha256 }) => ({ skillId, machineId, kind, status, sha256 }))).toEqual([
+    { skillId: skillA, machineId: machine1, kind: "skill-remove", status: "queued", sha256: sha("1") },
+    { skillId: skillA, machineId: machine2, kind: "skill-remove", status: "failed", sha256: sha("2") },
+  ]);
 });

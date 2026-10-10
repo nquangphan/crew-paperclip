@@ -2,8 +2,8 @@ import { randomUUID } from "node:crypto";
 import type { PluginContext } from "@paperclipai/plugin-sdk";
 import { checkedId, pluginNamespace } from "../shared/db.js";
 import {
-  type AddAgentInput, type AddProjectInput, SETUP_LIST_LIMIT, SETUP_LOCK_MINUTES, SETUP_RUN_KINDS, SETUP_RUN_STATUSES,
-  type SetupRun, type SetupRunKind, type SetupRunStatus, type SetupStepId, type SetupStepState,
+  type AddProjectInput, SETUP_LIST_LIMIT, SETUP_LOCK_MINUTES, SETUP_RUN_KINDS, SETUP_RUN_STATUSES,
+  type SetupRun, type SetupRunInput, type SetupRunKind, type SetupRunStatus, type SetupStepId, type SetupStepState,
 } from "./types.js";
 
 type Db = Pick<PluginContext, "db">;
@@ -26,7 +26,7 @@ const LOCK_MS = SETUP_LOCK_MINUTES * 60_000;
 function toRun(row: Row, now: Date): SetupRun {
   const since = row.running_since === null ? null : new Date(row.running_since).getTime();
   const live = row.running_step !== null && since !== null && since >= now.getTime() - LOCK_MS;
-  const input = json(row.input) as AddProjectInput | AddAgentInput;
+  const input = json(row.input) as SetupRunInput;
   return {
     id: row.id, companyId: row.company_id, kind: row.kind, projectKey: row.project_key ?? (input as AddProjectInput).key,
     projectId: row.project_id, machineId: row.machine_id, input,
@@ -49,6 +49,18 @@ export async function activeProjectRun(ctx: Db, companyId: string, projectKey: s
   return rows[0]?.id ?? null;
 }
 
+/**
+ * The unfinished removal run of this project (`remove-project`) or agent (`remove-agent`), if any. A failed removal
+ * is resumed with "Chạy tiếp", never replaced; removals cannot be abandoned.
+ */
+export async function activeRemovalRun(ctx: Db, companyId: string, kind: "remove-project" | "remove-agent", targetId: string): Promise<string | null> {
+  const column = kind === "remove-project" ? "project_id::text" : "input->>'agentId'";
+  const rows = await ctx.db.query<{ id: string }>(`SELECT id FROM ${table(ctx)}
+    WHERE company_id = $1 AND kind = $2 AND ${column} = $3 AND status IN ('running','failed') LIMIT 1`,
+  [checkedId(companyId), kind, checkedId(targetId)]);
+  return rows[0]?.id ?? null;
+}
+
 /** Add-project runs that created a project and either created this one or used this key: the key's known owners. */
 export async function projectKeyOwners(ctx: Db, companyId: string, projectId: string, projectKey: string): Promise<
   { projectId: string; projectKey: string }[]
@@ -62,7 +74,7 @@ export async function projectKeyOwners(ctx: Db, companyId: string, projectId: st
 
 export async function insertSetupRun(ctx: Db, run: {
   companyId: string; kind: SetupRunKind; projectKey: string; projectId: string | null; machineId: string;
-  input: AddProjectInput | AddAgentInput; createdByUserId: string;
+  input: SetupRunInput; createdByUserId: string;
 }): Promise<SetupRun> {
   const id = randomUUID();
   // jsonb goes in as text: the host binds a JS object as a plain parameter.
