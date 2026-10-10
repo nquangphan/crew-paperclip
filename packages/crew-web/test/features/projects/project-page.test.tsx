@@ -128,6 +128,49 @@ describe('ProjectPage', () => {
     expect(s.calls.filter((c) => c.method === 'PUT' && c.url.includes('instructions-bundle'))).toHaveLength(2);
   });
 
+  it('tab Vai trò: agent đã gỡ không có trong hộp chọn', async () => {
+    const holders = [ID.assistant, ID.executor, ID.reviewer, ID.integrator].map((agentId) => ({
+      agentId,
+      state: 'ready',
+      failed: [],
+    }));
+    readiness.value = [{ projectId: 'p1', state: 'ready', failed: [], agents: holders }];
+    readiness.candidates = [
+      { agentId: ID.executor2, state: 'ready', failed: [] },
+      { agentId: ID.spare, state: 'ready', failed: [] },
+    ];
+    server({
+      'GET /api/companies/c-tps/agents': {
+        body: [
+          ...agentsList,
+          { id: ID.executor2, name: 'Executor Hai', status: 'idle' },
+          { id: ID.spare, name: 'Agent Đã Gỡ', status: 'paused' },
+        ],
+      },
+      ...data('crew.setupRuns', [
+        {
+          id: 'rm1',
+          companyId: 'c-tps',
+          kind: 'remove-agent',
+          projectKey: 'agent-d6666666',
+          projectId: null,
+          machineId: 'm1',
+          input: { agentId: ID.spare, agentName: 'Agent Đã Gỡ', projectId: null, role: null },
+          steps: {},
+          status: 'done',
+          runningStep: null,
+          createdAt: '2026-10-10T00:00:00.000Z',
+          updatedAt: '2026-10-10T00:00:00.000Z',
+        },
+      ]),
+    });
+    mount('?tab=roles');
+    fireEvent.click(await screen.findByRole('button', { name: 'Sửa vai trò' }));
+    fireEvent.keyDown(screen.getByRole('combobox', { name: 'Executor 2 (tùy chọn)' }), { key: 'Enter' });
+    expect(await screen.findByRole('option', { name: 'Executor Hai' })).toBeTruthy();
+    expect(screen.queryByRole('option', { name: 'Agent Đã Gỡ' })).toBeNull();
+  });
+
   it('tab Vai trò: project chưa có dòng vai trò → thông báo vai trò file', async () => {
     readiness.value = [];
     server({ 'GET /api/plugins/crew.core/api/projects/p1/roles': { body: { roles: null } } });

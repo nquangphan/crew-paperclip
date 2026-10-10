@@ -36,6 +36,7 @@ import {
 } from '@/ds';
 import { Pencil, Trash2 } from '@/ds/icons';
 import { useCrewMachines } from '@/features/machines/use-machines';
+import { useSelectableAgents } from '@/features/wizards';
 import { useT } from '@/i18n';
 import { DeleteSkillDialog, DeleteSkillStatus, useDeleteSkill } from './delete-skill-dialog';
 import { EditSkillInfoDialog } from './edit-skill';
@@ -116,7 +117,9 @@ function SkillDetailView({ data, agents, toggle, machines }: SkillDetailViewProp
   const [deleting, setDeleting] = useState(false);
   const removal = useDeleteSkill(data, machines);
   const enabledFor = new Set(data.usedByAgents.filter((a) => a.desired).map((a) => a.id));
-  const rows = (agents.data ?? [])
+  const selectable = useSelectableAgents(company.id);
+  // Agent đã gỡ chỉ còn hiện khi đang bật skill này (để owner tắt được).
+  const rows = selectable(agents.data, [...enabledFor])
     .filter((a) => a.status !== 'terminated')
     .sort((a, b) => a.name.localeCompare(b.name));
 

@@ -452,4 +452,37 @@ describe('Skill ghim và trạng thái gỡ', () => {
     expect(screen.getByText('Lỗi gỡ khỏi macbook: không xóa được')).toBeTruthy();
     expect(screen.queryByText(/Đã có trên/)).toBeNull();
   });
+
+  it('bảng bật skill cho agent không có agent đã gỡ, trừ agent đang bật skill này', async () => {
+    const removedRun = (agentId: string) => ({
+      id: `rm-${agentId}`,
+      companyId: 'c-tps',
+      kind: 'remove-agent',
+      projectKey: 'agent-x',
+      projectId: null,
+      machineId: M1,
+      input: { agentId, agentName: 'x', projectId: null, role: null },
+      steps: {},
+      status: 'done',
+      runningStep: null,
+      createdAt: '2026-10-10T00:00:00.000Z',
+      updatedAt: '2026-10-10T00:00:00.000Z',
+    });
+    mockServer(
+      routes(GITHUB, {
+        'GET /api/companies/c-tps/agents': {
+          body: [
+            agent({ status: 'paused' }),
+            agent({ id: ID.spare, name: 'Agent Đã Gỡ', urlKey: 'agent-da-go', status: 'paused' }),
+            agent({ id: ID.reviewer, name: 'Reviewer', urlKey: 'reviewer' }),
+          ],
+        },
+        ...data('crew.setupRuns', [removedRun(ID.executor), removedRun(ID.spare)]),
+      }),
+    );
+    mount();
+    expect(await screen.findByRole('switch', { name: 'Reviewer' })).toBeTruthy();
+    await waitFor(() => expect(screen.queryByRole('switch', { name: 'Agent Đã Gỡ' })).toBeNull());
+    expect(screen.getByRole('switch', { name: 'Executor Một' })).toBeTruthy();
+  });
 });

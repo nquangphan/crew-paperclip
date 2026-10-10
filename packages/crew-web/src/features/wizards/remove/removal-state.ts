@@ -33,3 +33,19 @@ export function removalState<R extends SetupRun>(runs: readonly R[], target: Rem
   }
   return { status: 'removed', run };
 }
+
+/**
+ * Agent cho hộp chọn agent: bỏ agent đã gỡ (spec: ẩn khỏi mọi hộp chọn), trừ các id trong `keep` (đang được chọn hay
+ * đang giữ ô) để giá trị hiện tại vẫn hiện đúng tên.
+ */
+export function withoutRemovedAgents<A extends { id: string; status?: string | null }>(
+  agents: readonly A[],
+  runs: readonly SetupRun[],
+  keep: readonly (string | null | undefined)[] = [],
+): A[] {
+  const kept = new Set(keep.filter((id): id is string => !!id));
+  return agents.filter(
+    (a) =>
+      kept.has(a.id) || removalState(runs, { agentId: a.id, agentStatus: a.status ?? undefined }).status !== 'removed',
+  );
+}

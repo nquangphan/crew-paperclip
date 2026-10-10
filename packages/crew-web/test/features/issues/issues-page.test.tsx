@@ -167,6 +167,50 @@ describe('IssuesPage lọc, sắp xếp, nhóm (S4.2)', () => {
     expect(q.get('view')).toBe('compact');
   });
 
+  it('bộ lọc Người làm không có agent đã gỡ, trừ khi đang được chọn', async () => {
+    const removed = {
+      id: 'rm1',
+      companyId: 'c1',
+      kind: 'remove-agent',
+      projectKey: 'agent-a2',
+      projectId: null,
+      machineId: 'm1',
+      input: { agentId: 'a2', agentName: 'Agent Đã Gỡ', projectId: null, role: null },
+      steps: {},
+      status: 'done',
+      runningStep: null,
+      createdAt: '2026-10-10T00:00:00.000Z',
+      updatedAt: '2026-10-10T00:00:00.000Z',
+    };
+    const over = {
+      'GET /api/companies/c1/agents': {
+        body: [
+          { id: 'a1', name: 'Trợ Lý Alpha', status: 'idle' },
+          { id: 'a2', name: 'Agent Đã Gỡ', status: 'paused' },
+        ],
+      },
+      'POST /api/plugins/crew.core/data/crew.setupRuns': { body: { data: [removed] } },
+    };
+    const ready = async (path?: string) => {
+      const s = server(over);
+      mount(path);
+      await screen.findByText('Yêu cầu 1');
+      await waitFor(() => expect(s.calls.some((c) => c.url.endsWith('/crew.setupRuns'))).toBe(true));
+      await new Promise((r) => setTimeout(r, 0));
+    };
+    const open = async () => {
+      fireEvent.keyDown(screen.getByRole('combobox', { name: 'Người làm' }), { key: 'Enter' });
+      await screen.findByRole('option', { name: 'Trợ Lý Alpha' });
+    };
+    await ready();
+    await open();
+    expect(screen.queryByRole('option', { name: 'Agent Đã Gỡ' })).toBeNull();
+    cleanup();
+    await ready('/TPS/issues?assignee=a2');
+    await open();
+    expect(screen.getByRole('option', { name: 'Agent Đã Gỡ' })).toBeTruthy();
+  });
+
   it('chọn bộ lọc thì đổi URL, không ghi gì lên server', async () => {
     const { calls } = server();
     mount();

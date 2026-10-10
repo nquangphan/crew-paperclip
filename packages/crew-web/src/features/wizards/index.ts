@@ -21,6 +21,13 @@ export {
 export { ADD_PROJECT_STEPS, type AddProjectStepId, projectSlots, slotBranch, slotName } from './add-project/steps';
 export { type AddProjectForm, PROJECT_KEY_RE, validateAddProject } from './add-project/validate';
 export { JobFailedError, JobTimeoutError, waitJob } from './add-project/wait-job';
-export { type RemovalState, type RemovalStatus, type RemovalTarget, removalState } from './remove/removal-state';
+export {
+  type RemovalState,
+  type RemovalStatus,
+  type RemovalTarget,
+  removalState,
+  withoutRemovedAgents,
+} from './remove/removal-state';
 export { RemoveAgentButton, RemoveProjectButton } from './remove/remove-buttons';
+export { useSelectableAgents } from './remove/use-selectable-agents';
 export { companyHref, findAgentRun, type ResumableRun, resumeHref } from './resume';
