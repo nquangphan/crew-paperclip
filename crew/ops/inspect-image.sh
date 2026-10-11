@@ -9,7 +9,7 @@ docker run --rm --entrypoint sh "$1" -c '
   S=/app/server/dist/services
   for f in heartbeat environment-runtime issues; do printf "%s crewCoreHooks=%s\n" "$f" "$(grep -c crewCoreHooks "$S/$f.js")"; done
   [ "$(grep -c crewCoreHooks "$S/issues.js")" = 3 ] || echo "issues.js FAIL: crewCoreHooks count is not 3 (import + H2 + H4)"
-  for f in core-hooks remote-stop load-gate ssh-in-place issue-policy issue-gate issue-create-policy retry-progress handoff-rewake bundle-resume model-policy agent-write-guard; do
+  for f in core-hooks remote-stop load-gate ssh-in-place issue-policy issue-gate issue-create-policy retry-progress handoff-rewake bundle-resume model-policy agent-write-guard contributions contribution-routes plugin-data-scope; do
     [ -f "/app/server/dist/crew/$f.js" ] && echo "crew/$f.js ok" || echo "crew/$f.js MISSING"
   done
   grep -q deliverEventAsCall "$S/plugin-worker-manager.js" && echo "plugin events delivered as call ok" || echo "plugin-worker-manager.js FAIL: events still delivered as notification"
