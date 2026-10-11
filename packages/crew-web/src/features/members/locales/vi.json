@@ -55,6 +55,15 @@
     "approveFailed": "Không duyệt được yêu cầu",
     "rejectFailed": "Không từ chối được yêu cầu",
     "markFailed": "Đã duyệt tham gia nhưng chưa đặt được Phòng Marketing",
-    "markFailedHint": "Người này hiện chỉ xem được. Bấm Đặt Phòng Marketing ở danh sách thành viên để thử lại."
+    "markFailedHint": "Người này hiện chỉ xem được. Bấm Đặt Phòng Marketing ở danh sách thành viên để thử lại.",
+    "unknownInvite": "Không rõ loại lời mời",
+    "unknownInviteHint": "Không tìm thấy lời mời của yêu cầu này. Nếu đây là khách góp ý, bấm Duyệt và Đặt Phòng Marketing.",
+    "approveAsContributor": "Duyệt và Đặt Phòng Marketing"
+  },
+  "errors": {
+    "crew_contributor_requires_viewer": "Chỉ đặt được Phòng Marketing cho thành viên chỉ xem đang hoạt động.",
+    "crew_contribution_forbidden": "Bạn không có quyền đổi Phòng Marketing.",
+    "crew_contributions_unavailable": "Tính năng góp ý tạm thời chưa dùng được. Thử lại sau.",
+    "crew_contribution_store_failed": "Máy chủ không lưu được thay đổi. Thử lại sau."
   }
 }

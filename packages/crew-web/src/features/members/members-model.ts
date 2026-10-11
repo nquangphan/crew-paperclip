@@ -1,5 +1,5 @@
 // crew: tự dựng
-import type { CompanyInvite, CompanyMember, JoinRequest, MemberUser } from '@/api';
+import { ApiError, type CompanyInvite, type CompanyMember, type JoinRequest, type MemberUser } from '@/api';
 
 /** Role lời mời mang dấu Phòng Marketing: `defaultsPayload.crew.role = 'contributor'`. */
 export function isContributorInvite(invite: Pick<CompanyInvite, 'defaultsPayload'> | undefined): boolean {
@@ -16,6 +16,8 @@ export function inviteLink(origin: string, token: string): string {
 export interface PendingJoin {
   request: JoinRequest;
   contributor: boolean;
+  /** false: không tìm thấy lời mời của yêu cầu nên không biết có phải lời mời Phòng Marketing hay không. */
+  inviteFound: boolean;
 }
 
 /** Chỉ lấy yêu cầu của người (không phải agent) đang chờ duyệt, nối với lời mời của nó. */
@@ -23,7 +25,10 @@ export function pendingJoins(requests: JoinRequest[], invites: CompanyInvite[]):
   const byId = new Map(invites.map((i) => [i.id, i]));
   return requests
     .filter((r) => r.status === 'pending_approval' && r.requestType === 'human')
-    .map((request) => ({ request, contributor: isContributorInvite(byId.get(request.inviteId)) }));
+    .map((request) => {
+      const invite = byId.get(request.inviteId);
+      return { request, contributor: isContributorInvite(invite), inviteFound: invite !== undefined };
+    });
 }
 
 export type MemberRole = 'owner' | 'admin' | 'operator' | 'viewer' | 'contributor' | 'other';
@@ -64,4 +69,17 @@ export async function approveJoin(join: PendingJoin, deps: ApproveDeps): Promise
   } catch (err) {
     return { markError: err instanceof Error ? err : new Error(String(err)) };
   }
+}
+
+/** Mã lỗi của router Crew ở trang Thành viên có câu riêng (khóa `errors.<mã>` của namespace members). */
+const MEMBER_ERROR_CODES = new Set([
+  'crew_contributor_requires_viewer',
+  'crew_contribution_forbidden',
+  'crew_contributions_unavailable',
+  'crew_contribution_store_failed',
+]);
+
+/** Khóa i18n cho lỗi đặt/gỡ dấu Phòng Marketing, hoặc null khi nên hiện nguyên văn (lỗi mạng, route stock). */
+export function memberErrorKey(error: unknown): string | null {
+  return error instanceof ApiError && error.code && MEMBER_ERROR_CODES.has(error.code) ? `errors.${error.code}` : null;
 }

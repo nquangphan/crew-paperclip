@@ -40,6 +40,13 @@ describe('api.contributions', () => {
     expect(res).toEqual([item]);
   });
 
+  it('page: đọc trang kế bằng before, trả kèm nextBefore', async () => {
+    const f = stub({ items: [item], nextBefore: 'k1' });
+    const res = await api.contributions.page('c1', { status: 'approved' }, 'k0');
+    expect(lastCall(f).url).toBe(`${BASE}/contributions?status=approved&before=k0`);
+    expect(res).toEqual({ items: [item], nextBefore: 'k1' });
+  });
+
   it('list không lọc thì không có query', async () => {
     const f = stub({ items: [] });
     await api.contributions.list('c1');
@@ -146,14 +153,27 @@ describe('api members, invites, joinRequests', () => {
     expect(res.token).toBe('tok');
   });
 
-  it('danh sách lời mời còn hiệu lực lọc state=active; thu hồi POST /invites/:id/revoke', async () => {
-    const f = stub({ invites: [{ id: 'inv1' }], nextOffset: null });
-    expect(await api.invites.listActive('c1')).toEqual([{ id: 'inv1' }]);
-    expect(lastCall(f).url).toBe('/api/companies/c1/invites?state=active&limit=100');
-    await api.invites.listAll('c1');
-    expect(lastCall(f).url).toBe('/api/companies/c1/invites?limit=100');
+  it('listAll đọc hết các trang lời mời theo nextOffset; thu hồi POST /invites/:id/revoke', async () => {
+    const pages = [
+      { invites: [{ id: 'inv1' }], nextOffset: 100 },
+      { invites: [{ id: 'inv2' }], nextOffset: null },
+    ];
+    const f = vi.fn(async (_url: string, _init?: RequestInit) => new Response(JSON.stringify(pages.shift())));
+    globalThis.fetch = f as unknown as typeof fetch;
+    expect(await api.invites.listAll('c1')).toEqual([{ id: 'inv1' }, { id: 'inv2' }]);
+    expect(f.mock.calls.map(([url]) => url)).toEqual([
+      '/api/companies/c1/invites?limit=100&offset=0',
+      '/api/companies/c1/invites?limit=100&offset=100',
+    ]);
+    const r = stub({ id: 'inv1' });
     await api.invites.revoke('inv1');
-    expect(lastCall(f)).toMatchObject({ url: '/api/invites/inv1/revoke', method: 'POST' });
+    expect(lastCall(r)).toMatchObject({ url: '/api/invites/inv1/revoke', method: 'POST' });
+  });
+
+  it('listAll dừng ở số trang tối đa', async () => {
+    const f = stub({ invites: [{ id: 'x' }], nextOffset: 100 });
+    expect(await api.invites.listAll('c1', 3)).toHaveLength(3);
+    expect(f).toHaveBeenCalledTimes(3);
   });
 
   it('yêu cầu tham gia: list (lọc trạng thái), approve, reject', async () => {

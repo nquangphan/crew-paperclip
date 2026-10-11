@@ -55,6 +55,15 @@
     "approveFailed": "Could not approve the request",
     "rejectFailed": "Could not reject the request",
     "markFailed": "Approved, but Marketing access was not set",
-    "markFailedHint": "This person is view-only for now. Use Set Marketing in the members list to retry."
+    "markFailedHint": "This person is view-only for now. Use Set Marketing in the members list to retry.",
+    "unknownInvite": "Unknown invite type",
+    "unknownInviteHint": "The invite for this request was not found. If this is a Marketing guest, use Approve and set Marketing.",
+    "approveAsContributor": "Approve and set Marketing"
+  },
+  "errors": {
+    "crew_contributor_requires_viewer": "Marketing can only be set for an active view-only member.",
+    "crew_contribution_forbidden": "You are not allowed to change Marketing access.",
+    "crew_contributions_unavailable": "Contributions are temporarily unavailable. Try again later.",
+    "crew_contribution_store_failed": "The server could not save the change. Try again later."
   }
 }

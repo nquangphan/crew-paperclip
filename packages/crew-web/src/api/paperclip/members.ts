@@ -74,19 +74,23 @@ export const invitesApi = {
         },
       },
     ),
-  /** Lời mời còn hiệu lực. */
-  listActive: async (companyId: string): Promise<CompanyInvite[]> => {
-    const res: { invites: CompanyInvite[] } = await call(
-      'invites.list',
-      { companyId },
-      { query: { state: 'active', limit: 100 } },
-    );
-    return res.invites;
-  },
-  /** Mọi lời mời, dùng để nối yêu cầu tham gia với lời mời của nó. */
-  listAll: async (companyId: string): Promise<CompanyInvite[]> => {
-    const res: { invites: CompanyInvite[] } = await call('invites.list', { companyId }, { query: { limit: 100 } });
-    return res.invites;
+  /**
+   * Mọi lời mời của company (mới nhất trước), đọc hết các trang theo `nextOffset`, để nối được yêu cầu tham gia với lời
+   * mời cũ. Dừng ở `maxPages` trang (100 lời mời mỗi trang) để một company bất thường không làm treo trang.
+   */
+  listAll: async (companyId: string, maxPages = 50): Promise<CompanyInvite[]> => {
+    const all: CompanyInvite[] = [];
+    let offset: number | null = 0;
+    for (let page = 0; offset !== null && page < maxPages; page += 1) {
+      const res: { invites: CompanyInvite[]; nextOffset: number | null } = await call(
+        'invites.list',
+        { companyId },
+        { query: { limit: 100, offset } },
+      );
+      all.push(...res.invites);
+      offset = typeof res.nextOffset === 'number' ? res.nextOffset : null;
+    }
+    return all;
   },
   revoke: (inviteId: string): Promise<CompanyInvite> => call('invites.revoke', { inviteId }),
 };

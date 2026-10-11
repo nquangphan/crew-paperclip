@@ -226,4 +226,68 @@ describe('trang Thành viên', () => {
     await screen.findAllByTestId('member-row');
     expect(screen.queryByText('Yêu cầu tham gia chờ duyệt')).toBeNull();
   });
+
+  it('lời mời của yêu cầu nằm ở trang sau: đọc tiếp theo nextOffset rồi mới gắn nhãn', async () => {
+    const { calls } = mockServer(
+      base({
+        'GET /api/companies/c1/invites?limit=100&offset=0': { body: { invites: [invite('inv-n')], nextOffset: 100 } },
+        'GET /api/companies/c1/invites?limit=100&offset=100': { body: { invites: [CONTRIB_INVITE], nextOffset: null } },
+        'GET /api/companies/c1/join-requests': { body: [joinRequest('jr1', 'inv-c', 'u4', 'Hoa')] },
+      }),
+    );
+    mount();
+    const [row] = await screen.findAllByTestId('join-request-row');
+    expect(within(row).getByText('Lời mời Phòng Marketing')).toBeTruthy();
+    expect(calls.some((c) => c.url === '/api/companies/c1/invites?limit=100&offset=100')).toBe(true);
+  });
+
+  it('không tìm thấy lời mời: nhãn cảnh báo và nút Duyệt và Đặt Phòng Marketing (duyệt rồi bật dấu)', async () => {
+    const { calls } = mockServer(
+      base({
+        'GET /api/companies/c1/join-requests': { body: [joinRequest('jr1', 'inv-gone', 'u4', 'Hoa')] },
+        'POST /api/companies/c1/join-requests/jr1/approve': { body: { id: 'jr1', status: 'approved' } },
+        'PUT /api/crew/companies/c1/contributors/u4': { status: 204 },
+      }),
+    );
+    mount();
+    const [row] = await screen.findAllByTestId('join-request-row');
+    expect(within(row).getByTestId('join-invite-unknown').textContent).toBe('Không rõ loại lời mời');
+    fireEvent.click(within(row).getByRole('button', { name: 'Duyệt và Đặt Phòng Marketing' }));
+    await waitFor(() => expect(calls.some((c) => c.method === 'PUT' && c.url.endsWith('/contributors/u4'))).toBe(true));
+    const writes = calls.filter((c) => c.method !== 'GET').map((c) => c.url);
+    expect(writes).toEqual(['/api/companies/c1/join-requests/jr1/approve', '/api/crew/companies/c1/contributors/u4']);
+  });
+
+  it('thu hồi đúng lời mời vừa tạo thì link đã chép bị xóa khỏi màn hình', async () => {
+    mockServer(
+      base({
+        'GET /api/companies/c1/invites': { body: { invites: [CONTRIB_INVITE], nextOffset: null } },
+        'POST /api/companies/c1/invites': { status: 201, body: { ...CONTRIB_INVITE, token: 'tok-9' } },
+        'POST /api/invites/inv-c/revoke': { body: { ...CONTRIB_INVITE, state: 'revoked' } },
+      }),
+    );
+    mount();
+    fireEvent.click(await screen.findByRole('button', { name: 'Mời Phòng Marketing' }));
+    expect(await screen.findByDisplayValue(`${window.location.origin}/paperclip/invite/tok-9`)).toBeTruthy();
+    const [row] = await screen.findAllByTestId('invite-row');
+    fireEvent.click(within(row).getByRole('button', { name: 'Thu hồi' }));
+    fireEvent.click(within(await screen.findByRole('alertdialog')).getByRole('button', { name: 'Thu hồi' }));
+    await waitFor(() => expect(screen.queryByDisplayValue(/tok-9/)).toBeNull());
+  });
+
+  it('lỗi đặt Phòng Marketing có mã của router hiện câu đã dịch, không phải câu server', async () => {
+    mockServer(
+      base({
+        'PUT /api/crew/companies/c1/contributors/u3': {
+          status: 409,
+          body: { error: 'câu server', code: 'crew_contributor_requires_viewer' },
+        },
+      }),
+    );
+    mount();
+    const row = (await screen.findAllByTestId('member-row'))[2];
+    fireEvent.click(within(row).getByRole('button', { name: 'Đặt Phòng Marketing' }));
+    expect(await screen.findByText('Chỉ đặt được Phòng Marketing cho thành viên chỉ xem đang hoạt động.')).toBeTruthy();
+    expect(screen.queryByText('câu server')).toBeNull();
+  });
 });

@@ -25,10 +25,10 @@ export function JoinRequestsSection() {
   const requests = usePendingJoins(invites.all);
   const { approve, reject } = useMemberActions();
   const markError = approve.data?.markError;
+  const loading = requests.isLoading || invites.isLoading;
 
   // Không có yêu cầu nào thì ẩn cả mục, trang đã đủ dày.
-  if (!requests.isLoading && !requests.error && requests.joins.length === 0 && !markError && !approve.error)
-    return null;
+  if (!loading && !requests.error && requests.joins.length === 0 && !markError && !approve.error) return null;
 
   return (
     <Section title={t('requests.title')}>
@@ -45,7 +45,7 @@ export function JoinRequestsSection() {
           message={requests.error.message}
           onRetry={() => void requests.refetch()}
         />
-      ) : requests.isLoading ? (
+      ) : loading ? (
         <Skeleton />
       ) : requests.joins.length === 0 ? (
         <MutedText>{t('requests.empty')}</MutedText>
@@ -75,13 +75,31 @@ export function JoinRequestsSection() {
                   <TableCell>
                     {join.contributor ? (
                       <Badge variant="outline">{t('requests.contributorInvite')}</Badge>
-                    ) : (
+                    ) : join.inviteFound ? (
                       t('requests.plainInvite')
+                    ) : (
+                      <span className="flex flex-col gap-1">
+                        <Badge variant="destructive" data-testid="join-invite-unknown">
+                          {t('requests.unknownInvite')}
+                        </Badge>
+                        <MutedText>{t('requests.unknownInviteHint')}</MutedText>
+                      </span>
                     )}
                   </TableCell>
                   <TableCell>{formatDateTime(join.request.createdAt, lang)}</TableCell>
                   <TableCell>
                     <div className="flex justify-end gap-2">
+                      {!join.contributor && !join.inviteFound ? (
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          disabled={busy}
+                          onClick={() => approve.mutate({ ...join, contributor: true })}
+                        >
+                          {t('requests.approveAsContributor')}
+                        </Button>
+                      ) : null}
                       <Button type="button" size="sm" disabled={busy} onClick={() => approve.mutate(join)}>
                         {t('requests.approve')}
                       </Button>

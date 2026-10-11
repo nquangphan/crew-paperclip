@@ -63,10 +63,10 @@ describe('pendingJoins', () => {
       ],
       invites,
     );
-    expect(joins.map((j) => [j.request.id, j.contributor])).toEqual([
-      ['a', true],
-      ['b', false],
-      ['c', false],
+    expect(joins.map((j) => [j.request.id, j.contributor, j.inviteFound])).toEqual([
+      ['a', true, true],
+      ['b', false, true],
+      ['c', false, false],
     ]);
   });
 });
@@ -94,6 +94,7 @@ describe('approveJoin', () => {
   const join = (contributor: boolean, requestingUserId: string | null = 'u2'): PendingJoin => ({
     request: request({ requestingUserId }),
     contributor,
+    inviteFound: true,
   });
 
   it('lời mời khách: duyệt rồi bật dấu theo đúng thứ tự', async () => {

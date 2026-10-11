@@ -28,18 +28,21 @@ export function InvitesSection() {
   const { t, lang } = useT('members');
   const invites = useInvites();
   const { createInvite, revokeInvite } = useMemberActions();
-  const [link, setLink] = useState<string | null>(null);
+  // Link chỉ hiện một lần sau khi tạo; giữ id lời mời để xóa link khi chính lời mời đó bị thu hồi.
+  const [link, setLink] = useState<{ inviteId: string; url: string } | null>(null);
   const [copied, setCopied] = useState(false);
   const [revoking, setRevoking] = useState<string | null>(null);
 
   const create = () => {
     setCopied(false);
-    createInvite.mutate(undefined, { onSuccess: (inv) => setLink(inviteLink(window.location.origin, inv.token)) });
+    createInvite.mutate(undefined, {
+      onSuccess: (inv) => setLink({ inviteId: inv.id, url: inviteLink(window.location.origin, inv.token) }),
+    });
   };
   const copy = () => {
     if (!link) return;
     void navigator.clipboard
-      ?.writeText(link)
+      ?.writeText(link.url)
       .then(() => setCopied(true))
       .catch(() => setCopied(false));
   };
@@ -65,7 +68,7 @@ export function InvitesSection() {
           <div className="grid gap-2">
             <Field label={t('invites.linkLabel')} htmlFor="invite-link" hint={t('invites.linkHint')}>
               <div className="flex items-center gap-2">
-                <Input id="invite-link" readOnly value={link} onFocus={(e) => e.currentTarget.select()} />
+                <Input id="invite-link" readOnly value={link.url} onFocus={(e) => e.currentTarget.select()} />
                 <Button type="button" variant="outline" onClick={copy}>
                   {copied ? <Check aria-hidden /> : <Copy aria-hidden />}
                   {copied ? t('invites.copied') : t('invites.copy')}
@@ -121,7 +124,10 @@ export function InvitesSection() {
         confirmLabel={t('invites.revoke')}
         destructive
         onConfirm={() => {
-          if (revoking) revokeInvite.mutate(revoking);
+          if (revoking)
+            revokeInvite.mutate(revoking, {
+              onSuccess: () => setLink((current) => (current?.inviteId === revoking ? null : current)),
+            });
           setRevoking(null);
         }}
       />

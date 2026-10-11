@@ -15,7 +15,7 @@ import {
   TableRow,
 } from '@/ds';
 import { useT } from '@/i18n';
-import { displayRole, personName } from './members-model';
+import { displayRole, memberErrorKey, personName } from './members-model';
 import { useContributorIds, useMemberActions, useMembers } from './use-members';
 
 /** Danh sách thành viên với role; viewer thuần có nút Đặt Phòng Marketing, Phòng Marketing có nút Gỡ Phòng Marketing. */
@@ -25,11 +25,14 @@ export function MembersSection() {
   const marks = useContributorIds();
   const { enable, disable } = useMemberActions();
   const actionError = enable.error ?? disable.error;
+  const actionErrorKey = memberErrorKey(actionError);
   const items = members.data ?? [];
 
   return (
     <Section title={t('list.title')}>
-      {actionError ? <ErrorState title={t('list.actionFailed')} message={actionError.message} /> : null}
+      {actionError ? (
+        <ErrorState title={t('list.actionFailed')} message={actionErrorKey ? t(actionErrorKey) : actionError.message} />
+      ) : null}
       {members.error ? (
         <ErrorState
           title={t('list.loadFailed')}
