@@ -4,8 +4,13 @@ import { registerCrewWebhook } from "../shared/webhook.js";
 import { handleMachineStatus } from "./webhook.js";
 import { checkedId, pluginNamespace } from "../shared/db.js";
 
-/** Automatic pairing of a machine; `revokedAt` set once an owner unpaired it. Machines paired by hand have none. */
-export interface CrewMachinePairing { pairedAt: string; revokedAt: string | null; environmentId: string; tailscaleIp: string }
+/**
+ * Automatic pairing of a machine; `revokedAt` set once an owner unpaired it. Machines paired by hand have none. A
+ * machine removed while it still used the company secret was never paired: its row carries only `revokedAt`.
+ */
+export type CrewMachinePairing =
+  | { pairedAt: string; revokedAt: string | null; environmentId: string; tailscaleIp: string }
+  | { pairedAt: null; revokedAt: string; environmentId: null; tailscaleIp: null };
 export interface CrewMachine {
   machineId: string; hostname: string; lastSeenAt: string; online: boolean; latest: MachineReport;
   load24h: Array<{ at: string; load1: number | null }>;
@@ -34,11 +39,17 @@ export async function loadCrewMachines(ctx: Pick<PluginContext, "db">, companyId
       online: now.getTime() - new Date(row.received_at).getTime() <= 180_000,
       latest: typeof row.report === "string" ? JSON.parse(row.report) as MachineReport : row.report,
       load24h: samples.filter((_, index) => index % stride === 0).map((item) => ({ at: date(item.received_at), load1: item.load1 === null ? null : Number(item.load1) })),
-      pairing: row.paired_at === null || row.environment_id === null || row.tailscale_ip === null ? null : {
-        pairedAt: date(row.paired_at), revokedAt: row.revoked_at === null ? null : date(row.revoked_at),
-        environmentId: row.environment_id, tailscaleIp: row.tailscale_ip,
-      } };
+      pairing: toPairing(row) };
   });
+}
+
+function toPairing(row: Row): CrewMachinePairing | null {
+  if (row.paired_at !== null && row.environment_id !== null && row.tailscale_ip !== null) {
+    return { pairedAt: date(row.paired_at), revokedAt: row.revoked_at === null ? null : date(row.revoked_at),
+      environmentId: row.environment_id, tailscaleIp: row.tailscale_ip };
+  }
+  // The table check keeps every unrevoked row complete, so an incomplete row is a removed company-secret machine.
+  return row.revoked_at === null ? null : { pairedAt: null, revokedAt: date(row.revoked_at), environmentId: null, tailscaleIp: null };
 }
 
 export function registerMachinesFeature(ctx: PluginContext): void {

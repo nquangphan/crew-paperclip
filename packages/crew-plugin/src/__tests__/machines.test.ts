@@ -27,8 +27,8 @@ it("stores one signed report, rejects unsafe envelopes without writes, and compu
   await sql`CREATE SCHEMA plugin_crew_core_0433ea20b6`;
   await sql.unsafe(await readFile(new URL("../../migrations/0001_docs.sql", import.meta.url), "utf8"));
   await sql.unsafe(await readFile(new URL("../../migrations/0002_machines.sql", import.meta.url), "utf8"));
-  // 0014 adds the pairing table every machine webhook reads: production applies it before the worker starts.
-  for (const file of ["0003_machine_latest.sql", "0014_machine_pairings.sql"]) {
+  // 0014 adds the pairing table every machine webhook reads (0015 relaxes it): production applies them before the worker starts.
+  for (const file of ["0003_machine_latest.sql", "0014_machine_pairings.sql", "0015_machine_pairings_unpaired_removal.sql"]) {
     const migration = await readFile(new URL(`../../migrations/${file}`, import.meta.url), "utf8");
     for (const statement of migration.split(";").map(part => part.trim()).filter(Boolean)) {
       validatePluginMigrationStatement(statement, "plugin_crew_core_0433ea20b6");

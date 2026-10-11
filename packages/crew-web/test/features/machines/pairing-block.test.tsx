@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { cleanup, fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeAll, describe, expect, it } from 'vitest';
+import type { CrewMachinePairing } from '@/api';
 import { MachinesPage } from '@/features/machines/machines-page';
 import { initI18n, setLanguage } from '@/i18n';
 import { accessRoute, mockServer } from '../../app/fetch-mock';
@@ -23,7 +24,13 @@ const environment = (config: Record<string, unknown>) => ({
 });
 const UNPAIR = `${ROUTE}/machines/${M1}/unpair`;
 const mount = () => renderPage(<MachinesPage />, { route: 'machines', at: '/TPS/machines' });
-const base = (pairing: typeof PAIRED | typeof REVOKED | null, extra: Record<string, unknown> = {}) => ({
+const REMOVED_UNPAIRED = {
+  pairedAt: null,
+  revokedAt: '2026-10-11T02:05:00.000Z',
+  environmentId: null,
+  tailscaleIp: null,
+} as const;
+const base = (pairing: CrewMachinePairing | null, extra: Record<string, unknown> = {}) => ({
   ...data('crew.machines', [machine({ pairing })]),
   ...data('crew.machineJobs', []),
   'GET /api/plugins/crew.core/api/runtime-switches?companyId=c-tps': { body: { machines: [] } },
@@ -62,11 +69,57 @@ describe('nhãn ghép và nút Gỡ máy', () => {
     expect(screen.queryByRole('button', { name: 'Gỡ máy' })).toBeNull();
   });
 
-  it('máy không có ghép (Mac mini cũ) không có nhãn lẫn nút', async () => {
+  it('máy chưa ghép (dùng secret company) không có nhãn nhưng owner có nút Gỡ máy', async () => {
     mockServer(base(null));
     mount();
     expect(await screen.findByText('mac-mini')).toBeTruthy();
+    expect(await screen.findByRole('button', { name: 'Gỡ máy' })).toBeTruthy();
     expect(screen.queryByText(/^Đã (ghép|gỡ)/)).toBeNull();
+  });
+
+  it('viewer không thấy nút Gỡ máy trên máy chưa ghép', async () => {
+    const s = mockServer(
+      base(
+        null,
+        accessRoute('c-tps', { userId: 'u2', membershipRole: 'viewer', contributor: false, canApprove: false }),
+      ),
+    );
+    mount();
+    expect(await screen.findByText('mac-mini')).toBeTruthy();
+    await waitFor(() => expect(s.calls.some((c) => c.url.endsWith('/access'))).toBe(true));
+    await new Promise((r) => setTimeout(r, 20)); // để vai trò viewer áp vào cây React
+    expect(screen.queryByRole('button', { name: 'Gỡ máy' })).toBeNull();
+  });
+
+  it('máy chưa ghép: xác nhận có cảnh báo secret chung và "Ghép lại", chỉ gọi unpair, không đọc hay archive environment', async () => {
+    const s = mockServer(
+      base(null, { [UNPAIR]: { body: { environmentId: null, revokedAt: '2026-10-11T02:05:00.000Z' } } }),
+    );
+    mount();
+    fireEvent.click(await screen.findByRole('button', { name: 'Gỡ máy' }));
+    const dialog = await screen.findByRole('alertdialog');
+    expect(within(dialog).getByText(/đang gửi bản tin bằng secret chung của company/)).toBeTruthy();
+    expect(within(dialog).getByText(/kể cả bản tin ký bằng secret chung/)).toBeTruthy();
+    expect(within(dialog).getByText(/bấm "Ghép lại"/)).toBeTruthy();
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Gỡ máy' }));
+    await waitFor(() => expect(writes(s)).toEqual([UNPAIR]));
+    expect(s.calls.find((c) => c.url.endsWith('/unpair'))?.body).toEqual({ companyId: 'c-tps' });
+    expect(s.calls.some((c) => c.url.startsWith('/api/environments'))).toBe(false);
+  });
+
+  it('máy chưa ghép: unpair lỗi hiện nguyên văn và nút còn đó', async () => {
+    mockServer(base(null, { [UNPAIR]: { status: 404, body: { error: 'Không có máy này trong company' } } }));
+    mount();
+    fireEvent.click(await screen.findByRole('button', { name: 'Gỡ máy' }));
+    fireEvent.click(within(await screen.findByRole('alertdialog')).getByRole('button', { name: 'Gỡ máy' }));
+    expect(await screen.findByText('Không có máy này trong company')).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Gỡ máy' })).toBeTruthy();
+  });
+
+  it('máy chưa ghép đã bị gỡ hiện "Đã gỡ" và không có nút', async () => {
+    mockServer(base(REMOVED_UNPAIRED));
+    mount();
+    expect(await screen.findByText('Đã gỡ 11/10/2026 09:05')).toBeTruthy();
     expect(screen.queryByRole('button', { name: 'Gỡ máy' })).toBeNull();
   });
 
@@ -76,6 +129,7 @@ describe('nhãn ghép và nút Gỡ máy', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Gỡ máy' }));
     const dialog = await screen.findByRole('alertdialog');
     expect(within(dialog).getByText(/sẽ không nhận run mới và bản tin của nó bị từ chối/)).toBeTruthy();
+    expect(within(dialog).getByText(/bấm "Ghép lại"/)).toBeTruthy();
     fireEvent.click(within(dialog).getByRole('button', { name: 'Hủy' }));
     await waitFor(() => expect(screen.queryByRole('alertdialog')).toBeNull());
     expect(writes(s)).toEqual([]);

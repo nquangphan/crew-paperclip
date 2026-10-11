@@ -16,7 +16,7 @@ const ALLOW_REPAIR_KEY = "allowRepair";
 const FORBIDDEN = "Chỉ người dùng board được ghép hoặc gỡ máy";
 const NO_PUBLIC_KEY = "Server chưa có key Paperclip";
 const NO_SECRET = "Company chưa có secret webhook";
-const NOT_PAIRED = "Máy chưa được ghép";
+const UNKNOWN_MACHINE = "Không có máy này trong company";
 const PAIRING_ERROR = "Không đọc/ghi được thông tin ghép máy";
 const REVOKED = "Máy đã bị gỡ, owner phải cho phép ghép lại";
 const USES_COMPANY_SECRET = "Máy đang gửi bản tin bằng secret company, không ghép đè được";
@@ -114,6 +114,7 @@ async function pair(ctx: Ctx, input: PluginApiRequestInput, companyId: string, u
   // - a machine without a pairing row that already reports in `machine_latest` signs with the company secret (the
   //   Mac mini); pairing it would make all its messages fail, so the INSERT selects nothing;
   // - a revoked row is only re-armed with `allowRepair`, otherwise the app could silently undo an owner's "Gỡ máy".
+  //   That includes the row "Gỡ máy" writes for a company-secret machine, which is how such a machine moves to pairing.
   // The host `execute` returns only a row count (no RETURNING), so the key is derived from the nonce this call wrote:
   // a concurrent re-pair that lands later kills this key, but two callers never receive the same key.
   const written = await ctx.db.execute(
@@ -154,18 +155,30 @@ async function unpair(ctx: Ctx, input: PluginApiRequestInput, companyId: string,
   const checked = parseUnpairBody(input.body, companyId);
   if (checked !== true) return bad(checked);
   const id = machineId.toLowerCase();
+  // A machine that reports with the company secret has no pairing row: write one that is revoked from the start, so
+  // the webhook refuses its messages (company secret included) and only an owner-approved re-pair can bring it back.
+  // The row has no environment and a random nonce whose key is never handed out.
+  const created = await ctx.db.execute(
+    `INSERT INTO ${table(ctx)} (company_id,machine_id,hostname,environment_id,tailscale_ip,port,host_key_fingerprint,
+       key_nonce,paired_by_user_id,paired_at,revoked_at,revoked_by_user_id)
+     SELECT l.company_id,l.machine_id,l.hostname,NULL::uuid,NULL::text,NULL::integer,NULL::text,$3::text,NULL::text,
+       NULL::timestamptz,now(),$4::text
+     FROM ${pluginNamespace(ctx)}.machine_latest l WHERE l.company_id = $1::uuid AND l.machine_id = $2::uuid
+     ON CONFLICT (company_id,machine_id) DO NOTHING`,
+    [companyId, id, randomBytes(32).toString("hex"), userId],
+  );
   await ctx.db.execute(
     `UPDATE ${table(ctx)} SET revoked_at = now(), revoked_by_user_id = $3
      WHERE company_id = $1 AND machine_id = $2 AND revoked_at IS NULL`,
     [companyId, id, userId],
   );
-  const rows = await ctx.db.query<{ environment_id: string; revoked_at: string | Date | null }>(
+  const rows = await ctx.db.query<{ environment_id: string | null; revoked_at: string | Date | null }>(
     `SELECT environment_id::text AS environment_id, revoked_at FROM ${table(ctx)} WHERE company_id = $1 AND machine_id = $2`,
     [companyId, id],
   );
   const row = rows[0];
-  if (!row) return { status: 404, body: { error: NOT_PAIRED } };
-  ctx.logger.info("crew machine unpaired", { companyId, machineId: id, userId });
+  if (!row) return { status: 404, body: { error: UNKNOWN_MACHINE } };
+  ctx.logger.info("crew machine unpaired", { companyId, machineId: id, userId, usedCompanySecret: created.rowCount === 1 });
   return { status: 200, body: { environmentId: row.environment_id, revokedAt: iso(row.revoked_at) } };
 }
 

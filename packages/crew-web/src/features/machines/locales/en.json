@@ -85,7 +85,8 @@
     "unpair": "Unpair machine",
     "failed": "Could not unpair the machine",
     "confirmTitle": "Unpair {{host}}?",
-    "confirmBody": "{{host}} will get no new runs and its status reports will be rejected. Other Macs are not affected.",
+    "confirmBody": "{{host}} will get no new runs and its status reports will be rejected. Other Macs are not affected. To use this machine again, open the 2P Crew app on it and click \"Ghép lại\" (Re-pair).",
+    "confirmBodyUnpaired": "{{host}} is not paired: it sends status reports with the company's shared secret. Unpairing rejects all of its reports, including those signed with the shared secret, and it gets no new runs. To use it again, open the 2P Crew app on that machine and click \"Ghép lại\" (Re-pair). Other Macs are not affected; the machine's environment is not archived.",
     "confirmAction": "Unpair",
     "hostMismatch": "Environment {{environment}} points to {{actual}}, not this machine's {{expected}}. Nothing was unpaired, to avoid archiving another machine."
   }

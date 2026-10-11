@@ -85,7 +85,8 @@
     "unpair": "Gỡ máy",
     "failed": "Không gỡ được máy",
     "confirmTitle": "Gỡ máy {{host}}?",
-    "confirmBody": "Máy {{host}} sẽ không nhận run mới và bản tin của nó bị từ chối. Mac khác không ảnh hưởng.",
+    "confirmBody": "Máy {{host}} sẽ không nhận run mới và bản tin của nó bị từ chối. Mac khác không ảnh hưởng. Muốn dùng lại máy này, mở app 2P Crew trên máy đó và bấm \"Ghép lại\".",
+    "confirmBodyUnpaired": "Máy {{host}} chưa ghép tự động: nó đang gửi bản tin bằng secret chung của company. Gỡ máy thì mọi bản tin của nó bị từ chối, kể cả bản tin ký bằng secret chung, và máy không nhận run mới. Muốn dùng lại, phải mở app 2P Crew trên chính máy đó và bấm \"Ghép lại\". Mac khác không ảnh hưởng; environment của máy không bị archive.",
     "confirmAction": "Gỡ máy",
     "hostMismatch": "Environment {{environment}} trỏ tới {{actual}}, không phải {{expected}} của máy này. Không gỡ để tránh archive nhầm máy khác."
   }

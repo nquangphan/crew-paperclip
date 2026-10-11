@@ -1,6 +1,8 @@
 // Ghép máy tự động (S15.4): máy giả được ghép bằng API (environment SSH tạo qua REST, key máy ra từ route ghép),
 // gửi một bản tin ký bằng key máy để thẻ hiện ra; trên trang Máy owner thấy "Đã ghép", bấm Gỡ máy và xác nhận thì
-// environment thành `archived`, thẻ chuyển "Đã gỡ" không còn nút, bản tin ký bằng key cũ bị từ chối.
+// environment thành `archived`, thẻ chuyển "Đã gỡ" không còn nút, bản tin ký bằng key cũ bị từ chối. Ca thứ hai: máy
+// gửi bản tin bằng secret company (chưa ghép) cũng có nút Gỡ máy; gỡ thì secret company bị từ chối và chỉ ghép lại có
+// `allowRepair` mới đưa máy về.
 // Cần secret webhook biết giá trị để ký, nên ca tạo secret mới và trỏ config company sang nó (trả lại config cũ cuối
 // ca). Chỉ chạy ở T1: prod không được đổi secret webhook.
 import { createHmac, randomUUID } from 'node:crypto';
@@ -16,10 +18,10 @@ interface PluginConfig {
   [key: string]: unknown;
 }
 interface Pairing {
-  pairedAt: string;
+  pairedAt: string | null;
   revokedAt: string | null;
-  environmentId: string;
-  tailscaleIp: string;
+  environmentId: string | null;
+  tailscaleIp: string | null;
 }
 interface MachineLite {
   machineId: string;
@@ -158,7 +160,59 @@ test('PW-S15-PAIR Ghép máy: thẻ "Đã ghép", Gỡ máy archive environment,
   const repair = await api.raw('POST', `${PLUGIN}/api/machines/pair`, pairBody);
   expect(repair.status).toBe(409);
   expect((repair.body as { code?: string }).code).toBe('machine_revoked');
-  // Gỡ máy chưa từng ghép là 404, không phải thành công.
+  // Gỡ máy không có trong company (chưa từng gửi bản tin, chưa ghép) là 404, không phải thành công.
   const unknown = await api.raw('POST', `${PLUGIN}/api/machines/${randomUUID()}/unpair`, { companyId: company.id });
   expect(unknown.status).toBe(404);
+});
+
+test('PW-S15-PAIR Gỡ máy chưa ghép (dùng secret company): bản tin bị chặn, ghép lại cần allowRepair @t1 @t1-only', async ({
+  page,
+  api,
+  company,
+}) => {
+  const hostname = `e2e-mini-${uniqueToken('')}`;
+  const machineId = randomUUID();
+  expect(await sendStatus(api, company.id, machineId, hostname, webhookSecret)).toBe(200);
+
+  await page.goto(company.path('machines'));
+  const card = page.locator('[data-slot="machine-card"]').filter({ hasText: hostname });
+  await expect(card).toBeVisible();
+  await expect(card.getByText(/^Đã (ghép|gỡ)/)).toHaveCount(0);
+
+  await card.getByRole('button', { name: 'Gỡ máy' }).click();
+  const dialog = page.getByRole('alertdialog');
+  await expect(dialog.getByText(/đang gửi bản tin bằng secret chung của company/)).toBeVisible();
+  await expect(dialog.getByText(/bấm "Ghép lại"/)).toBeVisible();
+  await dialog.getByRole('button', { name: 'Gỡ máy' }).click();
+
+  await expect(card.getByText(/^Đã gỡ \d{2}\/\d{2}\/\d{4} \d{2}:\d{2}$/)).toBeVisible();
+  await expect(card.getByRole('button', { name: 'Gỡ máy' })).toHaveCount(0);
+  const machines = await api.crewData<MachineLite[]>('crew.machines', company.id);
+  const row = machines.find((m) => m.machineId === machineId);
+  expect(row?.pairing).toMatchObject({ pairedAt: null, environmentId: null, tailscaleIp: null });
+  expect(row?.pairing?.revokedAt).toBeTruthy();
+
+  // Secret company không còn được nhận cho máy này.
+  expect(await sendStatus(api, company.id, machineId, hostname, webhookSecret)).toBeGreaterThanOrEqual(400);
+  const pairBody = {
+    companyId: company.id,
+    machineId,
+    hostname,
+    environmentId: randomUUID(),
+    tailscaleIp: '100.64.0.10',
+    port: 2222,
+    hostKeyFingerprint: FINGERPRINT,
+  };
+  const refused = await api.raw('POST', `${PLUGIN}/api/machines/pair`, pairBody);
+  expect(refused.status).toBe(409);
+  expect((refused.body as { code?: string }).code).toBe('machine_revoked');
+  // "Ghép lại" từ app (owner chủ động) là ghép như thường: key máy mới được nhận, secret company thì không.
+  const repaired = await api.crewRoute<{ machineKey: string }>('POST', '/machines/pair', {
+    ...pairBody,
+    allowRepair: true,
+  });
+  expect(await sendStatus(api, company.id, machineId, hostname, repaired.machineKey)).toBe(200);
+  expect(await sendStatus(api, company.id, machineId, hostname, webhookSecret)).toBeGreaterThanOrEqual(400);
+  await page.reload();
+  await expect(card.getByText(/^Đã ghép \d{2}\/\d{2}\/\d{4} \d{2}:\d{2}$/)).toBeVisible();
 });

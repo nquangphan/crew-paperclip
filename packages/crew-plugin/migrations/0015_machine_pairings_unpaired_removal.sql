@@ -1,0 +1,2 @@
+ALTER TABLE plugin_crew_core_0433ea20b6.machine_pairings ALTER COLUMN environment_id DROP NOT NULL, ALTER COLUMN tailscale_ip DROP NOT NULL, ALTER COLUMN port DROP NOT NULL, ALTER COLUMN host_key_fingerprint DROP NOT NULL, ALTER COLUMN paired_by_user_id DROP NOT NULL, ALTER COLUMN paired_at DROP NOT NULL;
+ALTER TABLE plugin_crew_core_0433ea20b6.machine_pairings ADD CONSTRAINT machine_pairings_active_facts_check CHECK (revoked_at IS NOT NULL OR num_nulls(environment_id, tailscale_ip, port, host_key_fingerprint, paired_by_user_id, paired_at) = 0);

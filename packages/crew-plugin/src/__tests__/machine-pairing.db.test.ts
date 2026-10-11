@@ -264,12 +264,86 @@ describe("route machines.unpair", () => {
     expect(await unpair()).toEqual(first);
     expect(await host.sql.unsafe(`SELECT revoked_by_user_id FROM ${host.ns}.machine_pairings`)).toEqual([{ revoked_by_user_id: userId }]);
   });
-  it("404 khi máy chưa ghép (Mac mini), 400 khi body hoặc machineId sai", async () => {
-    expect(await unpair(mini)).toEqual({ status: 404, body: { error: "Máy chưa được ghép" } });
+  it("404 khi máy không có trong company (không bản tin, không dòng ghép), 400 khi body hoặc machineId sai", async () => {
+    expect(await unpair(macbook)).toEqual({ status: 404, body: { error: "Không có máy này trong company" } });
+    // Bản tin của company khác không làm máy thành "có trong company này".
+    await host.sql.unsafe(`INSERT INTO companies (id,name,issue_prefix) VALUES ($1,'Khác','KHA') ON CONFLICT DO NOTHING`, [otherCompany]);
+    await host.sql.unsafe(`INSERT INTO ${host.ns}.machine_latest (company_id,machine_id,hostname,received_at,sent_at,report)
+      VALUES ($1,$2,'khac',now(),now(),'{}'::jsonb)`, [otherCompany, macbook]);
+    expect((await unpair(macbook)).status).toBe(404);
+    expect(await host.sql.unsafe(`SELECT 1 FROM ${host.ns}.machine_pairings`)).toEqual([]);
     expect((await unpair("mini")).status).toBe(400);
     expect((await unpair(macbook, { companyId, extra: 1 })).status).toBe(400);
     expect((await unpair(macbook, { companyId: otherCompany })).status).toBe(400);
     expect((await handleMachinesApi(ctx, { ...request("machines.unpair", { body: { companyId }, machineId: macbook }), actor: agent })).status).toBe(403);
+  });
+});
+
+describe("gỡ máy đang dùng secret company", () => {
+  const other = "50000000-0000-4000-8000-000000000003";
+
+  it("ghi dòng ghép đã gỡ sẵn (không environment), webhook từ chối cả secret company, máy khác không ảnh hưởng", async () => {
+    await status(macbook, "Phans-MacBook-Pro", COMPANY_SECRET);
+    await status(mini, "mac-mini", COMPANY_SECRET);
+    await status(other, "mac-studio", COMPANY_SECRET);
+
+    const first = await unpair(macbook);
+    expect(first.status).toBe(200);
+    const body = first.body as { environmentId: string | null; revokedAt: string };
+    expect(body.environmentId).toBeNull();
+    expect(Number.isFinite(Date.parse(body.revokedAt))).toBe(true);
+    expect(await unpair(macbook)).toEqual(first);
+    const rows = await host.sql.unsafe(`SELECT machine_id::text AS machine_id, hostname, environment_id, tailscale_ip, port,
+      host_key_fingerprint, key_nonce, paired_by_user_id, paired_at, revoked_by_user_id FROM ${host.ns}.machine_pairings`);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({ machine_id: macbook, hostname: "Phans-MacBook-Pro", environment_id: null, tailscale_ip: null,
+      port: null, host_key_fingerprint: null, paired_by_user_id: null, paired_at: null, revoked_by_user_id: userId });
+    expect(String(rows[0]?.key_nonce)).toMatch(/^[0-9a-f]{64}$/);
+    expect(host.logs.find((l) => l.message === "crew machine unpaired")).toEqual({ level: "info", message: "crew machine unpaired",
+      meta: { companyId, machineId: macbook, userId, usedCompanySecret: true } });
+
+    await expect(status(macbook, "Phans-MacBook-Pro", COMPANY_SECRET)).rejects.toMatchObject({ code: "machine_revoked" });
+    await expect(receiveDocsSnapshot(ctx, signed("docs-snapshot", snapshot(macbook, "d".repeat(40)), COMPANY_SECRET)))
+      .rejects.toMatchObject({ code: "machine_revoked" });
+    // Mac mini và máy khác vẫn gửi bằng secret company, không có dòng ghép.
+    await status(mini, "mac-mini", COMPANY_SECRET);
+    await status(other, "mac-studio", COMPANY_SECRET);
+    expect(await host.sql.unsafe(`SELECT 1 FROM ${host.ns}.machine_pairings WHERE machine_id <> $1`, [macbook])).toEqual([]);
+
+    const machines = await loadCrewMachines(ctx, companyId, now);
+    expect(machines.find((m) => m.machineId === macbook)?.pairing).toEqual({
+      pairedAt: null, revokedAt: body.revokedAt, environmentId: null, tailscaleIp: null,
+    });
+    expect(machines.find((m) => m.machineId === mini)?.pairing).toBeNull();
+  });
+
+  it("sau khi gỡ: thiếu allowRepair thì 409 machine_revoked, có allowRepair thì ghép như thường", async () => {
+    await status(macbook, "Phans-MacBook-Pro", COMPANY_SECRET);
+    expect((await pair()).body).toMatchObject({ code: "machine_uses_company_secret" });
+    await unpair(macbook);
+    expect(await pair()).toEqual({
+      status: 409, body: { error: "Máy đã bị gỡ, owner phải cho phép ghép lại", code: "machine_revoked" },
+    });
+    const response = await pair(pairBody({ allowRepair: true }));
+    expect(response.status).toBe(200);
+    const { machineKey } = response.body as { machineKey: string };
+    expect(machineKey).toBe(await keyFor(macbook));
+    const [row] = await host.sql.unsafe(`SELECT environment_id::text AS env, tailscale_ip, port, paired_by_user_id, paired_at,
+      revoked_at, revoked_by_user_id FROM ${host.ns}.machine_pairings`);
+    expect(row).toMatchObject({ env: environmentId, tailscale_ip: "100.100.157.19", port: 2222, paired_by_user_id: userId,
+      revoked_at: null, revoked_by_user_id: null });
+    expect(row?.paired_at).toBeInstanceOf(Date);
+
+    await status(macbook, "Phans-MacBook-Pro", machineKey);
+    await expect(status(macbook, "Phans-MacBook-Pro", COMPANY_SECRET)).rejects.toMatchObject({ code: "bad_signature" });
+    expect((await loadCrewMachines(ctx, companyId, now)).find((m) => m.machineId === macbook)?.pairing).toMatchObject({
+      revokedAt: null, environmentId,
+    });
+  });
+
+  it("bảng không nhận dòng chưa gỡ mà thiếu thông tin ghép", async () => {
+    await expect(host.sql.unsafe(`INSERT INTO ${host.ns}.machine_pairings (company_id,machine_id,hostname,key_nonce)
+      VALUES ($1,$2,'x','n')`, [companyId, macbook])).rejects.toThrow(/machine_pairings_active_facts_check/);
   });
 });
 
