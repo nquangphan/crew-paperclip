@@ -772,6 +772,7 @@ export async function createApp(
   api.use(onboardingSeedRoutes(db));
   api.use(boardChatRoutes(db, { deploymentMode: opts.deploymentMode }));
   api.use(approvalRoutes(db, { pluginWorkerManager: workerManager }));
+  api.use(crewContributionRoutes(db));
   api.use(secretRoutes(db));
   api.use(managedAgentProfileRoutes(db));
   api.use(remoteAgentProfileRoutes(db));
@@ -1366,3 +1367,4 @@ export async function createApp(
 
   return app;
 }
+import { crewContributionRoutes } from "./crew/contribution-routes.js";

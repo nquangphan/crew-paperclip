@@ -10,7 +10,7 @@
       "head": "async function claimQueuedRun(",
       "anchor": "    if (await crewCoreHooks.beforeClaim({ db, run })) return null;",
       "importLine": "import { crewCoreHooks } from \"../crew/core-hooks.js\";",
-      "description": "Keep a queued run queued while its environment is overloaded or unreachable, or while its runtime is switched off on its machine (an agent without an environment gets the default switches, so Codex/OpenCode runs wait; the held run is recorded in the Crew plugin table crew_runtime_waits, the only plugin table the server writes); cancel queued runs of an agent a runtime fallback moved the issue away from; before a runtime fallback run, stop the previous run and release its branch; when claimed, resume the previous issue's session within a Crew bundle.",
+      "description": "Keep a queued run queued while its environment is overloaded or unreachable, or while its runtime is switched off on its machine (an agent without an environment gets the default switches, so Codex/OpenCode runs wait; the held run is recorded in the Crew plugin table crew_runtime_waits, which the server writes like the contribution tables of C7); cancel queued runs of an agent a runtime fallback moved the issue away from; before a runtime fallback run, stop the previous run and release its branch; when claimed, resume the previous issue's session within a Crew bundle.",
       "upstreamPr": null,
       "tests": [
         "server/src/__tests__/crew-before-claim.test.ts",
@@ -227,6 +227,20 @@
       "upstreamPr": null,
       "tests": [
         "server/src/__tests__/crew-plugin-event-invocation-scope.test.ts"
+      ]
+    },
+    {
+      "id": "C7",
+      "kind": "core-patch",
+      "file": "server/src/app.ts",
+      "symbol": "createApp api router (Crew contribution routes)",
+      "anchor": "  api.use(crewContributionRoutes(db));",
+      "importLine": "import { crewContributionRoutes } from \"./crew/contribution-routes.js\";",
+      "description": "Mount the Crew contribution router (/api/crew/companies/:companyId/...) right after the approval routes, behind the board mutation guard. A Crew contributor (a core viewer flagged in the Crew plugin table crew_contributors) files issues and comments into the Crew plugin table crew_contributions, never into core tables, so agents cannot read pending or rejected content; the company owner approves by posting through the stock board routes with an idempotency key, and the router finds the created core record itself. The server writes crew_contributions and crew_contributors, the second set of plugin tables it writes after crew_runtime_waits. Board actors with a user id only (agents get 403); roles are read from the database, not via assertCompanyAccess; no activity log, live event or plugin event is emitted.",
+      "upstreamPr": null,
+      "tests": [
+        "server/src/__tests__/crew-contributions.db.test.ts",
+        "server/src/__tests__/crew-contributions-agent-blind.test.ts"
       ]
     },
     {
