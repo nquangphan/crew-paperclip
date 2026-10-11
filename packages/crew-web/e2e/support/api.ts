@@ -20,12 +20,12 @@ const E2E_ID_ROUTE = /^\/api\/(issues|projects|agents)\/([0-9a-f-]{36})(\/|$)/i;
 const BOARD_OWN_ROUTE = /^\/api\/(cli-auth|board-api-keys)\//;
 
 /**
- * Chặn ghi chéo trên prod: chỉ cho ghi vào company Crew E2E. Cho phép đường `/api/companies/<E2E>/`, data plugin
+ * Chặn ghi chéo trên prod: chỉ cho ghi vào company Crew E2E. Cho phép đường `/api/companies/<E2E>/` và `/api/crew/companies/<E2E>/` (router góp ý), data plugin
  * (chỉ đọc), route plugin có companyId E2E, đường theo id issue/project/agent mà GET xác minh thuộc company E2E, và
  * đường khóa của chính board (cli-auth, board-api-keys). Mọi đường khác bị từ chối. Mọi lời gọi ghi nhắc TPS bị từ chối
  * (data plugin là đọc nên được hỏi về TPS).
  */
-async function assertWriteAllowed(ctx: APIRequestContext, method: string, rawPath: string, body: unknown) {
+export async function assertWriteAllowed(ctx: APIRequestContext, method: string, rawPath: string, body: unknown) {
   if (method === 'GET' || !isProd()) return;
   let path: string;
   try {
@@ -39,7 +39,7 @@ async function assertWriteAllowed(ctx: APIRequestContext, method: string, rawPat
   const text = `${path} ${body === undefined ? '' : JSON.stringify(body)}`;
   if (text.includes(TPS_COMPANY_ID)) throw new Error(`Từ chối ghi vào TPS: ${method} ${path}`);
   const e2e = CREW_E2E_PROD_COMPANY_ID;
-  if (path.startsWith(`/api/companies/${e2e}/`)) return;
+  if (path.startsWith(`/api/companies/${e2e}/`) || path.startsWith(`/api/crew/companies/${e2e}/`)) return;
   if (BOARD_OWN_ROUTE.test(path)) return;
   if (path.startsWith(`${PLUGIN}/api/`) && text.includes(e2e)) return;
   const m = E2E_ID_ROUTE.exec(path);
