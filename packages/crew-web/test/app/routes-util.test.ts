@@ -33,9 +33,9 @@ describe('groupNavItems', () => {
     expect(groups.map((g) => g.id)).toEqual(['main', 'work', 'org', 'system']);
     const ids = (g: string) => groups.find((x) => x.id === g)?.items.map((i) => i.id);
     expect(ids('main')).toEqual(['newIssue', 'search', 'dashboard', 'inbox']);
-    expect(ids('work')).toEqual(['issues', 'projects', 'docs']);
+    expect(ids('work')).toEqual(['issues', 'contributions', 'projects', 'docs']);
     expect(ids('org')).toEqual(['agents', 'skills', 'machines']);
-    expect(ids('system')).toEqual(['settings', 'guide']);
+    expect(ids('system')).toEqual(['members', 'settings', 'guide']);
   });
   it('mọi mục thuộc đúng một nhóm', () => {
     const all = groupNavItems(NAV_ITEMS).flatMap((g) => g.items.map((i) => i.id));

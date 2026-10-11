@@ -20,9 +20,11 @@ const find = (s: ReturnType<typeof mockServer>, method: string, tail: string) =>
 
 describe('TitleEditor (S6.12)', () => {
   it('sửa tiêu đề gọi PUT /issues/:id/title {title}', async () => {
-    const s = mockServer({ 'PUT /api/issues/i1/title': { body: { id: 'i1', title: 'Tiêu đề mới', changed: true } } });
+    const s = mockServer({
+      'PUT /api/issues/i1/title': { body: { id: 'i1', title: 'Tiêu đề mới', changed: true } },
+    });
     mount(<TitleEditor issue={issue} />);
-    fireEvent.click(screen.getByRole('button', { name: 'Sửa tiêu đề' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Sửa tiêu đề' }));
     fireEvent.change(screen.getByRole('textbox', { name: 'Tiêu đề' }), { target: { value: 'Tiêu đề mới' } });
     fireEvent.click(screen.getByRole('button', { name: 'Lưu' }));
     await waitFor(() => expect(find(s, 'PUT', '/title')).toHaveLength(1));
@@ -30,20 +32,20 @@ describe('TitleEditor (S6.12)', () => {
     expect(find(s, 'PATCH', '/issues/i1')).toHaveLength(0);
   });
 
-  it('tiêu đề rỗng không cho lưu', () => {
+  it('tiêu đề rỗng không cho lưu', async () => {
     mockServer({});
     mount(<TitleEditor issue={issue} />);
-    fireEvent.click(screen.getByRole('button', { name: 'Sửa tiêu đề' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Sửa tiêu đề' }));
     fireEvent.change(screen.getByRole('textbox', { name: 'Tiêu đề' }), { target: { value: '   ' } });
     expect((screen.getByRole('button', { name: 'Lưu' }) as HTMLButtonElement).disabled).toBe(true);
   });
 
-  it('Hủy thì không gọi API', () => {
+  it('Hủy thì không gọi API', async () => {
     const s = mockServer({});
     mount(<TitleEditor issue={issue} />);
-    fireEvent.click(screen.getByRole('button', { name: 'Sửa tiêu đề' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Sửa tiêu đề' }));
     fireEvent.click(screen.getByRole('button', { name: 'Hủy' }));
-    expect(s.calls).toHaveLength(0);
+    expect(s.calls.filter((c) => c.method !== 'GET')).toHaveLength(0);
     expect(screen.getByText('Sửa trang đăng nhập')).toBeTruthy();
   });
 });
@@ -52,7 +54,7 @@ describe('DescriptionEditor (S6.12)', () => {
   it('sửa mô tả gọi PATCH chỉ với {description}', async () => {
     const s = mockServer({ 'PATCH /api/issues/i1': { body: { id: 'i1' } } });
     mount(<DescriptionEditor issue={issue} />);
-    fireEvent.click(screen.getByRole('button', { name: 'Sửa mô tả' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Sửa mô tả' }));
     fireEvent.change(screen.getByRole('textbox', { name: 'Mô tả' }), { target: { value: 'Mô tả mới' } });
     fireEvent.click(screen.getByRole('button', { name: 'Lưu' }));
     await waitFor(() => expect(find(s, 'PATCH', '/issues/i1')).toHaveLength(1));
@@ -62,7 +64,7 @@ describe('DescriptionEditor (S6.12)', () => {
   it('lỗi lưu hiện nguyên văn', async () => {
     mockServer({ 'PATCH /api/issues/i1': { status: 422, body: { error: 'mô tả quá dài' } } });
     mount(<DescriptionEditor issue={issue} />);
-    fireEvent.click(screen.getByRole('button', { name: 'Sửa mô tả' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Sửa mô tả' }));
     fireEvent.change(screen.getByRole('textbox', { name: 'Mô tả' }), { target: { value: 'x' } });
     fireEvent.click(screen.getByRole('button', { name: 'Lưu' }));
     expect(await screen.findByText(/mô tả quá dài/)).toBeTruthy();

@@ -85,7 +85,7 @@ describe('IssuePage luồng bình luận (S6.4)', () => {
     mount(<IssuePage />);
     await screen.findAllByTestId('comment');
     await waitFor(() => expect(s.calls.filter((c) => c.method === 'POST' && c.url.endsWith('/read'))).toHaveLength(1));
-    fireEvent.click(screen.getByRole('button', { name: 'Sửa tiêu đề' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Sửa tiêu đề' }));
     fireEvent.click(screen.getByRole('button', { name: 'Hủy' }));
     expect(s.calls.filter((c) => c.method === 'POST' && c.url.endsWith('/read'))).toHaveLength(1);
   });

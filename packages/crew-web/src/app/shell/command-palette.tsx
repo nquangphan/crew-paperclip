@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api, queryKeys } from '@/api';
 import { CommandDialog, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/ds';
+import { navItemVisible, navLabelKey, useCompanyAccess } from '@/features/access';
 import { useIssueOpener } from '@/features/issues';
 import { useT } from '@/i18n';
 import { useCompany } from '../hooks';
@@ -30,6 +31,7 @@ export function CommandPalette({
   const { t } = useT();
   const navigate = useNavigate();
   const { company } = useCompany();
+  const access = useCompanyAccess();
   const [text, setText] = useState('');
   const q = text.trim();
   const debounced = useDebounced(q, 250);
@@ -70,7 +72,7 @@ export function CommandPalette({
 
   const goSearch = () => go(`search?q=${encodeURIComponent(q).replace(/%20/g, '+')}`);
 
-  const pages = NAV_ITEMS.filter((i) => i.id !== 'newIssue' && segments.has(i.segment));
+  const pages = NAV_ITEMS.filter((i) => i.id !== 'newIssue' && segments.has(i.segment) && navItemVisible(i.id, access));
   const issueRef = ref ? `${ref[1].toUpperCase()}-${ref[2]}` : null;
 
   return (
@@ -115,8 +117,8 @@ export function CommandPalette({
         {pages.length ? (
           <CommandGroup heading={t('palette.pages')}>
             {pages.map((p) => (
-              <CommandItem key={p.id} value={`page ${p.id} ${t(`nav.${p.id}`)}`} onSelect={() => go(p.to)}>
-                {t(`nav.${p.id}`)}
+              <CommandItem key={p.id} value={`page ${p.id} ${t(navLabelKey(p.id, access))}`} onSelect={() => go(p.to)}>
+                {t(navLabelKey(p.id, access))}
               </CommandItem>
             ))}
           </CommandGroup>

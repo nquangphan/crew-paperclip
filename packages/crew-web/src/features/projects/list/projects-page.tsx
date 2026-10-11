@@ -20,6 +20,7 @@ import {
   TableRow,
 } from '@/ds';
 import { Plus } from '@/ds/icons';
+import { useCompanyAccess } from '@/features/access';
 import { useProjectReadiness } from '@/features/readiness';
 import { useT } from '@/i18n';
 import { companyHref, projectRef } from '../paths';
@@ -27,6 +28,7 @@ import { companyHref, projectRef } from '../paths';
 export function ProjectsPage() {
   const { t } = useT('projects');
   const { company } = useCompany();
+  const { readOnly } = useCompanyAccess();
   const queryClient = useQueryClient();
   const [view, setView] = useState<'active' | 'removed'>('active');
   const includeArchived = view === 'removed';
@@ -56,7 +58,9 @@ export function ProjectsPage() {
       </Link>
     </Button>
   );
-  const header = <PageHeader title={t('list.title')} description={t('list.description')} actions={add} />;
+  const header = (
+    <PageHeader title={t('list.title')} description={t('list.description')} actions={readOnly ? undefined : add} />
+  );
 
   if (projects.isLoading) {
     return (
@@ -146,7 +150,7 @@ export function ProjectsPage() {
             return (
               <TableRow key={project.id}>
                 <TableCell>
-                  {view === 'removed' ? null : (
+                  {view === 'removed' || readOnly ? null : (
                     <Button
                       variant="ghost"
                       size="icon-sm"
@@ -165,7 +169,7 @@ export function ProjectsPage() {
                 <TableCell>{project.taskCount ?? 0}</TableCell>
                 <TableCell>{entry ? <ReadinessBadge state={entry.state} failed={entry.failed} /> : null}</TableCell>
                 <TableCell>
-                  {view === 'active' && entry?.state === 'not_ready' ? (
+                  {view === 'active' && !readOnly && entry?.state === 'not_ready' ? (
                     <Button asChild variant="outline" size="sm">
                       <Link to={resume}>{t('resume')}</Link>
                     </Button>

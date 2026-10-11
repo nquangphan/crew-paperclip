@@ -5,6 +5,7 @@ import { useNavigate } from 'react-router-dom';
 import { api, queryKeys } from '@/api';
 import { useCompany } from '@/app/hooks';
 import { Button, ConfirmDialog, DetailSection, ErrorState, MutedText, RunRow, Skeleton } from '@/ds';
+import { useCompanyAccess } from '@/features/access';
 import { useT } from '@/i18n';
 
 /** Một dòng của GET /issues/:id/runs (server/src/services/activity.ts runsForIssue). */
@@ -23,6 +24,7 @@ export function IssueRuns({ issueId, agentNames }: { issueId: string; agentNames
   const { t } = useT('issues');
   const { company } = useCompany();
   const navigate = useNavigate();
+  const { readOnly } = useCompanyAccess();
   const qc = useQueryClient();
   const [toStop, setToStop] = useState<IssueRun | null>(null);
   const list = useQuery({
@@ -64,7 +66,7 @@ export function IssueRuns({ issueId, agentNames }: { issueId: string; agentNames
                 onOpen={() => navigate(href)}
               />
             </div>
-            {ACTIVE.has(run.status) ? (
+            {ACTIVE.has(run.status) && !readOnly ? (
               <Button
                 variant="outline"
                 size="sm"

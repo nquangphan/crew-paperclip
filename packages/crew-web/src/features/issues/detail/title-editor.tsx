@@ -5,6 +5,7 @@ import { useState } from 'react';
 import { api, queryKeys } from '@/api';
 import { Button, ChatMessage, DialogTitle, ErrorState, Input, MarkdownView, MutedText, Textarea } from '@/ds';
 import { Pencil } from '@/ds/icons';
+import { useCompanyAccess } from '@/features/access';
 import { useT } from '@/i18n';
 
 /** Làm mới mọi khóa cache của issue (theo uuid và theo mã) sau khi sửa. */
@@ -77,6 +78,7 @@ function EditForm({
  */
 export function TitleEditor({ issue, popup = false }: { issue: Issue; popup?: boolean }) {
   const { t } = useT('issues');
+  const { readOnly } = useCompanyAccess();
   const [editing, setEditing] = useState(false);
   const refresh = useRefreshIssue(issue);
   const save = useMutation({
@@ -113,9 +115,11 @@ export function TitleEditor({ issue, popup = false }: { issue: Issue; popup?: bo
       ) : (
         <h1 className="min-w-0 flex-1">{issue.title}</h1>
       )}
-      <Button variant="ghost" size="icon-sm" aria-label={t('detail.title.edit')} onClick={() => setEditing(true)}>
-        <Pencil aria-hidden />
-      </Button>
+      {readOnly ? null : (
+        <Button variant="ghost" size="icon-sm" aria-label={t('detail.title.edit')} onClick={() => setEditing(true)}>
+          <Pencil aria-hidden />
+        </Button>
+      )}
     </div>
   );
 }
@@ -126,6 +130,7 @@ export function TitleEditor({ issue, popup = false }: { issue: Issue; popup?: bo
  */
 export function DescriptionEditor({ issue, author }: { issue: Issue; author?: string }) {
   const { t } = useT('issues');
+  const { readOnly } = useCompanyAccess();
   const [editing, setEditing] = useState(false);
   const refresh = useRefreshIssue(issue);
   const save = useMutation({
@@ -159,14 +164,16 @@ export function DescriptionEditor({ issue, author }: { issue: Issue; author?: st
       data-testid="issue-description"
       author={author ?? t('detail.description.label')}
       aside={
-        <Button
-          variant="ghost"
-          size="icon-sm"
-          aria-label={t('detail.description.edit')}
-          onClick={() => setEditing(true)}
-        >
-          <Pencil aria-hidden />
-        </Button>
+        readOnly ? undefined : (
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            aria-label={t('detail.description.edit')}
+            onClick={() => setEditing(true)}
+          >
+            <Pencil aria-hidden />
+          </Button>
+        )
       }
     >
       {issue.description ? (

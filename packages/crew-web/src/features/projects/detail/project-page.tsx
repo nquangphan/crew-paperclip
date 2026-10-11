@@ -18,6 +18,7 @@ import {
   TabsTrigger,
 } from '@/ds';
 import { ArrowLeft, Pencil } from '@/ds/icons';
+import { useCompanyAccess } from '@/features/access';
 import { useProjectReadiness } from '@/features/readiness';
 import { RemoveProjectButton } from '@/features/wizards';
 import { formatDateTime, useT } from '@/i18n';
@@ -34,6 +35,7 @@ type Tab = (typeof TABS)[number];
 export function ProjectPage() {
   const { t, lang } = useT('projects');
   const { company } = useCompany();
+  const { readOnly } = useCompanyAccess();
   const { projectRef = '' } = useParams();
   const [params, setParams] = useSearchParams();
   const [renaming, setRenaming] = useState(false);
@@ -76,11 +78,15 @@ export function ProjectPage() {
         actions={
           <>
             {entry ? <ReadinessBadge state={entry.state} failed={entry.failed} /> : null}
-            <Button variant="outline" onClick={() => setRenaming(true)}>
-              <Pencil aria-hidden />
-              {t('detail.rename')}
-            </Button>
-            <RemoveProjectButton project={{ id: data.id, name: data.name }} />
+            {readOnly ? null : (
+              <>
+                <Button variant="outline" onClick={() => setRenaming(true)}>
+                  <Pencil aria-hidden />
+                  {t('detail.rename')}
+                </Button>
+                <RemoveProjectButton project={{ id: data.id, name: data.name }} />
+              </>
+            )}
           </>
         }
       />

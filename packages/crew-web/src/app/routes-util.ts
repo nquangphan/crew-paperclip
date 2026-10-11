@@ -32,12 +32,14 @@ export type NavId =
   | 'dashboard'
   | 'inbox'
   | 'issues'
+  | 'contributions'
   | 'projects'
   | 'agents'
   | 'skills'
   | 'machines'
   | 'docs'
   | 'guide'
+  | 'members'
   | 'settings';
 
 /** Nhóm sidebar, chia theo Paperclip: nhóm đầu không tên, Công việc (Work), Tổ chức (Org); thêm Hệ thống cho mục còn lại. */
@@ -59,11 +61,13 @@ export const NAV_ITEMS: readonly NavItem[] = [
   { id: 'dashboard', group: 'main', segment: 'dashboard', to: 'dashboard' },
   { id: 'inbox', group: 'main', segment: 'inbox', to: 'inbox' },
   { id: 'issues', group: 'work', segment: 'issues', to: 'issues' },
+  { id: 'contributions', group: 'work', segment: 'contributions', to: 'contributions' },
   { id: 'projects', group: 'work', segment: 'projects', to: 'projects' },
   { id: 'docs', group: 'work', segment: 'docs', to: 'docs' },
   { id: 'agents', group: 'org', segment: 'agents', to: 'agents' },
   { id: 'skills', group: 'org', segment: 'skills', to: 'skills' },
   { id: 'machines', group: 'org', segment: 'machines', to: 'machines' },
+  { id: 'members', group: 'system', segment: 'members', to: 'members' },
   { id: 'settings', group: 'system', segment: 'settings', to: 'settings' },
   { id: 'guide', group: 'system', segment: 'guide', to: 'guide' },
 ];

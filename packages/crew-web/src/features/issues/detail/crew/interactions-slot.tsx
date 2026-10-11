@@ -3,6 +3,7 @@ import type { Issue } from '@paperclipai/shared';
 import { useQuery } from '@tanstack/react-query';
 import { api, queryKeys } from '@/api';
 import { ErrorState } from '@/ds';
+import { useCompanyAccess } from '@/features/access';
 import { useT } from '@/i18n';
 import { CARD_KINDS, type CardInteraction, InteractionCard } from './interaction-card';
 
@@ -14,7 +15,9 @@ const CLOSED = new Set(['done', 'cancelled']);
  */
 export function InteractionsSlot({ issue }: { issue: Issue }) {
   const { t } = useT('issues');
-  const closed = CLOSED.has(issue.status);
+  const { readOnly } = useCompanyAccess();
+  // Trả lời câu hỏi của Trợ Lý là thao tác ghi, nên viewer không thấy thẻ.
+  const closed = CLOSED.has(issue.status) || readOnly;
   const list = useQuery({
     queryKey: queryKeys.interactions(issue.id),
     queryFn: () => api.interactions.list(issue.id),

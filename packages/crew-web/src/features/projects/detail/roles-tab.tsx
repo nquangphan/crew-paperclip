@@ -15,6 +15,7 @@ import {
   type ReadinessBadgeState,
   Spinner,
 } from '@/ds';
+import { useCompanyAccess } from '@/features/access';
 import { useSelectableAgents } from '@/features/wizards';
 import { useT } from '@/i18n';
 import { agentOfSlot, type CrewRuntimeSlot, slotAgents } from '@/lib/instructions';
@@ -39,6 +40,7 @@ const RUNTIME_SLOTS: readonly CrewRuntimeSlot[] = ['executor-codex', 'executor-o
 export function RolesTab({ projectId }: { projectId: string }) {
   const { t } = useT('projects');
   const { company } = useCompany();
+  const { readOnly } = useCompanyAccess();
   const [editing, setEditing] = useState(false);
   const [outcome, setOutcome] = useState<InstructionsOutcome | 'failed' | null>(null);
   const [failure, setFailure] = useState<string | null>(null);
@@ -146,8 +148,8 @@ export function RolesTab({ projectId }: { projectId: string }) {
             />
           ) : null}
           <div className="flex flex-wrap gap-2">
-            <Button onClick={() => setEditing(true)}>{t('roles.edit')}</Button>
-            {roles && roles.executorAgentIds.length < 2 ? (
+            {readOnly ? null : <Button onClick={() => setEditing(true)}>{t('roles.edit')}</Button>}
+            {!readOnly && roles && roles.executorAgentIds.length < 2 ? (
               <Button asChild variant="outline">
                 <Link
                   to={companyHref(
@@ -159,7 +161,7 @@ export function RolesTab({ projectId }: { projectId: string }) {
                 </Link>
               </Button>
             ) : null}
-            {roles
+            {roles && !readOnly
               ? RUNTIME_SLOTS.filter((slot) => !agentOfSlot(roles, slot)).map((slot) => (
                   <Button key={slot} asChild variant="outline">
                     <Link

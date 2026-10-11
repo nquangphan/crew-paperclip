@@ -5,6 +5,7 @@ import { useState } from 'react';
 import { api, queryKeys } from '@/api';
 import { useMe } from '@/app/hooks';
 import { Button, ConfirmDialog, ErrorState } from '@/ds';
+import { useCompanyAccess } from '@/features/access';
 import { useT } from '@/i18n';
 import {
   awaitingMyApproval,
@@ -49,6 +50,7 @@ const LABEL: Record<GateActionId, string> = {
 export function ActionsSlot({ issue }: { issue: Issue }) {
   const { t } = useT('issues');
   const me = useMe();
+  const { readOnly } = useCompanyAccess();
   const refresh = useRefreshAfterGate(issue);
   const [open, setOpen] = useState<GateActionId | null>(null);
   const actions = gateActionsFor(issue, me);
@@ -78,6 +80,7 @@ export function ActionsSlot({ issue }: { issue: Issue }) {
     if (!next) setOpen(null);
   };
   const inDialog = open === 'approve' || open === 'request_changes';
+  if (readOnly) return null;
 
   return (
     <div className="flex flex-col gap-2">

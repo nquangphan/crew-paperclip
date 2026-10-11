@@ -19,6 +19,7 @@ import {
   Skeleton,
 } from '@/ds';
 import { Check, Copy, ExternalLink, X } from '@/ds/icons';
+import { useCompanyAccess } from '@/features/access';
 import { useT } from '@/i18n';
 import { issuePageHref } from '../popup/issue-href';
 import { Attachments } from './attachments';
@@ -94,6 +95,7 @@ export function IssueDetail({ issueRef, variant, onClose }: IssueDetailProps) {
   const { t } = useT('issues');
   const { company, companies } = useCompany();
   const me = useMe();
+  const { readOnly, isContributor } = useCompanyAccess();
   const qc = useQueryClient();
   const issueQuery = useIssue(issueRef);
   const loaded = issueQuery.data;
@@ -102,7 +104,8 @@ export function IssueDetail({ issueRef, variant, onClose }: IssueDetailProps) {
   const projectName = useProjectName(company.id, issue?.projectId ?? null);
   const childIssues = useChildIssues(company.id, issue?.id);
   const activity = useIssueActivity(issue?.id);
-  useMarkReadOnce(company.id, issue?.id);
+  // Viewer không đánh dấu đã đọc được (server trả 403), nên bỏ lời gọi.
+  useMarkReadOnce(company.id, readOnly ? undefined : issue?.id);
   useScrollToHash(Boolean(issue));
 
   // Chưa có tiêu đề để làm tên hộp thoại thì popup tạm lấy mã yêu cầu; khi có, h1 của TitleEditor là DialogTitle.
@@ -202,10 +205,12 @@ export function IssueDetail({ issueRef, variant, onClose }: IssueDetailProps) {
           ) : null
         }
         actions={
-          <div className="flex flex-wrap items-start gap-2">
-            <ActionsSlot issue={issue} />
-            <ForceDoneAction issue={issue} childIssues={childIssues} />
-          </div>
+          readOnly ? undefined : (
+            <div className="flex flex-wrap items-start gap-2">
+              <ActionsSlot issue={issue} />
+              <ForceDoneAction issue={issue} childIssues={childIssues} />
+            </div>
+          )
         }
       />
       <SummarySlot issue={issue} />
@@ -215,9 +220,11 @@ export function IssueDetail({ issueRef, variant, onClose }: IssueDetailProps) {
       <IssueRuns issueId={issue.id} agentNames={agentNames} />
       <Comments issueId={issue.id} agentNames={agentNames} />
       <InteractionsSlot issue={issue} />
-      <ComposerDock>
-        <Composer issue={issue} />
-      </ComposerDock>
+      {readOnly && !isContributor ? null : (
+        <ComposerDock>
+          <Composer issue={issue} />
+        </ComposerDock>
+      )}
     </IssueDetailFrame>
   );
 }

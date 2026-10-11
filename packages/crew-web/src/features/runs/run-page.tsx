@@ -24,6 +24,7 @@ import {
   Transcript,
   type TranscriptEntry,
 } from '@/ds';
+import { useCompanyAccess } from '@/features/access';
 import { useIssueOpener } from '@/features/issues';
 import { formatDateTime, useT } from '@/i18n';
 import { formatRunLog, type RunAction, type RunActionId, runActionsFor, wakeupOutcome } from './run-actions';
@@ -124,6 +125,7 @@ export function RunPage() {
   const { t, lang } = useT('runs');
   const { runId = '' } = useParams();
   const { company } = useCompany();
+  const { readOnly } = useCompanyAccess();
   const navigate = useNavigate();
   const qc = useQueryClient();
   const [asking, setAsking] = useState<RunActionId | null>(null);
@@ -180,7 +182,7 @@ export function RunPage() {
     );
   }
   const data = run.data as HeartbeatRun & { contextSnapshot?: Record<string, unknown> | null };
-  const actions = runActionsFor(data);
+  const actions = readOnly ? [] : runActionsFor(data);
   const active = ACTIVE.has(data.status);
   const shortId = data.id.slice(0, 8);
   const none = t('meta.none');

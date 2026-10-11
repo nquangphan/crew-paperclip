@@ -26,8 +26,12 @@ import {
   Plus,
   Search,
   Settings,
+  ShieldCheck,
   Sparkles,
+  Users,
 } from '@/ds/icons';
+import { navItemVisible, navLabelKey, useCompanyAccess } from '@/features/access';
+import { useContributionsSummary } from '@/features/contributions/use-contributions';
 import { useInboxBadge } from '@/features/inbox/use-inbox-badge';
 import { projectRef } from '@/features/projects/paths';
 import { useT } from '@/i18n';
@@ -48,6 +52,8 @@ const ICONS: Record<NavId, ComponentType<{ 'aria-hidden'?: boolean }>> = {
   dashboard: LayoutDashboard,
   inbox: Inbox,
   issues: ListChecks,
+  contributions: ShieldCheck,
+  members: Users,
   projects: Folder,
   agents: Bot,
   skills: Sparkles,
@@ -63,7 +69,13 @@ export function Sidebar({ segments, onOpenPalette }: { segments: ReadonlySet<str
   const { pathname, search } = useLocation();
   const { company } = useCompany();
   const inboxBadge = useInboxBadge(company.id, segments.has('inbox'));
-  const groups = groupNavItems(NAV_ITEMS.filter((i) => segments.has(i.segment)));
+  const access = useCompanyAccess();
+  const items = NAV_ITEMS.filter((i) => segments.has(i.segment) && navItemVisible(i.id, access));
+  const groups = groupNavItems(items);
+  const contributionsBadge = useContributionsSummary(
+    company.id,
+    items.some((i) => i.id === 'contributions'),
+  );
   // Project gắn sao nằm ngay dưới mục "Project" như sidebar Paperclip; chưa tải xong thì không hiện gì.
   const hasProjects = segments.has('projects');
   const projects = useQuery({
@@ -104,9 +116,9 @@ export function Sidebar({ segments, onOpenPalette }: { segments: ReadonlySet<str
                 <Fragment key={item.id}>
                   <SidebarItem
                     href={href}
-                    label={t(`nav.${item.id}`)}
+                    label={t(navLabelKey(item.id, access))}
                     icon={<Icon aria-hidden />}
-                    badge={item.id === 'inbox' ? inboxBadge : null}
+                    badge={item.id === 'inbox' ? inboxBadge : item.id === 'contributions' ? contributionsBadge : null}
                     active={isActive(item.to)}
                     onNavigate={() => navigate(href)}
                   />

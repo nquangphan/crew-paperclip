@@ -4,6 +4,7 @@ import type { QueryClient } from '@tanstack/react-query';
 import { createBrowserRouter, type RouteObject } from 'react-router-dom';
 import { queryKeys } from '@/api';
 import { loginRedirectPath, setUnauthorizedHandler } from '@/api/http';
+import { AccessGuard } from '@/features/access';
 import { CliAuthPage } from './auth/cli-auth-page';
 import { LoginPage } from './auth/login-page';
 import { RequireSession } from './auth/require-session';
@@ -48,7 +49,7 @@ export function buildAppRoutes({ featureModules = featureGlob, dev = false }: Bu
       {
         path: '/:companyPrefix',
         element: <CompanyShell segments={segments} />,
-        children: [...children, { path: '*', element: <CompanyNotFound /> }],
+        children: [{ element: <AccessGuard />, children: [...children, { path: '*', element: <CompanyNotFound /> }] }],
       },
     ],
   });

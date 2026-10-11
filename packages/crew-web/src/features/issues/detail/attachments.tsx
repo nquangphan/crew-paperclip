@@ -6,12 +6,14 @@ import { api, queryKeys } from '@/api';
 import { useMe } from '@/app/hooks';
 import { Button, ConfirmDialog, DetailSection, ErrorState, MutedText, Skeleton } from '@/ds';
 import { Trash2 } from '@/ds/icons';
+import { useCompanyAccess } from '@/features/access';
 import { useT } from '@/i18n';
 
 /** File đính kèm của issue (S6.6): tải về cho mọi người, xóa chỉ với file do chính mình tạo, có xác nhận. */
 export function Attachments({ issueId }: { issueId: string }) {
   const { t } = useT('issues');
   const me = useMe();
+  const { readOnly } = useCompanyAccess();
   const qc = useQueryClient();
   const [toDelete, setToDelete] = useState<IssueAttachment | null>(null);
   const list = useQuery({ queryKey: queryKeys.attachments(issueId), queryFn: () => api.attachments.list(issueId) });
@@ -46,7 +48,7 @@ export function Attachments({ issueId }: { issueId: string }) {
             >
               {nameOf(a)} · {t('detail.attachments.size', { kb: Math.max(1, Math.round(a.byteSize / 1024)) })}
             </a>
-            {a.createdByUserId === me.id ? (
+            {a.createdByUserId === me.id && !readOnly ? (
               <Button
                 variant="ghost"
                 size="icon-sm"

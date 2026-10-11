@@ -1,0 +1,16 @@
+{
+  "page": {
+    "owner": {
+      "title": "Chờ duyệt",
+      "description": "Yêu cầu và bình luận do Phòng Marketing gửi, đang chờ bạn duyệt.",
+      "empty": "Chưa có góp ý nào",
+      "emptyHint": "Khi Phòng Marketing gửi yêu cầu hoặc bình luận, mục đó hiện ở đây để bạn duyệt."
+    },
+    "mine": {
+      "title": "Góp ý của tôi",
+      "description": "Yêu cầu và bình luận bạn đã gửi, đang chờ owner duyệt.",
+      "empty": "Bạn chưa gửi góp ý nào",
+      "emptyHint": "Yêu cầu và bình luận bạn gửi sẽ hiện ở đây cho tới khi owner duyệt."
+    }
+  }
+}

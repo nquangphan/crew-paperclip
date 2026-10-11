@@ -1,0 +1,16 @@
+{
+  "page": {
+    "owner": {
+      "title": "Pending approval",
+      "description": "Requests and comments sent by Marketing, waiting for your approval.",
+      "empty": "No contributions yet",
+      "emptyHint": "When Marketing sends a request or a comment, it shows up here for you to approve."
+    },
+    "mine": {
+      "title": "My contributions",
+      "description": "Requests and comments you sent, waiting for the owner to approve.",
+      "empty": "You have not sent anything yet",
+      "emptyHint": "Requests and comments you send show up here until the owner approves them."
+    }
+  }
+}

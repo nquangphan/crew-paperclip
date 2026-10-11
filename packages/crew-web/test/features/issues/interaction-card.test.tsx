@@ -203,7 +203,7 @@ describe('InteractionsSlot (S6.9)', () => {
       const { container } = mount(<InteractionsSlot issue={{ ...ISSUE, status } as never} />);
       await new Promise((r) => setTimeout(r, 20));
       expect(container.textContent).toBe('');
-      expect(s.calls).toHaveLength(0);
+      expect(s.calls.filter((c) => c.url.includes('/interactions'))).toHaveLength(0);
       cleanup();
     }
   });
