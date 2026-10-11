@@ -92,7 +92,8 @@ describe('trang yêu cầu ở chế độ chỉ đọc', () => {
   it('khách góp ý: cũng không có nút ghi; vẫn có chỗ soạn để thay bằng composer góp ý', async () => {
     const s = issueServer('contributor');
     mount(<IssuePage />);
-    expect(await screen.findByRole('button', { name: 'Gửi bình luận' })).toBeTruthy();
+    expect(await screen.findByRole('button', { name: 'Gửi để owner duyệt' })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Gửi bình luận' })).toBeNull();
     for (const name of WRITE_CONTROLS)
       expect(screen.queryByRole('button', { name: new RegExp(name) }), name).toBeNull();
     expect(reads(s)).toHaveLength(0);

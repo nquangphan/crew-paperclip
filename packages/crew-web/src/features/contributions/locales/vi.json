@@ -11,6 +11,70 @@
       "description": "Yêu cầu và bình luận bạn đã gửi, đang chờ owner duyệt.",
       "empty": "Bạn chưa gửi góp ý nào",
       "emptyHint": "Yêu cầu và bình luận bạn gửi sẽ hiện ở đây cho tới khi owner duyệt."
+    },
+    "loadFailed": "Không tải được danh sách góp ý",
+    "tabs": {
+      "label": "Trạng thái góp ý",
+      "pending": "Chờ duyệt",
+      "rejected": "Bị từ chối",
+      "approved": "Đã duyệt"
+    },
+    "tabEmpty": {
+      "pending": "Không có mục nào đang chờ duyệt",
+      "rejected": "Không có mục nào bị từ chối",
+      "approved": "Chưa có mục nào được duyệt"
+    },
+    "kind": {
+      "issue": "Yêu cầu",
+      "comment": "Bình luận"
+    },
+    "row": {
+      "author": "Người gửi",
+      "project": "Project",
+      "sentAt": "Gửi lúc",
+      "openIssue": "Mở yêu cầu",
+      "openResultIssue": "Mở yêu cầu đã tạo",
+      "openResultComment": "Xem bình luận đã đăng",
+      "noTitle": "(không có tiêu đề)"
     }
+  },
+  "status": {
+    "pending": "Chờ duyệt",
+    "approving": "Chờ duyệt",
+    "rejected": "Bị từ chối",
+    "approved": "Đã duyệt"
+  },
+  "dialog": {
+    "title": "Gửi yêu cầu (chờ duyệt)",
+    "description": "Yêu cầu được gửi cho owner. Agent chỉ bắt đầu làm sau khi owner duyệt.",
+    "project": "Project",
+    "projectPlaceholder": "Chọn project",
+    "noProject": "Chưa có project nào để gửi yêu cầu.",
+    "titleLabel": "Tiêu đề",
+    "titlePlaceholder": "Việc cần làm, một câu",
+    "descriptionLabel": "Mô tả",
+    "descriptionPlaceholder": "Mô tả (markdown)",
+    "submit": "Gửi để owner duyệt",
+    "submitting": "Đang gửi",
+    "cancel": "Hủy",
+    "failed": "Không gửi được yêu cầu",
+    "sentTitle": "Đã gửi, chờ owner duyệt",
+    "sentHint": "Theo dõi trạng thái ở trang Góp ý của tôi.",
+    "close": "Đóng"
+  },
+  "composer": {
+    "label": "Viết góp ý",
+    "placeholder": "Viết bình luận (markdown). Bình luận chờ owner duyệt mới hiện cho agent.",
+    "hint": "Bình luận được gửi cho owner duyệt trước.",
+    "send": "Gửi để owner duyệt",
+    "sending": "Đang gửi",
+    "sendFailed": "Không gửi được bình luận"
+  },
+  "pending": {
+    "you": "Bạn",
+    "user": "Người dùng"
+  },
+  "chip": {
+    "from": "Góp ý của {{name}}"
   }
 }

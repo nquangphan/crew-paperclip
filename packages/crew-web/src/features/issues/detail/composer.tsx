@@ -5,12 +5,20 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { type ClipboardEvent, useState } from 'react';
 import { api, queryKeys } from '@/api';
 import { AttachmentPicker, Button, ErrorState, Textarea } from '@/ds';
+import { useCompanyAccess } from '@/features/access';
+import { ContributionComposer } from '@/features/contributions/contribution-composer';
 import { useT } from '@/i18n';
 
 const linkFor = (id: string, name: string) => `[${name.replace(/[[\]]/g, '')}](${api.attachments.contentUrl(id)})`;
 
-/** Ô soạn bình luận (S6.5): gửi bình luận, đính kèm hoặc dán file thì upload rồi chèn link. Không có chọn model. */
+/** Ô soạn bình luận: khách góp ý gửi vào hàng chờ duyệt, người khác đăng thẳng (S6.5). */
 export function Composer({ issue }: { issue: Issue }) {
+  const { isContributor } = useCompanyAccess();
+  return isContributor ? <ContributionComposer issue={issue} /> : <StockComposer issue={issue} />;
+}
+
+/** Ô soạn bình luận (S6.5): gửi bình luận, đính kèm hoặc dán file thì upload rồi chèn link. Không có chọn model. */
+function StockComposer({ issue }: { issue: Issue }) {
   const { t } = useT('issues');
   const qc = useQueryClient();
   const [text, setText] = useState('');

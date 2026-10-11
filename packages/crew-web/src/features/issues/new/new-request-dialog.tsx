@@ -24,6 +24,8 @@ import {
   Spinner,
   Textarea,
 } from '@/ds';
+import { deriveAccess } from '@/features/access';
+import { NewContributionDialog } from '@/features/contributions/new-contribution-dialog';
 import { useProjectReadiness } from '@/features/readiness';
 import { useT } from '@/i18n';
 import { isRequestKind, REQUEST_KINDS, type RequestKind } from './kinds';
@@ -44,6 +46,15 @@ interface NewRequestDialogProps {
 /** Dialog Yêu cầu mới (S5): form chỉ có trong lúc mở, nên đóng rồi mở lại là form trống. */
 export function NewRequestDialog({ open, onOpenChange, companyId, onCreated }: NewRequestDialogProps) {
   const { t } = useT('issues');
+  const access = useQuery({
+    queryKey: queryKeys.access(companyId),
+    queryFn: () => api.contributions.access(companyId),
+    staleTime: 60_000,
+  });
+  const { isContributor, loading } = deriveAccess(access.data, access.isPending);
+  // Chờ biết vai trò rồi mới mở, để khách không chớp dialog thường (và không gọi các route chỉ owner đọc).
+  if (loading) return null;
+  if (isContributor) return <NewContributionDialog open={open} onOpenChange={onOpenChange} companyId={companyId} />;
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>

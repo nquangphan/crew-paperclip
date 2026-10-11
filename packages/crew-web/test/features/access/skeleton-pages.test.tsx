@@ -24,17 +24,20 @@ const mount = (element: React.ReactElement) =>
 
 describe('trang Góp ý', () => {
   it('owner thấy trang Chờ duyệt với trạng thái trống', async () => {
-    mockServer({});
+    mockServer({ 'GET /api/crew/companies/c1/contributions': { body: { items: [] } } });
     mount(<ContributionsPage />);
     expect(await screen.findByRole('heading', { name: 'Chờ duyệt' })).toBeTruthy();
-    expect(screen.getByText('Chưa có góp ý nào')).toBeTruthy();
+    expect(await screen.findByText('Chưa có góp ý nào')).toBeTruthy();
   });
 
   it('khách thấy trang Góp ý của tôi', async () => {
-    mockServer(accessRoute('c1', { userId: 'u2', membershipRole: 'viewer', contributor: true, canApprove: false }));
+    mockServer({
+      ...accessRoute('c1', { userId: 'u2', membershipRole: 'viewer', contributor: true, canApprove: false }),
+      'GET /api/crew/companies/c1/contributions': { body: { items: [] } },
+    });
     mount(<ContributionsPage />);
     expect(await screen.findByRole('heading', { name: 'Góp ý của tôi' })).toBeTruthy();
-    expect(screen.getByText('Bạn chưa gửi góp ý nào')).toBeTruthy();
+    expect(await screen.findByText('Bạn chưa gửi góp ý nào')).toBeTruthy();
   });
 });
 

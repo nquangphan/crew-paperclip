@@ -13,6 +13,8 @@ import {
   Transcript,
   type TranscriptEntry,
 } from '@/ds';
+import { ContributionChip, isPendingComment, PendingComment } from '@/features/contributions/pending-comments';
+import { useAuthorNames, useIssueContributions } from '@/features/contributions/use-contributions';
 import { formatDateTime, useT } from '@/i18n';
 
 /** Một run đang chạy của issue (GET /issues/:id/live-runs). */
@@ -65,11 +67,24 @@ export function Comments({ issueId, agentNames }: CommentsProps) {
     queryFn: async () => (await api.runs.liveForIssue(issueId)) as LiveRun[],
   });
 
+  const contributions = useIssueContributions(issueId);
+  const authorName = useAuthorNames();
+  const pending = contributions.filter(isPendingComment);
+  const contributionByComment = new Map(
+    contributions.flatMap((c) => (c.resultCommentId ? [[c.resultCommentId, c]] : [])),
+  );
+
   const author = (c: IssueComment): string => {
     if (c.authorAgentId) return agentNames[c.authorAgentId] ?? t('detail.comments.agent');
     if (c.authorUserId) return c.authorUserId === me.id ? t('detail.comments.you') : t('detail.comments.user');
     return t('detail.comments.agent');
   };
+
+  // Bình luận chờ duyệt xếp xen vào bình luận thật theo giờ gửi; bình luận thật đứng trước khi trùng giờ.
+  const thread = [
+    ...(list.data ?? []).map((item) => ({ type: 'comment' as const, item })),
+    ...pending.map((item) => ({ type: 'pending' as const, item })),
+  ].sort((a, b) => new Date(a.item.createdAt).getTime() - new Date(b.item.createdAt).getTime());
 
   return (
     <section aria-label={t('detail.comments.heading')} className="flex flex-col gap-5">
@@ -81,9 +96,21 @@ export function Comments({ issueId, agentNames }: CommentsProps) {
           onRetry={() => void list.refetch()}
         />
       ) : null}
-      {list.data?.length === 0 ? <MutedText>{t('detail.comments.empty')}</MutedText> : null}
-      {(list.data ?? []).map((c) => {
+      {list.data?.length === 0 && pending.length === 0 ? <MutedText>{t('detail.comments.empty')}</MutedText> : null}
+      {thread.map((entry) => {
+        if (entry.type === 'pending') {
+          return (
+            <PendingComment
+              key={`pending-${entry.item.id}`}
+              contribution={entry.item}
+              authorName={authorName(entry.item.authorUserId)}
+            />
+          );
+        }
+        const c = entry.item;
         const human = !c.authorAgentId && !!c.authorUserId;
+        const source = contributionByComment.get(c.id);
+        const sourceName = source ? (authorName(source.authorUserId) ?? source.authorUserId) : null;
         const time = <time dateTime={String(c.createdAt)}>{formatDateTime(c.createdAt, lang)}</time>;
         return (
           <ChatMessage
@@ -93,13 +120,21 @@ export function Comments({ issueId, agentNames }: CommentsProps) {
             kind={human ? 'human' : 'agent'}
             author={author(c)}
             footer={
-              human ? (
-                <>
-                  {author(c)} · {time}
-                </>
-              ) : (
-                time
-              )
+              <>
+                {human ? (
+                  <>
+                    {author(c)} · {time}
+                  </>
+                ) : (
+                  time
+                )}
+                {sourceName ? (
+                  <>
+                    {' · '}
+                    <ContributionChip name={sourceName} />
+                  </>
+                ) : null}
+              </>
             }
           >
             <MarkdownView markdown={c.body} />

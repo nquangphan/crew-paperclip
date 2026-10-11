@@ -11,6 +11,70 @@
       "description": "Requests and comments you sent, waiting for the owner to approve.",
       "empty": "You have not sent anything yet",
       "emptyHint": "Requests and comments you send show up here until the owner approves them."
+    },
+    "loadFailed": "Could not load contributions",
+    "tabs": {
+      "label": "Contribution status",
+      "pending": "Pending",
+      "rejected": "Rejected",
+      "approved": "Approved"
+    },
+    "tabEmpty": {
+      "pending": "Nothing is waiting for approval",
+      "rejected": "Nothing was rejected",
+      "approved": "Nothing has been approved yet"
+    },
+    "kind": {
+      "issue": "Request",
+      "comment": "Comment"
+    },
+    "row": {
+      "author": "Sent by",
+      "project": "Project",
+      "sentAt": "Sent at",
+      "openIssue": "Open request",
+      "openResultIssue": "Open the created request",
+      "openResultComment": "View the posted comment",
+      "noTitle": "(no title)"
     }
+  },
+  "status": {
+    "pending": "Pending",
+    "approving": "Pending",
+    "rejected": "Rejected",
+    "approved": "Approved"
+  },
+  "dialog": {
+    "title": "Send a request (needs approval)",
+    "description": "The request goes to the owner. Agents only start after the owner approves.",
+    "project": "Project",
+    "projectPlaceholder": "Choose a project",
+    "noProject": "There is no project to send a request to.",
+    "titleLabel": "Title",
+    "titlePlaceholder": "What needs doing, one sentence",
+    "descriptionLabel": "Description",
+    "descriptionPlaceholder": "Description (markdown)",
+    "submit": "Send for approval",
+    "submitting": "Sending",
+    "cancel": "Cancel",
+    "failed": "Could not send the request",
+    "sentTitle": "Sent, waiting for the owner",
+    "sentHint": "Follow its status on the My contributions page.",
+    "close": "Close"
+  },
+  "composer": {
+    "label": "Write a contribution",
+    "placeholder": "Write a comment (markdown). Agents only see it after the owner approves.",
+    "hint": "Comments go to the owner for approval first.",
+    "send": "Send for approval",
+    "sending": "Sending",
+    "sendFailed": "Could not send the comment"
+  },
+  "pending": {
+    "you": "You",
+    "user": "User"
+  },
+  "chip": {
+    "from": "Contributed by {{name}}"
   }
 }
