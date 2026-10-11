@@ -67,6 +67,11 @@ const manifest: PaperclipPluginManifestV1 = {
           required: ["companyId", "webhookSecretRef"],
         },
       },
+      paperclipSshPublicKey: {
+        type: "string",
+        title: "Public key SSH của Paperclip (ghép máy tự động)",
+        pattern: "^ssh-ed25519 [A-Za-z0-9+/=]+( .*)?$",
+      },
       opencodeInPlacePatch: {
         type: "boolean",
         title: "Server đã có vá chạy OpenCode đúng worktree (mở khóa công tắc OpenCode)",
@@ -124,6 +129,12 @@ const manifest: PaperclipPluginManifestV1 = {
     { routeKey: "runtimes.switches.set", method: "POST", path: "/runtime-switches", auth: "board",
       capability: "api.routes.register", companyResolution: { from: "body", key: "companyId" } },
     { routeKey: "issues.force-done", method: "POST", path: "/issues/:issueId/force-done", auth: "board",
+      capability: "api.routes.register", companyResolution: { from: "body", key: "companyId" } },
+    { routeKey: "machines.pair-info", method: "GET", path: "/machines/pair-info", auth: "board",
+      capability: "api.routes.register", companyResolution: { from: "query", key: "companyId" } },
+    { routeKey: "machines.pair", method: "POST", path: "/machines/pair", auth: "board",
+      capability: "api.routes.register", companyResolution: { from: "body", key: "companyId" } },
+    { routeKey: "machines.unpair", method: "POST", path: "/machines/:machineId/unpair", auth: "board",
       capability: "api.routes.register", companyResolution: { from: "body", key: "companyId" } },
   ],
   database: {

@@ -5,6 +5,7 @@ import { dispatchCrewWebhook } from "./shared/webhook.js";
 import { handleDocsApi } from "./docs/api.js";
 import { handleIssuesApi } from "./issues/force-done.js";
 import { handleJobsApi } from "./jobs/api.js";
+import { handleMachinesApi } from "./machines/pairing.js";
 import { handleRolesApi } from "./roles/api.js";
 import { handleRuntimeSwitchesApi } from "./runtimes/switches.js";
 import { handleSetupApi } from "./setup/api.js";
@@ -34,6 +35,7 @@ const plugin = definePlugin({
     if (input.routeKey.startsWith("setup.")) return handleSetupApi(pluginCtx, input);
     if (input.routeKey.startsWith("issues.")) return handleIssuesApi(pluginCtx, input);
     if (input.routeKey.startsWith("runtimes.")) return handleRuntimeSwitchesApi(pluginCtx, input);
+    if (input.routeKey.startsWith("machines.")) return handleMachinesApi(pluginCtx, input);
     return (await handleDocsApi(pluginCtx, input)) ?? { status: 404, body: { error: "Route không tồn tại" } };
   },
 });

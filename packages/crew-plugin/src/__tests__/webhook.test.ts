@@ -5,6 +5,7 @@ import type { CrewHeaders } from "../shared/signature.js";
 import { verifyCrewSignature } from "../shared/signature.js";
 import { authenticateCrewWebhook, dispatchCrewWebhook, registerCrewWebhook } from "../shared/webhook.js";
 import { handleMachineStatus, parseMachineReport } from "../machines/webhook.js";
+import { deriveMachineKey } from "../machines/pairing.js";
 import manifest from "../manifest.js";
 import { validateInstanceConfig } from "../../../../server/src/services/plugin-config-validator.js";
 
@@ -80,6 +81,72 @@ describe("authenticateCrewWebhook", () => {
   });
 });
 
+describe("authenticateCrewWebhook với máy đã ghép", () => {
+  const machineA = "50000000-0000-4000-8000-00000000000a";
+  const machineB = "50000000-0000-4000-8000-00000000000b";
+  const nonce = "ab".repeat(32);
+  const machineKey = deriveMachineKey("test-secret", companyId, machineA, nonce);
+  const sign = (rawBody: string, secret: string) => ({
+    "X-Crew-Timestamp": String(timestamp),
+    "X-Crew-Signature": `sha256=${createHmac("sha256", secret).update(`${timestamp}.${rawBody}`).digest("hex")}`,
+  });
+  const report = (machineId: string) => JSON.stringify({ version: 1, companyId, machineId });
+  function pairedContext(rows: Record<string, Array<{ key_nonce: string; revoked: boolean }>>) {
+    const base = context();
+    const query = vi.fn(async (_statement: string, params: unknown[]) => rows[String(params[1])] ?? []);
+    const ctx = { ...base.ctx, db: { namespace: "plugin_crew_core_0433ea20b6", query } } as unknown as PluginContext;
+    return { ctx, query, resolve: base.resolve };
+  }
+  const auth = (ctx: PluginContext, rawBody: string, secret: string) =>
+    authenticateCrewWebhook(input(rawBody, sign(rawBody, secret)), ctx, { maxBytes: 16_384, nowSec: timestamp });
+
+  it("máy chưa ghép (Mac mini) vẫn kiểm bằng secret company như trước", async () => {
+    const { ctx, query, resolve } = pairedContext({});
+    const raw = report(machineA);
+    await expect(auth(ctx, raw, "test-secret")).resolves.toEqual({ companyId, body: JSON.parse(raw) });
+    expect(query).toHaveBeenCalledWith(expect.stringContaining("machine_pairings"), [companyId, machineA]);
+    expect(resolve).toHaveBeenCalledTimes(1);
+    await expect(auth(ctx, raw, machineKey)).rejects.toMatchObject({ code: "bad_signature" });
+  });
+  it("machineId không phải uuid thì không đọc bảng ghép", async () => {
+    const { ctx, query } = pairedContext({});
+    await expect(auth(ctx, body, "test-secret")).resolves.toMatchObject({ companyId });
+    expect(query).not.toHaveBeenCalled();
+  });
+  it("máy đã ghép chỉ nhận key máy dẫn xuất, key gắn với đúng machineId", async () => {
+    const { ctx, resolve } = pairedContext({ [machineA]: [{ key_nonce: nonce, revoked: false }] });
+    await expect(auth(ctx, report(machineA), machineKey)).resolves.toMatchObject({ companyId });
+    expect(resolve).toHaveBeenCalledTimes(1);
+    await expect(auth(ctx, report(machineA), "test-secret")).rejects.toMatchObject({ code: "bad_signature" });
+    // Key của máy A ký bản tin mang machineId B (chưa ghép) rơi về secret company và trượt.
+    await expect(auth(ctx, report(machineB), machineKey)).rejects.toMatchObject({ code: "bad_signature" });
+  });
+  it("key máy phụ thuộc nonce: ghép lại làm key cũ chết", async () => {
+    const { ctx } = pairedContext({ [machineA]: [{ key_nonce: "cd".repeat(32), revoked: false }] });
+    await expect(auth(ctx, report(machineA), machineKey)).rejects.toMatchObject({ code: "bad_signature" });
+  });
+  it("máy đã gỡ bị từ chối dù chữ ký đúng", async () => {
+    const { ctx } = pairedContext({ [machineA]: [{ key_nonce: nonce, revoked: true }] });
+    await expect(auth(ctx, report(machineA), machineKey)).rejects.toMatchObject({ code: "machine_revoked" });
+    await expect(auth(ctx, report(machineA), "test-secret")).rejects.toMatchObject({ code: "machine_revoked" });
+  });
+  it("lỗi đọc bảng ghép không rơi về secret company", async () => {
+    const { ctx, query } = pairedContext({});
+    query.mockRejectedValueOnce(new Error("db down"));
+    await expect(auth(ctx, report(machineA), "test-secret")).rejects.toMatchObject({ code: "pairing_unavailable" });
+  });
+});
+
+describe("deriveMachineKey", () => {
+  it("khớp công thức của spec và không phân biệt hoa thường của uuid", () => {
+    const machineId = "50000000-0000-4000-8000-00000000000a";
+    const expected = createHmac("sha256", "s").update(`crew-machine-key/v1\n${companyId}\n${machineId}\nn`).digest("base64url");
+    expect(deriveMachineKey("s", companyId, machineId, "n")).toBe(expected);
+    expect(deriveMachineKey("s", companyId.toUpperCase(), machineId.toUpperCase(), "n")).toBe(expected);
+    expect(deriveMachineKey("s", companyId, machineId, "m")).not.toBe(expected);
+  });
+});
+
 it("dispatches only registered webhook handlers", async () => {
   await expect(dispatchCrewWebhook({ ...input(), endpointKey: "unknown" })).rejects.toThrow("chưa có handler");
   const handler = vi.fn(async () => {});
@@ -92,6 +159,9 @@ it("accepts an object secret binding in the host config validator", () => {
   const schema = manifest.instanceConfigSchema!;
   expect(validateInstanceConfig({ companies: [{ companyId, webhookSecretRef: ref }] }, schema).valid).toBe(true);
   expect(validateInstanceConfig({ companies: [{ companyId, webhookSecretRef: "test-secret" }] }, schema).valid).toBe(false);
+  const companies = [{ companyId, webhookSecretRef: ref }];
+  expect(validateInstanceConfig({ companies, paperclipSshPublicKey: "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAA paperclip" }, schema).valid).toBe(true);
+  expect(validateInstanceConfig({ companies, paperclipSshPublicKey: "ssh-rsa AAAAB3Nza" }, schema).valid).toBe(false);
 });
 
 describe("trường app của bản tin máy", () => {
@@ -190,8 +260,9 @@ describe("khóa mới của bản tin máy: checkouts, superpowers.pinDir/skills
 
   it("nhận bản tin 40 000 byte, từ chối bản tin quá 65 536 byte", async () => {
     const execute = vi.fn(async (_statement: string, _params: unknown[]) => ({ rowCount: 1 }));
+    const query = vi.fn(async () => []);
     const { ctx: base } = context();
-    const ctx = { ...base, db: { namespace: "plugin_crew_core_0433ea20b6", execute } } as unknown as PluginContext;
+    const ctx = { ...base, db: { namespace: "plugin_crew_core_0433ea20b6", execute, query } } as unknown as PluginContext;
     const now = new Date(timestamp * 1000);
     const big = { ...full, sentAt: now.toISOString(),
       checkouts: Array.from({ length: 64 }, (_, i) => ({ ...checkout(i), path: `/Users/a/crew-agents/${"p".repeat(500)}/role-${i}` })) };

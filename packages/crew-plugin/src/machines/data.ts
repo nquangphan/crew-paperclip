@@ -4,19 +4,28 @@ import { registerCrewWebhook } from "../shared/webhook.js";
 import { handleMachineStatus } from "./webhook.js";
 import { checkedId, pluginNamespace } from "../shared/db.js";
 
+/** Automatic pairing of a machine; `revokedAt` set once an owner unpaired it. Machines paired by hand have none. */
+export interface CrewMachinePairing { pairedAt: string; revokedAt: string | null; environmentId: string; tailscaleIp: string }
 export interface CrewMachine {
   machineId: string; hostname: string; lastSeenAt: string; online: boolean; latest: MachineReport;
   load24h: Array<{ at: string; load1: number | null }>;
+  pairing: CrewMachinePairing | null;
 }
-type Row = { machine_id: string; hostname: string; received_at: string | Date; load1: number | null; report: MachineReport | string };
+type Row = {
+  machine_id: string; hostname: string; received_at: string | Date; load1: number | null; report: MachineReport | string;
+  paired_at: string | Date | null; revoked_at: string | Date | null; environment_id: string | null; tailscale_ip: string | null;
+};
 const date = (value: string | Date) => new Date(value).toISOString();
 
 export async function loadCrewMachines(ctx: Pick<PluginContext, "db">, companyId: string, now = new Date()): Promise<CrewMachine[]> {
   checkedId(companyId);
   const ns = pluginNamespace(ctx);
-  const latest = await ctx.db.query<Row>(`SELECT machine_id,hostname,received_at,load1,report FROM ${ns}.machine_latest
-    WHERE company_id=$1 ORDER BY machine_id`, [companyId]);
-  const history = await ctx.db.query<Row>(`SELECT machine_id,received_at,load1 FROM ${ns}.machine_reports
+  // The key nonce stays server side: only the public pairing facts are selected.
+  const latest = await ctx.db.query<Row>(`SELECT l.machine_id,l.hostname,l.received_at,l.load1,l.report,
+      p.paired_at,p.revoked_at,p.environment_id::text AS environment_id,p.tailscale_ip
+    FROM ${ns}.machine_latest l LEFT JOIN ${ns}.machine_pairings p ON p.company_id = l.company_id AND p.machine_id = l.machine_id
+    WHERE l.company_id=$1 ORDER BY l.machine_id`, [companyId]);
+  const history = await ctx.db.query<Pick<Row, "machine_id" | "received_at" | "load1">>(`SELECT machine_id,received_at,load1 FROM ${ns}.machine_reports
     WHERE company_id=$1 AND received_at >= $2 ORDER BY machine_id,received_at,id`, [companyId, new Date(now.getTime() - 86_400_000).toISOString()]);
   return latest.map((row) => {
     const samples = history.filter((item) => item.machine_id === row.machine_id);
@@ -24,7 +33,11 @@ export async function loadCrewMachines(ctx: Pick<PluginContext, "db">, companyId
     return { machineId: row.machine_id, hostname: row.hostname, lastSeenAt: date(row.received_at),
       online: now.getTime() - new Date(row.received_at).getTime() <= 180_000,
       latest: typeof row.report === "string" ? JSON.parse(row.report) as MachineReport : row.report,
-      load24h: samples.filter((_, index) => index % stride === 0).map((item) => ({ at: date(item.received_at), load1: item.load1 === null ? null : Number(item.load1) })) };
+      load24h: samples.filter((_, index) => index % stride === 0).map((item) => ({ at: date(item.received_at), load1: item.load1 === null ? null : Number(item.load1) })),
+      pairing: row.paired_at === null || row.environment_id === null || row.tailscale_ip === null ? null : {
+        pairedAt: date(row.paired_at), revokedAt: row.revoked_at === null ? null : date(row.revoked_at),
+        environmentId: row.environment_id, tailscaleIp: row.tailscale_ip,
+      } };
   });
 }
 

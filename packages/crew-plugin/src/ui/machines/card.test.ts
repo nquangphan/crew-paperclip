@@ -5,7 +5,7 @@ import type { CrewMachine } from "../../machines/data.js";
 it("shows unknown probe values without treating a failed login probe as logout", () => {
   const machine = {
     machineId: "machine", hostname: "mini", lastSeenAt: "2026-10-08T14:00:00Z", online: true,
-    load24h: [], latest: { version: 1, companyId: "company", machineId: "machine", hostname: "mini",
+    load24h: [], pairing: null, latest: { version: 1, companyId: "company", machineId: "machine", hostname: "mini",
       sentAt: "2026-10-08T14:00:00Z", load1: null, cpuCount: null, memFreePct: null, tccPending: [], checks: [],
       claude: { version: null, loggedIn: null, plan: null },
       superpowers: { pinned: null, ownerInstalled: null } },

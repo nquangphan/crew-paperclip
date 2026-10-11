@@ -70,6 +70,9 @@ it("declares the role, machine job, setup run and force done routes as board-onl
     ["runtimes.switches.get", "GET", "/runtime-switches", "board", { from: "query", key: "companyId" }],
     ["runtimes.switches.set", "POST", "/runtime-switches", "board", { from: "body", key: "companyId" }],
     ["issues.force-done", "POST", "/issues/:issueId/force-done", "board", { from: "body", key: "companyId" }],
+    ["machines.pair-info", "GET", "/machines/pair-info", "board", { from: "query", key: "companyId" }],
+    ["machines.pair", "POST", "/machines/pair", "board", { from: "body", key: "companyId" }],
+    ["machines.unpair", "POST", "/machines/:machineId/unpair", "board", { from: "body", key: "companyId" }],
   ]);
 });
 
