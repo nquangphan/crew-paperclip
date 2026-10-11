@@ -547,11 +547,7 @@ const RECIPES: Recipe[] = [
       const editor = c.page.getByTestId('project-access-editor');
       await expect(editor).toBeVisible();
       await settle(c.page);
-      return [
-        m(trigger, 1),
-        m(editor.getByRole('checkbox').first(), 2),
-        m(btn(editor, c.L('Lưu', 'Save')), 3),
-      ];
+      return [m(trigger, 1), m(editor.getByRole('checkbox').first(), 2), m(btn(editor, c.L('Lưu', 'Save')), 3)];
     },
     close: pressEscape,
   },
