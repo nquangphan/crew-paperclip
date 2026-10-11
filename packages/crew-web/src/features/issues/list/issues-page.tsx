@@ -37,7 +37,7 @@ import {
   TreeToggle,
 } from '@/ds';
 import { CircleDot, Plus } from '@/ds/icons';
-import { useCompanyAccess } from '@/features/access';
+import { useCompanyAccess, useVisibleProjects } from '@/features/access';
 import { ContributionActions } from '@/features/contributions/contribution-actions';
 import { ContributionBadge } from '@/features/contributions/contribution-badge';
 import { contributionHref } from '@/features/contributions/contribution-popup-host';
@@ -169,7 +169,10 @@ export function IssuesPage() {
     { status: 'pending', kind: 'issue' },
     { enabled: access.isOwner || access.isContributor },
   );
-  const pending = (access.isOwner || access.isContributor ? pendingQuery.data : undefined) ?? [];
+  const projectAccess = useVisibleProjects();
+  const pending = ((access.isOwner || access.isContributor ? pendingQuery.data : undefined) ?? []).filter((c) =>
+    projectAccess.canSeeProject(c.projectId),
+  );
   const pendingOnly = params.get(PENDING_PARAM) === '1';
   const togglePendingOnly = () =>
     setParams(

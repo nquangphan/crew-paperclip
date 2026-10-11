@@ -24,7 +24,7 @@ import {
   Spinner,
   Textarea,
 } from '@/ds';
-import { useCompanyAccess } from '@/features/access';
+import { useCompanyAccess, useVisibleProjects } from '@/features/access';
 import { NewContributionDialog } from '@/features/contributions/new-contribution-dialog';
 import { useProjectReadiness } from '@/features/readiness';
 import { useT } from '@/i18n';
@@ -90,7 +90,12 @@ function RequestForm({
   const [files, setFiles] = useState<File[]>([]);
 
   const readiness = useProjectReadiness(companyId, api);
-  const projects = useQuery({ queryKey: queryKeys.projects(companyId), queryFn: () => api.projects.list(companyId) });
+  const visible = useVisibleProjects();
+  const projects = useQuery({
+    queryKey: queryKeys.projects(companyId),
+    queryFn: () => api.projects.list(companyId),
+    select: visible.filterProjects,
+  });
   const agents = useQuery({ queryKey: queryKeys.agents(companyId), queryFn: () => api.agents.list(companyId) });
   const roles = useQuery({
     queryKey: queryKeys.roles(projectId),

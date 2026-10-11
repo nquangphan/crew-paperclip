@@ -1,6 +1,6 @@
 {
   "title": "Members",
-  "description": "Invite Marketing, approve join requests, and set or remove Marketing access.",
+  "description": "Invite the Marketing team, approve join requests, set or remove the Marketing role, and choose which projects each person can see.",
   "empty": "No members to show yet",
   "emptyHint": "Members and invites will show up here.",
   "role": {
@@ -18,7 +18,8 @@
     "enable": "Set Marketing",
     "disable": "Remove Marketing",
     "loadFailed": "Could not load members",
-    "actionFailed": "Could not change Marketing access"
+    "actionFailed": "Could not change Marketing access",
+    "projects": "Visible projects"
   },
   "invites": {
     "title": "Invite Marketing",
@@ -64,6 +65,22 @@
     "crew_contributor_requires_viewer": "Marketing can only be set for an active view-only member.",
     "crew_contribution_forbidden": "You are not allowed to change Marketing access.",
     "crew_contributions_unavailable": "Contributions are temporarily unavailable. Try again later.",
-    "crew_contribution_store_failed": "The server could not save the change. Try again later."
+    "crew_contribution_store_failed": "The server could not save the change. Try again later.",
+    "crew_project_access_not_member": "You can only choose projects for active members who are not owners.",
+    "crew_project_access_invalid": "A project no longer belongs to this company. Reload the page and try again.",
+    "crew_project_access_unavailable": "Project access is not available right now. Try again later."
+  },
+  "projects": {
+    "all": "All",
+    "none": "No project yet",
+    "count": "{{count}} projects",
+    "edit": "Choose the projects {{name}} can see",
+    "title": "Projects {{name}} can see",
+    "empty": "This company has no project yet",
+    "save": "Save",
+    "saving": "Saving",
+    "cancel": "Cancel",
+    "failed": "Could not save project access",
+    "loadFailed": "Could not load project access"
   }
 }

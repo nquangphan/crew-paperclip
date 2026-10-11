@@ -330,3 +330,14 @@ export interface Contributor {
   grantedAt: string;
   grantedByUserId: string;
 }
+
+/** Project người đang đăng nhập được xem (`GET …/project-access/me`). Owner: `all = true`. */
+export interface ProjectAccess {
+  all: boolean;
+  projectIds: string[];
+}
+
+/** Quyền xem project của một thành viên (trang Thành viên, chỉ owner). */
+export interface MemberProjectAccess extends ProjectAccess {
+  userId: string;
+}

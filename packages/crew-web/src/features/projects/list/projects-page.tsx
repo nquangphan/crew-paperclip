@@ -20,7 +20,7 @@ import {
   TableRow,
 } from '@/ds';
 import { Plus } from '@/ds/icons';
-import { useCompanyAccess } from '@/features/access';
+import { useCompanyAccess, useVisibleProjects } from '@/features/access';
 import { useProjectReadiness } from '@/features/readiness';
 import { useT } from '@/i18n';
 import { companyHref, projectRef } from '../paths';
@@ -29,12 +29,14 @@ export function ProjectsPage() {
   const { t } = useT('projects');
   const { company } = useCompany();
   const { readOnly } = useCompanyAccess();
+  const visible = useVisibleProjects();
   const queryClient = useQueryClient();
   const [view, setView] = useState<'active' | 'removed'>('active');
   const includeArchived = view === 'removed';
   const projects = useQuery({
     queryKey: includeArchived ? [...queryKeys.projects(company.id), 'archived'] : queryKeys.projects(company.id),
     queryFn: () => api.projects.list(company.id, { includeArchived }),
+    select: visible.filterProjects,
   });
   const readiness = useProjectReadiness(company.id, api);
   const prefs = useQuery({
@@ -114,6 +116,8 @@ export function ProjectsPage() {
         {viewFilter}
         {view === 'removed' ? (
           <EmptyState title={t('list.emptyRemoved')} />
+        ) : visible.restricted ? (
+          <EmptyState title={t('common:access.noProjectsYet')} description={t('common:access.noProjectsYetHint')} />
         ) : (
           <EmptyState title={t('list.empty')} description={t('list.emptyHint')} />
         )}

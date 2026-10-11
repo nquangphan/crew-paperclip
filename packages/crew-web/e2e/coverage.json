@@ -238,6 +238,16 @@
     "tests": ["PW-S20-7 "],
     "tier": "T1"
   },
+  "S21.1": {
+    "spec": "e2e/specs/s21-project-access.spec.ts",
+    "tests": ["PW-S21-1 "],
+    "tier": "T1"
+  },
+  "S21.2": {
+    "spec": "e2e/specs/s21-project-access.spec.ts",
+    "tests": ["PW-S21-1 "],
+    "tier": "T1"
+  },
   "F5": {
     "spec": "e2e/flows/f5-cancel.spec.ts",
     "tests": ["PW-F5 "],

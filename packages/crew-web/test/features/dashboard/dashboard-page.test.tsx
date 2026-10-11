@@ -6,7 +6,7 @@ import { afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { CompanyContext, MeContext } from '@/app/hooks';
 import { routes } from '@/features/dashboard/routes';
 import { initI18n, setLanguage } from '@/i18n';
-import { accessRoute, mockServer } from '../../app/fetch-mock';
+import { accessRoute, mockServer, projectAccessRoute } from '../../app/fetch-mock';
 import machines from '../../ds/crew/__fixtures__/machines.json';
 
 beforeAll(async () => {
@@ -312,5 +312,34 @@ describe('DashboardPage khối Agent, biểu đồ, hoạt động, máy, yêu c
     server({ 'GET /api/companies/c1/agents': { body: [{ id: 'a1', name: 'A', status: 'paused' }] } });
     mount();
     expect(await screen.findByText('Mọi agent đều tạm dừng, sẽ không có gì chạy.')).toBeTruthy();
+  });
+});
+
+describe('DashboardPage với quyền xem project', () => {
+  it('người bị giới hạn: số yêu cầu đếm từ project được cấp, không có biểu đồ run, yêu cầu gốc bị lọc', async () => {
+    server({
+      ...OPERATOR,
+      ...projectAccessRoute('c1', ['p1']),
+      'GET /api/companies/c1/issues': {
+        body: [
+          { ...awaiting('1', 'u1'), status: 'in_progress', projectId: 'p1' },
+          { ...awaiting('2', 'u1'), status: 'blocked', projectId: 'p2' },
+          { ...awaiting('3', 'u1'), status: 'blocked', projectId: null },
+        ],
+      },
+      ...crewData('crew.roots', [
+        { ...ROOTS[0], projectId: 'p1' },
+        { ...ROOTS[1], projectId: 'p2' },
+      ]),
+    });
+    mount();
+    await waitFor(() => expect(stat('Yêu cầu đang làm')).toBe('1'));
+    expect(stat('Yêu cầu bị kẹt')).toBe('0');
+    expect(screen.queryByText('Run theo ngày')).toBeNull();
+    expect(screen.queryByText('Tỉ lệ thành công')).toBeNull();
+    expect(screen.getByText('Yêu cầu theo trạng thái')).toBeTruthy();
+    const recent = await screen.findByTestId('recent-roots');
+    expect(within(recent).queryByText(ROOTS[1].title)).toBeNull();
+    expect(within(recent).getByText(ROOTS[0].title)).toBeTruthy();
   });
 });

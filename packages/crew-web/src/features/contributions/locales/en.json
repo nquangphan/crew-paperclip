@@ -130,7 +130,8 @@
     "notFound": "This contribution was not found.",
     "crew_contributions_unavailable": "Contributions are temporarily unavailable. Try again later.",
     "crew_contribution_store_failed": "The server could not save the contribution. Try again later.",
-    "alreadyRejected": "This item was already rejected, so it can no longer be approved."
+    "alreadyRejected": "This item was already rejected, so it can no longer be approved.",
+    "crew_project_not_visible": "The sender cannot see this project (the owner has not granted it or removed it). Grant it again on the Members page, or reject this item."
   },
   "popup": {
     "title": "Contribution",

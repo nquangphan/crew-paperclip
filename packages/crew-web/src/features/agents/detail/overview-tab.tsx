@@ -17,6 +17,7 @@ import {
   RunRow,
   Spinner,
 } from '@/ds';
+import { useVisibleProjects } from '@/features/access';
 import { useIssueOpener } from '@/features/issues';
 import type { AgentReadiness } from '@/features/readiness';
 import { useT } from '@/i18n';
@@ -37,9 +38,11 @@ export function OverviewTab({ agent, readiness }: { agent: Agent; readiness: Age
     queryFn: () => api.runs.list(company.id, runFilters),
   });
   const issueFilters = { assigneeAgentId: agent.id };
+  const visible = useVisibleProjects();
   const issues = useQuery({
     queryKey: queryKeys.issues(company.id, issueFilters),
     queryFn: () => api.issues.list(company.id, issueFilters),
+    select: visible.filterIssues,
   });
   const { byAgent } = useAgentHoldings();
   const { environment, machine, isLoading } = useAgentEnvironment(agent, company.id);

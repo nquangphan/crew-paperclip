@@ -16,14 +16,20 @@ import {
 } from '@/ds';
 import { useT } from '@/i18n';
 import { displayRole, memberErrorKey, personName } from './members-model';
-import { useContributorIds, useMemberActions, useMembers } from './use-members';
+import { ProjectAccessCell } from './project-access-cell';
+import { useContributorIds, useMemberActions, useMembers, useProjectAccess } from './use-members';
 
-/** Danh sách thành viên với role; viewer thuần có nút Đặt Phòng Marketing, Phòng Marketing có nút Gỡ Phòng Marketing. */
+/**
+ * Danh sách thành viên với role; viewer thuần có nút Đặt Phòng Marketing, Phòng Marketing có nút Gỡ Phòng Marketing.
+ * Cột "Project được xem": owner thấy tất cả, người khác chỉ thấy project được chọn ở đây (mặc định không có project nào).
+ */
 export function MembersSection() {
   const { t } = useT('members');
   const members = useMembers();
   const marks = useContributorIds();
   const { enable, disable } = useMemberActions();
+  const projectAccess = useProjectAccess();
+  const { save } = projectAccess;
   const actionError = enable.error ?? disable.error;
   const actionErrorKey = memberErrorKey(actionError);
   const items = members.data ?? [];
@@ -49,6 +55,7 @@ export function MembersSection() {
             <TableRow>
               <TableHead>{t('list.person')}</TableHead>
               <TableHead>{t('list.role')}</TableHead>
+              <TableHead>{t('list.projects')}</TableHead>
               <TableHead />
             </TableRow>
           </TableHeader>
@@ -66,6 +73,24 @@ export function MembersSection() {
                   </TableCell>
                   <TableCell>
                     <Badge variant={role === 'contributor' ? 'secondary' : 'outline'}>{t(`role.${role}`)}</Badge>
+                  </TableCell>
+                  <TableCell data-testid="member-projects">
+                    {m.membershipRole === 'owner' ? (
+                      <Badge variant="secondary">{t('projects.all')}</Badge>
+                    ) : projectAccess.access.error || projectAccess.projects.error ? (
+                      <MutedText>{t('projects.loadFailed')}</MutedText>
+                    ) : projectAccess.access.data ? (
+                      <ProjectAccessCell
+                        name={personName(m.user, m.principalId)}
+                        projectIds={projectAccess.access.data.get(m.principalId)?.projectIds ?? []}
+                        projects={projectAccess.choices}
+                        saving={save.isPending && save.variables?.userId === m.principalId}
+                        error={save.variables?.userId === m.principalId ? save.error : null}
+                        onSave={(projectIds) => save.mutateAsync({ userId: m.principalId, projectIds })}
+                      />
+                    ) : (
+                      <Skeleton />
+                    )}
                   </TableCell>
                   <TableCell>
                     {role === 'viewer' ? (

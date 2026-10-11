@@ -5,6 +5,7 @@ import { useState } from 'react';
 import { api, type DocsPage as DocsPageData, queryKeys } from '@/api';
 import { useCompany } from '@/app/hooks';
 import { Button, EmptyState, ErrorState, Field, FilterBar, Input, MutedText, PageHeader, Spinner } from '@/ds';
+import { useVisibleProjects } from '@/features/access';
 import { formatDateTime, useT } from '@/i18n';
 import { DocsTree } from './docs-nav';
 import { DocsReader } from './docs-reader';
@@ -20,11 +21,17 @@ export function DocsPage() {
   const [q, setQ] = useState('');
   const query = q.trim();
 
+  const visible = useVisibleProjects();
   const projects = useQuery({
     queryKey: queryKeys.crew('crew.docs.projects', { companyId: company.id }),
     queryFn: () => api.crew.docsProjects(company.id),
+    select: (list) => list.filter((p) => visible.canSeeProject(p.projectId)),
   });
-  const names = useQuery({ queryKey: queryKeys.projects(company.id), queryFn: () => api.projects.list(company.id) });
+  const names = useQuery({
+    queryKey: queryKeys.projects(company.id),
+    queryFn: () => api.projects.list(company.id),
+    select: visible.filterProjects,
+  });
   const projectId = chosen ?? projects.data?.[0]?.projectId ?? null;
   const labelOf = (id: string, repo: string): string => names.data?.find((p) => p.id === id)?.name ?? repo;
 

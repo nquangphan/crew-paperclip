@@ -18,7 +18,7 @@ import {
   TabsList,
   TabsTrigger,
 } from '@/ds';
-import { useCompanyAccess } from '@/features/access';
+import { useCompanyAccess, useVisibleProjects } from '@/features/access';
 import { IssueLink } from '@/features/issues/popup/issue-nav';
 import { formatDateTime, useT } from '@/i18n';
 import { ContributionActions } from './contribution-actions';
@@ -47,19 +47,31 @@ export function ContributionsPage() {
   };
   const pendingTotal = useContributionsSummary(company.id, true);
   const authorName = useAuthorNames();
-  const projects = useQuery({ queryKey: queryKeys.projects(company.id), queryFn: () => api.projects.list(company.id) });
+  const visible = useVisibleProjects();
+  const projects = useQuery({
+    queryKey: queryKeys.projects(company.id),
+    queryFn: () => api.projects.list(company.id),
+    select: visible.filterProjects,
+  });
+  // Yêu cầu góp ý vào project người xem không còn được cấp thì ẩn (owner thấy tất cả). Bình luận chỉ là chữ của chính
+  // người gửi; mở yêu cầu đích sẽ báo không có quyền.
+  const keep = (c: Contribution) => c.kind !== 'issue' || visible.canSeeProject(c.projectId);
   const projectName = useMemo(() => new Map((projects.data ?? []).map((p) => [p.id, p.name])), [projects.data]);
 
-  const itemsOf = (id: Tab): Contribution[] | undefined => lists[id].data?.pages.flatMap((page) => page.items);
+  const itemsOf = (id: Tab): Contribution[] | undefined =>
+    lists[id].data?.pages.flatMap((page) => page.items).filter(keep);
   const list = lists[tab];
   const shown = itemsOf(tab) ?? [];
   const countOf = (id: Tab): string | null => {
-    if (id === 'pending' && pendingTotal !== null) return String(pendingTotal);
+    // Số của server đếm cả mục đã bị ẩn, nên người bị giới hạn đếm theo danh sách đã lọc.
+    if (id === 'pending' && pendingTotal !== null && !visible.restricted) return String(pendingTotal);
     const items = itemsOf(id);
     if (!items) return null;
     return lists[id].hasNextPage ? `${items.length}+` : String(items.length);
   };
-  const nothingAtAll = TABS.every((id) => itemsOf(id)?.length === 0) && (pendingTotal === null || pendingTotal === 0);
+  const nothingAtAll =
+    TABS.every((id) => itemsOf(id)?.length === 0) &&
+    (visible.restricted || pendingTotal === null || pendingTotal === 0);
 
   return (
     <>

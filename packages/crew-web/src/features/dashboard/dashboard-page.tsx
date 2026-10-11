@@ -36,6 +36,7 @@ import {
   runActivityBars,
   STATUS_COLORS,
   successRateBars,
+  visibleTaskCounts,
 } from './dashboard-logic';
 import { useDashboard } from './use-dashboard';
 
@@ -86,6 +87,19 @@ export function DashboardPage() {
     t('charts.issuesTitle', { date, total }),
   );
   const hasRecovered = (s?.runActivity ?? []).some((day) => day.recovered > 0);
+  // Người chỉ thấy một số project: số yêu cầu đếm từ danh sách đã lọc, bỏ biểu đồ run và hoạt động không rõ project
+  // (số toàn company của server sẽ lộ việc ở project bị ẩn).
+  const restricted = d.visible.restricted;
+  const taskCounts = restricted ? visibleTaskCounts(d.issues.data) : s?.tasks;
+  const activity = restricted
+    ? d.activity.data?.filter((e) =>
+        e.entityType === 'issue'
+          ? ctx.issues.has(e.entityId)
+          : e.entityType === 'project'
+            ? ctx.projects.has(e.entityId)
+            : e.entityType === 'agent',
+      )
+    : d.activity.data;
 
   const actorName = (e: { actorType: string; actorId: string }) => {
     if (e.actorType === 'agent') return agentName.get(e.actorId) ?? t('activity.system');
@@ -167,8 +181,8 @@ export function DashboardPage() {
           {d.runs.length > 0 ? (
             <div className="flex justify-end">
               <DashboardMoreLink href={`${base}/runs`} onOpen={() => navigate(`${base}/runs`)}>
-                {(d.live.data?.length ?? 0) > d.runs.length
-                  ? t('agents.moreRuns', { count: (d.live.data?.length ?? 0) - d.runs.length })
+                {d.liveVisible.length > d.runs.length
+                  ? t('agents.moreRuns', { count: d.liveVisible.length - d.runs.length })
                   : t('agents.viewAll')}
               </DashboardMoreLink>
             </div>
@@ -191,15 +205,15 @@ export function DashboardPage() {
         />
         <MetricCard
           icon={CircleDot}
-          value={s?.tasks.inProgress ?? '–'}
+          value={taskCounts?.inProgress ?? '–'}
           label={t('cards.inProgress')}
-          description={s ? t('cards.inProgressHint', { open: s.tasks.open }) : undefined}
+          description={taskCounts ? t('cards.inProgressHint', { open: taskCounts.open }) : undefined}
           href={`${base}/issues`}
           onOpen={() => navigate(`${base}/issues`)}
         />
         <MetricCard
           icon={AlertTriangle}
-          value={s?.tasks.blocked ?? '–'}
+          value={taskCounts?.blocked ?? '–'}
           label={t('cards.blocked')}
           description={t('cards.blockedHint')}
           href={`${base}/inbox?tab=stuck`}
@@ -226,18 +240,20 @@ export function DashboardPage() {
       </section>
 
       <section className="grid grid-cols-2 gap-4 lg:grid-cols-3">
-        <ChartCard title={t('charts.runs')} subtitle={t('charts.last14')}>
-          <BarChart
-            bars={runBars}
-            emptyText={t('charts.noRuns')}
-            legend={[
-              { color: RUN_COLORS.succeeded, label: t('charts.succeeded') },
-              ...(hasRecovered ? [{ color: RUN_COLORS.recovered, label: t('charts.recovered') }] : []),
-              { color: RUN_COLORS.failed, label: t('charts.failed') },
-              { color: RUN_COLORS.other, label: t('charts.other') },
-            ]}
-          />
-        </ChartCard>
+        {restricted ? null : (
+          <ChartCard title={t('charts.runs')} subtitle={t('charts.last14')}>
+            <BarChart
+              bars={runBars}
+              emptyText={t('charts.noRuns')}
+              legend={[
+                { color: RUN_COLORS.succeeded, label: t('charts.succeeded') },
+                ...(hasRecovered ? [{ color: RUN_COLORS.recovered, label: t('charts.recovered') }] : []),
+                { color: RUN_COLORS.failed, label: t('charts.failed') },
+                { color: RUN_COLORS.other, label: t('charts.other') },
+              ]}
+            />
+          </ChartCard>
+        )}
         <ChartCard title={t('charts.status')} subtitle={t('charts.last14')}>
           <BarChart
             bars={statusChart.bars}
@@ -248,9 +264,11 @@ export function DashboardPage() {
             }))}
           />
         </ChartCard>
-        <ChartCard title={t('charts.success')} subtitle={t('charts.last14')}>
-          <BarChart bars={rateBars} emptyText={t('charts.noRuns')} />
-        </ChartCard>
+        {restricted ? null : (
+          <ChartCard title={t('charts.success')} subtitle={t('charts.last14')}>
+            <BarChart bars={rateBars} emptyText={t('charts.noRuns')} />
+          </ChartCard>
+        )}
       </section>
 
       {d.machines.isLoading ? <Skeleton /> : null}
@@ -275,16 +293,16 @@ export function DashboardPage() {
           <DashboardHeading>{t('activity.heading')}</DashboardHeading>
           {d.activity.error ? <ErrorState title={t('activity.loadFailed')} message={d.activity.error.message} /> : null}
           {d.activity.isLoading ? <Skeleton /> : null}
-          {d.activity.data?.length === 0 ? (
+          {activity?.length === 0 ? (
             <Card>
               <CardContent>
                 <MutedText>{t('activity.empty')}</MutedText>
               </CardContent>
             </Card>
           ) : null}
-          {d.activity.data && d.activity.data.length > 0 ? (
+          {activity && activity.length > 0 ? (
             <DashboardList>
-              {d.activity.data.map((e) => {
+              {activity.map((e) => {
                 const target = activityTarget(e, ctx);
                 const nav = target.issueIdentifier
                   ? issueNav(target.issueIdentifier)

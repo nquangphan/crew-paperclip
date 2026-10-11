@@ -290,6 +290,12 @@
     "rootProgress": "Children done"
   },
   "access": {
-    "loadFailed": "Could not load your access for this company"
+    "loadFailed": "Could not load your access for this company",
+    "projectsFailed": "Could not load the projects you can see",
+    "noProject": "You do not have access to this project",
+    "noIssue": "You do not have access to this request",
+    "noAccessHint": "The owner has not given you this project. Ask the owner to grant it on the Members page.",
+    "noProjectsYet": "You have not been given any project yet",
+    "noProjectsYetHint": "The owner chooses which projects you can see on the Members page."
   }
 }

@@ -2,6 +2,7 @@
 import type { CompactIssue } from '@paperclipai/shared';
 import { useQuery } from '@tanstack/react-query';
 import { api, type CrewRoot, type IssueListFilters, queryKeys } from '@/api';
+import { useVisibleProjects } from '@/features/access';
 import { RESEARCH_LABEL_NAME } from '../new/kinds';
 import { byUpdatedDesc } from './tree';
 
@@ -125,18 +126,26 @@ export function sortCompare(sort: SortKey): (a: CompactIssue, b: CompactIssue) =
   return byUpdatedDesc;
 }
 
+/** Dữ liệu danh sách, đã lọc theo project người xem được cấp (yêu cầu, yêu cầu gốc Crew, project). */
 export function useIssuesData(companyId: string, state: ListState) {
   const filters = serverFilters(state);
+  const visible = useVisibleProjects();
   const issues = useQuery({
     queryKey: queryKeys.issues(companyId, filters),
     queryFn: () => api.issues.listCompact(companyId, filters),
+    select: visible.filterIssues,
   });
   // Cột Crew là phần phụ: crew.roots lỗi thì danh sách vẫn hiện, chỉ thiếu cột giai đoạn.
   const roots = useQuery({
     queryKey: queryKeys.crew('crew.roots', { companyId }),
     queryFn: () => api.crew.roots(companyId),
+    select: visible.filterIssues,
   });
-  const projects = useQuery({ queryKey: queryKeys.projects(companyId), queryFn: () => api.projects.list(companyId) });
+  const projects = useQuery({
+    queryKey: queryKeys.projects(companyId),
+    queryFn: () => api.projects.list(companyId),
+    select: visible.filterProjects,
+  });
   const agents = useQuery({ queryKey: queryKeys.agents(companyId), queryFn: () => api.agents.list(companyId) });
   // Run đang chạy để gắn nhãn "Đang chạy"; lỗi (vd. vai trò không xem được run) thì chỉ thiếu nhãn.
   const liveRuns = useQuery({

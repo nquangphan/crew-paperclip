@@ -2,7 +2,7 @@
 import { cleanup, fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { initI18n, setLanguage } from '@/i18n';
-import { mockServer } from '../../app/fetch-mock';
+import { mockServer, projectAccessRoute } from '../../app/fetch-mock';
 import { data, ID, project, ROLES, renderPage } from './helpers';
 
 const readiness = vi.hoisted(() => ({ value: [] as unknown[], candidates: [] as unknown[] }));
@@ -318,5 +318,14 @@ describe('ProjectPage', () => {
     mount();
     expect(await screen.findByText(/Project đã gỡ lúc 10\/10\/2026 09:30/)).toBeTruthy();
     await waitFor(() => expect(screen.queryByRole('button', { name: 'Gỡ project' })).toBeNull());
+  });
+
+  it('project không được cấp: báo không có quyền, không hiện tab', async () => {
+    readiness.value = [];
+    server(projectAccessRoute('c-tps', []));
+    mount();
+    expect(await screen.findByText('Bạn không có quyền xem project này')).toBeTruthy();
+    expect(screen.queryByRole('heading', { name: 'Alpha' })).toBeNull();
+    expect(screen.queryByRole('tab')).toBeNull();
   });
 });

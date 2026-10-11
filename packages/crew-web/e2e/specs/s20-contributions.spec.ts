@@ -9,6 +9,7 @@ import { trackIssue } from '../support/cleanup';
 import { createIssue, ensurePlaceholderAgent, type IssueLite, meId, uniqueToken } from '../support/data';
 import { companyId } from '../support/env';
 import { type E2eCompany, expect, test } from '../support/fixtures';
+import { grantMemberProjects } from '../support/project-access';
 
 test.describe.configure({ mode: 'serial' });
 
@@ -101,6 +102,9 @@ test.beforeAll(async () => {
   try {
     const cid = companyId();
     project = await pickProject(api, cid);
+    // Khách chỉ gửi được vào project owner đã cấp cho mình.
+    const { items } = await api.get<{ items: { userId: string }[] }>(`/api/crew/companies/${cid}/contributors`);
+    for (const { userId } of items) await grantMemberProjects(api, cid, userId, [project.id]);
     agent = await ensurePlaceholderAgent(api, cid, 'crew-e2e-worker', { wake: false });
     // Issue có người nhận để kiểm "không đánh thức": agent giữ chỗ không bật wakeOnDemand nên không sinh run.
     target = await createIssue(api, cid, {

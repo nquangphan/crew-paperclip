@@ -4,6 +4,7 @@ import type { Project } from '@paperclipai/shared';
 import { useQueries, useQuery } from '@tanstack/react-query';
 import { ApiError, api, type ProjectRoles, queryKeys } from '@/api';
 import { useCompany } from '@/app/hooks';
+import { useVisibleProjects } from '@/features/access';
 import { type CrewRoleSlot, roleOfSlot, slotAgents } from '@/lib/instructions';
 
 export type HeldRole = 'assistant' | 'executor' | 'reviewer' | 'integrator';
@@ -29,9 +30,12 @@ export function holdingsOf(
 
 export function useAgentHoldings(): { byAgent: Map<string, AgentHolding[]>; isLoading: boolean } {
   const { company } = useCompany();
+  const visible = useVisibleProjects();
+  // Chỉ project người xem được cấp: vai trò ở project bị ẩn không hiện ở trang agent.
   const projects = useQuery({
     queryKey: queryKeys.projects(company.id),
     queryFn: () => api.projects.list(company.id),
+    select: visible.filterProjects,
   });
   const active = (projects.data ?? []).filter((p) => !p.archivedAt);
   const rolesList = useQueries({

@@ -4,6 +4,7 @@ import { crewDataApi } from './crew/data';
 import { forceDoneApi } from './crew/force-done';
 import { jobsApi } from './crew/jobs';
 import { machinesApi } from './crew/machines';
+import { projectAccessApi } from './crew/project-access';
 import { rolesApi } from './crew/roles';
 import { runtimesApi } from './crew/runtimes';
 import { setupApi } from './crew/setup';
@@ -62,6 +63,7 @@ export const api = {
   jobs: jobsApi,
   setup: setupApi,
   contributions: contributionsApi,
+  projectAccess: projectAccessApi,
   members: membersApi,
   invites: invitesApi,
   joinRequests: joinRequestsApi,

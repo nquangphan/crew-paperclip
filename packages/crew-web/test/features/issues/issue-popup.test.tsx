@@ -7,7 +7,7 @@ import { CompanyContext, MeContext } from '@/app/hooks';
 import { IssueLink, IssuePopupHost } from '@/features/issues';
 import { IssuePage } from '@/features/issues/detail/issue-page';
 import { initI18n, setLanguage } from '@/i18n';
-import { mockServer } from '../../app/fetch-mock';
+import { mockServer, projectAccessRoute } from '../../app/fetch-mock';
 import { AGENTS, COMPANY, ISSUE, ME, PROJECTS } from './detail-fixtures';
 
 beforeAll(async () => {
@@ -23,7 +23,7 @@ afterEach(cleanup);
 
 const PARENT = { ...ISSUE, id: 'i0', identifier: 'TPS-1', title: 'Yêu cầu gốc', parentId: null, ancestors: [] };
 
-function server() {
+function server(extra: Record<string, unknown> = {}) {
   const issueRoutes = (i: typeof ISSUE | typeof PARENT) => ({
     [`GET /api/issues/${i.identifier}`]: { body: i },
     [`GET /api/issues/${i.id}/comments`]: { body: [] },
@@ -41,6 +41,7 @@ function server() {
     'GET /api/companies/c1/agents': { body: AGENTS },
     'GET /api/companies/c1/projects': { body: PROJECTS },
     'GET /api/companies/c1/issues': { body: [] },
+    ...extra,
   } as Parameters<typeof mockServer>[0]);
 }
 
@@ -203,5 +204,14 @@ describe('popup chi tiết yêu cầu `?issue=`', () => {
     expect(within(dialog).getAllByRole('heading', { level: 1 })).toHaveLength(1);
     expect(h1.getAttribute('data-slot')).toBe('dialog-title');
     expect(screen.getByRole('dialog', { name: 'Sửa trang đăng nhập' })).toBe(dialog);
+  });
+
+  it('mở bằng URL yêu cầu của project không được cấp: báo không có quyền, không đánh dấu đã đọc', async () => {
+    const { calls } = server(projectAccessRoute('c1', ['p-khac']));
+    mountAt('/TPS/inbox?issue=TPS-2');
+    const dialog = await popup();
+    expect(await within(dialog).findByText('Bạn không có quyền xem yêu cầu này')).toBeTruthy();
+    expect(within(dialog).queryByText('Sửa trang đăng nhập', { selector: 'h1' })).toBeNull();
+    expect(calls.some((c) => c.method === 'POST' && c.url.endsWith('/read'))).toBe(false);
   });
 });

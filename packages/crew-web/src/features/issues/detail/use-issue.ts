@@ -3,6 +3,7 @@ import type { Issue } from '@paperclipai/shared';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useRef } from 'react';
 import { api, queryKeys } from '@/api';
+import { useVisibleProjects } from '@/features/access';
 
 /** Chi tiết theo mã (TPS-2) hoặc uuid. */
 export function useIssue(ref: string | undefined) {
@@ -46,10 +47,12 @@ export interface ChildSummary {
 
 export function useChildIssues(companyId: string, parentId: string | undefined): ChildSummary[] {
   const filters = { parentId, limit: 200 };
+  const visible = useVisibleProjects();
   const { data } = useQuery({
     queryKey: queryKeys.issues(companyId, filters),
     queryFn: () => api.issues.listCompact(companyId, filters),
     enabled: Boolean(parentId),
+    select: visible.filterIssues,
   });
   return (data ?? []).map((i) => ({ id: i.id, identifier: i.identifier, title: i.title, status: i.status }));
 }

@@ -130,7 +130,8 @@
     "notFound": "Không tìm thấy mục góp ý này.",
     "crew_contributions_unavailable": "Tính năng góp ý tạm thời chưa dùng được. Thử lại sau.",
     "crew_contribution_store_failed": "Máy chủ không lưu được góp ý. Thử lại sau.",
-    "alreadyRejected": "Mục này đã bị từ chối nên không duyệt được nữa."
+    "alreadyRejected": "Mục này đã bị từ chối nên không duyệt được nữa.",
+    "crew_project_not_visible": "Người gửi không có quyền xem project này (owner chưa cấp hoặc đã gỡ). Owner cấp lại ở trang Thành viên, hoặc từ chối mục này."
   },
   "popup": {
     "title": "Mục góp ý",

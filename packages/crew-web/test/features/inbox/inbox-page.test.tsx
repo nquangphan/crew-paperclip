@@ -115,7 +115,7 @@ describe('InboxPage tab (S3.1, S3.2)', () => {
     expect(screen.queryByText('Việc thường')).toBeNull();
     expect(screen.getByText('Chờ bạn duyệt')).toBeTruthy();
     expect(screen.getByText('Có câu hỏi chờ trả lời')).toBeTruthy();
-    expect(s.calls[0].url).toContain('inboxArchivedByUserId=me');
+    expect(s.calls.find((c) => c.url.includes('/issues'))?.url).toContain('inboxArchivedByUserId=me');
   });
 
   it('chuyển tab Chưa đọc, Đang kẹt, Tất cả; số đếm trên nhãn tab', async () => {

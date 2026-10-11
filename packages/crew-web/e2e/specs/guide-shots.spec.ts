@@ -536,6 +536,26 @@ const RECIPES: Recipe[] = [
     },
   },
   {
+    id: 'project-access',
+    as: ['owner'],
+    frame: 'viewport',
+    open: async (c) => {
+      await go(c, 'members');
+      const row = main(c.page).getByTestId('member-row').filter({ hasText: GUIDE_ACCOUNTS.viewer.name });
+      const trigger = row.getByTestId('project-access-trigger');
+      await trigger.click();
+      const editor = c.page.getByTestId('project-access-editor');
+      await expect(editor).toBeVisible();
+      await settle(c.page);
+      return [
+        m(trigger, 1),
+        m(editor.getByRole('checkbox').first(), 2),
+        m(btn(editor, c.L('Lưu', 'Save')), 3),
+      ];
+    },
+    close: pressEscape,
+  },
+  {
     id: 'settings',
     as: ['owner'],
     frame: 'main',

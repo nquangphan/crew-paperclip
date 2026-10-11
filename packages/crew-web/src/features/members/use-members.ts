@@ -21,6 +21,27 @@ export function useContributorIds() {
   });
 }
 
+/** Quyền xem project của mọi thành viên và danh sách project đang dùng để chọn (chỉ owner). */
+export function useProjectAccess() {
+  const { company } = useCompany();
+  const qc = useQueryClient();
+  const access = useQuery({
+    queryKey: queryKeys.projectAccessAll(company.id),
+    queryFn: async () => new Map((await api.projectAccess.list(company.id)).map((a) => [a.userId, a])),
+  });
+  const projects = useQuery({
+    queryKey: queryKeys.projects(company.id),
+    queryFn: () => api.projects.list(company.id),
+  });
+  const save = useMutation({
+    mutationFn: ({ userId, projectIds }: { userId: string; projectIds: string[] }) =>
+      api.projectAccess.set(company.id, userId, projectIds),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['project-access', company.id] }),
+  });
+  const choices = (projects.data ?? []).filter((p) => !p.archivedAt).map((p) => ({ id: p.id, name: p.name }));
+  return { access, projects, choices, save };
+}
+
 /** Mọi lời mời (để nối với yêu cầu tham gia); `active` là phần còn hiệu lực. */
 export function useInvites() {
   const { company } = useCompany();

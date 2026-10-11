@@ -64,6 +64,22 @@ const base = (over: Record<string, unknown> = {}) => ({
   },
   'GET /api/companies/c1/invites': { body: { invites: [CONTRIB_INVITE, invite('inv-n')] } },
   'GET /api/companies/c1/join-requests': { body: [] },
+  'GET /api/crew/companies/c1/project-access': {
+    body: {
+      items: [
+        { userId: 'u1', all: true, projectIds: [] },
+        { userId: 'u2', all: false, projectIds: ['p1'] },
+        { userId: 'u3', all: false, projectIds: [] },
+      ],
+    },
+  },
+  'GET /api/companies/c1/projects': {
+    body: [
+      { id: 'p1', name: 'Website', archivedAt: null },
+      { id: 'p2', name: 'Ứng dụng', archivedAt: null },
+      { id: 'p3', name: 'Cũ', archivedAt: '2026-10-01T00:00:00.000Z' },
+    ],
+  },
   ...over,
 });
 
@@ -289,5 +305,56 @@ describe('trang Thành viên', () => {
     fireEvent.click(within(row).getByRole('button', { name: 'Đặt Phòng Marketing' }));
     expect(await screen.findByText('Chỉ đặt được Phòng Marketing cho thành viên chỉ xem đang hoạt động.')).toBeTruthy();
     expect(screen.queryByText('câu server')).toBeNull();
+  });
+
+  it('cột Project được xem: owner "Tất cả", người khác hiện project được cấp hoặc "Chưa có project"', async () => {
+    mockServer(base());
+    mount();
+    const rows = await screen.findAllByTestId('member-row');
+    const cell = (row: HTMLElement) => within(row).getByTestId('member-projects');
+    await waitFor(() => expect(within(cell(rows[1])).getByRole('button', { name: /Chọn project Lan/ })).toBeTruthy());
+    expect(within(cell(rows[0])).getByText('Tất cả')).toBeTruthy();
+    expect(within(cell(rows[0])).queryByRole('button')).toBeNull();
+    expect(within(cell(rows[1])).getByText('Website')).toBeTruthy();
+    expect(within(cell(rows[2])).getByText('Chưa có project')).toBeTruthy();
+  });
+
+  it('chọn project rồi Lưu gửi PUT project-access/:userId với cả danh sách', async () => {
+    const { calls } = mockServer(
+      base({
+        'PUT /api/crew/companies/c1/project-access/u2': (init: RequestInit | undefined) => ({
+          body: { userId: 'u2', all: false, projectIds: JSON.parse(String(init?.body)).projectIds },
+        }),
+      }),
+    );
+    mount();
+    const row = (await screen.findAllByTestId('member-row'))[1];
+    fireEvent.click(await within(row).findByRole('button', { name: /Chọn project Lan/ }));
+    const editor = await screen.findByTestId('project-access-editor');
+    expect(within(editor).queryByText('Cũ')).toBeNull();
+    fireEvent.click(within(editor).getByRole('checkbox', { name: 'Ứng dụng' }));
+    fireEvent.click(within(editor).getByRole('checkbox', { name: 'Website' }));
+    fireEvent.click(within(editor).getByRole('button', { name: 'Lưu' }));
+    await waitFor(() => {
+      const put = calls.find((c) => c.method === 'PUT' && c.url.endsWith('/project-access/u2'));
+      expect(put?.body).toEqual({ projectIds: ['p2'] });
+    });
+    await waitFor(() => expect(screen.queryByTestId('project-access-editor')).toBeNull());
+  });
+
+  it('lỗi lưu quyền có mã của router hiện câu đã dịch', async () => {
+    mockServer(
+      base({
+        'PUT /api/crew/companies/c1/project-access/u3': {
+          status: 409,
+          body: { error: 'câu server', code: 'crew_project_access_not_member' },
+        },
+      }),
+    );
+    mount();
+    const row = (await screen.findAllByTestId('member-row'))[2];
+    fireEvent.click(await within(row).findByRole('button', { name: /Chọn project Minh/ }));
+    fireEvent.click(within(await screen.findByTestId('project-access-editor')).getByRole('button', { name: 'Lưu' }));
+    expect(await screen.findByText('Chỉ chọn project cho thành viên đang hoạt động không phải owner.')).toBeTruthy();
   });
 });

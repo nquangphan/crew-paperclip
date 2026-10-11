@@ -39,10 +39,10 @@ Everyone signs in with a **role** in the company; the sidebar and buttons you se
 | **Marketing** | Same as Viewer, plus sending requests and comments for the owner to approve |
 
 {{roles:owner}}
-Change someone's role on the [Members](/members) page.
+Change someone's role, and choose which projects each person can see, on the [Members](/members) page.
 {{/roles}}
 {{roles:operator,viewer,contributor}}
-Need a different role? Ask the company owner.
+Need a different role? Ask the company owner. You only see the projects the owner has given you and the requests in them; with no project yet, the lists are empty.
 {{/roles}}
 
 > **Tip:** you do not need to install anything to use the Crew web app. Only the machines that run agents need the 2P Crew app.
@@ -134,7 +134,12 @@ The **Overview** page gives the big picture of the company right after you sign 
 {{roles:viewer,contributor}}
 - The number cards (1), (2) show how many agents there are and how many requests are in progress, stuck or awaiting approval. You only view them; nothing here waits for you.
 {{/roles}}
+{{roles:owner}}
 - Three 14-day charts: **Run activity**, **Requests by status**, **Success rate**.
+{{/roles}}
+{{roles:operator,viewer,contributor}}
+- The 14-day **Requests by status** chart. Request numbers and the chart only count the projects the owner has given you.
+{{/roles}}
 - The **Machines** card: which machines are online or offline.
 - **Recent activity** and **Recent requests**: click a request to open its popup.
 
@@ -654,6 +659,18 @@ The [Members](/members) page is owner-only: members and their roles, Marketing i
 #### Set or remove Marketing
 
 Viewer members have **Set Marketing**; Marketing members have **Remove Marketing** (2), after which they can only view.
+
+#### Choose which projects each person can see
+
+{{shot:project-access}}
+
+Every member except owners (Admin, Operator, Viewer, Marketing) only sees the projects you give them. A new member sees no project at all. Owners always see everything; their column shows **All**.
+
+1. In the **Visible projects** column, click the person's button (1). It shows the projects already given, or **No project yet**.
+2. Tick or untick each project (2), then click **Save** (3).
+3. When the person reloads the page they see exactly those projects, with their requests, Overview numbers and search results. Requests without a project are only visible to owners.
+
+> **Note:** this hides projects in the Crew UI only. Anyone who opens the original Paperclip UI or the core API can still read them. Marketing contributions are enforced on the server: they cannot be sent to a project that was not given, and you cannot approve a contribution from someone who lost access to that project.
 
 > **Tip:** active invitations are listed below with their expiry; click **Revoke** to disable a link.
 

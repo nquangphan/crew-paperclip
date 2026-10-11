@@ -5,6 +5,7 @@
 import { request } from '@playwright/test';
 import { Api } from './api';
 import { baseUrl, contributorEmail, contributorPassword, isProd } from './env';
+import { grantMemberProjects } from './project-access';
 
 export type GuideAccountRole = 'operator' | 'viewer' | 'contributor';
 
@@ -111,6 +112,16 @@ async function ensureMember(owner: Api, companyId: string, account: Account, rol
   if (role === 'contributor') {
     await owner.put(`/api/crew/companies/${companyId}/contributors/${member.principalId}`, {});
   }
+  // Thành viên không phải owner chỉ thấy project được cấp: ảnh hướng dẫn cần cả hai project mẫu.
+  const projects = await owner.get<{ id: string; archivedAt?: string | null }[]>(
+    `/api/companies/${companyId}/projects`,
+  );
+  await grantMemberProjects(
+    owner,
+    companyId,
+    member.principalId,
+    projects.filter((p) => !p.archivedAt).map((p) => p.id),
+  );
 }
 
 /** Ba tài khoản theo vai trò của company mẫu; owner là tài khoản board đã tạo company. */

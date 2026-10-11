@@ -8,6 +8,7 @@ import { NotFoundPage } from '@/app/not-found-page';
 import {
   Button,
   ComposerDock,
+  EmptyState,
   ErrorState,
   Identity,
   IssueDetailFrame,
@@ -19,7 +20,7 @@ import {
   Skeleton,
 } from '@/ds';
 import { Check, Copy, ExternalLink, X } from '@/ds/icons';
-import { useCompanyAccess } from '@/features/access';
+import { useCompanyAccess, useVisibleProjects } from '@/features/access';
 import { useT } from '@/i18n';
 import { issuePageHref } from '../popup/issue-href';
 import { Attachments } from './attachments';
@@ -99,7 +100,10 @@ export function IssueDetail({ issueRef, variant, onClose }: IssueDetailProps) {
   const qc = useQueryClient();
   const issueQuery = useIssue(issueRef);
   const loaded = issueQuery.data;
-  const issue = loaded && loaded.companyId === company.id ? loaded : undefined;
+  const visible = useVisibleProjects();
+  const sameCompany = loaded && loaded.companyId === company.id ? loaded : undefined;
+  // Yêu cầu của project người xem không được cấp: không hiện gì ngoài thông báo, không đánh dấu đã đọc.
+  const issue = sameCompany && visible.canSeeIssue(sameCompany) ? sameCompany : undefined;
   const agentNames = useAgentNames(company.id);
   const projectName = useProjectName(company.id, issue?.projectId ?? null);
   const childIssues = useChildIssues(company.id, issue?.id);
@@ -118,7 +122,10 @@ export function IssueDetail({ issueRef, variant, onClose }: IssueDetailProps) {
     ) : (
       node
     );
-  if (issueQuery.isLoading) return untitled(<Skeleton />);
+  if (issueQuery.isLoading || (sameCompany && !visible.ready)) return untitled(<Skeleton />);
+  if (sameCompany && !issue) {
+    return untitled(<EmptyState title={t('common:access.noIssue')} description={t('common:access.noAccessHint')} />);
+  }
   if (loaded && !issue) {
     const owner = companies.find((c) => c.id === loaded.companyId);
     if (!owner) return untitled(<NotFoundPage companyPrefix={company.issuePrefix} />);

@@ -6,7 +6,7 @@ import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { CompanyContext } from '@/app/hooks';
 import { IssuesPage } from '@/features/issues/list/issues-page';
 import { initI18n, setLanguage } from '@/i18n';
-import { mockServer } from '../../app/fetch-mock';
+import { mockServer, projectAccessRoute } from '../../app/fetch-mock';
 
 vi.mock('@/features/readiness', () => ({
   useProjectReadiness: () => ({
@@ -397,5 +397,23 @@ describe('IssuesPage Yêu cầu mới (S4.4)', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Hủy' }));
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
     expect(loc()).toBe('/TPS/issues');
+  });
+
+  it('người chỉ được cấp một project chỉ thấy yêu cầu của project đó, không thấy yêu cầu không có project', async () => {
+    server({
+      'GET /api/companies/c1/issues': {
+        body: [issue('1'), issue('5', { projectId: 'p2' }), issue('6', { projectId: null })],
+      },
+      'GET /api/companies/c1/projects': {
+        body: [
+          { id: 'p1', name: 'Alpha', archivedAt: null },
+          { id: 'p2', name: 'Beta', archivedAt: null },
+        ],
+      },
+      ...projectAccessRoute('c1', ['p2']),
+    });
+    mount();
+    await screen.findByText('Yêu cầu 5');
+    expect(rows().map(idOf)).toEqual(['5']);
   });
 });

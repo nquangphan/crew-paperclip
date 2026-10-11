@@ -34,6 +34,7 @@ import {
   SelectValue,
   Spinner,
 } from '@/ds';
+import { useVisibleProjects } from '@/features/access';
 import { useT } from '@/i18n';
 import {
   agentOfSlot,
@@ -108,9 +109,11 @@ function AddAgentFormView({
     queryKey: queryKeys.crew('crew.machines', { companyId: company.id }),
     queryFn: () => api.crew.machines(company.id),
   });
+  const visible = useVisibleProjects();
   const projects = useQuery({
     queryKey: queryKeys.projects(company.id),
     queryFn: () => api.projects.list(company.id),
+    select: visible.filterProjects,
   });
   const agents = useQuery({ queryKey: queryKeys.agents(company.id), queryFn: () => api.agents.list(company.id) });
   const environments = useQuery({

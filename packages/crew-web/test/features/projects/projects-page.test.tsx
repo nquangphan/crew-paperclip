@@ -2,7 +2,7 @@
 import { cleanup, fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { initI18n, setLanguage } from '@/i18n';
-import { mockServer } from '../../app/fetch-mock';
+import { mockServer, projectAccessRoute } from '../../app/fetch-mock';
 import { data, project, renderPage } from './helpers';
 
 const readiness = vi.hoisted(() => ({ value: [] as unknown[] }));
@@ -140,5 +140,29 @@ describe('ProjectsPage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Đã gỡ' }));
     await waitFor(() => expect(listUrls().some((u) => u.includes('includeArchived=true'))).toBe(true));
     expect(await screen.findByText('Đã lưu trữ')).toBeTruthy();
+  });
+
+  it('người bị giới hạn chỉ thấy project được cấp; chưa được cấp gì thì có câu hướng dẫn', async () => {
+    readiness.value = [];
+    mockServer({
+      'GET /api/companies/c-tps/projects': { body: PROJECTS },
+      'GET /api/companies/c-tps/sidebar-preferences/me': { body: { orderedIds: [], updatedAt: null } },
+      ...data('crew.setupRuns', []),
+      ...projectAccessRoute('c-tps', ['p2']),
+    });
+    mount();
+    expect(await screen.findByText('Beta')).toBeTruthy();
+    expect(screen.queryByText('Alpha')).toBeNull();
+    cleanup();
+
+    mockServer({
+      'GET /api/companies/c-tps/projects': { body: PROJECTS },
+      'GET /api/companies/c-tps/sidebar-preferences/me': { body: { orderedIds: [], updatedAt: null } },
+      ...data('crew.setupRuns', []),
+      ...projectAccessRoute('c-tps', []),
+    });
+    mount();
+    expect(await screen.findByText('Bạn chưa được cấp project nào')).toBeTruthy();
+    expect(screen.queryByText('Beta')).toBeNull();
   });
 });

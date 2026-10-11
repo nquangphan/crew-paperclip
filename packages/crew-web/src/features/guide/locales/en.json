@@ -75,6 +75,7 @@
     "machine-unpair": "The Unpair machine confirmation",
     "docs": "The Docs page",
     "members": "The Members page",
+    "project-access": "Choosing the projects a member can see",
     "settings": "The Settings page",
     "stock-ui": "The Open original Paperclip UI item in the sidebar",
     "mac-pairing": "The steps of the 2P Crew Mac app when pairing a machine"

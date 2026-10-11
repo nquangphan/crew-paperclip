@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api, queryKeys } from '@/api';
 import { CommandDialog, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/ds';
-import { navItemVisible, navLabelKey, useCompanyAccess } from '@/features/access';
+import { navItemVisible, navLabelKey, useCompanyAccess, useVisibleProjects } from '@/features/access';
 import { useIssueOpener } from '@/features/issues';
 import { useT } from '@/i18n';
 import { useCompany } from '../hooks';
@@ -53,10 +53,12 @@ export function CommandPalette({
     if (!open) setText('');
   }, [open]);
 
+  const visible = useVisibleProjects();
   const found = useQuery({
     queryKey: queryKeys.issues(company.id, { q: debounced, limit: 8 }),
     queryFn: () => api.issues.list(company.id, { q: debounced, limit: 8 }),
     enabled: searchEnabled,
+    select: visible.filterIssues,
   });
 
   const opener = useIssueOpener();

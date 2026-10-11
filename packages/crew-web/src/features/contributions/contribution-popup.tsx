@@ -15,6 +15,7 @@ import {
   SidePanelTitle,
   Skeleton,
 } from '@/ds';
+import { useVisibleProjects } from '@/features/access';
 import { issueHref } from '@/features/issues/popup/issue-href';
 import { formatDateTime, useT } from '@/i18n';
 import { ContributionActions } from './contribution-actions';
@@ -30,7 +31,13 @@ export function ContributionPopup({ id, onClose }: { id: string; onClose: () => 
   const location = useLocation();
   const item = useContribution(id);
   const authorName = useAuthorNames();
-  const projects = useQuery({ queryKey: queryKeys.projects(company.id), queryFn: () => api.projects.list(company.id) });
+  const visible = useVisibleProjects();
+  // Tên project chỉ hiện khi người xem được cấp project đó.
+  const projects = useQuery({
+    queryKey: queryKeys.projects(company.id),
+    queryFn: () => api.projects.list(company.id),
+    select: visible.filterProjects,
+  });
   const c = item.data;
   const project = c?.projectId ? projects.data?.find((p) => p.id === c.projectId) : undefined;
   const heading =

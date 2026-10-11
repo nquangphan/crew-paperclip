@@ -72,6 +72,9 @@ export const queryKeys = {
     (filters ? ['contributions', companyId, filters] : ['contributions', companyId]) as readonly unknown[],
   contributionsSummary: (companyId: string) => ['contributions', companyId, 'summary'] as const,
   contributors: (companyId: string) => ['contributors', companyId] as const,
+  /** Project người đang đăng nhập được xem; `projectAccessAll` là quyền của mọi thành viên (trang Thành viên). */
+  projectAccess: (companyId: string) => ['project-access', companyId, 'me'] as const,
+  projectAccessAll: (companyId: string) => ['project-access', companyId, 'all'] as const,
   members: (companyId: string) => ['members', companyId] as const,
   userDirectory: (companyId: string) => ['user-directory', companyId] as const,
   invites: (companyId: string) => ['invites', companyId] as const,

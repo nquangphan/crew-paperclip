@@ -133,6 +133,7 @@ const KNOWN_CODES = new Set([
   'crew_contribution_forbidden',
   'crew_contributions_unavailable',
   'crew_contribution_store_failed',
+  'crew_project_not_visible',
 ]);
 
 /**

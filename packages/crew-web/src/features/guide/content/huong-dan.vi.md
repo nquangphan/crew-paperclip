@@ -39,10 +39,10 @@ Mỗi người đăng nhập với một **vai trò** trong company; thanh bên 
 | **Phòng Marketing** | Xem như Chỉ xem, cộng thêm gửi yêu cầu và bình luận để owner duyệt |
 
 {{roles:owner}}
-Đổi vai trò của một người ở mục [Thành viên](/members).
+Đổi vai trò của một người, và chọn project mỗi người được xem, ở mục [Thành viên](/members).
 {{/roles}}
 {{roles:operator,viewer,contributor}}
-Cần quyền khác thì nhờ owner của company đổi giúp.
+Cần quyền khác thì nhờ owner của company đổi giúp. Bạn chỉ thấy các project owner đã cấp cho bạn và yêu cầu của các project đó; chưa được cấp project nào thì danh sách trống.
 {{/roles}}
 
 > **Mẹo:** không cần cài gì trên máy của bạn để dùng web Crew. Chỉ máy chạy agent mới cần app 2P Crew.
@@ -134,7 +134,12 @@ Trang **Tổng quan** cho bức tranh chung của company ngay khi đăng nhập
 {{roles:viewer,contributor}}
 - Các thẻ số (1), (2) cho biết số agent, số yêu cầu đang làm, bị kẹt và đang chờ duyệt. Bạn chỉ xem, không có việc nào ở đây chờ bạn.
 {{/roles}}
+{{roles:owner}}
 - Ba biểu đồ 14 ngày: **Run theo ngày**, **Yêu cầu theo trạng thái**, **Tỉ lệ thành công**.
+{{/roles}}
+{{roles:operator,viewer,contributor}}
+- Biểu đồ 14 ngày **Yêu cầu theo trạng thái**. Số yêu cầu và biểu đồ chỉ tính các project owner đã cấp cho bạn.
+{{/roles}}
 - Thẻ **Máy**: máy nào đang trực tuyến hay mất liên lạc.
 - **Hoạt động gần đây** và **Yêu cầu gần đây**: bấm một yêu cầu để mở cửa sổ chi tiết.
 
@@ -654,6 +659,18 @@ Trang [Thành viên](/members) chỉ owner thấy: danh sách thành viên và v
 #### Đặt hoặc gỡ Phòng Marketing
 
 Thành viên Chỉ xem có nút **Đặt Phòng Marketing**; người đang là Phòng Marketing có nút **Gỡ Phòng Marketing** (2), sau khi gỡ chỉ còn xem.
+
+#### Chọn project mỗi người được xem
+
+{{shot:project-access}}
+
+Mọi thành viên trừ owner (Quản trị, Vận hành, Chỉ xem, Phòng Marketing) chỉ thấy project bạn cấp. Người mới vào chưa thấy project nào. Owner luôn thấy tất cả, cột hiện **Tất cả**.
+
+1. Ở cột **Project được xem**, bấm nút của người đó (1). Nút ghi tên project đã cấp, hoặc **Chưa có project**.
+2. Đánh dấu hoặc bỏ dấu từng project (2), rồi bấm **Lưu** (3).
+3. Người đó tải lại trang là thấy đúng các project đã chọn, kèm yêu cầu, số liệu Tổng quan và kết quả tìm kiếm của các project đó. Yêu cầu không thuộc project nào chỉ owner thấy.
+
+> **Lưu ý:** đây là lớp ẩn của UI Crew. Ai mở thẳng giao diện Paperclip gốc hay API lõi vẫn đọc được. Riêng góp ý của Phòng Marketing bị chặn ở server: không gửi được vào project chưa cấp, và owner không duyệt được góp ý của người đã bị gỡ quyền project đó.
 
 > **Mẹo:** lời mời còn hiệu lực hiện ở bảng dưới kèm giờ hết hạn; bấm **Thu hồi** để link hết dùng được.
 

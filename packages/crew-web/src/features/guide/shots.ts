@@ -47,6 +47,7 @@ export const GUIDE_SHOTS: readonly GuideShot[] = [
   shot('machine-unpair'),
   shot('docs'),
   shot('members'),
+  shot('project-access'),
   shot('settings'),
   shot('stock-ui'),
   { id: 'mac-pairing', kind: 'diagram' },

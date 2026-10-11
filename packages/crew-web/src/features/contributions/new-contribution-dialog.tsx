@@ -22,6 +22,7 @@ import {
   Spinner,
   Textarea,
 } from '@/ds';
+import { useVisibleProjects } from '@/features/access';
 import { useT } from '@/i18n';
 import { contributionErrorKey } from './approve-flow';
 import { useCreateContribution } from './use-contributions';
@@ -56,7 +57,12 @@ function ContributionForm({ companyId, onClose }: { companyId: string; onClose: 
   const [projectId, setProjectId] = useState('');
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
-  const projects = useQuery({ queryKey: queryKeys.projects(companyId), queryFn: () => api.projects.list(companyId) });
+  const visible = useVisibleProjects();
+  const projects = useQuery({
+    queryKey: queryKeys.projects(companyId),
+    queryFn: () => api.projects.list(companyId),
+    select: visible.filterProjects,
+  });
   const create = useCreateContribution();
 
   const choices = (projects.data ?? []).filter((p) => !p.archivedAt);

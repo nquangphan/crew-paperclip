@@ -77,6 +77,9 @@ const MEMBER_ERROR_CODES = new Set([
   'crew_contribution_forbidden',
   'crew_contributions_unavailable',
   'crew_contribution_store_failed',
+  'crew_project_access_not_member',
+  'crew_project_access_invalid',
+  'crew_project_access_unavailable',
 ]);
 
 /** Khóa i18n cho lỗi đặt/gỡ dấu Phòng Marketing, hoặc null khi nên hiện nguyên văn (lỗi mạng, route stock). */

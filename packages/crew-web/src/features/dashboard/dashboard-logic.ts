@@ -180,3 +180,20 @@ export function activityTarget(event: ActivityRef, ctx: ActivityCtx): ActivityTa
       return { label: null, href: null };
   }
 }
+
+export interface TaskCounts {
+  /** Chưa xong và chưa hủy. */
+  open: number;
+  inProgress: number;
+  blocked: number;
+}
+
+/** Số yêu cầu của thẻ Tổng quan, đếm từ danh sách đã lọc theo project người xem được cấp. */
+export function visibleTaskCounts(issues: readonly { status: string }[] | undefined): TaskCounts | undefined {
+  if (!issues) return undefined;
+  return {
+    open: issues.filter((i) => i.status !== 'done' && i.status !== 'cancelled').length,
+    inProgress: issues.filter((i) => i.status === 'in_progress').length,
+    blocked: issues.filter((i) => i.status === 'blocked').length,
+  };
+}

@@ -24,7 +24,7 @@ import {
   Transcript,
   type TranscriptEntry,
 } from '@/ds';
-import { useCompanyAccess } from '@/features/access';
+import { useCompanyAccess, useVisibleProjects } from '@/features/access';
 import { useIssueOpener } from '@/features/issues';
 import { formatDateTime, useT } from '@/i18n';
 import { formatRunLog, type RunAction, type RunActionId, runActionsFor, wakeupOutcome } from './run-actions';
@@ -90,10 +90,24 @@ function RunLog({ runId, active }: { runId: string; active: boolean }) {
 function TouchedIssues({ runId }: { runId: string }) {
   const { t } = useT('runs');
   const opener = useIssueOpener();
+  const { company } = useCompany();
+  const visible = useVisibleProjects();
   const list = useQuery({
     queryKey: queryKeys.runIssues(runId),
     queryFn: async () => (await api.runs.issues(runId)) as TouchedIssue[],
   });
+  // Dòng của run không kèm project: người bị giới hạn chỉ thấy yêu cầu có trong danh sách yêu cầu họ được xem (cùng
+  // khóa với trang Yêu cầu mặc định nên thường đã có trong cache).
+  const listFilters = { view: 'compact', limit: 1000 } as const;
+  const allowed = useQuery({
+    queryKey: queryKeys.issues(company.id, listFilters),
+    queryFn: () => api.issues.listCompact(company.id, listFilters),
+    enabled: visible.restricted,
+    select: (issues) => new Set(visible.filterIssues(issues).map((i) => i.id)),
+  });
+  const touched = visible.restricted
+    ? (list.data ?? []).filter((issue) => allowed.data?.has(issue.issueId))
+    : (list.data ?? []);
   return (
     <Card>
       <CardHeader>
@@ -101,8 +115,8 @@ function TouchedIssues({ runId }: { runId: string }) {
       </CardHeader>
       <CardContent className="flex flex-col">
         {list.error ? <ErrorState title={t('issues.loadFailed')} message={list.error.message} /> : null}
-        {list.data?.length === 0 ? <MutedText>{t('issues.empty')}</MutedText> : null}
-        {(list.data ?? []).map((issue) => {
+        {list.data && touched.length === 0 ? <MutedText>{t('issues.empty')}</MutedText> : null}
+        {touched.map((issue) => {
           const ref = issue.identifier ?? issue.issueId;
           return (
             <IssueRow

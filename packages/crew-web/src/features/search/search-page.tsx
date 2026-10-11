@@ -1,4 +1,5 @@
 // crew: tự dựng
+import type { CompanySearchResult } from '@paperclipai/shared';
 import { useQuery } from '@tanstack/react-query';
 import { type ReactNode, useEffect, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
@@ -25,6 +26,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/ds';
+import { useVisibleProjects, type VisibleProjectsState } from '@/features/access';
 import { IssueLink, parseIssuePath } from '@/features/issues';
 import { useT } from '@/i18n';
 
@@ -55,6 +57,18 @@ function ResultLink({ to, prefix, children }: { to: string; prefix: string; chil
     );
   }
   return <Link to={to}>{children}</Link>;
+}
+
+/**
+ * Kết quả thấy được: yêu cầu, bình luận, tài liệu theo project của yêu cầu; project theo id; agent luôn thấy. Loại khác
+ * không rõ project thì chỉ owner thấy.
+ */
+export function resultVisible(r: CompanySearchResult, visible: Pick<VisibleProjectsState, 'all' | 'canSeeProject'>) {
+  if (visible.all) return true;
+  if (r.issue) return visible.canSeeProject(r.issue.projectId);
+  if (r.artifact) return visible.canSeeProject(r.artifact.projectId);
+  if (r.type === 'project') return visible.canSeeProject(r.id);
+  return r.type === 'agent';
 }
 
 /** Tìm kiếm (S19): GET /companies/:c/search. Bấm kết quả mở đúng issue (kèm neo bình luận/tài liệu nếu có). */
@@ -92,6 +106,7 @@ export function SearchPage() {
     queryFn: () => api.search.query(company.id, { q, scope, limit: 30 }),
     enabled,
   });
+  const visible = useVisibleProjects();
 
   const setScope = (value: string) =>
     setParams(
@@ -104,7 +119,7 @@ export function SearchPage() {
       { replace: true },
     );
 
-  const results = found.data?.results ?? [];
+  const results = (found.data?.results ?? []).filter((r) => resultVisible(r, visible));
   return (
     <div className="flex flex-col gap-3">
       <PageHeader title={t('title')} description={t('description')} />

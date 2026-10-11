@@ -290,6 +290,12 @@
     "rootProgress": "Con xong"
   },
   "access": {
-    "loadFailed": "Không tải được quyền của bạn trong company này"
+    "loadFailed": "Không tải được quyền của bạn trong company này",
+    "projectsFailed": "Không tải được danh sách project bạn được xem",
+    "noProject": "Bạn không có quyền xem project này",
+    "noIssue": "Bạn không có quyền xem yêu cầu này",
+    "noAccessHint": "Owner chưa cấp project này cho bạn. Hãy nhờ owner mở quyền ở trang Thành viên.",
+    "noProjectsYet": "Bạn chưa được cấp project nào",
+    "noProjectsYetHint": "Owner cấp project bạn được xem ở trang Thành viên."
   }
 }

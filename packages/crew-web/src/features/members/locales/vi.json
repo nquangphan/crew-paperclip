@@ -1,6 +1,6 @@
 {
   "title": "Thành viên",
-  "description": "Mời Phòng Marketing, duyệt yêu cầu tham gia và đặt hoặc gỡ quyền Phòng Marketing.",
+  "description": "Mời Phòng Marketing, duyệt yêu cầu tham gia, đặt hoặc gỡ quyền Phòng Marketing và chọn project mỗi người được xem.",
   "empty": "Chưa có thành viên nào để hiện",
   "emptyHint": "Danh sách thành viên và lời mời sẽ hiện ở đây.",
   "role": {
@@ -18,7 +18,8 @@
     "enable": "Đặt Phòng Marketing",
     "disable": "Gỡ Phòng Marketing",
     "loadFailed": "Không tải được danh sách thành viên",
-    "actionFailed": "Không đổi được quyền Phòng Marketing"
+    "actionFailed": "Không đổi được quyền Phòng Marketing",
+    "projects": "Project được xem"
   },
   "invites": {
     "title": "Mời Phòng Marketing",
@@ -64,6 +65,22 @@
     "crew_contributor_requires_viewer": "Chỉ đặt được Phòng Marketing cho thành viên chỉ xem đang hoạt động.",
     "crew_contribution_forbidden": "Bạn không có quyền đổi Phòng Marketing.",
     "crew_contributions_unavailable": "Tính năng góp ý tạm thời chưa dùng được. Thử lại sau.",
-    "crew_contribution_store_failed": "Máy chủ không lưu được thay đổi. Thử lại sau."
+    "crew_contribution_store_failed": "Máy chủ không lưu được thay đổi. Thử lại sau.",
+    "crew_project_access_not_member": "Chỉ chọn project cho thành viên đang hoạt động không phải owner.",
+    "crew_project_access_invalid": "Có project không còn thuộc company. Tải lại trang rồi thử lại.",
+    "crew_project_access_unavailable": "Tính năng quyền xem project tạm thời chưa dùng được. Thử lại sau."
+  },
+  "projects": {
+    "all": "Tất cả",
+    "none": "Chưa có project",
+    "count": "{{count}} project",
+    "edit": "Chọn project {{name}} được xem",
+    "title": "Project {{name}} được xem",
+    "empty": "Company chưa có project nào",
+    "save": "Lưu",
+    "saving": "Đang lưu",
+    "cancel": "Hủy",
+    "failed": "Không lưu được quyền xem project",
+    "loadFailed": "Không tải được quyền xem project"
   }
 }

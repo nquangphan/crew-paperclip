@@ -234,6 +234,11 @@ export const ENDPOINTS = {
   'contributors.set': { ids: ['S20.8'], method: 'PUT', path: `${CREW}/contributors/:userId` },
   'contributors.remove': { ids: ['S20.8'], method: 'DELETE', path: `${CREW}/contributors/:userId` },
 
+  // Quyền xem project theo thành viên (S21): owner đặt ở trang Thành viên, mọi trang lọc theo `projectAccess.me`.
+  'projectAccess.me': { ids: ['S21.2'], method: 'GET', path: `${CREW}/project-access/me` },
+  'projectAccess.list': { ids: ['S21.1'], method: 'GET', path: `${CREW}/project-access` },
+  'projectAccess.set': { ids: ['S21.1'], method: 'PUT', path: `${CREW}/project-access/:userId` },
+
   // Thành viên (S20.8): route stock của Paperclip, chỉ owner dùng.
   'members.list': { ids: ['S20.8'], method: 'GET', path: '/api/companies/:companyId/members' },
   'members.directory': { ids: ['S20.8'], method: 'GET', path: '/api/companies/:companyId/user-directory' },

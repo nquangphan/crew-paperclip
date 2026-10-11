@@ -89,7 +89,7 @@ describe('SearchPage (S19)', () => {
     const s = mockServer({});
     mount('/TPS/search');
     expect(await screen.findByText('Gõ ít nhất 2 ký tự để tìm.')).toBeTruthy();
-    expect(s.calls).toHaveLength(0);
+    expect(s.calls.filter((c) => c.url.includes('/search'))).toHaveLength(0);
   });
 
   it('gọi search với q từ URL và hiện kết quả issue, bình luận, tài liệu', async () => {

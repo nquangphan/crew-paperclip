@@ -30,7 +30,7 @@ import {
   Sparkles,
   Users,
 } from '@/ds/icons';
-import { navItemVisible, navLabelKey, useCompanyAccess } from '@/features/access';
+import { navItemVisible, navLabelKey, useCompanyAccess, useVisibleProjects } from '@/features/access';
 import { useContributionsSummary } from '@/features/contributions/use-contributions';
 import { useInboxBadge } from '@/features/inbox/use-inbox-badge';
 import { projectRef } from '@/features/projects/paths';
@@ -78,10 +78,12 @@ export function Sidebar({ segments, onOpenPalette }: { segments: ReadonlySet<str
   );
   // Project gắn sao nằm ngay dưới mục "Project" như sidebar Paperclip; chưa tải xong thì không hiện gì.
   const hasProjects = segments.has('projects');
+  const visible = useVisibleProjects();
   const projects = useQuery({
     queryKey: queryKeys.projects(company.id),
     queryFn: () => api.projects.list(company.id),
     enabled: hasProjects,
+    select: visible.filterProjects,
   });
   const prefs = useQuery({
     queryKey: queryKeys.sidebarPreferences(company.id),

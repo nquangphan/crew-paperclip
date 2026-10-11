@@ -8,6 +8,7 @@ import { useCompany } from '@/app/hooks';
 import {
   Alert,
   Button,
+  EmptyState,
   ErrorState,
   PageHeader,
   ReadinessBadge,
@@ -18,7 +19,7 @@ import {
   TabsTrigger,
 } from '@/ds';
 import { ArrowLeft, Pencil } from '@/ds/icons';
-import { useCompanyAccess } from '@/features/access';
+import { useCompanyAccess, useVisibleProjects } from '@/features/access';
 import { useProjectReadiness } from '@/features/readiness';
 import { RemoveProjectButton } from '@/features/wizards';
 import { formatDateTime, useT } from '@/i18n';
@@ -36,6 +37,7 @@ export function ProjectPage() {
   const { t, lang } = useT('projects');
   const { company } = useCompany();
   const { readOnly } = useCompanyAccess();
+  const visible = useVisibleProjects();
   const { projectRef = '' } = useParams();
   const [params, setParams] = useSearchParams();
   const [renaming, setRenaming] = useState(false);
@@ -61,6 +63,9 @@ export function ProjectPage() {
     );
   }
   const data = project.data;
+  if (!visible.canSeeProject(data.id)) {
+    return <EmptyState title={t('common:access.noProject')} description={t('common:access.noAccessHint')} />;
+  }
   const entry = readiness.data?.find((p) => p.projectId === data.id);
   return (
     <div className="flex flex-col gap-2">
