@@ -1,0 +1,69 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1040" height="500" viewBox="0 0 1040 500" font-family="system-ui, -apple-system, Segoe UI, sans-serif">
+<title>Setup wizard of the 2P Crew Mac app (the app is in Vietnamese). DIAGRAM, NOT AN APP SCREENSHOT</title>
+<rect width="1040" height="500" fill="#ffffff"/>
+<rect x="0" y="0" width="1040" height="34" fill="#fef3c7"/><text x="520" y="22" text-anchor="middle" font-size="13" font-weight="700" fill="#92400e" letter-spacing="1">DIAGRAM, NOT AN APP SCREENSHOT</text>
+<text x="24" y="70" font-size="18" font-weight="600" fill="#18181b">Setup wizard of the 2P Crew Mac app (the app is in Vietnamese)</text>
+<rect x="24" y="96" width="176" height="84" rx="10" fill="#fafafa" stroke="#d4d4d8" stroke-width="1.5"/>
+<circle cx="44" cy="118" r="12" fill="#3f3f46"/><text x="44" y="122.5" text-anchor="middle" font-size="12" font-weight="700" fill="#fff">1</text>
+<text x="64" y="123" font-size="15" font-weight="600" fill="#18181b">Check machine</text>
+<text x="38" y="156" font-size="12" fill="#52525b">macOS, Node, Tailscale…</text>
+<path d="M203 138.0 L217 138.0" stroke="#71717a" stroke-width="2"/><path d="M217 133.0 L222 138.0 L217 143.0 Z" fill="#71717a"/>
+<rect x="222" y="96" width="176" height="84" rx="10" fill="#fafafa" stroke="#d4d4d8" stroke-width="1.5"/>
+<circle cx="242" cy="118" r="12" fill="#3f3f46"/><text x="242" y="122.5" text-anchor="middle" font-size="12" font-weight="700" fill="#fff">2</text>
+<text x="262" y="123" font-size="15" font-weight="600" fill="#18181b">Remove old app</text>
+<text x="236" y="156" font-size="12" fill="#52525b">if the v2 app exists</text>
+<path d="M401 138.0 L415 138.0" stroke="#71717a" stroke-width="2"/><path d="M415 133.0 L420 138.0 L415 143.0 Z" fill="#71717a"/>
+<rect x="420" y="96" width="176" height="84" rx="10" fill="#fafafa" stroke="#d4d4d8" stroke-width="1.5"/>
+<circle cx="440" cy="118" r="12" fill="#3f3f46"/><text x="440" y="122.5" text-anchor="middle" font-size="12" font-weight="700" fill="#fff">3</text>
+<text x="460" y="123" font-size="15" font-weight="600" fill="#18181b">Applications</text>
+<text x="434" y="156" font-size="12" fill="#52525b">move the app there</text>
+<path d="M599 138.0 L613 138.0" stroke="#71717a" stroke-width="2"/><path d="M613 133.0 L618 138.0 L613 143.0 Z" fill="#71717a"/>
+<rect x="618" y="96" width="176" height="84" rx="10" fill="#fafafa" stroke="#d4d4d8" stroke-width="1.5"/>
+<circle cx="638" cy="118" r="12" fill="#3f3f46"/><text x="638" y="122.5" text-anchor="middle" font-size="12" font-weight="700" fill="#fff">4</text>
+<text x="658" y="123" font-size="15" font-weight="600" fill="#18181b">Sign in</text>
+<text x="632" y="156" font-size="12" fill="#52525b">browser: click Allow</text>
+<path d="M797 138.0 L811 138.0" stroke="#71717a" stroke-width="2"/><path d="M811 133.0 L816 138.0 L811 143.0 Z" fill="#71717a"/>
+<rect x="816" y="96" width="176" height="84" rx="10" fill="#fafafa" stroke="#d4d4d8" stroke-width="1.5"/>
+<circle cx="836" cy="118" r="12" fill="#3f3f46"/><text x="836" y="122.5" text-anchor="middle" font-size="12" font-weight="700" fill="#fff">5</text>
+<text x="856" y="123" font-size="15" font-weight="600" fill="#18181b">Pick company</text>
+<text x="830" y="156" font-size="12" fill="#52525b">empty, you must choose</text>
+<rect x="24" y="220" width="176" height="84" rx="10" fill="#fff1f2" stroke="#e11d48" stroke-width="3"/>
+<circle cx="44" cy="242" r="12" fill="#e11d48"/><text x="44" y="246.5" text-anchor="middle" font-size="12" font-weight="700" fill="#fff">6</text>
+<text x="64" y="247" font-size="15" font-weight="600" fill="#18181b">Máy này</text>
+<text x="38" y="280" font-size="12" fill="#52525b">check company, pair</text>
+<path d="M203 262.0 L217 262.0" stroke="#71717a" stroke-width="2"/><path d="M217 257.0 L222 262.0 L217 267.0 Z" fill="#71717a"/>
+<rect x="222" y="220" width="176" height="84" rx="10" fill="#fafafa" stroke="#d4d4d8" stroke-width="1.5"/>
+<circle cx="242" cy="242" r="12" fill="#3f3f46"/><text x="242" y="246.5" text-anchor="middle" font-size="12" font-weight="700" fill="#fff">7</text>
+<text x="262" y="247" font-size="15" font-weight="600" fill="#18181b">Disk access</text>
+<text x="236" y="280" font-size="12" fill="#52525b">Full Disk Access</text>
+<path d="M401 262.0 L415 262.0" stroke="#71717a" stroke-width="2"/><path d="M415 257.0 L420 262.0 L415 267.0 Z" fill="#71717a"/>
+<rect x="420" y="220" width="176" height="84" rx="10" fill="#fafafa" stroke="#d4d4d8" stroke-width="1.5"/>
+<circle cx="440" cy="242" r="12" fill="#3f3f46"/><text x="440" y="246.5" text-anchor="middle" font-size="12" font-weight="700" fill="#fff">8</text>
+<text x="460" y="247" font-size="15" font-weight="600" fill="#18181b">sshd</text>
+<text x="434" y="280" font-size="12" fill="#52525b">app owns the agent sshd</text>
+<path d="M599 262.0 L613 262.0" stroke="#71717a" stroke-width="2"/><path d="M613 257.0 L618 262.0 L613 267.0 Z" fill="#71717a"/>
+<rect x="618" y="220" width="176" height="84" rx="10" fill="#fafafa" stroke="#d4d4d8" stroke-width="1.5"/>
+<circle cx="638" cy="242" r="12" fill="#3f3f46"/><text x="638" y="246.5" text-anchor="middle" font-size="12" font-weight="700" fill="#fff">9</text>
+<text x="658" y="247" font-size="15" font-weight="600" fill="#18181b">Check</text>
+<text x="632" y="280" font-size="12" fill="#52525b">doctor with 0 errors</text>
+<path d="M797 262.0 L811 262.0" stroke="#71717a" stroke-width="2"/><path d="M811 257.0 L816 262.0 L811 267.0 Z" fill="#71717a"/>
+<rect x="816" y="220" width="176" height="84" rx="10" fill="#fff1f2" stroke="#e11d48" stroke-width="3"/>
+<circle cx="836" cy="242" r="12" fill="#e11d48"/><text x="836" y="246.5" text-anchor="middle" font-size="12" font-weight="700" fill="#fff">10</text>
+<text x="856" y="247" font-size="15" font-weight="600" fill="#18181b">Done</text>
+<text x="830" y="280" font-size="12" fill="#52525b">machine takes runs</text>
+<path d="M904.0 182 L904.0 198 L112.0 198 L112.0 216" fill="none" stroke="#71717a" stroke-width="2"/><path d="M107.0 213 L112.0 219 L117.0 213 Z" fill="#71717a"/>
+<rect x="24" y="350" width="480" height="124" rx="10" fill="#fff1f2" stroke="#e11d48" stroke-width="1.5" stroke-dasharray="5 4"/>
+<text x="40" y="374" font-size="14" font-weight="700" fill="#9f1239">Click &quot;Ghép máy&quot; (Pair machine), step 6</text>
+<text x="40" y="400" font-size="13" fill="#3f3f46">• Creates SSH environment &quot;may-&lt;machine name&gt;&quot;</text>
+<text x="40" y="422" font-size="13" fill="#3f3f46">• Pairs with the Crew plugin, gets its own key</text>
+<text x="40" y="444" font-size="13" fill="#3f3f46">• Stores the key in Keychain, sends a test report</text>
+<text x="40" y="466" font-size="13" fill="#3f3f46">• Machines page shows &quot;Paired &lt;time&gt;&quot;</text>
+<rect x="536" y="350" width="480" height="124" rx="10" fill="#fff1f2" stroke="#e11d48" stroke-width="1.5" stroke-dasharray="5 4"/>
+<text x="552" y="374" font-size="14" font-weight="700" fill="#9f1239">Done: &quot;Đổi company / Ghép lại máy&quot;</text>
+<text x="552" y="400" font-size="13" fill="#3f3f46">• (Change company / Re-pair) goes back to step 4</text>
+<text x="552" y="422" font-size="13" fill="#3f3f46">• Machine unpaired on the web: click</text>
+<text x="552" y="444" font-size="13" fill="#3f3f46">• &quot;Ghép lại máy này&quot; (Re-pair) in step 6</text>
+<text x="552" y="466" font-size="13" fill="#3f3f46">• No key or secret to paste</text>
+<path d="M112.0 306 L112.0 348" stroke="#e11d48" stroke-width="2" stroke-dasharray="4 3"/>
+<path d="M904.0 306 L904.0 348" stroke="#e11d48" stroke-width="2" stroke-dasharray="4 3"/>
+</svg>

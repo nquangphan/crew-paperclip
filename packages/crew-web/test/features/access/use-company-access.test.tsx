@@ -78,6 +78,15 @@ describe('useCompanyAccess', () => {
     }
   });
 
+  it('trả vai trò lõi để trang Hướng dẫn chọn bản đúng (admin, operator, viewer)', async () => {
+    for (const role of ['admin', 'operator', 'viewer']) {
+      const { hook } = await load(access(role));
+      expect(hook.result.current.membershipRole).toBe(role);
+      cleanup();
+    }
+    expect(deriveAccess(undefined, true).membershipRole).toBeNull();
+  });
+
   it('dấu khách của người đã nâng role không có tác dụng', () => {
     expect(deriveAccess({ membershipRole: 'operator', contributor: true }, false).isContributor).toBe(false);
   });

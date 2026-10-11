@@ -1,10 +1,18 @@
 {
-  "description": "Cách dùng 2P Crew hằng ngày, từng màn hình, và lý do một số nút của Paperclip gốc không có.",
+  "title": "Hướng dẫn sử dụng 2P Crew",
+  "description": "Cách dùng 2P Crew theo vai trò của bạn: từng việc, từng bước, có ảnh màn hình.",
+  "roleSwitch": "Xem hướng dẫn của",
+  "audience": "Hướng dẫn cho: {{role}}",
+  "roles": {
+    "owner": "Owner",
+    "operator": "Admin / Vận hành",
+    "viewer": "Chỉ xem",
+    "contributor": "Phòng Marketing"
+  },
   "toc": "Mục lục",
-  "sectionLabel": "Mục {{n}}",
   "shot": {
-    "pending": "Ảnh minh họa sẽ được chụp sau khi hệ thống chạy thật.",
-    "screen": "Màn hình: {{route}}"
+    "pending": "Chưa có ảnh cho mục này. Chạy lệnh guide:shots để chụp lại.",
+    "diagram": "Sơ đồ, không phải ảnh chụp app"
   },
   "missingTable": {
     "feature": "Tính năng",
@@ -40,18 +48,36 @@
   },
   "shots": {
     "login": "Trang đăng nhập",
+    "shell": "Thanh bên trái và màn hình chính theo vai trò của bạn",
     "dashboard": "Trang Tổng quan",
-    "new-issue": "Hộp thoại Yêu cầu mới",
-    "issue-detail": "Trang một yêu cầu: tóm tắt Crew, bản đồ việc con và các nút Duyệt, Yêu cầu sửa, Hủy yêu cầu",
-    "inbox": "Hộp thư, tab Chờ tôi duyệt",
-    "projects": "Danh sách Project và trạng thái sẵn sàng",
+    "palette": "Tìm nhanh (Ctrl+K hoặc Cmd+K)",
+    "issues-list": "Trang Yêu cầu: thanh công cụ và danh sách",
+    "issues-filter": "Bảng Lọc của danh sách yêu cầu",
+    "issues-columns": "Bảng Cột: chọn cột hiện trên mỗi dòng",
+    "issue-popup": "Cửa sổ chi tiết một yêu cầu",
+    "issue-gate": "Yêu cầu đang chờ bạn duyệt: nút Duyệt, Yêu cầu sửa, Hủy yêu cầu, Ép Done",
+    "force-done": "Hộp thoại Ép Done",
+    "new-request": "Hộp thoại Yêu cầu mới",
+    "inbox": "Hộp thư",
+    "contribution-new": "Phòng Marketing gửi yêu cầu chờ owner duyệt",
+    "contribution-comment": "Phòng Marketing bình luận: bình luận chờ duyệt hiện ngay trong luồng",
+    "contributions-mine": "Trang Góp ý của tôi",
+    "contributions-owner": "Trang Chờ duyệt của owner",
+    "contribution-approve": "Hộp thoại Duyệt yêu cầu của Phòng Marketing",
+    "projects": "Trang Project",
+    "project-roles": "Tab Vai trò của một project",
     "add-project": "Wizard Thêm project",
-    "agents": "Danh sách Agent",
+    "agents": "Trang Agent",
+    "agent-detail": "Trang một agent",
     "add-agent": "Wizard Tạo agent",
     "skills": "Trang Skills",
     "machines": "Trang Máy",
+    "machine-unpair": "Hộp xác nhận Gỡ máy",
     "docs": "Trang Docs",
-    "settings": "Trang Cài đặt"
+    "members": "Trang Thành viên",
+    "settings": "Trang Cài đặt",
+    "stock-ui": "Mục Mở giao diện Paperclip gốc ở thanh bên",
+    "mac-pairing": "Các bước của app 2P Crew trên Mac khi ghép máy"
   },
   "missing": {
     "routines": {

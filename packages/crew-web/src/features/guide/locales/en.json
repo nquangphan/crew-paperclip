@@ -1,10 +1,18 @@
 {
-  "description": "How to use 2P Crew day to day, screen by screen, and why some original Paperclip buttons are missing.",
+  "title": "Using 2P Crew",
+  "description": "How to use 2P Crew for your role: task by task, step by step, with screenshots.",
+  "roleSwitch": "Show the guide for",
+  "audience": "Guide for: {{role}}",
+  "roles": {
+    "owner": "Owner",
+    "operator": "Admin / Operator",
+    "viewer": "Viewer",
+    "contributor": "Marketing"
+  },
   "toc": "Contents",
-  "sectionLabel": "Section {{n}}",
   "shot": {
-    "pending": "An illustration will be captured once the system is live.",
-    "screen": "Screen: {{route}}"
+    "pending": "No image for this item yet. Run guide:shots to capture it.",
+    "diagram": "Diagram, not an app screenshot"
   },
   "missingTable": {
     "feature": "Feature",
@@ -40,18 +48,36 @@
   },
   "shots": {
     "login": "Sign-in page",
-    "dashboard": "Overview page",
-    "new-issue": "New request dialog",
-    "issue-detail": "A request page: Crew summary, map of sub-requests and the Approve, Request changes and Cancel request buttons",
-    "inbox": "Inbox, Awaiting my approval tab",
-    "projects": "Project list with readiness",
-    "add-project": "Add project wizard",
-    "agents": "Agent list",
-    "add-agent": "Create agent wizard",
-    "skills": "Skills page",
-    "machines": "Machines page",
-    "docs": "Docs page",
-    "settings": "Settings page"
+    "shell": "The left sidebar and main screen for your role",
+    "dashboard": "The Overview page",
+    "palette": "Quick search (Ctrl+K or Cmd+K)",
+    "issues-list": "The Requests page: toolbar and list",
+    "issues-filter": "The Filter panel of the request list",
+    "issues-columns": "The Columns panel: pick the columns shown on each row",
+    "issue-popup": "The request detail popup",
+    "issue-gate": "A request awaiting your approval: Approve, Request changes, Cancel request, Force Done",
+    "force-done": "The Force Done dialog",
+    "new-request": "The New request dialog",
+    "inbox": "The Inbox",
+    "contribution-new": "Marketing sends a request for the owner to approve",
+    "contribution-comment": "Marketing comments: the pending comment shows in the thread",
+    "contributions-mine": "The My contributions page",
+    "contributions-owner": "The owner's Pending approval page",
+    "contribution-approve": "The dialog for approving a Marketing request",
+    "projects": "The Projects page",
+    "project-roles": "The Roles tab of a project",
+    "add-project": "The Add project wizard",
+    "agents": "The Agents page",
+    "agent-detail": "An agent page",
+    "add-agent": "The Create agent wizard",
+    "skills": "The Skills page",
+    "machines": "The Machines page",
+    "machine-unpair": "The Unpair machine confirmation",
+    "docs": "The Docs page",
+    "members": "The Members page",
+    "settings": "The Settings page",
+    "stock-ui": "The Open original Paperclip UI item in the sidebar",
+    "mac-pairing": "The steps of the 2P Crew Mac app when pairing a machine"
   },
   "missing": {
     "routines": {

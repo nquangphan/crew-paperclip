@@ -68,6 +68,7 @@ if [ -d test-results ]; then
   pw() {
     printf '%s\n' "$CREW_E2E_PASSWORD"
     [ -z "${CREW_E2E_CONTRIBUTOR_PASSWORD:-}" ] || printf '%s\n' "$CREW_E2E_CONTRIBUTOR_PASSWORD"
+    [ -z "${CREW_GUIDE_PASSWORD:-}" ] || printf '%s\n' "$CREW_GUIDE_PASSWORD"
   }
   n=0
   leaked=0

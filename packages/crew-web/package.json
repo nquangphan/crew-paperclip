@@ -9,6 +9,7 @@
     "typecheck": "tsc -b --noEmit",
     "test": "vitest run",
     "e2e": "playwright test",
+    "guide:shots": "CREW_GUIDE_SHOTS=1 bash e2e/support/run-e2e.sh --project=t1 --grep @guide-shots",
     "lint": "biome check ."
   },
   "dependencies": {

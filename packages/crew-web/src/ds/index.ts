@@ -45,6 +45,7 @@ export * from './widgets/crew/docs-check-panel';
 export * from './widgets/crew/machine-card';
 export * from './widgets/crew/readiness-badge';
 export * from './widgets/dashboard-list';
+export * from './widgets/doc-layout';
 export * from './widgets/filter-bar';
 export * from './widgets/floating-notice';
 export * from './widgets/issue-detail';

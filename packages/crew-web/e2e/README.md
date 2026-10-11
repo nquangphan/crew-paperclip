@@ -39,7 +39,9 @@ Chạy từ thư mục `packages/crew-web`. `retries: 1`, `workers: 1`.
 | `CREW_E2E_SSH_HOST` | `nhamoiplatform` | Host VPS cho mật khẩu và `db.ts` |
 | `CREW_E2E_BASE_KEY` | `e2e-base` | Khóa project nền (dạng `e2e-*`). Khóa đã gỡ không dựng lại được, xem mục Project nền |
 | `CREW_E2E_COVERAGE_STRICT` | — | `1` thì ca "mọi mã BA có ca" trong `test/e2e-coverage.test.ts` chạy chặt |
-| `CREW_E2E_SHOTS` | — | `1` thì chạy `specs/shots.spec.ts` (ảnh cho trang Hướng dẫn, ra `e2e/shots/`) |
+| `CREW_GUIDE_SHOTS` | — | `1` thì chạy `specs/guide-shots.spec.ts` (ảnh cho trang Hướng dẫn, xem mục Ảnh trang Hướng dẫn) |
+| `CREW_GUIDE_SHOTS_ONLY` | — | Danh sách id ảnh cách nhau bằng dấu phẩy: chỉ chụp lại các ảnh đó |
+| `CREW_GUIDE_PASSWORD` | — | Mật khẩu tạm (chỉ T1) của hai tài khoản ảnh hướng dẫn |
 
 ## Helper (`support/`)
 
@@ -55,7 +57,10 @@ Chạy từ thư mục `packages/crew-web`. `retries: 1`, `workers: 1`.
 - `agent-token.ts`: `agentToken(api, agentId)` / `withAgentToken(api, agentId, fn)` — key agent tạm của company e2e,
   luôn xóa sau ca.
 - `cleanup.ts`: `trackIssue`, `cancelTrackedIssues`, `resetAgentSessions(api, agentIds)`.
-- `shots.ts`: `shoot(page, name)`, `SHOT_PAGES`.
+- `shots.ts`: `prepareContext` (theme sáng, ngôn ngữ), `annotate`/`clearMarks` (khung đỏ có số), `saveShot` (WebP vào
+  `src/features/guide/img/<lang>/`).
+- `guide-users.ts`: `ensureGuideAccount(api, companyId, 'operator' | 'viewer')`. `guide-demo.ts`: `ensureGuideDemo` (dữ
+  liệu mẫu dễ đọc cho ảnh).
 
 ## Tài khoản khách góp ý
 
@@ -75,6 +80,28 @@ e2e, có dấu khách góp ý (bảng `crew_contributors`).
 - Ca S20 chạy nối tiếp trên cùng dữ liệu, tạo mục góp ý với dấu riêng mỗi lượt và để lại ở trạng thái cuối. Issue ca
   tạo ra được hủy cuối ca (`trackIssue`). PW-S20-7 gỡ rồi đặt lại dấu của chính tài khoản khách, nên ca khác phải
   chạy lại được ngay sau đó.
+
+## Ảnh trang Hướng dẫn
+
+Trang Hướng dẫn (`src/features/guide/`) hiện bản theo vai trò đăng nhập, mỗi mục có ảnh chụp thật từ T1. Chụp lại toàn
+bộ (cả `vi` và `en`, mọi vai trò):
+
+```sh
+CREW_E2E_T1_ENV=~/crew-ga-t1/board.env pnpm --filter @crew/paperclip-web guide:shots
+```
+
+- Stack T1 phải đang chạy (server 3199, web 5183). Ảnh khung nhìn 1280×800, theme sáng, giờ Asia/Ho_Chi_Minh, lưu WebP
+  thẳng vào `src/features/guide/img/<lang>/<id>[.<vai trò>].webp`. Danh sách ảnh ở `src/features/guide/shots.ts`; mỗi id
+  có một cách chụp trong `RECIPES` của spec (ca đầu của spec kiểm hai danh sách khớp nhau).
+- Tài khoản theo vai trò: owner là tài khoản board, Phòng Marketing là tài khoản khách góp ý (mục trên). Admin/Vận hành
+  và Chỉ xem là `guide-operator@crew-e2e.local` và `guide-viewer@crew-e2e.local`, tự dựng ở lượt đầu bằng luồng của owner
+  (lời mời có `humanRole`, đăng ký, nhận lời mời, duyệt yêu cầu tham gia). Mật khẩu là `CREW_GUIDE_PASSWORD` trong
+  `board.env` (quyền 600, chỉ T1). Spec tắt trace vì điền mật khẩu thật.
+- Dữ liệu mẫu (`guide-demo.ts`): một yêu cầu "Thêm nút xuất Excel ở trang báo cáo" đang chờ owner duyệt trong project
+  theo dõi, một yêu cầu và một bình luận Phòng Marketing đang chờ, một yêu cầu bị từ chối. Tìm theo tiêu đề nên chạy lại
+  không tạo bản trùng. Spec chỉ mở hộp thoại rồi đóng, không bấm nút xác nhận nào.
+- Ảnh app Mac không chụp được từ T1: trang dùng sơ đồ `img/<lang>/mac-pairing.svg` có nhãn "không phải ảnh chụp app".
+- `test/features/guide/guide-content.test.ts` kiểm mọi mục việc có ảnh với từng vai trò, file có thật và dưới 150 KB.
 
 ## Chế độ stub
 

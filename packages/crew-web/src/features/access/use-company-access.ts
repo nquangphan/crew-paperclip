@@ -7,6 +7,8 @@ export interface CompanyAccessState {
   isOwner: boolean;
   /** Viewer có dấu khách góp ý (Phòng Marketing). */
   isContributor: boolean;
+  /** Vai trò thành viên ở lõi (`owner`, `admin`, `operator`, `viewer`); null khi đang tải hoặc không có membership. */
+  membershipRole: string | null;
   /**
    * UI chỉ đọc: ẩn mọi nút ghi. Đúng với viewer, và cả lúc đang tải để nút ghi không chớp lên rồi biến mất.
    * Lỗi tải thì không coi là chỉ đọc: server vẫn là cổng thật (viewer ghi nhận 403), UI chỉ bớt nút chết.
@@ -28,6 +30,7 @@ export function deriveAccess(
   return {
     isOwner: data?.membershipRole === 'owner',
     isContributor: viewer && data?.contributor === true,
+    membershipRole: data?.membershipRole ?? null,
     readOnly: loading || viewer,
     loading,
   };

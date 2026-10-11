@@ -1,0 +1,106 @@
+// crew: tự dựng
+// Bố cục trang tài liệu (trang Hướng dẫn): mục lục dính bên trái theo nhóm, nội dung bên phải, từng mục có neo, hình có
+// khung và chú thích. Màn hình nhỏ thì mục lục nằm trên nội dung.
+import type * as React from 'react';
+import { cn } from '../cn';
+
+/** Hai cột: mục lục (dính khi cuộn) và nội dung. */
+function DocLayout({ nav, children }: { nav: React.ReactNode; children: React.ReactNode }) {
+  return (
+    <div data-slot="doc-layout" className="grid grid-cols-1 gap-8 lg:grid-cols-[15rem_minmax(0,1fr)]">
+      <div className="lg:sticky lg:top-4 lg:max-h-[calc(100vh-2rem)] lg:self-start lg:overflow-auto">{nav}</div>
+      <div className="flex min-w-0 flex-col gap-10">{children}</div>
+    </div>
+  );
+}
+
+interface DocNavGroup {
+  id: string;
+  title: string;
+  items: { id: string; title: string }[];
+}
+
+/** Mục lục theo nhóm. `href` là neo `#id` để chép link và mở tab mới được. */
+function DocNav({ label, groups }: { label: string; groups: DocNavGroup[] }) {
+  return (
+    <nav aria-label={label} data-slot="doc-nav" className="flex flex-col gap-4 text-sm">
+      <p className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">{label}</p>
+      {groups.map((group) => (
+        <div key={group.id} className="flex flex-col gap-1">
+          <p className="font-medium text-foreground">{group.title}</p>
+          <ul className="flex flex-col border-l border-border">
+            {group.items.map((item) => (
+              <li key={item.id}>
+                <a
+                  href={`#${item.id}`}
+                  className="-ml-px block border-l border-transparent py-1 pl-3 text-muted-foreground hover:border-foreground hover:text-foreground"
+                >
+                  {item.title}
+                </a>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ))}
+    </nav>
+  );
+}
+
+/** Một nhóm mục (cấp 2), như nhóm trong thanh bên của tài liệu Paperclip. */
+function DocGroup({ id, title, children }: { id: string; title: string; children: React.ReactNode }) {
+  return (
+    <section id={id} data-slot="doc-group" aria-labelledby={`${id}-title`} className="flex scroll-mt-6 flex-col gap-8">
+      <h2 id={`${id}-title`} className="border-b pb-2 text-lg font-semibold">
+        {title}
+      </h2>
+      {children}
+    </section>
+  );
+}
+
+/** Một mục có neo (cấp 3). `scroll-mt` để neo không bị mép trên che. */
+function DocSection({ id, title, children }: { id: string; title: string; children: React.ReactNode }) {
+  return (
+    <section id={id} data-slot="doc-section" aria-label={title} className="flex scroll-mt-6 flex-col gap-3">
+      <h3 className="group text-base font-semibold">
+        {title}
+        <a
+          href={`#${id}`}
+          aria-label={`#${id}`}
+          className="ml-2 text-muted-foreground opacity-0 group-hover:opacity-100"
+        >
+          #
+        </a>
+      </h3>
+      {children}
+    </section>
+  );
+}
+
+/** Hình minh họa có khung, chú thích, và nhãn phụ (ví dụ "Sơ đồ, không phải ảnh chụp"). */
+function DocFigure({
+  src,
+  alt,
+  caption,
+  note,
+  className,
+}: {
+  src: string;
+  alt: string;
+  caption: string;
+  note?: string;
+  className?: string;
+}) {
+  return (
+    <figure data-slot="doc-figure" className={cn('flex flex-col gap-2', className)}>
+      <img src={src} alt={alt} loading="lazy" className="w-full rounded-lg border bg-background shadow-sm" />
+      <figcaption className="text-sm text-muted-foreground">
+        {caption}
+        {note ? <span className="ml-2 rounded bg-muted px-1.5 py-0.5 text-xs font-medium">{note}</span> : null}
+      </figcaption>
+    </figure>
+  );
+}
+
+export type { DocNavGroup };
+export { DocFigure, DocGroup, DocLayout, DocNav, DocSection };

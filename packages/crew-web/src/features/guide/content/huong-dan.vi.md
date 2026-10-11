@@ -1,413 +1,765 @@
 # Hướng dẫn sử dụng 2P Crew
 
-2P Crew là một đội agent AI biết lập trình. Bạn viết yêu cầu bằng lời, ví dụ "thêm nút xuất Excel ở trang báo cáo". Đội agent tự chia việc, viết code, tự review, cập nhật tài liệu rồi đẩy code lên nhánh chính. Bạn chỉ cần trả lời khi được hỏi và duyệt ở bước cuối.
+{{roles:owner}}
+Bạn đang xem bản cho **Owner**: đầy đủ mọi việc, kể cả phần chỉ owner làm (duyệt, Thành viên, Máy, ghép và gỡ máy, thêm project, runtime). Muốn biết người khác thấy gì, chọn vai trò ở ô **Xem hướng dẫn của** góc trên bên phải.
+{{/roles}}
+{{roles:operator}}
+Bạn đang xem bản cho **Admin / Vận hành**: các việc hằng ngày như giao yêu cầu, theo dõi tiến độ, xem project, agent và máy. Phần chỉ owner làm (duyệt cuối, thành viên, ghép máy, thêm project) không nằm ở đây.
+{{/roles}}
+{{roles:viewer}}
+Bạn đang xem bản cho **Chỉ xem**: bạn xem được tổng quan, yêu cầu, project và tài liệu, nhưng không tạo hay sửa được gì.
+{{/roles}}
+{{roles:contributor}}
+Bạn đang xem bản cho **Phòng Marketing**: cách gửi yêu cầu, viết bình luận và theo dõi trang **Góp ý của tôi**. Mọi thứ bạn gửi đều chờ owner duyệt trước khi đội agent thấy.
+{{/roles}}
 
-Hướng dẫn này viết cho người **mới vào lần đầu**, không cần biết lập trình. Đọc từ trên xuống: mục 1 trả lời "tôi có phải cài đặt gì không", mục 2 đến 8 là cách dùng hằng ngày, các mục sau để tra cứu khi cần. Bấm tên mục trong **Mục lục** bên dưới để nhảy tới đó.
+Mỗi mục trả lời một việc: **là gì**, **làm từng bước thế nào**, rồi **mẹo**. Bấm tên mục ở cột trái để nhảy tới; chép địa chỉ trên thanh trình duyệt để gửi đúng mục đó cho người khác. Số đỏ trên ảnh khớp với số **(1)**, **(2)** trong bài.
 
-## 1. Lần đầu vào: có cần dựng gì không?
+## Bắt đầu {#start}
 
-**Không cần.** Công ty và các máy đã được dựng sẵn, bạn chỉ cần làm bốn việc: **đăng nhập, giao yêu cầu cho Trợ Lý, trả lời câu hỏi, duyệt kết quả.**
+### 2P Crew là gì {#what-is-crew}
+
+2P Crew là một đội agent AI biết lập trình. Bạn viết yêu cầu bằng lời, ví dụ "thêm nút xuất Excel ở trang báo cáo". Đội agent tự chia việc, viết code, tự review, cập nhật tài liệu rồi đẩy code lên nhánh chính. Con người chỉ trả lời khi được hỏi và duyệt ở bước cuối.
 
 | Thành phần | Là gì |
 |---|---|
-| **Company** | Không gian làm việc chứa mọi yêu cầu, project và agent. Chọn company ở góc trên thanh bên trái. Danh sách chỉ có company đã được cấu hình cho Crew |
-| **Project** | Một repo code mà đội agent làm việc trên đó. Mỗi project có bốn vai trò: Trợ Lý, Executor (người viết code, 1 hoặc 2 người), Reviewer (người kiểm tra), Integrator (người gộp code và đẩy lên) |
-| **Agent** | Mỗi vai trò do một agent đảm nhận. Agent chạy Claude Code trên máy Mac của bạn |
-| **Máy** | Máy Mac chạy agent. Máy phải bật, có mạng và có app 2P Crew đang chạy |
-| **Luật làm việc** | Mỗi yêu cầu code đi qua các bước duyệt cố định, có kiểm tài liệu tự động và tối đa 5 vòng sửa |
+| **Company** | Không gian làm việc chứa mọi yêu cầu, project và agent. Chọn ở ô trên cùng của thanh bên trái |
+| **Project** | Một repo code mà đội agent làm việc trên đó |
+| **Agent** | Một "người làm" là AI. Mỗi project có bốn vai trò: Trợ Lý, Executor (viết code), Reviewer (kiểm tra), Integrator (gộp code và đẩy lên) |
+| **Máy** | Máy Mac chạy agent, có app 2P Crew đang mở |
+| **Yêu cầu** | Một việc giao cho đội. Mọi yêu cầu đi qua Trợ Lý và các bước duyệt cố định |
 
-Muốn đưa **một repo mới** cho đội làm, dùng nút **Thêm project** ở trang [Project](/projects) (xem mục 8). Muốn thêm một người viết code, dùng nút **Tạo agent** ở trang [Agent](/agents) (xem mục 9). Cả hai đều ngay trên web, không cần gõ lệnh.
+Mỗi người đăng nhập với một **vai trò** trong company; thanh bên trái và các nút bạn thấy tùy theo vai trò đó:
 
-## 2. Đăng nhập, đổi ngôn ngữ, đăng xuất
+| Vai trò | Làm được |
+|---|---|
+| **Owner** | Mọi việc: giao yêu cầu, duyệt cuối, mời người, ghép và gỡ máy, thêm project và agent, bật runtime |
+| **Admin / Vận hành** | Việc hằng ngày: giao yêu cầu, theo dõi, bình luận, xem project, agent, máy |
+| **Chỉ xem** | Xem tổng quan, yêu cầu, project và tài liệu. Không tạo hay sửa gì |
+| **Phòng Marketing** | Xem như Chỉ xem, cộng thêm gửi yêu cầu và bình luận để owner duyệt |
+
+{{roles:owner}}
+Đổi vai trò của một người ở mục [Thành viên](/members).
+{{/roles}}
+{{roles:operator,viewer,contributor}}
+Cần quyền khác thì nhờ owner của company đổi giúp.
+{{/roles}}
+
+> **Mẹo:** không cần cài gì trên máy của bạn để dùng web Crew. Chỉ máy chạy agent mới cần app 2P Crew.
+
+### Đăng nhập, ngôn ngữ, đăng xuất {#sign-in}
 
 {{shot:login}}
 
-1. Mở địa chỉ Crew mà người quản trị gửi cho bạn.
-2. Nhập **Email** và **Mật khẩu** rồi bấm **Đăng nhập**.
-3. Đăng nhập xong bạn vào trang **Tổng quan**.
+#### Cách làm
 
-Lưu ý:
-- **Không có nút tạo tài khoản.** Đăng ký tự do đã tắt để người lạ không vào được. Tài khoản do người quản trị cấp.
-- Sai email hoặc mật khẩu thì trang báo "Sai email hoặc mật khẩu". Nhập lại là được.
-- Đổi ngôn ngữ Việt hoặc Anh ở trang [Cài đặt](/settings), mục **Ngôn ngữ**. Lựa chọn được nhớ trong trình duyệt này.
-- Đăng xuất: bấm **Tài khoản** ở thanh bên trái rồi chọn **Đăng xuất**.
-- Khi một ứng dụng trên máy Mac xin đăng nhập, trình duyệt mở trang **Cho phép ứng dụng đăng nhập**. Chỉ bấm **Cho phép** nếu chính bạn vừa bật ứng dụng đó. Không chắc thì bấm **Hủy**.
+1. Mở địa chỉ Crew mà owner gửi cho bạn.
+2. Nhập **Email** (1) và **Mật khẩu** (2), bấm **Đăng nhập** (3). Bạn vào trang **Tổng quan**.
+3. Đổi ngôn ngữ: bấm **VI** hoặc **EN** ở góc dưới thanh bên trái, hoặc vào [Cài đặt](/settings), mục **Ngôn ngữ**. Lựa chọn được nhớ trên trình duyệt này.
+4. Đăng xuất: bấm tên của bạn ở góc dưới thanh bên trái rồi chọn **Đăng xuất**.
 
-## 3. Làm quen màn hình chính
+> **Mẹo:** không có nút tạo tài khoản. Tài khoản do owner mời. Sai email hoặc mật khẩu thì trang báo "Sai email hoặc mật khẩu", nhập lại là được.
+
+{{roles:owner,operator}}
+> **Lưu ý:** khi app 2P Crew trên Mac xin đăng nhập, trình duyệt mở trang **Cho phép ứng dụng đăng nhập**. Chỉ bấm **Cho phép** nếu chính bạn vừa bật app đó. Không chắc thì bấm **Hủy**.
+{{/roles}}
+
+### Màn hình chính và thanh bên {#layout}
+
+{{shot:shell}}
+
+Thanh bên trái chia nhóm giống Paperclip gốc. Trên ảnh:
+
+1. **Company**: đổi company đang xem (nếu bạn ở nhiều company).
+2. **Tìm nhanh**: mở ô tìm (mục [Tìm nhanh](#quick-search)).
+{{roles:owner,operator,contributor}}
+3. **Yêu cầu mới**: mở hộp thoại tạo yêu cầu. Đây là nút dùng nhiều nhất.
+{{/roles}}
+4. **Hướng dẫn**: trang bạn đang đọc.
+5. **VI / EN**: đổi ngôn ngữ.
+
+Các nhóm còn lại:
+{{roles:owner}}
+- **Công việc**: Yêu cầu, **Chờ duyệt** (góp ý của Phòng Marketing, con số là số mục đang chờ), Project, Docs.
+- **Tổ chức**: Agent, Skills, Máy.
+- **Hệ thống**: **Thành viên**, Cài đặt, Hướng dẫn, **Mở giao diện Paperclip gốc**.
+{{/roles}}
+{{roles:operator}}
+- **Công việc**: Yêu cầu, Project, Docs.
+- **Tổ chức**: Agent, Skills, Máy.
+- **Hệ thống**: Cài đặt, Hướng dẫn, **Mở giao diện Paperclip gốc**.
+{{/roles}}
+{{roles:viewer}}
+- **Công việc**: Yêu cầu, Project, Docs.
+- **Hệ thống**: Cài đặt, Hướng dẫn, **Mở giao diện Paperclip gốc**.
+
+Bạn không thấy Hộp thư, Agent, Skills và Máy vì vai trò Chỉ xem không dùng các trang đó.
+{{/roles}}
+{{roles:contributor}}
+- **Công việc**: Yêu cầu, **Góp ý của tôi** (những gì bạn đã gửi), Project, Docs.
+- **Hệ thống**: Cài đặt, Hướng dẫn, **Mở giao diện Paperclip gốc**.
+{{/roles}}
+
+> **Mẹo:** bấm tiêu đề một nhóm để thu gọn hoặc mở lại. Trang tự cập nhật khi agent làm xong một bước, không cần tải lại.
+
+### Tìm nhanh {#quick-search}
+
+{{shot:palette}}
+
+Ô tìm nhanh mở yêu cầu theo mã hoặc tiêu đề mà không phải rời trang đang xem.
+
+#### Cách làm
+
+1. Bấm **Tìm nhanh** ở thanh bên, hoặc bấm **Ctrl+K** (Windows) hay **Cmd+K** (Mac).
+2. Gõ mã yêu cầu như `CRE-12` hoặc vài chữ của tiêu đề (1).
+3. Chọn kết quả bằng phím mũi tên rồi **Enter**. Yêu cầu mở trong cửa sổ nổi.
+
+> **Mẹo:** trang **Tìm kiếm** ở thanh bên tìm sâu hơn: cả trong bình luận và tài liệu của yêu cầu.
+
+## Làm việc hằng ngày {#daily}
+
+### Tổng quan {#dashboard}
 
 {{shot:dashboard}}
 
-**Thanh bên trái** chia nhóm giống giao diện Paperclip gốc, từ trên xuống:
-- Nhóm đầu (không có tiêu đề):
-  - **Yêu cầu mới**: mở hộp thoại tạo yêu cầu. Đây là nút dùng nhiều nhất.
-  - **Tìm kiếm**: tìm yêu cầu và tài liệu. Có thể bấm Ctrl+K (hoặc Cmd+K trên Mac), gõ mã yêu cầu như `TPS-12` rồi Enter để mở nhanh.
-  - **Tổng quan**: khối **Agent** (các run gần đây), bốn thẻ số (agent đang bật, yêu cầu đang làm, yêu cầu bị kẹt, yêu cầu **chờ bạn duyệt**), biểu đồ 14 ngày, hoạt động và yêu cầu gần đây, thẻ máy.
-  - **Hộp thư**: những thứ đang chờ bạn. Con số bên cạnh là số mục chưa đọc.
-- **Công việc**:
-  - **Yêu cầu**: toàn bộ yêu cầu của company, yêu cầu con nằm dưới yêu cầu gốc.
-  - **Project**: danh sách và tình trạng sẵn sàng (mục 10). Project bạn đã gắn sao hiện ngay bên dưới, bấm để mở thẳng project.
-  - **Docs**: mục 13.
-- **Tổ chức**: **Agent** (mục 10), **Skills** (mục 11), **Máy** (mục 12).
-- Owner có thêm **Chờ duyệt** (nhóm Công việc) và **Thành viên** (nhóm Hệ thống) cho Phòng Marketing (mục 15).
-- **Hệ thống**: **Cài đặt** (hồ sơ, ngôn ngữ, thông tin hệ thống), **Hướng dẫn** (trang bạn đang đọc) và **Mở giao diện Paperclip gốc** (khi đã cấu hình).
+Trang **Tổng quan** cho bức tranh chung của company ngay khi đăng nhập.
 
-Bấm tiêu đề một nhóm (Công việc, Tổ chức, Hệ thống) để thu gọn hoặc mở lại nhóm đó.
+{{roles:owner,operator}}
+- Khối **Agent** trên cùng: các run gần đây. Bấm một thẻ để đọc agent đã làm gì; **Xem tất cả run** mở toàn bộ.
+- Bốn thẻ số: **Agent đang bật** (1), **Yêu cầu đang làm**, **Yêu cầu bị kẹt**, **Chờ bạn duyệt** (2). Bấm thẻ để mở danh sách tương ứng.
+{{/roles}}
+{{roles:owner}}
+- Thẻ **Góp ý chờ duyệt** (3): số yêu cầu và bình luận của Phòng Marketing đang chờ bạn.
+{{/roles}}
+{{roles:viewer,contributor}}
+- Các thẻ số (1), (2) cho biết số agent, số yêu cầu đang làm, bị kẹt và đang chờ duyệt. Bạn chỉ xem, không có việc nào ở đây chờ bạn.
+{{/roles}}
+- Ba biểu đồ 14 ngày: **Run theo ngày**, **Yêu cầu theo trạng thái**, **Tỉ lệ thành công**.
+- Thẻ **Máy**: máy nào đang trực tuyến hay mất liên lạc.
+- **Hoạt động gần đây** và **Yêu cầu gần đây**: bấm một yêu cầu để mở cửa sổ chi tiết.
 
-Giao diện tự cập nhật: khi agent làm xong một bước, trạng thái trên trang đổi theo, bạn không cần tải lại.
+> **Mẹo:** giờ trên mọi trang theo múi giờ Việt Nam.
 
-## 4. Giao một yêu cầu
+### Danh sách Yêu cầu {#issue-list}
 
-{{shot:new-issue}}
+{{shot:issues-list}}
 
-1. Bấm **Yêu cầu mới** ở thanh bên trái.
-2. Chọn **Project**. Danh sách chỉ có project đã **sẵn sàng**. Project chưa sẵn sàng thì xem mục 10 để biết còn thiếu gì.
-3. Chọn **Loại**: Code, Bug hoặc Nghiên cứu (bảng bên dưới).
-4. Viết **Tiêu đề**, ngắn gọn, một câu.
-5. Viết **Mô tả**. Nên ghi:
-   - **muốn gì** và **vì sao**;
-   - **ở chỗ nào**: trang nào, phần nào;
-   - **cái gì không được đụng**, nếu có.
-6. Có thể **Đính kèm** ảnh hoặc file. File có đuôi lạ sẽ hiện cảnh báo trước khi gửi, bạn vẫn gửi được.
-7. Ô **Người nhận** luôn là Trợ Lý của project và không đổi được. Mọi yêu cầu đều đi qua Trợ Lý.
-8. Bấm **Tạo**. Nếu chưa muốn đội bắt đầu làm, bấm **Lưu nháp (chưa chạy)**: yêu cầu được lưu nhưng không agent nào chạy.
+Trang [Yêu cầu](/issues) giữ giao diện danh sách của Paperclip. Mỗi dòng có biểu tượng trạng thái, tiêu đề, giai đoạn Crew, người làm, nhãn, mã và lúc cập nhật. Yêu cầu con nằm thụt vào dưới yêu cầu gốc; bấm mũi tên để mở hoặc thu. Yêu cầu đang có run hiện nhãn **Đang chạy**.
 
-**Ví dụ một yêu cầu tốt:**
+Thanh công cụ trên ảnh:
 
-> **Tiêu đề:** Thêm lời chào tiếng Nhật cho greet
->
-> **Mô tả:** Hàm `greet` hiện chào được vi và en. Thêm `ja` ("こんにちは"), kèm test. Không đổi kết quả của vi và en.
+{{roles:owner,operator}}
+1. **Yêu cầu mới**: tạo yêu cầu (mục [Giao một yêu cầu mới](#new-request)).
+{{/roles}}
+{{roles:contributor}}
+1. **Yêu cầu mới**: gửi yêu cầu để owner duyệt (mục [Gửi yêu cầu để owner duyệt](#send-request)).
+{{/roles}}
+2. **Tìm yêu cầu**: lọc theo chữ trong tiêu đề hoặc mã.
+{{roles:owner,contributor}}
+3. **Chờ duyệt (n)**: chỉ hiện nhóm góp ý của Phòng Marketing đang chờ ở đầu danh sách. Bấm lại để hiện tất cả.
+{{/roles}}
+4. **Cột**: chọn cột hiện trên mỗi dòng.
+5. **Lọc**: lọc theo trạng thái, người làm, project, loại.
+6. **Sắp xếp**: mới cập nhật, mới tạo, hay theo tiêu đề. Khi sắp theo ngày, danh sách có vạch **Hôm nay**, **Hôm qua**.
+7. **Nhóm**: nhóm theo trạng thái, người làm hoặc project. Bấm tiêu đề nhóm để thu gọn.
 
-**Ba loại yêu cầu:**
+{{shot:issues-filter}}
 
-| Loại | Khi nào | Ghi chú |
-|---|---|---|
-| **Code** | Thêm hoặc sửa tính năng | Đi đủ các bước duyệt |
-| **Bug** | Có lỗi | Mô tả **triệu chứng**: "bấm X thì ra Y, đúng ra phải ra Z". Agent tìm nguyên nhân, viết test bắt được lỗi rồi mới sửa |
-| **Nghiên cứu** | Cần so sánh hoặc đề xuất, không sửa code | Chỉ có hai bước duyệt: Reviewer rồi bạn, không đẩy code. Cần company có nhãn "research", nếu chưa có thì hộp thoại báo và không chọn được loại này |
+#### Lọc danh sách
 
-Mẹo: **một yêu cầu, một mục tiêu.** Hai việc không liên quan thì tạo hai yêu cầu. Thiếu thông tin cũng không sao, Trợ Lý sẽ hỏi lại.
+1. Bấm **Lọc** (5).
+2. Tích một giá trị ở mỗi mục: trạng thái, người làm, project, loại (**Nghiên cứu** hoặc **Code / Bug**). Danh sách đổi ngay.
+3. Bấm lại mục đang chọn để bỏ, hoặc **Xóa** để bỏ hết. Nút đổi thành **Lọc: n** khi đang có n bộ lọc.
 
-## 5. Theo dõi một yêu cầu
+{{shot:issues-columns}}
 
-### 5.1 Chuyện gì xảy ra sau khi giao
+#### Chọn cột
+
+1. Bấm **Cột** (4).
+2. Bật hoặc tắt từng cột. Hai cột riêng của Crew: **Giai đoạn Crew** (yêu cầu đang ở bước nào) và **Yêu cầu con** (dạng "1/3 con xong").
+3. **Đặt lại mặc định** đưa về bộ cột ban đầu.
+
+> **Mẹo:** bộ lọc, tìm và cách nhóm nằm trên địa chỉ trang. Chép địa chỉ là gửi được đúng màn hình đang lọc cho người khác.
+
+### Cửa sổ chi tiết yêu cầu {#issue-popup}
+
+{{shot:issue-popup}}
+
+Bấm một yêu cầu ở bất kỳ danh sách nào (Yêu cầu, Hộp thư, Tìm kiếm, Tổng quan, tab Yêu cầu của project) để mở chi tiết trong **cửa sổ nổi** ngay trên trang đang xem. Địa chỉ trang có thêm `?issue=mã`.
+
+Trên ảnh:
+1. **Mở toàn trang**: xem trang đầy đủ ở tab mới (hoặc Cmd/Ctrl+click vào yêu cầu trong danh sách).
+2. Tiêu đề, mã, và dòng **Tóm tắt Crew**, ví dụ "Crew · 1/3 con xong · Owner duyệt · docs Đạt":
+   - **x/y con xong**: số yêu cầu con đã xong trên tổng số;
+   - giai đoạn: *Reviewer*, *Integrator · merge + docs*, *Owner duyệt*, *Integrator · push*, *Đã xong*;
+   - **docs**: *Đạt* là tài liệu khớp code, *Lỗi* là Integrator sẽ sửa, *Chưa có* là chưa tới bước kiểm.
+3. **Thuộc tính**: trạng thái, người làm, project, loại, model, giai đoạn và người duyệt, vòng sửa (tối đa 5), giờ tạo và cập nhật. Nhóm **Runtime** cho biết runtime đã chọn và các lần tự chuyển.
+
+Bên dưới là mô tả, tài liệu, đính kèm, run của yêu cầu và **Bình luận**: agent ghi lại từng bước ở đây và run đang chạy hiện trực tiếp. Nút **Mở map** vẽ sơ đồ yêu cầu gốc và các yêu cầu con kèm kết quả **Kiểm docs**.
+
+Đóng cửa sổ bằng **Esc**, nút **×**, bấm ra vùng nền, hoặc nút Back của trình duyệt: bạn về đúng chỗ cũ trong danh sách.
+
+{{roles:owner,operator}}
+#### Luồng một yêu cầu đi qua
 
 ```
 Bạn giao cho Trợ Lý
   → Trợ Lý đọc tài liệu project, hỏi lại nếu thiếu thông tin
-  → Trợ Lý chia thành các yêu cầu con, chọn model cho từng việc, giao cho Executor
-  → Executor viết code (test trước, code sau)  →  Reviewer duyệt từng yêu cầu con
-  → khi mọi yêu cầu con xong, yêu cầu gốc đi qua các bước:
-     (1) Reviewer  →  (2) Integrator gộp code và kiểm tài liệu  →  (3) BẠN DUYỆT  →  (4) Integrator đẩy code lên nhánh chính
+  → Trợ Lý chia thành yêu cầu con, chọn model, giao cho Executor
+  → Executor viết code (test trước)  →  Reviewer duyệt từng yêu cầu con
+  → yêu cầu gốc qua: (1) Reviewer → (2) Integrator gộp code, kiểm tài liệu
+     → (3) OWNER DUYỆT → (4) Integrator đẩy code lên nhánh chính
 ```
 
-Một yêu cầu nhỏ thường mất 15 đến 30 phút, tùy độ khó và độ bận của máy.
+Một yêu cầu nhỏ thường xong trong 15 đến 30 phút.
 
-### 5.2 Xem tiến độ
+#### Khi Trợ Lý hỏi lại
 
-{{shot:issue-detail}}
+Yêu cầu chưa rõ thì Trợ Lý đặt một **thẻ câu hỏi** ngay trong yêu cầu ("Trợ Lý cần hỏi"), có sẵn lựa chọn và ô **Khác**. Yêu cầu chuyển **Bị chặn** trong lúc chờ. Chọn đáp án rồi bấm **Gửi trả lời**, Trợ Lý chạy tiếp. Thẻ "Trợ Lý cần xác nhận" có hai nút **Đồng ý** và **Từ chối** (nên ghi lý do khi từ chối).
 
-Bấm một yêu cầu ở bất kỳ danh sách nào (trang **Yêu cầu**, **Hộp thư**, **Tìm kiếm**, **Tổng quan**, tab Yêu cầu của project hoặc agent, hay Ctrl/Cmd+K) để mở chi tiết dạng **cửa sổ nổi** ngay trên trang đang xem; địa chỉ có thêm `?issue=mã`, bấm **Esc**, nút đóng, vùng nền hoặc nút Back của trình duyệt để quay lại đúng chỗ cũ. Bấm **Mở toàn trang** (hoặc Cmd/Ctrl+click vào yêu cầu) để xem trang đầy đủ ở tab mới. Trang **Yêu cầu** giữ giao diện danh sách của Paperclip: thanh công cụ có nút **Yêu cầu mới**, ô tìm và bốn nút bên phải: **Cột** (chọn cột hiện trên mỗi dòng, **Đặt lại mặc định**), **Lọc** (trạng thái, người làm, dự án, loại Nghiên cứu hoặc Code / Bug; bấm lại mục đang chọn để bỏ, **Xóa** để bỏ hết), **Sắp xếp** và **Nhóm** (theo trạng thái, người làm, project; bấm tiêu đề nhóm để thu gọn). Mỗi dòng có biểu tượng trạng thái, tiêu đề, người làm, nhãn, mã và thời gian cập nhật; yêu cầu đang có run hiện nhãn **Đang chạy**, và khi sắp theo ngày có vạch **Hôm nay**, **Hôm qua**. Hai cột của Crew:
-- **Giai đoạn Crew**: yêu cầu đang ở bước nào.
-- **Yêu cầu con**: dạng "1/3 con xong".
+Bạn sửa được tiêu đề, mô tả, viết bình luận và đính kèm file. Run đang chạy có nút **Dừng run** (có hộp xác nhận).
+{{/roles}}
+{{roles:owner}}
+Yêu cầu đang chờ bạn duyệt có nút **Duyệt**, **Yêu cầu sửa**, **Hủy yêu cầu**, **Ép Done** ngay dưới tiêu đề (mục [Duyệt, yêu cầu sửa, hủy, mở lại](#approve)).
+{{/roles}}
+{{roles:operator}}
+Nút **Duyệt** và **Yêu cầu sửa** chỉ hiện với người được giao duyệt, thường là owner. Bạn vẫn có **Hủy yêu cầu** và **Mở lại** khi cần.
+{{/roles}}
+{{roles:viewer}}
+Bạn đọc được mọi thứ trong cửa sổ, nhưng không có ô bình luận hay nút thao tác.
+{{/roles}}
+{{roles:contributor}}
+Ô bình luận của bạn gửi bình luận để owner duyệt (mục [Bình luận góp ý](#send-comment)). Bạn không sửa hay đổi trạng thái được.
+{{/roles}}
 
-Trong trang một yêu cầu, ngay đầu trang có dòng **Tóm tắt Crew**, ví dụ "Crew · 1/1 con xong · docs Đạt":
-- **x/y con xong**: số yêu cầu con đã xong trên tổng số.
-- **Giai đoạn**: *Reviewer*; *Integrator · merge + docs*; *Owner duyệt* (đang chờ bạn); *Integrator · push*; *Đã xong*.
-- **docs**: *Đạt* là tài liệu khớp code; *Lỗi* là Integrator sẽ sửa; *Chưa có* là chưa tới bước kiểm.
+### Giao một yêu cầu mới {#new-request roles=owner,operator}
 
-Nhóm **Runtime** trong Thuộc tính (sau nhóm Thực thi) cho biết runtime và các lần chuyển (mục 5.4).
+{{shot:new-request}}
 
-Bấm **Mở map** để xem sơ đồ các việc. Mỗi ô là yêu cầu gốc hoặc một yêu cầu con, ghi loại việc, giai đoạn, người đang làm và số vòng sửa (ví dụ 0/5). Nét đứt nối các việc phải xong trước. Bấm **Đóng map** để thu lại. Mở map cũng hiện kết quả **Kiểm docs**.
+Yêu cầu là cách duy nhất để giao việc cho đội agent. Mọi yêu cầu đi qua Trợ Lý của project.
 
-Bên dưới là **Thuộc tính** (trạng thái, người làm, project, loại, model đang dùng, giai đoạn và người duyệt, vòng sửa) và **Bình luận**: agent ghi lại từng bước ở đây, và run đang chạy hiện trực tiếp. Bạn có thể sửa tiêu đề và mô tả, viết bình luận, đính kèm file. Các dòng bình luận bắt đầu bằng `crew-` là bằng chứng máy đọc được, xem mục 17.
+#### Cách làm
 
-### 5.3 Khi Trợ Lý hỏi lại
+1. Bấm **Yêu cầu mới** ở thanh bên trái hoặc ở trang Yêu cầu.
+2. Chọn **Project** (1). Danh sách chỉ có project đã **sẵn sàng**. Không có project nào thì hộp thoại báo "Chưa có project nào sẵn sàng", như trên ảnh (xem mục [Project](#projects)).
+3. Chọn **Loại** (2): **Code**, **Bug** hoặc **Nghiên cứu** (bảng dưới).
+4. Viết **Tiêu đề** (3) một câu, và **Mô tả** (4): muốn gì, vì sao, ở chỗ nào, cái gì không được đụng.
+5. **Đính kèm** ảnh hoặc file nếu cần. File có đuôi lạ hiện cảnh báo, bạn vẫn gửi được.
+6. **Người nhận** luôn là Trợ Lý của project, không đổi được.
+7. Bấm **Tạo** (6). Chưa muốn đội bắt đầu thì bấm **Lưu nháp (chưa chạy)** (5).
 
-Nếu yêu cầu chưa rõ, Trợ Lý tạo một **thẻ câu hỏi** ngay trong yêu cầu, tiêu đề "Trợ Lý cần hỏi", có sẵn lựa chọn và ô **Khác** để tự gõ. Yêu cầu chuyển sang **Bị chặn** trong lúc chờ. Bạn chọn đáp án rồi bấm **Gửi trả lời**, Trợ Lý tự chạy tiếp.
+| Loại | Khi nào | Ghi chú |
+|---|---|---|
+| **Code** | Thêm hoặc sửa tính năng | Đi đủ các bước duyệt |
+| **Bug** | Có lỗi | Tả **triệu chứng**: "bấm X thì ra Y, đúng ra phải Z". Agent viết test bắt lỗi rồi mới sửa |
+| **Nghiên cứu** | Cần so sánh, đề xuất, không sửa code | Chỉ hai bước duyệt: Reviewer rồi owner, không đẩy code. Company phải có nhãn "research" |
 
-Có khi Trợ Lý cần **xác nhận** một việc: thẻ "Trợ Lý cần xác nhận" có hai nút **Đồng ý** và **Từ chối**. Từ chối thì nên ghi lý do vào ô **Lý do (khi từ chối)**.
+> **Ví dụ tốt:** *Tiêu đề:* Thêm nút xuất Excel ở trang báo cáo. *Mô tả:* Trang Báo cáo doanh thu cần nút Xuất Excel, file có cột Ngày, Đơn hàng, Tổng tiền. Không đổi cách tính tổng.
 
-### 5.4 Runtime: Claude, Codex, OpenCode
+> **Mẹo:** một yêu cầu, một mục tiêu. Hai việc không liên quan thì tạo hai yêu cầu. Thiếu thông tin cũng không sao, Trợ Lý sẽ hỏi lại.
 
-Mặc định mọi agent chạy bằng **Claude**. Ngoài ra có hai runtime phụ, **Codex** và **OpenCode**, do chủ dự án bật trên trang [Máy](/machines) (mục 12). Dòng `crew-model` trong mô tả yêu cầu con có thêm `runtime=` cho biết Executor của việc đó chạy bằng runtime nào (không có `runtime=` thì là Claude, xem mục 17).
+### Duyệt, yêu cầu sửa, hủy, mở lại {#approve roles=owner}
 
-Trong cột **Thuộc tính** của yêu cầu có khối **Runtime** liệt kê các quyết định, mới nhất ở trên (tối đa 50 dòng), giờ theo Việt Nam:
-- **Chọn**: runtime, agent và model được chọn cho Executor hoặc Reviewer, kèm lý do.
-- **Chuyển**: Crew đã tự chuyển sang runtime khác, ghi rõ từ đâu sang đâu và nguyên nhân (hết quota, lỗi đăng nhập hoặc key, runtime không dùng được, công tắc đang tắt, lỗi khác).
-- **Từ chối chuyển**: Crew muốn chuyển nhưng không an toàn hoặc không có chỗ để chuyển; lý do ghi ngay trên dòng.
+{{shot:issue-gate}}
 
-Yêu cầu chưa có quyết định nào thì khối này không hiện.
+Khi giai đoạn là **Owner duyệt**, đến lượt bạn. Yêu cầu hiện ở thẻ **Chờ bạn duyệt** của Tổng quan và tab **Chờ tôi duyệt** của Hộp thư.
 
-**Tự chuyển runtime** (Executor):
-- Chỉ chuyển khi run lỗi vì hết quota, lỗi đăng nhập hoặc key, hoặc runtime không dùng được; hoặc khi công tắc runtime của máy đang tắt mà việc đang chờ.
-- Chuyển sang một agent khác **cùng máy**, còn rảnh và có công tắc bật. Một yêu cầu chuyển tối đa **2 lần**; quá thì Crew dừng và báo.
-- Việc **large** (lớn) không bị chặn khi hết chỗ chuyển: nó chờ Claude có lại quota rồi chạy tiếp.
-- Nếu thư mục làm việc cũ còn thay đổi chưa commit thì Crew không chuyển, báo bằng bình luận và đặt yêu cầu **Bị chặn** để bạn xem.
+#### Cách làm
 
-**Reviewer Codex:**
-- Chỉ dùng cho **yêu cầu con loại code**. Yêu cầu gốc, nghiên cứu và các luồng khác luôn do Reviewer Claude duyệt.
-- Khi Reviewer Codex lỗi (kể cả hết quota, hết giờ) hoặc công tắc Codex bị tắt giữa chừng, Crew **tự chuyển về Reviewer Claude** của project, số vòng sửa giữ nguyên và có bình luận ghi lại. Yêu cầu cũ không có Reviewer Claude trong bước duyệt thì không chuyển được, khối Runtime ghi **Từ chối chuyển**.
-
-Lưu ý model: **kimi-k3** (OpenCode) hiện **chưa nhận ảnh**. Việc có ảnh đính kèm nên để Claude hoặc Codex làm.
-
-## 6. Duyệt, yêu cầu sửa, hủy và mở lại
-
-Khi giai đoạn là **Owner duyệt**, đến lượt bạn. Trước hết xem lại:
-- bình luận của Reviewer;
-- kết quả **Kiểm docs** là Đạt;
-- mọi yêu cầu con đã xong.
-
-Rồi chọn một trong các nút ở đầu trang yêu cầu:
+1. Mở yêu cầu. Xem bình luận của Reviewer, kết quả **Kiểm docs** là Đạt và mọi yêu cầu con đã xong.
+2. Chọn một nút ở đầu trang:
 
 | Nút | Dùng khi | Chuyện xảy ra |
 |---|---|---|
-| **Duyệt** | Đồng ý với kết quả | Hộp thoại hiện ô **Lời nhắn khi duyệt**, đã điền sẵn "Đã xem, duyệt." Bạn sửa tùy ý, **không được để trống**. Bấm xác nhận thì Integrator đẩy code lên nhánh chính và yêu cầu thành **Hoàn thành** |
-| **Yêu cầu sửa** | Chưa đồng ý | Viết **Lý do cần sửa** (ít nhất 5 ký tự) rồi **Gửi yêu cầu sửa**. Việc quay về người làm vòng trước và tính thêm một vòng sửa |
-| **Hủy yêu cầu** | Không cần nữa | Có hộp xác nhận. Yêu cầu chuyển sang **Đã hủy** và run đang chạy trên máy bị dừng |
-| **Mở lại** | Yêu cầu đã hoàn thành hoặc đã hủy mà cần làm lại | Có hộp xác nhận. Yêu cầu về **Cần làm**, các bước chạy lại từ đầu ở vòng mới |
-| **Ép Done** | Bất khả kháng: cần đóng yêu cầu ngay dù chưa qua hết các cổng | Xem mục 6.1 bên dưới |
+| **Duyệt** (1) | Đồng ý | Hộp thoại có ô **Lời nhắn khi duyệt** điền sẵn "Đã xem, duyệt.", không được để trống. Xác nhận thì Integrator đẩy code và yêu cầu thành **Hoàn thành** |
+| **Yêu cầu sửa** (2) | Chưa đồng ý | Viết **Lý do cần sửa** (ít nhất 5 ký tự), **Gửi yêu cầu sửa**. Việc quay về người làm, tính thêm một vòng sửa |
+| **Hủy yêu cầu** (3) | Không cần nữa | Có hộp xác nhận. Yêu cầu thành **Đã hủy**, run đang chạy bị dừng |
+| **Ép Done** (4) | Bất khả kháng | Mục [Ép Done](#force-done) |
+| **Mở lại** | Yêu cầu đã xong hoặc đã hủy mà cần làm lại | Yêu cầu về **Cần làm**, chạy lại từ đầu ở vòng mới |
 
-Lưu ý:
-- Nút **Duyệt** và **Yêu cầu sửa** chỉ hiện đúng ở bước Owner duyệt, và chỉ với người được giao duyệt.
-- Nếu hết 5 vòng sửa mà vẫn chưa đạt, yêu cầu được chuyển cho bạn quyết định. Lúc này bạn trả lời bằng **bình luận** (nói rõ hướng xử lý), không có nút Duyệt.
-- Không có ô chọn trạng thái tự do. Muốn đóng yêu cầu mà bỏ qua cổng thì dùng **Ép Done** (mục 6.1); lý do ở mục 16.
-- Run đang chạy hiện nút **Dừng run** (có hộp xác nhận) ở danh sách run của yêu cầu.
+> **Mẹo:** hết 5 vòng sửa mà chưa đạt thì yêu cầu được chuyển cho bạn quyết. Lúc đó trả lời bằng **bình luận** nói rõ hướng xử lý, không có nút Duyệt. Không có ô chọn trạng thái tự do (lý do ở mục [Vì sao không có nút X](#missing-buttons)).
 
-### 6.1 Ép Done
+### Ép Done {#force-done roles=owner}
 
-Dùng khi bất khả kháng, ví dụ việc đã làm tay xong ngoài Crew, hoặc luồng bị kẹt mà bạn đã tự kiểm kết quả. Đây là lối thoát, không phải cách duyệt thông thường.
+{{shot:force-done}}
 
-- **Khi nào dùng:** yêu cầu chưa Hoàn thành hay Đã hủy, và bạn chấp nhận bỏ qua các cổng còn chờ (review, kiểm docs, đẩy code). Không chắc thì dùng **Duyệt** hoặc **Yêu cầu sửa**.
-- **Cách làm:** bấm **Ép Done** ở đầu trang yêu cầu. Hộp thoại liệt kê **các cổng sẽ bị bỏ qua** và các run đang chạy sẽ bị dừng. Có ô chọn **hủy luôn các việc con chưa xong** (bật sẵn): chỉ hủy đúng các việc con liệt kê trong hộp thoại, và chỉ hủy sau khi yêu cầu đã đóng, để không đánh thức người đang giữ yêu cầu. Việc con của chúng (cháu) không bị hủy. Việc con nào hủy lỗi thì trang báo kèm nút **Hủy các con còn lại**. Điền **Lý do** (bắt buộc, 10 đến 1000 ký tự) rồi bấm **Ép Done**.
-- **Hệ quả:** yêu cầu thành **Hoàn thành** ngay, các cổng chưa qua bị bỏ qua, không tính là Duyệt và không mở vòng review mới. Lý do được ghi thành bình luận của Owner. Nếu yêu cầu có việc cha và mọi việc con khác đã xong, Trợ Lý ở việc cha được báo để làm tiếp. Code chưa đẩy lên nhánh chính thì không tự được đẩy.
-- **Lịch sử:** phần **Lịch sử** của yêu cầu ghi dòng **Ép Done** kèm lý do, người ép, giờ (múi giờ Asia/Ho_Chi_Minh) và các cổng đã bỏ qua; yêu cầu mang nhãn **Đã ép Done**.
-- Ép nhầm thì dùng **Mở lại** để chạy lại từ đầu.
+**Ép Done** đóng một yêu cầu ngay dù chưa qua hết các cổng. Đây là lối thoát khi bất khả kháng (việc đã làm tay ngoài Crew, luồng bị kẹt mà bạn đã tự kiểm), không phải cách duyệt thường.
 
-## 7. Hộp thư và Tổng quan
+#### Cách làm
+
+1. Bấm **Ép Done** ở đầu trang yêu cầu. Hộp thoại liệt kê **các cổng sẽ bị bỏ qua** và run sẽ bị dừng.
+2. Ô **hủy luôn các việc con chưa xong** bật sẵn: chỉ hủy đúng các việc con liệt kê, sau khi yêu cầu đã đóng. Việc cháu không bị hủy.
+3. Điền **Lý do** (1), bắt buộc, 10 đến 1000 ký tự, rồi bấm **Ép Done**.
+
+Kết quả: yêu cầu thành **Hoàn thành**, mang nhãn **Đã ép Done**; lý do thành bình luận của owner; **Lịch sử** ghi người ép, giờ và các cổng bỏ qua. Code chưa đẩy thì không tự được đẩy.
+
+> **Mẹo:** ép nhầm thì bấm **Mở lại** để chạy lại từ đầu. Việc con nào hủy lỗi thì trang hiện nút **Hủy các con còn lại**.
+
+### Hộp thư {#inbox roles=owner,operator}
 
 {{shot:inbox}}
 
-**Hộp thư** gom mọi thứ đang cần bạn. Các tab:
-- **Chờ tôi duyệt**: yêu cầu đang ở bước Owner duyệt và yêu cầu có câu hỏi Trợ Lý chờ bạn trả lời. Duyệt xong thì yêu cầu biến mất khỏi tab này.
-- **Của tôi**, **Chưa đọc**, **Đang kẹt**, **Tất cả**: lọc theo nhu cầu.
-- Chấm bên trái nghĩa là chưa đọc. Có thể **Đánh dấu đã đọc** hoặc **Đánh dấu chưa đọc** từng mục, **Đánh dấu tất cả đã đọc**, tìm theo mã hoặc tiêu đề, lọc theo trạng thái, và **Lưu trữ** một mục (mục chỉ rời khỏi Hộp thư, yêu cầu vẫn còn).
+**Hộp thư** gom những thứ đang cần bạn. Con số bên cạnh mục Hộp thư ở thanh bên là số mục chưa đọc.
 
-**Tổng quan** cho bức tranh chung: khối **Agent** với thẻ run gần đây (bấm để đọc nội dung agent đã chạy, có link **Xem tất cả run**), bốn thẻ số (**Agent đang bật**, **Yêu cầu đang làm**, **Yêu cầu bị kẹt**, **Chờ bạn duyệt**), ba biểu đồ 14 ngày (**Run theo ngày**, **Yêu cầu theo trạng thái**, **Tỉ lệ thành công**), thẻ **Máy**, **Hoạt động gần đây** và **Yêu cầu gần đây**. Bấm một yêu cầu ở đây sẽ mở chi tiết dạng cửa sổ nổi.
+#### Cách làm
 
-## 8. Thêm một project mới
+1. Mở **Hộp thư** ở thanh bên.
+2. Tab **Chờ tôi duyệt** (1): yêu cầu ở bước Owner duyệt và câu hỏi Trợ Lý chờ bạn trả lời. Duyệt xong thì mục tự biến mất.
+3. Các tab **Của tôi**, **Chưa đọc**, **Đang kẹt**, **Tất cả** lọc theo nhu cầu; có ô tìm theo mã hoặc tiêu đề và lọc trạng thái.
+4. Chấm bên trái là chưa đọc. **Đánh dấu đã đọc**, **Đánh dấu chưa đọc**, **Đánh dấu tất cả đã đọc**, hoặc **Lưu trữ** một mục (mục chỉ rời Hộp thư, yêu cầu vẫn còn).
 
-{{shot:add-project}}
+> **Mẹo:** mở Hộp thư mỗi sáng là đủ biết hôm nay cần làm gì.
 
-Bấm [Thêm project](/projects/new) ở trang Project. Wizard dựng mọi thứ giúp bạn, **repo git phải có sẵn trên máy Mac** (Crew không tải repo về).
-
-**Điền biểu mẫu:**
-1. **Máy**: chọn máy Mac. Máy ghi "App chưa chạy" nghĩa là app 2P Crew chưa mở, các bước trên máy sẽ chờ.
-2. **Folder repo trên máy**: đường dẫn đầy đủ tới repo, ví dụ `/Users/ten/code/my-repo`. Các folder đã kiểm trước đây được gợi ý sẵn.
-3. **Khóa project**: chữ thường, số, gạch ngang, bắt đầu bằng chữ, 2 đến 31 ký tự. Khóa dùng để đặt tên agent và nhánh. Khóa trùng project đã có sẽ bị từ chối.
-4. **Tên project** và **Số executor** (1 hoặc 2).
-5. Bấm **Bắt đầu**.
-
-**Wizard tự chạy 7 bước** và hiện từng bước đang chạy, xong hay lỗi:
-
-| Bước | Việc |
-|---|---|
-| Kiểm folder repo | Máy kiểm folder đúng là repo git |
-| Tạo project | Tạo project trong company |
-| Tạo checkout cho từng vai trò | Máy dựng thư mục làm việc riêng cho từng vai trò |
-| Tạo environment SSH | Cho mỗi vai trò, chép từ environment mẫu của company |
-| Tạo agent và AGENTS.md | Mỗi vai trò một agent, kèm hướng dẫn theo vai trò |
-| Ghi vai trò | Lưu ai giữ vai trò nào |
-| Kiểm trên máy | Máy kiểm lần cuối mọi thứ chạy được |
-
-Một bước lỗi thì wizard **tạm dừng các agent đã tạo**, hiện lỗi và nút **Chạy tiếp**. Bấm là chạy tiếp từ bước dở, không tạo trùng. Đóng trang giữa chừng cũng không sao: ở danh sách Project, project dở có nút **Làm tiếp**. Xong thì bấm **Mở project**.
-
-## 9. Tạo thêm một agent
-
-{{shot:add-agent}}
-
-Bấm [Tạo agent](/agents/new) ở trang Agent, hoặc **Thêm executor** ở tab Vai trò của một project (mở sẵn project và ô **Executor thứ 2**). Dùng khi cần thêm Executor hoặc thay người giữ vai trò. Đầu tiên là một form: chọn **Project** và **Ô vai trò**, đặt **Tên agent**, chọn **Model** và **Máy** (project chưa có vai trò thì điền thêm **Khóa project** và **Folder repo trên máy**), rồi bấm **Bắt đầu**. Wizard chạy 6 bước, bấm **Chạy tiếp** nếu một bước dừng giữa chừng:
-1. **Tạo agent**.
-2. **Ghim Superpowers và AGENTS.md**: ghim đúng bản Superpowers của máy và ghi `AGENTS.md` theo vai trò.
-3. **Environment SSH**: tạo environment riêng cho agent.
-4. **Dựng checkout trên máy**: máy dựng thư mục làm việc riêng cho agent.
-5. **Ghi vai trò**: ghi vai trò của agent trong project.
-6. **Cập nhật AGENTS.md của Trợ Lý**: nếu là Executor thì Trợ Lý được ghi thêm người mới; vai trò khác thì bước này không ghi gì.
-
-Xong sẽ có **Mở agent** và **Mở project**.
-
-Agent chưa xong 6 bước ở trạng thái **Chưa sẵn sàng** và **không xuất hiện** trong bất kỳ lựa chọn nào. Bấm **Làm tiếp** (ở danh sách hoặc trang agent) để hoàn tất; wizard sẽ hiện **Sửa tiếp** từ bước còn thiếu.
-
-Chỉ **người dùng trên web** mới tạo được agent. Agent không tạo được agent khác (xem mục 16).
-
-## 10. Project và Agent: xem, sửa vai trò, sẵn sàng
-
-{{shot:projects}}
-
-Trang [Project](/projects) liệt kê project kèm cột **Sẵn sàng**, số yêu cầu, và nút gắn sao. Bấm một project để xem các tab:
-- **Yêu cầu**: yêu cầu của project.
-- **Vai trò**: ai giữ vai trò nào. Bấm **Sửa vai trò** để đổi, rồi **Lưu vai trò**. Lưu xong, hướng dẫn `AGENTS.md` của Trợ Lý được cập nhật theo.
-- **Docs**: tài liệu project (xem mục 13).
-- **Sẵn sàng**: danh sách kiểm. Mục nào chưa đạt có nút **Làm tiếp** dẫn vào wizard.
-- **Đổi tên**: tên, mô tả, màu, biểu tượng.
-
-Trên trang Project có thêm lọc **Đang dùng** và **Đã gỡ**: project đã gỡ chỉ hiện ở **Đã gỡ**. Mở một project đã gỡ thấy khung **Project đã gỡ lúc …**.
-
-{{shot:agents}}
-
-Trang [Agent](/agents) liệt kê agent kèm vai trò, trạng thái và **Sẵn sàng**. Có thể lọc **Đang chạy**, **Tạm dừng**, **Lỗi** và **Đã gỡ** (agent đã gỡ chỉ hiện ở bộ lọc này và không có trong các hộp chọn agent). Nút **Tạm dừng** dừng agent và hủy run đang chạy; **Tiếp tục** cho agent chạy lại. Bấm một agent để xem:
-- **Tổng quan**: run gần nhất, yêu cầu đang làm, máy, vai trò, và các mục còn thiếu.
-- **Hướng dẫn**: xem `AGENTS.md`, chỉ đọc. Nút **Render lại theo vai trò** ghi lại bản đúng theo vai trò hiện tại. Có người vừa sửa thì báo xung đột và **không ghi đè**, bạn tải lại rồi render lại.
-- **Skills**: bật hoặc tắt skill của company cho agent này, hiệu lực từ run kế tiếp.
-- **Cấu hình chạy**: xem adapter, lệnh, environment, máy. Chỉ đổi được **Model mặc định**, chọn trong bảng model của Crew.
-- **Run**: các lần chạy của agent.
-
-### 10.1 Gỡ project và gỡ agent
-
-Gỡ nghĩa là **ngừng dùng mà giữ dữ liệu**, không xóa gì:
-
-- **Gỡ project** (nút ở đầu trang project): hộp xác nhận bắt gõ đúng tên project và liệt kê điều sẽ xảy ra. Crew tạm dừng các agent trong vai trò, xóa vai trò, lưu trữ environment riêng, gỡ checkout **sạch** trên máy rồi lưu trữ project. Không xóa nhánh git, không đụng thư mục gốc, yêu cầu chưa xong giữ nguyên.
-- **Gỡ agent** (nút ở đầu trang agent): agent rời vai trò (`AGENTS.md` của Trợ Lý được cập nhật), bị tạm dừng, environment riêng được lưu trữ, checkout sạch được gỡ. Agent không bị xóa. Agent đang là Trợ Lý, reviewer, integrator hay executor duy nhất của một project thì nút tắt kèm lý do, cùng link **Đổi vai trò** hoặc **Gỡ cả project**.
-- **Checkout bẩn được giữ:** thư mục có thay đổi chưa commit hoặc tệp lạ không bị gỡ. Trang tiến độ cảnh báo và đưa lệnh `git worktree remove` để bạn tự làm sau khi xem lại.
-- **Làm dở thì chạy tiếp:** gỡ theo từng bước. Lỗi giữa chừng thì nút đổi thành **Chạy tiếp gỡ project** hoặc **Chạy tiếp gỡ agent**.
-- Muốn dùng lại: project dùng wizard **Thêm project**; agent đã gỡ bấm **Tiếp tục** rồi gán lại vai trò.
-
-**Sẵn sàng** gồm các kiểm tra: cấu hình agent đúng, ghim đúng Superpowers, `AGENTS.md` khớp vai trò, environment SSH đúng, thư mục làm việc có trên máy, agent đang giữ vai trò. Project **chưa sẵn sàng** thì không có trong hộp thoại Yêu cầu mới.
-
-## 11. Skills
-
-{{shot:skills}}
-
-Trang [Skills](/skills) liệt kê skill của company (khả năng bổ sung cho agent), nguồn, số agent đang dùng và trạng thái đã đồng bộ lên mấy máy.
-
-**Thêm skill:** bấm **Thêm skill**, dán địa chỉ repo GitHub (có thể thêm nhánh hoặc tag), bấm **Quét repo**, chọn skill muốn thêm, có thể **Xem trước**, rồi bấm **Thêm skill**. Skill trùng tên với skill Superpowers mà Crew đã ghim sẽ không thêm được.
-
-Bấm một skill để xem chi tiết, **Bật cho agent** (từng agent một) và xem mục **Đồng bộ lên máy**, cho biết từng máy đã đồng bộ, đang chờ hay lỗi. Có nút **Đồng bộ** hoặc **Đồng bộ lại**. Chữ "Chờ app 2P Crew" nghĩa là app trên máy chưa nhận việc, mở app là xong.
-
-**Sửa skill:** trong chi tiết skill, **Sửa thông tin** đổi tên hiển thị và mô tả; sửa file thì chọn file, sửa rồi bấm **Lưu file** (có **Xóa file**, gõ lại đường dẫn để xác nhận). Chỉ sửa được skill do Crew quản lý. Hai người lưu cùng lúc thì **người lưu sau thắng**, không có cảnh báo phiên bản.
-
-**Xóa skill:** bấm **Xóa skill** và gõ lại tên skill. Skill đang bật cho agent thì Crew gỡ khỏi các agent đó trước, rồi mới xóa. Bản chép trên các máy được dọn qua hàng đợi việc: máy chưa mở app sẽ báo "chờ app", hoặc dùng nút **Gỡ bản chép**.
-
-**Nguồn skill (GitHub):** **Kiểm cập nhật** xem nguồn có bản mới không, **Cập nhật từ nguồn** kéo về. Skill không sửa được thì bấm **Tạo bản sửa được** để có bản riêng của company. **Đổi nguồn** làm bằng ba bước: **Thêm từ nguồn mới**, bật cho các agent cần, rồi **Xóa skill** bản cũ.
-
-## 12. Máy
+### Runtime: Claude, Codex, OpenCode {#runtimes roles=owner,operator}
 
 {{shot:machines}}
 
-Trang [Máy](/machines) có một thẻ cho mỗi máy Mac chạy agent, tự làm mới mỗi 30 giây:
-- **Trực tuyến / Mất liên lạc**: máy gửi tin mỗi phút. Quá 3 phút không có tin thì báo mất liên lạc.
-- **Tải 1 phút / số CPU** và **RAM trống**, kèm biểu đồ tải 24 giờ. Tải vượt 8 thì agent **chờ** máy rảnh rồi mới chạy, để không làm đơ máy.
-- **TCC đang chờ**: macOS đang hỏi quyền mà chưa ai bấm. Agent bị chặn cho tới khi có người bấm **Cho phép** trên màn hình Mac.
-- **Claude**: phiên bản, đã đăng nhập chưa, gói nào. **Superpowers**: bản ghim và bản của owner.
-- **App 2P Crew**: phiên bản và trạng thái cập nhật.
-- Chữ **Không rõ** nghĩa là lần này máy không đọc được giá trị đó, chưa chắc là lỗi.
+Mặc định mọi agent chạy bằng **Claude**. Hai runtime phụ, **Codex** và **OpenCode**, bật theo từng máy ở khối **Runtime** (3) trên trang [Máy](/machines). Dòng `crew-model` trong mô tả yêu cầu con có `runtime=` cho biết Executor của việc đó chạy bằng runtime nào (không có `runtime=` là Claude).
 
-**Runtime (công tắc theo máy):** thẻ máy có khối **Runtime** với ba công tắc Claude, Codex, OpenCode.
-- **Chỉ board** (chủ dự án) gạt được; người khác thấy nhưng không bấm được.
-- **Claude bật sẵn; Codex và OpenCode tắt sẵn.** Bật phải qua hộp xác nhận. Máy chưa từng chỉnh thì dùng mặc định này.
-- Tắt một runtime: việc đang chờ chạy bằng runtime đó được giữ lại (hoặc chuyển sang agent khác, xem mục 5.4), không bị mất.
-- OpenCode bị khóa nếu server chưa bật vá chạy đúng thư mục làm việc; thẻ ghi rõ lý do khóa.
+{{roles:owner}}
+#### Bật hoặc tắt một runtime
 
-Bên dưới là **Hàng đợi việc trên máy**: các việc máy cần làm (xem thư mục repo, dựng checkout, đồng bộ skill, kiểm tra project) đang **Đang chờ**, **Đang làm** hoặc **Lỗi**. Việc đã xong không hiện. Việc lỗi có nút thử lại.
+1. Mở trang [Máy](/machines), tìm thẻ máy, khối **Runtime**.
+2. Gạt công tắc **Codex** hoặc **OpenCode**. **Claude bật sẵn; Codex và OpenCode tắt sẵn.** Bật phải qua hộp xác nhận vì run mới sẽ dùng quota gói của bạn.
+3. Máy chưa có runtime thì bấm **Cài runtime trên máy** (xếp việc cho app trên Mac).
 
-## 13. Docs
+**Chỉ board** (owner) nên gạt công tắc; người khác thấy để biết. Tắt một runtime thì việc đang chờ được giữ lại hoặc chuyển sang agent khác, không mất. OpenCode bị khóa khi server chưa bật vá chạy đúng thư mục làm việc; thẻ ghi rõ lý do.
+{{/roles}}
+{{roles:operator}}
+Công tắc runtime do owner quyết. Bạn xem được trạng thái từng runtime trên thẻ máy.
+{{/roles}}
+
+#### Khối Runtime trong yêu cầu
+
+Thuộc tính của yêu cầu có nhóm **Runtime** liệt kê quyết định, mới nhất ở trên (tối đa 50 dòng): **Chọn** (runtime, agent, model và lý do), **Chuyển** (Crew tự chuyển runtime, ghi nguyên nhân: hết quota, lỗi đăng nhập hoặc key, runtime không dùng được, công tắc tắt) và **Từ chối chuyển** (muốn chuyển nhưng không an toàn).
+
+**Tự chuyển runtime** cho Executor:
+- Chỉ chuyển khi run lỗi vì hết quota, lỗi đăng nhập hoặc key, runtime không dùng được, hoặc công tắc đang tắt mà việc đang chờ.
+- Chuyển sang agent khác **cùng máy**, còn rảnh, công tắc bật. Mỗi yêu cầu chuyển tối đa **2 lần**.
+- Việc **large** không bị chặn khi hết chỗ chuyển: nó chờ Claude có lại quota rồi chạy tiếp.
+- Thư mục làm việc cũ còn thay đổi chưa commit thì không chuyển: Crew bình luận và đặt yêu cầu **Bị chặn**.
+
+**Reviewer Codex** chỉ duyệt **yêu cầu con loại code**. Reviewer Codex lỗi (kể cả hết quota) hoặc công tắc Codex tắt giữa chừng thì Crew **tự chuyển về Reviewer Claude** của project, số vòng sửa giữ nguyên.
+
+> **Mẹo:** model **kimi-k3** (OpenCode) hiện **chưa nhận ảnh**. Việc có ảnh đính kèm nên để Claude hoặc Codex làm.
+
+## Phòng Marketing {#marketing}
+
+### Phòng Marketing là gì {#marketing-overview roles=owner,contributor}
+
+{{roles:contributor}}
+{{shot:contributions-mine}}
+{{/roles}}
+{{roles:owner}}
+{{shot:contributions-owner}}
+{{/roles}}
+
+**Phòng Marketing** là thành viên chỉ xem mọi project, yêu cầu và bình luận, cộng thêm quyền gửi **yêu cầu** và **bình luận** để owner duyệt. Trong lúc chờ, **agent không thấy gì**: nội dung chờ không nằm trong danh sách, bình luận hay ngữ cảnh của agent, nên không agent nào bị đánh thức. Chỉ owner duyệt hay từ chối được.
+
+| Trạng thái | Nghĩa |
+|---|---|
+| **Chờ duyệt** | Đã gửi, owner chưa xem |
+| **Đã duyệt** | Owner đã đăng nội dung; agent bắt đầu làm như owner tự đăng |
+| **Bị từ chối** | Owner không đăng. Mục vẫn còn, chỉ người gửi và owner thấy; agent không bao giờ thấy |
+
+{{roles:contributor}}
+Phòng Marketing không sửa, không đổi trạng thái, không giao việc và không xóa được gì.
+{{/roles}}
+
+### Gửi yêu cầu để owner duyệt {#send-request roles=contributor}
+
+{{shot:contribution-new}}
+
+#### Cách làm
+
+1. Bấm **Yêu cầu mới** ở thanh bên trái. Hộp thoại **Gửi yêu cầu (chờ duyệt)** mở ra.
+2. Chọn **Project** (1).
+3. Viết **Tiêu đề** (2) một câu và **Mô tả**: muốn gì, ở trang nào, vì sao.
+4. Bấm **Gửi để owner duyệt** (3). Hộp thoại báo "Đã gửi, chờ owner duyệt".
+
+Bạn không chọn loại, người nhận hay đính kèm: owner chọn lúc duyệt.
+
+> **Mẹo:** viết như đang nhắn cho người làm: "Đổi ảnh banner trang chủ cho chiến dịch tháng 11, giữ nguyên chữ". Một yêu cầu, một việc.
+
+### Bình luận góp ý {#send-comment roles=contributor}
+
+{{shot:contribution-comment}}
+
+#### Cách làm
+
+1. Mở một yêu cầu (bấm vào nó ở trang Yêu cầu).
+2. Kéo xuống ô bình luận, viết góp ý.
+3. Bấm **Gửi để owner duyệt** (2). Bình luận hiện ngay trong luồng với nhãn **Chờ duyệt** (1); chỉ bạn và owner thấy.
+
+Owner duyệt thì bình luận được đăng dưới tên owner, có dòng **Góp ý của <tên bạn>**, và agent được báo như khi owner bình luận.
+
+### Theo dõi Góp ý của tôi {#my-contributions roles=contributor}
+
+{{shot:contributions-mine}}
+
+Trang [Góp ý của tôi](/contributions) liệt kê mọi thứ bạn đã gửi.
+
+#### Cách làm
+
+1. Bấm **Góp ý của tôi** ở thanh bên trái.
+2. Chọn tab (1): **Chờ duyệt**, **Bị từ chối** hoặc **Đã duyệt**.
+3. Mục **Đã duyệt** có link **Mở yêu cầu đã tạo** hoặc **Xem bình luận đã đăng** tới nội dung thật.
+
+> **Mẹo:** mục **Bị từ chối** vẫn được giữ để bạn xem lại. Muốn gửi lại thì sửa nội dung và gửi một yêu cầu mới.
+
+### Duyệt hoặc từ chối góp ý {#review-contributions roles=owner}
+
+{{shot:contributions-owner}}
+
+Mục **Chờ duyệt** ở thanh bên trái có số mục đang chờ; Tổng quan có thẻ **Góp ý chờ duyệt**. Bạn duyệt ở trang [Chờ duyệt](/contributions) (tab (1)), ở nhóm **Chờ duyệt** đầu trang [Yêu cầu](/issues), hoặc ngay trong luồng bình luận.
+
+{{shot:contribution-approve}}
+
+#### Duyệt một yêu cầu
+
+1. Bấm **Duyệt** (2) trên dòng yêu cầu.
+2. Hộp thoại **Duyệt yêu cầu** cho chọn **Project**, **Loại** (Code, Bug, Nghiên cứu), **Agent nhận việc** (mặc định Trợ Lý của project) và ô **Lưu nháp**.
+3. Bấm **Duyệt**. Yêu cầu được đăng nguyên văn như bạn tự đăng, agent bắt đầu làm (trừ khi lưu nháp).
+
+#### Duyệt một bình luận
+
+Bấm **Duyệt** một lần: bình luận được đăng dưới tên bạn, kèm dòng **Góp ý của <tên>**, agent được báo như khi bạn bình luận.
+
+#### Từ chối
+
+Bấm **Từ chối** (3), xác nhận. Mục mang nhãn **Bị từ chối**, chỉ người gửi và bạn thấy.
+
+> **Mẹo:** lần duyệt bị đứt giữa chừng (mất mạng, đóng tab) thì mục mang nhãn **Đang duyệt dở** kèm nút **Duyệt lại**; bấm lại không tạo bản trùng. Hai owner cùng duyệt một mục thì người đến sau được báo đang có người duyệt.
+
+## Project và agent {#projects-agents}
+
+### Project {#projects roles=owner,operator,viewer}
+
+{{shot:projects}}
+
+Trang [Project](/projects) liệt kê các project kèm số yêu cầu và cột **Sẵn sàng** (2). Project **chưa sẵn sàng** không có trong hộp thoại Yêu cầu mới.
+
+{{roles:owner,operator}}
+- **Thêm project** (1): dựng project mới bằng wizard (việc của owner).
+- **Đang dùng / Đã gỡ** (3): project đã gỡ chỉ hiện ở **Đã gỡ**.
+- Bấm ngôi sao để ghim project lên thanh bên, ngay dưới mục Project.
+- Project chưa sẵn sàng có nút **Làm tiếp** dẫn vào wizard để hoàn tất.
+{{/roles}}
+{{roles:viewer}}
+Bạn chỉ xem, không có nút thêm hay sửa.
+{{/roles}}
+
+{{shot:project-roles}}
+
+#### Các tab của một project
+
+Bấm tên project. Các tab ở trên (1):
+- **Yêu cầu**: yêu cầu của project.
+- **Vai trò**: ai giữ Trợ Lý, Executor, Reviewer, Integrator.
+- **Docs**: tài liệu project.
+- **Sẵn sàng**: danh sách kiểm; mục chưa đạt có nút **Làm tiếp**.
+
+{{roles:owner,operator}}
+- **Đổi tên**: tên, mô tả, màu, biểu tượng.
+
+#### Đổi người giữ vai trò
+
+1. Mở tab **Vai trò**, bấm **Sửa vai trò** (2).
+2. Chọn agent cho từng ô, bấm **Lưu vai trò**. `AGENTS.md` của Trợ Lý được cập nhật theo.
+{{/roles}}
+
+**Sẵn sàng** gồm: cấu hình agent đúng, ghim đúng Superpowers, `AGENTS.md` khớp vai trò, environment SSH đúng, thư mục làm việc có trên máy, agent đang giữ vai trò.
+
+### Thêm project {#add-project roles=owner}
+
+{{shot:add-project}}
+
+Bấm [Thêm project](/projects/new) ở trang Project. Wizard dựng mọi thứ; **repo git phải có sẵn trên máy Mac** (Crew không tải repo về).
+
+#### Cách làm
+
+1. **Máy**: chọn máy Mac. "App chưa chạy" nghĩa là app 2P Crew chưa mở, các bước trên máy sẽ chờ.
+2. **Folder repo trên máy**: đường dẫn đầy đủ, ví dụ `/Users/ten/code/my-repo`. Folder đã kiểm trước đây được gợi ý sẵn.
+3. **Khóa project**: chữ thường, số, gạch ngang, bắt đầu bằng chữ, 2 đến 31 ký tự. Không trùng project đã có.
+4. **Tên project** và **Số executor** (1 hoặc 2), rồi **Bắt đầu**.
+5. Wizard chạy 7 bước và hiện từng bước: kiểm folder repo, tạo project, tạo checkout cho từng vai trò, tạo environment SSH, tạo agent và AGENTS.md, ghi vai trò, kiểm trên máy.
+6. Xong thì bấm **Mở project**.
+
+> **Mẹo:** một bước lỗi thì wizard tạm dừng các agent đã tạo, hiện lỗi và nút **Chạy tiếp**: bấm là chạy tiếp từ bước dở, không tạo trùng. Đóng trang giữa chừng cũng không sao, project dở có nút **Làm tiếp** ở danh sách.
+
+### Agent {#agents roles=owner,operator}
+
+{{shot:agents}}
+
+Trang [Agent](/agents) liệt kê agent kèm vai trò, trạng thái và **Sẵn sàng**. Bấm **Tạo agent** (1) để thêm agent (việc của owner); lọc (2) **Đang chạy**, **Tạm dừng**, **Lỗi**, **Đã gỡ**.
+
+{{shot:agent-detail}}
+
+#### Xem và điều khiển một agent
+
+1. Bấm tên agent. Các tab (1):
+   - **Tổng quan**: run gần nhất, yêu cầu đang làm, máy, vai trò, mục còn thiếu.
+   - **Hướng dẫn**: xem `AGENTS.md` (chỉ đọc). **Render lại theo vai trò** ghi lại bản đúng; có người vừa sửa thì báo xung đột và không ghi đè.
+   - **Skills**: bật hoặc tắt skill cho agent này, hiệu lực từ run kế tiếp.
+   - **Cấu hình chạy**: adapter, lệnh, environment, máy. Chỉ đổi được **Model mặc định**.
+   - **Run**: các lần chạy.
+2. **Tạm dừng** dừng agent và hủy run đang chạy; **Tiếp tục** cho chạy lại.
+
+> **Mẹo:** agent chưa xong các bước dựng ở trạng thái **Chưa sẵn sàng** và không có trong ô chọn nào. Bấm **Làm tiếp** để hoàn tất.
+
+### Tạo agent {#add-agent roles=owner}
+
+{{shot:add-agent}}
+
+Dùng khi cần thêm Executor hoặc thay người giữ vai trò. Mở bằng [Tạo agent](/agents/new) ở trang Agent, hoặc **Thêm executor** ở tab Vai trò của project.
+
+#### Cách làm
+
+1. Chọn **Project** và **Ô vai trò**, đặt **Tên agent**, chọn **Model** và **Máy**. Project chưa có vai trò thì điền thêm **Khóa project** và **Folder repo trên máy**.
+2. Bấm **Bắt đầu**. Wizard chạy 6 bước: tạo agent, ghim Superpowers và AGENTS.md, environment SSH, dựng checkout trên máy, ghi vai trò, cập nhật AGENTS.md của Trợ Lý.
+3. Xong có **Mở agent** và **Mở project**. Bước nào dừng thì bấm **Chạy tiếp**.
+
+> **Mẹo:** chỉ người dùng trên web tạo được agent. Agent không tạo được agent khác.
+
+### Gỡ project và gỡ agent {#remove roles=owner}
+
+{{shot:project-roles}}
+
+Gỡ nghĩa là **ngừng dùng mà giữ dữ liệu**, không xóa gì.
+
+#### Gỡ project
+
+1. Mở project, bấm **Gỡ project** (3) ở đầu trang.
+2. Gõ đúng tên project để xác nhận. Hộp thoại liệt kê điều sẽ xảy ra.
+3. Crew tạm dừng agent trong vai trò, xóa vai trò, lưu trữ environment riêng, gỡ checkout **sạch** trên máy rồi lưu trữ project. Nhánh git, thư mục gốc và yêu cầu chưa xong giữ nguyên.
+
+#### Gỡ agent
+
+{{shot:agent-detail}}
+
+1. Mở agent, bấm **Gỡ agent** (2).
+2. Agent rời vai trò (`AGENTS.md` của Trợ Lý cập nhật), bị tạm dừng, environment riêng được lưu trữ, checkout sạch được gỡ. Agent không bị xóa.
+3. Agent đang là Trợ Lý, reviewer, integrator hay executor duy nhất thì nút tắt kèm lý do và link **Đổi vai trò** hoặc **Gỡ cả project**.
+
+> **Mẹo:** checkout có thay đổi chưa commit được giữ lại; trang tiến độ đưa lệnh `git worktree remove` để bạn tự làm sau khi xem. Lỗi giữa chừng thì nút đổi thành **Chạy tiếp gỡ project** hoặc **Chạy tiếp gỡ agent**. Muốn dùng lại: project dùng wizard Thêm project; agent bấm **Tiếp tục** rồi gán lại vai trò.
+
+### Skills {#skills roles=owner,operator}
+
+{{shot:skills}}
+
+Trang [Skills](/skills) liệt kê skill (khả năng bổ sung cho agent) của company, nguồn, số agent đang dùng và đã đồng bộ lên mấy máy.
+
+#### Thêm skill
+
+1. Bấm **Thêm skill** (1), dán địa chỉ repo GitHub (có thể thêm nhánh hoặc tag), bấm **Quét repo**.
+2. Chọn skill, **Xem trước** nếu cần, rồi **Thêm skill**.
+3. Mở skill, **Bật cho agent** cần dùng. Mục **Đồng bộ lên máy** cho biết từng máy đã đồng bộ, đang chờ hay lỗi.
+
+#### Sửa, cập nhật, xóa
+
+- **Sửa thông tin** đổi tên hiển thị và mô tả; sửa file thì chọn file, sửa, **Lưu file**. Chỉ skill do Crew quản lý mới sửa được; hai người lưu cùng lúc thì người lưu sau thắng.
+- **Kiểm cập nhật** và **Cập nhật từ nguồn** cho skill từ GitHub. Skill không sửa được thì **Tạo bản sửa được**.
+- **Đổi nguồn**: **Thêm từ nguồn mới**, bật cho các agent, rồi **Xóa skill** bản cũ.
+- **Xóa skill**: gõ lại tên để xác nhận. Crew gỡ skill khỏi các agent trước rồi mới xóa; bản chép trên máy được dọn qua hàng đợi việc.
+
+> **Mẹo:** "Chờ app 2P Crew" nghĩa là app trên máy chưa nhận việc. Mở app trên Mac là xong.
+
+### Docs {#docs}
 
 {{shot:docs}}
 
-Trang [Docs](/docs) là tài liệu của từng project, đọc từ bản mới nhất mà máy đã gửi lên (tự cập nhật khi nhánh chính có commit mới):
-- chọn project, xem commit và giờ nhận;
-- bấm trang trong cây để đọc; link trong trang mở thẳng trang đích, link hỏng ghi "Thiếu trang";
-- ô **Tìm trong tài liệu**: gõ từ khóa, ví dụ `greet`;
-- file có dấu hiệu chứa mật khẩu hay token **không bao giờ được gửi lên**, chỉ hiện tên trong mục "File bị bỏ do quét bí mật".
+Trang [Docs](/docs) là tài liệu của từng project, đọc từ bản mới nhất máy đã gửi lên (tự cập nhật khi nhánh chính có commit mới). Chưa máy nào gửi thì trang báo "Chưa có project nào có docs", như trên ảnh.
 
-Tab **Docs** trong trang một project cho cùng nội dung ngay trong project đó.
+#### Cách làm
 
-## 14. Cài đặt
+1. Chọn project; trang hiện commit và giờ nhận.
+2. Bấm trang trong cây để đọc. Link trong trang mở thẳng trang đích; link hỏng ghi "Thiếu trang".
+3. Gõ từ khóa ở ô **Tìm trong tài liệu**.
+
+> **Mẹo:** file có dấu hiệu chứa mật khẩu hay token không bao giờ được gửi lên; chỉ tên file hiện ở mục "File bị bỏ do quét bí mật". Tab **Docs** trong một project cho cùng nội dung.
+
+## Máy {#machines-group}
+
+### Trang Máy {#machines roles=owner,operator}
+
+{{shot:machines}}
+
+Trang [Máy](/machines) có một thẻ cho mỗi máy Mac chạy agent, tự làm mới mỗi 30 giây.
+
+- **Trực tuyến / Mất liên lạc** (4): máy gửi tin mỗi phút; quá 3 phút không có tin thì báo mất liên lạc.
+- **Tải 1 phút / số CPU** và **RAM trống**, kèm biểu đồ 24 giờ. Tải vượt 8 thì agent chờ máy rảnh rồi mới chạy.
+- **TCC đang chờ**: macOS đang hỏi quyền mà chưa ai bấm; agent bị chặn tới khi có người bấm **Cho phép** trên Mac.
+- **Claude** (phiên bản, đăng nhập, gói), **Superpowers** (bản ghim), **App 2P Crew** (phiên bản, cập nhật). "Không rõ" là lần này máy không đọc được giá trị đó.
+- Nhãn ghép (2): **Đã ghép <giờ>** là máy ghép tự động bằng app; **Đã gỡ <giờ>** là máy đã bị gỡ. Máy cũ dùng secret chung của company không có nhãn.
+- Khối **Runtime** (3): mục [Runtime](#runtimes).
+
+Bên dưới là **Hàng đợi việc trên máy**: việc máy cần làm (xem thư mục repo, dựng checkout, đồng bộ skill, kiểm tra project, cài runtime) đang **Đang chờ**, **Đang làm** hoặc **Lỗi**. Việc lỗi có nút thử lại.
+
+{{roles:operator}}
+> **Lưu ý:** ghép, gỡ máy và bật runtime do owner làm. Thấy máy mất liên lạc lâu thì báo owner.
+{{/roles}}
+
+### Ghép máy bằng app 2P Crew {#pair-machine roles=owner}
+
+{{diagram:mac-pairing}}
+
+Máy Mac mới được ghép vào company bằng app **2P Crew**, bạn **không cần dán key hay secret** nào. Sơ đồ trên là các bước của wizard trong app (không chụp được từ web).
+
+#### Cách làm
+
+1. Cài và mở app 2P Crew trên Mac. Wizard chạy lần lượt: **Kiểm tra máy** (macOS, Node, Tailscale, Claude Code) → gỡ app cũ nếu có → chuyển vào Applications → **Đăng nhập Paperclip**.
+2. Ở bước đăng nhập, app mở trình duyệt; bấm **Cho phép** trên trang Crew.
+3. **Chọn company** cho máy. Ô chọn để trống sẵn, nút Tiếp khóa tới khi bạn chọn: app không tự chọn company nào.
+4. Bước **Máy này**: kiểm dòng **Ghép vào company: <tên>** rồi bấm **Ghép máy**. App tự tạo environment SSH `may-<tên máy>`, ghép máy với plugin Crew, nhận key riêng của máy (cất trong Keychain) và gửi bản tin thử.
+5. Đi tiếp **Quyền ổ đĩa** (cấp Truy cập toàn bộ ổ đĩa), **sshd**, **Kiểm tra** đến **Xong**.
+6. Mở trang [Máy](/machines): máy mới hiện với nhãn **Đã ghép <giờ>**.
+
+#### Đổi company hoặc ghép lại
+
+Ở màn **Xong** của app có khung **Company và máy** với nút **Đổi company / Ghép lại máy**. Dùng khi máy ghép nhầm company, hoặc bạn đã **Gỡ máy** trên web và muốn dùng lại. Bấm nút, app quay về bước đăng nhập; chọn company rồi đi lại các bước. Máy đã bị gỡ thì bước Máy hiện nút **Ghép lại máy này**: chỉ nút này mới ghép lại máy đã gỡ.
+
+> **Mẹo:** màn Xong cảnh báo "Máy này không báo trạng thái lên Paperclip" khi bản tin gần nhất bị từ chối (ví dụ máy vừa bị gỡ). Bấm **Đổi company / Ghép lại máy** để sửa. Server báo "chưa có key Paperclip" thì nhờ người quản trị server; khối **Nhập tay (dự phòng)** chỉ dùng khi được hướng dẫn.
+
+### Gỡ máy và ghép lại {#unpair-machine roles=owner}
+
+{{shot:machine-unpair}}
+
+Gỡ một máy để nó thôi nhận run mới. Máy khác không ảnh hưởng, environment không bị xóa.
+
+#### Cách làm
+
+1. Mở trang [Máy](/machines), tìm thẻ máy, bấm **Gỡ máy** (1 trên ảnh mục Trang Máy). Chỉ owner thấy nút này.
+2. Đọc hộp xác nhận rồi bấm **Gỡ máy**:
+   - máy **đã ghép**: Crew kiểm environment đúng là của máy (so IP Tailscale), lưu trữ environment rồi thu hồi key của máy;
+   - máy **chưa ghép** (đang dùng secret chung của company): hộp xác nhận cảnh báo mạnh hơn; Crew chỉ chặn bản tin của máy, không lưu trữ environment.
+3. Thẻ chuyển sang **Đã gỡ <giờ>** và hết nút.
+4. Muốn dùng lại: mở app 2P Crew **trên chính máy đó**, bấm **Đổi company / Ghép lại máy**, rồi **Ghép lại máy này** ở bước Máy.
+
+> **Mẹo:** lỗi ở bước nào thì trang hiện nguyên câu lỗi và nút còn đó; bấm lại là đi tiếp, không làm hỏng gì. Nút chỉ là giao diện: muốn chặn hẳn máy đã gỡ, thu hồi thêm key board mà app trên máy đó đang giữ.
+
+## Hệ thống {#system}
+
+### Thành viên {#members roles=owner}
+
+{{shot:members}}
+
+Trang [Thành viên](/members) chỉ owner thấy: danh sách thành viên và vai trò, lời mời Phòng Marketing và yêu cầu tham gia.
+
+#### Mời Phòng Marketing
+
+1. Bấm **Mời Phòng Marketing** (1). Chép link (dạng `…/paperclip/invite/…`) gửi cho người được mời. Link chỉ hiện một lần.
+2. Người đó mở link, đăng ký hoặc đăng nhập rồi gửi yêu cầu tham gia.
+3. Ở mục **Yêu cầu tham gia chờ duyệt**, dòng có nhãn **Lời mời Phòng Marketing**: bấm **Duyệt**. Người đó hiện vai trò **Phòng Marketing**.
+
+#### Đặt hoặc gỡ Phòng Marketing
+
+Thành viên Chỉ xem có nút **Đặt Phòng Marketing**; người đang là Phòng Marketing có nút **Gỡ Phòng Marketing** (2), sau khi gỡ chỉ còn xem.
+
+> **Mẹo:** lời mời còn hiệu lực hiện ở bảng dưới kèm giờ hết hạn; bấm **Thu hồi** để link hết dùng được.
+
+### Cài đặt {#settings}
 
 {{shot:settings}}
 
 Trang [Cài đặt](/settings) có ba mục:
-- **Hồ sơ**: sửa **Tên hiển thị** và **Ảnh đại diện** (chọn ảnh mới rồi bấm **Lưu hồ sơ**; có nút **Gỡ ảnh đại diện**).
+- **Hồ sơ**: sửa **Tên hiển thị** và **Ảnh đại diện**, bấm **Lưu hồ sơ** (có **Gỡ ảnh đại diện**).
 - **Ngôn ngữ**: Tiếng Việt hoặc Tiếng Anh.
 - **Thông tin hệ thống**: bản server, commit đang chạy, sao lưu gần nhất. Chỉ để xem.
 
-## 15. Phòng Marketing: góp ý chờ duyệt
+### Giao diện Paperclip gốc {#stock-ui}
 
-**Phòng Marketing** là loại thành viên chỉ xem mọi project, yêu cầu và bình luận, rồi gửi **yêu cầu** hoặc **bình luận** để owner duyệt. Trong lúc chờ, **agent không thấy gì**: nội dung chờ không nằm trong danh sách yêu cầu, bình luận hay ngữ cảnh chạy của agent, nên không agent nào bị đánh thức. Chỉ owner của company được duyệt hay từ chối.
+{{shot:stock-ui}}
 
-**Mời (owner).** Mở trang [Thành viên](/members):
-1. Bấm **Mời Phòng Marketing**, chép link (dạng `…/paperclip/invite/…`) gửi cho người được mời. Link chỉ hiện một lần.
-2. Người đó mở link, đăng ký hoặc đăng nhập rồi gửi yêu cầu tham gia.
-3. Ở mục **Yêu cầu tham gia chờ duyệt**, dòng có nhãn **Lời mời Phòng Marketing**: bấm **Duyệt**. Người đó hiện vai trò **Phòng Marketing**.
-- Thành viên chỉ xem có nút **Đặt Phòng Marketing**; người đang là Phòng Marketing có nút **Gỡ Phòng Marketing** (sau khi gỡ, người đó chỉ còn xem).
+Crew chạy trên Paperclip. Giao diện gốc của Paperclip vẫn mở được ở đường `/paperclip/` cùng tên miền.
 
-**Gửi (Phòng Marketing).**
-- Bấm **Yêu cầu mới**: chọn project, nhập tiêu đề và mô tả, bấm **Gửi để owner duyệt**. Không chọn loại, người nhận hay đính kèm: owner chọn lúc duyệt.
-- Trong một yêu cầu, ô soạn gửi bình luận để owner duyệt. Bình luận chờ hiện ngay trong luồng với nhãn **Chờ duyệt**.
-- Trang [Góp ý của tôi](/contributions) có ba tab **Chờ duyệt**, **Bị từ chối**, **Đã duyệt**. Mục đã duyệt có link tới yêu cầu hoặc bình luận thật.
-- Phòng Marketing không sửa, không đổi trạng thái, không giao việc và không xóa được gì.
+#### Cách làm
 
-**Duyệt (owner).** Mục **Chờ duyệt** ở thanh bên trái có số mục đang chờ, và **Tổng quan** có thẻ **Góp ý chờ duyệt**. Duyệt ở trang [Chờ duyệt](/contributions), ở nhóm **Chờ duyệt** đầu trang [Yêu cầu](/issues) (chip **Chờ duyệt (n)** để chỉ xem nhóm này), hoặc ngay trong luồng bình luận của yêu cầu:
-- **Duyệt yêu cầu**: hộp thoại cho chọn project, loại (Code, Bug, Nghiên cứu), **agent nhận việc** (mặc định là Trợ Lý của project) và ô **Lưu nháp**. Bấm **Duyệt** thì yêu cầu được đăng nguyên văn như bạn tự đăng, agent bắt đầu làm (trừ khi lưu nháp).
-- **Duyệt bình luận**: một lần bấm, bình luận được đăng dưới tên bạn và agent được báo như khi bạn bình luận. Trong Crew, bình luận đó có dòng **Góp ý của <tên>**.
-- Nếu lần duyệt bị đứt giữa chừng (mất mạng, đóng tab), mục mang nhãn **Đang duyệt dở** kèm nút **Duyệt lại**. Bấm lại không tạo bản trùng.
-- **Từ chối** hỏi xác nhận trước. Mục bị từ chối vẫn còn, mang nhãn **Bị từ chối**, chỉ người gửi và owner thấy; agent không bao giờ thấy.
-- Hai owner cùng duyệt một mục thì người đến sau được báo đang có người duyệt, thử lại sau ít phút.
+1. Bấm **Mở giao diện Paperclip gốc** (1) ở cuối thanh bên trái (hoặc trong menu tài khoản).
+2. Tab mới mở đúng trang tương ứng ở giao diện gốc: đang xem một yêu cầu, project hay agent thì mở đúng đối tượng đó; trang khác thì mở trang chủ giao diện gốc.
 
-## 16. Vì sao không có nút X
+{{roles:owner,operator}}
+> **Lưu ý:** dùng giao diện gốc để xem hoặc so sánh. Các thao tác Crew đã chặn có lý do (mục [Vì sao không có nút X](#missing-buttons)); làm ở giao diện gốc có thể làm hỏng luồng duyệt.
+{{/roles}}
+{{roles:viewer,contributor}}
+> **Lưu ý:** ở giao diện gốc bạn cũng chỉ có quyền như ở Crew.
+{{/roles}}
 
-Nếu bạn quen Paperclip gốc và tìm không thấy một nút, đa số là cố ý. Có ba lý do chính:
-- **Luật bảo vệ luồng duyệt.** Crew có các luật tự động: yêu cầu luôn đi qua Trợ Lý; không có ô đổi trạng thái tự do để bỏ qua review, kiểm tài liệu và đẩy code (bất khả kháng thì dùng **Ép Done** có lý do, mục 6.1); cấu hình agent không bị sửa tùy ý.
-- **Luật phân quyền chặt.** **Agent không tạo được agent khác** và không tự cấp quyền cho mình. **Agent không sửa được project** (vai trò, tên, cài đặt). Việc đó chỉ người dùng làm được trên web, qua các wizard và trang Project, Agent có kiểm tra từng bước.
-- **Thay bằng luồng đầy đủ.** Tạo project, tạo agent, thêm skill, gỡ project và gỡ agent có luồng riêng từng bước thay cho form hay nút xóa trơn.
+## Tra cứu {#reference}
 
-Bảng dưới liệt kê từng tính năng Paperclip không có trong Crew, nằm ở đâu trong Paperclip, vì sao, và cách làm thay thế. Mã lý do: **Crew không dùng**, **Bị luật chặn**, **Chưa có luồng**, **Để bản sau**.
+### Vì sao không có nút X {#missing-buttons roles=owner,operator,viewer}
+
+Quen Paperclip gốc mà không thấy một nút, đa số là cố ý:
+- **Luật bảo vệ luồng duyệt.** Yêu cầu luôn đi qua Trợ Lý; không có ô đổi trạng thái tự do để bỏ qua review, kiểm tài liệu và đẩy code (bất khả kháng thì owner dùng **Ép Done** có lý do); cấu hình agent không bị sửa tùy ý.
+- **Phân quyền chặt.** **Agent không tạo được agent khác**, không tự cấp quyền, **không sửa được project**. Việc đó chỉ người làm trên web, qua wizard có kiểm từng bước.
+- **Thay bằng luồng đầy đủ.** Tạo project, tạo agent, thêm skill, gỡ project, gỡ agent có luồng riêng từng bước thay cho form hay nút xóa trơn.
+
+Bảng dưới liệt kê từng tính năng Paperclip không có trong Crew, ở đâu trong Paperclip, vì sao, và cách làm thay. Mã lý do: **Crew không dùng**, **Bị luật chặn**, **Chưa có luồng**, **Để bản sau**.
 
 {{missing}}
 
-## 17. Đọc các dòng `crew-…` trong bình luận
+### Các dòng crew- trong bình luận {#crew-lines roles=owner,operator,viewer}
+
+Bình luận của agent có các dòng bắt đầu bằng `crew-`: bằng chứng máy đọc được.
 
 | Dòng | Ý nghĩa |
 |---|---|
 | `crew-plan root=… children=… bundles=…` | Kế hoạch của Trợ Lý: mấy yêu cầu con, mấy gói |
-| `crew-bundle id=… seq=…` | Yêu cầu con thuộc gói nào, thứ mấy. Cùng gói thì một Executor làm lần lượt và **nhớ** ngữ cảnh việc trước |
-| `crew-model complexity=… model=… effort=… runtime=…` | Độ khó, model và runtime được chọn: Sonnet cho việc vừa và nhỏ, Opus cho việc lớn. `runtime=` là `claude_local`, `codex_local` hoặc `opencode_local`; không có thì là Claude (mục 5.4) |
-| `crew-stack on=TPS-…` | Việc này xây tiếp trên code của việc kia |
+| `crew-bundle id=… seq=…` | Yêu cầu con thuộc gói nào, thứ mấy. Cùng gói thì một Executor làm lần lượt và nhớ ngữ cảnh |
+| `crew-model complexity=… model=… effort=… runtime=…` | Độ khó, model và runtime: Sonnet cho việc vừa và nhỏ, Opus cho việc lớn. `runtime=` là `claude_local`, `codex_local` hoặc `opencode_local`; không có là Claude |
+| `crew-stack on=CRE-…` | Việc này xây tiếp trên code của việc kia |
 | `crew-kind research` | Việc nghiên cứu, không sửa code |
 | `crew-review … verdict=approved` | Reviewer đã duyệt |
-| `crew-docs-check commit=… exit=0` | Integrator đã kiểm tài liệu trên code đã gộp. `exit=0` là đạt |
+| `crew-docs-check commit=… exit=0` | Integrator đã kiểm tài liệu trên code đã gộp; `exit=0` là đạt |
 | `crew-merge sha=… pushed=yes` | Đã đẩy lên nhánh chính |
 | `crew-assistant done children=…` | Trợ Lý xác nhận mọi yêu cầu con đã xong |
 
-## 18. Sự cố thường gặp
+### Sự cố thường gặp {#troubleshooting}
 
 | Bạn thấy | Nguyên nhân | Cách xử lý |
 |---|---|---|
-| Thẻ máy báo **TCC đang chờ** | macOS đang xin quyền cho Claude Code | Mở màn hình Mac, tìm hộp thoại xin quyền và bấm **Cho phép**. Không thấy thì vào System Settings, Privacy & Security, Files and Folders, bật quyền cho Claude |
-| Máy **Mất liên lạc** | Mac tắt, mất mạng hoặc app 2P Crew chưa mở | Kiểm Mac còn bật, có mạng, mở lại app 2P Crew |
-| Việc trên máy ghi **Chờ app 2P Crew** | App chưa chạy nên chưa nhận việc | Mở app 2P Crew trên Mac |
-| Yêu cầu không chạy | Lưu nháp, hoặc Trợ Lý đang tạm dừng | Tạo lại không chọn "Lưu nháp"; kiểm trang [Agent](/agents) xem Trợ Lý có đang **Tạm dừng** không |
-| Yêu cầu đứng lâu | Máy quá tải (tải trên 8), agent đang chờ | Đóng bớt app nặng trên Mac (giả lập, trình chạy thử) |
-| **Bị chặn** | Đang chờ bạn trả lời, hoặc chờ yêu cầu con khác | Mở yêu cầu hoặc xem tab **Chờ tôi duyệt** trong Hộp thư |
-| docs **Lỗi** | Code đổi mà tài liệu chưa sửa theo | Integrator tự sửa. Lặp lại nhiều lần thì nhắn Trợ Lý |
-| Project không có trong hộp thoại Yêu cầu mới | Project chưa sẵn sàng | Mở tab **Sẵn sàng** của project, bấm **Làm tiếp** |
-| Wizard báo lỗi hoặc đứng ở một bước | Máy chưa làm xong, hoặc lỗi thật ở bước đó | Đọc lỗi, mở app trên Mac nếu có chữ "Chờ app", rồi bấm **Chạy tiếp** |
-| "Có người vừa sửa hướng dẫn của agent" | Hai nơi cùng ghi `AGENTS.md` | Bấm **Tải lại** rồi render lại. Hệ thống không bao giờ ghi đè |
-| Agent báo hết quota | Gói Claude trên Mac hết hạn mức (dùng chung với Claude Code của bạn) | Chờ hạn mức mở lại, hoặc bật Codex/OpenCode ở trang Máy để Crew tự chuyển (mục 5.4) |
-| Khối Runtime ghi **Từ chối chuyển** | Không có agent cùng máy còn rảnh và bật công tắc, hoặc đã chuyển đủ 2 lần | Đọc lý do trên dòng; bật công tắc ở trang Máy hoặc chờ quota mở lại |
+| "Sai email hoặc mật khẩu" | Gõ sai | Nhập lại; quên mật khẩu thì nhờ owner |
+| Không thấy một mục ở thanh bên | Vai trò của bạn không dùng trang đó | Xem mục [2P Crew là gì](#what-is-crew) |
+{{roles:owner,operator}}
+| Bạn thấy | Nguyên nhân | Cách xử lý |
+|---|---|---|
+| Project không có trong hộp thoại Yêu cầu mới | Project chưa sẵn sàng | Tab **Sẵn sàng** của project, bấm **Làm tiếp** |
+| Yêu cầu không chạy | Lưu nháp, hoặc Trợ Lý đang tạm dừng | Tạo lại không chọn "Lưu nháp"; kiểm trang [Agent](/agents) |
+| Yêu cầu đứng lâu | Máy quá tải (tải trên 8) | Đóng bớt app nặng trên Mac |
+| **Bị chặn** | Chờ bạn trả lời, hoặc chờ yêu cầu con khác | Mở yêu cầu hoặc tab **Chờ tôi duyệt** của Hộp thư |
+| docs **Lỗi** | Code đổi mà tài liệu chưa theo | Integrator tự sửa; lặp nhiều lần thì nhắn Trợ Lý |
+| Thẻ máy **TCC đang chờ** | macOS xin quyền cho Claude Code | Bấm **Cho phép** trên Mac, hoặc System Settings → Privacy & Security → Files and Folders |
+| Máy **Mất liên lạc** | Mac tắt, mất mạng, app chưa mở | Kiểm Mac, mạng, mở lại app 2P Crew |
+| Việc trên máy ghi **Chờ app 2P Crew** | App chưa chạy | Mở app 2P Crew trên Mac |
+| Agent báo hết quota | Gói Claude trên Mac hết hạn mức | Chờ hạn mức mở lại, hoặc nhờ owner bật Codex/OpenCode |
+{{/roles}}
+{{roles:owner}}
+| Bạn thấy | Nguyên nhân | Cách xử lý |
+|---|---|---|
+| App báo "Máy này không báo trạng thái lên Paperclip" | Máy bị gỡ hoặc ghép nhầm company | **Đổi company / Ghép lại máy** trong app (mục [Ghép máy](#pair-machine)) |
+| Khối Runtime ghi **Từ chối chuyển** | Không còn agent cùng máy rảnh và bật công tắc, hoặc đã chuyển đủ 2 lần | Bật công tắc ở trang Máy hoặc chờ quota |
+| Wizard đứng ở một bước | Máy chưa làm xong, hoặc lỗi thật | Đọc lỗi, mở app trên Mac nếu có chữ "Chờ app", bấm **Chạy tiếp** |
+{{/roles}}
+{{roles:contributor}}
+| Bạn thấy | Nguyên nhân | Cách xử lý |
+|---|---|---|
+| Mục ở **Bị từ chối** | Owner không đăng nội dung đó | Hỏi owner lý do, sửa và gửi yêu cầu mới |
+| Mục nằm lâu ở **Chờ duyệt** | Owner chưa xem | Nhắn owner; agent chỉ làm sau khi được duyệt |
+{{/roles}}
 
-## 19. Thuật ngữ
+### Thuật ngữ {#glossary}
 
 | Từ | Nghĩa |
 |---|---|
-| Yêu cầu (gốc) | Việc bạn tạo và giao cho Trợ Lý |
+| Yêu cầu (gốc) | Việc giao cho Trợ Lý |
 | Yêu cầu con | Việc Trợ Lý tách ra từ yêu cầu gốc |
-| Gói (bundle) | Nhóm yêu cầu con cùng vùng code, do một Executor làm lần lượt |
+| Gói (bundle) | Nhóm yêu cầu con cùng vùng code, một Executor làm lần lượt |
 | Run | Một lần agent chạy |
-| Giai đoạn (stage) | Một bước trong luồng duyệt |
-| Vòng sửa | Một lần Reviewer hoặc bạn trả việc về sửa (tối đa 5) |
-| Vai trò | Trợ Lý, Executor, Reviewer, Integrator |
+| Giai đoạn | Một bước trong luồng duyệt |
+| Vòng sửa | Một lần Reviewer hoặc owner trả việc về sửa (tối đa 5) |
+| Vai trò (project) | Trợ Lý, Executor, Reviewer, Integrator |
 | Environment | Cấu hình cho agent biết chạy trên máy nào, thư mục nào |
 | Checkout | Thư mục repo riêng của một agent trên máy |
-| Sẵn sàng | Project hoặc agent đã đủ mọi điều kiện để nhận việc |
-| Superpowers | Bộ quy trình làm việc (brainstorm, lập kế hoạch, test trước) mà agent dùng |
-| Phòng Marketing | Thành viên chỉ xem, gửi yêu cầu và bình luận để owner duyệt; agent không thấy gì trước khi duyệt (mục 15) |
+| Sẵn sàng | Project hoặc agent đủ điều kiện nhận việc |
+| Ghép máy | Gắn một Mac vào company bằng app 2P Crew; máy nhận key riêng |
+| Superpowers | Bộ quy trình làm việc (brainstorm, lập kế hoạch, test trước) agent dùng |
+| Phòng Marketing | Thành viên chỉ xem, gửi yêu cầu và bình luận để owner duyệt |
