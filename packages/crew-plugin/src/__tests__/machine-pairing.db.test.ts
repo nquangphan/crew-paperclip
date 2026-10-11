@@ -85,6 +85,8 @@ beforeAll(async () => {
 afterAll(async () => { await host?.cleanup(); });
 beforeEach(async () => {
   await host.sql.unsafe(`DELETE FROM ${host.ns}.machine_pairings`);
+  await host.sql.unsafe(`DELETE FROM ${host.ns}.machine_latest`);
+  await host.sql.unsafe(`DELETE FROM ${host.ns}.machine_reports`);
   config = { companies: [{ companyId, webhookSecretRef: secretRef }], paperclipSshPublicKey: PUBLIC_KEY };
   configCalls.length = 0;
   resolveCalls.length = 0;
@@ -140,15 +142,71 @@ describe("route machines.pair", () => {
     expect(JSON.stringify(host.logs)).not.toContain(body.machineKey);
   });
 
-  it("ghép lại đổi nonce, xóa trạng thái gỡ và làm key cũ chết", async () => {
+  it("ghép lại máy đã gỡ khi owner cho phép: đổi nonce, xóa trạng thái gỡ và làm key cũ chết", async () => {
     const first = (await pair()).body as { machineKey: string };
     expect((await unpair()).status).toBe(200);
-    const second = (await pair(pairBody({ port: 2223 }))).body as { machineKey: string };
+    const second = (await pair(pairBody({ port: 2223, allowRepair: true }))).body as { machineKey: string };
     expect(second.machineKey).not.toBe(first.machineKey);
     const rows = await host.sql.unsafe(`SELECT port, revoked_at, revoked_by_user_id FROM ${host.ns}.machine_pairings`);
     expect(rows).toEqual([{ port: 2223, revoked_at: null, revoked_by_user_id: null }]);
     await expect(status(macbook, "Phans-MacBook-Pro", first.machineKey)).rejects.toMatchObject({ code: "bad_signature" });
     await status(macbook, "Phans-MacBook-Pro", second.machineKey);
+  });
+
+  it("máy đã gỡ không tự ghép lại được khi thiếu allowRepair", async () => {
+    const { machineKey } = (await pair()).body as { machineKey: string };
+    await unpair();
+    const [before] = await host.sql.unsafe(`SELECT key_nonce, revoked_at FROM ${host.ns}.machine_pairings`);
+    for (const body of [pairBody(), pairBody({ allowRepair: false })]) {
+      expect(await pair(body)).toEqual({
+        status: 409, body: { error: "Máy đã bị gỡ, owner phải cho phép ghép lại", code: "machine_revoked" },
+      });
+    }
+    expect(await host.sql.unsafe(`SELECT key_nonce, revoked_at FROM ${host.ns}.machine_pairings`)).toEqual([before]);
+    expect(host.logs.at(-1)).toEqual({ level: "warn", message: "crew machine pairing refused",
+      meta: { companyId, machineId: macbook, userId, code: "machine_revoked" } });
+    await expect(status(macbook, "Phans-MacBook-Pro", machineKey)).rejects.toMatchObject({ code: "machine_revoked" });
+  });
+
+  it("không ghép đè máy đang dùng secret company (Mac mini), vẫn xoay key cho máy đã ghép", async () => {
+    await status(mini, "mac-mini", COMPANY_SECRET);
+    expect(await pair(pairBody({ machineId: mini, hostname: "mac-mini" }))).toEqual({
+      status: 409, body: { error: "Máy đang gửi bản tin bằng secret company, không ghép đè được", code: "machine_uses_company_secret" },
+    });
+    expect((await pair(pairBody({ machineId: mini, allowRepair: true }))).status).toBe(409);
+    expect(await host.sql.unsafe(`SELECT 1 FROM ${host.ns}.machine_pairings`)).toEqual([]);
+    await status(mini, "mac-mini", COMPANY_SECRET);
+
+    // MacBook đã ghép và đã gửi bản tin: ghép lại là xoay key, key cũ chết.
+    const first = (await pair()).body as { machineKey: string };
+    await status(macbook, "Phans-MacBook-Pro", first.machineKey);
+    const second = await pair();
+    expect(second.status).toBe(200);
+    const { machineKey } = second.body as { machineKey: string };
+    expect(machineKey).not.toBe(first.machineKey);
+    await expect(status(macbook, "Phans-MacBook-Pro", first.machineKey)).rejects.toMatchObject({ code: "bad_signature" });
+    await status(macbook, "Phans-MacBook-Pro", machineKey);
+  });
+
+  it("hai lần ghép đồng thời trả hai key khác nhau, chỉ key của lần ghi sau còn sống", async () => {
+    const responses = await Promise.all([pair(), pair(), pair()]);
+    const keys = responses.map((response) => {
+      expect(response.status).toBe(200);
+      return (response.body as { machineKey: string }).machineKey;
+    });
+    expect(new Set(keys).size).toBe(keys.length);
+    const live = await keyFor(macbook);
+    expect(keys.filter((key) => key === live)).toHaveLength(1);
+    for (const key of keys.filter((k) => k !== live)) {
+      await expect(status(macbook, "Phans-MacBook-Pro", key)).rejects.toMatchObject({ code: "bad_signature" });
+    }
+    await status(macbook, "Phans-MacBook-Pro", live);
+  });
+
+  it("pairedAt trả về khớp giờ đã lưu", async () => {
+    const { pairedAt } = (await pair()).body as { pairedAt: string };
+    const [row] = await host.sql.unsafe(`SELECT paired_at FROM ${host.ns}.machine_pairings`);
+    expect(new Date(row?.paired_at as string | Date).toISOString()).toBe(pairedAt);
   });
 
   it("từ chối body sai mà không ghi gì", async () => {
@@ -164,6 +222,7 @@ describe("route machines.pair", () => {
       pairBody({ port: 22 }), pairBody({ port: 65536 }), pairBody({ port: 2222.5 }), pairBody({ port: "2222" }),
       pairBody({ hostKeyFingerprint: "SHA256:short" }), pairBody({ hostKeyFingerprint: `MD5:${"A".repeat(43)}` }),
       pairBody({ hostname: "" }), pairBody({ hostname: "x".repeat(201) }), pairBody({ hostname: "a\0b" }),
+      pairBody({ allowRepair: "true" }), pairBody({ allowRepair: 1 }), pairBody({ allowRepair: null }),
     ];
     for (const body of cases) expect((await pair(body)).status, JSON.stringify(body)).toBe(400);
     expect(await host.sql.unsafe(`SELECT 1 FROM ${host.ns}.machine_pairings`)).toEqual([]);

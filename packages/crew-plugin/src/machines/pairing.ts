@@ -11,11 +11,15 @@ type Ctx = Pick<PluginContext, "db" | "config" | "secrets" | "logger">;
 
 const ROUTES = ["machines.pair-info", "machines.pair", "machines.unpair"];
 const PAIR_KEYS = ["companyId", "machineId", "hostname", "environmentId", "tailscaleIp", "port", "hostKeyFingerprint"];
+/** Optional key: only an explicit owner action ("ghép lại máy đã gỡ") sends it. */
+const ALLOW_REPAIR_KEY = "allowRepair";
 const FORBIDDEN = "Chỉ người dùng board được ghép hoặc gỡ máy";
 const NO_PUBLIC_KEY = "Server chưa có key Paperclip";
 const NO_SECRET = "Company chưa có secret webhook";
 const NOT_PAIRED = "Máy chưa được ghép";
 const PAIRING_ERROR = "Không đọc/ghi được thông tin ghép máy";
+const REVOKED = "Máy đã bị gỡ, owner phải cho phép ghép lại";
+const USES_COMPANY_SECRET = "Máy đang gửi bản tin bằng secret company, không ghép đè được";
 const FINGERPRINT = /^SHA256:[A-Za-z0-9+/]{43}$/;
 const PUBLIC_KEY = new RegExp(PAPERCLIP_SSH_PUBLIC_KEY_PATTERN);
 
@@ -45,12 +49,13 @@ export function isTailscaleIp(value: unknown): value is string {
 
 interface PairBody {
   machineId: string; hostname: string; environmentId: string; tailscaleIp: string; port: number; hostKeyFingerprint: string;
+  allowRepair: boolean;
 }
 
 function parsePairBody(body: unknown, companyId: string): PairBody | string {
   if (!body || typeof body !== "object" || Array.isArray(body)) return "body phải là object";
   const value = body as Record<string, unknown>;
-  const unknownKey = Object.keys(value).find((key) => !PAIR_KEYS.includes(key));
+  const unknownKey = Object.keys(value).find((key) => !PAIR_KEYS.includes(key) && key !== ALLOW_REPAIR_KEY);
   if (unknownKey) return `trường ${unknownKey} không được hỗ trợ`;
   const missing = PAIR_KEYS.find((key) => !(key in value));
   if (missing) return `thiếu trường ${missing}`;
@@ -67,9 +72,11 @@ function parsePairBody(body: unknown, companyId: string): PairBody | string {
   if (typeof value.hostKeyFingerprint !== "string" || !FINGERPRINT.test(value.hostKeyFingerprint)) {
     return "hostKeyFingerprint phải có dạng SHA256:<43 ký tự base64>";
   }
+  if (ALLOW_REPAIR_KEY in value && typeof value.allowRepair !== "boolean") return "allowRepair phải là boolean";
   return {
     machineId: value.machineId.toLowerCase(), hostname: value.hostname, environmentId: value.environmentId.toLowerCase(),
     tailscaleIp: value.tailscaleIp, port: value.port, hostKeyFingerprint: value.hostKeyFingerprint,
+    allowRepair: value.allowRepair === true,
   };
 }
 
@@ -101,29 +108,44 @@ async function pair(ctx: Ctx, input: PluginApiRequestInput, companyId: string, u
     return { status: 409, body: { error: NO_SECRET } };
   }
   const nonce = randomBytes(32).toString("hex");
-  await ctx.db.execute(
-    `INSERT INTO ${table(ctx)} (company_id,machine_id,hostname,environment_id,tailscale_ip,port,host_key_fingerprint,
+  const pairedAt = new Date().toISOString();
+  const pairings = table(ctx);
+  // One guarded statement, so the checks and the write cannot race:
+  // - a machine without a pairing row that already reports in `machine_latest` signs with the company secret (the
+  //   Mac mini); pairing it would make all its messages fail, so the INSERT selects nothing;
+  // - a revoked row is only re-armed with `allowRepair`, otherwise the app could silently undo an owner's "Gỡ máy".
+  // The host `execute` returns only a row count (no RETURNING), so the key is derived from the nonce this call wrote:
+  // a concurrent re-pair that lands later kills this key, but two callers never receive the same key.
+  const written = await ctx.db.execute(
+    `INSERT INTO ${pairings} (company_id,machine_id,hostname,environment_id,tailscale_ip,port,host_key_fingerprint,
        key_nonce,paired_by_user_id,paired_at,revoked_at,revoked_by_user_id)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,now(),NULL,NULL)
+     SELECT $1::uuid,$2::uuid,$3::text,$4::uuid,$5::text,$6::integer,$7::text,$8::text,$9::text,$11::timestamptz,NULL,NULL
+     WHERE NOT EXISTS (SELECT 1 FROM ${pluginNamespace(ctx)}.machine_latest WHERE company_id = $1::uuid AND machine_id = $2::uuid)
+        OR EXISTS (SELECT 1 FROM ${pairings} WHERE company_id = $1::uuid AND machine_id = $2::uuid)
      ON CONFLICT (company_id,machine_id) DO UPDATE SET hostname = EXCLUDED.hostname,
        environment_id = EXCLUDED.environment_id, tailscale_ip = EXCLUDED.tailscale_ip, port = EXCLUDED.port,
        host_key_fingerprint = EXCLUDED.host_key_fingerprint, key_nonce = EXCLUDED.key_nonce,
        paired_by_user_id = EXCLUDED.paired_by_user_id, paired_at = EXCLUDED.paired_at,
-       revoked_at = NULL, revoked_by_user_id = NULL`,
+       revoked_at = NULL, revoked_by_user_id = NULL
+     WHERE ${pairings}.revoked_at IS NULL OR $10::boolean`,
     [companyId, parsed.machineId, parsed.hostname, parsed.environmentId, parsed.tailscaleIp, parsed.port,
-      parsed.hostKeyFingerprint, nonce, userId],
+      parsed.hostKeyFingerprint, nonce, userId, parsed.allowRepair, pairedAt],
   );
-  // No host transaction: read back the row and derive from the nonce actually stored, so a concurrent re-pair can
-  // never hand out a key the webhook will not accept.
-  const rows = await ctx.db.query<{ key_nonce: string; paired_at: string | Date }>(
-    `SELECT key_nonce, paired_at FROM ${table(ctx)} WHERE company_id = $1 AND machine_id = $2 AND revoked_at IS NULL`,
-    [companyId, parsed.machineId],
-  );
-  const row = rows[0];
-  if (!row) throw new Error("Dòng ghép máy vừa ghi không còn");
-  const machineKey = deriveMachineKey(companySecret, companyId, parsed.machineId, row.key_nonce);
+  if (written.rowCount !== 1) return refusePair(ctx, companyId, parsed.machineId, userId);
+  const machineKey = deriveMachineKey(companySecret, companyId, parsed.machineId, nonce);
   ctx.logger.info("crew machine paired", { companyId, machineId: parsed.machineId, userId });
-  return { status: 200, body: { machineKey, pairedAt: iso(row.paired_at) } };
+  return { status: 200, body: { machineKey, pairedAt } };
+}
+
+/** Explains why the guarded upsert of `pair` wrote nothing. */
+async function refusePair(ctx: Ctx, companyId: string, machineId: string, userId: string): Promise<PluginApiResponse> {
+  const rows = await ctx.db.query<{ revoked: boolean }>(
+    `SELECT revoked_at IS NOT NULL AS revoked FROM ${table(ctx)} WHERE company_id = $1 AND machine_id = $2`,
+    [companyId, machineId],
+  );
+  const code = rows[0]?.revoked ? "machine_revoked" : "machine_uses_company_secret";
+  ctx.logger.warn("crew machine pairing refused", { companyId, machineId, userId, code });
+  return { status: 409, body: { error: code === "machine_revoked" ? REVOKED : USES_COMPANY_SECRET, code } };
 }
 
 async function unpair(ctx: Ctx, input: PluginApiRequestInput, companyId: string, userId: string): Promise<PluginApiResponse> {
