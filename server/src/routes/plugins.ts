@@ -1621,7 +1621,7 @@ export function pluginRoutes(
       renderEnvironment?: PluginLauncherRenderContextSnapshot | null;
     } | undefined;
 
-    const companyId = (await crewViewerPluginDataScope(db, req, plugin.pluginKey, body?.companyId)) ?? assertPluginBridgeScope(req, body?.companyId);
+    const companyId = (await crewViewerPluginDataScope(db, req, plugin.pluginKey, key, body?.companyId)) ?? assertPluginBridgeScope(req, body?.companyId);
 
     try {
       const result = await bridgeDeps.workerManager.call(

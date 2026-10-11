@@ -28,6 +28,16 @@ import {
 } from "./contributions.js";
 
 const BASE = "/crew/companies/:companyId";
+const BODY_LOCAL = "crewContributionBody";
+
+/**
+ * Body đã chuyển sang `res.locals` của request góp ý. Logger HTTP và error handler chép `req.body` vào log (mọi phản hồi
+ * ≥ 400) và vào ngữ cảnh lỗi (5xx), mà body ở đây là nội dung chờ duyệt, agent không được thấy. Vì vậy router dời body
+ * ra khỏi `req` trước mọi bước có thể lỗi, và handler chỉ đọc nó ở đây.
+ */
+function takeBody(res: Response): unknown {
+  return res.locals[BODY_LOCAL];
+}
 
 /** 409 kèm mục góp ý hiện tại, để UI cập nhật ngay mà không cần đọc lại. */
 function conflictWith(res: Response, code: string, error: string, contribution: Contribution): void {
@@ -37,12 +47,20 @@ function conflictWith(res: Response, code: string, error: string, contribution: 
 /**
  * Router Crew cho góp ý chờ duyệt của Phòng Marketing (spec §5). Gắn vào `createApp` bằng vá lõi C7.
  *
- * - Chỉ actor board có `userId`; agent luôn nhận `403 crew_contribution_forbidden`.
+ * - Chỉ actor board đăng nhập bằng phiên trình duyệt; agent, board API key và `local_implicit` nhận
+ *   `403 crew_contribution_forbidden`.
+ * - Body không bao giờ nằm ở `req.body` khi handler chạy (xem {@link takeBody}), nên log và Sentry không có nội dung.
  * - Quyền xét theo role đọc từ DB (owner / viewer có dấu khách góp ý), không qua `assertCompanyAccess`.
  * - Không ghi `activity_log`, không phát live event hay event plugin; log chỉ ghi id.
  */
 export function crewContributionRoutes(db: Db): Router {
   const router = Router();
+
+  router.use([`${BASE}/contributions`, `${BASE}/contributors`], (req, res, next) => {
+    res.locals[BODY_LOCAL] = req.body;
+    req.body = {};
+    next();
+  });
 
   router.get(`${BASE}/access`, async (req, res) => {
     const actor = await resolveContributionActor(db, req, req.params.companyId, { requireTables: false });
@@ -62,12 +80,12 @@ export function crewContributionRoutes(db: Db): Router {
       throw badRequest("Tham số lọc góp ý không hợp lệ.", { code: CONTRIBUTION_ERRORS.invalid, issues: query.error.issues });
     }
     await selfHeal(db, actor.companyId);
-    const items = await listContributions(db, {
+    const page = await listContributions(db, {
       companyId: actor.companyId,
       authorUserId: actor.isOwner ? null : actor.userId,
       query: query.data,
     });
-    res.json({ items });
+    res.json(page);
   });
 
   router.get(`${BASE}/contributions/summary`, async (req, res) => {
@@ -87,7 +105,7 @@ export function crewContributionRoutes(db: Db): Router {
   router.post(`${BASE}/contributions`, async (req, res) => {
     const actor = await resolveContributionActor(db, req, req.params.companyId, { requireTables: true });
     requireContributor(actor);
-    const data = parseCreateBody(req.body);
+    const data = parseCreateBody(takeBody(res));
     const contribution = await createContribution(db, { companyId: actor.companyId, authorUserId: actor.userId, data });
     logger.info({ companyId: actor.companyId, contributionId: contribution.id, kind: contribution.kind }, "crew contribution created");
     res.status(201).json(contribution);

@@ -7,6 +7,7 @@ import request from "supertest";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { companies, companyMemberships, createDb } from "@paperclipai/db";
 import { CREW_POLICY_CONFIG_ENV } from "../crew/issue-policy.js";
+import { CREW_VIEWER_DATA_KEYS } from "../crew/plugin-data-scope.js";
 import { startEmbeddedPostgresTestDatabase } from "./helpers/embedded-postgres.js";
 
 const mockRegistry = vi.hoisted(() => ({
@@ -125,9 +126,9 @@ describe("Crew: viewer đọc data plugin crew.core", () => {
     return app;
   }
 
-  function readData(server: express.Express, companyId: unknown, plugin = "crew.core") {
+  function readData(server: express.Express, companyId: unknown, plugin = "crew.core", key = "crew.companies") {
     return request(server)
-      .post(`/api/plugins/${plugin}/data/crew.companies`)
+      .post(`/api/plugins/${plugin}/data/${key}`)
       .send({ companyId, params: {} });
   }
 
@@ -146,6 +147,47 @@ describe("Crew: viewer đọc data plugin crew.core", () => {
       renderEnvironment: null,
     });
   }, 60_000);
+
+  it("chỉ mở đúng các data key UI Crew đọc ở trang viewer; key khác giữ 403 stock", async () => {
+    expect([...CREW_VIEWER_DATA_KEYS].sort()).toEqual([
+      "crew.companies",
+      "crew.docs.page",
+      "crew.docs.projects",
+      "crew.docs.search",
+      "crew.docs.tree",
+      "crew.docsCheck",
+      "crew.machines",
+      "crew.map",
+      "crew.roots",
+      "crew.runtimeDecisions",
+      "crew.setupRuns",
+    ]);
+    const companyId = await company(true);
+    const userId = await member(companyId, "viewer");
+    const server = await app(board(userId, companyId, "viewer"));
+
+    expect((await readData(server, companyId, "crew.core", "crew.roots")).status).toBe(200);
+    for (const key of ["crew.machineJobs", "crew.usage.summary", "crew.storage", "crew.skillSync", "crew.newKey"]) {
+      const res = await readData(server, companyId, "crew.core", key);
+      expect(res.status, key).toBe(403);
+      expect(res.body.error, key).toBe("Viewer access is read-only");
+    }
+    expect(call).toHaveBeenCalledTimes(1);
+  });
+
+  it("cấu hình Crew hỏng thì đóng: viewer nhận 403 stock", async () => {
+    const companyId = await company(true);
+    const userId = await member(companyId, "viewer");
+    writeFileSync(configFile, "{ not json");
+    try {
+      const res = await readData(await app(board(userId, companyId, "viewer")), companyId);
+      expect(res.status).toBe(403);
+      expect(res.body.error).toBe("Viewer access is read-only");
+      expect(call).not.toHaveBeenCalled();
+    } finally {
+      writeFileSync(configFile, JSON.stringify({ companies: configured }));
+    }
+  });
 
   it("viewer gọi data của plugin khác vẫn nhận 403 stock", async () => {
     const companyId = await company(true);

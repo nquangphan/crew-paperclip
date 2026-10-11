@@ -2,11 +2,13 @@ import { randomUUID } from "node:crypto";
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
+import { Writable } from "node:stream";
 import { fileURLToPath } from "node:url";
 import express from "express";
+import pino from "pino";
 import request from "supertest";
 import { sql } from "drizzle-orm";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import {
   activityLog,
   companies,
@@ -20,6 +22,12 @@ import {
 import { CREW_POLICY_CONFIG_ENV } from "../crew/issue-policy.js";
 import { crewContributionsTable } from "../crew/contributions.js";
 import { getEmbeddedPostgresTestSupport, startEmbeddedPostgresTestDatabase } from "./helpers/embedded-postgres.js";
+
+const sentry = vi.hoisted(() => ({ captureException: vi.fn() }));
+vi.mock("../sentry.js", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../sentry.js")>()),
+  captureException: sentry.captureException,
+}));
 
 const migration = readFileSync(
   fileURLToPath(new URL("../../../packages/crew-plugin/migrations/0013_contributions.sql", import.meta.url)),
@@ -136,13 +144,16 @@ suite("Crew: router góp ý chờ duyệt", () => {
 
   const agentActor = () => ({ type: "agent", agentId: randomUUID(), companyId, runId: randomUUID(), source: "agent_jwt" });
 
-  async function app(actor: Record<string, unknown>) {
-    const [{ crewContributionRoutes }, { errorHandler }] = await Promise.all([
+  async function app(actor: Record<string, unknown>, logStream?: Writable) {
+    const [{ crewContributionRoutes }, { errorHandler }, { createHttpLogger }, { HTTP_LOG_REDACT_PATHS }] = await Promise.all([
       import("../crew/contribution-routes.js"),
       import("../middleware/index.js"),
+      import("../middleware/logger.js"),
+      import("../middleware/http-log-redaction.js"),
     ]);
     const server = express();
     server.use(express.json());
+    if (logStream) server.use(createHttpLogger(pino({ redact: [...HTTP_LOG_REDACT_PATHS] }, logStream)));
     server.use((req, _res, next) => {
       req.actor = actor as typeof req.actor;
       next();
@@ -151,6 +162,11 @@ suite("Crew: router góp ý chờ duyệt", () => {
     server.use(errorHandler);
     return server;
   }
+
+  const rowsCount = (result: unknown) => {
+    const rows = Array.isArray(result) ? result : ((result as { rows?: unknown[] }).rows ?? []);
+    return Number((rows[0] as { n?: unknown } | undefined)?.n ?? 0);
+  };
 
   const url = (suffix: string, company = companyId) => `/api/crew/companies/${company}${suffix}`;
   const as = async (userId: string) => app(board(userId));
@@ -239,9 +255,48 @@ suite("Crew: router góp ý chờ duyệt", () => {
         expect(agent.body.code).toBe("crew_contribution_forbidden");
         const local = await request(await app({ type: "board", userId: "local-board", source: "local_implicit" })).get(url("/access"));
         expect(local.status).toBe(403);
+        const localOwner = await request(await app(board(users.owner, [companyId], { source: "local_implicit" }))).get(url("/access"));
+        expect(localOwner.status).toBe(403);
         expect((await request(await as(users.owner)).get(url("/access", otherCompanyId))).status).toBe(404);
         const stock = await request(await app(board(users.stockGuest, [stockCompanyId]))).get(url("/access", stockCompanyId));
         expect(stock.status).toBe(404);
+      });
+
+      it("board API key của owner nhận 403 ở mọi endpoint, kể cả đọc và duyệt", async () => {
+        const item = await createIssueContribution();
+        const keyOwner = await app(board(users.owner, [companyId], { source: "board_key" }));
+        const keyGuest = await app(board(users.guest, [companyId], { source: "board_key" }));
+        const responses = [
+          await request(keyOwner).get(url("/access")),
+          await request(keyOwner).get(url("/contributions?status=rejected")),
+          await request(keyOwner).get(url("/contributions/summary")),
+          await request(keyOwner).get(url(`/contributions/${item.id}`)),
+          await request(keyOwner).post(url(`/contributions/${item.id}/approve`)),
+          await request(keyOwner).post(url(`/contributions/${item.id}/approve/complete`)),
+          await request(keyOwner).post(url(`/contributions/${item.id}/reject`)),
+          await request(keyOwner).get(url("/contributors")),
+          await request(keyOwner).put(url(`/contributors/${users.viewer}`)),
+          await request(keyOwner).delete(url(`/contributors/${users.guest}`)),
+          await request(keyGuest).post(url("/contributions")).send({ kind: "comment", issueId, body: "qua key" }),
+        ];
+        for (const res of responses) {
+          expect(res.status, res.req.path).toBe(403);
+          expect(res.body.code).toBe("crew_contribution_forbidden");
+        }
+        expect((await request(await as(users.owner)).get(url(`/contributions/${item.id}`))).body.status).toBe("pending");
+      });
+
+      it("cấu hình Crew hỏng thì đóng: 404 cho mọi company", async () => {
+        const saved = readFileSync(configFile, "utf8");
+        writeFileSync(configFile, "{ not json");
+        try {
+          expect((await request(await as(users.owner)).get(url("/access"))).status).toBe(404);
+          const create = await request(await as(users.guest)).post(url("/contributions")).send({ kind: "comment", issueId, body: "x" });
+          expect(create.status).toBe(404);
+        } finally {
+          writeFileSync(configFile, saved);
+        }
+        expect((await request(await as(users.owner)).get(url("/access"))).status).toBe(200);
       });
     });
 
@@ -319,6 +374,26 @@ suite("Crew: router góp ý chờ duyệt", () => {
           expect(res.body.code).toBe("crew_contribution_invalid");
         }
         const ok = await request(guest).post(url("/contributions")).send({ kind: "issue", projectId, title: "a".repeat(240) });
+        expect(ok.status).toBe(201);
+      });
+
+      it("ký tự điều khiển (\\u0000, \\u0007, \\u001b, \\u007f, \\u0085): 400 trước khi chạm DB; tab và xuống dòng vẫn nhận", async () => {
+        const guest = await as(users.guest);
+        const before = rowsCount(await db.execute(sql`SELECT count(*)::int AS n FROM ${sql.raw(crewContributionsTable())}`));
+        for (const bad of ["\u0000", "\u0007", "\u001b[31m", "\u007f", "\u0085"]) {
+          const bodies = [
+            { kind: "issue", projectId, title: `Tiêu đề ${bad}` },
+            { kind: "issue", projectId, title: "ok", description: `Mô tả ${bad}` },
+            { kind: "comment", issueId, body: `Bình luận ${bad}` },
+          ];
+          for (const body of bodies) {
+            const res = await request(guest).post(url("/contributions")).send(body);
+            expect(res.status, JSON.stringify(body)).toBe(400);
+            expect(res.body.code).toBe("crew_contribution_invalid");
+          }
+        }
+        expect(rowsCount(await db.execute(sql`SELECT count(*)::int AS n FROM ${sql.raw(crewContributionsTable())}`))).toBe(before);
+        const ok = await request(guest).post(url("/contributions")).send({ kind: "comment", issueId, body: "Dòng 1\n\tDòng 2\r\n" });
         expect(ok.status).toBe(201);
       });
     });
@@ -547,6 +622,65 @@ suite("Crew: router góp ý chờ duyệt", () => {
       });
     });
 
+    describe("từ chối đua với bước đăng", () => {
+      it("issue: từ chối khi request đăng chưa commit, bản ghi xuất hiện sau đó: tự lành chuyển approved", async () => {
+        const item = await createIssueContribution();
+        const owner = await as(users.owner);
+        expect((await request(owner).post(url(`/contributions/${item.id}/approve`))).status).toBe(200);
+        // Request đăng của trình duyệt còn treo: lúc từ chối chưa thấy bản ghi lõi nào.
+        const rejected = await request(owner).post(url(`/contributions/${item.id}/reject`));
+        expect(rejected.status).toBe(200);
+        expect(rejected.body.status).toBe("rejected");
+        // Transaction tạo issue stock commit muộn.
+        const resultIssueId = await materializeIssue(item.id);
+
+        const list = await request(owner).get(url("/contributions?status=rejected"));
+        expect(list.body.items.map((entry: { id: string }) => entry.id)).not.toContain(item.id);
+        const row = await request(owner).get(url(`/contributions/${item.id}`));
+        expect(row.body).toMatchObject({ status: "approved", resultIssueId, decidedByUserId: users.owner });
+        const guest = await request(await as(users.guest)).get(url("/contributions?status=approved"));
+        expect(guest.body.items.find((entry: { id: string }) => entry.id === item.id)?.status).toBe("approved");
+      });
+
+      it("bình luận: reject lại, complete và approve sau cuộc đua đều thấy approved", async () => {
+        const owner = await as(users.owner);
+        const viaReject = await createCommentContribution();
+        await request(owner).post(url(`/contributions/${viaReject.id}/approve`));
+        expect((await request(owner).post(url(`/contributions/${viaReject.id}/reject`))).body.status).toBe("rejected");
+        const commentId = await materializeComment(viaReject.id);
+        const again = await request(owner).post(url(`/contributions/${viaReject.id}/reject`));
+        expect(again.status).toBe(409);
+        expect(again.body.code).toBe("crew_contribution_already_approved");
+        expect(again.body.contribution).toMatchObject({ status: "approved", resultCommentId: commentId });
+
+        const viaComplete = await createCommentContribution();
+        await request(owner).post(url(`/contributions/${viaComplete.id}/approve`));
+        await request(owner).post(url(`/contributions/${viaComplete.id}/reject`));
+        await materializeComment(viaComplete.id);
+        const completed = await request(owner).post(url(`/contributions/${viaComplete.id}/approve/complete`));
+        expect(completed.status).toBe(200);
+        expect(completed.body.status).toBe("approved");
+
+        const viaApprove = await createCommentContribution();
+        await request(owner).post(url(`/contributions/${viaApprove.id}/approve`));
+        await request(owner).post(url(`/contributions/${viaApprove.id}/reject`));
+        await materializeComment(viaApprove.id);
+        const approved = await request(owner).post(url(`/contributions/${viaApprove.id}/approve`));
+        expect(approved.status).toBe(409);
+        expect(approved.body.code).toBe("crew_contribution_decided");
+        expect(approved.body.contribution.status).toBe("approved");
+      });
+
+      it("từ chối thẳng từ pending không bao giờ đổi, kể cả khi có bình luận trùng client_request_id", async () => {
+        const item = await createCommentContribution();
+        const owner = await as(users.owner);
+        expect((await request(owner).post(url(`/contributions/${item.id}/reject`))).body.status).toBe("rejected");
+        await materializeComment(item.id);
+        await request(owner).get(url("/contributions/summary"));
+        expect((await request(owner).get(url(`/contributions/${item.id}`))).body.status).toBe("rejected");
+      });
+    });
+
     describe("tự lành", () => {
       it("dòng approving đã có bản ghi: GET /contributions và summary trả approved", async () => {
         const item = await createCommentContribution();
@@ -563,6 +697,35 @@ suite("Crew: router góp ý chờ duyệt", () => {
         const resultIssueId = await materializeIssue(second.id);
         await request(owner).get(url("/contributions/summary"));
         expect((await request(owner).get(url(`/contributions/${second.id}`))).body).toMatchObject({ status: "approved", resultIssueId });
+      });
+    });
+
+    describe("phân trang danh sách", () => {
+      it("trang 200 mục kèm nextBefore, trang sau đọc tiếp không trùng, hết thì null", async () => {
+        const pager = `user-pager-${randomUUID()}`;
+        await db.insert(companyMemberships).values({ companyId, principalType: "user", principalId: pager, status: "active", membershipRole: "viewer" });
+        roles[pager] = "viewer";
+        expect((await request(await as(users.owner)).put(url(`/contributors/${pager}`))).status).toBe(204);
+        await db.execute(sql`INSERT INTO ${sql.raw(crewContributionsTable())} (company_id, kind, author_user_id, target_issue_id, body, created_at)
+          SELECT ${companyId}, 'comment', ${pager}, ${issueId}, 'Mục ' || n, now() - n * interval '1 second'
+          FROM generate_series(1, 205) AS n`);
+        const server = await as(pager);
+
+        const first = await request(server).get(url("/contributions"));
+        expect(first.status).toBe(200);
+        expect(first.body.items).toHaveLength(200);
+        expect(first.body.nextBefore).toBe(first.body.items[199].id);
+        const second = await request(server).get(url(`/contributions?before=${first.body.nextBefore}`));
+        expect(second.body.items).toHaveLength(5);
+        expect(second.body.nextBefore).toBeNull();
+        const ids = [...first.body.items, ...second.body.items].map((entry: { id: string }) => entry.id);
+        expect(new Set(ids).size).toBe(205);
+        expect(second.body.items.at(-1).body).toBe("Mục 205");
+
+        const foreign = await createCommentContribution();
+        const otherCursor = await request(server).get(url(`/contributions?before=${foreign.id}`));
+        expect(otherCursor.body).toEqual({ items: [], nextBefore: null });
+        expect((await request(server).get(url("/contributions?before=nope"))).status).toBe(400);
       });
     });
 
@@ -606,6 +769,33 @@ suite("Crew: router góp ý chờ duyệt", () => {
         expect(res.status).toBe(403);
       });
 
+      it("dấu không sống lại khi người đó bị gỡ rồi mời lại, hay bị nâng rồi hạ về viewer", async () => {
+        const owner = await as(users.owner);
+        for (const change of ["archive", "promote"] as const) {
+          const guest = `user-returning-${change}-${randomUUID()}`;
+          await db.insert(companyMemberships).values({ companyId, principalType: "user", principalId: guest, status: "active", membershipRole: "viewer" });
+          roles[guest] = "viewer";
+          expect((await request(owner).put(url(`/contributors/${guest}`))).status).toBe(204);
+          expect((await request(await as(guest)).get(url("/access"))).body.contributor).toBe(true);
+
+          // Lõi ghi `updated_at` ở mỗi lần đổi role/status (services/access.ts).
+          const away = change === "archive" ? sql`status = 'archived'` : sql`membership_role = 'operator'`;
+          await db.execute(sql`UPDATE "company_memberships" SET ${away}, updated_at = now() WHERE principal_id = ${guest}`);
+          await db.execute(sql`UPDATE "company_memberships"
+            SET status = 'active', membership_role = 'viewer', updated_at = now() + interval '1 second' WHERE principal_id = ${guest}`);
+
+          expect((await request(await as(guest)).get(url("/access"))).body).toMatchObject({ membershipRole: "viewer", contributor: false });
+          const create = await request(await as(guest)).post(url("/contributions")).send({ kind: "comment", issueId, body: "x" });
+          expect(create.status, change).toBe(403);
+          const listed = (await request(owner).get(url("/contributors"))).body.items.map((entry: { userId: string }) => entry.userId);
+          expect(listed).not.toContain(guest);
+
+          // Owner bật lại thì dấu có hiệu lực ngay.
+          expect((await request(owner).put(url(`/contributors/${guest}`))).status).toBe(204);
+          expect((await request(await as(guest)).get(url("/access"))).body.contributor).toBe(true);
+        }
+      });
+
       it("chỉ owner quản lý dấu", async () => {
         for (const userId of [users.admin, users.operator, users.guest]) {
           const server = await as(userId);
@@ -613,6 +803,96 @@ suite("Crew: router góp ý chờ duyệt", () => {
           expect((await request(server).put(url(`/contributors/${users.viewer}`))).status, userId).toBe(403);
           expect((await request(server).delete(url(`/contributors/${users.guest}`))).status, userId).toBe(403);
         }
+      });
+    });
+
+    describe("nội dung chờ không vào log và báo lỗi", () => {
+      function capture() {
+        const chunks: string[] = [];
+        const stream = new Writable({
+          write(chunk, _encoding, callback) {
+            chunks.push(chunk.toString());
+            callback();
+          },
+        });
+        return { stream, text: () => chunks.join("") };
+      }
+
+      async function moduleLogText(run: () => Promise<void>) {
+        const { logger } = await import("../middleware/logger.js");
+        const spies = (["info", "warn", "error"] as const).map((level) => vi.spyOn(logger, level));
+        try {
+          await run();
+          return JSON.stringify(spies.flatMap((spy) => spy.mock.calls), (_key, value) =>
+            value instanceof Error ? { message: value.message, stack: value.stack, cause: String(value.cause) } : value);
+        } finally {
+          for (const spy of spies) spy.mockRestore();
+        }
+      }
+
+      const settle = () => new Promise((resolve) => setImmediate(resolve));
+
+      it("4xx (400, 403, 422) không ghi body vào log HTTP", async () => {
+        const marker = `bi-mat-4xx-${randomUUID()}`;
+        const log = capture();
+        const guest = await app(board(users.guest), log.stream);
+        const viewer = await app(board(users.viewer), log.stream);
+        const responses = [
+          await request(guest).post(url("/contributions")).send({ kind: "comment", issueId: hiddenIssueId, body: marker }),
+          await request(guest).post(url("/contributions")).send({ kind: "issue", projectId, title: marker, extra: marker }),
+          await request(viewer).post(url("/contributions")).send({ kind: "comment", issueId, body: marker }),
+          await request(guest).post(url(`/contributions/${randomUUID()}/approve`)).send({ body: marker }),
+        ];
+        await settle();
+        expect(responses.map((res) => res.status)).toEqual([422, 400, 403, 403]);
+        expect(log.text()).toContain("/contributions");
+        expect(log.text()).not.toContain(marker);
+      });
+
+      it("5xx do DB: trả 500 chung, log HTTP, log server và báo lỗi không có nội dung", async () => {
+        const marker = `bi-mat-5xx-${randomUUID()}`;
+        const table = sql.raw(crewContributionsTable());
+        await db.execute(sql`ALTER TABLE ${table} ADD CONSTRAINT crew_contributions_test_reject_ck
+          CHECK (body IS NULL OR position('bi-mat-5xx-' in body) = 0) NOT VALID`);
+        const log = capture();
+        sentry.captureException.mockClear();
+        try {
+          const guest = await app(board(users.guest), log.stream);
+          let res: request.Response | undefined;
+          const serverLog = await moduleLogText(async () => {
+            res = await request(guest).post(url("/contributions")).send({ kind: "comment", issueId, body: marker });
+            await settle();
+          });
+          expect(res?.status).toBe(500);
+          expect(res?.body).toMatchObject({ error: "Crew: không lưu được góp ý, hãy thử lại sau.", code: "crew_contribution_store_failed" });
+          expect(JSON.stringify(res?.body)).not.toContain(marker);
+          expect(log.text()).toContain("crew_contribution");
+          expect(log.text()).not.toContain(marker);
+          expect(serverLog).toContain("23514");
+          expect(serverLog).not.toContain(marker);
+          expect(sentry.captureException).toHaveBeenCalledTimes(1);
+          const reported = sentry.captureException.mock.calls[0]![0] as Error & { cause?: unknown };
+          expect(reported.message).not.toContain(marker);
+          expect(reported.cause).toBeUndefined();
+          expect(JSON.stringify(reported)).not.toContain(marker);
+        } finally {
+          await db.execute(sql`ALTER TABLE ${table} DROP CONSTRAINT crew_contributions_test_reject_ck`);
+        }
+      });
+
+      it("tự lành mục bị từ chối chỉ log id", async () => {
+        const marker = `bi-mat-heal-${randomUUID()}`;
+        const item = await createCommentContribution(marker);
+        const owner = await as(users.owner);
+        await request(owner).post(url(`/contributions/${item.id}/approve`));
+        await request(owner).post(url(`/contributions/${item.id}/reject`));
+        await materializeComment(item.id);
+        const serverLog = await moduleLogText(async () => {
+          await request(owner).get(url("/contributions/summary"));
+        });
+        expect(serverLog).toContain(item.id);
+        expect(serverLog).toContain("marked approved");
+        expect(serverLog).not.toContain(marker);
       });
     });
   });
