@@ -2,6 +2,7 @@
 import { type ReactNode, useState } from 'react';
 import { Navigate, Outlet, useParams } from 'react-router-dom';
 import { AppFrame, CenteredPage, EmptyState, ErrorState, Spinner } from '@/ds';
+import { ContributionPopupHost } from '@/features/contributions/contribution-popup-host';
 import { IssuePopupHost } from '@/features/issues';
 import { useT } from '@/i18n';
 import { CompanyContext, findCompany, useCompany, useCrewCompanies } from '../hooks';
@@ -57,6 +58,7 @@ export function CompanyShell({ segments }: { segments: ReadonlySet<string> }) {
         </AppFrame>
         <CommandPalette open={paletteOpen} onOpenChange={setPaletteOpen} segments={segments} />
         <IssuePopupHost />
+        <ContributionPopupHost />
       </LiveEventsProvider>
     </CompanyContext.Provider>
   );

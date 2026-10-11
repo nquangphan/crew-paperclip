@@ -48,6 +48,7 @@ Lưu ý:
   - **Project**: danh sách và tình trạng sẵn sàng (mục 10). Project bạn đã gắn sao hiện ngay bên dưới, bấm để mở thẳng project.
   - **Docs**: mục 13.
 - **Tổ chức**: **Agent** (mục 10), **Skills** (mục 11), **Máy** (mục 12).
+- Owner có thêm **Chờ duyệt** (nhóm Công việc) và **Thành viên** (nhóm Hệ thống) cho Phòng Marketing (mục 15).
 - **Hệ thống**: **Cài đặt** (hồ sơ, ngôn ngữ, thông tin hệ thống), **Hướng dẫn** (trang bạn đang đọc) và **Mở giao diện Paperclip gốc** (khi đã cấu hình).
 
 Bấm tiêu đề một nhóm (Công việc, Tổ chức, Hệ thống) để thu gọn hoặc mở lại nhóm đó.
@@ -118,7 +119,7 @@ Nhóm **Runtime** trong Thuộc tính (sau nhóm Thực thi) cho biết runtime 
 
 Bấm **Mở map** để xem sơ đồ các việc. Mỗi ô là yêu cầu gốc hoặc một yêu cầu con, ghi loại việc, giai đoạn, người đang làm và số vòng sửa (ví dụ 0/5). Nét đứt nối các việc phải xong trước. Bấm **Đóng map** để thu lại. Mở map cũng hiện kết quả **Kiểm docs**.
 
-Bên dưới là **Thuộc tính** (trạng thái, người làm, project, loại, model đang dùng, giai đoạn và người duyệt, vòng sửa) và **Bình luận**: agent ghi lại từng bước ở đây, và run đang chạy hiện trực tiếp. Bạn có thể sửa tiêu đề và mô tả, viết bình luận, đính kèm file. Các dòng bình luận bắt đầu bằng `crew-` là bằng chứng máy đọc được, xem mục 16.
+Bên dưới là **Thuộc tính** (trạng thái, người làm, project, loại, model đang dùng, giai đoạn và người duyệt, vòng sửa) và **Bình luận**: agent ghi lại từng bước ở đây, và run đang chạy hiện trực tiếp. Bạn có thể sửa tiêu đề và mô tả, viết bình luận, đính kèm file. Các dòng bình luận bắt đầu bằng `crew-` là bằng chứng máy đọc được, xem mục 17.
 
 ### 5.3 Khi Trợ Lý hỏi lại
 
@@ -128,7 +129,7 @@ Có khi Trợ Lý cần **xác nhận** một việc: thẻ "Trợ Lý cần xá
 
 ### 5.4 Runtime: Claude, Codex, OpenCode
 
-Mặc định mọi agent chạy bằng **Claude**. Ngoài ra có hai runtime phụ, **Codex** và **OpenCode**, do chủ dự án bật trên trang [Máy](/machines) (mục 12). Dòng `crew-model` trong mô tả yêu cầu con có thêm `runtime=` cho biết Executor của việc đó chạy bằng runtime nào (không có `runtime=` thì là Claude, xem mục 16).
+Mặc định mọi agent chạy bằng **Claude**. Ngoài ra có hai runtime phụ, **Codex** và **OpenCode**, do chủ dự án bật trên trang [Máy](/machines) (mục 12). Dòng `crew-model` trong mô tả yêu cầu con có thêm `runtime=` cho biết Executor của việc đó chạy bằng runtime nào (không có `runtime=` thì là Claude, xem mục 17).
 
 Trong cột **Thuộc tính** của yêu cầu có khối **Runtime** liệt kê các quyết định, mới nhất ở trên (tối đa 50 dòng), giờ theo Việt Nam:
 - **Chọn**: runtime, agent và model được chọn cho Executor hoặc Reviewer, kèm lý do.
@@ -169,7 +170,7 @@ Rồi chọn một trong các nút ở đầu trang yêu cầu:
 Lưu ý:
 - Nút **Duyệt** và **Yêu cầu sửa** chỉ hiện đúng ở bước Owner duyệt, và chỉ với người được giao duyệt.
 - Nếu hết 5 vòng sửa mà vẫn chưa đạt, yêu cầu được chuyển cho bạn quyết định. Lúc này bạn trả lời bằng **bình luận** (nói rõ hướng xử lý), không có nút Duyệt.
-- Không có ô chọn trạng thái tự do. Muốn đóng yêu cầu mà bỏ qua cổng thì dùng **Ép Done** (mục 6.1); lý do ở mục 15.
+- Không có ô chọn trạng thái tự do. Muốn đóng yêu cầu mà bỏ qua cổng thì dùng **Ép Done** (mục 6.1); lý do ở mục 16.
 - Run đang chạy hiện nút **Dừng run** (có hộp xác nhận) ở danh sách run của yêu cầu.
 
 ### 6.1 Ép Done
@@ -236,7 +237,7 @@ Xong sẽ có **Mở agent** và **Mở project**.
 
 Agent chưa xong 6 bước ở trạng thái **Chưa sẵn sàng** và **không xuất hiện** trong bất kỳ lựa chọn nào. Bấm **Làm tiếp** (ở danh sách hoặc trang agent) để hoàn tất; wizard sẽ hiện **Sửa tiếp** từ bước còn thiếu.
 
-Chỉ **người dùng trên web** mới tạo được agent. Agent không tạo được agent khác (xem mục 15).
+Chỉ **người dùng trên web** mới tạo được agent. Agent không tạo được agent khác (xem mục 16).
 
 ## 10. Project và Agent: xem, sửa vai trò, sẵn sàng
 
@@ -329,7 +330,30 @@ Trang [Cài đặt](/settings) có ba mục:
 - **Ngôn ngữ**: Tiếng Việt hoặc Tiếng Anh.
 - **Thông tin hệ thống**: bản server, commit đang chạy, sao lưu gần nhất. Chỉ để xem.
 
-## 15. Vì sao không có nút X
+## 15. Phòng Marketing: góp ý chờ duyệt
+
+**Phòng Marketing** là loại thành viên chỉ xem mọi project, yêu cầu và bình luận, rồi gửi **yêu cầu** hoặc **bình luận** để owner duyệt. Trong lúc chờ, **agent không thấy gì**: nội dung chờ không nằm trong danh sách yêu cầu, bình luận hay ngữ cảnh chạy của agent, nên không agent nào bị đánh thức. Chỉ owner của company được duyệt hay từ chối.
+
+**Mời (owner).** Mở trang [Thành viên](/members):
+1. Bấm **Mời Phòng Marketing**, chép link (dạng `…/paperclip/invite/…`) gửi cho người được mời. Link chỉ hiện một lần.
+2. Người đó mở link, đăng ký hoặc đăng nhập rồi gửi yêu cầu tham gia.
+3. Ở mục **Yêu cầu tham gia chờ duyệt**, dòng có nhãn **Lời mời Phòng Marketing**: bấm **Duyệt**. Người đó hiện vai trò **Phòng Marketing**.
+- Thành viên chỉ xem có nút **Đặt Phòng Marketing**; người đang là Phòng Marketing có nút **Gỡ Phòng Marketing** (sau khi gỡ, người đó chỉ còn xem).
+
+**Gửi (Phòng Marketing).**
+- Bấm **Yêu cầu mới**: chọn project, nhập tiêu đề và mô tả, bấm **Gửi để owner duyệt**. Không chọn loại, người nhận hay đính kèm: owner chọn lúc duyệt.
+- Trong một yêu cầu, ô soạn gửi bình luận để owner duyệt. Bình luận chờ hiện ngay trong luồng với nhãn **Chờ duyệt**.
+- Trang [Góp ý của tôi](/contributions) có ba tab **Chờ duyệt**, **Bị từ chối**, **Đã duyệt**. Mục đã duyệt có link tới yêu cầu hoặc bình luận thật.
+- Phòng Marketing không sửa, không đổi trạng thái, không giao việc và không xóa được gì.
+
+**Duyệt (owner).** Mục **Chờ duyệt** ở thanh bên trái có số mục đang chờ, và **Tổng quan** có thẻ **Góp ý chờ duyệt**. Duyệt ở trang [Chờ duyệt](/contributions), ở nhóm **Chờ duyệt** đầu trang [Yêu cầu](/issues) (chip **Chờ duyệt (n)** để chỉ xem nhóm này), hoặc ngay trong luồng bình luận của yêu cầu:
+- **Duyệt yêu cầu**: hộp thoại cho chọn project, loại (Code, Bug, Nghiên cứu), **agent nhận việc** (mặc định là Trợ Lý của project) và ô **Lưu nháp**. Bấm **Duyệt** thì yêu cầu được đăng nguyên văn như bạn tự đăng, agent bắt đầu làm (trừ khi lưu nháp).
+- **Duyệt bình luận**: một lần bấm, bình luận được đăng dưới tên bạn và agent được báo như khi bạn bình luận. Trong Crew, bình luận đó có dòng **Góp ý của <tên>**.
+- Nếu lần duyệt bị đứt giữa chừng (mất mạng, đóng tab), mục mang nhãn **Đang duyệt dở** kèm nút **Duyệt lại**. Bấm lại không tạo bản trùng.
+- **Từ chối** hỏi xác nhận trước. Mục bị từ chối vẫn còn, mang nhãn **Bị từ chối**, chỉ người gửi và owner thấy; agent không bao giờ thấy.
+- Hai owner cùng duyệt một mục thì người đến sau được báo đang có người duyệt, thử lại sau ít phút.
+
+## 16. Vì sao không có nút X
 
 Nếu bạn quen Paperclip gốc và tìm không thấy một nút, đa số là cố ý. Có ba lý do chính:
 - **Luật bảo vệ luồng duyệt.** Crew có các luật tự động: yêu cầu luôn đi qua Trợ Lý; không có ô đổi trạng thái tự do để bỏ qua review, kiểm tài liệu và đẩy code (bất khả kháng thì dùng **Ép Done** có lý do, mục 6.1); cấu hình agent không bị sửa tùy ý.
@@ -340,7 +364,7 @@ Bảng dưới liệt kê từng tính năng Paperclip không có trong Crew, n�
 
 {{missing}}
 
-## 16. Đọc các dòng `crew-…` trong bình luận
+## 17. Đọc các dòng `crew-…` trong bình luận
 
 | Dòng | Ý nghĩa |
 |---|---|
@@ -354,7 +378,7 @@ Bảng dưới liệt kê từng tính năng Paperclip không có trong Crew, n�
 | `crew-merge sha=… pushed=yes` | Đã đẩy lên nhánh chính |
 | `crew-assistant done children=…` | Trợ Lý xác nhận mọi yêu cầu con đã xong |
 
-## 17. Sự cố thường gặp
+## 18. Sự cố thường gặp
 
 | Bạn thấy | Nguyên nhân | Cách xử lý |
 |---|---|---|
@@ -371,7 +395,7 @@ Bảng dưới liệt kê từng tính năng Paperclip không có trong Crew, n�
 | Agent báo hết quota | Gói Claude trên Mac hết hạn mức (dùng chung với Claude Code của bạn) | Chờ hạn mức mở lại, hoặc bật Codex/OpenCode ở trang Máy để Crew tự chuyển (mục 5.4) |
 | Khối Runtime ghi **Từ chối chuyển** | Không có agent cùng máy còn rảnh và bật công tắc, hoặc đã chuyển đủ 2 lần | Đọc lý do trên dòng; bật công tắc ở trang Máy hoặc chờ quota mở lại |
 
-## 18. Thuật ngữ
+## 19. Thuật ngữ
 
 | Từ | Nghĩa |
 |---|---|
@@ -386,3 +410,4 @@ Bảng dưới liệt kê từng tính năng Paperclip không có trong Crew, n�
 | Checkout | Thư mục repo riêng của một agent trên máy |
 | Sẵn sàng | Project hoặc agent đã đủ mọi điều kiện để nhận việc |
 | Superpowers | Bộ quy trình làm việc (brainstorm, lập kế hoạch, test trước) mà agent dùng |
+| Phòng Marketing | Thành viên chỉ xem, gửi yêu cầu và bình luận để owner duyệt; agent không thấy gì trước khi duyệt (mục 15) |

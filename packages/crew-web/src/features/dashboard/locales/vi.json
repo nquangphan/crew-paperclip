@@ -9,7 +9,9 @@
     "blocked": "Yêu cầu bị kẹt",
     "blockedHint": "Cần người xử lý",
     "awaiting": "Chờ bạn duyệt",
-    "awaitingHint": "Đang đợi bạn xem xét"
+    "awaitingHint": "Đang đợi bạn xem xét",
+    "contributions": "Góp ý chờ duyệt",
+    "contributionsHint": "Phòng Marketing gửi, chờ bạn duyệt"
   },
   "loadFailed": "Không tải được số liệu",
   "banner": {

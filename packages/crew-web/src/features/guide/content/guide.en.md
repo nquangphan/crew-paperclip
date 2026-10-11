@@ -48,6 +48,7 @@ The **left sidebar** is grouped like the original Paperclip interface, from top 
   - **Projects**: lists with readiness (section 10). Projects you starred show right below it; click one to open it directly.
   - **Docs**: section 13.
 - **Org**: **Agents** (section 10), **Skills** (section 11), **Machines** (section 12).
+- Owners also get **Pending approval** (Work group) and **Members** (System group) for Marketing (section 15).
 - **System**: **Settings** (profile, language, system information), **Guide** (the page you are reading) and **Open original Paperclip UI** (when configured).
 
 Click a group title (Work, Org, System) to collapse or expand that group.
@@ -118,7 +119,7 @@ The **Runtime** group in Properties (after the Execution group) shows the runtim
 
 Press **Open map** to see a diagram of the work. Each box is the parent request or one child request, showing the kind of work, the stage, who is working on it and the fix round (for example 0/5). Dashed lines connect work that must finish first. Press **Close map** to fold it. Opening the map also shows the **Docs check** result.
 
-Below that you find **Properties** (status, assignee, project, type, the model in use, stages and approvers, fix round) and **Comments**: the agents log every step here, and a running run shows live. You can edit the title and description, write comments and attach files. Comment lines starting with `crew-` are machine-readable evidence, see section 16.
+Below that you find **Properties** (status, assignee, project, type, the model in use, stages and approvers, fix round) and **Comments**: the agents log every step here, and a running run shows live. You can edit the title and description, write comments and attach files. Comment lines starting with `crew-` are machine-readable evidence, see section 17.
 
 ### 5.3 When the Assistant asks a question
 
@@ -128,7 +129,7 @@ Sometimes the Assistant needs you to **confirm** something: the card "The assist
 
 ### 5.4 Runtime: Claude, Codex, OpenCode
 
-By default every agent runs on **Claude**. There are also two secondary runtimes, **Codex** and **OpenCode**, which the project owner turns on in the [Machines](/machines) page (section 12). The `crew-model` line in a child request's description now has `runtime=`, which says which runtime that request's Executor runs on (no `runtime=` means Claude, see section 16).
+By default every agent runs on **Claude**. There are also two secondary runtimes, **Codex** and **OpenCode**, which the project owner turns on in the [Machines](/machines) page (section 12). The `crew-model` line in a child request's description now has `runtime=`, which says which runtime that request's Executor runs on (no `runtime=` means Claude, see section 17).
 
 In the **Properties** column of a request there is a **Runtime** block listing the decisions, newest first (up to 50 rows), in Vietnam time:
 - **Selected**: the runtime, agent and model chosen for the Executor or the Reviewer, with the reason.
@@ -169,7 +170,7 @@ Then choose a button at the top of the request page:
 Notes:
 - **Approve** and **Request changes** appear only at the Owner approval stage, and only for the person assigned to approve.
 - If 5 fix rounds are used up and the result still falls short, the request is escalated to you. Then you reply with a **comment** (say how to proceed); there is no Approve button.
-- There is no free status picker. To close a request while skipping gates use **Force Done** (section 6.1); the reason is in section 15.
+- There is no free status picker. To close a request while skipping gates use **Force Done** (section 6.1); the reason is in section 16.
 - A running run shows a **Stop run** button (with a confirmation box) in the request's run list.
 
 ### 6.1 Force Done
@@ -236,7 +237,7 @@ When it finishes you get **Open agent** and **Open project**.
 
 An agent that has not finished all 6 steps is **Not ready** and **does not appear** in any choice list. Press **Continue setup** (in the list or on the agent page) to finish it; the wizard then shows **Continue fixing** from the missing step.
 
-Only **a person on the web** can create agents. An agent cannot create another agent (see section 15).
+Only **a person on the web** can create agents. An agent cannot create another agent (see section 16).
 
 ## 10. Projects and Agents: viewing, changing roles, readiness
 
@@ -329,7 +330,30 @@ The [Settings](/settings) page has three parts:
 - **Language**: Vietnamese or English.
 - **System information**: server version, running commit, latest backup. Read-only.
 
-## 15. Why there is no button X
+## 15. Marketing: contributions waiting for approval
+
+**Marketing** is a member type that can view every project, request and comment, and send **requests** or **comments** for the owner to approve. While an item waits, **agents see nothing**: pending content is not in the request list, the comments or any agent run context, so no agent is woken. Only the company owner can approve or reject.
+
+**Inviting (owner).** Open the [Members](/members) page:
+1. Click **Invite Marketing**, copy the link (shaped `…/paperclip/invite/…`) and send it to the invited person. The link is shown only once.
+2. They open the link, sign up or sign in, then send a join request.
+3. Under **Pending join requests**, the row labelled **Marketing invite**: click **Approve**. The person then shows the **Marketing** role.
+- A view-only member has a **Set Marketing** button; a Marketing member has **Remove Marketing** (afterwards they can only view).
+
+**Sending (Marketing).**
+- Click **New request**: choose a project, enter a title and description, click **Send for approval**. There is no type, assignee or attachment: the owner chooses those when approving.
+- Inside a request, the composer sends the comment for the owner to approve. A pending comment shows right in the thread, labelled **Pending**.
+- The [My contributions](/contributions) page has three tabs, **Pending**, **Rejected** and **Approved**. Approved items link to the real request or comment.
+- Marketing members cannot edit, change status, assign or delete anything.
+
+**Approving (owner).** The **Pending approval** item in the left sidebar shows how many items wait, and the **Dashboard** has a **Contributions to approve** card. Approve on the [Pending approval](/contributions) page, in the **Pending approval** group at the top of [Requests](/issues) (the **Pending approval (n)** chip shows only that group), or right in a request's comment thread:
+- **Approve a request**: the dialog lets you choose the project, type (Code, Bug, Research), the **assigned agent** (the project's Assistant by default) and **Save as draft**. Click **Approve** and the request is posted word for word as if you posted it; the agent starts (unless saved as draft).
+- **Approve a comment**: one click; the comment is posted under your name and the agent is notified as when you comment. In Crew that comment shows **Contributed by <name>**.
+- If an approval stops halfway (network lost, tab closed), the item is labelled **Partly approved** with an **Approve again** button. Clicking it again never creates a duplicate.
+- **Reject** asks for confirmation first. A rejected item stays, labelled **Rejected**, visible only to the sender and the owner; agents never see it.
+- If two owners approve the same item, the second one is told someone is already approving it and can try again in a few minutes.
+
+## 16. Why there is no button X
 
 If you know the original Paperclip and cannot find a button, it is almost always on purpose. There are three main reasons:
 - **Rules that protect the approval flow.** Crew has automatic rules: a request always goes through the Assistant; there is no free status picker to skip review, the docs check and the push (in a force-majeure case use **Force Done** with a reason, section 6.1); agent configuration cannot be edited freely.
@@ -340,7 +364,7 @@ The table below lists each Paperclip feature that Crew does not have, where it l
 
 {{missing}}
 
-## 16. Reading the `crew-…` lines in comments
+## 17. Reading the `crew-…` lines in comments
 
 | Line | Meaning |
 |---|---|
@@ -354,7 +378,7 @@ The table below lists each Paperclip feature that Crew does not have, where it l
 | `crew-merge sha=… pushed=yes` | Pushed to the main branch |
 | `crew-assistant done children=…` | The Assistant confirms every child request is done |
 
-## 17. Common problems
+## 18. Common problems
 
 | What you see | Cause | What to do |
 |---|---|---|
@@ -371,7 +395,7 @@ The table below lists each Paperclip feature that Crew does not have, where it l
 | The agent reports out of quota | The Claude plan on the Mac hit its limit (shared with your own Claude Code) | Wait for the limit to reset, or turn on Codex/OpenCode in the Machines page so Crew can switch by itself (section 5.4) |
 | The Runtime block shows **Switch refused** | No free agent on the same machine with its switch on, or it already switched twice | Read the reason on the row; turn the switch on in the Machines page or wait for quota to reset |
 
-## 18. Glossary
+## 19. Glossary
 
 | Word | Meaning |
 |---|---|
@@ -386,3 +410,4 @@ The table below lists each Paperclip feature that Crew does not have, where it l
 | Checkout | An agent's own copy of the repo on the machine |
 | Ready | A project or agent that meets every condition to take work |
 | Superpowers | The working method (brainstorm, plan, test first) that agents follow |
+| Marketing | A view-only member who sends requests and comments for the owner to approve; agents see nothing before approval (section 15) |

@@ -1,8 +1,8 @@
 // crew: tự dựng
 import type { CompactIssue } from '@paperclipai/shared';
 import { Fragment, useEffect, useMemo, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
-import type { CrewRoot } from '@/api';
+import { Link, useLocation, useSearchParams } from 'react-router-dom';
+import type { Contribution, CrewRoot } from '@/api';
 import { useCompany } from '@/app/hooks';
 import {
   Button,
@@ -13,8 +13,10 @@ import {
   ErrorState,
   FilterBar,
   Label,
+  MutedText,
   PageHeader,
   resolveStageKey,
+  Section,
   Select,
   SelectContent,
   SelectItem,
@@ -31,6 +33,11 @@ import {
   TableRow,
 } from '@/ds';
 import { ChevronDown, ChevronRight, Plus } from '@/ds/icons';
+import { useCompanyAccess } from '@/features/access';
+import { ContributionActions } from '@/features/contributions/contribution-actions';
+import { ContributionBadge } from '@/features/contributions/contribution-badge';
+import { contributionHref } from '@/features/contributions/contribution-popup-host';
+import { useAuthorNames, useContributions } from '@/features/contributions/use-contributions';
 import { useSelectableAgents } from '@/features/wizards';
 import { useT } from '@/i18n';
 import { NewRequestDialog } from '../new/new-request-dialog';
@@ -79,6 +86,49 @@ function FilterSelect({ label, value, options, allLabel, onChange }: FilterSelec
   );
 }
 
+/** Tham số URL của chip "Chờ duyệt": bật thì chỉ hiện nhóm yêu cầu góp ý chờ duyệt. */
+const PENDING_PARAM = 'pending';
+
+interface PendingGroupProps {
+  items: Contribution[];
+  showAuthor: boolean;
+  projectName: ReadonlyMap<string, string>;
+}
+
+/** Nhóm "Chờ duyệt" đầu trang: yêu cầu góp ý chưa vào lõi. Owner có nút Duyệt/Từ chối; khách chỉ thấy mục của mình. */
+function PendingGroup({ items, showAuthor, projectName }: PendingGroupProps) {
+  const { t } = useT('contributions');
+  const location = useLocation();
+  const authorName = useAuthorNames();
+  return (
+    <Section title={t('issuesGroup.title')}>
+      <ul aria-label={t('issuesGroup.label')} className="flex flex-col gap-3">
+        {items.map((c) => (
+          <li key={c.id} data-testid="pending-issue" data-status={c.status} className="flex flex-col gap-1">
+            <span className="flex flex-wrap items-center gap-2">
+              <ContributionBadge status={c.status} />
+              <Link to={contributionHref(c.id, location)}>{c.title ?? t('page.row.noTitle')}</Link>
+            </span>
+            <span className="flex flex-wrap items-center gap-4">
+              {showAuthor ? (
+                <MutedText>
+                  {t('page.row.author')}: {authorName(c.authorUserId) ?? c.authorUserId}
+                </MutedText>
+              ) : null}
+              {c.projectId && projectName.get(c.projectId) ? (
+                <MutedText>
+                  {t('page.row.project')}: {projectName.get(c.projectId)}
+                </MutedText>
+              ) : null}
+            </span>
+            <ContributionActions contribution={c} />
+          </li>
+        ))}
+      </ul>
+    </Section>
+  );
+}
+
 interface Notice {
   identifier: string;
   draft: boolean;
@@ -88,7 +138,9 @@ interface Notice {
 export function IssuesPage() {
   const { t } = useT('issues');
   const { t: tc } = useT();
+  const { t: tg } = useT('contributions');
   const { company } = useCompany();
+  const access = useCompanyAccess();
   const [params, setParams] = useSearchParams();
   const state = useMemo(() => parseListState(params), [params]);
   const { issues, roots, projects, agents } = useIssuesData(company.id, state);
@@ -107,6 +159,24 @@ export function IssuesPage() {
     return () => clearTimeout(timer);
   }, [search, state.q, setParams]);
   useEffect(() => setSearch(state.q), [state.q]);
+
+  // Yêu cầu góp ý chờ duyệt (gồm đang duyệt dở): owner thấy mọi mục, khách thấy mục của mình, người khác không gọi.
+  const pendingQuery = useContributions(
+    { status: 'pending', kind: 'issue' },
+    { enabled: access.isOwner || access.isContributor },
+  );
+  const pending = (access.isOwner || access.isContributor ? pendingQuery.data : undefined) ?? [];
+  const pendingOnly = params.get(PENDING_PARAM) === '1';
+  const togglePendingOnly = () =>
+    setParams(
+      (prev) => {
+        const next = new URLSearchParams(prev);
+        if (pendingOnly) next.delete(PENDING_PARAM);
+        else next.set(PENDING_PARAM, '1');
+        return next;
+      },
+      { replace: true },
+    );
 
   const rootsById = useMemo(() => new Map<string, CrewRoot>((roots.data ?? []).map((r) => [r.id, r])), [roots.data]);
   const projectName = useMemo(() => new Map((projects.data ?? []).map((p) => [p.id, p.name])), [projects.data]);
@@ -329,6 +399,18 @@ export function IssuesPage() {
           options={GROUP_KEYS.filter((g) => g !== 'none').map((g) => ({ value: g, label: t(`list.groupOption.${g}`) }))}
           onChange={(v) => patch({ group: v })}
         />
+        {pending.length > 0 || pendingOnly ? (
+          <Button
+            type="button"
+            size="sm"
+            variant={pendingOnly ? 'secondary' : 'outline'}
+            aria-pressed={pendingOnly}
+            data-testid="pending-chip"
+            onClick={togglePendingOnly}
+          >
+            {tg('issuesGroup.chip', { count: pending.length })}
+          </Button>
+        ) : null}
       </FilterBar>
       <fieldset className="flex flex-wrap items-center gap-3">
         <legend>{t('list.columns')}</legend>
@@ -347,7 +429,16 @@ export function IssuesPage() {
           </span>
         ))}
       </fieldset>
-      {body()}
+      {pending.length > 0 ? (
+        <PendingGroup items={pending} showAuthor={access.isOwner} projectName={projectName} />
+      ) : pendingOnly ? (
+        pendingQuery.error ? (
+          <ErrorState title={tg('issuesGroup.loadFailed')} message={pendingQuery.error.message} />
+        ) : (
+          <EmptyState title={tg('issuesGroup.empty')} />
+        )
+      ) : null}
+      {pendingOnly ? null : body()}
       <NewRequestDialog
         open={params.get('new') === '1'}
         onOpenChange={setNewOpen}

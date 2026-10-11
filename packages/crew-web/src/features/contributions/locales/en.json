@@ -76,5 +76,68 @@
   },
   "chip": {
     "from": "Contributed by {{name}}"
+  },
+  "actions": {
+    "approve": "Approve",
+    "retry": "Approve again",
+    "reject": "Reject",
+    "approving": "Approving",
+    "rejecting": "Rejecting",
+    "halfway": "Partly approved",
+    "halfwayHint": "The last approval did not finish. Approve again to continue; no duplicate is created.",
+    "approveFailed": "Could not approve",
+    "rejectFailed": "Could not reject"
+  },
+  "reject": {
+    "title": "Reject this contribution?",
+    "bodyIssue": "The request \"{{title}}\" will be labelled Rejected. Agents never see it.",
+    "bodyComment": "The comment will be labelled Rejected. Agents never see it.",
+    "confirm": "Reject"
+  },
+  "approveDialog": {
+    "title": "Approve request",
+    "description": "Choose the project, type and the agent who takes it. The request is posted word for word as the board would, then the agent starts.",
+    "content": "Content",
+    "author": "Sent by",
+    "project": "Project",
+    "projectPlaceholder": "Choose a project",
+    "kind": "Type",
+    "researchMissing": "The company has no “research” label, so the Research type is unavailable.",
+    "assignee": "Assigned agent",
+    "assigneePlaceholder": "Choose an agent",
+    "assigneeHint": "Defaults to the project's Assistant.",
+    "noAssistant": "The project has no Assistant; choose an agent.",
+    "draft": "Save as draft (do not wake the agent)",
+    "submit": "Approve",
+    "submitting": "Approving",
+    "cancel": "Cancel"
+  },
+  "errors": {
+    "crew_contribution_not_materialized": "The posted record was not found yet. Click Approve again.",
+    "crew_contribution_decided": "This item is already settled (approved or rejected).",
+    "crew_contribution_locked": "Another owner is approving this item. Try again in a few minutes (the lock lasts at most 10 minutes).",
+    "crew_contribution_not_approving": "This item is no longer being approved. Its latest status has been reloaded.",
+    "crew_contribution_already_approved": "This item is already approved, so it can no longer be rejected.",
+    "crew_contribution_invalid": "The contribution content is invalid.",
+    "crew_contribution_invalid_target": "The project or target request is no longer valid (archived, deleted or hidden).",
+    "crew_contribution_forbidden": "You are not allowed to approve this item.",
+    "notFound": "This contribution was not found."
+  },
+  "popup": {
+    "title": "Contribution",
+    "issueTitle": "Contributed request",
+    "commentTitle": "Contributed comment",
+    "loadFailed": "Could not load the contribution",
+    "openTarget": "Open the commented request",
+    "openResult": "Open the created request",
+    "close": "Close"
+  },
+  "issuesGroup": {
+    "title": "Pending approval",
+    "label": "Contributed requests pending approval",
+    "chip": "Pending approval ({{count}})",
+    "empty": "No request is waiting for approval",
+    "loadFailed": "Could not load pending requests",
+    "open": "View"
   }
 }

@@ -13,6 +13,7 @@ import {
   Transcript,
   type TranscriptEntry,
 } from '@/ds';
+import { ContributionActions } from '@/features/contributions/contribution-actions';
 import { ContributionChip, isPendingComment, PendingComment } from '@/features/contributions/pending-comments';
 import { useAuthorNames, useIssueContributions } from '@/features/contributions/use-contributions';
 import { formatDateTime, useT } from '@/i18n';
@@ -104,6 +105,7 @@ export function Comments({ issueId, agentNames }: CommentsProps) {
               key={`pending-${entry.item.id}`}
               contribution={entry.item}
               authorName={authorName(entry.item.authorUserId)}
+              actions={<ContributionActions contribution={entry.item} />}
             />
           );
         }

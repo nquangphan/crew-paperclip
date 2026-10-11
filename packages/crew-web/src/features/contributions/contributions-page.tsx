@@ -1,6 +1,7 @@
 // crew: tự dựng
 import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
+import { Link, useLocation } from 'react-router-dom';
 import { api, type Contribution, queryKeys } from '@/api';
 import { useCompany } from '@/app/hooks';
 import {
@@ -19,7 +20,9 @@ import {
 import { useCompanyAccess } from '@/features/access';
 import { IssueLink } from '@/features/issues/popup/issue-nav';
 import { formatDateTime, useT } from '@/i18n';
+import { ContributionActions } from './contribution-actions';
 import { ContributionBadge } from './contribution-badge';
+import { contributionHref } from './contribution-popup-host';
 import { useAuthorNames, useContributions } from './use-contributions';
 
 type Tab = 'pending' | 'rejected' | 'approved';
@@ -79,6 +82,7 @@ export function ContributionsPage() {
 function ContributionRow({ contribution: c, showAuthor }: { contribution: Contribution; showAuthor: boolean }) {
   const { t, lang } = useT('contributions');
   const { company } = useCompany();
+  const location = useLocation();
   const authorName = useAuthorNames();
   const projects = useQuery({ queryKey: queryKeys.projects(company.id), queryFn: () => api.projects.list(company.id) });
   const project = c.projectId ? projects.data?.find((p) => p.id === c.projectId) : undefined;
@@ -103,7 +107,11 @@ function ContributionRow({ contribution: c, showAuthor }: { contribution: Contri
             <time dateTime={c.createdAt}>{formatDateTime(c.createdAt, lang)}</time>
           </MutedText>
         </div>
-        {c.kind === 'issue' ? <strong>{c.title ?? t('page.row.noTitle')}</strong> : null}
+        {c.kind === 'issue' ? (
+          <strong>
+            <Link to={contributionHref(c.id, location)}>{c.title ?? t('page.row.noTitle')}</Link>
+          </strong>
+        ) : null}
         {c.body ? <MarkdownView markdown={c.body} /> : null}
         <div className="flex flex-wrap items-center gap-4">
           {showAuthor ? (
@@ -121,7 +129,9 @@ function ContributionRow({ contribution: c, showAuthor }: { contribution: Contri
               {linkLabel}
             </IssueLink>
           ) : null}
+          <Link to={contributionHref(c.id, location)}>{t('issuesGroup.open')}</Link>
         </div>
+        <ContributionActions contribution={c} />
       </CardContent>
     </Card>
   );

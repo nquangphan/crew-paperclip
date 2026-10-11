@@ -6,7 +6,7 @@ import { afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { CompanyContext, MeContext } from '@/app/hooks';
 import { routes } from '@/features/dashboard/routes';
 import { initI18n, setLanguage } from '@/i18n';
-import { mockServer } from '../../app/fetch-mock';
+import { accessRoute, mockServer } from '../../app/fetch-mock';
 import machines from '../../ds/crew/__fixtures__/machines.json';
 
 beforeAll(async () => {
@@ -182,9 +182,32 @@ const stat = (label: string) => {
 const card = (label: string) =>
   screen.getAllByTestId('stat-card').find((c) => c.textContent?.includes(label)) as HTMLElement;
 
+const OPERATOR = accessRoute('c1', { userId: 'u1', membershipRole: 'operator', contributor: false, canApprove: false });
+
+describe('DashboardPage thẻ Góp ý chờ duyệt (S20.7)', () => {
+  it('owner thấy thẻ với số mục chờ, bấm sang trang Chờ duyệt', async () => {
+    const { calls } = server({ 'GET /api/crew/companies/c1/contributions/summary': { body: { pending: 3 } } });
+    const router = mount();
+    await waitFor(() => expect(stat('Góp ý chờ duyệt')).toBe('3'));
+    expect(screen.getAllByTestId('stat-card')).toHaveLength(5);
+    expect(calls.some((c) => c.url.endsWith('/contributions/summary'))).toBe(true);
+    fireEvent.click(screen.getByRole('link', { name: /Góp ý chờ duyệt/ }));
+    expect(router.state.location.pathname).toBe('/TPS/contributions');
+  });
+
+  it('không phải owner thì không có thẻ và không gọi số đếm', async () => {
+    const { calls } = server(OPERATOR);
+    mount();
+    await screen.findByText('Yêu cầu mới');
+    await waitFor(() => expect(calls.some((c) => c.url.endsWith('/access'))).toBe(true));
+    expect(screen.queryByText('Góp ý chờ duyệt')).toBeNull();
+    expect(calls.some((c) => c.url.includes('/contributions'))).toBe(false);
+  });
+});
+
 describe('DashboardPage thẻ số (S2.1)', () => {
   it('4 thẻ: tổng agent bật (kèm chạy/tạm dừng/lỗi), đang làm, kẹt, chờ bạn duyệt theo quy tắc tab Hộp thư', async () => {
-    server();
+    server(OPERATOR);
     mount();
     await screen.findByText('Yêu cầu mới');
     expect(screen.getAllByTestId('stat-card')).toHaveLength(4);

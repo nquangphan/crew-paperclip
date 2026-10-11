@@ -23,7 +23,9 @@ import {
   StageBadge,
   TaskRow,
 } from '@/ds';
-import { AlertTriangle, Bot, CircleDot, ShieldCheck } from '@/ds/icons';
+import { AlertTriangle, Bot, CircleDot, ShieldCheck, Users } from '@/ds/icons';
+import { useCompanyAccess } from '@/features/access';
+import { useContributionsSummary } from '@/features/contributions/use-contributions';
 import { useIssueOpener } from '@/features/issues';
 import { formatRelative, useT } from '@/i18n';
 import {
@@ -45,6 +47,9 @@ export function DashboardPage() {
   const me = useMe();
   const navigate = useNavigate();
   const d = useDashboard(company.id);
+  const { isOwner } = useCompanyAccess();
+  // Chỉ owner duyệt góp ý, nên chỉ owner có thẻ này (và chỉ owner gọi số đếm).
+  const contributionsPending = useContributionsSummary(company.id, isOwner);
   const base = `/${company.issuePrefix}`;
   const s = d.summary.data;
   const now = Date.now();
@@ -208,6 +213,16 @@ export function DashboardPage() {
           href={`${base}/inbox`}
           onOpen={() => navigate(`${base}/inbox`)}
         />
+        {isOwner ? (
+          <MetricCard
+            icon={Users}
+            value={contributionsPending ?? '–'}
+            label={t('cards.contributions')}
+            description={t('cards.contributionsHint')}
+            href={`${base}/contributions`}
+            onOpen={() => navigate(`${base}/contributions`)}
+          />
+        ) : null}
       </section>
 
       <section className="grid grid-cols-2 gap-4 lg:grid-cols-3">

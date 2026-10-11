@@ -25,7 +25,16 @@ export interface CreateRequestResult {
   failedUploads: string[];
 }
 
-export function buildCreateBody(input: CreateRequestInput): Record<string, unknown> {
+/** Trường dựng body tạo issue; dùng chung cho dialog Yêu cầu mới và bước đăng khi owner duyệt góp ý. */
+export type CreateBodyInput = Pick<
+  CreateRequestInput,
+  'title' | 'description' | 'projectId' | 'assigneeAgentId' | 'kind' | 'researchLabelId' | 'draft'
+> & {
+  /** Khóa idempotent của route stock: gọi lại cùng khóa thì server trả issue cũ, không tạo bản trùng. */
+  idempotencyKey?: string;
+};
+
+export function buildCreateBody(input: CreateBodyInput): Record<string, unknown> {
   const description = input.description.trim();
   const body: Record<string, unknown> = {
     title: input.title.trim(),
@@ -33,6 +42,7 @@ export function buildCreateBody(input: CreateRequestInput): Record<string, unkno
     projectId: input.projectId,
     assigneeAgentId: input.assigneeAgentId,
     status: input.draft ? 'backlog' : 'todo',
+    ...(input.idempotencyKey ? { idempotencyKey: input.idempotencyKey } : {}),
   };
   if (input.kind === 'research') {
     if (!input.researchLabelId) throw new Error(getI18n().t('new.researchMissing', { ns: 'issues' }));

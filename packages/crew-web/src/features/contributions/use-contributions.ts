@@ -1,7 +1,8 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { type QueryClient, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, type Contribution, type ContributionFilters, type NewContribution, queryKeys } from '@/api';
 import { useCompany } from '@/app/hooks';
 import { useCompanyAccess } from '@/features/access';
+import { approveContribution, contributionFromError, type IssueApprovalChoices } from './approve-flow';
 
 /** Làm mới số mục chờ duyệt mỗi 30 giây (và sau mỗi lần gửi/duyệt/từ chối, do nơi đó invalidate `contributions(c)`). */
 const SUMMARY_REFRESH_MS = 30_000;
@@ -21,11 +22,67 @@ export function useContributionsSummary(companyId: string, enabled: boolean): nu
 }
 
 /** Danh sách góp ý của company (owner: mọi mục, khách: mục của mình), mới nhất trước. */
-export function useContributions(filters: ContributionFilters = {}) {
+export function useContributions(filters: ContributionFilters = {}, options: { enabled?: boolean } = {}) {
   const { company } = useCompany();
   return useQuery({
     queryKey: queryKeys.contributions(company.id, filters),
     queryFn: () => api.contributions.list(company.id, filters),
+    enabled: options.enabled ?? true,
+  });
+}
+
+/** Một mục góp ý (owner hoặc tác giả). Khóa nằm dưới tiền tố `contributions(c)` để cùng được làm mới. */
+export function useContribution(id: string) {
+  const { company } = useCompany();
+  return useQuery({
+    queryKey: [...queryKeys.contributions(company.id), 'item', id],
+    queryFn: () => api.contributions.get(company.id, id),
+  });
+}
+
+/** Thay mục `next` vào mọi cache góp ý của company (danh sách và chi tiết) mà không chờ tải lại. */
+function patchContributionCache(qc: QueryClient, companyId: string, next: Contribution) {
+  qc.setQueriesData({ queryKey: queryKeys.contributions(companyId) }, (data: unknown) => {
+    if (Array.isArray(data)) return data.map((c: Contribution) => (c.id === next.id ? next : c));
+    if (data && typeof data === 'object' && (data as Contribution).id === next.id) return next;
+    return data;
+  });
+}
+
+/** Sau khi duyệt/từ chối (thành công hay lỗi): làm tươi góp ý, số đếm, danh sách issue và luồng bình luận. */
+function useRefreshAfterDecision() {
+  const { company } = useCompany();
+  const qc = useQueryClient();
+  return (contribution: Contribution, latest: Contribution | null) => {
+    if (latest) patchContributionCache(qc, company.id, latest);
+    void qc.invalidateQueries({ queryKey: queryKeys.contributions(company.id) });
+    void qc.invalidateQueries({ queryKey: queryKeys.issues(company.id) });
+    void qc.invalidateQueries({ queryKey: queryKeys.sidebarBadges(company.id) });
+    if (contribution.targetIssueId)
+      void qc.invalidateQueries({ queryKey: queryKeys.comments(contribution.targetIssueId) });
+  };
+}
+
+/** Duyệt một mục (ba bước ở `approve-flow`). Lỗi 409 kèm mục mới nhất thì thay ngay vào cache. */
+export function useApproveContribution() {
+  const { company } = useCompany();
+  const refresh = useRefreshAfterDecision();
+  return useMutation({
+    mutationFn: ({ contribution, choices }: { contribution: Contribution; choices: IssueApprovalChoices | null }) =>
+      approveContribution(company.id, contribution, choices),
+    onSuccess: (done, { contribution }) => refresh(contribution, done),
+    onError: (error, { contribution }) => refresh(contribution, contributionFromError(error)),
+  });
+}
+
+/** Từ chối một mục. Lỗi 409 kèm mục mới nhất (ví dụ đã được duyệt) thì thay ngay vào cache. */
+export function useRejectContribution() {
+  const { company } = useCompany();
+  const refresh = useRefreshAfterDecision();
+  return useMutation({
+    mutationFn: (contribution: Contribution) => api.contributions.reject(company.id, contribution.id),
+    onSuccess: (done, contribution) => refresh(contribution, done),
+    onError: (error, contribution) => refresh(contribution, contributionFromError(error)),
   });
 }
 

@@ -9,7 +9,9 @@
     "blocked": "Blocked requests",
     "blockedHint": "Needs someone to act",
     "awaiting": "Awaiting your approval",
-    "awaitingHint": "Waiting for your review"
+    "awaitingHint": "Waiting for your review",
+    "contributions": "Contributions to approve",
+    "contributionsHint": "Sent by Marketing, waiting for you"
   },
   "loadFailed": "Could not load the numbers",
   "banner": {

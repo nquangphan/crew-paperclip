@@ -76,5 +76,68 @@
   },
   "chip": {
     "from": "Góp ý của {{name}}"
+  },
+  "actions": {
+    "approve": "Duyệt",
+    "retry": "Duyệt lại",
+    "reject": "Từ chối",
+    "approving": "Đang duyệt",
+    "rejecting": "Đang từ chối",
+    "halfway": "Đang duyệt dở",
+    "halfwayHint": "Lần duyệt trước chưa xong. Bấm Duyệt lại để làm tiếp, không tạo bản trùng.",
+    "approveFailed": "Không duyệt được",
+    "rejectFailed": "Không từ chối được"
+  },
+  "reject": {
+    "title": "Từ chối mục góp ý?",
+    "bodyIssue": "Yêu cầu \"{{title}}\" sẽ mang nhãn Bị từ chối. Agent không bao giờ thấy nội dung này.",
+    "bodyComment": "Bình luận sẽ mang nhãn Bị từ chối. Agent không bao giờ thấy nội dung này.",
+    "confirm": "Từ chối"
+  },
+  "approveDialog": {
+    "title": "Duyệt yêu cầu",
+    "description": "Chọn project, loại và agent nhận việc. Yêu cầu được đăng nguyên văn như board đăng, rồi agent bắt đầu làm.",
+    "content": "Nội dung",
+    "author": "Người gửi",
+    "project": "Project",
+    "projectPlaceholder": "Chọn project",
+    "kind": "Loại",
+    "researchMissing": "Company chưa có nhãn “research” nên chưa chọn được loại Nghiên cứu.",
+    "assignee": "Agent nhận việc",
+    "assigneePlaceholder": "Chọn agent",
+    "assigneeHint": "Mặc định là Trợ Lý của project.",
+    "noAssistant": "Project chưa có Trợ Lý, hãy chọn agent nhận việc.",
+    "draft": "Lưu nháp (chưa đánh thức agent)",
+    "submit": "Duyệt",
+    "submitting": "Đang duyệt",
+    "cancel": "Hủy"
+  },
+  "errors": {
+    "crew_contribution_not_materialized": "Chưa thấy bản ghi đã đăng, bấm Duyệt lại.",
+    "crew_contribution_decided": "Mục này đã được xử lý xong (đã duyệt hoặc đã từ chối).",
+    "crew_contribution_locked": "Một owner khác đang duyệt mục này. Thử lại sau ít phút (khóa giữ tối đa 10 phút).",
+    "crew_contribution_not_approving": "Mục này không còn ở bước đang duyệt. Trạng thái mới đã được tải lại.",
+    "crew_contribution_already_approved": "Mục này đã được duyệt rồi nên không từ chối được nữa.",
+    "crew_contribution_invalid": "Nội dung góp ý không hợp lệ.",
+    "crew_contribution_invalid_target": "Project hoặc yêu cầu đích không còn hợp lệ (đã lưu trữ, bị xóa hoặc bị ẩn).",
+    "crew_contribution_forbidden": "Bạn không có quyền duyệt mục này.",
+    "notFound": "Không tìm thấy mục góp ý này."
+  },
+  "popup": {
+    "title": "Mục góp ý",
+    "issueTitle": "Yêu cầu góp ý",
+    "commentTitle": "Bình luận góp ý",
+    "loadFailed": "Không tải được mục góp ý",
+    "openTarget": "Mở yêu cầu được bình luận",
+    "openResult": "Mở yêu cầu đã tạo",
+    "close": "Đóng"
+  },
+  "issuesGroup": {
+    "title": "Chờ duyệt",
+    "label": "Yêu cầu góp ý chờ duyệt",
+    "chip": "Chờ duyệt ({{count}})",
+    "empty": "Không có yêu cầu nào đang chờ duyệt",
+    "loadFailed": "Không tải được yêu cầu chờ duyệt",
+    "open": "Xem"
   }
 }
