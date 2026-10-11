@@ -3,7 +3,8 @@
   "notes": {
     "S9.1": "Gõ đường folder, kiểm bằng machine job inspect-folder; folder không phải repo git hoặc thuộc thư mục cấm thì báo lỗi, không tạo project (spec §5 ý 1).",
     "S9.err": "Hàng 'Lỗi' của bảng S9 (PW-S9-8).",
-    "S13.7": "Hàng '—' của bảng S13 (agent dở không có trong lựa chọn, PW-S13-7)."
+    "S13.7": "Hàng '—' của bảng S13 (agent dở không có trong lựa chọn, PW-S13-7).",
+    "S20.x": "Phòng Marketing (khách góp ý), spec 2026-10-11-crew-v3-guest-approval-design.md §9.3: S20.1 gửi yêu cầu, S20.2 gửi bình luận, S20.3 trang Góp ý, S20.4 duyệt yêu cầu, S20.5 duyệt bình luận, S20.6 từ chối, S20.7 badge/đếm sidebar và thẻ dashboard, S20.8 trang Thành viên."
   },
   "ids": [
     "S0.1",
@@ -111,6 +112,14 @@
     "S18.2",
     "S18.3",
     "S19",
+    "S20.1",
+    "S20.2",
+    "S20.3",
+    "S20.4",
+    "S20.5",
+    "S20.6",
+    "S20.7",
+    "S20.8",
     "F1",
     "F2",
     "F3",

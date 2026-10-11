@@ -20,6 +20,7 @@ Chạy từ thư mục `packages/crew-web`. `retries: 1`, `workers: 1`.
   qua `ssh` (chỉ giá trị cần dùng đi qua pipe), đưa vào biến môi trường `CREW_E2E_EMAIL`, `CREW_E2E_PASSWORD` của
   process Playwright. Không echo, không ghi file, không nằm trong tham số lệnh.
 - T1: tài khoản tạm ở `~/crew-r3-t1/board.env` (quyền 600, không phải mật khẩu prod).
+- Tài khoản khách góp ý: xem mục "Tài khoản khách góp ý" bên dưới.
 - Đăng nhập luôn bằng form `/login` (`support/login.ts`). `global-setup.ts` đăng nhập một lần, lưu `storageState`
   vào thư mục tạm 0700 của lượt chạy (`run-e2e.sh` xóa khi xong).
 - Trace chụp DOM (cả giá trị ô mật khẩu) và body request đăng nhập. File spec nào điền mật khẩu thật phải đặt
@@ -33,6 +34,7 @@ Chạy từ thư mục `packages/crew-web`. `retries: 1`, `workers: 1`.
 | `CREW_E2E_TIER` | `run-e2e.sh` đặt theo `--project` | `t1`, `t2`, `t3` |
 | `CREW_E2E_BASE_URL` | T1 `http://127.0.0.1:5183`, còn lại `https://crew.2p-solutions.com` | Gốc UI |
 | `CREW_E2E_COMPANY_ID` | Crew E2E `a7132a14-…` (prod); T1 lấy từ `board.env` | Company của ca. Trên prod chỉ nhận Crew E2E |
+| `CREW_E2E_CONTRIBUTOR_EMAIL`, `CREW_E2E_CONTRIBUTOR_PASSWORD` | — (tùy chọn, phải đặt cả hai) | Tài khoản khách góp ý. Không đặt thì ca dùng fixture `contributorPage`/`contributorApi` tự bỏ qua |
 | `CREW_E2E_AGENTS_ROOT` | `~/crew-agents` | Gốc checkout agent cho `stub.ts` |
 | `CREW_E2E_SSH_HOST` | `nhamoiplatform` | Host VPS cho mật khẩu và `db.ts` |
 | `CREW_E2E_BASE_KEY` | `e2e-base` | Khóa project nền (dạng `e2e-*`). Khóa đã gỡ không dựng lại được, xem mục Project nền |
@@ -54,6 +56,25 @@ Chạy từ thư mục `packages/crew-web`. `retries: 1`, `workers: 1`.
   luôn xóa sau ca.
 - `cleanup.ts`: `trackIssue`, `cancelTrackedIssues`, `resetAgentSessions(api, agentIds)`.
 - `shots.ts`: `shoot(page, name)`, `SHOT_PAGES`.
+
+## Tài khoản khách góp ý
+
+Ca S20 (`specs/s20-contributions.spec.ts`) cần một tài khoản Phòng Marketing: thành viên `viewer` `active` của company
+e2e, có dấu khách góp ý (bảng `crew_contributors`).
+
+- T1: thêm hai dòng `CREW_E2E_CONTRIBUTOR_EMAIL` và `CREW_E2E_CONTRIBUTOR_PASSWORD` vào `~/crew-r3-t1/board.env`
+  (quyền 600, mật khẩu tạm của stack cục bộ). Dựng tài khoản bằng đúng luồng của owner: tạo invite
+  (`humanRole: viewer`, `defaultsPayload.crew.role: contributor`), đăng ký và nhận invite bằng tài khoản mới, duyệt yêu
+  cầu tham gia, rồi `PUT /api/crew/companies/<cid>/contributors/<userId>` (hoặc bấm Đặt Phòng Marketing ở trang Thành
+  viên).
+- T2/T3: owner tạo tài khoản qua trang Thành viên của Crew E2E rồi lưu hai biến trên vào `/opt/crew-v3-spike/.env`.
+  `run-e2e.sh` đọc hai biến qua `ssh` như mật khẩu board (không echo), và bỏ qua nếu chưa có.
+- `global-setup.ts` đăng nhập khách bằng form ở context riêng và lưu `storageState` thứ hai
+  (`storage-state-contributor.json`, cùng thư mục tạm 0700 của lượt chạy). Fixture `contributorPage` (trang) và
+  `contributorApi` (REST) dùng phiên này; `run-e2e.sh` cũng quét `test-results` tìm mật khẩu khách.
+- Ca S20 chạy nối tiếp trên cùng dữ liệu, tạo mục góp ý với dấu riêng mỗi lượt và để lại ở trạng thái cuối. Issue ca
+  tạo ra được hủy cuối ca (`trackIssue`). PW-S20-7 gỡ rồi đặt lại dấu của chính tài khoản khách, nên ca khác phải
+  chạy lại được ngay sau đó.
 
 ## Chế độ stub
 
@@ -89,3 +110,8 @@ cd "$FORK/packages/crew-web" && CREW_WEB_API=http://127.0.0.1:3199 npx vite --po
 
 Server cần `PAPERCLIP_ALLOWED_HOSTNAMES` có `127.0.0.1:5183` để Better Auth nhận origin của web dev. Tắt bằng
 `kill -TERM <pid>` (server tự dừng Postgres nhúng). Ghi PID/cổng vào `processes.md` của plan.
+
+Đổi worktree fork (`FORK`) thì phải build plugin ở đó (`pnpm --filter @crew/paperclip-plugin build`) và trỏ
+`plugins.package_path` của `crew.core` trong DB nhúng sang `$FORK/packages/crew-plugin`, rồi khởi động lại server để
+plugin kích hoạt và áp migration mới (bảng góp ý có từ migration `0013`). Dùng thư mục T1 khác (`CREW_E2E_T1_ENV=<đường
+tới board.env>`) để không đụng stack cũ.

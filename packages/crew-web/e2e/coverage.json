@@ -193,6 +193,46 @@
     "tests": ["PW-S19-1 "],
     "tier": "T1"
   },
+  "S20.1": {
+    "spec": "e2e/specs/s20-contributions.spec.ts",
+    "tests": ["PW-S20-1 "],
+    "tier": "T1"
+  },
+  "S20.2": {
+    "spec": "e2e/specs/s20-contributions.spec.ts",
+    "tests": ["PW-S20-2 "],
+    "tier": "T1"
+  },
+  "S20.3": {
+    "spec": "e2e/specs/s20-contributions.spec.ts",
+    "tests": ["PW-S20-3 "],
+    "tier": "T1"
+  },
+  "S20.4": {
+    "spec": "e2e/specs/s20-contributions.spec.ts",
+    "tests": ["PW-S20-5 "],
+    "tier": "T1"
+  },
+  "S20.5": {
+    "spec": "e2e/specs/s20-contributions.spec.ts",
+    "tests": ["PW-S20-4 "],
+    "tier": "T1"
+  },
+  "S20.6": {
+    "spec": "e2e/specs/s20-contributions.spec.ts",
+    "tests": ["PW-S20-6 "],
+    "tier": "T1"
+  },
+  "S20.7": {
+    "spec": "e2e/specs/s20-contributions.spec.ts",
+    "tests": ["PW-S20-3 "],
+    "tier": "T1"
+  },
+  "S20.8": {
+    "spec": "e2e/specs/s20-contributions.spec.ts",
+    "tests": ["PW-S20-7 "],
+    "tier": "T1"
+  },
   "F5": {
     "spec": "e2e/flows/f5-cancel.spec.ts",
     "tests": ["PW-F5 "],

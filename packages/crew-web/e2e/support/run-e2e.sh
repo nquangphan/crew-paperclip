@@ -32,6 +32,14 @@ else
   IFS= read -r CREW_E2E_PASSWORD < <(ssh "$host" "sed -n 's/^PAPERCLIP_BOARD_PASSWORD=//p' $envfile")
   [ -n "$CREW_E2E_EMAIL" ] && [ -n "$CREW_E2E_PASSWORD" ] || { echo "run-e2e.sh: không đọc được tài khoản board" >&2; exit 2; }
   export CREW_E2E_EMAIL CREW_E2E_PASSWORD
+  # Tài khoản khách góp ý là tùy chọn: chưa tạo thì để trống, các ca khách tự bỏ qua.
+  IFS= read -r CREW_E2E_CONTRIBUTOR_EMAIL < <(ssh "$host" "sed -n 's/^CREW_E2E_CONTRIBUTOR_EMAIL=//p' $envfile") || true
+  IFS= read -r CREW_E2E_CONTRIBUTOR_PASSWORD < <(ssh "$host" "sed -n 's/^CREW_E2E_CONTRIBUTOR_PASSWORD=//p' $envfile") || true
+  if [ -n "${CREW_E2E_CONTRIBUTOR_EMAIL:-}" ] && [ -n "${CREW_E2E_CONTRIBUTOR_PASSWORD:-}" ]; then
+    export CREW_E2E_CONTRIBUTOR_EMAIL CREW_E2E_CONTRIBUTOR_PASSWORD
+  else
+    unset CREW_E2E_CONTRIBUTOR_EMAIL CREW_E2E_CONTRIBUTOR_PASSWORD
+  fi
   export CREW_E2E_COMPANY_ID=${CREW_E2E_COMPANY_ID:-a7132a14-478e-4226-ae58-3dc03ce923e1}
 fi
 
@@ -57,7 +65,10 @@ npx playwright test "$@" || status=$?
 # request, nên ca điền mật khẩu thật phải tắt trace (xem README). Gặp thì xóa ngay tệp chứa mật khẩu và báo lỗi.
 if [ -d test-results ]; then
   scan=$(mktemp -d "${TMPDIR:-/tmp}/crew-e2e-scan.XXXXXX")
-  pw() { printf '%s\n' "$CREW_E2E_PASSWORD"; }
+  pw() {
+    printf '%s\n' "$CREW_E2E_PASSWORD"
+    [ -z "${CREW_E2E_CONTRIBUTOR_PASSWORD:-}" ] || printf '%s\n' "$CREW_E2E_CONTRIBUTOR_PASSWORD"
+  }
   n=0
   leaked=0
   while IFS= read -r -d '' z; do

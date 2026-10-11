@@ -3,7 +3,14 @@
 import { chmodSync, mkdirSync } from 'node:fs';
 import path from 'node:path';
 import { expect, type Locator, type Page, test } from '@playwright/test';
-import { email, password, storageStatePath } from './env';
+import {
+  contributorEmail,
+  contributorPassword,
+  contributorStorageStatePath,
+  email,
+  password,
+  storageStatePath,
+} from './env';
 
 /** Gán giá trị cho input React (setter gốc + sự kiện input) mà không gọi fill. */
 export async function fillSecret(input: Locator, value: string): Promise<void> {
@@ -57,13 +64,22 @@ export async function login(page: Page, opts: LoginOptions = {}): Promise<void> 
   await test.step('đăng nhập bằng form', () => submitLoginForm(page, opts), { box: true });
 }
 
-/** Đăng nhập bằng form rồi lưu storageState vào thư mục tạm 0700 của lượt chạy. */
-export async function loginAndSaveState(page: Page): Promise<string> {
-  await login(page);
-  const file = storageStatePath();
+async function saveState(page: Page, file: string): Promise<string> {
   mkdirSync(path.dirname(file), { recursive: true, mode: 0o700 });
   chmodSync(path.dirname(file), 0o700);
   await page.context().storageState({ path: file });
   chmodSync(file, 0o600);
   return file;
+}
+
+/** Đăng nhập bằng form rồi lưu storageState vào thư mục tạm 0700 của lượt chạy. */
+export async function loginAndSaveState(page: Page): Promise<string> {
+  await login(page);
+  return saveState(page, storageStatePath());
+}
+
+/** Như `loginAndSaveState` cho tài khoản khách góp ý; đích là storageState riêng. */
+export async function loginContributorAndSaveState(page: Page): Promise<string> {
+  await login(page, { emailValue: contributorEmail(), passwordValue: contributorPassword() });
+  return saveState(page, contributorStorageStatePath());
 }

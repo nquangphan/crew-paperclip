@@ -77,3 +77,28 @@ export function storageStatePath(): string {
 export function agentsRoot(): string {
   return process.env.CREW_E2E_AGENTS_ROOT ?? path.join(os.homedir(), 'crew-agents');
 }
+
+/**
+ * Tài khoản khách góp ý (Phòng Marketing, viewer có dấu). Tùy chọn: không đặt cả hai biến thì ca khách tự bỏ qua.
+ * Chỉ một trong hai biến là cấu hình sai, nên báo lỗi thay vì lặng lẽ bỏ qua.
+ */
+export function hasContributor(): boolean {
+  const e = process.env.CREW_E2E_CONTRIBUTOR_EMAIL;
+  const p = process.env.CREW_E2E_CONTRIBUTOR_PASSWORD;
+  if (!e && !p) return false;
+  if (!e || !p) throw new Error('Phải đặt cả CREW_E2E_CONTRIBUTOR_EMAIL và CREW_E2E_CONTRIBUTOR_PASSWORD');
+  return true;
+}
+
+export function contributorEmail(): string {
+  return required('CREW_E2E_CONTRIBUTOR_EMAIL');
+}
+
+/** Như `password()`: đọc ngay lúc dùng, không lưu vào biến module. */
+export function contributorPassword(): string {
+  return required('CREW_E2E_CONTRIBUTOR_PASSWORD');
+}
+
+export function contributorStorageStatePath(): string {
+  return path.join(stateDir(), 'storage-state-contributor.json');
+}

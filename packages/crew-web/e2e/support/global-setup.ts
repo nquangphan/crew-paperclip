@@ -3,9 +3,9 @@
 // ngắt không chạy teardown) và dừng lượt nếu vẫn còn marker.
 import { type Browser, chromium, type FullConfig } from '@playwright/test';
 import { type Api, boardApi } from './api';
-import { BASE_PROJECT_KEY, baseUrl, companyId, storageStatePath, tier } from './env';
+import { BASE_PROJECT_KEY, baseUrl, companyId, hasContributor, storageStatePath, tier } from './env';
 import type { E2eCompany } from './fixtures';
-import { loginAndSaveState } from './login';
+import { loginAndSaveState, loginContributorAndSaveState } from './login';
 import { addProjectViaWizard } from './r3x-project';
 import { stub } from './stub';
 
@@ -71,6 +71,15 @@ export default async function globalSetup(_config: FullConfig): Promise<void> {
   try {
     const page = await browser.newPage({ baseURL: baseUrl() });
     await loginAndSaveState(page);
+    // Khách góp ý đăng nhập ở context riêng, để phiên board không bị đè.
+    if (hasContributor()) {
+      const guestContext = await browser.newContext({ baseURL: baseUrl() });
+      try {
+        await loginContributorAndSaveState(await guestContext.newPage());
+      } finally {
+        await guestContext.close();
+      }
+    }
     if (tier() === 't2') keys = await prepareT2(browser);
   } finally {
     await browser.close();
