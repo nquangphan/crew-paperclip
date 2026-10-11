@@ -228,6 +228,20 @@
       "tests": [
         "server/src/__tests__/crew-plugin-event-invocation-scope.test.ts"
       ]
+    },
+    {
+      "id": "C8",
+      "kind": "core-patch",
+      "file": "server/src/routes/plugins.ts",
+      "symbol": "pluginRoutes POST /plugins/:pluginId/data/:key",
+      "anchor": "    const companyId = (await crewViewerPluginDataScope(db, req, plugin.pluginKey, body?.companyId)) ?? assertPluginBridgeScope(req, body?.companyId);",
+      "importLine": "import { crewViewerPluginDataScope } from \"../crew/plugin-data-scope.js\";",
+      "description": "A board viewer of a Crew company may read crew.core plugin data (POST /plugins/crew.core/data/:key) for that company; the stock bridge scope treats the POST as a write and returns 403 Viewer access is read-only, which leaves the Crew UI unusable for viewers. Only the crew.core data route is widened, only when the company is in the Crew config and an active user membership with role viewer is confirmed from the database; every other plugin, company, actor and route (bridge/data, bridge/action, actions/:key, scoped API routes) keeps the stock check, and every other viewer write stays 403.",
+      "upstreamPr": null,
+      "tests": [
+        "server/src/__tests__/crew-plugin-data-viewer.test.ts",
+        "server/src/__tests__/crew-viewer-write-matrix.test.ts"
+      ]
     }
   ]
 }
