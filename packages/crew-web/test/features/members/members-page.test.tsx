@@ -74,24 +74,24 @@ describe('trang Thành viên', () => {
     const rows = await screen.findAllByTestId('member-row');
     expect(rows.map((r) => r.getAttribute('data-role'))).toEqual(['owner', 'contributor', 'viewer']);
     expect(within(rows[1]).getByText('Phòng Marketing')).toBeTruthy();
-    expect(within(rows[1]).getByRole('button', { name: 'Gỡ góp ý' })).toBeTruthy();
-    expect(within(rows[2]).getByRole('button', { name: 'Bật góp ý' })).toBeTruthy();
+    expect(within(rows[1]).getByRole('button', { name: 'Gỡ Phòng Marketing' })).toBeTruthy();
+    expect(within(rows[2]).getByRole('button', { name: 'Đặt Phòng Marketing' })).toBeTruthy();
     expect(within(rows[0]).queryByRole('button')).toBeNull();
   });
 
-  it('Bật góp ý gọi PUT contributors/:userId', async () => {
+  it('Đặt Phòng Marketing gọi PUT contributors/:userId', async () => {
     const { calls } = mockServer(base({ 'PUT /api/crew/companies/c1/contributors/u3': { status: 204 } }));
     mount();
     const row = (await screen.findAllByTestId('member-row'))[2];
-    fireEvent.click(within(row).getByRole('button', { name: 'Bật góp ý' }));
+    fireEvent.click(within(row).getByRole('button', { name: 'Đặt Phòng Marketing' }));
     await waitFor(() => expect(calls.some((c) => c.method === 'PUT' && c.url.endsWith('/contributors/u3'))).toBe(true));
   });
 
-  it('Gỡ góp ý gọi DELETE contributors/:userId', async () => {
+  it('Gỡ Phòng Marketing gọi DELETE contributors/:userId', async () => {
     const { calls } = mockServer(base({ 'DELETE /api/crew/companies/c1/contributors/u2': { status: 204 } }));
     mount();
     const row = (await screen.findAllByTestId('member-row'))[1];
-    fireEvent.click(within(row).getByRole('button', { name: 'Gỡ góp ý' }));
+    fireEvent.click(within(row).getByRole('button', { name: 'Gỡ Phòng Marketing' }));
     await waitFor(() =>
       expect(calls.some((c) => c.method === 'DELETE' && c.url.endsWith('/contributors/u2'))).toBe(true),
     );
@@ -104,7 +104,7 @@ describe('trang Thành viên', () => {
       }),
     );
     mount();
-    fireEvent.click(await screen.findByRole('button', { name: 'Mời khách góp ý' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Mời Phòng Marketing' }));
     const input = (await screen.findByLabelText('Link mời')) as HTMLInputElement;
     expect(input.value).toBe(`${window.location.origin}/paperclip/invite/tok-123`);
     const post = calls.find((c) => c.method === 'POST' && c.url.endsWith('/invites'));
@@ -122,7 +122,7 @@ describe('trang Thành viên', () => {
       base({ 'POST /api/companies/c1/invites': { status: 201, body: { ...CONTRIB_INVITE, token: 'tok-9' } } }),
     );
     mount();
-    fireEvent.click(await screen.findByRole('button', { name: 'Mời khách góp ý' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Mời Phòng Marketing' }));
     fireEvent.click(await screen.findByRole('button', { name: 'Chép link' }));
     expect(writeText).toHaveBeenCalledWith(`${window.location.origin}/paperclip/invite/tok-9`);
   });
@@ -153,8 +153,8 @@ describe('trang Thành viên', () => {
     );
     mount();
     const rows = await screen.findAllByTestId('join-request-row');
-    expect(within(rows[0]).getByText('Lời mời khách góp ý')).toBeTruthy();
-    expect(within(rows[1]).queryByText('Lời mời khách góp ý')).toBeNull();
+    expect(within(rows[0]).getByText('Lời mời Phòng Marketing')).toBeTruthy();
+    expect(within(rows[1]).queryByText('Lời mời Phòng Marketing')).toBeNull();
     expect(within(rows[1]).getByText('Lời mời thường')).toBeTruthy();
   });
 
@@ -190,7 +190,7 @@ describe('trang Thành viên', () => {
     expect(calls.some((c) => c.method === 'PUT')).toBe(false);
   });
 
-  it('bước bật dấu lỗi: báo cảnh báo, người đó vẫn là viewer thuần với nút Bật góp ý', async () => {
+  it('bước bật dấu lỗi: báo cảnh báo, người đó vẫn là viewer thuần với nút Đặt Phòng Marketing', async () => {
     mockServer(
       base({
         'GET /api/companies/c1/join-requests': { body: [joinRequest('jr1', 'inv-c', 'u3', 'Minh')] },
@@ -203,9 +203,9 @@ describe('trang Thành viên', () => {
     );
     mount();
     fireEvent.click(await screen.findByRole('button', { name: 'Duyệt' }));
-    expect(await screen.findByText('Đã duyệt tham gia nhưng chưa bật được góp ý')).toBeTruthy();
+    expect(await screen.findByText('Đã duyệt tham gia nhưng chưa đặt được Phòng Marketing')).toBeTruthy();
     const rows = await screen.findAllByTestId('member-row');
-    expect(within(rows[2]).getByRole('button', { name: 'Bật góp ý' })).toBeTruthy();
+    expect(within(rows[2]).getByRole('button', { name: 'Đặt Phòng Marketing' })).toBeTruthy();
   });
 
   it('Từ chối yêu cầu gọi reject', async () => {

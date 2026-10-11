@@ -18,7 +18,7 @@ import { useT } from '@/i18n';
 import { displayRole, personName } from './members-model';
 import { useContributorIds, useMemberActions, useMembers } from './use-members';
 
-/** Danh sách thành viên với role; viewer thuần có nút Bật góp ý, khách góp ý có nút Gỡ góp ý. */
+/** Danh sách thành viên với role; viewer thuần có nút Đặt Phòng Marketing, Phòng Marketing có nút Gỡ Phòng Marketing. */
 export function MembersSection() {
   const { t } = useT('members');
   const members = useMembers();

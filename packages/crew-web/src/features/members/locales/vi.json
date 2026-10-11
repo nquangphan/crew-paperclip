@@ -1,6 +1,6 @@
 {
   "title": "Thành viên",
-  "description": "Mời khách góp ý, duyệt yêu cầu tham gia và bật hoặc gỡ quyền Phòng Marketing.",
+  "description": "Mời Phòng Marketing, duyệt yêu cầu tham gia và đặt hoặc gỡ quyền Phòng Marketing.",
   "empty": "Chưa có thành viên nào để hiện",
   "emptyHint": "Danh sách thành viên và lời mời sẽ hiện ở đây.",
   "role": {
@@ -15,19 +15,19 @@
     "title": "Danh sách thành viên",
     "person": "Người dùng",
     "role": "Vai trò",
-    "enable": "Bật góp ý",
-    "disable": "Gỡ góp ý",
+    "enable": "Đặt Phòng Marketing",
+    "disable": "Gỡ Phòng Marketing",
     "loadFailed": "Không tải được danh sách thành viên",
-    "actionFailed": "Không đổi được quyền góp ý"
+    "actionFailed": "Không đổi được quyền Phòng Marketing"
   },
   "invites": {
-    "title": "Mời khách góp ý",
-    "hint": "Khách mở link, đăng ký hoặc đăng nhập rồi gửi yêu cầu tham gia để bạn duyệt.",
-    "create": "Mời khách góp ý",
+    "title": "Mời Phòng Marketing",
+    "hint": "Người được mời mở link, đăng ký hoặc đăng nhập rồi gửi yêu cầu tham gia để bạn duyệt.",
+    "create": "Mời Phòng Marketing",
     "creating": "Đang tạo link",
     "created": "Đã tạo lời mời",
     "linkLabel": "Link mời",
-    "linkHint": "Chỉ hiện một lần, hãy chép và gửi cho khách.",
+    "linkHint": "Chỉ hiện một lần, hãy chép và gửi cho người được mời.",
     "copy": "Chép link",
     "copied": "Đã chép",
     "createFailed": "Không tạo được lời mời",
@@ -46,7 +46,7 @@
     "person": "Người dùng",
     "kind": "Loại lời mời",
     "createdAt": "Gửi lúc",
-    "contributorInvite": "Lời mời khách góp ý",
+    "contributorInvite": "Lời mời Phòng Marketing",
     "plainInvite": "Lời mời thường",
     "approve": "Duyệt",
     "reject": "Từ chối",
@@ -54,7 +54,7 @@
     "loadFailed": "Không tải được yêu cầu tham gia",
     "approveFailed": "Không duyệt được yêu cầu",
     "rejectFailed": "Không từ chối được yêu cầu",
-    "markFailed": "Đã duyệt tham gia nhưng chưa bật được góp ý",
-    "markFailedHint": "Người này hiện chỉ xem được. Bấm Bật góp ý ở danh sách thành viên để thử lại."
+    "markFailed": "Đã duyệt tham gia nhưng chưa đặt được Phòng Marketing",
+    "markFailedHint": "Người này hiện chỉ xem được. Bấm Đặt Phòng Marketing ở danh sách thành viên để thử lại."
   }
 }

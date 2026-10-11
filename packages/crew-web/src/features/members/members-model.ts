@@ -51,7 +51,7 @@ export interface ApproveOutcome {
 
 /**
  * Duyệt yêu cầu tham gia; nếu là lời mời khách góp ý thì bật dấu ngay sau đó. Bước một lỗi thì ném lỗi (chưa có gì
- * thay đổi). Bước hai lỗi thì người đó đã là viewer thuần (đóng khi lỗi), trả lỗi để UI báo và giữ nút "Bật góp ý".
+ * thay đổi). Bước hai lỗi thì người đó đã là viewer thuần (đóng khi lỗi), trả lỗi để UI báo và giữ nút "Đặt Phòng Marketing".
  */
 export async function approveJoin(join: PendingJoin, deps: ApproveDeps): Promise<ApproveOutcome> {
   await deps.approve(join.request.id);

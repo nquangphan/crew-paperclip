@@ -1,6 +1,6 @@
 {
   "title": "Members",
-  "description": "Invite contributors, approve join requests, and turn the Marketing access on or off.",
+  "description": "Invite Marketing, approve join requests, and set or remove Marketing access.",
   "empty": "No members to show yet",
   "emptyHint": "Members and invites will show up here.",
   "role": {
@@ -15,19 +15,19 @@
     "title": "Member list",
     "person": "User",
     "role": "Role",
-    "enable": "Enable contributing",
-    "disable": "Remove contributing",
+    "enable": "Set Marketing",
+    "disable": "Remove Marketing",
     "loadFailed": "Could not load members",
-    "actionFailed": "Could not change contributor access"
+    "actionFailed": "Could not change Marketing access"
   },
   "invites": {
-    "title": "Invite contributors",
-    "hint": "The guest opens the link, signs up or signs in, then sends a join request for you to approve.",
-    "create": "Invite a contributor",
+    "title": "Invite Marketing",
+    "hint": "The invited person opens the link, signs up or signs in, then sends a join request for you to approve.",
+    "create": "Invite Marketing",
     "creating": "Creating link",
     "created": "Invite created",
     "linkLabel": "Invite link",
-    "linkHint": "Shown only once, copy it and send it to the guest.",
+    "linkHint": "Shown only once, copy it and send it to the invited person.",
     "copy": "Copy link",
     "copied": "Copied",
     "createFailed": "Could not create the invite",
@@ -46,7 +46,7 @@
     "person": "User",
     "kind": "Invite type",
     "createdAt": "Sent",
-    "contributorInvite": "Contributor invite",
+    "contributorInvite": "Marketing invite",
     "plainInvite": "Regular invite",
     "approve": "Approve",
     "reject": "Reject",
@@ -54,7 +54,7 @@
     "loadFailed": "Could not load join requests",
     "approveFailed": "Could not approve the request",
     "rejectFailed": "Could not reject the request",
-    "markFailed": "Approved, but contributor access was not enabled",
-    "markFailedHint": "This person is view-only for now. Use Enable contributing in the members list to retry."
+    "markFailed": "Approved, but Marketing access was not set",
+    "markFailedHint": "This person is view-only for now. Use Set Marketing in the members list to retry."
   }
 }
