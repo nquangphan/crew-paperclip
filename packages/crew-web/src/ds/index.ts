@@ -48,6 +48,7 @@ export * from './widgets/dashboard-list';
 export * from './widgets/filter-bar';
 export * from './widgets/floating-notice';
 export * from './widgets/issue-detail';
+export * from './widgets/issue-list';
 export * from './widgets/issue-row';
 export * from './widgets/markdown-view';
 export * from './widgets/metric-card';

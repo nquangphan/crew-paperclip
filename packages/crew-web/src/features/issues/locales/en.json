@@ -1,7 +1,6 @@
 {
   "page": {
     "title": "Requests",
-    "description": "The company's requests; child requests sit under their root request.",
     "loadFailed": "Could not load requests",
     "empty": "No requests yet",
     "emptyFiltered": "No request matches the filters",
@@ -11,6 +10,7 @@
     "uploadFailed": "Could not attach: {{names}}"
   },
   "list": {
+    "toolbar": "Request list controls",
     "search": "Search requests",
     "status": "Status",
     "project": "Project",
@@ -18,21 +18,38 @@
     "kind": "Type",
     "sort": "Sort",
     "group": "Group",
+    "filter": "Filter",
+    "filterActive": "Filters: {{count}}",
+    "filterTitle": "Filters",
+    "clear": "Clear",
     "columns": "Columns",
-    "all": "All",
+    "columnsEyebrow": "Desktop request rows",
+    "columnsTitle": "Choose which columns stay visible",
+    "columnsReset": "Reset defaults",
     "none": "None",
     "unassigned": "Unassigned",
     "noProject": "No project",
     "expand": "Show child requests",
     "collapse": "Hide child requests",
+    "children": "({{count}} child requests)",
+    "live": "Live",
     "col": {
-      "id": "ID",
-      "title": "Title",
-      "status": "Status",
       "stage": "Crew stage",
       "progress": "Child requests",
+      "assignee": "Assignee",
       "project": "Project",
-      "assignee": "Assignee"
+      "labels": "Labels",
+      "id": "ID",
+      "updated": "Last updated"
+    },
+    "colHint": {
+      "stage": "Stage of the root request in the Crew flow.",
+      "progress": "Finished child requests out of the total.",
+      "assignee": "Agent working on the request.",
+      "project": "Project of the request.",
+      "labels": "Labels on the request.",
+      "id": "Request identifier like CRE-12 on the trailing edge.",
+      "updated": "Latest visible activity time."
     },
     "progress": "{{done}}/{{total}} children done",
     "kindOption": {
@@ -46,8 +63,14 @@
     },
     "groupOption": {
       "status": "Status",
+      "assignee": "Assignee",
       "project": "Project",
-      "assignee": "Assignee"
+      "none": "None"
+    },
+    "date": {
+      "today": "Today",
+      "yesterday": "Yesterday",
+      "earlier": "Earlier"
     }
   },
   "new": {

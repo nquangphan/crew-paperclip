@@ -1,6 +1,10 @@
 // crew: tự dựng
+// Danh sách Yêu cầu theo bố cục IssuesList (streamlined) của Paperclip: thanh công cụ một hàng (Yêu cầu mới, ô tìm,
+// Cột/Lọc/Sắp xếp/Nhóm), dòng task không kẻ có glyph trạng thái, tiêu đề, cột phụ, mã và thời gian, nhóm thu gọn được,
+// vạch Hôm nay/Hôm qua. Giữ phần Crew: cột giai đoạn và x/y con xong, nhóm và chip Chờ duyệt, chế độ chỉ đọc.
+// Mọi trạng thái xem nằm trong URL (`use-issues.ts`), trừ nhóm/nhánh đang thu gọn.
 import type { CompactIssue } from '@paperclipai/shared';
-import { Fragment, useEffect, useMemo, useState } from 'react';
+import { type ReactNode, useEffect, useMemo, useState } from 'react';
 import { Link, useLocation, useSearchParams } from 'react-router-dom';
 import type { Contribution, CrewRoot } from '@/api';
 import { useCompany } from '@/app/hooks';
@@ -8,46 +12,56 @@ import {
   Button,
   Card,
   CardContent,
-  Checkbox,
+  CollectionTitle,
+  CollectionToolbar,
+  DateSeparator,
   EmptyState,
   ErrorState,
-  FilterBar,
-  Label,
+  Identity,
+  IssueGroup,
+  IssueListRow,
+  LabelPill,
+  ListItemRow,
+  LiveBadge,
   MutedText,
-  PageHeader,
+  RowCell,
+  RowNote,
   resolveStageKey,
-  Section,
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
   Skeleton,
   StageBadge,
-  StatusBadge,
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
+  ToolbarChoiceMenu,
+  ToolbarColumnsMenu,
+  ToolbarFilterMenu,
+  ToolbarSearch,
+  TreeSpacer,
+  TreeToggle,
 } from '@/ds';
-import { ChevronDown, ChevronRight, Plus } from '@/ds/icons';
+import { CircleDot, Plus } from '@/ds/icons';
 import { useCompanyAccess } from '@/features/access';
 import { ContributionActions } from '@/features/contributions/contribution-actions';
 import { ContributionBadge } from '@/features/contributions/contribution-badge';
 import { contributionHref } from '@/features/contributions/contribution-popup-host';
 import { useAuthorNames, useContributions } from '@/features/contributions/use-contributions';
 import { useSelectableAgents } from '@/features/wizards';
-import { useT } from '@/i18n';
+import { formatDateTime, formatRelative, useT } from '@/i18n';
 import { NewRequestDialog } from '../new/new-request-dialog';
-import { IssueLink } from '../popup/issue-nav';
+import { IssueLink, useIssueOpener } from '../popup/issue-nav';
+import {
+  activityAt,
+  type DateGroup,
+  dateGroup,
+  dateSeparator,
+  dateSeparatorField,
+  groupIssues,
+  liveIssueIds,
+} from './list-view';
 import { buildIssueTree, flattenTree, type TreeNode } from './tree';
 import {
   COLUMN_IDS,
   type ColumnId,
+  columnPatch,
   GROUP_KEYS,
-  type GroupKey,
+  isColumnVisible,
   KIND_FILTERS,
   matchesKind,
   parseListState,
@@ -58,58 +72,36 @@ import {
   useIssuesData,
 } from './use-issues';
 
-const ALL = '__all';
-
-interface FilterSelectProps {
-  label: string;
-  value: string;
-  options: { value: string; label: string }[];
-  allLabel: string;
-  onChange: (value: string) => void;
-}
-
-function FilterSelect({ label, value, options, allLabel, onChange }: FilterSelectProps) {
-  return (
-    <Select value={value || ALL} onValueChange={(v) => onChange(v === ALL ? '' : v)}>
-      <SelectTrigger size="sm" aria-label={label}>
-        <SelectValue />
-      </SelectTrigger>
-      <SelectContent>
-        <SelectItem value={ALL}>{allLabel}</SelectItem>
-        {options.map((o) => (
-          <SelectItem key={o.value} value={o.value}>
-            {o.label}
-          </SelectItem>
-        ))}
-      </SelectContent>
-    </Select>
-  );
-}
-
 /** Tham số URL của chip "Chờ duyệt": bật thì chỉ hiện nhóm yêu cầu góp ý chờ duyệt. */
 const PENDING_PARAM = 'pending';
+/** Khóa thu gọn của nhóm Chờ duyệt (cùng tập với khóa nhóm của danh sách). */
+const PENDING_GROUP = '__pending';
 
 interface PendingGroupProps {
   items: Contribution[];
   showAuthor: boolean;
   projectName: ReadonlyMap<string, string>;
+  collapsed: boolean;
+  onToggle: () => void;
 }
 
-/** Nhóm "Chờ duyệt" đầu trang: yêu cầu góp ý chưa vào lõi. Owner có nút Duyệt/Từ chối; khách chỉ thấy mục của mình. */
-function PendingGroup({ items, showAuthor, projectName }: PendingGroupProps) {
+/** Nhóm "Chờ duyệt" đầu danh sách: yêu cầu góp ý chưa vào lõi. Owner có nút Duyệt/Từ chối; khách chỉ thấy mục của mình. */
+function PendingGroup({ items, showAuthor, projectName, collapsed, onToggle }: PendingGroupProps) {
   const { t } = useT('contributions');
   const location = useLocation();
   const authorName = useAuthorNames();
   return (
-    <Section title={t('issuesGroup.title')}>
-      <ul aria-label={t('issuesGroup.label')} className="flex flex-col gap-3">
+    <IssueGroup label={t('issuesGroup.title')} collapsed={collapsed} onToggle={onToggle}>
+      <ul aria-label={t('issuesGroup.label')} className="flex flex-col">
         {items.map((c) => (
-          <li key={c.id} data-testid="pending-issue" data-status={c.status} className="flex flex-col gap-1">
-            <span className="flex flex-wrap items-center gap-2">
+          <ListItemRow key={c.id} data-testid="pending-issue" data-status={c.status}>
+            <span className="flex min-w-0 flex-wrap items-center gap-2">
               <ContributionBadge status={c.status} />
-              <Link to={contributionHref(c.id, location)}>{c.title ?? t('page.row.noTitle')}</Link>
+              <span className="min-w-0 truncate">
+                <Link to={contributionHref(c.id, location)}>{c.title ?? t('page.row.noTitle')}</Link>
+              </span>
             </span>
-            <span className="flex flex-wrap items-center gap-4">
+            <div className="flex flex-wrap items-center gap-4">
               {showAuthor ? (
                 <MutedText>
                   {t('page.row.author')}: {authorName(c.authorUserId) ?? c.authorUserId}
@@ -120,12 +112,12 @@ function PendingGroup({ items, showAuthor, projectName }: PendingGroupProps) {
                   {t('page.row.project')}: {projectName.get(c.projectId)}
                 </MutedText>
               ) : null}
-            </span>
+            </div>
             <ContributionActions contribution={c} />
-          </li>
+          </ListItemRow>
         ))}
       </ul>
-    </Section>
+    </IssueGroup>
   );
 }
 
@@ -135,17 +127,29 @@ interface Notice {
   failedUploads: string[];
 }
 
+const countDescendants = (node: TreeNode<CompactIssue>): number =>
+  node.children.reduce((sum, child) => sum + 1 + countDescendants(child), 0);
+
+const toggleIn = (set: ReadonlySet<string>, key: string): Set<string> => {
+  const next = new Set(set);
+  if (next.has(key)) next.delete(key);
+  else next.add(key);
+  return next;
+};
+
 export function IssuesPage() {
-  const { t } = useT('issues');
+  const { t, lang } = useT('issues');
   const { t: tc } = useT();
   const { t: tg } = useT('contributions');
   const { company } = useCompany();
   const access = useCompanyAccess();
+  const opener = useIssueOpener();
   const [params, setParams] = useSearchParams();
   const state = useMemo(() => parseListState(params), [params]);
-  const { issues, roots, projects, agents } = useIssuesData(company.id, state);
+  const { issues, roots, projects, agents, liveRuns } = useIssuesData(company.id, state);
   const selectable = useSelectableAgents(company.id);
-  const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
+  const [collapsedParents, setCollapsedParents] = useState<Set<string>>(new Set());
+  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
   const [notice, setNotice] = useState<Notice | null>(null);
   const [search, setSearch] = useState(state.q);
 
@@ -181,44 +185,32 @@ export function IssuesPage() {
   const rootsById = useMemo(() => new Map<string, CrewRoot>((roots.data ?? []).map((r) => [r.id, r])), [roots.data]);
   const projectName = useMemo(() => new Map((projects.data ?? []).map((p) => [p.id, p.name])), [projects.data]);
   const agentName = useMemo(() => new Map((agents.data ?? []).map((a) => [a.id, a.name])), [agents.data]);
+  const live = useMemo(() => liveIssueIds(liveRuns.data, issues.data ?? []), [liveRuns.data, issues.data]);
 
   const visible = useMemo(
     () => (issues.data ?? []).filter((i) => matchesKind(i, state.kind, rootsById)),
     [issues.data, state.kind, rootsById],
   );
-  const tree = useMemo(() => buildIssueTree(visible, sortCompare(state.sort)), [visible, state.sort]);
+  const groups = useMemo(
+    () =>
+      groupIssues(visible, state.group, {
+        status: (s) => tc(`status.${s}`, { defaultValue: s }),
+        project: (id) => projectName.get(id),
+        agent: (id) => agentName.get(id),
+        noProject: t('list.noProject'),
+        unassigned: t('list.unassigned'),
+      }).map((g) => ({ ...g, tree: buildIssueTree(g.items, sortCompare(state.sort)) })),
+    [visible, state.group, state.sort, projectName, agentName, tc, t],
+  );
 
-  const groupLabel = (issue: CompactIssue, group: GroupKey): string => {
-    if (group === 'status') return tc(`status.${issue.status}`, { defaultValue: issue.status });
-    if (group === 'project') return (issue.projectId && projectName.get(issue.projectId)) || t('list.noProject');
-    if (group === 'assignee')
-      return (issue.assigneeAgentId && agentName.get(issue.assigneeAgentId)) || t('list.unassigned');
-    return '';
-  };
-
-  const groups: { label: string | null; nodes: TreeNode<CompactIssue>[] }[] = [];
-  if (state.group === 'none') {
-    groups.push({ label: null, nodes: tree });
-  } else {
-    for (const node of tree) {
-      const label = groupLabel(node.issue, state.group);
-      const found = groups.find((g) => g.label === label);
-      if (found) found.nodes.push(node);
-      else groups.push({ label, nodes: [node] });
-    }
-  }
-
-  const show = (id: ColumnId) => !state.hidden.includes(id);
-  const colCount = 3 + COLUMN_IDS.filter(show).length;
-  const hasFilters = [...params.keys()].some((key) => key !== 'new');
-
-  const toggleBranch = (id: string) =>
-    setCollapsed((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
+  const show = (id: ColumnId) => isColumnVisible(state, id);
+  const canCreate = !access.readOnly || access.isContributor;
+  const filterCount = [
+    state.status,
+    state.projectId,
+    state.assigneeAgentId,
+    state.kind === 'all' ? '' : state.kind,
+  ].filter(Boolean).length;
 
   const setNewOpen = (open: boolean) =>
     setParams(
@@ -231,53 +223,108 @@ export function IssuesPage() {
       { replace: true },
     );
 
-  const renderRow = (node: TreeNode<CompactIssue>) => {
-    const { issue } = node;
+  const newButton = (
+    // Viewer thuần không tạo được yêu cầu; khách góp ý mở dialog gửi chờ duyệt.
+    <Button size="sm" variant="outline" aria-label={t('new.button')} onClick={() => setNewOpen(true)}>
+      <Plus aria-hidden />
+      <span className="hidden sm:inline-flex">{t('new.button')}</span>
+    </Button>
+  );
+
+  const metadata = (issue: CompactIssue): ReactNode => {
     const root = rootsById.get(issue.id);
-    const isOpen = !collapsed.has(issue.id);
+    const assignee = issue.assigneeAgentId ? agentName.get(issue.assigneeAgentId) : undefined;
+    const project = issue.projectId ? projectName.get(issue.projectId) : undefined;
+    const labels = issue.labels ?? [];
     return (
-      <TableRow key={issue.id} data-testid="issue-row" data-issue-id={issue.id} data-depth={node.depth}>
-        <TableCell>{issue.identifier ?? issue.id}</TableCell>
-        <TableCell>
-          <span className="flex min-w-0 items-center gap-1">
-            <span aria-hidden>{'    '.repeat(node.depth)}</span>
-            {node.children.length > 0 ? (
-              <Button
-                variant="ghost"
-                size="icon-xs"
-                aria-label={isOpen ? t('list.collapse') : t('list.expand')}
-                aria-expanded={isOpen}
-                onClick={() => toggleBranch(issue.id)}
-              >
-                {isOpen ? <ChevronDown aria-hidden /> : <ChevronRight aria-hidden />}
-              </Button>
-            ) : null}
-            <span className="min-w-0 truncate">
-              <IssueLink identifier={issue.identifier ?? issue.id}>{issue.title}</IssueLink>
-            </span>
-          </span>
-        </TableCell>
-        <TableCell>
-          <StatusBadge status={issue.status} />
-        </TableCell>
+      <>
+        {live.has(issue.id) ? <LiveBadge label={t('list.live')} /> : null}
         {show('stage') ? (
-          <TableCell>{root ? <StageBadge stage={resolveStageKey(root.stage, root.kind)} /> : null}</TableCell>
+          <RowCell size="lg">{root ? <StageBadge stage={resolveStageKey(root.stage, root.kind)} /> : null}</RowCell>
         ) : null}
         {show('progress') ? (
-          <TableCell>
+          <RowCell size="sm">
             {root && root.totalChildren > 0
               ? t('list.progress', { done: root.doneChildren, total: root.totalChildren })
               : null}
-          </TableCell>
-        ) : null}
-        {show('project') ? (
-          <TableCell>{issue.projectId ? (projectName.get(issue.projectId) ?? '') : ''}</TableCell>
+          </RowCell>
         ) : null}
         {show('assignee') ? (
-          <TableCell>{issue.assigneeAgentId ? (agentName.get(issue.assigneeAgentId) ?? '') : ''}</TableCell>
+          <RowCell size="lg" title={assignee}>
+            {assignee ? <Identity name={assignee} /> : null}
+          </RowCell>
         ) : null}
-      </TableRow>
+        {show('project') ? (
+          <RowCell size="md" title={project}>
+            {project ?? null}
+          </RowCell>
+        ) : null}
+        {show('labels') ? (
+          <RowCell size="sm" title={labels.map((l) => l.name).join(', ') || undefined}>
+            {labels.length > 0 ? <LabelPill name={labels[0].name} color={labels[0].color} /> : null}
+            {labels.length > 1 ? <RowNote>+{labels.length - 1}</RowNote> : null}
+          </RowCell>
+        ) : null}
+      </>
     );
+  };
+
+  const renderRow = (node: TreeNode<CompactIssue>) => {
+    const { issue } = node;
+    const identifier = issue.identifier ?? issue.id;
+    const hasChildren = node.children.length > 0;
+    const expanded = !collapsedParents.has(issue.id);
+    const at = activityAt(issue);
+    return (
+      <IssueListRow
+        key={issue.id}
+        data-testid="issue-row"
+        data-issue-id={issue.id}
+        data-depth={node.depth}
+        title={issue.title}
+        href={opener.href(identifier)}
+        onOpen={() => opener.open(identifier)}
+        status={issue.status}
+        statusLabel={tc(`status.${issue.status}`, { defaultValue: issue.status })}
+        depth={node.depth}
+        chevronInGuide={node.depth > 0 && hasChildren}
+        leading={
+          hasChildren ? (
+            <TreeToggle
+              expanded={expanded}
+              label={expanded ? t('list.collapse') : t('list.expand')}
+              onToggle={() => setCollapsedParents((prev) => toggleIn(prev, issue.id))}
+            />
+          ) : (
+            <TreeSpacer />
+          )
+        }
+        titleSuffix={
+          hasChildren && !expanded ? <RowNote>{t('list.children', { count: countDescendants(node) })}</RowNote> : null
+        }
+        metadata={metadata(issue)}
+        identifier={show('id') ? identifier : null}
+        time={show('updated') ? { text: formatRelative(at, lang), title: formatDateTime(at, lang) } : null}
+      />
+    );
+  };
+
+  /** Dòng của một nhóm; khi sắp theo ngày (mới nhất trước) chèn vạch Hôm nay/Hôm qua/Trước đó giữa các yêu cầu gốc. */
+  const renderRows = (tree: TreeNode<CompactIssue>[]) => {
+    const field = dateSeparatorField(state.sort);
+    const now = new Date();
+    let previous: DateGroup | null = null;
+    const out: ReactNode[] = [];
+    for (const node of flattenTree(tree, (n) => !collapsedParents.has(n.issue.id))) {
+      if (field && node.depth === 0) {
+        const current = dateGroup(node.issue[field], now);
+        const label = dateSeparator(previous, current);
+        if (label) out.push(<DateSeparator key={`date-${node.issue.id}`} label={t(`list.date.${label}`)} />);
+        previous = current;
+      }
+      out.push(renderRow(node));
+    }
+    return out;
   };
 
   const body = () => {
@@ -287,55 +334,40 @@ export function IssuesPage() {
         <ErrorState title={t('page.loadFailed')} message={issues.error.message} onRetry={() => void issues.refetch()} />
       );
     }
-    if (tree.length === 0) {
-      return <EmptyState title={hasFilters ? t('page.emptyFiltered') : t('page.empty')} />;
+    if (visible.length === 0) {
+      return (
+        <EmptyState
+          icon={<CircleDot aria-hidden />}
+          title={filterCount > 0 || state.q ? t('page.emptyFiltered') : t('page.empty')}
+        />
+      );
     }
     return (
-      <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead>{t('list.col.id')}</TableHead>
-            <TableHead>{t('list.col.title')}</TableHead>
-            <TableHead>{t('list.col.status')}</TableHead>
-            {show('stage') ? <TableHead>{t('list.col.stage')}</TableHead> : null}
-            {show('progress') ? <TableHead>{t('list.col.progress')}</TableHead> : null}
-            {show('project') ? <TableHead>{t('list.col.project')}</TableHead> : null}
-            {show('assignee') ? <TableHead>{t('list.col.assignee')}</TableHead> : null}
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {groups.map((group) => (
-            <Fragment key={group.label ?? 'all'}>
-              {group.label !== null ? (
-                <TableRow>
-                  <TableHead colSpan={colCount} data-testid="group-heading">
-                    {group.label} ({group.nodes.length})
-                  </TableHead>
-                </TableRow>
-              ) : null}
-              {flattenTree(group.nodes, (n) => !collapsed.has(n.issue.id)).map(renderRow)}
-            </Fragment>
-          ))}
-        </TableBody>
-      </Table>
+      <div className="flex flex-col">
+        {groups.map((group) =>
+          group.label === null ? (
+            <div key={group.key} className="flex flex-col">
+              {renderRows(group.tree)}
+            </div>
+          ) : (
+            <IssueGroup
+              key={group.key}
+              label={group.label}
+              headingTestId="group-heading"
+              collapsed={collapsedGroups.has(group.key)}
+              onToggle={() => setCollapsedGroups((prev) => toggleIn(prev, group.key))}
+            >
+              <div className="flex flex-col">{renderRows(group.tree)}</div>
+            </IssueGroup>
+          ),
+        )}
+      </div>
     );
   };
 
   return (
-    <div className="flex flex-col gap-3">
-      <PageHeader
-        title={t('page.title')}
-        description={t('page.description')}
-        actions={
-          // Viewer thuần không tạo được yêu cầu; khách góp ý mở dialog gửi chờ duyệt.
-          !access.readOnly || access.isContributor ? (
-            <Button onClick={() => setNewOpen(true)}>
-              <Plus aria-hidden />
-              {t('new.button')}
-            </Button>
-          ) : undefined
-        }
-      />
+    <div className="flex flex-col gap-4">
+      <CollectionTitle>{t('page.title')}</CollectionTitle>
       {notice ? (
         <Card role="status">
           <CardContent className="flex flex-col gap-2">
@@ -349,91 +381,109 @@ export function IssuesPage() {
           </CardContent>
         </Card>
       ) : null}
-      <FilterBar
-        search={{ value: search, onChange: setSearch, placeholder: t('list.search') }}
-        onReset={() =>
-          setParams(new URLSearchParams(params.get('new') ? { new: params.get('new') as string } : {}), {
-            replace: true,
-          })
-        }
-      >
-        <FilterSelect
-          label={t('list.status')}
-          value={state.status}
-          allLabel={t('list.all')}
-          options={STATUS_OPTIONS.map((s) => ({ value: s, label: tc(`status.${s}`) }))}
-          onChange={(v) => patch({ status: v })}
-        />
-        <FilterSelect
-          label={t('list.project')}
-          value={state.projectId}
-          allLabel={t('list.all')}
-          options={(projects.data ?? []).map((p) => ({ value: p.id, label: p.name }))}
-          onChange={(v) => patch({ projectId: v })}
-        />
-        <FilterSelect
-          label={t('list.assignee')}
-          value={state.assigneeAgentId}
-          allLabel={t('list.all')}
-          options={selectable(agents.data, [state.assigneeAgentId]).map((a) => ({ value: a.id, label: a.name }))}
-          onChange={(v) => patch({ assigneeAgentId: v })}
-        />
-        <FilterSelect
-          label={t('list.kind')}
-          value={state.kind === 'all' ? '' : state.kind}
-          allLabel={t('list.all')}
-          options={KIND_FILTERS.filter((k) => k !== 'all').map((k) => ({ value: k, label: t(`list.kindOption.${k}`) }))}
-          onChange={(v) => patch({ kind: v })}
-        />
-        <FilterSelect
-          label={t('list.sort')}
-          value={state.sort === 'updated' ? '' : state.sort}
-          allLabel={t('list.sortOption.updated')}
-          options={SORT_KEYS.filter((s) => s !== 'updated').map((s) => ({
-            value: s,
-            label: t(`list.sortOption.${s}`),
-          }))}
-          onChange={(v) => patch({ sort: v })}
-        />
-        <FilterSelect
-          label={t('list.group')}
-          value={state.group === 'none' ? '' : state.group}
-          allLabel={t('list.none')}
-          options={GROUP_KEYS.filter((g) => g !== 'none').map((g) => ({ value: g, label: t(`list.groupOption.${g}`) }))}
-          onChange={(v) => patch({ group: v })}
-        />
-        {pending.length > 0 || pendingOnly ? (
-          <Button
-            type="button"
-            size="sm"
-            variant={pendingOnly ? 'secondary' : 'outline'}
-            aria-pressed={pendingOnly}
-            data-testid="pending-chip"
-            onClick={togglePendingOnly}
-          >
-            {tg('issuesGroup.chip', { count: pending.length })}
-          </Button>
-        ) : null}
-      </FilterBar>
-      <fieldset className="flex flex-wrap items-center gap-3">
-        <legend>{t('list.columns')}</legend>
-        {COLUMN_IDS.map((id) => (
-          <span key={id} className="flex items-center gap-1">
-            <Checkbox
-              id={`col-${id}`}
-              checked={show(id)}
-              onCheckedChange={(checked) =>
-                patch({
-                  hidden: (checked ? state.hidden.filter((c) => c !== id) : [...state.hidden, id]).join(',') || null,
-                })
-              }
+      <CollectionToolbar
+        ariaLabel={t('list.toolbar')}
+        context={canCreate ? newButton : undefined}
+        search={<ToolbarSearch value={search} onChange={setSearch} placeholder={t('list.search')} />}
+        controls={
+          <>
+            {pending.length > 0 || pendingOnly ? (
+              <Button
+                type="button"
+                size="sm"
+                variant={pendingOnly ? 'secondary' : 'outline'}
+                aria-pressed={pendingOnly}
+                data-testid="pending-chip"
+                onClick={togglePendingOnly}
+              >
+                {tg('issuesGroup.chip', { count: pending.length })}
+              </Button>
+            ) : null}
+            <ToolbarColumnsMenu
+              label={t('list.columns')}
+              eyebrow={t('list.columnsEyebrow')}
+              title={t('list.columnsTitle')}
+              columns={COLUMN_IDS.map((id) => ({
+                id,
+                label: t(`list.col.${id}`),
+                description: t(`list.colHint.${id}`),
+              }))}
+              isVisible={(id) => show(id as ColumnId)}
+              onToggle={(id, on) => patch(columnPatch(state, id as ColumnId, on))}
+              resetLabel={t('list.columnsReset')}
+              onReset={() => patch({ hidden: null, shown: null })}
             />
-            <Label htmlFor={`col-${id}`}>{t(`list.col.${id}`)}</Label>
-          </span>
-        ))}
-      </fieldset>
+            <ToolbarFilterMenu
+              label={filterCount > 0 ? t('list.filterActive', { count: filterCount }) : t('list.filter')}
+              title={t('list.filterTitle')}
+              clearLabel={t('list.clear')}
+              activeCount={filterCount}
+              onClear={() => patch({ status: null, projectId: null, assigneeAgentId: null, kind: null })}
+              sections={[
+                {
+                  id: 'status',
+                  label: t('list.status'),
+                  value: state.status,
+                  onChange: (v) => patch({ status: v }),
+                  options: STATUS_OPTIONS.map((s) => ({ value: s, label: tc(`status.${s}`), status: s })),
+                },
+                {
+                  id: 'assignee',
+                  label: t('list.assignee'),
+                  value: state.assigneeAgentId,
+                  onChange: (v) => patch({ assigneeAgentId: v }),
+                  options: selectable(agents.data, [state.assigneeAgentId]).map((a) => ({
+                    value: a.id,
+                    label: a.name,
+                  })),
+                },
+                {
+                  id: 'project',
+                  label: t('list.project'),
+                  value: state.projectId,
+                  onChange: (v) => patch({ projectId: v }),
+                  options: (projects.data ?? []).map((p) => ({ value: p.id, label: p.name })),
+                },
+                {
+                  id: 'kind',
+                  label: t('list.kind'),
+                  value: state.kind === 'all' ? '' : state.kind,
+                  onChange: (v) => patch({ kind: v }),
+                  options: KIND_FILTERS.filter((k) => k !== 'all').map((k) => ({
+                    value: k,
+                    label: t(`list.kindOption.${k}`),
+                  })),
+                },
+              ]}
+            />
+            <ToolbarChoiceMenu
+              kind="sort"
+              label={t('list.sort')}
+              value={state.sort}
+              onSelect={(v) => patch({ sort: v })}
+              options={SORT_KEYS.map((s) => ({ value: s, label: t(`list.sortOption.${s}`) }))}
+            />
+            <ToolbarChoiceMenu
+              kind="group"
+              label={t('list.group')}
+              value={state.group}
+              onSelect={(v) => patch({ group: v })}
+              options={[...GROUP_KEYS.filter((g) => g !== 'none'), 'none' as const].map((g) => ({
+                value: g,
+                label: t(`list.groupOption.${g}`),
+              }))}
+            />
+          </>
+        }
+      />
       {pending.length > 0 ? (
-        <PendingGroup items={pending} showAuthor={access.isOwner} projectName={projectName} />
+        <PendingGroup
+          items={pending}
+          showAuthor={access.isOwner}
+          projectName={projectName}
+          collapsed={collapsedGroups.has(PENDING_GROUP)}
+          onToggle={() => setCollapsedGroups((prev) => toggleIn(prev, PENDING_GROUP))}
+        />
       ) : pendingOnly ? (
         pendingQuery.error ? (
           <ErrorState title={tg('issuesGroup.loadFailed')} message={pendingQuery.error.message} />

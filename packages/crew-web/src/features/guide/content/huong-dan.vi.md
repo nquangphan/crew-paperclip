@@ -106,7 +106,7 @@ Một yêu cầu nhỏ thường mất 15 đến 30 phút, tùy độ khó và �
 
 {{shot:issue-detail}}
 
-Bấm một yêu cầu ở bất kỳ danh sách nào (trang **Yêu cầu**, **Hộp thư**, **Tìm kiếm**, **Tổng quan**, tab Yêu cầu của project hoặc agent, hay Ctrl/Cmd+K) để mở chi tiết dạng **cửa sổ nổi** ngay trên trang đang xem; địa chỉ có thêm `?issue=mã`, bấm **Esc**, nút đóng, vùng nền hoặc nút Back của trình duyệt để quay lại đúng chỗ cũ. Bấm **Mở toàn trang** (hoặc Cmd/Ctrl+click vào yêu cầu) để xem trang đầy đủ ở tab mới. Ở trang **Yêu cầu** bạn có thể tìm, lọc theo trạng thái, project, người làm, loại (Nghiên cứu hoặc Code / Bug), sắp xếp, nhóm và chọn cột. Hai cột của Crew:
+Bấm một yêu cầu ở bất kỳ danh sách nào (trang **Yêu cầu**, **Hộp thư**, **Tìm kiếm**, **Tổng quan**, tab Yêu cầu của project hoặc agent, hay Ctrl/Cmd+K) để mở chi tiết dạng **cửa sổ nổi** ngay trên trang đang xem; địa chỉ có thêm `?issue=mã`, bấm **Esc**, nút đóng, vùng nền hoặc nút Back của trình duyệt để quay lại đúng chỗ cũ. Bấm **Mở toàn trang** (hoặc Cmd/Ctrl+click vào yêu cầu) để xem trang đầy đủ ở tab mới. Trang **Yêu cầu** giữ giao diện danh sách của Paperclip: thanh công cụ có nút **Yêu cầu mới**, ô tìm và bốn nút bên phải: **Cột** (chọn cột hiện trên mỗi dòng, **Đặt lại mặc định**), **Lọc** (trạng thái, người làm, dự án, loại Nghiên cứu hoặc Code / Bug; bấm lại mục đang chọn để bỏ, **Xóa** để bỏ hết), **Sắp xếp** và **Nhóm** (theo trạng thái, người làm, project; bấm tiêu đề nhóm để thu gọn). Mỗi dòng có biểu tượng trạng thái, tiêu đề, người làm, nhãn, mã và thời gian cập nhật; yêu cầu đang có run hiện nhãn **Đang chạy**, và khi sắp theo ngày có vạch **Hôm nay**, **Hôm qua**. Hai cột của Crew:
 - **Giai đoạn Crew**: yêu cầu đang ở bước nào.
 - **Yêu cầu con**: dạng "1/3 con xong".
 

@@ -1,4 +1,5 @@
-// S4 Danh sách yêu cầu: lồng issue con, tìm/lọc/sắp xếp/nhóm/cột, cột Crew, nút "Yêu cầu mới".
+// S4 Danh sách yêu cầu (bố cục IssuesList Paperclip): lồng issue con, tìm, popover Lọc, menu Sắp xếp/Nhóm/Cột, cột
+// Crew, nút "Yêu cầu mới".
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import {
@@ -94,61 +95,77 @@ test('PW-S4-2 tìm, lọc (trạng thái, project, người làm, loại), sắp
     await expect(page).toHaveURL(new RegExp(`q=${token}`));
     await expect(rows(page)).toHaveCount(research ? 3 : 2);
 
+    // Bộ lọc (popover Lọc như Paperclip): mỗi mục chọn một giá trị, bấm lại thì bỏ.
+    const filters = async () => {
+      await page.getByRole('button', { name: /^Lọc/ }).click();
+      return page.getByRole('dialog', { name: 'Bộ lọc' });
+    };
+    const closeFilters = () => page.keyboard.press('Escape');
+
     // Trạng thái.
-    await page.getByRole('combobox', { name: 'Trạng thái' }).click();
-    await page.getByRole('option', { name: 'Cần làm' }).click();
+    let panel = await filters();
+    await panel.getByRole('checkbox', { name: 'Cần làm' }).click();
     await expect(rows(page)).toHaveCount(1);
     await expect(rowOf(page, a.identifier)).toBeVisible();
-    await page.getByRole('combobox', { name: 'Trạng thái' }).click();
-    await page.getByRole('option', { name: 'Tất cả' }).click();
+    await panel.getByRole('checkbox', { name: 'Cần làm' }).click();
+    await expect(page).not.toHaveURL(/status=/);
 
     // Project.
-    await page.getByRole('combobox', { name: 'Dự án' }).click();
-    await page.getByRole('option', { name: project.name }).click();
+    await panel.getByRole('checkbox', { name: project.name }).click();
     await expect(rows(page)).toHaveCount(research ? 3 : 2);
 
     // Người làm.
-    await page.getByRole('combobox', { name: 'Người làm' }).click();
-    await page.getByRole('option', { name: 'crew-e2e-worker' }).click();
+    await panel.getByRole('checkbox', { name: 'crew-e2e-worker' }).click();
     await expect(rows(page)).toHaveCount(1);
-    await page.getByRole('combobox', { name: 'Người làm' }).click();
-    await page.getByRole('option', { name: 'Tất cả' }).click();
+    await panel.getByRole('checkbox', { name: 'crew-e2e-worker' }).click();
 
     // Loại: Nghiên cứu / Code-Bug.
     if (research) {
-      await page.getByRole('combobox', { name: 'Loại' }).click();
-      await page.getByRole('option', { name: 'Nghiên cứu' }).click();
+      await panel.getByRole('checkbox', { name: 'Nghiên cứu' }).click();
       await expect(rows(page)).toHaveCount(1);
       await expect(rowOf(page, research.identifier)).toBeVisible();
-      await page.getByRole('combobox', { name: 'Loại' }).click();
-      await page.getByRole('option', { name: 'Code / Bug' }).click();
+      await panel.getByRole('checkbox', { name: 'Code / Bug' }).click();
       await expect(rowOf(page, research.identifier)).toHaveCount(0);
       await expect(rowOf(page, a.identifier)).toBeVisible();
-      await page.getByRole('combobox', { name: 'Loại' }).click();
-      await page.getByRole('option', { name: 'Tất cả' }).click();
+      await panel.getByRole('checkbox', { name: 'Code / Bug' }).click();
     }
+    await closeFilters();
 
     // Sắp xếp theo tiêu đề: aaa trước bbb.
-    await page.getByRole('combobox', { name: 'Sắp xếp' }).click();
-    await page.getByRole('option', { name: 'Tiêu đề' }).click();
+    await page.getByRole('button', { name: 'Sắp xếp' }).click();
+    await page.getByRole('menuitemradio', { name: 'Tiêu đề' }).click();
+    await expect(page).toHaveURL(/sort=title/);
     const order = await rows(page).evaluateAll((els) => els.map((e) => e.getAttribute('data-issue-id')));
     expect(order.indexOf(b.id)).toBeLessThan(order.indexOf(a.id));
 
-    // Nhóm theo trạng thái.
-    await page.getByRole('combobox', { name: 'Nhóm' }).click();
-    await page.getByRole('option', { name: 'Trạng thái' }).click();
+    // Nhóm theo trạng thái: tiêu đề nhóm viết hoa, thu gọn được.
+    await page.getByRole('button', { name: 'Nhóm' }).click();
+    await page.getByRole('menuitemradio', { name: 'Trạng thái' }).click();
     await expect(page.getByTestId('group-heading').filter({ hasText: 'Cần làm' })).toHaveCount(1);
     await expect(page.getByTestId('group-heading').filter({ hasText: 'Tồn đọng' })).toHaveCount(1);
+    await page.getByRole('button', { name: 'Cần làm', exact: true }).click();
+    await expect(rowOf(page, a.identifier)).toHaveCount(0);
+    await page.getByRole('button', { name: 'Cần làm', exact: true }).click();
+    await expect(rowOf(page, a.identifier)).toBeVisible();
 
-    // Cột: ẩn "Người làm".
-    await expect(page.getByRole('columnheader', { name: 'Người làm' })).toBeVisible();
-    await page.getByRole('checkbox', { name: 'Người làm' }).click();
-    await expect(page.getByRole('columnheader', { name: 'Người làm' })).toHaveCount(0);
+    // Cột: ẩn "Người làm" (menu Cột), Đặt lại mặc định hiện lại.
+    await expect(rowOf(page, a.identifier)).toContainText('crew-e2e-worker');
+    await page.getByRole('button', { name: 'Cột' }).click();
+    await page.getByRole('menuitemcheckbox', { name: /^Người làm/ }).click();
+    await page.keyboard.press('Escape');
+    await expect(page).toHaveURL(/hide=assignee/);
+    await expect(rowOf(page, a.identifier)).not.toContainText('crew-e2e-worker');
 
-    // Xóa bộ lọc đưa danh sách về mặc định.
-    await page.getByRole('button', { name: 'Xóa bộ lọc' }).click();
-    await expect(page).not.toHaveURL(/q=/);
-    await expect(page.getByRole('columnheader', { name: 'Người làm' })).toBeVisible();
+    // Xóa trong bảng Lọc bỏ mọi bộ lọc, giữ từ khóa; Đặt lại mặc định hiện lại cột.
+    panel = await filters();
+    await panel.getByRole('button', { name: 'Xóa' }).click();
+    await closeFilters();
+    await expect(page).not.toHaveURL(/project=/);
+    await expect(page).toHaveURL(new RegExp(`q=${token}`));
+    await page.getByRole('button', { name: 'Cột' }).click();
+    await page.getByRole('menuitem', { name: 'Đặt lại mặc định' }).click();
+    await expect(page).not.toHaveURL(/hide=/);
+    await expect(rowOf(page, a.identifier)).toContainText('crew-e2e-worker');
   } finally {
     await archiveProject(api, project.id);
   }
@@ -169,12 +186,11 @@ test('PW-S4-3 cột "Giai đoạn Crew" và "x/y con xong" khớp crew.roots @t1
   expect(mine?.totalChildren).toBe(2);
 
   await page.goto(company.path('issues'));
-  await expect(page.getByRole('columnheader', { name: 'Giai đoạn Crew' })).toBeVisible();
   const row = rowOf(page, root.identifier);
   await expect(row).toContainText(`${mine?.doneChildren}/${mine?.totalChildren} con xong`);
   // Ô giai đoạn là một trong các nhãn giai đoạn đã định nghĩa (không để trống với issue gốc).
   const labels = Object.values(vi.stage).filter((s) => !s.includes('{{'));
-  const cells = await row.getByRole('cell').allInnerTexts();
+  const cells = await row.locator('[data-slot="task-row-cell"]').allInnerTexts();
   expect(
     cells.some((c) => labels.includes(c.trim())),
     `ô giai đoạn không khớp nhãn nào: ${cells.join(' | ')}`,

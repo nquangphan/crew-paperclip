@@ -143,13 +143,37 @@ describe('IssuesPage cột Crew (S4.3)', () => {
     expect(within(rows()[2]).queryByText(/con xong/)).toBeNull();
   });
 
-  it('ẩn cột Giai đoạn Crew khi bỏ chọn và ghi vào URL', async () => {
+  it('ẩn cột Giai đoạn Crew trong menu Cột và ghi vào URL; Đặt lại mặc định hiện lại', async () => {
     server();
     mount();
     await screen.findByText('Yêu cầu 1');
-    fireEvent.click(screen.getByRole('checkbox', { name: 'Giai đoạn Crew' }));
-    expect(screen.queryByRole('columnheader', { name: 'Giai đoạn Crew' })).toBeNull();
-    expect(loc()).toContain('hide=stage');
+    await waitFor(() => expect(within(rows()[0]).getByText('Reviewer')).toBeTruthy());
+    fireEvent.keyDown(screen.getByRole('button', { name: 'Cột' }), { key: 'Enter' });
+    fireEvent.click(await screen.findByRole('menuitemcheckbox', { name: /^Giai đoạn Crew/ }));
+    await waitFor(() => expect(loc()).toContain('hide=stage'));
+    expect(within(rows()[0]).queryByText('Reviewer')).toBeNull();
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Đặt lại mặc định' }));
+    await waitFor(() => expect(loc()).toBe('/TPS/issues'));
+  });
+
+  it('bật cột Project ghi ?show=, tắt lại thì bỏ tham số', async () => {
+    server();
+    mount();
+    await screen.findByText('Yêu cầu 1');
+    fireEvent.keyDown(screen.getByRole('button', { name: 'Cột' }), { key: 'Enter' });
+    fireEvent.click(await screen.findByRole('menuitemcheckbox', { name: /^Project/ }));
+    await waitFor(() => expect(loc()).toContain('show=project'));
+    expect(within(rows()[0]).getByText('Alpha')).toBeTruthy();
+    fireEvent.click(screen.getByRole('menuitemcheckbox', { name: /^Project/ }));
+    await waitFor(() => expect(loc()).toBe('/TPS/issues'));
+  });
+
+  it('ẩn cột Mã và Cập nhật bỏ mã và thời gian khỏi dòng', async () => {
+    server();
+    mount('/TPS/issues?hide=id,updated');
+    await screen.findByText('Yêu cầu 1');
+    expect(within(rows()[0]).queryByText('TPS-1')).toBeNull();
+    expect(rows()[0].querySelector('[data-slot="task-row-timestamp"]')).toBeNull();
   });
 });
 
@@ -198,26 +222,29 @@ describe('IssuesPage lọc, sắp xếp, nhóm (S4.2)', () => {
       await waitFor(() => expect(s.calls.some((c) => c.url.endsWith('/crew.setupRuns'))).toBe(true));
       await new Promise((r) => setTimeout(r, 0));
     };
-    const open = async () => {
-      fireEvent.keyDown(screen.getByRole('combobox', { name: 'Người làm' }), { key: 'Enter' });
-      await screen.findByRole('option', { name: 'Trợ Lý Alpha' });
+    const open = async (name: string) => {
+      fireEvent.click(screen.getByRole('button', { name }));
+      await screen.findByRole('checkbox', { name: 'Trợ Lý Alpha' });
     };
     await ready();
-    await open();
-    expect(screen.queryByRole('option', { name: 'Agent Đã Gỡ' })).toBeNull();
+    await open('Lọc');
+    expect(screen.queryByRole('checkbox', { name: 'Agent Đã Gỡ' })).toBeNull();
     cleanup();
     await ready('/TPS/issues?assignee=a2');
-    await open();
-    expect(screen.getByRole('option', { name: 'Agent Đã Gỡ' })).toBeTruthy();
+    await open('Lọc: 1');
+    expect(screen.getByRole('checkbox', { name: 'Agent Đã Gỡ' }).getAttribute('aria-checked')).toBe('true');
   });
 
   it('chọn bộ lọc thì đổi URL, không ghi gì lên server', async () => {
     const { calls } = server();
     mount();
     await screen.findByText('Yêu cầu 1');
-    fireEvent.keyDown(screen.getByRole('combobox', { name: 'Trạng thái' }), { key: 'Enter' });
-    fireEvent.click(screen.getByRole('option', { name: 'Đang làm' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Lọc' }));
+    fireEvent.click(await screen.findByRole('checkbox', { name: 'Đang làm' }));
     await waitFor(() => expect(loc()).toContain('status=in_progress'));
+    // Bấm lại mục đang chọn thì bỏ lọc.
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Đang làm' }));
+    await waitFor(() => expect(loc()).toBe('/TPS/issues'));
     expect(calls.filter((c) => c.method !== 'GET' && !c.url.includes('/data/'))).toEqual([]);
   });
 
@@ -243,21 +270,99 @@ describe('IssuesPage lọc, sắp xếp, nhóm (S4.2)', () => {
     expect(rows().map(idOf)).toEqual(['3', '1', '2']);
   });
 
-  it('nhóm theo trạng thái chia thành các nhóm có tiêu đề', async () => {
+  it('menu Sắp xếp và Nhóm ghi vào URL', async () => {
+    server();
+    mount();
+    await screen.findByText('Yêu cầu 1');
+    fireEvent.click(screen.getByRole('button', { name: 'Sắp xếp' }));
+    fireEvent.click(await screen.findByRole('menuitemradio', { name: 'Tiêu đề' }));
+    await waitFor(() => expect(loc()).toContain('sort=title'));
+    fireEvent.click(screen.getByRole('button', { name: 'Nhóm' }));
+    fireEvent.click(await screen.findByRole('menuitemradio', { name: 'Người làm' }));
+    await waitFor(() => expect(loc()).toContain('group=assignee'));
+  });
+
+  it('nhóm theo trạng thái theo thứ tự Paperclip, thu gọn được nhóm', async () => {
     server();
     mount('/TPS/issues?group=status');
     await screen.findByText('Yêu cầu 1');
     const headings = screen.getAllByTestId('group-heading').map((h) => h.textContent);
-    expect(headings.some((h) => h?.includes('Đang làm'))).toBe(true);
-    expect(headings.some((h) => h?.includes('Cần làm'))).toBe(true);
+    expect(headings).toEqual(['Đang làm', 'Cần làm', 'Hoàn thành']);
+    fireEvent.click(screen.getByRole('button', { name: 'Cần làm' }));
+    expect(rows().map(idOf)).toEqual(['1', '2']);
+    fireEvent.click(screen.getByRole('button', { name: 'Cần làm' }));
+    expect(rows().map(idOf)).toEqual(['1', '3', '4', '2']);
   });
 
-  it('đặt lại bộ lọc xóa tham số khỏi URL', async () => {
+  it('Xóa trong bảng Lọc bỏ bộ lọc, giữ từ khóa tìm', async () => {
     server();
-    mount('/TPS/issues?status=todo&kind=research');
+    mount('/TPS/issues?status=todo&kind=research&q=tinh');
     await screen.findByText('Yêu cầu 3');
-    fireEvent.click(screen.getByRole('button', { name: 'Xóa bộ lọc' }));
-    await waitFor(() => expect(loc()).toBe('/TPS/issues'));
+    fireEvent.click(screen.getByRole('button', { name: 'Lọc: 2' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Xóa' }));
+    await waitFor(() => expect(loc()).toBe('/TPS/issues?q=tinh'));
+  });
+});
+
+describe('IssuesPage dòng kiểu Paperclip', () => {
+  const now = Date.now();
+  const ago = (days: number) => new Date(now - days * 86_400_000).toISOString();
+
+  it('vạch Hôm nay / Hôm qua / Trước đó giữa yêu cầu gốc khi sắp theo ngày cập nhật', async () => {
+    server({
+      'GET /api/companies/c1/issues': {
+        body: [issue('1', { updatedAt: ago(0) }), issue('2', { updatedAt: ago(1) }), issue('3', { updatedAt: ago(5) })],
+      },
+    });
+    mount();
+    await screen.findByText('Yêu cầu 1');
+    expect(screen.getAllByRole('separator').map((s) => s.getAttribute('aria-label'))).toEqual([
+      'Hôm nay',
+      'Hôm qua',
+      'Trước đó',
+    ]);
+    cleanup();
+    server({ 'GET /api/companies/c1/issues': { body: [issue('1', { updatedAt: ago(0) })] } });
+    mount('/TPS/issues?sort=title');
+    await screen.findByText('Yêu cầu 1');
+    expect(screen.queryAllByRole('separator')).toEqual([]);
+  });
+
+  it('dòng có glyph trạng thái, người làm, mã; nhãn Đang chạy theo run sống', async () => {
+    server({
+      'GET /api/companies/c1/live-runs': {
+        body: [
+          { id: 'r1', status: 'running', agentId: 'a1', agentName: 'Trợ Lý Alpha', issueId: '1', createdAt: ago(0) },
+          { id: 'r2', status: 'running', agentId: 'a1', agentName: 'Trợ Lý Alpha', issueId: '2', createdAt: ago(0) },
+        ],
+      },
+    });
+    mount();
+    await screen.findByText('Yêu cầu 1');
+    const first = rows()[0];
+    expect(within(first).getByRole('img', { name: 'Đang làm' })).toBeTruthy();
+    expect(within(first).getByText('Trợ Lý Alpha')).toBeTruthy();
+    // Cột Project ẩn sẵn như Paperclip.
+    expect(within(first).queryByText('Alpha')).toBeNull();
+    expect(within(first).getByText('TPS-1')).toBeTruthy();
+    expect(await within(first).findByText('Đang chạy')).toBeTruthy();
+    // Run sống của yêu cầu đã xong không gắn nhãn.
+    expect(within(rows()[1]).queryByText('Đang chạy')).toBeNull();
+  });
+
+  it('thu yêu cầu con thì tiêu đề cha ghi số con', async () => {
+    server();
+    mount();
+    await screen.findByText('Yêu cầu 1');
+    fireEvent.click(screen.getByRole('button', { name: 'Thu yêu cầu con' }));
+    expect(within(rows()[0]).getByText('(1 yêu cầu con)')).toBeTruthy();
+  });
+
+  it('bấm dòng mở popup ?issue= trên trang', async () => {
+    server();
+    mount();
+    fireEvent.click(await screen.findByRole('link', { name: 'Yêu cầu 3' }));
+    await waitFor(() => expect(loc()).toBe('/TPS/issues?issue=TPS-3'));
   });
 });
 

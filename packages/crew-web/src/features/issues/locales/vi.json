@@ -1,7 +1,6 @@
 {
   "page": {
     "title": "Yêu cầu",
-    "description": "Danh sách yêu cầu của company, yêu cầu con nằm dưới yêu cầu gốc.",
     "loadFailed": "Không tải được danh sách yêu cầu",
     "empty": "Chưa có yêu cầu nào",
     "emptyFiltered": "Không có yêu cầu khớp bộ lọc",
@@ -11,6 +10,7 @@
     "uploadFailed": "Không đính kèm được: {{names}}"
   },
   "list": {
+    "toolbar": "Điều khiển danh sách yêu cầu",
     "search": "Tìm yêu cầu",
     "status": "Trạng thái",
     "project": "Dự án",
@@ -18,21 +18,38 @@
     "kind": "Loại",
     "sort": "Sắp xếp",
     "group": "Nhóm",
+    "filter": "Lọc",
+    "filterActive": "Lọc: {{count}}",
+    "filterTitle": "Bộ lọc",
+    "clear": "Xóa",
     "columns": "Cột",
-    "all": "Tất cả",
+    "columnsEyebrow": "Dòng yêu cầu trên desktop",
+    "columnsTitle": "Chọn cột hiện trên mỗi dòng",
+    "columnsReset": "Đặt lại mặc định",
     "none": "Không",
     "unassigned": "Chưa giao",
     "noProject": "Không có project",
     "expand": "Mở yêu cầu con",
     "collapse": "Thu yêu cầu con",
+    "children": "({{count}} yêu cầu con)",
+    "live": "Đang chạy",
     "col": {
-      "id": "Mã",
-      "title": "Tiêu đề",
-      "status": "Trạng thái",
       "stage": "Giai đoạn Crew",
       "progress": "Yêu cầu con",
+      "assignee": "Người làm",
       "project": "Project",
-      "assignee": "Người làm"
+      "labels": "Nhãn",
+      "id": "Mã",
+      "updated": "Cập nhật"
+    },
+    "colHint": {
+      "stage": "Giai đoạn của yêu cầu gốc trong quy trình Crew.",
+      "progress": "Số yêu cầu con đã xong trên tổng số.",
+      "assignee": "Agent đang làm yêu cầu.",
+      "project": "Project của yêu cầu.",
+      "labels": "Nhãn gắn trên yêu cầu.",
+      "id": "Mã yêu cầu như CRE-12 ở mép phải.",
+      "updated": "Lần hoạt động gần nhất."
     },
     "progress": "{{done}}/{{total}} con xong",
     "kindOption": {
@@ -46,8 +63,14 @@
     },
     "groupOption": {
       "status": "Trạng thái",
+      "assignee": "Người làm",
       "project": "Project",
-      "assignee": "Người làm"
+      "none": "Không"
+    },
+    "date": {
+      "today": "Hôm nay",
+      "yesterday": "Hôm qua",
+      "earlier": "Trước đó"
     }
   },
   "new": {
