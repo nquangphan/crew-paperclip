@@ -16,6 +16,8 @@ interface EndpointDef {
 }
 
 const PLUGIN = '/api/plugins/crew.core';
+/** Router Crew của server (góp ý chờ duyệt); không phải route plugin. */
+const CREW = '/api/crew/companies/:companyId';
 
 export const ENDPOINTS = {
   // Đăng nhập, phiên, hồ sơ (S0.6, S1, S18)
@@ -210,6 +212,41 @@ export const ENDPOINTS = {
   },
   // BA không có mã riêng cho nút "Bỏ lần dở" nên gắn S9 (wizard Thêm project).
   'setup.abandon': { ids: ['S9'], method: 'POST', path: `${PLUGIN}/api/setup-runs/:id/abandon` },
+
+  // Phòng Marketing: góp ý chờ duyệt (S20). Chỉ owner duyệt/từ chối; khách chỉ thấy mục của mình.
+  'access.get': { ids: ['S20.1', 'S20.3', 'S20.7', 'S20.8'], method: 'GET', path: `${CREW}/access` },
+  'contributions.list': { ids: ['S20.2', 'S20.3', 'S20.4'], method: 'GET', path: `${CREW}/contributions` },
+  'contributions.summary': { ids: ['S20.7'], method: 'GET', path: `${CREW}/contributions/summary` },
+  'contributions.get': { ids: ['S20.3'], method: 'GET', path: `${CREW}/contributions/:id` },
+  'contributions.create': { ids: ['S20.1', 'S20.2'], method: 'POST', path: `${CREW}/contributions` },
+  'contributions.approve': { ids: ['S20.4', 'S20.5'], method: 'POST', path: `${CREW}/contributions/:id/approve` },
+  'contributions.complete': {
+    ids: ['S20.4', 'S20.5'],
+    method: 'POST',
+    path: `${CREW}/contributions/:id/approve/complete`,
+  },
+  'contributions.reject': { ids: ['S20.6'], method: 'POST', path: `${CREW}/contributions/:id/reject` },
+  'contributors.list': { ids: ['S20.8'], method: 'GET', path: `${CREW}/contributors` },
+  'contributors.set': { ids: ['S20.8'], method: 'PUT', path: `${CREW}/contributors/:userId` },
+  'contributors.remove': { ids: ['S20.8'], method: 'DELETE', path: `${CREW}/contributors/:userId` },
+
+  // Thành viên (S20.8): route stock của Paperclip, chỉ owner dùng.
+  'members.list': { ids: ['S20.8'], method: 'GET', path: '/api/companies/:companyId/members' },
+  'members.directory': { ids: ['S20.8'], method: 'GET', path: '/api/companies/:companyId/user-directory' },
+  'invites.create': { ids: ['S20.8'], method: 'POST', path: '/api/companies/:companyId/invites' },
+  'invites.list': { ids: ['S20.8'], method: 'GET', path: '/api/companies/:companyId/invites' },
+  'invites.revoke': { ids: ['S20.8'], method: 'POST', path: '/api/invites/:inviteId/revoke' },
+  'joinRequests.list': { ids: ['S20.8'], method: 'GET', path: '/api/companies/:companyId/join-requests' },
+  'joinRequests.approve': {
+    ids: ['S20.8'],
+    method: 'POST',
+    path: '/api/companies/:companyId/join-requests/:requestId/approve',
+  },
+  'joinRequests.reject': {
+    ids: ['S20.8'],
+    method: 'POST',
+    path: '/api/companies/:companyId/join-requests/:requestId/reject',
+  },
 } as const satisfies Record<string, EndpointDef>;
 
 export type EndpointKey = keyof typeof ENDPOINTS;

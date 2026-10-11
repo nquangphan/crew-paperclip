@@ -1,4 +1,5 @@
 // Cổng vào lớp dữ liệu: feature chỉ import từ '@/api'.
+import { contributionsApi } from './crew/contributions';
 import { crewDataApi } from './crew/data';
 import { forceDoneApi } from './crew/force-done';
 import { jobsApi } from './crew/jobs';
@@ -20,6 +21,7 @@ import { inboxApi } from './paperclip/inbox';
 import { interactionsApi } from './paperclip/interactions';
 import { issuesApi } from './paperclip/issues';
 import { labelsApi } from './paperclip/labels';
+import { invitesApi, joinRequestsApi, membersApi } from './paperclip/members';
 import { profileApi } from './paperclip/profile';
 import { projectsApi } from './paperclip/projects';
 import { runsApi } from './paperclip/runs';
@@ -57,6 +59,10 @@ export const api = {
   runtimes: runtimesApi,
   jobs: jobsApi,
   setup: setupApi,
+  contributions: contributionsApi,
+  members: membersApi,
+  invites: invitesApi,
+  joinRequests: joinRequestsApi,
 };
 
 export type Api = typeof api;
@@ -66,5 +72,13 @@ export { ENDPOINTS, type EndpointKey } from './endpoints';
 export { ApiError } from './http';
 export type { CliAuthChallenge } from './paperclip/cli-auth';
 export type { IssueListFilters, IssueUpdate } from './paperclip/issues';
+export type {
+  CompanyInvite,
+  CompanyMember,
+  CreatedInvite,
+  DirectoryEntry,
+  JoinRequest,
+  MemberUser,
+} from './paperclip/members';
 export type { LiveRun } from './paperclip/runs';
 export { queryKeys } from './queryKeys';

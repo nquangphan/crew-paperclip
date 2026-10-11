@@ -31,6 +31,28 @@ describe('ENDPOINTS', () => {
     }
   });
 
+  it('góp ý chờ duyệt có mã BA S20 và đi qua router Crew, không qua route lõi', () => {
+    const keys = Object.keys(ENDPOINTS).filter((k) => k.startsWith('contribut') || k === 'access.get');
+    expect(keys.sort()).toEqual([
+      'access.get',
+      'contributions.approve',
+      'contributions.complete',
+      'contributions.create',
+      'contributions.get',
+      'contributions.list',
+      'contributions.reject',
+      'contributions.summary',
+      'contributors.list',
+      'contributors.remove',
+      'contributors.set',
+    ]);
+    for (const k of keys) {
+      const def = ENDPOINTS[k as EndpointKey];
+      expect(def.path, k).toMatch(/^\/api\/crew\/companies\/:companyId\//);
+      for (const id of def.ids) expect(id, k).toMatch(/^S20\.[1-8]$/);
+    }
+  });
+
   it('không trùng (method, path)', () => {
     const seen = Object.values(ENDPOINTS).map((d) => `${d.method} ${d.path}`);
     expect(new Set(seen).size).toBe(seen.length);

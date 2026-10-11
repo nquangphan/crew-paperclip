@@ -256,3 +256,71 @@ export interface RuntimeDecision {
   /** ISO UTC. */
   decidedAt: string;
 }
+
+// Góp ý chờ duyệt (Phòng Marketing). Hợp đồng ở router Crew của server: /api/crew/companies/:companyId/…
+export type ContributionKind = 'issue' | 'comment';
+/** `approving` = owner đã khóa để duyệt, chưa tìm thấy bản ghi đã đăng ở lõi. */
+export type ContributionStatus = 'pending' | 'approving' | 'approved' | 'rejected';
+
+export interface Contribution {
+  id: string;
+  kind: ContributionKind;
+  status: ContributionStatus;
+  authorUserId: string;
+  /** Có khi kind = issue. */
+  projectId: string | null;
+  /** Có khi kind = comment. */
+  targetIssueId: string | null;
+  title: string | null;
+  /** Issue: mô tả (có thể null); comment: nội dung. */
+  body: string | null;
+  createdAt: string;
+  decidedAt: string | null;
+  decidedByUserId: string | null;
+  resultIssueId: string | null;
+  resultCommentId: string | null;
+}
+
+export interface CompanyAccess {
+  userId: string;
+  /** owner, admin, operator, viewer; null nếu không có membership (admin instance). */
+  membershipRole: string | null;
+  /** Viewer đang có dấu khách góp ý. */
+  contributor: boolean;
+  canApprove: boolean;
+}
+
+export type NewContribution =
+  | { kind: 'issue'; projectId: string; title: string; description?: string }
+  | { kind: 'comment'; issueId: string; body: string };
+
+export type ContributionFilters = {
+  /** `pending` gồm cả `approving`. */
+  status?: ContributionStatus;
+  kind?: ContributionKind;
+  /** Chỉ bình luận chờ của một issue. */
+  issueId?: string;
+};
+
+/** Nội dung owner đăng qua route stock sau khi khóa duyệt (đăng đúng nguyên văn). */
+export type ContributionMaterialize =
+  | {
+      kind: 'issue';
+      companyId: string;
+      projectId: string;
+      title: string;
+      description: string | null;
+      idempotencyKey: string;
+    }
+  | { kind: 'comment'; issueId: string; body: string; clientRequestId: string };
+
+export interface ContributionApproval {
+  contribution: Contribution;
+  materialize: ContributionMaterialize;
+}
+
+export interface Contributor {
+  userId: string;
+  grantedAt: string;
+  grantedByUserId: string;
+}

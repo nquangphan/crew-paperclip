@@ -64,4 +64,16 @@ export const queryKeys = {
     (filters ? ['machine-jobs', companyId, filters] : ['machine-jobs', companyId]) as readonly unknown[],
   runtimeSwitches: (companyId: string) => ['runtime-switches', companyId] as const,
   setupRun: (id: string) => ['setup-run', id] as const,
+
+  /** Vai trò của người dùng trong company (chế độ chỉ đọc, khách góp ý). */
+  access: (companyId: string) => ['access', companyId] as const,
+  /** Góp ý chờ duyệt; `contributions(c)` là tiền tố của danh sách, số đếm và chi tiết. */
+  contributions: (companyId: string, filters?: Filters) =>
+    (filters ? ['contributions', companyId, filters] : ['contributions', companyId]) as readonly unknown[],
+  contributionsSummary: (companyId: string) => ['contributions', companyId, 'summary'] as const,
+  contributors: (companyId: string) => ['contributors', companyId] as const,
+  members: (companyId: string) => ['members', companyId] as const,
+  userDirectory: (companyId: string) => ['user-directory', companyId] as const,
+  invites: (companyId: string) => ['invites', companyId] as const,
+  joinRequests: (companyId: string) => ['join-requests', companyId] as const,
 };
