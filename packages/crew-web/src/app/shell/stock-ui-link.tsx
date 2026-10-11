@@ -1,16 +1,20 @@
-// Nút "Mở giao diện Paperclip gốc": mở tab mới tới trang tương ứng ở UI gốc; ẩn khi chưa cấu hình CREW_STOCK_UI_URL.
+// Nút "Mở giao diện Paperclip gốc": mở tab mới tới trang tương ứng ở UI gốc; chỉ owner của company thấy, ẩn khi chưa
+// cấu hình CREW_STOCK_UI_URL.
 import { useLocation } from 'react-router-dom';
 import { DropdownMenuItem, SidebarItem } from '@/ds';
 import { ExternalLink } from '@/ds/icons';
+import { useCompanyAccess } from '@/features/access/use-company-access';
 import { useT } from '@/i18n';
 import { stockUiBase, stockUiUrl } from '../stock-ui';
 
 export function useStockUiHref(): string | null {
   const { pathname } = useLocation();
+  const { isOwner } = useCompanyAccess();
+  if (!isOwner) return null;
   return stockUiUrl(stockUiBase(), pathname);
 }
 
-/** Mục cuối sidebar: luôn thấy được, tách khỏi các mục việc chính. */
+/** Mục cuối sidebar (chỉ owner), tách khỏi các mục việc chính. */
 export function StockUiSidebarItem() {
   const { t } = useT();
   const href = useStockUiHref();

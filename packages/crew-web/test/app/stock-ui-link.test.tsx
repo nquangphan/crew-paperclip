@@ -5,6 +5,9 @@ import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { StockUiSidebarItem, useStockUiHref } from '@/app/shell/stock-ui-link';
 import { initI18n, setLanguage } from '@/i18n';
 
+const access = vi.hoisted(() => ({ isOwner: true }));
+vi.mock('@/features/access/use-company-access', () => ({ useCompanyAccess: () => access }));
+
 beforeAll(async () => {
   await initI18n();
   await setLanguage('vi');
@@ -12,6 +15,7 @@ beforeAll(async () => {
 afterEach(() => {
   cleanup();
   vi.unstubAllGlobals();
+  access.isOwner = true;
 });
 
 function Probe() {
@@ -32,6 +36,12 @@ describe('liên kết UI Paperclip gốc', () => {
     expect(a.getAttribute('href')).toBe('https://stock.example.com/TPS/issues/TPS-1');
     expect(a.getAttribute('target')).toBe('_blank');
     expect(a.getAttribute('rel')).toBe('noopener noreferrer');
+  });
+  it('ẩn với người không phải owner', () => {
+    vi.stubGlobal('__CREW_STOCK_UI_URL__', 'https://stock.example.com');
+    access.isOwner = false;
+    at('/TPS/issues/TPS-1', <StockUiSidebarItem />);
+    expect(screen.queryByRole('link')).toBeNull();
   });
   it('useStockUiHref theo vị trí hiện tại', () => {
     vi.stubGlobal('__CREW_STOCK_UI_URL__', 'https://stock.example.com');
