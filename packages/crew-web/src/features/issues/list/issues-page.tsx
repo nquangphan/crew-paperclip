@@ -327,10 +327,13 @@ export function IssuesPage() {
         title={t('page.title')}
         description={t('page.description')}
         actions={
-          <Button onClick={() => setNewOpen(true)}>
-            <Plus aria-hidden />
-            {t('new.button')}
-          </Button>
+          // Viewer thuần không tạo được yêu cầu; khách góp ý mở dialog gửi chờ duyệt.
+          !access.readOnly || access.isContributor ? (
+            <Button onClick={() => setNewOpen(true)}>
+              <Plus aria-hidden />
+              {t('new.button')}
+            </Button>
+          ) : undefined
         }
       />
       {notice ? (

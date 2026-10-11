@@ -3,7 +3,7 @@ import { warnForAttachment } from '@crew/paperclip-plugin/shared/attachment-rule
 import type { Issue } from '@paperclipai/shared';
 import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
-import { ApiError, api, queryKeys } from '@/api';
+import { api, queryKeys } from '@/api';
 import {
   AttachmentPicker,
   Button,
@@ -24,12 +24,12 @@ import {
   Spinner,
   Textarea,
 } from '@/ds';
-import { deriveAccess } from '@/features/access';
+import { useCompanyAccess } from '@/features/access';
 import { NewContributionDialog } from '@/features/contributions/new-contribution-dialog';
 import { useProjectReadiness } from '@/features/readiness';
 import { useT } from '@/i18n';
 import { isRequestKind, REQUEST_KINDS, type RequestKind } from './kinds';
-import { useCreateRequest, useResearchLabelId } from './use-create-request';
+import { projectRolesOrNull, useCreateRequest, useResearchLabelId } from './use-create-request';
 
 export interface CreatedRequest {
   draft: boolean;
@@ -46,15 +46,12 @@ interface NewRequestDialogProps {
 /** Dialog Yêu cầu mới (S5): form chỉ có trong lúc mở, nên đóng rồi mở lại là form trống. */
 export function NewRequestDialog({ open, onOpenChange, companyId, onCreated }: NewRequestDialogProps) {
   const { t } = useT('issues');
-  const access = useQuery({
-    queryKey: queryKeys.access(companyId),
-    queryFn: () => api.contributions.access(companyId),
-    staleTime: 60_000,
-  });
-  const { isContributor, loading } = deriveAccess(access.data, access.isPending);
+  const { isContributor, readOnly, loading } = useCompanyAccess();
   // Chờ biết vai trò rồi mới mở, để khách không chớp dialog thường (và không gọi các route chỉ owner đọc).
   if (loading) return null;
   if (isContributor) return <NewContributionDialog open={open} onOpenChange={onOpenChange} companyId={companyId} />;
+  // Viewer thuần không tạo được yêu cầu (server trả 403), nên không có dialog nào, kể cả khi mở thẳng `?new=1`.
+  if (readOnly) return null;
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
@@ -67,15 +64,6 @@ export function NewRequestDialog({ open, onOpenChange, companyId, onCreated }: N
     </Dialog>
   );
 }
-
-const rolesOf = async (companyId: string, projectId: string) => {
-  try {
-    return await api.roles.get(companyId, projectId);
-  } catch (error) {
-    if (error instanceof ApiError && error.status === 404) return null;
-    throw error;
-  }
-};
 
 const fileKey = (file: File) => `${file.name}:${file.size}:${file.lastModified}`;
 
@@ -106,7 +94,7 @@ function RequestForm({
   const agents = useQuery({ queryKey: queryKeys.agents(companyId), queryFn: () => api.agents.list(companyId) });
   const roles = useQuery({
     queryKey: queryKeys.roles(projectId),
-    queryFn: () => rolesOf(companyId, projectId),
+    queryFn: () => projectRolesOrNull(companyId, projectId),
     enabled: projectId !== '',
   });
   const researchLabel = useResearchLabelId(companyId);

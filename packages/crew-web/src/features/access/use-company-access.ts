@@ -13,13 +13,17 @@ export interface CompanyAccessState {
    */
   readOnly: boolean;
   loading: boolean;
+  /** Lỗi tải vai trò (sau khi đã thử lại); null khi ổn. Owner lúc này mất phần duyệt góp ý, nên route cần vai trò báo lỗi. */
+  error: Error | null;
+  /** Tải lại vai trò. */
+  retry: () => void;
 }
 
 /** Suy trạng thái từ câu trả lời `GET /access`; tách riêng để test không cần React. */
 export function deriveAccess(
   data: { membershipRole: string | null; contributor: boolean } | undefined,
   loading: boolean,
-): CompanyAccessState {
+): Omit<CompanyAccessState, 'error' | 'retry'> {
   const viewer = data?.membershipRole === 'viewer';
   return {
     isOwner: data?.membershipRole === 'owner',
@@ -37,5 +41,9 @@ export function useCompanyAccess(): CompanyAccessState {
     queryFn: () => api.contributions.access(company.id),
     staleTime: 60_000,
   });
-  return deriveAccess(query.data, query.isPending);
+  return {
+    ...deriveAccess(query.data, query.isPending),
+    error: query.data ? null : query.error,
+    retry: () => void query.refetch(),
+  };
 }

@@ -288,5 +288,8 @@
     "close": "Close map",
     "empty": "No Crew requests yet",
     "rootProgress": "Children done"
+  },
+  "access": {
+    "loadFailed": "Could not load your access for this company"
   }
 }

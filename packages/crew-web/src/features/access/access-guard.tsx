@@ -1,7 +1,7 @@
 import { Navigate, Outlet, useLocation } from 'react-router-dom';
 import { useCompany } from '@/app/hooks';
 import { companyPath } from '@/app/routes-util';
-import { CenteredPage, Spinner } from '@/ds';
+import { CenteredPage, ErrorState, Spinner } from '@/ds';
 import { useT } from '@/i18n';
 import { routeAllowed, routeNeedsAccess } from './nav-access';
 import { useCompanyAccess } from './use-company-access';
@@ -20,6 +20,14 @@ export function AccessGuard() {
     return (
       <CenteredPage>
         <Spinner label={t('session.loading')} />
+      </CenteredPage>
+    );
+  }
+  // Không biết vai trò thì không đoán: báo lỗi kèm Thử lại thay vì lặng lẽ chuyển về Tổng quan.
+  if (access.error && routeNeedsAccess(rel)) {
+    return (
+      <CenteredPage>
+        <ErrorState title={t('access.loadFailed')} message={access.error.message} onRetry={access.retry} />
       </CenteredPage>
     );
   }

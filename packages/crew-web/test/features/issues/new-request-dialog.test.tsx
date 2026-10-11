@@ -2,9 +2,10 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
+import { CompanyContext } from '@/app/hooks';
 import { NewRequestDialog } from '@/features/issues/new/new-request-dialog';
 import { initI18n, setLanguage } from '@/i18n';
-import { mockServer } from '../../app/fetch-mock';
+import { accessRoute, mockServer } from '../../app/fetch-mock';
 
 // Trạng thái sẵn sàng đã có test riêng ở test/features/readiness; ở đây chỉ cần danh sách kết quả.
 vi.mock('@/features/readiness', () => ({
@@ -28,6 +29,7 @@ beforeAll(async () => {
 });
 afterEach(cleanup);
 
+const COMPANY = { id: 'c1', name: '2P', issuePrefix: 'TPS' };
 const PROJECTS = [
   { id: 'p1', name: 'Alpha', archivedAt: null },
   { id: 'p2', name: 'Beta chưa xong', archivedAt: null },
@@ -56,7 +58,9 @@ function routes(over: Record<string, unknown> = {}) {
 function mount(onOpenChange = vi.fn(), onCreated = vi.fn()) {
   render(
     <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
-      <NewRequestDialog open onOpenChange={onOpenChange} companyId="c1" onCreated={onCreated} />
+      <CompanyContext.Provider value={{ company: COMPANY, companies: [COMPANY] }}>
+        <NewRequestDialog open onOpenChange={onOpenChange} companyId="c1" onCreated={onCreated} />
+      </CompanyContext.Provider>
     </QueryClientProvider>,
   );
   return { onOpenChange, onCreated };
@@ -202,5 +206,17 @@ describe('NewRequestDialog', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Tạo' }));
     expect(await screen.findByText('Project không giao được')).toBeTruthy();
     expect(onOpenChange).not.toHaveBeenCalledWith(false);
+  });
+
+  it('viewer thuần: không có dialog nào (kể cả mở thẳng ?new=1), không gọi route chỉ người ghi đọc', async () => {
+    const { calls } = mockServer({
+      ...routes(),
+      ...accessRoute('c1', { userId: 'u3', membershipRole: 'viewer', contributor: false, canApprove: false }),
+    });
+    mount();
+    await waitFor(() => expect(calls.some((c) => c.url === '/api/crew/companies/c1/access')).toBe(true));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(calls.some((c) => c.url.includes('/roles') || c.url.endsWith('/labels'))).toBe(false);
   });
 });

@@ -288,5 +288,8 @@
     "close": "Đóng map",
     "empty": "Chưa có yêu cầu Crew nào",
     "rootProgress": "Con xong"
+  },
+  "access": {
+    "loadFailed": "Không tải được quyền của bạn trong company này"
   }
 }

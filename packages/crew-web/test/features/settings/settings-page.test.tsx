@@ -6,7 +6,7 @@ import { afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { CompanyContext, MeContext } from '@/app/hooks';
 import { SettingsPage } from '@/features/settings/settings-page';
 import { initI18n, setLanguage } from '@/i18n';
-import { mockServer } from '../../app/fetch-mock';
+import { accessRoute, mockServer } from '../../app/fetch-mock';
 import { COMPANY } from '../agents/helpers';
 
 beforeAll(async () => {
@@ -80,7 +80,7 @@ describe('SettingsPage', () => {
     });
     mount();
     const file = new File(['x'], 'me.png', { type: 'image/png' });
-    fireEvent.change(screen.getByLabelText('Ảnh đại diện'), { target: { files: [file] } });
+    fireEvent.change(await screen.findByLabelText('Ảnh đại diện'), { target: { files: [file] } });
     fireEvent.click(screen.getByRole('button', { name: 'Lưu hồ sơ' }));
     await waitFor(() => expect(s.calls.some((c) => c.method === 'PATCH')).toBe(true));
     expect(s.calls.find((c) => c.method === 'PATCH')?.body).toEqual({ name: 'Owner', image: '/api/assets/a1/content' });
@@ -89,10 +89,31 @@ describe('SettingsPage', () => {
     expect(upload?.body instanceof FormData ? upload.body.get('namespace') : null).toBe('profile');
   });
 
+  it('viewer và Phòng Marketing: chỉ đổi tên, không có ô ảnh hay nút gỡ ảnh (upload asset bị chặn với họ)', async () => {
+    for (const contributor of [false, true]) {
+      const s = mockServer({
+        ...accessRoute(COMPANY.id, { userId: 'u1', membershipRole: 'viewer', contributor, canApprove: false }),
+        'GET /api/health': { body: HEALTH },
+        'PATCH /api/auth/profile': { body: PROFILE({ name: 'Khách' }) },
+      });
+      mount({ ...ME, image: '/api/assets/a0/content' });
+      await waitFor(() => expect(s.calls.some((c) => c.url.endsWith('/access'))).toBe(true));
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      expect(screen.queryByLabelText('Ảnh đại diện')).toBeNull();
+      expect(screen.queryByRole('button', { name: 'Gỡ ảnh đại diện' })).toBeNull();
+      fireEvent.change(screen.getByLabelText('Tên hiển thị'), { target: { value: 'Khách' } });
+      fireEvent.click(screen.getByRole('button', { name: 'Lưu hồ sơ' }));
+      await waitFor(() => expect(s.calls.some((c) => c.method === 'PATCH')).toBe(true));
+      expect(s.calls.find((c) => c.method === 'PATCH')?.body).toEqual({ name: 'Khách' });
+      expect(s.calls.some((c) => c.url.endsWith('/assets/images'))).toBe(false);
+      cleanup();
+    }
+  });
+
   it('gỡ ảnh gửi image null', async () => {
     const s = mockServer({ 'GET /api/health': { body: HEALTH }, 'PATCH /api/auth/profile': { body: PROFILE() } });
     mount({ ...ME, image: '/api/assets/a0/content' });
-    fireEvent.click(screen.getByRole('button', { name: 'Gỡ ảnh đại diện' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Gỡ ảnh đại diện' }));
     await waitFor(() => expect(s.calls.some((c) => c.method === 'PATCH')).toBe(true));
     expect(s.calls.find((c) => c.method === 'PATCH')?.body).toEqual({ name: 'Owner', image: null });
   });

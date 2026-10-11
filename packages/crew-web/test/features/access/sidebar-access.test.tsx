@@ -33,7 +33,7 @@ const roles = {
   viewer: { userId: 'u1', membershipRole: 'viewer', contributor: false, canApprove: false },
 };
 
-function open(role: keyof typeof roles, at = '/TPS/dashboard', pending = 3) {
+function open(role: keyof typeof roles | 'broken', at = '/TPS/dashboard', pending = 3) {
   const server = mockServer({
     'GET /api/auth/get-session': { body: SESSION },
     'GET /api/companies': { body: [COMPANY_TPS] },
@@ -43,7 +43,9 @@ function open(role: keyof typeof roles, at = '/TPS/dashboard', pending = 3) {
     'GET /api/companies/c-tps/projects': { body: [] },
     'GET /api/companies/c-tps/sidebar-preferences/me': { body: { orderedIds: [], updatedAt: null } },
     'GET /api/crew/companies/c-tps/contributions/summary': { body: { pending } },
-    ...accessRoute('c-tps', roles[role]),
+    ...(role === 'broken'
+      ? { 'GET /api/crew/companies/c-tps/access': { status: 500, body: { error: 'hỏng' } } }
+      : accessRoute('c-tps', roles[role])),
   });
   const router = createMemoryRouter(buildAppRoutes({ featureModules: features }), { initialEntries: [at] });
   render(
@@ -127,5 +129,14 @@ describe('route bị cấm chuyển về Tổng quan', () => {
     const { router } = open('owner', '/TPS/inbox');
     expect(await screen.findByText('trang inbox')).toBeTruthy();
     expect(router.state.location.pathname).toBe('/TPS/inbox');
+  });
+
+  it('không tải được vai trò: route cần vai trò báo lỗi kèm Thử lại, không lặng lẽ về Tổng quan', async () => {
+    const { router } = open('broken', '/TPS/members');
+    expect(
+      await screen.findByText('Không tải được quyền của bạn trong company này', {}, { timeout: 5000 }),
+    ).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Thử lại' })).toBeTruthy();
+    expect(router.state.location.pathname).toBe('/TPS/members');
   });
 });
