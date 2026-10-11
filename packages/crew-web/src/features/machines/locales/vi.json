@@ -78,5 +78,14 @@
     "disableConfirmTitle": "Tắt {{name}} trên {{host}}?",
     "disableConfirmBody": "Mọi run Claude trên máy này (Trợ Lý, reviewer, integrator và executor Claude) sẽ bị giữ ở hàng chờ cho tới khi bạn bật lại Claude. Crew chỉ tự chuyển được executor sang runtime khác; các run còn lại phải chờ.",
     "disableConfirmAction": "Tắt {{name}}"
+  },
+  "pairing": {
+    "paired": "Đã ghép {{time}}",
+    "revoked": "Đã gỡ {{time}}",
+    "unpair": "Gỡ máy",
+    "failed": "Không gỡ được máy",
+    "confirmTitle": "Gỡ máy {{host}}?",
+    "confirmBody": "Máy {{host}} sẽ không nhận run mới và bản tin của nó bị từ chối. Mac khác không ảnh hưởng.",
+    "confirmAction": "Gỡ máy"
   }
 }

@@ -1,5 +1,6 @@
 import type {
   CrewMachine,
+  CrewMachinePairing,
   CrewRuntime,
   MachineJob,
   MachineRuntimeSwitches,
@@ -21,6 +22,7 @@ export function machine(
     jobsAgent?: boolean;
     skills?: string[] | null;
     runtimes?: RuntimesReport;
+    pairing?: CrewMachinePairing | null;
   } = {},
 ) {
   const { machineId = M1, hostname = 'mac-mini', jobsAgent = true, skills = SUPERPOWERS } = over;
@@ -52,6 +54,7 @@ export function machine(
       ...(jobsAgent ? { jobsAgent: { version: '1.0.0', lastPollAt: now } } : {}),
     },
     load24h: [],
+    pairing: over.pairing ?? null,
   } as unknown as CrewMachine;
 }
 

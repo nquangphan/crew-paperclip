@@ -78,5 +78,14 @@
     "disableConfirmTitle": "Disable {{name}} on {{host}}?",
     "disableConfirmBody": "Every Claude run on this machine (Assistant, reviewer, integrator and Claude executor) will be held in the queue until you enable Claude again. Crew can only move executors to another runtime on its own; the other runs have to wait.",
     "disableConfirmAction": "Disable {{name}}"
+  },
+  "pairing": {
+    "paired": "Paired {{time}}",
+    "revoked": "Unpaired {{time}}",
+    "unpair": "Unpair machine",
+    "failed": "Could not unpair the machine",
+    "confirmTitle": "Unpair {{host}}?",
+    "confirmBody": "{{host}} will get no new runs and its status reports will be rejected. Other Macs are not affected.",
+    "confirmAction": "Unpair"
   }
 }

@@ -188,6 +188,11 @@
     "tests": ["PW-S14-7 "],
     "tier": "T1"
   },
+  "S15.4": {
+    "spec": "e2e/specs/s15-machine-pairing.spec.ts",
+    "tests": ["PW-S15-PAIR "],
+    "tier": "T1"
+  },
   "S19": {
     "spec": "e2e/specs/s19-search.spec.ts",
     "tests": ["PW-S19-1 "],

@@ -197,6 +197,8 @@ export const ENDPOINTS = {
   // Công tắc runtime theo máy (S15.3): GET đọc, POST đặt (host không có PUT cho route plugin); chỉ board đặt được.
   'runtimes.switches': { ids: ['S15.3'], method: 'GET', path: `${PLUGIN}/api/runtime-switches` },
   'runtimes.setSwitch': { ids: ['S15.3'], method: 'POST', path: `${PLUGIN}/api/runtime-switches` },
+  // Gỡ máy đã ghép (S15.4): board thu hồi key máy; web archive environment bằng route lõi trước đó.
+  'machines.unpair': { ids: ['S15.4'], method: 'POST', path: `${PLUGIN}/api/machines/:machineId/unpair` },
   'jobs.retry': { ids: ['S15.2'], method: 'POST', path: `${PLUGIN}/api/machine-jobs/:jobId/retry` },
   'setup.create': { ids: ['S9', 'S13', 'S8.7', 'S11.9'], method: 'POST', path: `${PLUGIN}/api/setup-runs` },
   'setup.get': { ids: ['S9', 'S13', 'S8.7', 'S11.9'], method: 'GET', path: `${PLUGIN}/api/setup-runs/:id` },

@@ -3,6 +3,7 @@ import { useCompany } from '@/app/hooks';
 import { EmptyState, ErrorState, MachineCard, PageHeader, Spinner } from '@/ds';
 import { useT } from '@/i18n';
 import { JobsQueue } from './jobs-queue';
+import { PairingBlock } from './pairing-block';
 import { RuntimeBlock } from './runtime-block';
 import { useCrewMachines, useMachineJobs, useRuntimeSwitches } from './use-machines';
 
@@ -47,6 +48,7 @@ export function MachinesPage() {
           <div className="grid gap-4 md:grid-cols-2">
             {list.map((m) => (
               <MachineCard key={m.machineId} report={m.latest} latestAt={m.lastSeenAt} now={now} load24h={m.load24h}>
+                <PairingBlock companyId={company.id} machine={m} />
                 <RuntimeBlock
                   companyId={company.id}
                   machine={m}

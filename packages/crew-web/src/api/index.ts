@@ -3,6 +3,7 @@ import { contributionsApi } from './crew/contributions';
 import { crewDataApi } from './crew/data';
 import { forceDoneApi } from './crew/force-done';
 import { jobsApi } from './crew/jobs';
+import { machinesApi } from './crew/machines';
 import { rolesApi } from './crew/roles';
 import { runtimesApi } from './crew/runtimes';
 import { setupApi } from './crew/setup';
@@ -56,6 +57,7 @@ export const api = {
   skillSources: skillSourcesApi,
   crew: { ...crewDataApi, ...forceDoneApi },
   roles: rolesApi,
+  machines: machinesApi,
   runtimes: runtimesApi,
   jobs: jobsApi,
   setup: setupApi,
