@@ -59,6 +59,8 @@
     "locked": {
       "opencode-patch-missing": "Đang khóa: server chưa có vá chạy OpenCode đúng worktree (cần env CREW_OPENCODE_IN_PLACE_PATCH=1 và cấu hình plugin opencodeInPlacePatch)."
     },
+    "disabledNoState": "Chưa tải được trạng thái công tắc của máy này.",
+    "disabledNoKey": "Chưa nạp key OpenCode trên máy.",
     "keyHint": "Máy chưa có key OpenCode. Chạy crew-mac runtimes key opencode trong Terminal của Mac rồi gõ key vào đó; web không nhận key.",
     "setup": "Cài runtime trên máy",
     "wrapperCodexOk": "Wrapper Codex: đã cài",

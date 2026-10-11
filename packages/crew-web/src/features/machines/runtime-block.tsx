@@ -130,6 +130,16 @@ export function RuntimeBlock({ companyId, machine, switches, switchesError, jobs
     ];
   };
 
+  /** Lý do công tắc bị khóa, lấy từ trạng thái công tắc của server và bản tin máy; rỗng khi công tắc dùng được. */
+  const disabledReason = (runtime: CrewRuntime, state: RuntimeSwitchState | undefined): string => {
+    if (!state) return t('runtime.disabledNoState');
+    const reasons: string[] = [];
+    if (state.locked) reasons.push(t(`runtime.locked.${state.locked}`));
+    if (state.locked && runtime === 'opencode_local' && report?.opencode.keyPresent === false)
+      reasons.push(t('runtime.disabledNoKey'));
+    return reasons.join(' ');
+  };
+
   const result = job?.status === 'done' && job.result?.kind === 'runtimes-setup' ? job.result : null;
   const keyMissing = report?.opencode.keyPresent === false || result?.opencode.keyPresent === false;
 
@@ -144,6 +154,7 @@ export function RuntimeBlock({ companyId, machine, switches, switchesError, jobs
       <ul className="flex flex-col gap-3">
         {ORDER.map((runtime) => {
           const state = switches?.runtimes[runtime];
+          const reason = disabledReason(runtime, state);
           return (
             <li key={runtime} className="flex items-start justify-between gap-3">
               <div className="flex flex-col gap-1">
@@ -156,6 +167,7 @@ export function RuntimeBlock({ companyId, machine, switches, switchesError, jobs
               <ToggleSwitch
                 checked={state?.enabled ?? false}
                 disabled={!state || !!state.locked || toggle.isPending}
+                {...(reason ? { title: reason } : {})}
                 aria-label={t('runtime.toggle', { name: name(runtime), host })}
                 onCheckedChange={() => onToggle(runtime, state)}
               />

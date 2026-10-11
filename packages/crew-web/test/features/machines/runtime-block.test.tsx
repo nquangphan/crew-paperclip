@@ -59,6 +59,26 @@ describe('khối Runtime trên thẻ máy', () => {
     expect(b.getByText(/server chưa có vá chạy OpenCode/)).toBeTruthy();
   });
 
+  it('công tắc OpenCode bị khóa có title nêu lý do khóa và việc chưa nạp key', async () => {
+    mockServer(base());
+    mount();
+    const b = await block();
+    const title = b.getByRole('switch', { name: 'OpenCode trên mac-mini' }).getAttribute('title') ?? '';
+    expect(title).toMatch(/server chưa có vá chạy OpenCode/);
+    expect(title).toMatch(/Chưa nạp key OpenCode trên máy/);
+    expect(b.getByRole('switch', { name: 'Claude trên mac-mini' }).hasAttribute('title')).toBe(false);
+  });
+
+  it('khóa mà bản tin báo đã có key thì title không nói thiếu key', async () => {
+    const withKey = { ...RUNTIMES, opencode: { ...RUNTIMES.opencode, keyPresent: true } };
+    mockServer(base(data('crew.machines', [machine({ runtimes: withKey })])));
+    mount();
+    const b = await block();
+    const title = b.getByRole('switch', { name: 'OpenCode trên mac-mini' }).getAttribute('title') ?? '';
+    expect(title).toMatch(/server chưa có vá/);
+    expect(title).not.toMatch(/Chưa nạp key/);
+  });
+
   it('bản tin chưa có runtimes thì báo chưa có số liệu, vẫn gạt được', async () => {
     mockServer(base(data('crew.machines', [machine()])));
     mount();

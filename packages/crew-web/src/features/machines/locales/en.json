@@ -59,6 +59,8 @@
     "locked": {
       "opencode-patch-missing": "Locked: the server has no patch to run OpenCode in the right worktree (needs env CREW_OPENCODE_IN_PLACE_PATCH=1 and the plugin setting opencodeInPlacePatch)."
     },
+    "disabledNoState": "Could not load this machine's switch state.",
+    "disabledNoKey": "No OpenCode key loaded on the machine.",
     "keyHint": "This machine has no OpenCode key. Run crew-mac runtimes key opencode in the Mac's Terminal and type the key there; the web never takes keys.",
     "setup": "Install runtimes on the machine",
     "wrapperCodexOk": "Codex wrapper: installed",
