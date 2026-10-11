@@ -1,7 +1,7 @@
 // crew: tự dựng
 import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
-import { ApiError, api, type Contribution, queryKeys } from '@/api';
+import { api, type Contribution, queryKeys } from '@/api';
 import { useCompany } from '@/app/hooks';
 import {
   Button,
@@ -25,38 +25,41 @@ import {
   Spinner,
 } from '@/ds';
 import { isRequestKind, REQUEST_KINDS, type RequestKind } from '@/features/issues/new/kinds';
-import { useResearchLabelId } from '@/features/issues/new/use-create-request';
+import { projectRolesOrNull, useResearchLabelId } from '@/features/issues/new/use-create-request';
 import { useSelectableAgents } from '@/features/wizards';
 import { useT } from '@/i18n';
 import { contributionErrorKey } from './approve-flow';
-import { useApproveContribution, useAuthorNames } from './use-contributions';
+import { type useApproveContribution, useAuthorNames } from './use-contributions';
+
+type ApproveMutation = ReturnType<typeof useApproveContribution>;
 
 interface ApproveIssueDialogProps {
   contribution: Contribution;
+  /** Mutation duyệt của dòng: dòng và dialog cùng thấy trạng thái đang chạy. */
+  approve: ApproveMutation;
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onApproved?: (done: Contribution) => void;
 }
-
-/** Vai trò project; 404 nghĩa là project chưa có dòng vai trò (chưa có Trợ Lý). */
-const rolesOrNull = async (companyId: string, projectId: string) => {
-  try {
-    return await api.roles.get(companyId, projectId);
-  } catch (error) {
-    if (error instanceof ApiError && error.status === 404) return null;
-    throw error;
-  }
-};
 
 /**
  * Dialog duyệt yêu cầu góp ý: owner chọn project, loại, agent nhận việc (mặc định Trợ Lý của project) và nháp, rồi
  * chạy ba bước duyệt. Tiêu đề và mô tả đăng nguyên văn, không sửa ở đây. Form chỉ có trong lúc mở.
+ * Trong lúc duyệt không đóng được (Esc, bấm ra ngoài, Hủy đều bị chặn), để owner không chuyển sang Từ chối khi bước
+ * đăng có thể đã tạo issue cho agent.
  */
-export function ApproveIssueDialog({ contribution, open, onOpenChange, onApproved }: ApproveIssueDialogProps) {
+export function ApproveIssueDialog({ contribution, approve, open, onOpenChange }: ApproveIssueDialogProps) {
   const { t } = useT('contributions');
+  const pending = approve.isPending;
+  const change = (next: boolean) => {
+    if (!next && pending) return;
+    onOpenChange(next);
+  };
+  const block = (e: Event) => {
+    if (pending) e.preventDefault();
+  };
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
+    <Dialog open={open} onOpenChange={change}>
+      <DialogContent showCloseButton={!pending} onEscapeKeyDown={block} onInteractOutside={block}>
         <DialogHeader>
           <DialogTitle>{t('approveDialog.title')}</DialogTitle>
           <DialogDescription>{t('approveDialog.description')}</DialogDescription>
@@ -64,11 +67,9 @@ export function ApproveIssueDialog({ contribution, open, onOpenChange, onApprove
         {open ? (
           <ApproveIssueForm
             contribution={contribution}
-            onClose={() => onOpenChange(false)}
-            onApproved={(done) => {
-              onOpenChange(false);
-              onApproved?.(done);
-            }}
+            approve={approve}
+            onClose={() => change(false)}
+            onApproved={() => onOpenChange(false)}
           />
         ) : null}
       </DialogContent>
@@ -78,12 +79,14 @@ export function ApproveIssueDialog({ contribution, open, onOpenChange, onApprove
 
 function ApproveIssueForm({
   contribution: c,
+  approve,
   onClose,
   onApproved,
 }: {
   contribution: Contribution;
+  approve: ApproveMutation;
   onClose: () => void;
-  onApproved: (done: Contribution) => void;
+  onApproved: () => void;
 }) {
   const { t } = useT('contributions');
   const { t: ti } = useT('issues');
@@ -100,11 +103,10 @@ function ApproveIssueForm({
   const selectable = useSelectableAgents(company.id);
   const roles = useQuery({
     queryKey: queryKeys.roles(projectId),
-    queryFn: () => rolesOrNull(company.id, projectId),
+    queryFn: () => projectRolesOrNull(company.id, projectId),
     enabled: projectId !== '',
   });
   const researchLabel = useResearchLabelId(company.id);
-  const approve = useApproveContribution();
 
   const projectChoices = (projects.data ?? []).filter((p) => !p.archivedAt || p.id === c.projectId);
   const researchId = researchLabel.data ?? null;
@@ -216,17 +218,38 @@ function ApproveIssueForm({
         <Label htmlFor="approve-draft">{t('approveDialog.draft')}</Label>
       </span>
 
+      {projects.error ? (
+        <ErrorState
+          title={t('approveDialog.projectsFailed')}
+          message={projects.error.message}
+          onRetry={() => void projects.refetch()}
+        />
+      ) : null}
+      {agents.error ? (
+        <ErrorState
+          title={t('approveDialog.agentsFailed')}
+          message={agents.error.message}
+          onRetry={() => void agents.refetch()}
+        />
+      ) : null}
       {roles.error ? <ErrorState title={t('actions.approveFailed')} message={roles.error.message} /> : null}
       {approve.error ? (
         <ErrorState title={t('actions.approveFailed')} message={errorKey ? t(errorKey) : approve.error.message} />
       ) : null}
 
       <DialogFooter className="items-center">
-        <Button type="button" variant="ghost" onClick={onClose}>
+        <Button type="button" variant="ghost" disabled={approve.isPending} onClick={onClose}>
           {t('approveDialog.cancel')}
         </Button>
-        <Button type="submit" disabled={!ready}>
-          {approve.isPending ? t('approveDialog.submitting') : t('approveDialog.submit')}
+        <Button type="submit" disabled={!ready} aria-busy={approve.isPending}>
+          {approve.isPending ? (
+            <>
+              <Spinner decorative />
+              {t('approveDialog.submitting')}
+            </>
+          ) : (
+            t('approveDialog.submit')
+          )}
         </Button>
       </DialogFooter>
     </form>

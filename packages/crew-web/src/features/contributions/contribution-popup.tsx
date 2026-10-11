@@ -19,6 +19,7 @@ import { issueHref } from '@/features/issues/popup/issue-href';
 import { formatDateTime, useT } from '@/i18n';
 import { ContributionActions } from './contribution-actions';
 import { ContributionBadge } from './contribution-badge';
+import { ContributionNotice } from './contribution-notice';
 import { CONTRIBUTION_PARAM } from './contribution-popup-host';
 import { useAuthorNames, useContribution } from './use-contributions';
 
@@ -52,6 +53,7 @@ export function ContributionPopup({ id, onClose }: { id: string; onClose: () => 
         if (!open) onClose();
       }}
       title={t('popup.title')}
+      testId="contribution-popup-frame"
     >
       <div data-testid="contribution-popup" className="contents">
         <IssueDetailFrame
@@ -99,6 +101,7 @@ export function ContributionPopup({ id, onClose }: { id: string; onClose: () => 
                 </Link>
               ) : null}
               <ContributionActions contribution={c} />
+              <ContributionNotice />
             </>
           )}
         </IssueDetailFrame>

@@ -36,7 +36,10 @@
       "openResultIssue": "Open the created request",
       "openResultComment": "View the posted comment",
       "noTitle": "(no title)"
-    }
+    },
+    "loadMore": "Load more",
+    "loadingMore": "Loading more",
+    "loadMoreFailed": "Could not load more"
   },
   "status": {
     "pending": "Pending",
@@ -86,7 +89,8 @@
     "halfway": "Partly approved",
     "halfwayHint": "The last approval did not finish. Approve again to continue; no duplicate is created.",
     "approveFailed": "Could not approve",
-    "rejectFailed": "Could not reject"
+    "rejectFailed": "Could not reject",
+    "withItem": "{{action}}: {{label}}"
   },
   "reject": {
     "title": "Reject this contribution?",
@@ -110,7 +114,9 @@
     "draft": "Save as draft (do not wake the agent)",
     "submit": "Approve",
     "submitting": "Approving",
-    "cancel": "Cancel"
+    "cancel": "Cancel",
+    "projectsFailed": "Could not load projects",
+    "agentsFailed": "Could not load agents"
   },
   "errors": {
     "crew_contribution_not_materialized": "The posted record was not found yet. Click Approve again.",
@@ -118,10 +124,13 @@
     "crew_contribution_locked": "Another owner is approving this item. Try again in a few minutes (the lock lasts at most 10 minutes).",
     "crew_contribution_not_approving": "This item is no longer being approved. Its latest status has been reloaded.",
     "crew_contribution_already_approved": "This item is already approved, so it can no longer be rejected.",
-    "crew_contribution_invalid": "The contribution content is invalid.",
+    "crew_contribution_invalid": "The contribution content is invalid (for example, it contains control characters or the title is too long).",
     "crew_contribution_invalid_target": "The project or target request is no longer valid (archived, deleted or hidden).",
     "crew_contribution_forbidden": "You are not allowed to approve this item.",
-    "notFound": "This contribution was not found."
+    "notFound": "This contribution was not found.",
+    "crew_contributions_unavailable": "Contributions are temporarily unavailable. Try again later.",
+    "crew_contribution_store_failed": "The server could not save the contribution. Try again later.",
+    "alreadyRejected": "This item was already rejected, so it can no longer be approved."
   },
   "popup": {
     "title": "Contribution",
@@ -139,5 +148,16 @@
     "empty": "No request is waiting for approval",
     "loadFailed": "Could not load pending requests",
     "open": "View"
+  },
+  "notice": {
+    "alreadyPosted": {
+      "title": "Approved",
+      "body": "The content was already posted by the previous attempt; no duplicate was created."
+    },
+    "rejectAlreadyApproved": {
+      "title": "Already approved",
+      "body": "Could not reject: this item was already approved and posted. It now shows as Approved."
+    },
+    "dismiss": "Dismiss"
   }
 }

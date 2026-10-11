@@ -7,6 +7,7 @@ import type {
   Contribution,
   ContributionApproval,
   ContributionFilters,
+  ContributionPage,
   Contributor,
   NewContribution,
 } from './types';
@@ -14,11 +15,12 @@ import type {
 export const contributionsApi = {
   /** Vai trò của người đang đăng nhập trong company; UI dùng để ẩn nút ghi và chọn composer. */
   access: (companyId: string): Promise<CompanyAccess> => call('access.get', { companyId }),
-  /** Owner: mọi mục; khách: mục của mình. Mới nhất trước, tối đa 200. */
-  list: async (companyId: string, filters: ContributionFilters = {}): Promise<Contribution[]> => {
-    const res: { items: Contribution[] } = await call('contributions.list', { companyId }, { query: filters });
-    return res.items;
-  },
+  /** Trang đầu của danh sách (owner: mọi mục; khách: mục của mình), mới nhất trước, tối đa 200 mục. */
+  list: async (companyId: string, filters: ContributionFilters = {}): Promise<Contribution[]> =>
+    (await contributionsApi.page(companyId, filters)).items,
+  /** Một trang danh sách; trang kế đọc bằng `before = nextBefore` (null: đã hết). */
+  page: (companyId: string, filters: ContributionFilters = {}, before?: string): Promise<ContributionPage> =>
+    call('contributions.list', { companyId }, { query: before ? { ...filters, before } : filters }),
   /** Số mục đang chờ (gồm đang duyệt dở) để hiện badge. */
   summary: (companyId: string): Promise<{ pending: number }> => call('contributions.summary', { companyId }),
   get: (companyId: string, id: string): Promise<Contribution> => call('contributions.get', { companyId, id }),

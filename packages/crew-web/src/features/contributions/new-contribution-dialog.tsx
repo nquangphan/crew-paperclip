@@ -23,6 +23,7 @@ import {
   Textarea,
 } from '@/ds';
 import { useT } from '@/i18n';
+import { contributionErrorKey } from './approve-flow';
 import { useCreateContribution } from './use-contributions';
 
 /** Độ dài tiêu đề tối đa, khớp luật kiểm của server. */
@@ -61,6 +62,7 @@ function ContributionForm({ companyId, onClose }: { companyId: string; onClose: 
   const choices = (projects.data ?? []).filter((p) => !p.archivedAt);
   const trimmed = title.trim();
   const ready = projectId !== '' && trimmed !== '' && trimmed.length <= TITLE_MAX && !create.isPending;
+  const errorKey = create.error ? contributionErrorKey(create.error) : null;
 
   if (create.isSuccess) {
     return (
@@ -78,8 +80,13 @@ function ContributionForm({ companyId, onClose }: { companyId: string; onClose: 
 
   const submit = () => {
     if (!ready) return;
-    const text = description.trim();
-    create.mutate({ kind: 'issue', projectId, title: trimmed, ...(text ? { description: text } : {}) });
+    // Mô tả chỉ trim để kiểm rỗng, gửi nguyên văn (markdown giữ đúng như khách viết).
+    create.mutate({
+      kind: 'issue',
+      projectId,
+      title: trimmed,
+      ...(description.trim() ? { description } : {}),
+    });
   };
 
   return (
@@ -131,7 +138,9 @@ function ContributionForm({ companyId, onClose }: { companyId: string; onClose: 
         />
       </Field>
 
-      {create.error ? <ErrorState title={t('dialog.failed')} message={create.error.message} /> : null}
+      {create.error ? (
+        <ErrorState title={t('dialog.failed')} message={errorKey ? t(errorKey) : create.error.message} />
+      ) : null}
 
       <DialogFooter className="items-center">
         <Button type="button" variant="ghost" onClick={onClose}>

@@ -26,3 +26,20 @@ export const DIRECTORY = {
     { principalId: 'u2', status: 'active', user: { id: 'u2', name: 'Lan Marketing', email: 'lan@example.com' } },
   ],
 };
+
+/**
+ * Giữ treo mọi POST tới `url` (bọc `fetch` giả đang dùng) cho tới khi gọi hàm trả về. Dùng để kiểm UI trong lúc một
+ * bước duyệt còn đang chạy.
+ */
+export function holdPost(url: string): () => void {
+  const inner = globalThis.fetch;
+  let release: () => void = () => {};
+  const gate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+    if (String(input) === url && init?.method === 'POST') await gate;
+    return inner(input, init);
+  }) as typeof fetch;
+  return release;
+}

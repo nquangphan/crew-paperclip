@@ -29,7 +29,8 @@ export function PendingComment({ contribution, authorName, actions }: PendingCom
       id={`contribution-${contribution.id}`}
       data-testid="pending-comment"
       data-status={contribution.status}
-      kind={mine ? 'human' : 'agent'}
+      // Bình luận góp ý luôn do người viết (khách hoặc chính mình), không bao giờ là agent.
+      kind="human"
       author={name}
       footer={
         <span className="flex flex-wrap items-center gap-2">

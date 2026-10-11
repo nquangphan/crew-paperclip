@@ -105,10 +105,10 @@ describe('nhóm Chờ duyệt ở danh sách yêu cầu (S20.3)', () => {
     expect(within(rows[0]).getByText('Chờ duyệt')).toBeTruthy();
     expect(await within(rows[0]).findByText(/Lan Marketing/)).toBeTruthy();
     expect(within(rows[0]).getByText(/Alpha/)).toBeTruthy();
-    expect(within(rows[0]).getByRole('button', { name: 'Duyệt' })).toBeTruthy();
-    expect(within(rows[0]).getByRole('button', { name: 'Từ chối' })).toBeTruthy();
+    expect(within(rows[0]).getByRole('button', { name: /^Duyệt: / })).toBeTruthy();
+    expect(within(rows[0]).getByRole('button', { name: /^Từ chối: / })).toBeTruthy();
     expect(within(rows[1]).getByText('Đang duyệt dở')).toBeTruthy();
-    expect(within(rows[1]).getByRole('button', { name: 'Duyệt lại' })).toBeTruthy();
+    expect(within(rows[1]).getByRole('button', { name: /^Duyệt lại: / })).toBeTruthy();
     expect(calls.some((c) => c.url.includes('/contributions?status=pending&kind=issue'))).toBe(true);
     // Yêu cầu thật vẫn có trong bảng.
     expect(screen.getByText('Yêu cầu thật')).toBeTruthy();
@@ -137,7 +137,7 @@ describe('nhóm Chờ duyệt ở danh sách yêu cầu (S20.3)', () => {
     server();
     mount();
     const [first] = await screen.findAllByTestId('pending-issue');
-    fireEvent.click(within(first).getByRole('button', { name: 'Duyệt' }));
+    fireEvent.click(within(first).getByRole('button', { name: /^Duyệt: / }));
     expect(await screen.findByRole('dialog', { name: 'Duyệt yêu cầu' })).toBeTruthy();
   });
 
@@ -145,8 +145,8 @@ describe('nhóm Chờ duyệt ở danh sách yêu cầu (S20.3)', () => {
     server(GUEST_ACCESS, [PENDING[0]]);
     mount();
     expect(await screen.findByTestId('pending-issue')).toBeTruthy();
-    expect(screen.queryByRole('button', { name: 'Duyệt' })).toBeNull();
-    expect(screen.queryByRole('button', { name: 'Từ chối' })).toBeNull();
+    expect(screen.queryByRole('button', { name: /^Duyệt: / })).toBeNull();
+    expect(screen.queryByRole('button', { name: /^Từ chối: / })).toBeNull();
   });
 
   it('không có mục chờ thì không có nhóm và chip; operator không gọi route góp ý', async () => {
@@ -156,5 +156,22 @@ describe('nhóm Chờ duyệt ở danh sách yêu cầu (S20.3)', () => {
     expect(screen.queryByTestId('pending-issue')).toBeNull();
     expect(screen.queryByTestId('pending-chip')).toBeNull();
     expect(calls.some((c) => c.url.includes('/contributions'))).toBe(false);
+  });
+
+  it('nút Yêu cầu mới: viewer thuần không có; khách góp ý và operator có', async () => {
+    const cases: [Record<string, unknown>, boolean][] = [
+      [{ userId: 'u3', membershipRole: 'viewer', contributor: false, canApprove: false }, false],
+      [GUEST_ACCESS, true],
+      [{ userId: 'u3', membershipRole: 'operator', contributor: false, canApprove: false }, true],
+    ];
+    for (const [access, visible] of cases) {
+      const { calls } = server(access, []);
+      mount();
+      await screen.findByText('Yêu cầu thật');
+      await waitFor(() => expect(calls.some((c) => c.url.endsWith('/access'))).toBe(true));
+      if (visible) expect(await screen.findByRole('button', { name: 'Yêu cầu mới' })).toBeTruthy();
+      else expect(screen.queryByRole('button', { name: 'Yêu cầu mới' })).toBeNull();
+      cleanup();
+    }
   });
 });

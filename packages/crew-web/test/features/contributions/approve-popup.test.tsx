@@ -91,8 +91,17 @@ describe('popup mục góp ý (?contribution=)', () => {
     expect(await within(popup).findByText('Lan Marketing')).toBeTruthy();
     expect(await within(popup).findByText('Alpha')).toBeTruthy();
     expect(within(popup).getByText('Chờ duyệt')).toBeTruthy();
-    expect(await within(popup).findByRole('button', { name: 'Duyệt' })).toBeTruthy();
-    expect(within(popup).getByRole('button', { name: 'Từ chối' })).toBeTruthy();
+    expect(await within(popup).findByRole('button', { name: 'Duyệt: Cần banner' })).toBeTruthy();
+    expect(within(popup).getByRole('button', { name: 'Từ chối: Cần banner' })).toBeTruthy();
+  });
+
+  it('admin/operator mở link ?contribution= thì không có popup và không gọi route góp ý (sẽ 403)', async () => {
+    const { calls } = server({ userId: 'u3', membershipRole: 'operator', contributor: false, canApprove: false });
+    mount('/TPS/issues?contribution=k1');
+    await waitFor(() => expect(calls.some((c) => c.url.endsWith('/access'))).toBe(true));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(screen.queryByTestId('contribution-popup')).toBeNull();
+    expect(calls.some((c) => c.url.includes('/contributions/'))).toBe(false);
   });
 
   it('khách (tác giả) xem được nhưng không có nút', async () => {
@@ -100,7 +109,7 @@ describe('popup mục góp ý (?contribution=)', () => {
     mount('/TPS/contributions?contribution=k1');
     const popup = await screen.findByTestId('contribution-popup');
     expect(await within(popup).findByText('Banner tháng 11')).toBeTruthy();
-    expect(within(popup).queryByRole('button', { name: 'Duyệt' })).toBeNull();
+    expect(within(popup).queryByRole('button', { name: /^Duyệt/ })).toBeNull();
   });
 
   it('mục đã duyệt có link sang yêu cầu đã tạo (thay popup bằng popup issue)', async () => {

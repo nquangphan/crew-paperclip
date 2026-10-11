@@ -36,7 +36,10 @@
       "openResultIssue": "Mở yêu cầu đã tạo",
       "openResultComment": "Xem bình luận đã đăng",
       "noTitle": "(không có tiêu đề)"
-    }
+    },
+    "loadMore": "Tải thêm",
+    "loadingMore": "Đang tải thêm",
+    "loadMoreFailed": "Không tải thêm được"
   },
   "status": {
     "pending": "Chờ duyệt",
@@ -86,7 +89,8 @@
     "halfway": "Đang duyệt dở",
     "halfwayHint": "Lần duyệt trước chưa xong. Bấm Duyệt lại để làm tiếp, không tạo bản trùng.",
     "approveFailed": "Không duyệt được",
-    "rejectFailed": "Không từ chối được"
+    "rejectFailed": "Không từ chối được",
+    "withItem": "{{action}}: {{label}}"
   },
   "reject": {
     "title": "Từ chối mục góp ý?",
@@ -110,7 +114,9 @@
     "draft": "Lưu nháp (chưa đánh thức agent)",
     "submit": "Duyệt",
     "submitting": "Đang duyệt",
-    "cancel": "Hủy"
+    "cancel": "Hủy",
+    "projectsFailed": "Không tải được danh sách project",
+    "agentsFailed": "Không tải được danh sách agent"
   },
   "errors": {
     "crew_contribution_not_materialized": "Chưa thấy bản ghi đã đăng, bấm Duyệt lại.",
@@ -118,10 +124,13 @@
     "crew_contribution_locked": "Một owner khác đang duyệt mục này. Thử lại sau ít phút (khóa giữ tối đa 10 phút).",
     "crew_contribution_not_approving": "Mục này không còn ở bước đang duyệt. Trạng thái mới đã được tải lại.",
     "crew_contribution_already_approved": "Mục này đã được duyệt rồi nên không từ chối được nữa.",
-    "crew_contribution_invalid": "Nội dung góp ý không hợp lệ.",
+    "crew_contribution_invalid": "Nội dung góp ý không hợp lệ (ví dụ có ký tự điều khiển hoặc tiêu đề quá dài).",
     "crew_contribution_invalid_target": "Project hoặc yêu cầu đích không còn hợp lệ (đã lưu trữ, bị xóa hoặc bị ẩn).",
     "crew_contribution_forbidden": "Bạn không có quyền duyệt mục này.",
-    "notFound": "Không tìm thấy mục góp ý này."
+    "notFound": "Không tìm thấy mục góp ý này.",
+    "crew_contributions_unavailable": "Tính năng góp ý tạm thời chưa dùng được. Thử lại sau.",
+    "crew_contribution_store_failed": "Máy chủ không lưu được góp ý. Thử lại sau.",
+    "alreadyRejected": "Mục này đã bị từ chối nên không duyệt được nữa."
   },
   "popup": {
     "title": "Mục góp ý",
@@ -139,5 +148,16 @@
     "empty": "Không có yêu cầu nào đang chờ duyệt",
     "loadFailed": "Không tải được yêu cầu chờ duyệt",
     "open": "Xem"
+  },
+  "notice": {
+    "alreadyPosted": {
+      "title": "Đã duyệt",
+      "body": "Nội dung đã được đăng từ lần duyệt trước, không tạo bản trùng."
+    },
+    "rejectAlreadyApproved": {
+      "title": "Mục đã được duyệt",
+      "body": "Không từ chối được vì mục này đã được duyệt và đăng trước đó. Mục đã chuyển sang Đã duyệt."
+    },
+    "dismiss": "Đóng thông báo"
   }
 }

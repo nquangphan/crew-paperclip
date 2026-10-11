@@ -302,6 +302,12 @@ export type ContributionFilters = {
   issueId?: string;
 };
 
+/** Một trang của `GET /contributions`: tối đa 200 mục, `nextBefore` là con trỏ trang kế (null: đã hết). */
+export interface ContributionPage {
+  items: Contribution[];
+  nextBefore: string | null;
+}
+
 /** Nội dung owner đăng qua route stock sau khi khóa duyệt (đăng đúng nguyên văn). */
 export type ContributionMaterialize =
   | {

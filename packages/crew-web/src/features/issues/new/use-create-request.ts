@@ -1,7 +1,7 @@
 // Tạo yêu cầu mới: POST issue rồi upload đính kèm lần lượt. Không gửi policy, reviewer, approver (server tự gắn theo vai trò project).
 import type { Issue } from '@paperclipai/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { api, queryKeys } from '@/api';
+import { ApiError, api, queryKeys } from '@/api';
 import { getI18n } from '@/i18n';
 import { findResearchLabelId, type RequestKind } from './kinds';
 
@@ -32,17 +32,24 @@ export type CreateBodyInput = Pick<
 > & {
   /** Khóa idempotent của route stock: gọi lại cùng khóa thì server trả issue cũ, không tạo bản trùng. */
   idempotencyKey?: string;
+  /**
+   * true: tạo issue mới kể cả khi đã có issue mở cùng tiêu đề trong 48 giờ (mặc định stock là trả lại issue cũ).
+   * Duyệt góp ý cần cờ này để nội dung owner đã duyệt không bị bỏ; khóa idempotent vẫn chặn bản trùng khi gọi lại.
+   */
+  allowDuplicate?: boolean;
 };
 
 export function buildCreateBody(input: CreateBodyInput): Record<string, unknown> {
-  const description = input.description.trim();
+  // Mô tả chỉ trim để kiểm rỗng; gửi nguyên văn để markdown mở đầu bằng khối thụt lề không hỏng.
+  const description = input.description.trim() ? input.description : null;
   const body: Record<string, unknown> = {
     title: input.title.trim(),
-    ...(description ? { description } : {}),
+    ...(description !== null ? { description } : {}),
     projectId: input.projectId,
     assigneeAgentId: input.assigneeAgentId,
     status: input.draft ? 'backlog' : 'todo',
     ...(input.idempotencyKey ? { idempotencyKey: input.idempotencyKey } : {}),
+    ...(input.allowDuplicate ? { allowDuplicate: true } : {}),
   };
   if (input.kind === 'research') {
     if (!input.researchLabelId) throw new Error(getI18n().t('new.researchMissing', { ns: 'issues' }));
@@ -84,4 +91,14 @@ export function useResearchLabelId(companyId: string) {
     queryFn: () => api.labels.list(companyId),
     select: findResearchLabelId,
   });
+}
+
+/** Vai trò project; 404 nghĩa là project chưa có dòng vai trò (chưa có Trợ Lý) nên trả null. */
+export async function projectRolesOrNull(companyId: string, projectId: string) {
+  try {
+    return await api.roles.get(companyId, projectId);
+  } catch (error) {
+    if (error instanceof ApiError && error.status === 404) return null;
+    throw error;
+  }
 }

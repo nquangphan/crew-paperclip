@@ -30,7 +30,8 @@ describe('ô soạn theo vai trò', () => {
     await Promise.resolve();
     const post = calls.find((c) => c.method === 'POST');
     expect(post?.url).toBe('/api/crew/companies/c1/contributions');
-    expect(post?.body).toEqual({ kind: 'comment', issueId: 'i1', body: 'Nên đổi màu nút' });
+    // Gửi nguyên văn khách viết (chỉ trim để kiểm rỗng).
+    expect(post?.body).toEqual({ kind: 'comment', issueId: 'i1', body: '  Nên đổi màu nút  ' });
     expect(calls.some((c) => c.url.includes('/api/issues/i1/comments') && c.method === 'POST')).toBe(false);
     await screen.findByDisplayValue('');
   });

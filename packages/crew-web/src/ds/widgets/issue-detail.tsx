@@ -313,6 +313,8 @@ interface IssuePopupFrameProps {
   /** Mô tả mặc định của hộp; tên hộp là DialogTitle do nội dung (`children`) cung cấp. */
   title: string;
   description?: string;
+  /** `data-testid` của hộp; mặc định `issue-popup`. Popup khác dùng khung này thì truyền tên riêng. */
+  testId?: string;
   children: React.ReactNode;
 }
 
@@ -321,11 +323,18 @@ function IssuePopupFallbackTitle({ children }: { children: React.ReactNode }) {
   return <DialogTitle className="sr-only">{children}</DialogTitle>;
 }
 
-function IssuePopupFrame({ open, onOpenChange, title, description, children }: IssuePopupFrameProps) {
+function IssuePopupFrame({
+  open,
+  onOpenChange,
+  title,
+  description,
+  testId = 'issue-popup',
+  children,
+}: IssuePopupFrameProps) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
-        data-testid="issue-popup"
+        data-testid={testId}
         showCloseButton={false}
         className="flex h-[92vh] max-h-[92vh] w-[96vw] max-w-[96vw] flex-col gap-0 overflow-y-auto p-0 sm:max-w-[min(1320px,96vw)]"
       >

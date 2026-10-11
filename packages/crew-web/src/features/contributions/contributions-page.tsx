@@ -1,10 +1,11 @@
 // crew: tự dựng
 import { useQuery } from '@tanstack/react-query';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { api, type Contribution, queryKeys } from '@/api';
 import { useCompany } from '@/app/hooks';
 import {
+  Button,
   Card,
   CardContent,
   EmptyState,
@@ -23,55 +24,97 @@ import { formatDateTime, useT } from '@/i18n';
 import { ContributionActions } from './contribution-actions';
 import { ContributionBadge } from './contribution-badge';
 import { contributionHref } from './contribution-popup-host';
-import { useAuthorNames, useContributions } from './use-contributions';
+import { useAuthorNames, useContributionPages, useContributionsSummary } from './use-contributions';
 
 type Tab = 'pending' | 'rejected' | 'approved';
 const TABS: Tab[] = ['pending', 'rejected', 'approved'];
 
-/** Mục thuộc tab nào: `approving` (duyệt dở) vẫn là chờ duyệt. */
-export const tabOf = (c: Contribution): Tab =>
-  c.status === 'approved' ? 'approved' : c.status === 'rejected' ? 'rejected' : 'pending';
-
-/** Trang góp ý chờ duyệt. Owner xem mọi tác giả (Chờ duyệt), khách xem mục của mình (Góp ý của tôi). */
+/**
+ * Trang góp ý chờ duyệt. Owner xem mọi tác giả (Chờ duyệt), khách xem mục của mình (Góp ý của tôi).
+ * Mỗi tab đọc riêng theo trạng thái và theo trang (200 mục mỗi trang, nút Tải thêm), nên mục chờ cũ không bị mục đã
+ * chốt đẩy ra ngoài. Số của tab Chờ duyệt lấy từ cùng nguồn với badge sidebar (`summary`, không giới hạn).
+ */
 export function ContributionsPage() {
   const { t } = useT('contributions');
+  const { company } = useCompany();
   const { isOwner } = useCompanyAccess();
   const mode = isOwner ? 'owner' : 'mine';
   const [tab, setTab] = useState<Tab>('pending');
-  const list = useContributions();
-  const items = list.data ?? [];
-  const shown = items.filter((c) => tabOf(c) === tab);
+  const lists: Record<Tab, ReturnType<typeof useContributionPages>> = {
+    pending: useContributionPages({ status: 'pending' }),
+    rejected: useContributionPages({ status: 'rejected' }),
+    approved: useContributionPages({ status: 'approved' }),
+  };
+  const pendingTotal = useContributionsSummary(company.id, true);
+  const authorName = useAuthorNames();
+  const projects = useQuery({ queryKey: queryKeys.projects(company.id), queryFn: () => api.projects.list(company.id) });
+  const projectName = useMemo(() => new Map((projects.data ?? []).map((p) => [p.id, p.name])), [projects.data]);
+
+  const itemsOf = (id: Tab): Contribution[] | undefined => lists[id].data?.pages.flatMap((page) => page.items);
+  const list = lists[tab];
+  const shown = itemsOf(tab) ?? [];
+  const countOf = (id: Tab): string | null => {
+    if (id === 'pending' && pendingTotal !== null) return String(pendingTotal);
+    const items = itemsOf(id);
+    if (!items) return null;
+    return lists[id].hasNextPage ? `${items.length}+` : String(items.length);
+  };
+  const nothingAtAll = TABS.every((id) => itemsOf(id)?.length === 0) && (pendingTotal === null || pendingTotal === 0);
 
   return (
     <>
       <PageHeader title={t(`page.${mode}.title`)} description={t(`page.${mode}.description`)} />
-      {list.error ? (
-        <ErrorState title={t('page.loadFailed')} message={list.error.message} onRetry={() => void list.refetch()} />
-      ) : list.isLoading ? (
-        <Skeleton />
-      ) : items.length === 0 ? (
+      {nothingAtAll ? (
         <EmptyState title={t(`page.${mode}.empty`)} description={t(`page.${mode}.emptyHint`)} />
       ) : (
         <div className="flex flex-col gap-4">
           <Tabs value={tab} onValueChange={(v) => setTab(v as Tab)}>
             <TabsList aria-label={t('page.tabs.label')}>
-              {TABS.map((id) => (
-                <TabsTrigger key={id} value={id}>
-                  {t(`page.tabs.${id}`)} ({items.filter((c) => tabOf(c) === id).length})
-                </TabsTrigger>
-              ))}
+              {TABS.map((id) => {
+                const count = countOf(id);
+                return (
+                  <TabsTrigger key={id} value={id}>
+                    {count === null ? t(`page.tabs.${id}`) : `${t(`page.tabs.${id}`)} (${count})`}
+                  </TabsTrigger>
+                );
+              })}
             </TabsList>
           </Tabs>
-          {shown.length === 0 ? (
+          {list.error && !list.data ? (
+            <ErrorState title={t('page.loadFailed')} message={list.error.message} onRetry={() => void list.refetch()} />
+          ) : list.isLoading ? (
+            <Skeleton />
+          ) : shown.length === 0 ? (
             <EmptyState title={t(`page.tabEmpty.${tab}`)} />
           ) : (
-            <ul className="flex flex-col gap-3">
-              {shown.map((c) => (
-                <li key={c.id}>
-                  <ContributionRow contribution={c} showAuthor={isOwner} />
-                </li>
-              ))}
-            </ul>
+            <>
+              <ul className="flex flex-col gap-3">
+                {shown.map((c) => (
+                  <li key={c.id}>
+                    <ContributionRow
+                      contribution={c}
+                      authorName={isOwner ? authorName : null}
+                      projectName={c.projectId ? (projectName.get(c.projectId) ?? null) : null}
+                    />
+                  </li>
+                ))}
+              </ul>
+              {list.isFetchNextPageError ? (
+                <ErrorState title={t('page.loadMoreFailed')} message={list.error?.message} />
+              ) : null}
+              {list.hasNextPage ? (
+                <div>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    disabled={list.isFetchingNextPage}
+                    onClick={() => void list.fetchNextPage()}
+                  >
+                    {list.isFetchingNextPage ? t('page.loadingMore') : t('page.loadMore')}
+                  </Button>
+                </div>
+              ) : null}
+            </>
           )}
         </div>
       )}
@@ -79,13 +122,18 @@ export function ContributionsPage() {
   );
 }
 
-function ContributionRow({ contribution: c, showAuthor }: { contribution: Contribution; showAuthor: boolean }) {
+function ContributionRow({
+  contribution: c,
+  authorName,
+  projectName,
+}: {
+  contribution: Contribution;
+  /** null: không hiện người gửi (khách xem mục của mình). */
+  authorName: ((userId: string) => string | null) | null;
+  projectName: string | null;
+}) {
   const { t, lang } = useT('contributions');
-  const { company } = useCompany();
   const location = useLocation();
-  const authorName = useAuthorNames();
-  const projects = useQuery({ queryKey: queryKeys.projects(company.id), queryFn: () => api.projects.list(company.id) });
-  const project = c.projectId ? projects.data?.find((p) => p.id === c.projectId) : undefined;
   const issueRef = c.kind === 'issue' ? c.resultIssueId : c.targetIssueId;
   const linkLabel =
     c.status !== 'approved'
@@ -114,14 +162,14 @@ function ContributionRow({ contribution: c, showAuthor }: { contribution: Contri
         ) : null}
         {c.body ? <MarkdownView markdown={c.body} /> : null}
         <div className="flex flex-wrap items-center gap-4">
-          {showAuthor ? (
+          {authorName ? (
             <MutedText>
               {t('page.row.author')}: {authorName(c.authorUserId) ?? c.authorUserId}
             </MutedText>
           ) : null}
-          {project ? (
+          {projectName ? (
             <MutedText>
-              {t('page.row.project')}: {project.name}
+              {t('page.row.project')}: {projectName}
             </MutedText>
           ) : null}
           {issueRef && (c.kind === 'comment' || c.status === 'approved') ? (

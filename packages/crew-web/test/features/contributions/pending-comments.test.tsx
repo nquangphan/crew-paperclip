@@ -102,5 +102,7 @@ describe('bình luận chờ trong luồng bình luận', () => {
     const [item] = await screen.findAllByTestId('pending-comment');
     expect(item.textContent).toContain('Lan Marketing');
     expect(item.textContent).toContain('Chờ duyệt');
+    // Bình luận của khách là của người, không hiện kiểu tin agent.
+    expect(item.getAttribute('data-kind')).toBe('human');
   });
 });

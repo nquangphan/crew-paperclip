@@ -79,7 +79,7 @@ describe('approveContribution', () => {
     const { deps, order } = fakeDeps();
     const done = await approveContribution('c1', ISSUE, CHOICES, deps);
     expect(order).toEqual(['approve', 'createIssue', 'complete']);
-    expect(done.status).toBe('approved');
+    expect(done).toMatchObject({ contribution: { status: 'approved' }, alreadyPosted: false });
     expect(deps.createIssue).toHaveBeenCalledWith('c1', {
       title: 'Cần banner mới',
       description: 'Chi tiết banner',
@@ -87,7 +87,52 @@ describe('approveContribution', () => {
       assigneeAgentId: 'a-assistant',
       status: 'todo',
       idempotencyKey: 'crew-contribution:k1',
+      allowDuplicate: true,
     });
+  });
+
+  it('bước đăng issue luôn gửi allowDuplicate: true, kể cả lưu nháp và loại Nghiên cứu', async () => {
+    const { deps } = fakeDeps();
+    await approveContribution('c1', ISSUE, { ...CHOICES, draft: true, kind: 'research', researchLabelId: 'l-r' }, deps);
+    expect(vi.mocked(deps.createIssue).mock.calls[0]?.[1]).toMatchObject({ allowDuplicate: true });
+  });
+
+  it('mô tả đăng nguyên văn, không trim (markdown mở đầu bằng khối thụt lề)', async () => {
+    const body = '    mã thụt lề\n\nđoạn sau  ';
+    const raw = { ...ISSUE, body };
+    const { deps } = fakeDeps({ approve: vi.fn(async () => approval(raw)) });
+    await approveContribution('c1', raw, CHOICES, deps);
+    expect(vi.mocked(deps.createIssue).mock.calls[0]?.[1]).toMatchObject({ description: body });
+  });
+
+  it('Duyệt lại khi server báo mục đã được duyệt (bản ghi đã có): thành công, không đăng lại', async () => {
+    for (const code of ['crew_contribution_decided', 'crew_contribution_already_approved']) {
+      const approved = { ...ISSUE, status: 'approved' as const, resultIssueId: 'i-old' };
+      const { deps, order } = fakeDeps({
+        approve: vi.fn(async () => {
+          throw new ApiError(409, 'đã duyệt', code, { error: 'đã duyệt', code, contribution: approved });
+        }),
+      });
+      const done = await approveContribution('c1', { ...ISSUE, status: 'approving' }, CHOICES, deps);
+      expect(done).toEqual({ contribution: approved, alreadyPosted: true });
+      expect(order).toEqual([]);
+    }
+  });
+
+  it('mục đã bị từ chối thì Duyệt lại báo lỗi riêng, không coi là thành công', async () => {
+    const rejected = { ...ISSUE, status: 'rejected' as const };
+    const { deps } = fakeDeps({
+      approve: vi.fn(async () => {
+        throw new ApiError(409, 'x', 'crew_contribution_decided', {
+          error: 'x',
+          code: 'crew_contribution_decided',
+          contribution: rejected,
+        });
+      }),
+    });
+    const error = await approveContribution('c1', ISSUE, CHOICES, deps).catch((e: unknown) => e);
+    expect((error as ApproveError).step).toBe('lock');
+    expect(contributionErrorKey(error)).toBe('errors.alreadyRejected');
   });
 
   it('lưu nháp gửi backlog; loại Nghiên cứu gắn nhãn research; project do owner chọn', async () => {
@@ -186,6 +231,8 @@ describe('contributionErrorKey và contributionFromError', () => {
   it('mã lỗi của router góp ý có câu riêng; 404 của router là không tìm thấy mục', () => {
     for (const code of [
       'crew_contribution_decided',
+      'crew_contributions_unavailable',
+      'crew_contribution_store_failed',
       'crew_contribution_not_approving',
       'crew_contribution_already_approved',
       'crew_contribution_invalid',

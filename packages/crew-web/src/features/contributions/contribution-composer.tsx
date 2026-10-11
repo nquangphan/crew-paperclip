@@ -3,6 +3,7 @@ import type { Issue } from '@paperclipai/shared';
 import { useState } from 'react';
 import { Button, ErrorState, MutedText, Textarea } from '@/ds';
 import { useT } from '@/i18n';
+import { contributionErrorKey } from './approve-flow';
 import { useCreateContribution } from './use-contributions';
 
 /** Ô soạn bình luận của khách góp ý: gửi vào bảng chờ, owner duyệt mới thành bình luận thật. Không đính kèm. */
@@ -10,11 +11,13 @@ export function ContributionComposer({ issue }: { issue: Issue }) {
   const { t } = useT('contributions');
   const [text, setText] = useState('');
   const create = useCreateContribution();
-  const body = text.trim();
+  // Chỉ trim để kiểm rỗng; gửi nguyên văn để markdown (khối thụt lề, xuống dòng) giữ đúng như khách viết.
+  const blank = text.trim() === '';
+  const errorKey = create.error ? contributionErrorKey(create.error) : null;
 
   const send = () => {
-    if (body === '' || create.isPending) return;
-    create.mutate({ kind: 'comment', issueId: issue.id, body }, { onSuccess: () => setText('') });
+    if (blank || create.isPending) return;
+    create.mutate({ kind: 'comment', issueId: issue.id, body: text }, { onSuccess: () => setText('') });
   };
 
   return (
@@ -25,10 +28,12 @@ export function ContributionComposer({ issue }: { issue: Issue }) {
         value={text}
         onChange={(e) => setText(e.target.value)}
       />
-      {create.error ? <ErrorState title={t('composer.sendFailed')} message={create.error.message} /> : null}
+      {create.error ? (
+        <ErrorState title={t('composer.sendFailed')} message={errorKey ? t(errorKey) : create.error.message} />
+      ) : null}
       <div className="flex items-center justify-between gap-2">
         <MutedText>{t('composer.hint')}</MutedText>
-        <Button disabled={body === '' || create.isPending} onClick={send}>
+        <Button disabled={blank || create.isPending} onClick={send}>
           {create.isPending ? t('composer.sending') : t('composer.send')}
         </Button>
       </div>
