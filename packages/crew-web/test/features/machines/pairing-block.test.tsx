@@ -17,12 +17,17 @@ const ENV = '44444444-4444-4444-8444-444444444444';
 const PAIRED = { pairedAt: '2026-10-11T00:30:00.000Z', revokedAt: null, environmentId: ENV, tailscaleIp: '100.64.0.7' };
 const REVOKED = { ...PAIRED, revokedAt: '2026-10-11T02:05:00.000Z' };
 const ARCHIVE = `PATCH /api/environments/${ENV}`;
+const READ_ENV = `GET /api/environments/${ENV}`;
+const environment = (config: Record<string, unknown>) => ({
+  body: { id: ENV, name: 'may-macbook', status: 'active', config },
+});
 const UNPAIR = `${ROUTE}/machines/${M1}/unpair`;
 const mount = () => renderPage(<MachinesPage />, { route: 'machines', at: '/TPS/machines' });
 const base = (pairing: typeof PAIRED | typeof REVOKED | null, extra: Record<string, unknown> = {}) => ({
   ...data('crew.machines', [machine({ pairing })]),
   ...data('crew.machineJobs', []),
   'GET /api/plugins/crew.core/api/runtime-switches?companyId=c-tps': { body: { machines: [] } },
+  [READ_ENV]: environment({ host: '100.64.0.7', port: 2222 }),
   ...extra,
 });
 const writes = (s: { calls: { method: string; url: string }[] }) =>
@@ -88,9 +93,41 @@ describe('nhãn ghép và nút Gỡ máy', () => {
     fireEvent.click(within(await screen.findByRole('alertdialog')).getByRole('button', { name: 'Gỡ máy' }));
     await waitFor(() => expect(writes(s)).toHaveLength(2));
     expect(writes(s)).toEqual([`PATCH /api/environments/${ENV}`, UNPAIR]);
+    const readAt = s.calls.findIndex((c) => c.method === 'GET' && c.url === `/api/environments/${ENV}`);
+    expect(readAt).toBeGreaterThanOrEqual(0);
+    expect(readAt).toBeLessThan(s.calls.findIndex((c) => c.method === 'PATCH'));
     expect(s.calls.find((c) => c.url.endsWith('/unpair'))?.body).toEqual({ companyId: 'c-tps' });
     expect(s.calls.find((c) => c.method === 'PATCH')?.body).toEqual({ status: 'archived' });
     expect(s.calls.some((c) => c.method === 'DELETE')).toBe(false);
+  });
+
+  it('host của environment khác IP Tailscale đã ghép thì báo lỗi, không archive và không unpair', async () => {
+    const s = mockServer(
+      base(PAIRED, {
+        [READ_ENV]: environment({ host: '100.100.1.2', port: 2222 }),
+        [ARCHIVE]: { body: { id: ENV, status: 'archived' } },
+        [UNPAIR]: { body: { environmentId: ENV, revokedAt: '2026-10-11T02:05:00.000Z' } },
+      }),
+    );
+    mount();
+    fireEvent.click(await screen.findByRole('button', { name: 'Gỡ máy' }));
+    fireEvent.click(within(await screen.findByRole('alertdialog')).getByRole('button', { name: 'Gỡ máy' }));
+    expect(
+      await screen.findByText(
+        'Environment may-macbook trỏ tới 100.100.1.2, không phải 100.64.0.7 của máy này. Không gỡ để tránh archive nhầm máy khác.',
+      ),
+    ).toBeTruthy();
+    expect(writes(s)).toEqual([]);
+    expect(screen.getByRole('button', { name: 'Gỡ máy' })).toBeTruthy();
+  });
+
+  it('không đọc được host (server che config) thì cũng không archive', async () => {
+    const s = mockServer(base(PAIRED, { [READ_ENV]: environment({}), [ARCHIVE]: { body: { id: ENV } } }));
+    mount();
+    fireEvent.click(await screen.findByRole('button', { name: 'Gỡ máy' }));
+    fireEvent.click(within(await screen.findByRole('alertdialog')).getByRole('button', { name: 'Gỡ máy' }));
+    expect(await screen.findByText(/trỏ tới \?, không phải 100\.64\.0\.7/)).toBeTruthy();
+    expect(writes(s)).toEqual([]);
   });
 
   it('archive lỗi thì hiện nguyên văn, không unpair; bấm lại đi tiếp', async () => {

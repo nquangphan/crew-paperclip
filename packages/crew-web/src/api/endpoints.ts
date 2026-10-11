@@ -138,6 +138,8 @@ export const ENDPOINTS = {
   'secrets.list': { ids: ['S13.3'], method: 'GET', path: '/api/companies/:companyId/secrets' },
 
   'environments.update': { ids: ['S8.7', 'S11.9'], method: 'PATCH', path: '/api/environments/:id' },
+  // Gỡ máy (S15.4) đọc environment để đối chiếu host với IP Tailscale của máy trước khi archive.
+  'environments.get': { ids: ['S15.4'], method: 'GET', path: '/api/environments/:id' },
 
   // Skills (S14)
   'skills.list': { ids: ['S14.1'], method: 'GET', path: '/api/companies/:companyId/skills' },

@@ -86,6 +86,7 @@
     "failed": "Could not unpair the machine",
     "confirmTitle": "Unpair {{host}}?",
     "confirmBody": "{{host}} will get no new runs and its status reports will be rejected. Other Macs are not affected.",
-    "confirmAction": "Unpair"
+    "confirmAction": "Unpair",
+    "hostMismatch": "Environment {{environment}} points to {{actual}}, not this machine's {{expected}}. Nothing was unpaired, to avoid archiving another machine."
   }
 }

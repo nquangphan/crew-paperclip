@@ -1,6 +1,7 @@
 // Nhãn ghép máy trên thẻ máy (S15.4): "Đã ghép <giờ>" hoặc "Đã gỡ <giờ>". Chủ company (owner) thấy nút "Gỡ máy" khi máy
-// còn ghép. Gỡ = archive environment bằng route lõi (không bao giờ xóa), rồi thu hồi key máy ở plugin. Lỗi ở bước nào
-// hiện nguyên văn và nút còn đó; cả hai bước idempotent nên bấm lại là đi tiếp.
+// còn ghép. Gỡ = đọc environment và đối chiếu `host` với IP Tailscale đã ghép (app gửi nhầm `environmentId` thì không
+// archive nhầm máy khác), archive environment bằng route lõi (không bao giờ xóa), rồi thu hồi key máy ở plugin. Lỗi ở
+// bước nào hiện nguyên văn và nút còn đó; các bước idempotent nên bấm lại là đi tiếp.
 
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
@@ -25,6 +26,17 @@ export function PairingBlock({ companyId, machine }: PairingBlockProps) {
   const unpair = useMutation({
     mutationFn: async () => {
       if (!pairing) return;
+      const environment = await api.environments.get(pairing.environmentId);
+      const host = environment.config?.host;
+      if (host !== pairing.tailscaleIp) {
+        throw new Error(
+          t('pairing.hostMismatch', {
+            environment: environment.name,
+            actual: typeof host === 'string' && host ? host : '?',
+            expected: pairing.tailscaleIp,
+          }),
+        );
+      }
       await api.environments.archive(pairing.environmentId);
       await api.machines.unpair(companyId, machine.machineId);
     },

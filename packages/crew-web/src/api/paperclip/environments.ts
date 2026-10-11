@@ -5,10 +5,12 @@ import { call } from '../endpoints';
 // Gỡ environment = lưu trữ qua PATCH (S8.7, S11.9); UI Crew không gọi route xóa của server.
 export const environmentsApi = {
   list: (companyId: string): Promise<Environment[]> => call('environments.list', { companyId }),
+  // Người không phải instance admin nhận `config` rỗng (server che), nên không thấy `host`.
+  get: (environmentId: string): Promise<Environment> => call('environments.get', { id: environmentId }),
   create: (companyId: string, body: Record<string, unknown>): Promise<Environment> =>
     call('environments.create', { companyId }, { body }),
   archive: (environmentId: string): Promise<Environment> =>
     call('environments.update', { id: environmentId }, { body: { status: 'archived' } }),
 };
 
-export const __endpoints = ['environments.create', 'environments.list', 'environments.update'];
+export const __endpoints = ['environments.create', 'environments.get', 'environments.list', 'environments.update'];

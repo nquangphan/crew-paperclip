@@ -86,6 +86,7 @@
     "failed": "Không gỡ được máy",
     "confirmTitle": "Gỡ máy {{host}}?",
     "confirmBody": "Máy {{host}} sẽ không nhận run mới và bản tin của nó bị từ chối. Mac khác không ảnh hưởng.",
-    "confirmAction": "Gỡ máy"
+    "confirmAction": "Gỡ máy",
+    "hostMismatch": "Environment {{environment}} trỏ tới {{actual}}, không phải {{expected}} của máy này. Không gỡ để tránh archive nhầm máy khác."
   }
 }

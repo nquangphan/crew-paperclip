@@ -117,7 +117,7 @@ test('PW-S15-PAIR Ghép máy: thẻ "Đã ghép", Gỡ máy archive environment,
     metadata: { workspaceRealizationMode: 'in_place' },
   });
 
-  const paired = await api.crewRoute<{ machineKey: string; pairedAt: string }>('POST', '/machines/pair', {
+  const pairBody = {
     companyId: company.id,
     machineId,
     hostname,
@@ -125,7 +125,8 @@ test('PW-S15-PAIR Ghép máy: thẻ "Đã ghép", Gỡ máy archive environment,
     tailscaleIp: '100.64.0.9',
     port: 2222,
     hostKeyFingerprint: FINGERPRINT,
-  });
+  };
+  const paired = await api.crewRoute<{ machineKey: string; pairedAt: string }>('POST', '/machines/pair', pairBody);
   expect(paired.machineKey.length).toBeGreaterThan(20);
   expect(await sendStatus(api, company.id, machineId, hostname, paired.machineKey)).toBe(200);
 
@@ -153,6 +154,10 @@ test('PW-S15-PAIR Ghép máy: thẻ "Đã ghép", Gỡ máy archive environment,
 
   // Key đã thu hồi: bản tin của máy bị từ chối.
   expect(await sendStatus(api, company.id, machineId, hostname, paired.machineKey)).toBeGreaterThanOrEqual(400);
+  // Máy đã gỡ không tự ghép lại được: thiếu `allowRepair` (chỉ owner chủ động gửi) thì 409.
+  const repair = await api.raw('POST', `${PLUGIN}/api/machines/pair`, pairBody);
+  expect(repair.status).toBe(409);
+  expect((repair.body as { code?: string }).code).toBe('machine_revoked');
   // Gỡ máy chưa từng ghép là 404, không phải thành công.
   const unknown = await api.raw('POST', `${PLUGIN}/api/machines/${randomUUID()}/unpair`, { companyId: company.id });
   expect(unknown.status).toBe(404);
