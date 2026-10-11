@@ -33,6 +33,7 @@ const OWNER_ONLY = [
   'pair-machine',
   'unpair-machine',
   'members',
+  'stock-ui',
 ];
 
 const sectionIds = (doc: GuideDoc) => doc.groups.flatMap((g) => g.sections.map((s) => s.id));

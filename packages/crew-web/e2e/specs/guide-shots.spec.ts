@@ -7,10 +7,16 @@
 // rồi đóng; không bấm nút xác nhận nào.
 import type { Browser, BrowserContext, Locator, Page } from '@playwright/test';
 import { GUIDE_SHOTS } from '../../src/features/guide/shots';
-import { companyId, contributorStorageStatePath, storageStatePath } from '../support/env';
-import { type E2eCompany, expect, test } from '../support/fixtures';
-import { ensureGuideDemo, type GuideDemo } from '../support/guide-demo';
-import { ensureGuideAccount, GUIDE_ACCOUNTS, guidePassword } from '../support/guide-users';
+import { baseUrl, storageStatePath } from '../support/env';
+import { expect, test } from '../support/fixtures';
+import {
+  ensureGuideCompany,
+  GUIDE_DEMO,
+  GUIDE_PROJECTS,
+  type GuideCompany,
+  seedGuideCompany,
+} from '../support/guide-company';
+import { ensureGuideMembers, GUIDE_ACCOUNTS, GUIDE_OWNER_NAME, guideAccountApi } from '../support/guide-users';
 import { login } from '../support/login';
 import {
   annotate,
@@ -34,8 +40,7 @@ interface ShotCtx {
   page: Page;
   lang: ShotLang;
   role: Role;
-  company: E2eCompany;
-  demo: GuideDemo;
+  company: GuideCompany;
   /** Chữ theo ngôn ngữ đang chụp. */
   L: (vi: string, en: string) => string;
 }
@@ -86,7 +91,7 @@ const pressEscape = async (c: ShotCtx) => {
 
 /** Mở cửa sổ nổi của yêu cầu mẫu. */
 async function openDemoPopup(c: ShotCtx): Promise<Locator> {
-  await go(c, `issues?issue=${c.demo.issue.identifier}`);
+  await go(c, `issues?issue=${c.company.ownerIssue.identifier}`);
   const popup = c.page.getByTestId('issue-popup');
   await expect(popup).toBeVisible();
   await settle(c.page);
@@ -156,7 +161,7 @@ const RECIPES: Recipe[] = [
       await c.page.keyboard.press('ControlOrMeta+k');
       const dialog = c.page.getByRole('dialog');
       await expect(dialog).toBeVisible();
-      await c.page.keyboard.type(c.demo.issue.identifier);
+      await c.page.keyboard.type(c.company.ownerIssue.identifier);
       await settle(c.page);
       return [m(dialog.locator('input').first(), 1)];
     },
@@ -226,7 +231,7 @@ const RECIPES: Recipe[] = [
     as: ['owner'],
     frame: 'main',
     open: async (c) => {
-      await go(c, `issues/${c.demo.issue.identifier}`);
+      await go(c, `issues/${c.company.ownerIssue.identifier}`);
       const body = main(c.page);
       return [
         m(btn(body, c.L('Duyệt', 'Approve')), 1),
@@ -241,7 +246,7 @@ const RECIPES: Recipe[] = [
     as: ['owner'],
     frame: 'viewport',
     open: async (c) => {
-      await go(c, `issues/${c.demo.issue.identifier}`);
+      await go(c, `issues/${c.company.ownerIssue.identifier}`);
       await btn(main(c.page), c.L('Ép Done', 'Force Done')).click();
       const dialog = c.page.getByRole('dialog');
       await expect(dialog).toBeVisible();
@@ -258,8 +263,22 @@ const RECIPES: Recipe[] = [
       await go(c, 'issues?new=1');
       const dialog = c.page.getByRole('dialog');
       await expect(dialog).toBeVisible();
+      // Điền như một yêu cầu thật nhưng không bấm Tạo.
+      await dialog.getByRole('combobox', { name: 'Project' }).click();
+      await c.page.getByRole('option', { name: GUIDE_PROJECTS[0].name, exact: true }).click();
+      await dialog
+        .getByLabel(c.L('Tiêu đề', 'Title'))
+        .fill(c.L('Thêm mã giảm giá cho đơn hàng đầu tiên', 'Add a discount code for the first order'));
+      await dialog
+        .getByLabel(c.L('Mô tả', 'Description'))
+        .fill(
+          c.L(
+            'Khách mới nhập mã CHAOBAN được giảm 10%. Không áp dụng chung với khuyến mãi khác.',
+            'New customers enter CHAOBAN for 10% off. It does not stack with other promotions.',
+          ),
+        );
       return [
-        m(dialog.getByText('Project', { exact: true }), 1),
+        m(dialog.getByRole('combobox', { name: 'Project' }), 1),
         m(dialog.getByRole('combobox').filter({ hasText: /Code|Bug|Nghiên cứu|Research/ }), 2),
         m(dialog.getByLabel(c.L('Tiêu đề', 'Title')), 3),
         m(dialog.getByLabel(c.L('Mô tả', 'Description')), 4),
@@ -289,7 +308,7 @@ const RECIPES: Recipe[] = [
       const dialog = c.page.getByRole('dialog');
       await expect(dialog).toBeVisible();
       await dialog.getByRole('combobox', { name: 'Project' }).click();
-      await c.page.getByRole('option', { name: 'E2E T1 project', exact: true }).click();
+      await c.page.getByRole('option', { name: GUIDE_PROJECTS[0].name, exact: true }).click();
       await dialog
         .getByLabel(c.L('Tiêu đề', 'Title'))
         .fill(c.L('Đổi màu nút Mua ngay sang cam', 'Change the Buy now button to orange'));
@@ -342,7 +361,7 @@ const RECIPES: Recipe[] = [
     frame: 'main',
     open: async (c) => {
       await go(c, 'contributions');
-      const row = c.page.getByTestId('contribution-row').filter({ hasText: 'Đổi ảnh banner' }).first();
+      const row = c.page.getByTestId('contribution-row').filter({ hasText: GUIDE_DEMO.requestTitle }).first();
       return [
         m(main(c.page).getByRole('tablist'), 1),
         m(btn(row, new RegExp(`^${c.L('Duyệt', 'Approve')}`)), 2),
@@ -356,7 +375,7 @@ const RECIPES: Recipe[] = [
     frame: 'viewport',
     open: async (c) => {
       await go(c, 'contributions');
-      const row = c.page.getByTestId('contribution-row').filter({ hasText: 'Đổi ảnh banner' }).first();
+      const row = c.page.getByTestId('contribution-row').filter({ hasText: GUIDE_DEMO.requestTitle }).first();
       await btn(row, new RegExp(`^${c.L('Duyệt', 'Approve')}`)).click();
       const dialog = c.page.getByRole('dialog');
       await expect(dialog).toBeVisible();
@@ -385,7 +404,7 @@ const RECIPES: Recipe[] = [
     frame: 'main',
     open: async (c) => {
       await go(c, 'projects');
-      await link(main(c.page), 'E2E T1 project').click();
+      await link(main(c.page), GUIDE_PROJECTS[0].name).click();
       await settle(c.page);
       const body = main(c.page);
       await body.getByRole('tab', { name: c.L('Vai trò', 'Roles') }).click();
@@ -425,7 +444,7 @@ const RECIPES: Recipe[] = [
     frame: 'main',
     open: async (c) => {
       await go(c, 'agents');
-      await link(main(c.page), 'crew-e2e-reviewer').click();
+      await link(main(c.page), GUIDE_DEMO.agentName).click();
       await settle(c.page);
       const body = main(c.page);
       return [
@@ -496,7 +515,11 @@ const RECIPES: Recipe[] = [
     frame: 'main',
     open: async (c) => {
       await go(c, 'docs');
-      return [];
+      const body = main(c.page);
+      const page = body.getByText(/Phí vận chuyển$/).first();
+      await page.click();
+      await settle(c.page);
+      return [m(page, 1), m(body.getByLabel(c.L('Tìm trong tài liệu', 'Search the docs')), 2)];
     },
   },
   {
@@ -534,17 +557,20 @@ const RECIPES: Recipe[] = [
 
 /** Mỗi vai trò một phiên đăng nhập, dùng lại cho cả hai ngôn ngữ (Better Auth giới hạn số lần đăng nhập mỗi phút). */
 async function sessions(browser: Browser): Promise<Record<Role, StorageState | string>> {
-  const out: Partial<Record<Role, StorageState | string>> = {
-    owner: storageStatePath(),
-    contributor: contributorStorageStatePath(),
-  };
-  for (const role of ['operator', 'viewer'] as const) {
+  const out: Partial<Record<Role, StorageState | string>> = { owner: storageStatePath() };
+  for (const role of ['operator', 'viewer', 'contributor'] as const) {
     process.stdout.write(`  đăng nhập ${role}\n`);
     // Context trong ca nhận `use` của config (phiên owner), nên phải bỏ phiên đi mới vào được form đăng nhập.
     const ctx = await browser.newContext({ storageState: EMPTY_STATE });
     try {
       const page = await ctx.newPage();
-      await login(page, { emailValue: GUIDE_ACCOUNTS[role].email, passwordValue: guidePassword() });
+      await login(page, { emailValue: GUIDE_ACCOUNTS[role].email(), passwordValue: GUIDE_ACCOUNTS[role].password() });
+      // Tên hiển thị ở chân thanh bên: đặt lại theo GUIDE_ACCOUNTS (tài khoản dựng ở lượt trước có thể mang tên cũ).
+      const renamed = await page.request.post('/api/auth/update-user', {
+        data: { name: GUIDE_ACCOUNTS[role].name },
+        headers: { Origin: new URL(baseUrl()).origin },
+      });
+      if (!renamed.ok()) throw new Error(`Không đổi được tên ${role}: HTTP ${renamed.status()}`);
       out[role] = await ctx.storageState();
     } finally {
       await ctx.close();
@@ -570,12 +596,17 @@ test('mỗi ảnh trong GUIDE_SHOTS có cách chụp @t1 @t1-only @guide-shots',
 });
 
 for (const lang of ['vi', 'en'] as const) {
-  test(`chụp ảnh hướng dẫn (${lang}) @t1 @t1-only @guide-shots`, async ({ browser, api, company, contributorApi }) => {
+  test(`chụp ảnh hướng dẫn (${lang}) @t1 @t1-only @guide-shots`, async ({ browser, api }) => {
     test.setTimeout(15 * 60_000);
     process.stdout.write('  dựng tài khoản và dữ liệu mẫu\n');
-    for (const role of ['operator', 'viewer'] as const) await ensureGuideAccount(api, companyId(), role);
-    const demo = await ensureGuideDemo(api, contributorApi, companyId());
-    process.stdout.write(`  yêu cầu mẫu ${demo.issue.identifier}\n`);
+    const base = await ensureGuideCompany(api);
+    await ensureGuideMembers(api, base.id);
+    await api.post('/api/auth/update-user', { name: GUIDE_OWNER_NAME });
+    const guest = await guideAccountApi('contributor');
+    const company = await seedGuideCompany(api, guest, base).finally(() => guest.dispose());
+    process.stdout.write(
+      `  company ${company.name} (${company.issuePrefix}), yêu cầu mẫu ${company.ownerIssue.identifier}\n`,
+    );
     const states = await sessions(browser);
     const L = (vi: string, en: string) => (lang === 'vi' ? vi : en);
     const contexts = new Map<Role, BrowserContext>();
@@ -598,7 +629,7 @@ for (const lang of ['vi', 'en'] as const) {
           page.setDefaultTimeout(20_000);
           process.stdout.write(`  ${lang} ${recipe.id} (${role})\n`);
           try {
-            const c: ShotCtx = { page, lang, role, company, demo, L };
+            const c: ShotCtx = { page, lang, role, company, L };
             const marks = await recipe.open(c);
             await annotate(page, marks);
             await saveShot(page, lang, fileName(recipe.id, role), recipe.frame === 'main' ? main(page) : undefined);

@@ -87,17 +87,17 @@ The other groups:
 {{roles:operator}}
 - **Work**: Requests, Projects, Docs.
 - **Org**: Agents, Skills, Machines.
-- **System**: Settings, Guide, **Open original Paperclip UI**.
+- **System**: Settings, Guide.
 {{/roles}}
 {{roles:viewer}}
 - **Work**: Requests, Projects, Docs.
-- **System**: Settings, Guide, **Open original Paperclip UI**.
+- **System**: Settings, Guide.
 
 You do not see Inbox, Agents, Skills and Machines because the Viewer role does not use those pages.
 {{/roles}}
 {{roles:contributor}}
 - **Work**: Requests, **My contributions** (what you have sent), Projects, Docs.
-- **System**: Settings, Guide, **Open original Paperclip UI**.
+- **System**: Settings, Guide.
 {{/roles}}
 
 > **Tip:** click a group title to collapse or expand it. Pages update by themselves when an agent finishes a step; no reload needed.
@@ -241,7 +241,7 @@ A request is the only way to give work to the agent team. Every request goes thr
 #### How to
 
 1. Click **New request** in the sidebar or on the Requests page.
-2. Pick the **Project** (1). Only **ready** projects are listed. With none, the dialog says no project is ready, as on the screenshot (see [Projects](#projects)).
+2. Pick the **Project** (1). Only **ready** projects are listed. If none is ready, the dialog says so (see [Projects](#projects)).
 3. Pick the **Type** (2): **Code**, **Bug** or **Research** (table below).
 4. Write a one-sentence **Title** (3) and a **Description** (4): what you want, why, where, and what must not change.
 5. **Attach** images or files if needed. Unusual file types show a warning; you can still send them.
@@ -568,13 +568,13 @@ The [Skills](/skills) page lists the company's skills (extra abilities for agent
 
 {{shot:docs}}
 
-The [Docs](/docs) page is each project's documentation, read from the latest copy a machine sent (it updates when the main branch gets a new commit). Before any machine sends one, the page says no project has docs yet, as on the screenshot.
+The [Docs](/docs) page is each project's documentation, read from the latest copy a machine sent (it updates when the main branch gets a new commit). Before any machine sends one, the page says no project has docs yet.
 
 #### How to
 
 1. Pick a project; the page shows the commit and when it arrived.
-2. Click a page in the tree to read it. Links open the target page; broken links say "Missing page".
-3. Type a keyword in **Search the docs**.
+2. Click a page in the tree (1) to read it. Links open the target page; broken links say "Missing page".
+3. Type a keyword in **Search the docs** (2).
 
 > **Tip:** files that look like they hold passwords or tokens are never sent; only their names appear under "Files skipped by the secret scan". A project's **Docs** tab shows the same content.
 
@@ -666,7 +666,7 @@ The [Settings](/settings) page has three sections:
 - **Language**: Vietnamese or English.
 - **System information**: server version, running commit, latest backup. Read-only.
 
-### Original Paperclip UI {#stock-ui}
+### Original Paperclip UI {#stock-ui roles=owner}
 
 {{shot:stock-ui}}
 
@@ -677,12 +677,7 @@ Crew runs on Paperclip. The original Paperclip interface is still available at `
 1. Click **Open original Paperclip UI** (1) at the bottom of the left sidebar (or in the account menu).
 2. A new tab opens the matching page in the original UI: a request, project or agent opens that same object; other pages open the original UI's home page.
 
-{{roles:owner,operator}}
-> **Note:** use the original UI to look or compare. The actions Crew blocks are blocked for a reason (section [Why there is no button X](#missing-buttons)); doing them in the original UI can break the approval flow.
-{{/roles}}
-{{roles:viewer,contributor}}
-> **Note:** in the original UI you have the same permissions as in Crew.
-{{/roles}}
+> **Note:** only owners see this item. Use the original UI to look or compare. The actions Crew blocks are blocked for a reason (section [Why there is no button X](#missing-buttons)); doing them in the original UI can break the approval flow.
 
 ## Reference {#reference}
 

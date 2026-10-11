@@ -87,17 +87,17 @@ Các nhóm còn lại:
 {{roles:operator}}
 - **Công việc**: Yêu cầu, Project, Docs.
 - **Tổ chức**: Agent, Skills, Máy.
-- **Hệ thống**: Cài đặt, Hướng dẫn, **Mở giao diện Paperclip gốc**.
+- **Hệ thống**: Cài đặt, Hướng dẫn.
 {{/roles}}
 {{roles:viewer}}
 - **Công việc**: Yêu cầu, Project, Docs.
-- **Hệ thống**: Cài đặt, Hướng dẫn, **Mở giao diện Paperclip gốc**.
+- **Hệ thống**: Cài đặt, Hướng dẫn.
 
 Bạn không thấy Hộp thư, Agent, Skills và Máy vì vai trò Chỉ xem không dùng các trang đó.
 {{/roles}}
 {{roles:contributor}}
 - **Công việc**: Yêu cầu, **Góp ý của tôi** (những gì bạn đã gửi), Project, Docs.
-- **Hệ thống**: Cài đặt, Hướng dẫn, **Mở giao diện Paperclip gốc**.
+- **Hệ thống**: Cài đặt, Hướng dẫn.
 {{/roles}}
 
 > **Mẹo:** bấm tiêu đề một nhóm để thu gọn hoặc mở lại. Trang tự cập nhật khi agent làm xong một bước, không cần tải lại.
@@ -241,7 +241,7 @@ Yêu cầu là cách duy nhất để giao việc cho đội agent. Mọi yêu c
 #### Cách làm
 
 1. Bấm **Yêu cầu mới** ở thanh bên trái hoặc ở trang Yêu cầu.
-2. Chọn **Project** (1). Danh sách chỉ có project đã **sẵn sàng**. Không có project nào thì hộp thoại báo "Chưa có project nào sẵn sàng", như trên ảnh (xem mục [Project](#projects)).
+2. Chọn **Project** (1). Danh sách chỉ có project đã **sẵn sàng**. Không có project nào sẵn sàng thì hộp thoại báo "Chưa có project nào sẵn sàng" (xem mục [Project](#projects)).
 3. Chọn **Loại** (2): **Code**, **Bug** hoặc **Nghiên cứu** (bảng dưới).
 4. Viết **Tiêu đề** (3) một câu, và **Mô tả** (4): muốn gì, vì sao, ở chỗ nào, cái gì không được đụng.
 5. **Đính kèm** ảnh hoặc file nếu cần. File có đuôi lạ hiện cảnh báo, bạn vẫn gửi được.
@@ -568,13 +568,13 @@ Trang [Skills](/skills) liệt kê skill (khả năng bổ sung cho agent) của
 
 {{shot:docs}}
 
-Trang [Docs](/docs) là tài liệu của từng project, đọc từ bản mới nhất máy đã gửi lên (tự cập nhật khi nhánh chính có commit mới). Chưa máy nào gửi thì trang báo "Chưa có project nào có docs", như trên ảnh.
+Trang [Docs](/docs) là tài liệu của từng project, đọc từ bản mới nhất máy đã gửi lên (tự cập nhật khi nhánh chính có commit mới). Chưa máy nào gửi thì trang báo "Chưa có project nào có docs".
 
 #### Cách làm
 
 1. Chọn project; trang hiện commit và giờ nhận.
-2. Bấm trang trong cây để đọc. Link trong trang mở thẳng trang đích; link hỏng ghi "Thiếu trang".
-3. Gõ từ khóa ở ô **Tìm trong tài liệu**.
+2. Bấm trang trong cây (1) để đọc. Link trong trang mở thẳng trang đích; link hỏng ghi "Thiếu trang".
+3. Gõ từ khóa ở ô **Tìm trong tài liệu** (2).
 
 > **Mẹo:** file có dấu hiệu chứa mật khẩu hay token không bao giờ được gửi lên; chỉ tên file hiện ở mục "File bị bỏ do quét bí mật". Tab **Docs** trong một project cho cùng nội dung.
 
@@ -666,7 +666,7 @@ Trang [Cài đặt](/settings) có ba mục:
 - **Ngôn ngữ**: Tiếng Việt hoặc Tiếng Anh.
 - **Thông tin hệ thống**: bản server, commit đang chạy, sao lưu gần nhất. Chỉ để xem.
 
-### Giao diện Paperclip gốc {#stock-ui}
+### Giao diện Paperclip gốc {#stock-ui roles=owner}
 
 {{shot:stock-ui}}
 
@@ -677,12 +677,7 @@ Crew chạy trên Paperclip. Giao diện gốc của Paperclip vẫn mở đư�
 1. Bấm **Mở giao diện Paperclip gốc** (1) ở cuối thanh bên trái (hoặc trong menu tài khoản).
 2. Tab mới mở đúng trang tương ứng ở giao diện gốc: đang xem một yêu cầu, project hay agent thì mở đúng đối tượng đó; trang khác thì mở trang chủ giao diện gốc.
 
-{{roles:owner,operator}}
-> **Lưu ý:** dùng giao diện gốc để xem hoặc so sánh. Các thao tác Crew đã chặn có lý do (mục [Vì sao không có nút X](#missing-buttons)); làm ở giao diện gốc có thể làm hỏng luồng duyệt.
-{{/roles}}
-{{roles:viewer,contributor}}
-> **Lưu ý:** ở giao diện gốc bạn cũng chỉ có quyền như ở Crew.
-{{/roles}}
+> **Lưu ý:** chỉ owner thấy mục này. Dùng giao diện gốc để xem hoặc so sánh. Các thao tác Crew đã chặn có lý do (mục [Vì sao không có nút X](#missing-buttons)); làm ở giao diện gốc có thể làm hỏng luồng duyệt.
 
 ## Tra cứu {#reference}
 
