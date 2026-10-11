@@ -1,14 +1,21 @@
 // crew: tự dựng
-import { EmptyState, PageHeader } from '@/ds';
+import { PageHeader } from '@/ds';
 import { useT } from '@/i18n';
+import { InvitesSection } from './invites-section';
+import { JoinRequestsSection } from './join-requests-section';
+import { MembersSection } from './members-section';
 
-/** Trang Thành viên (chỉ owner): mời khách góp ý, duyệt tham gia, bật/gỡ dấu Phòng Marketing. */
+/** Trang Thành viên (chỉ owner): mời khách góp ý, duyệt tham gia, bật hoặc gỡ dấu Phòng Marketing. */
 export function MembersPage() {
   const { t } = useT('members');
   return (
     <>
       <PageHeader title={t('title')} description={t('description')} />
-      <EmptyState title={t('empty')} description={t('emptyHint')} />
+      <div className="flex flex-col gap-4">
+        <JoinRequestsSection />
+        <MembersSection />
+        <InvitesSection />
+      </div>
     </>
   );
 }

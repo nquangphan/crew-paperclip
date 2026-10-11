@@ -43,9 +43,14 @@ describe('trang Góp ý', () => {
 
 describe('trang Thành viên', () => {
   it('có tiêu đề và trạng thái trống', async () => {
-    mockServer({});
+    mockServer({
+      'GET /api/companies/c1/members': { body: { members: [] } },
+      'GET /api/crew/companies/c1/contributors': { body: { items: [] } },
+      'GET /api/companies/c1/invites': { body: { invites: [] } },
+      'GET /api/companies/c1/join-requests': { body: [] },
+    });
     mount(<MembersPage />);
     expect(await screen.findByRole('heading', { name: 'Thành viên' })).toBeTruthy();
-    expect(screen.getByText('Chưa có thành viên nào để hiện')).toBeTruthy();
+    expect(await screen.findByText('Chưa có thành viên nào để hiện')).toBeTruthy();
   });
 });

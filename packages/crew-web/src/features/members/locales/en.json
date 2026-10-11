@@ -2,5 +2,59 @@
   "title": "Members",
   "description": "Invite contributors, approve join requests, and turn the Marketing access on or off.",
   "empty": "No members to show yet",
-  "emptyHint": "Members and invites will show up here."
+  "emptyHint": "Members and invites will show up here.",
+  "role": {
+    "owner": "Owner",
+    "admin": "Admin",
+    "operator": "Operator",
+    "viewer": "View only",
+    "contributor": "Marketing",
+    "other": "Other"
+  },
+  "list": {
+    "title": "Member list",
+    "person": "User",
+    "role": "Role",
+    "enable": "Enable contributing",
+    "disable": "Remove contributing",
+    "loadFailed": "Could not load members",
+    "actionFailed": "Could not change contributor access"
+  },
+  "invites": {
+    "title": "Invite contributors",
+    "hint": "The guest opens the link, signs up or signs in, then sends a join request for you to approve.",
+    "create": "Invite a contributor",
+    "creating": "Creating link",
+    "created": "Invite created",
+    "linkLabel": "Invite link",
+    "linkHint": "Shown only once, copy it and send it to the guest.",
+    "copy": "Copy link",
+    "copied": "Copied",
+    "createFailed": "Could not create the invite",
+    "revokeFailed": "Could not revoke the invite",
+    "loadFailed": "Could not load invites",
+    "empty": "No active invites",
+    "kind": "Type",
+    "createdAt": "Created",
+    "expiresAt": "Expires",
+    "revoke": "Revoke",
+    "revokeTitle": "Revoke this invite?",
+    "revokeBody": "The link will stop working."
+  },
+  "requests": {
+    "title": "Pending join requests",
+    "person": "User",
+    "kind": "Invite type",
+    "createdAt": "Sent",
+    "contributorInvite": "Contributor invite",
+    "plainInvite": "Regular invite",
+    "approve": "Approve",
+    "reject": "Reject",
+    "empty": "No pending requests",
+    "loadFailed": "Could not load join requests",
+    "approveFailed": "Could not approve the request",
+    "rejectFailed": "Could not reject the request",
+    "markFailed": "Approved, but contributor access was not enabled",
+    "markFailedHint": "This person is view-only for now. Use Enable contributing in the members list to retry."
+  }
 }

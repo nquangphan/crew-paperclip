@@ -2,5 +2,59 @@
   "title": "Thành viên",
   "description": "Mời khách góp ý, duyệt yêu cầu tham gia và bật hoặc gỡ quyền Phòng Marketing.",
   "empty": "Chưa có thành viên nào để hiện",
-  "emptyHint": "Danh sách thành viên và lời mời sẽ hiện ở đây."
+  "emptyHint": "Danh sách thành viên và lời mời sẽ hiện ở đây.",
+  "role": {
+    "owner": "Owner",
+    "admin": "Quản trị",
+    "operator": "Vận hành",
+    "viewer": "Chỉ xem",
+    "contributor": "Phòng Marketing",
+    "other": "Khác"
+  },
+  "list": {
+    "title": "Danh sách thành viên",
+    "person": "Người dùng",
+    "role": "Vai trò",
+    "enable": "Bật góp ý",
+    "disable": "Gỡ góp ý",
+    "loadFailed": "Không tải được danh sách thành viên",
+    "actionFailed": "Không đổi được quyền góp ý"
+  },
+  "invites": {
+    "title": "Mời khách góp ý",
+    "hint": "Khách mở link, đăng ký hoặc đăng nhập rồi gửi yêu cầu tham gia để bạn duyệt.",
+    "create": "Mời khách góp ý",
+    "creating": "Đang tạo link",
+    "created": "Đã tạo lời mời",
+    "linkLabel": "Link mời",
+    "linkHint": "Chỉ hiện một lần, hãy chép và gửi cho khách.",
+    "copy": "Chép link",
+    "copied": "Đã chép",
+    "createFailed": "Không tạo được lời mời",
+    "revokeFailed": "Không thu hồi được lời mời",
+    "loadFailed": "Không tải được danh sách lời mời",
+    "empty": "Không có lời mời nào còn hiệu lực",
+    "kind": "Loại",
+    "createdAt": "Tạo lúc",
+    "expiresAt": "Hết hạn",
+    "revoke": "Thu hồi",
+    "revokeTitle": "Thu hồi lời mời?",
+    "revokeBody": "Link này sẽ không dùng được nữa."
+  },
+  "requests": {
+    "title": "Yêu cầu tham gia chờ duyệt",
+    "person": "Người dùng",
+    "kind": "Loại lời mời",
+    "createdAt": "Gửi lúc",
+    "contributorInvite": "Lời mời khách góp ý",
+    "plainInvite": "Lời mời thường",
+    "approve": "Duyệt",
+    "reject": "Từ chối",
+    "empty": "Không có yêu cầu nào đang chờ",
+    "loadFailed": "Không tải được yêu cầu tham gia",
+    "approveFailed": "Không duyệt được yêu cầu",
+    "rejectFailed": "Không từ chối được yêu cầu",
+    "markFailed": "Đã duyệt tham gia nhưng chưa bật được góp ý",
+    "markFailedHint": "Người này hiện chỉ xem được. Bấm Bật góp ý ở danh sách thành viên để thử lại."
+  }
 }
