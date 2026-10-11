@@ -8,6 +8,8 @@ export interface CrewRoot {
   identifier: string;
   title: string;
   status: string;
+  /** Project của yêu cầu gốc; UI Crew dùng để ẩn yêu cầu của project người xem không được cấp. */
+  projectId: string | null;
   updatedAt: string;
   doneChildren: number;
   totalChildren: number;
@@ -16,7 +18,7 @@ export interface CrewRoot {
 }
 
 type RootRow = {
-  id: string; identifier: string | null; title: string; status: string;
+  id: string; identifier: string | null; title: string; status: string; project_id: string | null;
   updated_at: string | Date; execution_policy: unknown; execution_state: unknown;
   done_children: number | string; total_children: number | string;
 };
@@ -24,7 +26,7 @@ type RootRow = {
 export async function loadCrewRoots(ctx: Pick<PluginContext, "db">, companyId: string, status?: string): Promise<CrewRoot[]> {
   checkedId(companyId);
   const rows = await ctx.db.query<RootRow>(`
-    SELECT i.id, i.identifier, i.title, i.status, i.updated_at, i.execution_policy, i.execution_state,
+    SELECT i.id, i.identifier, i.title, i.status, i.project_id, i.updated_at, i.execution_policy, i.execution_state,
            count(c.id)::int AS total_children,
            count(c.id) FILTER (WHERE c.status = 'done')::int AS done_children
     FROM public.issues i
@@ -41,6 +43,7 @@ export async function loadCrewRoots(ctx: Pick<PluginContext, "db">, companyId: s
     const position = stages.findIndex(stage => jsonObject(stage)?.id === state?.currentStageId);
     return {
       id: row.id, identifier: row.identifier ?? row.id, title: row.title, status: row.status,
+      projectId: row.project_id ?? null,
       updatedAt: new Date(row.updated_at).toISOString(),
       doneChildren: Number(row.done_children), totalChildren: Number(row.total_children),
       kind: crewPolicyKind(row.execution_policy) ?? "code",

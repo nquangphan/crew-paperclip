@@ -26,6 +26,7 @@ import {
   selfHeal,
   toContribution,
 } from "./contributions.js";
+import { crewProjectAccessRoutes } from "./project-access-routes.js";
 
 const BASE = "/crew/companies/:companyId";
 const BODY_LOCAL = "crewContributionBody";
@@ -52,6 +53,7 @@ function conflictWith(res: Response, code: string, error: string, contribution: 
  * - Body không bao giờ nằm ở `req.body` khi handler chạy (xem {@link takeBody}), nên log và Sentry không có nội dung.
  * - Quyền xét theo role đọc từ DB (owner / viewer có dấu khách góp ý), không qua `assertCompanyAccess`.
  * - Không ghi `activity_log`, không phát live event hay event plugin; log chỉ ghi id.
+ * - Router quyền xem project (`…/project-access`) gắn bên trong router này, nên không cần vá lõi riêng.
  */
 export function crewContributionRoutes(db: Db): Router {
   const router = Router();
@@ -61,6 +63,8 @@ export function crewContributionRoutes(db: Db): Router {
     req.body = {};
     next();
   });
+
+  router.use(crewProjectAccessRoutes(db));
 
   router.get(`${BASE}/access`, async (req, res) => {
     const actor = await resolveContributionActor(db, req, req.params.companyId, { requireTables: false });

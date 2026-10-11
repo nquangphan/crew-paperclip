@@ -42,10 +42,10 @@ vi.mock("../services/heartbeat.js", async (importOriginal) => {
   };
 });
 
-const migration = readFileSync(
-  fileURLToPath(new URL("../../../packages/crew-plugin/migrations/0013_contributions.sql", import.meta.url)),
-  "utf8",
-)
+// Bảng quyền xem project (0016) đi cùng: khách góp ý chỉ gửi được vào project owner đã cấp.
+const migration = ["0013_contributions.sql", "0016_project_access.sql"]
+  .map((file) => readFileSync(fileURLToPath(new URL(`../../../packages/crew-plugin/migrations/${file}`, import.meta.url)), "utf8"))
+  .join(";")
   .split(";")
   .map((statement) => statement.trim())
   .filter(Boolean);
@@ -192,6 +192,7 @@ suite("Crew: agent không thấy góp ý chờ duyệt", () => {
     const runsBefore = await db.select().from(heartbeatRuns);
     const guest = await app(board(guestId, "viewer"));
     expect((await request(await app(board(ownerId, "owner"))).put(crew(`/contributors/${guestId}`))).status).toBe(204);
+    expect((await request(await app(board(ownerId, "owner"))).put(crew(`/project-access/${guestId}`)).send({ projectIds: [projectId] })).status).toBe(200);
 
     const issueItem = await request(guest).post(crew("/contributions")).send({
       kind: "issue", projectId, title: `Yêu cầu ${marker}`, description: `Mô tả ${marker}`,

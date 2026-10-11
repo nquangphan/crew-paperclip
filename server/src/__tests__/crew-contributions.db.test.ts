@@ -29,10 +29,10 @@ vi.mock("../sentry.js", async (importOriginal) => ({
   captureException: sentry.captureException,
 }));
 
-const migration = readFileSync(
-  fileURLToPath(new URL("../../../packages/crew-plugin/migrations/0013_contributions.sql", import.meta.url)),
-  "utf8",
-)
+// Bảng quyền xem project (0016) đi cùng: khách góp ý chỉ gửi được vào project owner đã cấp.
+const migration = ["0013_contributions.sql", "0016_project_access.sql"]
+  .map((file) => readFileSync(fileURLToPath(new URL(`../../../packages/crew-plugin/migrations/${file}`, import.meta.url)), "utf8"))
+  .join(";")
   .split(";")
   .map((statement) => statement.trim())
   .filter(Boolean);
@@ -171,6 +171,11 @@ suite("Crew: router góp ý chờ duyệt", () => {
   const url = (suffix: string, company = companyId) => `/api/crew/companies/${company}${suffix}`;
   const as = async (userId: string) => app(board(userId));
 
+  async function grantProject(userId: string) {
+    const res = await request(await as(users.owner)).put(url(`/project-access/${userId}`)).send({ projectIds: [projectId] });
+    expect(res.status, JSON.stringify(res.body)).toBe(200);
+  }
+
   async function createIssueContribution(title = `Yêu cầu ${randomUUID()}`, author = users.guest) {
     const res = await request(await as(author)).post(url("/contributions")).send({
       kind: "issue", projectId, title, description: "Mô tả",
@@ -223,6 +228,7 @@ suite("Crew: router góp ý chờ duyệt", () => {
       for (const userId of [users.guest, users.guest2]) {
         const res = await request(owner).put(url(`/contributors/${userId}`));
         expect(res.status).toBe(204);
+        await grantProject(userId);
       }
     });
 
@@ -735,6 +741,7 @@ suite("Crew: router góp ý chờ duyệt", () => {
         const temp = `user-temp-${randomUUID()}`;
         await db.insert(companyMemberships).values({ companyId, principalType: "user", principalId: temp, status: "active", membershipRole: "viewer" });
         roles[temp] = "viewer";
+        await grantProject(temp);
 
         expect((await request(owner).put(url(`/contributors/${temp}`))).status).toBe(204);
         expect((await request(owner).put(url(`/contributors/${temp}`))).status).toBe(204);

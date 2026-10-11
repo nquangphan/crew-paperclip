@@ -8,6 +8,7 @@ import { logger } from "../middleware/logger.js";
 import { hasCompanyAccess } from "../routes/authz.js";
 import { derivePluginDatabaseNamespace } from "../services/plugin-database.js";
 import { loadCrewCompanyConfig } from "./issue-policy.js";
+import { assertProjectVisible, canSeeProject, issueProjectId, PROJECT_ACCESS_ERRORS } from "./project-access.js";
 import { CREW_PLUGIN_KEY, rowsOf } from "./project-roles.js";
 
 /**
@@ -417,6 +418,7 @@ async function insertContribution(
         WHERE id = ${data.projectId} AND company_id = ${companyId} AND archived_at IS NULL LIMIT 1`),
     );
     if (project.length === 0) throw invalidTarget("Project không có trong company hoặc đã lưu trữ.");
+    await assertProjectVisible(db, companyId, authorUserId, data.projectId);
     const rows = rowsOf(
       await db.execute(sql`INSERT INTO ${contributionsTable()} (company_id, kind, author_user_id, project_id, title, body)
         VALUES (${companyId}, 'issue', ${authorUserId}, ${data.projectId}, ${data.title}, ${data.description})
@@ -425,10 +427,13 @@ async function insertContribution(
     return toContribution(toRecord(rows[0]!));
   }
   const issue = rowsOf(
-    await db.execute(sql`SELECT 1 AS ok FROM "issues"
+    await db.execute(sql`SELECT project_id::text AS project_id FROM "issues"
       WHERE id = ${data.issueId} AND company_id = ${companyId} AND hidden_at IS NULL LIMIT 1`),
   );
   if (issue.length === 0) throw invalidTarget("Issue không có trong company, đã xóa hoặc đã ẩn.");
+  // Issue không thuộc project nào chỉ owner thấy, nên khách góp ý không bình luận được.
+  const issueProject = issue[0]?.project_id;
+  await assertProjectVisible(db, companyId, authorUserId, typeof issueProject === "string" ? issueProject : null);
   const rows = rowsOf(
     await db.execute(sql`INSERT INTO ${contributionsTable()} (company_id, kind, author_user_id, target_issue_id, body)
       VALUES (${companyId}, 'comment', ${authorUserId}, ${data.issueId}, ${data.body})
@@ -582,6 +587,18 @@ export async function approveContribution(
     const record = await reconcileMaterialized(tx, locked);
     if (record.status === "approved" || record.status === "rejected") {
       return { outcome: "decided", contribution: toContribution(record) };
+    }
+    // Người gửi đã mất quyền xem project (owner gỡ sau khi gửi) thì không đăng thay họ; owner từ chối mục này.
+    const projectId =
+      record.kind === "issue"
+        ? record.projectId
+        : record.targetIssueId
+          ? await issueProjectId(tx, record.companyId, record.targetIssueId)
+          : null;
+    if (!(await canSeeProject(tx, record.companyId, record.authorUserId, projectId))) {
+      throw new HttpError(409, "Người gửi không còn quyền xem project của mục góp ý này, hãy từ chối mục này.", {
+        code: PROJECT_ACCESS_ERRORS.notVisible,
+      });
     }
     const rows = rowsOf(
       await tx.execute(

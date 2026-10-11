@@ -38,6 +38,6 @@ it("lists only company Crew roots, newest first, with direct child progress and 
   const ctx = { db: { query: async <T>(query: string, params: unknown[] = []) => await sql.unsafe<T[]>(query, params as never[]) } } as unknown as PluginContext;
   const all = await loadCrewRoots(ctx, company);
   expect(all.map((item) => item.identifier)).toEqual(["CRE-36", "CRE-35"]);
-  expect(all[0]).toMatchObject({ id: root, doneChildren: 1, totalChildren: 2, stage: { currentStageId: "review", currentType: "review" } });
+  expect(all[0]).toMatchObject({ id: root, projectId: null, doneChildren: 1, totalChildren: 2, stage: { currentStageId: "review", currentType: "review" } });
   expect((await loadCrewRoots(ctx, company, "open")).map((item) => item.id)).toEqual([root]);
 });
