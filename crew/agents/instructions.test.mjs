@@ -212,7 +212,7 @@ test("ngoại lệ issue con leo thang cho owner", () => {
 test("integrator che token ngoài URL, không dựa vào plugin hay mention", () => {
   const text = read("integrator");
   assert.doesNotMatch(text, /@mention|plugin|\(id <uuid>\)|prompt/);
-  for (const needle of ["gh[pousr]_", "github_pat_", "glpat-", "xox[abp]-", "nhảy thẳng tới bước 8"]) {
+  for (const needle of ["gh[pousr]_", "github_pat_", "glpat-", "xox[abp]-", "nhảy tới bước 7b"]) {
     assert.ok(text.includes(needle), `thiếu ${needle}`);
   }
 });
@@ -822,4 +822,27 @@ test("reviewer: mục chạy bằng Codex giữ luật duyệt, chỉ nhận iss
   assert.doesNotMatch(body, /"status":/);
   assert.ok(text.indexOf("## Khi chạy bằng Codex") > text.indexOf("## Cách review"));
   assert.ok(text.indexOf("## Khi chạy bằng Codex") < text.indexOf("## Quyết định (một request, có comment)"));
+});
+
+test("integrator: deploy tự động chỉ khi repo có crew/release/auto-deploy.json, chạy script của commit T, trước PATCH done", () => {
+  const text = read("integrator");
+  const stage4 = text.slice(text.indexOf("## Stage 4"));
+  const step = stage4.slice(stage4.indexOf("7b."), stage4.indexOf("\n8. "));
+  assert.ok(step.length > 0, "thiếu bước 7b");
+  assert.ok(step.includes('git cat-file -e "$T:crew/release/auto-deploy.json"'), "phải kiểm file cấu hình ở commit T");
+  assert.match(step, /thất bại thì bỏ qua hẳn bước này, không comment gì thêm/);
+  assert.ok(step.includes('git show "$T:crew/ops/auto-deploy.mjs" > "$D/auto-deploy.mjs"'), "phải chạy đúng bản script của T");
+  assert.ok(step.includes('enqueue --repo "$PWD" --issue <id> --sha "$T" --body-out "$D/deploy.json"'));
+  assert.ok(step.includes('-d @"$D/deploy.json"'), "đăng nguyên body do lệnh viết");
+  assert.match(step, /`rc=3` \(repo không bật\) thì không comment/);
+  assert.match(step, /Deploy lỗi không đổi bước 8/);
+  assert.match(step, /Không tự chạy `ssh`, `launchctl`, `deploy\.sh`/);
+  for (const status of ["queued", "failed"]) {
+    assert.ok(step.includes(`\`crew-deploy sha=<T> status=${status}\``), `thiếu dòng mẫu crew-deploy status=${status}`);
+    assert.match(`crew-deploy sha=${"a".repeat(40)} status=${status}`, /^crew-deploy sha=[0-9a-f]{40} status=(queued|deployed|failed|rolled_back)$/);
+  }
+  assert.ok(stage4.indexOf("crew-merge sha=") < stage4.indexOf("7b."), "crew-merge phải đứng trước bước deploy");
+  assert.ok(stage4.indexOf("7b.") < stage4.indexOf("`PUSHED=yes` (hoặc đã push"), "bước deploy phải đứng trước PATCH done");
+  assert.match(stage4, /nhảy tới bước 7b \(deploy tự động, nếu repo bật\) và bước 8/);
+  assert.match(stage4, /sau nó chỉ được có comment `crew-deploy` của bước 7b/);
 });
