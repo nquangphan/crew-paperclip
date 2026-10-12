@@ -97,6 +97,7 @@
     "dashboard": "Dashboard",
     "inbox": "Inbox",
     "issues": "Requests",
+    "roadmap": "Roadmap",
     "contributions": "Pending approval",
     "contributionsMine": "My contributions",
     "projects": "Projects",
@@ -299,5 +300,54 @@
     "noAccessHint": "The owner has not given you this project. Ask the owner to grant it on the Members page.",
     "noProjectsYet": "You have not been given any project yet",
     "noProjectsYetHint": "The owner chooses which projects you can see on the Members page."
+  },
+  "roadmap": {
+    "label": "Company map",
+    "loadFailed": "Could not display the map.",
+    "more_one": "+{{count}} more",
+    "more_other": "+{{count}} more",
+    "docs": "Docs",
+    "meta": {
+      "company": "{{projects}} projects · {{open}} open requests",
+      "requests_one": "{{count}} request",
+      "requests_other": "{{count}} requests",
+      "open": "{{count}} open",
+      "progress": "{{done}}/{{total}} sub-tasks done",
+      "noChildren": "No sub-tasks yet",
+      "children_one": "{{count}} child",
+      "children_other": "{{count}} children",
+      "unassigned": "Unassigned",
+      "pages_one": "{{count}} page",
+      "pages_other": "{{count}} pages",
+      "noDocs": "No docs yet",
+      "loading": "Loading…"
+    },
+    "aria": {
+      "company": "Company {{name}}: {{projects}} projects, {{open}} open requests",
+      "project": "Project {{name}}: {{total}} requests, {{open}} open",
+      "request": "{{id}}: {{title}}, {{status}}, {{done}}/{{total}} sub-tasks done",
+      "ticket": "{{id}}: {{title}}, {{status}}, {{assignee}}",
+      "docs": "Docs: {{count}} pages",
+      "docsEmpty": "Docs: no docs yet",
+      "folder": "Folder {{name}}: {{count}} pages",
+      "page": "Page {{title}}",
+      "more": "{{count}} more items, open the list view",
+      "docsLoading": "Docs: loading"
+    },
+    "legend": {
+      "label": "Legend",
+      "parent": "Parent → child",
+      "blocks": "Blocks (must finish first)"
+    },
+    "controls": {
+      "label": "Map controls",
+      "zoomIn": "Zoom in",
+      "zoomOut": "Zoom out",
+      "fit": "Fit to screen"
+    },
+    "doc": {
+      "close": "Close",
+      "openInDocs": "Open in Docs page"
+    }
   }
 }

@@ -97,6 +97,7 @@
     "dashboard": "Tổng quan",
     "inbox": "Hộp thư",
     "issues": "Yêu cầu",
+    "roadmap": "Roadmap",
     "contributions": "Chờ duyệt",
     "contributionsMine": "Góp ý của tôi",
     "projects": "Project",
@@ -299,5 +300,54 @@
     "noAccessHint": "Owner chưa cấp project này cho bạn. Hãy nhờ owner mở quyền ở trang Thành viên.",
     "noProjectsYet": "Bạn chưa được cấp project nào",
     "noProjectsYetHint": "Owner cấp project bạn được xem ở trang Thành viên."
+  },
+  "roadmap": {
+    "label": "Bản đồ công ty",
+    "loadFailed": "Không hiển thị được bản đồ.",
+    "more_one": "+{{count}} khác",
+    "more_other": "+{{count}} khác",
+    "docs": "Docs",
+    "meta": {
+      "company": "{{projects}} project · {{open}} yêu cầu đang mở",
+      "requests_one": "{{count}} yêu cầu",
+      "requests_other": "{{count}} yêu cầu",
+      "open": "{{count}} đang mở",
+      "progress": "{{done}}/{{total}} việc con xong",
+      "noChildren": "Chưa có việc con",
+      "children_one": "{{count}} con",
+      "children_other": "{{count}} con",
+      "unassigned": "Chưa giao",
+      "pages_one": "{{count}} trang",
+      "pages_other": "{{count}} trang",
+      "noDocs": "Chưa có docs",
+      "loading": "Đang tải…"
+    },
+    "aria": {
+      "company": "Công ty {{name}}: {{projects}} project, {{open}} yêu cầu đang mở",
+      "project": "Project {{name}}: {{total}} yêu cầu, {{open}} đang mở",
+      "request": "{{id}}: {{title}}, {{status}}, {{done}}/{{total}} việc con xong",
+      "ticket": "{{id}}: {{title}}, {{status}}, {{assignee}}",
+      "docs": "Docs: {{count}} trang",
+      "docsEmpty": "Docs: chưa có docs",
+      "folder": "Thư mục {{name}}: {{count}} trang",
+      "page": "Trang {{title}}",
+      "more": "Còn {{count}} mục khác, mở dạng danh sách",
+      "docsLoading": "Docs: đang tải"
+    },
+    "legend": {
+      "label": "Chú giải",
+      "parent": "Cha → con",
+      "blocks": "Chặn (phải xong trước)"
+    },
+    "controls": {
+      "label": "Điều khiển bản đồ",
+      "zoomIn": "Phóng to",
+      "zoomOut": "Thu nhỏ",
+      "fit": "Vừa màn hình"
+    },
+    "doc": {
+      "close": "Đóng",
+      "openInDocs": "Mở trong trang Docs"
+    }
   }
 }

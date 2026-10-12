@@ -150,6 +150,9 @@ describe('design system', () => {
     expect(pkgs).toContain('react');
     expect(pkgs.filter((p) => /^(react-markdown|remark-|rehype-|micromark)/.test(p))).toEqual([]);
   });
+  it('cổng @/ds không kéo @xyflow vào chunk khởi đầu (bản đồ Crew và Roadmap tải lười)', () => {
+    expect([...staticPackages('src/ds/index.ts')].filter((p) => p.startsWith('@xyflow/'))).toEqual([]);
+  });
   it('bộ quét thật có file để quét', () => {
     expect(nonDsFiles().length).toBeGreaterThan(0);
     expect(list('src/ds/components/*.tsx').length).toBeGreaterThan(0);

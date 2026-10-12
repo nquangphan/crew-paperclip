@@ -1084,3 +1084,63 @@
     font-family: inherit;
   }
 }
+
+/* ── Roadmap (src/ds/widgets/roadmap) ──
+   Chuyển tầng: camera phóng vào nút trong --roadmap-zoom-in, tầng mới thu ra trong --roadmap-zoom-out; nút con bay từ
+   tâm ra chỗ của nó (--from-x/--from-y do widget gán), cạnh hiện dần sau. prefers-reduced-motion tắt hết. */
+:root {
+  --roadmap-zoom-in: 450ms;
+  --roadmap-zoom-out: 650ms;
+}
+
+@keyframes roadmap-node-enter {
+  from {
+    opacity: 0;
+    transform: translate(var(--from-x, 0px), var(--from-y, 0px)) scale(0.3);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes roadmap-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.roadmap-node-enter {
+  animation: roadmap-node-enter var(--roadmap-zoom-out) var(--motion-ease-out-expo) both;
+  animation-delay: var(--enter-delay, 0ms);
+}
+
+.roadmap-edge-enter {
+  animation: roadmap-fade-in 400ms var(--motion-ease-standard) both;
+  animation-delay: var(--enter-delay, 250ms);
+}
+
+/* Nút điều khiển của xyflow theo token của theme (sáng/tối). */
+.roadmap-flow {
+  --xy-background-color: transparent;
+  --xy-controls-button-background-color: var(--card);
+  --xy-controls-button-background-color-hover: var(--accent);
+  --xy-controls-button-color: var(--foreground);
+  --xy-controls-button-color-hover: var(--foreground);
+  --xy-controls-button-border-color: var(--border);
+  --xy-controls-box-shadow: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --roadmap-zoom-in: 0ms;
+    --roadmap-zoom-out: 0ms;
+  }
+  .roadmap-node-enter,
+  .roadmap-edge-enter {
+    animation: none;
+  }
+}

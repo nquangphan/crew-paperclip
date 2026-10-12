@@ -1,7 +1,15 @@
 // Mẫu widget Crew cho trang /ds (dữ liệu giả chỉ để xem giao diện).
 import { useState } from 'react';
 import type { CrewMachine, CrewMap as CrewMapData, CrewMapNode } from '@/api/crew/types';
-import { CrewMap, CrewSummary, DocsCheckPanel, MachineCard, ReadinessBadge } from '@/ds';
+import {
+  CrewMap,
+  CrewSummary,
+  DocsCheckPanel,
+  MachineCard,
+  ReadinessBadge,
+  RoadmapCanvas,
+  type RoadmapLevel,
+} from '@/ds';
 
 const node = (id: string, identifier: string, title: string, over: Partial<CrewMapNode> = {}): CrewMapNode => ({
   id,
@@ -56,6 +64,28 @@ const report: CrewMachine['latest'] = {
   checks: [{ id: 'C2', status: 'warn', title: 'Đĩa gần đầy' }],
 };
 
+const roadmap: RoadmapLevel = {
+  center: { id: 'p1', kind: 'project', title: 'Crew', color: '#2b59c3', total: 4, open: 3 },
+  nodes: [
+    { id: 'docs:p1', kind: 'docs', title: 'Docs', total: 12 },
+    {
+      id: 'r1',
+      kind: 'request',
+      title: 'Trang đăng nhập',
+      identifier: 'TPS-36',
+      status: 'in_progress',
+      total: 3,
+      done: 1,
+    },
+    { id: 'r2', kind: 'request', title: 'Bảng Kanban', identifier: 'TPS-40', status: 'in_review', total: 5, done: 4 },
+    { id: 'r3', kind: 'request', title: 'Sidebar mobile', identifier: 'TPS-41', status: 'blocked', total: 0, done: 0 },
+    { id: 'r4', kind: 'request', title: 'Quyền project', identifier: 'TPS-30', status: 'done', total: 6, done: 6 },
+  ],
+  edges: ['docs:p1', 'r1', 'r2', 'r3', 'r4'].map((id) => ({ id, source: 'p1', target: id, kind: 'parent' as const })),
+  overflow: 0,
+  layout: 'rings',
+};
+
 export function CrewShowcase() {
   const [expanded, setExpanded] = useState(false);
   return (
@@ -79,6 +109,7 @@ export function CrewShowcase() {
         onToggleMap={() => setExpanded((v) => !v)}
       />
       {expanded ? <CrewMap map={map} currentIssueId="b" onOpenIssue={() => {}} /> : null}
+      <RoadmapCanvas level={roadmap} levelKey="p1" direction="in" onOpen={() => {}} labels={{ canvas: 'Roadmap' }} />
       <DocsCheckPanel result={{ invalid: true, at: '2026-10-10T04:20:00.000Z', author: null }} />
       <MachineCard report={report} latestAt="2026-10-10T04:20:00.000Z" now={new Date('2026-10-10T04:21:00.000Z')} />
     </div>

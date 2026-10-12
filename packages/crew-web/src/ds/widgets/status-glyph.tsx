@@ -41,6 +41,11 @@ const COLOR_VAR: Record<string, string> = {
   cancelled: '--status-task-icon-cancelled',
 };
 
+/** Màu trạng thái dùng chung (cùng bảng với biểu tượng ở danh sách và bảng Kanban), dạng `var(--status-task-icon-*)`. */
+function statusColorVar(status: string): string {
+  return `var(${COLOR_VAR[status] ?? '--status-task-icon-backlog'})`;
+}
+
 interface StatusGlyphProps {
   status: string;
   size?: StatusGlyphSize;
@@ -63,11 +68,11 @@ function StatusGlyph({ status, size = 'md', className, title }: StatusGlyphProps
         status === 'in_progress' && 'motion-safe:animate-spin',
         className,
       )}
-      style={{ color: `var(${COLOR_VAR[status] ?? '--status-task-icon-backlog'})` }}
+      style={{ color: statusColorVar(status) }}
       {...a11y}
     />
   );
 }
 
 export type { StatusGlyphProps, StatusGlyphSize };
-export { StatusGlyph };
+export { StatusGlyph, statusColorVar };
