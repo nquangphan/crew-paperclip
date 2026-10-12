@@ -4,7 +4,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { api, queryKeys } from '@/api';
 import { useMe } from '@/app/hooks';
-import { Button, ConfirmDialog, DetailSection, ErrorState, MutedText, Skeleton } from '@/ds';
+import { Button, ConfirmDialog, DetailSection, ErrorState, ImageGallery, ImageTile, MutedText, Skeleton } from '@/ds';
 import { Trash2 } from '@/ds/icons';
 import { useCompanyAccess } from '@/features/access';
 import { useT } from '@/i18n';
@@ -26,15 +26,15 @@ export function Attachments({ issueId }: { issueId: string }) {
   });
   const nameOf = (a: IssueAttachment) => a.originalFilename ?? t('detail.attachments.unnamed');
 
-  const isImage = (a: IssueAttachment) => a.contentType.startsWith('image/');
+  // Bản ghi cũ hay thiếu content-type thì coi là file thường, không làm vỡ trang.
+  const isImage = (a: IssueAttachment) => (a.contentType ?? '').startsWith('image/');
   const images = (list.data ?? []).filter(isImage);
   const others = (list.data ?? []).filter((a) => !isImage(a));
-  const deleteButton = (a: IssueAttachment, className?: string) =>
+  const deleteButton = (a: IssueAttachment) =>
     a.createdByUserId === me.id && !readOnly ? (
       <Button
         variant="ghost"
         size="icon-sm"
-        className={className}
         aria-label={t('detail.attachments.deleteFile', { name: nameOf(a) })}
         onClick={() => {
           remove.reset();
@@ -58,21 +58,17 @@ export function Attachments({ issueId }: { issueId: string }) {
       {list.data?.length === 0 ? <MutedText>{t('detail.attachments.empty')}</MutedText> : null}
       {images.length > 0 ? (
         // Ảnh xếp theo hàng, hết chỗ mới xuống dòng; bấm mở cỡ thật, tên file chỉ còn ở alt.
-        <ul className="flex flex-wrap gap-2">
+        <ImageGallery>
           {images.map((a) => (
-            <li key={a.id} className="relative">
-              <a href={api.attachments.contentUrl(a.id)} target="_blank" rel="noreferrer noopener">
-                <img
-                  src={api.attachments.contentUrl(a.id)}
-                  alt={nameOf(a)}
-                  loading="lazy"
-                  className="h-40 w-auto max-w-full rounded-md border object-contain"
-                />
-              </a>
-              {deleteButton(a, 'absolute top-1 right-1 bg-background/80')}
-            </li>
+            <ImageTile
+              key={a.id}
+              src={api.attachments.contentUrl(a.id)}
+              href={api.attachments.contentUrl(a.id)}
+              alt={nameOf(a)}
+              action={deleteButton(a)}
+            />
           ))}
-        </ul>
+        </ImageGallery>
       ) : null}
       {others.length > 0 ? (
         <ul className="flex flex-col gap-1">

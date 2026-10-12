@@ -2,7 +2,7 @@
 import { warnForAttachment } from '@crew/paperclip-plugin/shared/attachment-rules';
 import type { Issue } from '@paperclipai/shared';
 import { useQuery } from '@tanstack/react-query';
-import { useEffect, useState } from 'react';
+import { type ReactNode, useEffect, useState } from 'react';
 import { api, queryKeys } from '@/api';
 import {
   AttachmentPicker,
@@ -15,6 +15,8 @@ import {
   DialogTitle,
   ErrorState,
   Field,
+  ImageGallery,
+  ImageTile,
   Input,
   Select,
   SelectContent,
@@ -78,21 +80,15 @@ export function pastedImages(data: Pick<DataTransfer, 'files'>, now = Date.now()
     });
 }
 
-/** Ảnh chưa upload hiện thành hình từ object URL; thu hồi URL khi bỏ ảnh hay đóng dialog. */
-function LocalImage({ file }: { file: File }) {
+/** Ảnh chưa upload hiện xem trước từ object URL; thu hồi URL khi bỏ ảnh hay đóng dialog. */
+function LocalImageTile({ file, action }: { file: File; action: ReactNode }) {
   const [url, setUrl] = useState<string | null>(null);
   useEffect(() => {
     const next = URL.createObjectURL(file);
     setUrl(next);
     return () => URL.revokeObjectURL(next);
   }, [file]);
-  return (
-    <span className="block">
-      {url ? (
-        <img src={url} alt={file.name} className="h-28 w-auto max-w-full rounded-md border object-contain" />
-      ) : null}
-    </span>
-  );
+  return url ? <ImageTile src={url} alt={file.name} size="sm" action={action} /> : null;
 }
 
 const isImageFile = (file: File) => file.type.startsWith('image/');
@@ -147,12 +143,11 @@ function RequestForm({
 
   const ready = projectId !== '' && assistantId !== null && title.trim() !== '' && !create.isPending;
 
-  const removeButton = (file: File, className?: string) => (
+  const removeButton = (file: File) => (
     <Button
       type="button"
       variant="ghost"
       size="xs"
-      className={className}
       aria-label={t('new.remove', { name: file.name })}
       onClick={() => setFiles((prev) => prev.filter((f) => fileKey(f) !== fileKey(file)))}
     >
@@ -266,14 +261,11 @@ function RequestForm({
         />
         {files.some(isImageFile) ? (
           // Ảnh xếp theo hàng, hết chỗ mới xuống dòng.
-          <ul className="flex flex-wrap gap-2">
+          <ImageGallery>
             {files.filter(isImageFile).map((file) => (
-              <li key={fileKey(file)} className="relative">
-                <LocalImage file={file} />
-                {removeButton(file, 'absolute top-1 right-1 bg-background/80')}
-              </li>
+              <LocalImageTile key={fileKey(file)} file={file} action={removeButton(file)} />
             ))}
-          </ul>
+          </ImageGallery>
         ) : null}
         {files.some((f) => !isImageFile(f)) ? (
           <ul className="grid gap-2">
