@@ -170,7 +170,7 @@ test("integrator chỉ push sau khi xác minh qua API (không tin prompt hay com
   ]) {
     assert.ok(text.includes(needle), `thiếu ${needle}`);
   }
-  assert.ok(text.indexOf("Xác minh qua API") < text.indexOf('git push origin "$T:refs/heads/$DEFAULT"'));
+  assert.ok(text.indexOf("Xác minh qua API") < text.indexOf('git push origin "${T}:refs/heads/${DEFAULT}"'));
 });
 
 test("bước Gộp chỉ tin crew-review của reviewer đã qua stage đầu", () => {
@@ -190,7 +190,7 @@ test("integrator dựng lại nhánh từ commit của bằng chứng, không ti
   assert.ok(rebuild > 0, "thiếu dựng lại từ E");
   assert.ok(rebuild < push.indexOf("git merge --no-ff --no-edit"), "merge mặc định phải sau khi dựng lại");
   assert.ok(push.indexOf("git merge --no-ff --no-edit") < push.indexOf("crew-docs-check commit=$T"), "bằng chứng mới cho tip đã merge");
-  assert.ok(push.indexOf("crew-docs-check commit=$T") < push.indexOf('git push origin "$T:'), "bằng chứng trước push");
+  assert.ok(push.indexOf("crew-docs-check commit=$T") < push.indexOf('git push origin "${T}:'), "bằng chứng trước push");
   assert.match(push, /git rev-parse HEAD` phải vẫn bằng `T`/);
   assert.ok(push.indexOf("crew-docs-check commit=$T") < push.indexOf("crew-merge sha=<T>"), "bằng chứng mới ghi trước crew-merge");
   assert.match(push, /"status":"done","comment":"Integrator: approve — đã push/);
@@ -262,7 +262,7 @@ test("luật không bao giờ nằm trước các mục khác, integrator có lu
     assert.ok(text.indexOf("## Không bao giờ") < text.indexOf("## Gọi API"), name);
   }
   const text = read("integrator");
-  assert.ok(text.indexOf("LUẬT CỨNG") < text.indexOf('git push origin "$T:refs/heads/$DEFAULT"'));
+  assert.ok(text.indexOf("LUẬT CỨNG") < text.indexOf('git push origin "${T}:refs/heads/${DEFAULT}"'));
   assert.match(text, /KHÔNG `git push`/);
   assert.match(text, /`PATCH` issue gốc sang `in_progress`, `blocked` hay `cancelled`/);
   assert.match(read("executor"), /Kiểm `git branch --show-current`/);
@@ -829,9 +829,9 @@ test("integrator: deploy tự động chỉ khi repo có crew/release/auto-deplo
   const stage4 = text.slice(text.indexOf("## Stage 4"));
   const step = stage4.slice(stage4.indexOf("7b."), stage4.indexOf("\n8. "));
   assert.ok(step.length > 0, "thiếu bước 7b");
-  assert.ok(step.includes('git cat-file -e "$T:crew/release/auto-deploy.json"'), "phải kiểm file cấu hình ở commit T");
+  assert.ok(step.includes('git cat-file -e "${T}:crew/release/auto-deploy.json"'), "phải kiểm file cấu hình ở commit T");
   assert.match(step, /thất bại thì bỏ qua hẳn bước này, không comment gì thêm/);
-  assert.ok(step.includes('git show "$T:crew/ops/auto-deploy.mjs" > "$D/auto-deploy.mjs"'), "phải chạy đúng bản script của T");
+  assert.ok(step.includes('git show "${T}:crew/ops/auto-deploy.mjs" > "$D/auto-deploy.mjs"'), "phải chạy đúng bản script của T");
   assert.ok(step.includes('enqueue --repo "$PWD" --issue <id> --sha "$T" --body-out "$D/deploy.json"'));
   assert.ok(step.includes('-d @"$D/deploy.json"'), "đăng nguyên body do lệnh viết");
   assert.match(step, /`rc=3` \(repo không bật\) thì không comment/);
@@ -845,4 +845,10 @@ test("integrator: deploy tự động chỉ khi repo có crew/release/auto-deplo
   assert.ok(stage4.indexOf("7b.") < stage4.indexOf("`PUSHED=yes` (hoặc đã push"), "bước deploy phải đứng trước PATCH done");
   assert.match(stage4, /nhảy tới bước 7b \(deploy tự động, nếu repo bật\) và bước 8/);
   assert.match(stage4, /sau nó chỉ được có comment `crew-deploy` của bước 7b/);
+});
+
+test("integrator: mọi ref git dạng <biến>:<đường dẫn> giữ ngoặc nhọn (zsh hiểu $T:c, $T:r là modifier)", () => {
+  const text = read("integrator");
+  assert.doesNotMatch(text, /"\$[A-Za-z_]+:/);
+  assert.ok(text.includes('git push origin "${T}:refs/heads/${DEFAULT}"'));
 });
