@@ -75,7 +75,8 @@ export interface CrewCoreHooks {
   /**
    * Dừng phần việc còn chạy phía remote của run gắn với lease. Trả về ngay khi `lease.heartbeatRunId` là `null`.
    * Bản Crew ghi dấu `crew.remote_stop.started`, khởi động lệnh dừng chạy nền rồi trả về, để lease được nhả trước khi SSH xong (xem
-   * `startRemoteStopOnRelease`). Lỗi bị nuốt và ghi log; quá `CREW_RUN_LEASE_RELEASE_HOOK_TIMEOUT_MS` thì wrapper
+   * `startRemoteStopOnRelease`). Dừng xong, Crew ghi biên nhận dừng (`remoteExecutionTermination`) lên lease khi lệnh dừng
+   * xác nhận không còn process hoặc run chưa từng khởi chạy adapter (xem `remote-termination.ts`). Lỗi bị nuốt và ghi log; quá `CREW_RUN_LEASE_RELEASE_HOOK_TIMEOUT_MS` thì wrapper
    * bỏ chờ, ghi log và trả về, để lease vẫn được trả.
    */
   onRunLeaseReleased(input: RunLeaseReleasedInput): Promise<void>;

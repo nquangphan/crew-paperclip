@@ -6,6 +6,7 @@ import { resolveEnvironmentDriverConfigForRuntime } from "../services/environmen
 import type { EnvironmentDriverReleaseInput } from "../services/environment-runtime.js";
 import { environmentService } from "../services/environments.js";
 import { rewakeAfterLeaseRelease } from "./handoff-rewake.js";
+import { settleSshRemoteTermination } from "./remote-termination.js";
 
 /** Same shape as RunLeaseReleasedInput in core-hooks.ts (not imported: implementations must not import the registry). */
 export type RunLeaseReleasedInput = EnvironmentDriverReleaseInput & { db: Db };
@@ -252,11 +253,13 @@ export function isRemoteStopPending(environmentId: string): boolean {
  * the stop records its result (or REMOTE_STOP_PENDING_WINDOW_MS in load-gate.ts passes, e.g. after a
  * server restart killed it), the load gate keeps claims on the same environment queued (no new run
  * next to the old processes). The stop records its own `crew.remote_stop` activity; a stop that exceeds
- * REMOTE_STOP_BACKGROUND_LIMIT_MS is recorded as unreachable. Never throws.
+ * REMOTE_STOP_BACKGROUND_LIMIT_MS is recorded as unreachable. After the stop, `afterStop` records the
+ * termination receipt when the stop is verified or the run provably never launched. Never throws.
  */
 export async function startRemoteStopOnRelease(
   input: RunLeaseReleasedInput,
   stop: (input: RunLeaseReleasedInput) => Promise<RemoteStopResult> = stopRemoteRunOnRelease,
+  afterStop: (input: RunLeaseReleasedInput, result: RemoteStopResult | null) => Promise<unknown> = settleSshRemoteTermination,
 ): Promise<void> {
   if (!input.lease.heartbeatRunId || input.environment.driver !== "ssh") return;
   try {
@@ -289,18 +292,21 @@ export async function startRemoteStopOnRelease(
     timer = setTimeout(() => resolve("timeout"), REMOTE_STOP_BACKGROUND_LIMIT_MS);
   });
   const done = Promise.race([
-    Promise.resolve()
-      .then(() => stop(input))
-      .then(() => "done" as const),
+    Promise.resolve().then(() => stop(input)),
     limit,
   ])
     .then(async (outcome) => {
-      if (outcome !== "timeout") return;
-      logger.warn({ runId: input.lease.heartbeatRunId }, "crew: remote stop exceeded its background limit");
-      await defaultDeps.recordActivity(input, {
-        outcome: "unreachable",
-        error: `lệnh dừng chưa xong sau ${REMOTE_STOP_BACKGROUND_LIMIT_MS / 1000} giây`,
-      });
+      if (outcome === "timeout") {
+        logger.warn({ runId: input.lease.heartbeatRunId }, "crew: remote stop exceeded its background limit");
+        await defaultDeps.recordActivity(input, {
+          outcome: "unreachable",
+          error: `lệnh dừng chưa xong sau ${REMOTE_STOP_BACKGROUND_LIMIT_MS / 1000} giây`,
+        });
+      }
+      // Termination receipt for the continuation gate (remote-termination.ts). It is written after the SSH
+      // round trip, by which time the driver's own release right after this hook has landed; that stock
+      // `releaseLease` call drops any receipt it was not given, so writing earlier could be undone.
+      if (released) await afterStop(input, outcome === "timeout" ? null : outcome);
     })
     .catch((err) => {
       logger.warn({ err, runId: input.lease.heartbeatRunId }, "crew: background remote stop failed");
