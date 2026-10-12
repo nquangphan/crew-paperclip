@@ -254,10 +254,10 @@ Trên ảnh:
 1. Bấm một project: bản đồ phóng vào project đó rồi thu ra để lộ các yêu cầu của nó.
 2. Bấm một yêu cầu: lộ cây việc con (cả cháu chắt). Đường liền nối cha với con; đường đứt có mũi tên là **chặn**: việc ở đầu mũi tên phải chờ việc kia xong.
 3. Bấm một việc con, hoặc yêu cầu ở giữa: mở [cửa sổ chi tiết yêu cầu](#issue-popup).
-4. Bấm **Docs**: lộ thư mục và trang tài liệu của project. Bấm thư mục để đi vào, bấm trang để đọc trong cửa sổ nổi; link trong bài mở trang khác ngay trong cửa sổ, nút **Mở trong trang Docs** mở đúng trang đó ở trang [Docs](/docs).
+4. Bấm **Docs**: lộ thư mục và trang tài liệu của project (bộ docs chỉ có một thư mục thì vào thẳng thư mục đó). Bấm thư mục để đi vào, bấm trang để đọc trong cửa sổ nổi; link trong bài mở trang khác ngay trong cửa sổ, nút **Mở trong trang Docs** mở đúng trang đó ở trang [Docs](/docs).
 5. Lùi một tầng bằng nút **Lùi**, phím **Esc**, đường dẫn ở trên, hoặc nút Back của trình duyệt.
 
-Kéo để di chuyển, cuộn hoặc chụm hai ngón để phóng to, nút **+ / − / ⤢** ở góc dưới phải. Một tầng quá nhiều mục thì hiện nút **+N khác**: bấm để xem đủ ở dạng danh sách.
+Bản đồ luôn giữ cỡ chữ đọc được: tầng rộng hơn màn hình thì kéo để xem phần còn lại, cuộn hoặc chụm hai ngón để phóng to thu nhỏ, nút **+ / − / ⤢** ở góc dưới phải (⤢ thu nhỏ cho thấy cả tầng). **Chú thích** màu và nét nằm dưới bản đồ, bấm để thu gọn hoặc mở. Một tầng quá nhiều mục thì hiện nút **+N khác**: bấm để xem đủ ở dạng danh sách.
 
 > **Mẹo:** tầng đang xem nằm trên địa chỉ trang, nên chép địa chỉ là gửi được đúng chỗ đang xem cho người khác.
 

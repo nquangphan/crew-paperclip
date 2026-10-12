@@ -156,11 +156,22 @@ test('PW-S22-3 nhánh Docs: vào bộ docs, mở trang trong popup, link sang tr
   await docs.click();
   await expect(page).toHaveURL(new RegExp(`project=${projectId}&docs=1$`));
 
-  // Đi tới trang đầu tiên: vào từng thư mục trên đường dẫn của nó (nếu có) rồi bấm trang.
+  // Gốc chỉ có một thư mục (không trang) thì tự vào thư mục đó, breadcrumb vẫn ghi đường thư mục.
+  const tops = new Set(pages.map((p) => (p.path.includes('/') ? `dir:${p.path.split('/')[0]}` : 'page')));
+  const center = page.locator('button[data-roadmap-id][data-center]');
+  if (tops.size === 1 && !tops.has('page')) {
+    const only = [...tops][0];
+    await expect(center).toHaveAttribute('data-roadmap-id', only);
+    await expect(page.getByRole('navigation', { name: 'Đường dẫn trang' })).toContainText(only.slice(4));
+  }
+
+  // Đi tới trang đầu tiên: vào từng thư mục trên đường dẫn của nó (bỏ qua tầng đã tự vào) rồi bấm trang.
   const target = pages[0];
   const parts = target.path.split('/');
   for (let i = 1; i < parts.length; i++) {
     const folder = parts.slice(0, i).join('/');
+    const current = (await center.getAttribute('data-roadmap-id')) ?? '';
+    if (current.startsWith('dir:') && `${current.slice(4)}/`.startsWith(`${folder}/`)) continue;
     await node(page, `dir:${folder}`).click();
     await expect(page).toHaveURL(new RegExp(`folder=${encodeURIComponent(folder)}$`));
   }

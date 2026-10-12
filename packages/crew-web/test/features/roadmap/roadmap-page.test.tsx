@@ -186,7 +186,7 @@ describe('RoadmapPage', () => {
     mount('/TPS/roadmap?project=p1&request=TPS-1&view=list');
     const list = await screen.findByRole('region', { name: 'Bản đồ dạng danh sách' });
     await waitFor(() => expect(list.querySelector('[data-roadmap-id="c2"]')).toBeTruthy());
-    expect(screen.queryByRole('region', { name: 'Chú giải' })).toBeNull();
+    expect(screen.queryByRole('region', { name: 'Chú thích' })).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: 'Bản đồ' }));
     await waitFor(() => expect(loc()).toBe('/TPS/roadmap?project=p1&request=TPS-1'));
   });
@@ -241,6 +241,33 @@ describe('RoadmapPage', () => {
     );
     fireEvent.click(screen.getByRole('button', { name: 'Đóng' }));
     await waitFor(() => expect(loc()).toBe('/TPS/roadmap?project=p1&docs=1'));
+  });
+
+  it('gốc docs chỉ có một thư mục: tự vào thư mục đó, breadcrumb có thư mục, Esc lùi về tầng project', async () => {
+    server({
+      'POST /api/plugins/crew.core/data/crew.docs.tree': {
+        body: {
+          data: {
+            repo: 'crew',
+            commit: 'abcdef1234',
+            auditState: 'ok',
+            receivedAt: '2026-10-10T00:00:00.000Z',
+            machineId: 'm',
+            dropped: [],
+            pages: [
+              { path: 'docs/index.md', title: 'Mục lục', parentPath: 'docs' },
+              { path: 'docs/flows/a.md', title: 'Luồng A', parentPath: 'docs/flows' },
+            ],
+          },
+        },
+      },
+    });
+    mount('/TPS/roadmap?project=p1&docs=1');
+    await waitFor(() => expect(node('page:docs/index.md')).toBeTruthy());
+    expect(nodeIds()).toEqual(['dir:docs', 'dir:docs/flows', 'page:docs/index.md']);
+    expect(screen.getByRole('navigation', { name: 'Đường dẫn trang' }).textContent).toContain('docs');
+    fireEvent.keyDown(document, { key: 'Escape' });
+    await waitFor(() => expect(loc()).toBe('/TPS/roadmap?project=p1'));
   });
 
   it('project chưa có docs: nút Docs mờ, không vào được; deep link docs ra thông báo chung', async () => {

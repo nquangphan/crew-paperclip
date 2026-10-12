@@ -5,11 +5,13 @@ import {
   buildProjectLevel,
   buildRequestLevel,
   docsNodeId,
+  docsParentFolder,
   folderTrail,
   isHumanRoot,
   MORE_ID,
   NO_PROJECT,
   type RoadmapIssue,
+  resolveDocsFolder,
   stableOrder,
 } from '@/features/roadmap/roadmap-model';
 
@@ -217,6 +219,23 @@ describe('buildDocsLevel', () => {
     expect(level?.center).toMatchObject({ kind: 'folder', title: 'docs' });
     expect(level?.nodes.map((n) => n.id)).toEqual(['dir:docs/flows', 'page:docs/index.md']);
     expect(buildDocsLevel({ projectId: 'p1', pages, folder: 'nope' })).toBeNull();
+  });
+
+  it('tầng chỉ có một thư mục và không trang thì tự đi xuống; lùi bỏ qua tầng tự đi xuống', () => {
+    const nested = [
+      { path: 'docs/guide/a.md', title: 'A' },
+      { path: 'docs/guide/b/c.md', title: 'C' },
+    ];
+    expect(resolveDocsFolder(nested, null)).toBe('docs/guide');
+    expect(resolveDocsFolder(nested, 'docs')).toBe('docs/guide');
+    expect(resolveDocsFolder(nested, 'docs/guide/b')).toBe('docs/guide/b');
+    expect(resolveDocsFolder(pages, null)).toBeNull();
+    expect(resolveDocsFolder(pages, 'nope')).toBe('nope');
+    expect(docsParentFolder(nested, 'docs/guide')).toBe('project');
+    expect(docsParentFolder(nested, 'docs/guide/b')).toBe('docs/guide');
+    expect(docsParentFolder(pages, 'docs/flows')).toBe('docs');
+    expect(docsParentFolder(pages, 'docs')).toBeNull();
+    expect(docsParentFolder(pages, null)).toBe('project');
   });
 
   it('folderTrail tách đường thư mục', () => {

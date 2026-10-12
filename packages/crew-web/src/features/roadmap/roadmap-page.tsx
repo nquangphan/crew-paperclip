@@ -38,11 +38,13 @@ import {
   buildRequestLevel,
   COMPANY_ID,
   docsNodeId,
+  docsParentFolder,
   docsPathOf,
   folderNodeId,
   folderTrail,
   NO_PROJECT,
   type ProjectDocs,
+  resolveDocsFolder,
 } from './roadmap-model';
 import {
   docHref,
@@ -106,10 +108,18 @@ export function RoadmapPage() {
   const { visible, projects } = data;
 
   const go = useCallback((target: RoadmapTarget) => navigate(roadmapHref(location, target)), [navigate, location]);
-  const up = useCallback(() => {
-    const target = parentTarget(params);
+  // Nhánh docs: tầng chỉ có một thư mục (không trang) tự đi xuống; khóa tầng, breadcrumb và nút lùi theo thư mục hiện ra.
+  const docsPages = params.docs ? data.tree.data?.pages : undefined;
+  const folder = docsPages ? resolveDocsFolder(docsPages, params.folder) : params.folder;
+  const upTarget = (): RoadmapTarget | null => {
+    if (!docsPages) return parentTarget(params);
+    const parent = docsParentFolder(docsPages, folder);
+    return parent === 'project' ? { project: params.project } : { project: params.project, docs: true, folder: parent };
+  };
+  const up = () => {
+    const target = upTarget();
     if (target) go(target);
-  }, [params, go]);
+  };
 
   // ---- Dựng tầng đang xem -------------------------------------------------------------------------------------------
   const projectNode = useMemo(() => {
@@ -180,7 +190,7 @@ export function RoadmapPage() {
       const level = buildDocsLevel({
         projectId: projectNode.id,
         pages: data.tree.data.pages,
-        folder: params.folder,
+        folder,
         cap,
       });
       return level ? { kind: 'ready', level, list: listItems(level), truncated: false } : { kind: 'notFound' };
@@ -207,7 +217,7 @@ export function RoadmapPage() {
     return { kind: 'ready', level, list: listItems(level), truncated: projectTruncated };
   };
   const current = resolve(params.view === 'list');
-  const key = levelKeyOf(params);
+  const key = levelKeyOf({ ...params, folder });
 
   // Giữ tầng cũ trên màn hình trong lúc tầng mới đang tải, để camera không giật về trạng thái chờ.
   const shown = useRef<{ key: string; resolved: Extract<Resolved, { kind: 'ready' }> } | null>(null);
@@ -222,7 +232,7 @@ export function RoadmapPage() {
     if (request) trail.push(request.id);
     if (params.docs && params.project) {
       trail.push(docsNodeId(params.project));
-      for (const f of folderTrail(params.folder)) trail.push(folderNodeId(f.path));
+      for (const f of folderTrail(folder)) trail.push(folderNodeId(f.path));
     }
     return trail;
   };
@@ -324,7 +334,7 @@ export function RoadmapPage() {
   }
   if (params.docs) {
     crumbs.push({ id: 'docs', label: t('docs'), target: { project: params.project, docs: true } });
-    for (const f of folderTrail(params.folder)) {
+    for (const f of folderTrail(folder)) {
       crumbs.push({
         id: `dir:${f.path}`,
         label: f.name,

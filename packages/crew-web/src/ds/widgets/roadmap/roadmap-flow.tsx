@@ -23,17 +23,24 @@ import { type CSSProperties, type RefObject, useCallback, useEffect, useMemo, us
 import { useT } from '@/i18n';
 import { cn } from '../../cn';
 import type { RoadmapCanvasProps } from './roadmap-canvas';
-import { layoutLevel } from './roadmap-layout';
+import { layoutLevel, MAX_FIT_ZOOM, readableView } from './roadmap-layout';
 import { RoadmapLegend } from './roadmap-legend';
 import { RoadmapNodeButton } from './roadmap-node';
 import type { RoadmapNode, RoadmapPoint } from './roadmap-types';
 
 /** Độ phóng khi camera lao vào một nút. */
 const DIVE_ZOOM = 2.4;
-/** Chừa chỗ cho gợi ý (trên), nút điều khiển (phải) và chú giải (dưới). */
+/** Chừa chỗ cho gợi ý (trên) và nút điều khiển (phải). */
+const PADDING = { top: 52, right: 64, bottom: 24, left: 24 } as const;
+/** Nút "Vừa màn hình": cho thấy cả tầng, kể cả khi phải thu nhỏ dưới mức đọc được. */
 const FIT = {
-  padding: { top: '52px', right: '64px', bottom: '132px', left: '32px' },
-  maxZoom: 1.2,
+  padding: {
+    top: `${PADDING.top}px`,
+    right: `${PADDING.right}px`,
+    bottom: `${PADDING.bottom}px`,
+    left: `${PADDING.left}px`,
+  },
+  maxZoom: MAX_FIT_ZOOM,
 } as const;
 /** Số khung hình chờ nút hiện ra (xyflow ẩn nút tới khi đo xong) trước khi đặt focus. */
 const FOCUS_TRIES = 60;
@@ -253,7 +260,16 @@ function Flow({ level, levelKey, direction, focusId, onOpen, labels }: RoadmapCa
     const focusTarget = direction === 'out' && focusId && positions[focusId] ? focusId : level.center.id;
     const run = async () => {
       if (direction !== 'none') await rf.setCenter(anchor.x, anchor.y, { zoom: DIVE_ZOOM, duration: 0 });
-      const fitted = rf.fitView({ ...FIT, duration: direction === 'none' ? 0 : zoomOut });
+      // Thu ra tới độ phóng còn đọc được chữ, tâm ở nút đang focus; tầng lớn hơn khung thì kéo để xem phần còn lại.
+      const box = wrap.current;
+      const view = readableView(
+        level,
+        positions,
+        { width: box?.clientWidth ?? 0, height: box?.clientHeight ?? 0 },
+        PADDING,
+        positions[focusTarget],
+      );
+      const fitted = rf.setCenter(view.x, view.y, { zoom: view.zoom, duration: direction === 'none' ? 0 : zoomOut });
       let tries = 0;
       const focus = () => {
         const el = wrap.current?.querySelector<HTMLElement>(`[data-roadmap-id="${cssEscape(focusTarget)}"]`);
@@ -264,7 +280,7 @@ function Flow({ level, levelKey, direction, focusId, onOpen, labels }: RoadmapCa
       await fitted;
     };
     void run();
-  }, [levelKey, direction, focusId, positions, level.center.id, rf]);
+  }, [levelKey, direction, focusId, positions, level, rf]);
 
   // Cùng tầng mà tập nút đổi (dữ liệu live, nút Docs tải xong): vừa lại màn hình nhẹ nhàng để không nút nào khuất.
   const shape = useMemo(() => all.map((n) => n.id).join('|'), [all]);
@@ -273,56 +289,66 @@ function Flow({ level, levelKey, direction, focusId, onOpen, labels }: RoadmapCa
     const prev = shownShape.current;
     shownShape.current = { key: levelKey, shape };
     if (!prev || prev.key !== levelKey || prev.shape === shape || busy.current) return;
-    void rf.fitView({ ...FIT, duration: motionMs('--roadmap-zoom-in', 300) });
+    const box = wrap.current;
+    const view = readableView(
+      level,
+      positions,
+      { width: box?.clientWidth ?? 0, height: box?.clientHeight ?? 0 },
+      PADDING,
+    );
+    void rf.setCenter(view.x, view.y, { zoom: view.zoom, duration: motionMs('--roadmap-zoom-in', 300) });
+    // biome-ignore lint/correctness/useExhaustiveDependencies: chỉ chạy khi tập nút đổi, không theo từng lần dựng lại.
   }, [levelKey, shape, rf]);
 
   return (
-    <div
-      ref={wrap}
-      data-slot="roadmap-canvas"
-      data-level={levelKey}
-      className="relative h-[calc(100dvh-15rem)] min-h-[26rem] w-full overflow-hidden rounded-lg border bg-background"
-    >
-      <ReactFlow
-        className="roadmap-flow"
-        aria-label={labels.canvas}
-        nodes={nodes}
-        edges={edges}
-        nodeTypes={NODE_TYPES}
-        edgeTypes={EDGE_TYPES}
-        nodeOrigin={[0.5, 0.5]}
-        colorMode={colorMode}
-        nodesDraggable={false}
-        nodesConnectable={false}
-        nodesFocusable={false}
-        edgesFocusable={false}
-        elementsSelectable={false}
-        autoPanOnNodeFocus={false}
-        zoomOnDoubleClick={false}
-        onlyRenderVisibleElements={all.length > VISIBLE_ONLY_ABOVE}
-        minZoom={0.1}
-        maxZoom={3}
-        proOptions={{ hideAttribution: true }}
-        ariaLabelConfig={{
-          'controls.ariaLabel': t('roadmap.controls.label'),
-          'controls.zoomIn.ariaLabel': t('roadmap.controls.zoomIn'),
-          'controls.zoomOut.ariaLabel': t('roadmap.controls.zoomOut'),
-          'controls.fitView.ariaLabel': t('roadmap.controls.fit'),
-        }}
+    <div className="flex flex-col gap-2">
+      <div
+        ref={wrap}
+        data-slot="roadmap-canvas"
+        data-level={levelKey}
+        className="relative h-[calc(100dvh-17rem)] min-h-[24rem] w-full overflow-hidden rounded-lg border bg-background"
       >
-        <Controls
-          showInteractive={false}
-          position="bottom-right"
-          fitViewOptions={{ ...FIT, duration: motionMs('--roadmap-zoom-in', 300) }}
-          className="max-sm:mb-32!"
-        />
-      </ReactFlow>
-      {labels.hint ? (
-        <p className="pointer-events-none absolute top-2 left-1/2 hidden max-w-[90%] -translate-x-1/2 truncate rounded-full border bg-card/95 px-3 py-1 text-xs text-muted-foreground shadow-sm sm:block">
-          {labels.hint}
-        </p>
-      ) : null}
-      <RoadmapLegend className="absolute right-2 bottom-2 left-2 sm:right-auto" />
+        <ReactFlow
+          className="roadmap-flow"
+          aria-label={labels.canvas}
+          nodes={nodes}
+          edges={edges}
+          nodeTypes={NODE_TYPES}
+          edgeTypes={EDGE_TYPES}
+          nodeOrigin={[0.5, 0.5]}
+          colorMode={colorMode}
+          nodesDraggable={false}
+          nodesConnectable={false}
+          nodesFocusable={false}
+          edgesFocusable={false}
+          elementsSelectable={false}
+          autoPanOnNodeFocus={false}
+          zoomOnDoubleClick={false}
+          onlyRenderVisibleElements={all.length > VISIBLE_ONLY_ABOVE}
+          minZoom={0.1}
+          maxZoom={3}
+          proOptions={{ hideAttribution: true }}
+          ariaLabelConfig={{
+            'controls.ariaLabel': t('roadmap.controls.label'),
+            'controls.zoomIn.ariaLabel': t('roadmap.controls.zoomIn'),
+            'controls.zoomOut.ariaLabel': t('roadmap.controls.zoomOut'),
+            'controls.fitView.ariaLabel': t('roadmap.controls.fit'),
+          }}
+        >
+          <Controls
+            showInteractive={false}
+            position="bottom-right"
+            fitViewOptions={{ ...FIT, duration: motionMs('--roadmap-zoom-in', 300) }}
+          />
+        </ReactFlow>
+        {labels.hint ? (
+          <p className="pointer-events-none absolute top-2 left-2 hidden max-w-[70%] truncate rounded-full border bg-card/95 px-3 py-1 text-xs text-muted-foreground shadow-sm sm:block">
+            {labels.hint}
+          </p>
+        ) : null}
+      </div>
+      {/* Chú giải nằm dưới khung bản đồ nên không bao giờ che nút. */}
+      <RoadmapLegend />
     </div>
   );
 }

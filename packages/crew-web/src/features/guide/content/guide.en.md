@@ -254,10 +254,10 @@ On the screenshot:
 1. Click a project: the map zooms into it, then zooms out to reveal its requests.
 2. Click a request: its tree of sub-tasks appears (grandchildren too). A solid line links parent and child; a dashed line with an arrow means **blocks**: the task at the arrow waits for the other one to finish.
 3. Click a sub-task, or the request in the middle: opens the [request popup](#issue-popup).
-4. Click **Docs**: the project's doc folders and pages appear. Click a folder to go in, click a page to read it in a popup; links in the text open the other page right in the popup, and **Open in Docs page** opens that page on the [Docs](/docs) page.
+4. Click **Docs**: the project's doc folders and pages appear (a docs set with a single folder opens straight into it). Click a folder to go in, click a page to read it in a popup; links in the text open the other page right in the popup, and **Open in Docs page** opens that page on the [Docs](/docs) page.
 5. Go up one level with **Back**, the **Esc** key, the path at the top, or the browser Back button.
 
-Drag to move, scroll or pinch to zoom, or use **+ / − / ⤢** at the bottom right. When a level has too many items, a **+N more** node appears: click it to see them all in the list view.
+The map keeps text readable: when a level is wider than the screen, drag to see the rest; scroll or pinch to zoom, or use **+ / − / ⤢** at the bottom right (⤢ zooms out to show the whole level). The **Legend** of colors and lines sits below the map; click it to collapse or expand. When a level has too many items, a **+N more** node appears: click it to see them all in the list view.
 
 > **Tip:** the level you are on is part of the page address, so copying the address sends someone exactly what you are looking at.
 

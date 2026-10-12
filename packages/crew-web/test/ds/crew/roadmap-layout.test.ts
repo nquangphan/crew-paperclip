@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { layoutLevel, type RoadmapLevel, radialTree, rings } from '@/ds';
+import { layoutLevel, READABLE_ZOOM, type RoadmapLevel, radialTree, readableView, rings } from '@/ds';
 
 const dist = (a: { x: number; y: number }, b: { x: number; y: number }) => Math.hypot(a.x - b.x, a.y - b.y);
 const minPairDistance = (points: { x: number; y: number }[]) => {
@@ -112,5 +112,36 @@ describe('layoutLevel', () => {
     });
     expect(pos.more).toEqual({ x: 0, y: 150 });
     expect(pos.t1).toBeDefined();
+  });
+});
+
+describe('readableView', () => {
+  const pad = { top: 0, right: 0, bottom: 0, left: 0 };
+  const level = (n: number): RoadmapLevel => ({
+    center: { id: 'p', kind: 'project', title: 'p' },
+    nodes: Array.from({ length: n }, (_, i) => ({ id: `r${i}`, kind: 'request' as const, title: `r${i}` })),
+    edges: [],
+    overflow: 0,
+    layout: 'rings',
+  });
+
+  it('tầng vừa khung thì canh giữa cả tầng, không phóng quá 1.2', () => {
+    const l = level(2);
+    const v = readableView(l, layoutLevel(l), { width: 2000, height: 2000 }, pad);
+    expect(v.zoom).toBeCloseTo(1.2);
+  });
+
+  it('tầng lớn hơn khung: giữ độ phóng đọc được, tâm ở nút focus thay vì thu nhỏ', () => {
+    const l = level(9);
+    const pos = layoutLevel(l);
+    const v = readableView(l, pos, { width: 800, height: 500 }, pad, pos.r3);
+    expect(v.zoom).toBe(READABLE_ZOOM);
+    expect(v).toMatchObject({ x: pos.r3.x, y: pos.r3.y });
+  });
+
+  it('phần chừa lệch thì dời tâm cho đích nằm giữa vùng còn lại', () => {
+    const l = level(9);
+    const v = readableView(l, layoutLevel(l), { width: 400, height: 400 }, { top: 40, right: 0, bottom: 0, left: 0 });
+    expect(v).toMatchObject({ x: 0, y: -20, zoom: READABLE_ZOOM });
   });
 });

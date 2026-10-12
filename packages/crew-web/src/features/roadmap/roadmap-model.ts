@@ -276,6 +276,43 @@ function findFolder(nodes: readonly DocsNode[], path: string): DocsNode | null {
   return null;
 }
 
+/**
+ * Thư mục thật sự hiện ra khi mở `folder` (null là gốc bộ docs): tầng nào chỉ có đúng một thư mục và không có trang thì
+ * tự đi xuống thư mục đó, để bấm Docs là thấy ngay trang (ví dụ gốc chỉ có thư mục `docs`). Thư mục không có thì trả
+ * nguyên `folder`.
+ */
+export function resolveDocsFolder(
+  pages: readonly { path: string; title: string }[],
+  folder: string | null,
+): string | null {
+  const tree = buildDocsTree([...pages]);
+  let items = folder ? findFolder(tree, folder)?.children : tree;
+  if (!items) return folder;
+  let current = folder;
+  while (items.length === 1 && items[0].type === 'directory') {
+    current = items[0].path;
+    items = items[0].children;
+  }
+  return current;
+}
+
+/**
+ * Tầng cha của thư mục docs đang hiện (`effective` đã qua `resolveDocsFolder`): bỏ qua các tầng tự đi xuống (lùi tới
+ * đó lại tự về chỗ cũ). `'project'` là lùi ra tầng project.
+ */
+export function docsParentFolder(
+  pages: readonly { path: string; title: string }[],
+  effective: string | null,
+): string | null | 'project' {
+  if (effective === null) return 'project';
+  let parent: string | null = effective.split('/').slice(0, -1).join('/') || null;
+  while (resolveDocsFolder(pages, parent) === effective) {
+    if (parent === null) return 'project';
+    parent = parent.split('/').slice(0, -1).join('/') || null;
+  }
+  return parent;
+}
+
 export interface DocsLevelInput {
   projectId: string;
   pages: readonly { path: string; title: string }[];

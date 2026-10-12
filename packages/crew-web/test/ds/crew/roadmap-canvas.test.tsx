@@ -107,7 +107,7 @@ describe('RoadmapCanvas', () => {
     const { container } = render(
       <RoadmapCanvas level={level} levelKey="p" direction="in" onOpen={onOpen} labels={{ canvas: 'Bản đồ' }} />,
     );
-    const legend = await screen.findByRole('region', { name: 'Chú giải' });
+    const legend = await screen.findByRole('region', { name: 'Chú thích' });
     expect(legend.querySelectorAll('li')).toHaveLength(9);
     const docs = container.querySelector<HTMLButtonElement>('[data-roadmap-id="docs:p"]');
     expect(docs?.getAttribute('aria-disabled')).toBe('true');
