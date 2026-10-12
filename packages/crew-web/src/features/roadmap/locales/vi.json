@@ -1,0 +1,36 @@
+{
+  "title": "Roadmap",
+  "description": "Bản đồ công ty: project, yêu cầu do người tạo, việc con và docs.",
+  "back": "Lùi",
+  "backHint": "Lùi một tầng (Esc)",
+  "view": {
+    "map": "Bản đồ",
+    "list": "Danh sách"
+  },
+  "noProject": "Chưa gắn project",
+  "docs": "Docs",
+  "canvasLabel": "Bản đồ công ty",
+  "listLabel": "Bản đồ dạng danh sách",
+  "loadFailed": "Không tải được bản đồ",
+  "notFound": "Không tìm thấy hoặc bạn không được xem",
+  "notFoundHint": "Mục này không có trên bản đồ của bạn. Quay lại tầng trên để chọn mục khác.",
+  "truncated": "Có hơn {{limit}} việc, bản đồ có thể thiếu một phần.",
+  "docLoadFailed": "Không tải được trang docs",
+  "docMissing": "Không có trang {{path}} trong bản docs này",
+  "hint": {
+    "company": "Bấm project để đi vào · kéo để di chuyển · cuộn để phóng to",
+    "project": "Bấm một yêu cầu để xem việc con · bấm Docs để xem tài liệu",
+    "emptyProject": "Project chưa có yêu cầu nào do người tạo",
+    "request": "Bấm việc con hoặc yêu cầu ở giữa để xem chi tiết · nét đứt: chặn",
+    "noChildren": "Yêu cầu chưa có việc con · bấm yêu cầu ở giữa để xem chi tiết",
+    "docs": "Bấm thư mục để đi vào · bấm trang để đọc"
+  },
+  "empty": {
+    "default": "Chưa có mục nào",
+    "company": "Chưa có project nào",
+    "project": "Chưa có yêu cầu nào do người tạo",
+    "request": "Chưa có việc con",
+    "docs": "Bộ docs chưa có trang nào",
+    "folder": "Thư mục trống"
+  }
+}

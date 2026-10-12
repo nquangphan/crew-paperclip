@@ -32,6 +32,7 @@ export type NavId =
   | 'dashboard'
   | 'inbox'
   | 'issues'
+  | 'roadmap'
   | 'contributions'
   | 'projects'
   | 'agents'
@@ -61,6 +62,7 @@ export const NAV_ITEMS: readonly NavItem[] = [
   { id: 'dashboard', group: 'main', segment: 'dashboard', to: 'dashboard' },
   { id: 'inbox', group: 'main', segment: 'inbox', to: 'inbox' },
   { id: 'issues', group: 'work', segment: 'issues', to: 'issues' },
+  { id: 'roadmap', group: 'work', segment: 'roadmap', to: 'roadmap' },
   { id: 'contributions', group: 'work', segment: 'contributions', to: 'contributions' },
   { id: 'projects', group: 'work', segment: 'projects', to: 'projects' },
   { id: 'docs', group: 'work', segment: 'docs', to: 'docs' },

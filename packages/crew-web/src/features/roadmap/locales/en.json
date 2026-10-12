@@ -1,0 +1,36 @@
+{
+  "title": "Roadmap",
+  "description": "Company map: projects, human-created requests, sub-tasks and docs.",
+  "back": "Back",
+  "backHint": "Go up one level (Esc)",
+  "view": {
+    "map": "Map",
+    "list": "List"
+  },
+  "noProject": "No project",
+  "docs": "Docs",
+  "canvasLabel": "Company map",
+  "listLabel": "Map as a list",
+  "loadFailed": "Could not load the map",
+  "notFound": "Not found or you do not have access",
+  "notFoundHint": "This item is not on your map. Go up a level to pick another one.",
+  "truncated": "There are more than {{limit}} items; the map may be incomplete.",
+  "docLoadFailed": "Could not load the docs page",
+  "docMissing": "Page {{path}} is not in this docs snapshot",
+  "hint": {
+    "company": "Click a project to go in · drag to move · scroll to zoom",
+    "project": "Click a request to see its sub-tasks · click Docs for documentation",
+    "emptyProject": "This project has no human-created requests yet",
+    "request": "Click a sub-task or the center request for details · dashed: blocks",
+    "noChildren": "No sub-tasks yet · click the center request for details",
+    "docs": "Click a folder to go in · click a page to read it"
+  },
+  "empty": {
+    "default": "Nothing here yet",
+    "company": "No projects yet",
+    "project": "No human-created requests yet",
+    "request": "No sub-tasks yet",
+    "docs": "This docs set has no pages",
+    "folder": "Empty folder"
+  }
+}

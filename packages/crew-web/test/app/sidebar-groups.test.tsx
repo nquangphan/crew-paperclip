@@ -18,6 +18,7 @@ const features = {
   '../features/dashboard/routes.tsx': { routes: [page('dashboard')] },
   '../features/inbox/routes.tsx': { routes: [page('inbox')] },
   '../features/issues/routes.tsx': { routes: [page('issues')] },
+  '../features/roadmap/routes.tsx': { routes: [page('roadmap')] },
   '../features/projects/routes.tsx': { routes: [page('projects'), page('projects/:ref')] },
   '../features/agents/routes.tsx': { routes: [page('agents')] },
   '../features/settings/routes.tsx': { routes: [page('settings')] },
@@ -72,6 +73,8 @@ describe('sidebar chia nhóm như Paperclip', () => {
     const group = (name: string) =>
       within(screen.getByRole('button', { name }).closest('[data-slot="sidebar-group"]') as HTMLElement);
     expect(group('Công việc').getByRole('link', { name: 'Yêu cầu' })).toBeTruthy();
+    const roadmap = group('Công việc').getByRole('link', { name: 'Roadmap' });
+    expect(roadmap.getAttribute('href')).toBe('/TPS/roadmap');
     expect(group('Công việc').queryByRole('link', { name: 'Docs' })).toBeNull();
     expect(group('Tổ chức').getByRole('link', { name: 'Agent' })).toBeTruthy();
     expect(group('Hệ thống').getByRole('link', { name: 'Cài đặt' })).toBeTruthy();
