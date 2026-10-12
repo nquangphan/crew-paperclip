@@ -282,6 +282,20 @@
         "server/src/__tests__/crew-ssh-pending-teardown.db.test.ts",
         "server/src/__tests__/crew-remote-termination.db.test.ts"
       ]
+    },
+    {
+      "id": "C10",
+      "kind": "core-patch",
+      "file": "server/src/index.ts",
+      "symbol": "heartbeat scheduler tick (periodic recovery chain)",
+      "anchor": "            .then(() => replayStrandedSkippedWakes(db as any, { wakeup: heartbeat.wakeup }))",
+      "importLine": "import { replayStrandedSkippedWakes } from \"./crew/handoff-rewake.js\";",
+      "description": "Run Crew's replay of stranded skipped wakes on every scheduler tick, after the stock periodic recovery. A stage handoff cancels the executor's run and wakes the next participant while the run's lease is still held, so stock skips the wake (execution_reconciliation_required) and never retries it. Crew replays it from the SSH lease release hook (H3), but when the lease is older than the reaper's staleness the reaper tick moves it to pending_cleanup and releases it through the SSH cleanup retry (P8) before executeRun unwinds, so H3 never runs and the review stage stalls (stock review recovery only retries a participant whose own run ended). The tick replays such a wake once, when its hold is gone and the agent got no wake or run on the issue since.",
+      "upstreamPr": null,
+      "tests": [
+        "server/src/__tests__/crew-handoff-rewake-sweep.db.test.ts",
+        "server/src/__tests__/crew-handoff-rewake.test.ts"
+      ]
     }
   ]
 }

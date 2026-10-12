@@ -1817,6 +1817,7 @@ async function startServerWithDatabaseTeardown(
                 logger.warn({ ...swept }, "periodic stale-lock sweeper cleared issue locks");
               }
             })
+            .then(() => replayStrandedSkippedWakes(db as any, { wakeup: heartbeat.wakeup }))
             .catch((err) => {
               logger.error({ err }, "periodic heartbeat recovery failed");
             }));
@@ -2097,3 +2098,4 @@ if (isMainModule(import.meta.url)) {
     process.exit(1);
   });
 }
+import { replayStrandedSkippedWakes } from "./crew/handoff-rewake.js";
