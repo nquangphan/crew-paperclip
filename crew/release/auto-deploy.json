@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "enabled": true,
+  "repoKey": "paperclip",
+  "branch": "crew/v3.5",
+  "worktree": "~/crew-deploy/paperclip",
+  "vps": "nhamoiplatform",
+  "root": "/opt/crew-v3-spike",
+  "publicUrl": "https://crew.2p-solutions.com",
+  "maxWaitMinutes": 180
+}
