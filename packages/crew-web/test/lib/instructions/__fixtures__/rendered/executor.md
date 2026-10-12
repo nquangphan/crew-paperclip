@@ -55,7 +55,7 @@ Trước khi sửa file, comment trên B một dòng `crew-stack-base sha=<40 he
 
 - Dùng skill `superpowers:test-driven-development` cho mọi thay đổi code (test thất bại trước, rồi code), `superpowers:systematic-debugging` khi lỗi chưa rõ nguyên nhân, `superpowers:verification-before-completion` trước khi báo xong. Issue đã có plan thì làm theo plan, không brainstorm lại.
 - Mô tả issue có dòng `crew-fix base=<40 hex>` là issue sửa lỗi trên code đã có: tạo nhánh từ đúng `base` (`git switch -c crew/<identifier> <base>`), không từ `origin/HEAD`, rồi chỉ sửa điểm được nêu. `crew-commit` của bạn ghi sha mới như thường.
-- Test theo tầng task: test của file/module bạn đổi, test mới cho acceptance criteria, typecheck package bị đổi. Không chạy full suite, không E2E.
+- **Chỉ chạy test liên quan, không bao giờ chạy full suite** (cả unit lẫn E2E): test của file/module bạn đổi, test mới cho tiêu chí nghiệm thu, typecheck/lint của package bị đổi. E2E chỉ chạy đúng spec phủ phần bạn đổi, lọc bằng tên file hoặc `--grep`; không có spec liên quan thì không chạy E2E. Ghi đúng các lệnh đã chạy vào `tests=` của `crew-commit`.
 - Hook git chặn commit (ví dụ `crew-docs check --staged`): sửa đúng điều hook yêu cầu. Không dùng `--no-verify` (không có ngoại lệ).
 - Không sửa `executionPolicy`. Không tạo issue gốc. Chỉ tạo issue con khi issue yêu cầu, luôn dùng `POST /api/companies/<companyId>/issues` có `"parentId":"<id gốc>"`; không gửi `executionPolicy` (server tự gắn), không giao cho agent reviewer hoặc integrator, không gửi `assigneeAdapterOverrides`.
 - Không chuyển issue sang `cancelled`. Muốn bỏ việc: `PATCH /api/issues/<id>` `{"status":"blocked","comment":"Executor: dừng vì <lý do cụ thể>"}` rồi dừng.
@@ -80,11 +80,22 @@ Mục này áp dụng khi bạn chạy bằng Codex (`codex_local`) hay OpenCode
 - Không tạo hay sửa `.codex/**`, `.opencode/**`, `opencode.json`, `opencode.jsonc` trong worktree khi issue không yêu cầu đúng file đó.
 - Comment `Crew: chuyển runtime sau run …` xử lý như bước 2 của "Trước khi làm".
 
+## Ảnh nghiệm thu (bắt buộc với issue code)
+
+Issue code nào cũng phải có ảnh nghiệm thu đính kèm vào chính issue trước khi báo xong (issue research không cần).
+
+- Chụp kết quả chạy thật của code mới, đủ để owner nhìn là thấy từng `Tiêu chí nghiệm thu:` đã đạt: thay đổi có giao diện (web, app, simulator) thì chụp đúng màn hình/trạng thái đó, kể cả cỡ điện thoại nếu giao diện có bản điện thoại; thay đổi không có giao diện (API, script, logic) thì chụp kết quả chạy thật (output test liên quan, response API, log lệnh), ví dụ ghi output ra một trang HTML rồi chụp PNG bằng Playwright.
+- Chạy với môi trường local/dev của repo. Không bao giờ trỏ vào prod để chụp ảnh. Ảnh không được lộ credential, token hay dữ liệu cá nhân thật.
+- Ảnh để ngoài repo (thư mục tạm), không commit ảnh trừ khi issue yêu cầu.
+- Đính kèm từng ảnh: `curl -fsS -X POST -H "Authorization: Bearer $PAPERCLIP_API_KEY" -H "X-Paperclip-Run-Id: $PAPERCLIP_RUN_ID" -F "file=@<đường dẫn ảnh>" "$PAPERCLIP_API_URL/api/companies/$COMPANY_ID/issues/<id>/attachments"` (lấy `COMPANY_ID` như mục "Gọi API"). Lệnh lỗi thì chưa có ảnh: không báo xong.
+- Mở lại (`Read`) từng ảnh đã chụp trước khi đính kèm để chắc nó thể hiện đúng điều cần thấy.
+- Thật sự không chụp được (thiếu môi trường chạy, thiết bị): không báo xong; `PATCH` `{"status":"blocked","comment":"Executor: dừng vì không chụp được ảnh nghiệm thu: <lý do cụ thể>"}`.
+
 ## Báo xong
 
-1. Commit, rồi viết một comment có dòng đúng định dạng, sau đó 2–5 dòng tóm tắt thay đổi:
+1. Commit, đính kèm ảnh nghiệm thu như mục trên, rồi viết một comment có dòng đúng định dạng, sau đó 2–5 dòng tóm tắt thay đổi:
    `crew-commit sha=<git rev-parse HEAD> branch=crew/<identifier> tests=<lệnh test đã chạy> result=pass`
-   Test chưa qua thì ghi `result=fail` và không báo xong.
+   Test chưa qua thì ghi `result=fail` và không báo xong. Trong phần tóm tắt, liệt kê tên các ảnh nghiệm thu đã đính kèm và mỗi ảnh chứng minh tiêu chí nào.
 2. `PATCH /api/issues/<id>` với `{"status":"done","comment":"Executor: xong, chờ review."}`. Server chuyển sang `in_review` và giao reviewer; đó là bình thường.
 
 ## Khi server trả 422

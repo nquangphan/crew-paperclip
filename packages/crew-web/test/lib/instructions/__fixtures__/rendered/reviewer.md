@@ -36,7 +36,9 @@ Mọi `GET/POST/PATCH/PUT /api/…` bên dưới dùng đúng mẫu này (commen
 
 1. Đọc issue và comment `crew-commit sha=… branch=… tests=… result=…` mới nhất của executor. Worktree của bạn dùng chung kho git với executor: `git show --stat <sha>`, `git fetch origin` rồi `git diff $(git merge-base origin/HEAD <sha>)..<sha>`. Mô tả issue có dòng `crew-fix base=<40 hex>` là issue sửa lỗi: xem `git diff <base>..<sha>` (đúng phần sửa) thay vì so với nhánh mặc định, và kiểm điểm cần sửa nêu trong mô tả đã được xử lý. Mô tả có dòng `crew-stack on=<identifier>`: xác minh `<sha nền>` theo mục "Chọn SHA nền crew-stack", rồi xem `git diff <sha nền>..<sha>` (chỉ phần của issue này).
 2. Với issue Crew, đọc các dòng `- <tiêu chí>` dưới heading `Tiêu chí nghiệm thu:` ở cuối `description`; đó là tiêu chí giao việc. Không chờ field riêng. Dùng checklist của skill `superpowers:requesting-code-review`: đúng yêu cầu, test thật sự kiểm tiêu chí, lỗi biên, đặt tên, không thừa phạm vi. Đọc diff và log test executor ghi, không chạy lại suite. Chỉ chạy một test hẹp khi log không khớp SHA hoặc bạn nghi ngờ kết quả (`result=fail` hoặc thiếu dòng `crew-commit` là lý do request changes).
-3. Không sửa code của executor, không commit vào nhánh của họ.
+3. **Ảnh nghiệm thu (issue code):** issue phải có ảnh nghiệm thu executor đính kèm sau `crew-commit` mới nhất (đọc bằng mục "File đính kèm"). Mở từng ảnh, đối chiếu với `Tiêu chí nghiệm thu:`. Thiếu ảnh, ảnh không thể hiện tiêu chí, ảnh chụp từ prod, hoặc ảnh lộ credential/dữ liệu cá nhân thật thì request changes, nêu rõ ảnh/tiêu chí còn thiếu.
+4. Không chạy full suite (cả unit lẫn E2E). Cần kiểm lại thì chỉ chạy đúng test liên quan tới diff.
+5. Không sửa code của executor, không commit vào nhánh của họ.
 
 ## Chọn SHA nền crew-stack
 
@@ -70,7 +72,7 @@ Có `crew-commit` như issue code. Ngoài các bước thường:
 
 Mục này áp dụng khi bạn là reviewer chạy bằng Codex (`codex_local`, wrapper `crew-codex-run` đặt biến `CREW_SUPERPOWERS_DIR`), không phải Claude Code. Server chỉ giao reviewer Codex cho issue con code (executor chạy runtime khác Codex, "review khác mô hình"); Codex lỗi hay bị tắt thì server tự chuyển về reviewer Claude, bạn không cần làm gì.
 
-- Cùng luật duyệt như trên: chỉ duyệt đúng `sha` của `crew-commit` mới nhất của executor, đọc diff và `Tiêu chí nghiệm thu:`, không sửa code, không commit, không chạy lại suite. Dòng đầu quyết định giữ đúng `crew-review sha=<40 hex> verdict=approved`.
+- Cùng luật duyệt như trên: chỉ duyệt đúng `sha` của `crew-commit` mới nhất của executor, đọc diff và `Tiêu chí nghiệm thu:`, kiểm ảnh nghiệm thu như bước 3 của "Cách review" (runtime không xem được ảnh thì nêu tên ảnh chưa xem và request changes nếu thiếu ảnh), không sửa code, không commit, không chạy lại suite. Dòng đầu quyết định giữ đúng `crew-review sha=<40 hex> verdict=approved`.
 - Skill: không có `--plugin-dir`, không dùng công cụ riêng của Claude Code (`Skill`, `Read`, `Task`…). Bước ghi `superpowers:requesting-code-review` thì đọc toàn bộ `"$CREW_SUPERPOWERS_DIR/skills/<tên>/SKILL.md"` (với `<tên>` là `requesting-code-review`) rồi dùng checklist trong đó. Đọc file bằng công cụ đọc file của Codex.
 - Mỗi lệnh shell là một shell mới: dùng nguyên mẫu `curl` ở mục "Gọi API", không giữ biến giữa các lệnh.
 - `PATCH` là lệnh ghi cuối: ghi mọi comment cần thiết trước, quyết định nằm trong đúng một `PATCH` như mục "Quyết định"; `PATCH` trả 422 thì dừng.
