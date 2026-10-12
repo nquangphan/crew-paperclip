@@ -1,7 +1,7 @@
 {
   "S0.1": {
     "spec": "e2e/specs/s0-shell.spec.ts",
-    "tests": ["PW-S0-1 "],
+    "tests": ["PW-S0-1 ", "PW-S0-7 "],
     "tier": "T1"
   },
   "S0.2": {

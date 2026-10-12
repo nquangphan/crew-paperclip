@@ -1,18 +1,81 @@
 // crew: tự dựng
-import { ChevronRight } from 'lucide-react';
+import { ChevronRight, Menu } from 'lucide-react';
 import * as React from 'react';
+import { useT } from '@/i18n';
+import { Logo } from '../brand/Logo';
 import { cn } from '../cn';
+import { Button } from './button';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from './collapsible';
+import { Sheet, SheetContent, SheetTitle, SheetTrigger } from './sheet';
 
-/** Khung trang trong: sidebar cố định bên trái, nội dung cuộn bên phải. */
-function AppFrame({ sidebar, children }: { sidebar: React.ReactNode; children: React.ReactNode }) {
+/** Mốc `md` của Tailwind (48rem): từ đây trở lên sidebar cố định. */
+const DESKTOP_QUERY = '(min-width: 48rem)';
+
+interface AppFrameProps {
+  sidebar: React.ReactNode;
+  children: React.ReactNode;
+  /** Chữ cạnh logo trên thanh trên cùng ở màn hẹp (tên company). */
+  mobileTitle?: string;
+  /** Ngăn kéo menu ở màn hẹp: truyền cả hai để điều khiển từ ngoài (vd đóng khi đổi route), không thì tự giữ. */
+  menuOpen?: boolean;
+  onMenuOpenChange?: (open: boolean) => void;
+}
+
+/**
+ * Khung trang trong: từ `md` trở lên sidebar cố định bên trái, nội dung cuộn bên phải. Dưới `md` sidebar ẩn; thanh
+ * trên cùng có nút ☰ mở chính nội dung sidebar thành ngăn kéo trượt từ trái (hộp thoại có nền mờ, Escape để đóng,
+ * đóng xong focus về nút ☰).
+ */
+function AppFrame({ sidebar, children, mobileTitle, menuOpen, onMenuOpenChange }: AppFrameProps) {
+  const { t } = useT();
+  const [innerOpen, setInnerOpen] = React.useState(false);
+  const open = menuOpen ?? innerOpen;
+  const setOpen = onMenuOpenChange ?? setInnerOpen;
+  // Kéo cửa sổ rộng qua `md` khi ngăn kéo đang mở: đóng luôn, không để nền mờ phủ giao diện desktop.
+  React.useEffect(() => {
+    if (!open || typeof window.matchMedia !== 'function') return;
+    const wide = window.matchMedia(DESKTOP_QUERY);
+    const close = () => {
+      if (wide.matches) setOpen(false);
+    };
+    close();
+    wide.addEventListener('change', close);
+    return () => wide.removeEventListener('change', close);
+  }, [open, setOpen]);
   return (
-    <div data-slot="app-frame" className="flex h-screen bg-background text-foreground">
-      <aside className="flex w-60 shrink-0 flex-col border-r border-sidebar-border bg-sidebar text-sidebar-foreground">
+    <div data-slot="app-frame" className="flex h-dvh flex-col bg-background text-foreground md:flex-row">
+      <Sheet open={open} onOpenChange={setOpen}>
+        <header
+          data-slot="app-frame-topbar"
+          className="flex h-12 shrink-0 items-center gap-2 border-b border-sidebar-border bg-sidebar px-2 text-sidebar-foreground md:hidden"
+        >
+          <SheetTrigger asChild>
+            <Button variant="ghost" size="icon" aria-label={t('nav.openMenu')}>
+              <Menu aria-hidden />
+            </Button>
+          </SheetTrigger>
+          <Logo className="h-6 shrink-0" />
+          {mobileTitle ? (
+            <span className="min-w-0 flex-1 truncate text-(length:--text-compact) font-medium text-muted-foreground">
+              {mobileTitle}
+            </span>
+          ) : null}
+        </header>
+        <SheetContent
+          side="left"
+          aria-describedby={undefined}
+          data-slot="app-frame-drawer"
+          className="w-72 max-w-[85vw] gap-0 bg-sidebar text-sidebar-foreground sm:max-w-72 md:hidden"
+        >
+          <SheetTitle className="sr-only">{t('nav.menu')}</SheetTitle>
+          {sidebar}
+        </SheetContent>
+      </Sheet>
+      <aside className="hidden w-60 shrink-0 flex-col border-r border-sidebar-border bg-sidebar text-sidebar-foreground md:flex">
         {sidebar}
       </aside>
-      <main className="min-w-0 flex-1 overflow-auto">
-        <div className="mx-auto w-full max-w-6xl px-6 py-5">{children}</div>
+      <main className="min-h-0 min-w-0 flex-1 overflow-auto">
+        <div className="mx-auto w-full max-w-6xl px-4 py-4 md:px-6 md:py-5">{children}</div>
       </main>
     </div>
   );
@@ -142,7 +205,7 @@ function Kbd({ children }: { children: React.ReactNode }) {
   return <kbd className="rounded border bg-muted px-1 font-mono text-[10px] text-muted-foreground">{children}</kbd>;
 }
 
-export type { SidebarItemProps };
+export type { AppFrameProps, SidebarItemProps };
 export {
   AppFrame,
   CenteredPage,

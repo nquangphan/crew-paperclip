@@ -10,6 +10,7 @@ import { LiveEventsProvider } from '../live/live-events';
 import { NotFoundPage } from '../not-found-page';
 import { companyPath } from '../routes-util';
 import { CommandPalette } from './command-palette';
+import { useMobileMenu } from './mobile-menu';
 import { Sidebar } from './sidebar';
 
 function CompaniesState({ children }: { children?: ReactNode }) {
@@ -41,6 +42,7 @@ export function CompanyShell({ segments }: { segments: ReadonlySet<string> }) {
   const { companyPrefix } = useParams();
   const { companies, isLoading, error } = useCrewCompanies();
   const [paletteOpen, setPaletteOpen] = useState(false);
+  const menu = useMobileMenu();
   if (isLoading || error) return <CompaniesState />;
   const company = findCompany(companies, companyPrefix);
   if (!company) {
@@ -53,7 +55,20 @@ export function CompanyShell({ segments }: { segments: ReadonlySet<string> }) {
   return (
     <CompanyContext.Provider value={{ company, companies }}>
       <LiveEventsProvider companyId={company.id}>
-        <AppFrame sidebar={<Sidebar segments={segments} onOpenPalette={() => setPaletteOpen(true)} />}>
+        <AppFrame
+          mobileTitle={company.name}
+          menuOpen={menu.open}
+          onMenuOpenChange={menu.setOpen}
+          sidebar={
+            <Sidebar
+              segments={segments}
+              onOpenPalette={() => {
+                menu.setOpen(false);
+                setPaletteOpen(true);
+              }}
+            />
+          }
+        >
           <Outlet />
         </AppFrame>
         <CommandPalette open={paletteOpen} onOpenChange={setPaletteOpen} segments={segments} />

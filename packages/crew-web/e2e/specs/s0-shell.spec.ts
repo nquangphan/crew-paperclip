@@ -154,3 +154,57 @@ test('PW-S0-5 đổi trạng thái issue qua API: trang đang mở cập nhật 
   await api.patch(`/api/issues/${issue.id}`, { status: 'backlog' });
   await expect(row).toContainText('Tồn đọng', { timeout: 5_000 });
 });
+
+test.describe('màn hẹp 390px', () => {
+  test.use({ viewport: { width: 390, height: 844 } });
+
+  /** Không cuộn ngang: cả trang lẫn vùng nội dung (`main` tự cuộn). */
+  const expectNoHorizontalScroll = async (page: import('@playwright/test').Page, label: string) => {
+    const overflow = await page.evaluate(() => {
+      const main = document.querySelector('[data-slot="app-frame"] main');
+      const doc = document.documentElement;
+      return {
+        page: doc.scrollWidth - doc.clientWidth,
+        main: main ? main.scrollWidth - main.clientWidth : 0,
+      };
+    });
+    expect(overflow, label).toEqual({ page: 0, main: 0 });
+  };
+
+  test('PW-S0-7 sidebar thu vào nút ☰: mở ngăn kéo, bấm link thì đóng; trang chính không cuộn ngang @t1', async ({
+    page,
+    company,
+    api,
+  }) => {
+    const issue = await createIssue(api, company.id, { title: `PW-S0-7 ${uniqueToken()}` });
+    await page.goto(company.path('dashboard'));
+    const menuButton = page.getByRole('button', { name: 'Mở menu' });
+    await expect(menuButton).toBeVisible();
+    await expect(NAV(page)).toBeHidden();
+
+    await menuButton.click();
+    const drawer = page.getByRole('dialog', { name: 'Menu điều hướng' });
+    await expect(drawer).toBeVisible();
+    await page.keyboard.press('Escape');
+    await expect(drawer).toBeHidden();
+    await expect(menuButton).toBeFocused();
+
+    await menuButton.click();
+    await drawer.getByRole('navigation', { name: 'Điều hướng chính' }).getByRole('link', { name: 'Docs' }).click();
+    await expect(page).toHaveURL(new RegExp(`/${company.issuePrefix}/docs`));
+    await expect(drawer).toBeHidden();
+    await expect(page.getByRole('heading').first()).toBeVisible();
+    await page.waitForLoadState('networkidle');
+    await expectNoHorizontalScroll(page, 'docs');
+
+    await page.goto(company.path('issues'));
+    await expect(page.getByRole('heading').first()).toBeVisible();
+    await page.waitForLoadState('networkidle');
+    await expectNoHorizontalScroll(page, 'issues');
+
+    await page.goto(company.path(`issues/${issue.identifier}`));
+    await expect(page.getByRole('heading', { name: issue.title })).toBeVisible();
+    await page.waitForLoadState('networkidle');
+    await expectNoHorizontalScroll(page, 'issue');
+  });
+});

@@ -112,7 +112,9 @@
       "org": "Tổ chức",
       "system": "Hệ thống"
     },
-    "quickSearch": "Tìm nhanh"
+    "quickSearch": "Tìm nhanh",
+    "openMenu": "Mở menu",
+    "menu": "Menu điều hướng"
   },
   "company": {
     "switch": "Chọn company",

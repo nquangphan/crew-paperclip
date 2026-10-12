@@ -112,7 +112,9 @@
       "org": "Org",
       "system": "System"
     },
-    "quickSearch": "Quick search"
+    "quickSearch": "Quick search",
+    "openMenu": "Open menu",
+    "menu": "Navigation menu"
   },
   "company": {
     "switch": "Choose company",

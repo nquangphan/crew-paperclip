@@ -114,9 +114,10 @@ function IssueTopBar({ root, status, title, identifier, actions }: IssueTopBarPr
   return (
     <div
       data-slot="issue-top-bar"
-      className="flex min-h-12 items-center gap-2 border-b pb-3 text-sm text-muted-foreground"
+      className="flex min-h-12 flex-wrap items-center gap-2 border-b pb-3 text-sm text-muted-foreground"
     >
-      <nav className="flex min-w-0 flex-1 items-center gap-2">
+      {/* Chỗ hẹp (điện thoại) không đủ 10rem cho breadcrumb thì nút xuống dòng, không đè lên mã yêu cầu. */}
+      <nav className="flex min-w-0 flex-1 basis-40 items-center gap-2">
         <span className="shrink-0 text-xs font-medium uppercase tracking-wider [&_a]:hover:text-foreground">
           {root}
         </span>
