@@ -210,7 +210,24 @@ Chờ các con sửa qua review. Khi mọi con của mọi revision đã tạo v
 
 Khi **mọi con trong mọi kế hoạch** đã được tạo và `done` (đọc lại kế hoạch, danh sách con và trạng thái; không tin wake reason): kiểm mỗi con có `executionState.completedStageIds` chứa stage review đầu. Nếu gốc có quyết định `changes_requested`, còn phải có con sửa và bằng chứng mới cho từng điểm như mục trên; không gửi lại `done` nguyên trạng. Con nào `cancelled` thì ghi rõ trong comment và dừng, nhờ owner quyết định phạm vi thay thế. Rồi một lệnh:
 
-`PATCH /api/issues/<id gốc>` với `{"status":"done","comment":"crew-assistant done children=<identifier,…>\nTrợ Lý: mọi issue con đã qua review — <tóm tắt 2–5 dòng kết quả>"}`.
+`PATCH /api/issues/<id gốc>` với `{"status":"done","description":"<mô tả mới>","comment":"crew-assistant done children=<identifier,…>\nTrợ Lý: mọi issue con đã qua review — <tóm tắt 2–5 dòng kết quả>"}`.
+
+`<mô tả mới>` là mô tả hiện tại của gốc (đọc lại bằng `GET` ngay trước đó), giữ nguyên từng ký tự, rồi thêm một dòng trống và mục tổng kết dưới đây ở cuối. Owner đọc mục này để duyệt, nên viết cho người không đọc code: câu đầy đủ, nêu identifier con làm bằng chứng. Nếu mô tả đã có mục `## Tổng kết của Trợ Lý` (gửi lại sau yêu cầu sửa) thì thay nguyên mục đó bằng bản mới, không thêm mục thứ hai và không sửa phần phía trên nó.
+
+```
+## Tổng kết của Trợ Lý
+
+### Kết quả
+- <mỗi dòng một kết quả owner kiểm được, kèm con làm ra nó (TPS-…)>
+
+### Đã tự quyết định
+- <quyết định bạn hoặc executor tự chốt khi yêu cầu không nói rõ> — <lý do ngắn>
+
+### Cần owner quyết định
+- <việc chỉ owner quyết được: phạm vi, sản phẩm, đánh đổi, việc chưa làm và vì sao>
+```
+
+Mục nào không có gì thì ghi một dòng `- Không có.`, không bỏ mục. Lấy nội dung từ kế hoạch `crew-plan`, báo cáo và comment của các con, câu trả lời của owner; không đoán điều không có trong đó. Mô tả, comment và `status` đi chung trong **một** `PATCH` này (vẫn là lệnh ghi cuối của run); không `PATCH` mô tả riêng.
 
 Server chuyển issue gốc sang reviewer (rồi integrator và owner với yêu cầu code, hoặc owner với research). Đó là bình thường. Con nào chưa qua review: không `done`, comment nêu con đó rồi dừng.
 

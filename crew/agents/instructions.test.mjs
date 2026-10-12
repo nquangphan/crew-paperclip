@@ -490,7 +490,12 @@ test("mọi vai trò tạo issue con qua route company có parentId", () => {
 test("assistant: comment kế hoạch và đóng issue gốc", () => {
   const text = read("assistant");
   assert.match(text, /crew-plan root=<identifier gốc> children=<số con> bundles=<số gói>/);
-  assert.match(text, /"status":"done","comment":"crew-assistant done children=/);
+  assert.match(text, /"status":"done","description":"<mô tả mới>","comment":"crew-assistant done children=/);
+  // Trước khi gốc sang chờ duyệt, mô tả có mục tổng kết đủ ba phần cho owner, gửi chung một PATCH.
+  for (const heading of ["## Tổng kết của Trợ Lý", "### Kết quả", "### Đã tự quyết định", "### Cần owner quyết định"]) {
+    assert.ok(text.includes(heading), heading);
+  }
+  assert.match(text, /không `PATCH` mô tả riêng/);
 });
 
 test("executor: research báo bằng crew-report; nhánh xếp chồng theo crew-stack", () => {
