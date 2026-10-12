@@ -2,7 +2,8 @@
 // Danh sách Yêu cầu theo bố cục IssuesList (streamlined) của Paperclip: thanh công cụ một hàng (Yêu cầu mới, ô tìm,
 // Cột/Lọc/Sắp xếp/Nhóm), dòng task không kẻ có glyph trạng thái, tiêu đề, cột phụ, mã và thời gian, nhóm thu gọn được,
 // vạch Hôm nay/Hôm qua. Giữ phần Crew: cột giai đoạn và x/y con xong, nhóm và chip Chờ duyệt, chế độ chỉ đọc.
-// Mọi trạng thái xem nằm trong URL (`use-issues.ts`), trừ nhóm/nhánh đang thu gọn.
+// Nút Danh sách/Bảng như Paperclip: chế độ Bảng (`issues-board.tsx`) dùng cùng dữ liệu và bộ lọc, ẩn Sắp xếp/Nhóm, hiện
+// nút mật độ bảng. Mọi trạng thái xem nằm trong URL (`use-issues.ts`), trừ nhóm/nhánh đang thu gọn.
 import type { CompactIssue } from '@paperclipai/shared';
 import { type ReactNode, useEffect, useMemo, useState } from 'react';
 import { Link, useLocation, useSearchParams } from 'react-router-dom';
@@ -20,6 +21,7 @@ import {
   Identity,
   IssueGroup,
   IssueListRow,
+  KanbanToolbarControls,
   LabelPill,
   ListItemRow,
   LiveBadge,
@@ -33,6 +35,7 @@ import {
   ToolbarColumnsMenu,
   ToolbarFilterMenu,
   ToolbarSearch,
+  ToolbarViewToggle,
   TreeSpacer,
   TreeToggle,
 } from '@/ds';
@@ -46,6 +49,7 @@ import { useSelectableAgents } from '@/features/wizards';
 import { formatDateTime, formatRelative, useT } from '@/i18n';
 import { NewRequestDialog } from '../new/new-request-dialog';
 import { IssueLink, useIssueOpener } from '../popup/issue-nav';
+import { boardLayout, IssuesBoard } from './issues-board';
 import {
   activityAt,
   type DateGroup,
@@ -194,6 +198,12 @@ export function IssuesPage() {
     () => (issues.data ?? []).filter((i) => matchesKind(i, state.kind, rootsById)),
     [issues.data, state.kind, rootsById],
   );
+  const board = state.view === 'board';
+  const boardIssues = useMemo(
+    () => (board ? [...visible].sort(sortCompare(state.sort)) : []),
+    [board, visible, state.sort],
+  );
+  const layout = boardLayout(state, boardIssues.length);
   const groups = useMemo(
     () =>
       groupIssues(visible, state.group, {
@@ -337,6 +347,20 @@ export function IssuesPage() {
         <ErrorState title={t('page.loadFailed')} message={issues.error.message} onRetry={() => void issues.refetch()} />
       );
     }
+    if (board) {
+      return (
+        <IssuesBoard
+          companyId={company.id}
+          issues={boardIssues}
+          state={state}
+          rootsById={rootsById}
+          agentName={agentName}
+          live={live}
+          opener={opener}
+          readOnly={access.readOnly}
+        />
+      );
+    }
     if (visible.length === 0) {
       return (
         <EmptyState
@@ -402,6 +426,34 @@ export function IssuesPage() {
                 {tg('issuesGroup.chip', { count: pending.length })}
               </Button>
             ) : null}
+            <ToolbarViewToggle
+              value={state.view}
+              onChange={(v) => patch({ view: v })}
+              label={t('board.viewMode')}
+              listLabel={t('board.listView')}
+              boardLabel={t('board.boardView')}
+            />
+            {board ? (
+              <KanbanToolbarControls
+                compact={layout.compact}
+                coldCollapsed={layout.collapsedStatuses.length > 0}
+                pageSize={state.pageSize}
+                customized={layout.customized}
+                onToggleCompact={() => patch({ density: layout.compact ? 'comfortable' : 'compact' })}
+                onToggleCold={() => patch({ lanes: layout.collapsedStatuses.length > 0 ? 'expanded' : 'collapsed' })}
+                onPageSize={(size) => patch({ pageSize: String(size) })}
+                onReset={() => patch({ density: null, lanes: null, pageSize: null })}
+                labels={{
+                  compactOn: t('board.compactOn'),
+                  compactOff: t('board.compactOff'),
+                  coldCollapse: t('board.coldCollapse'),
+                  coldExpand: t('board.coldExpand'),
+                  pageSize: t('board.pageSize'),
+                  perColumn: (size) => t('board.perColumn', { count: size }),
+                  reset: t('board.reset'),
+                }}
+              />
+            ) : null}
             <ToolbarColumnsMenu
               label={t('list.columns')}
               eyebrow={t('list.columnsEyebrow')}
@@ -459,23 +511,27 @@ export function IssuesPage() {
                 },
               ]}
             />
-            <ToolbarChoiceMenu
-              kind="sort"
-              label={t('list.sort')}
-              value={state.sort}
-              onSelect={(v) => patch({ sort: v })}
-              options={SORT_KEYS.map((s) => ({ value: s, label: t(`list.sortOption.${s}`) }))}
-            />
-            <ToolbarChoiceMenu
-              kind="group"
-              label={t('list.group')}
-              value={state.group}
-              onSelect={(v) => patch({ group: v })}
-              options={[...GROUP_KEYS.filter((g) => g !== 'none'), 'none' as const].map((g) => ({
-                value: g,
-                label: t(`list.groupOption.${g}`),
-              }))}
-            />
+            {board ? null : (
+              <>
+                <ToolbarChoiceMenu
+                  kind="sort"
+                  label={t('list.sort')}
+                  value={state.sort}
+                  onSelect={(v) => patch({ sort: v })}
+                  options={SORT_KEYS.map((s) => ({ value: s, label: t(`list.sortOption.${s}`) }))}
+                />
+                <ToolbarChoiceMenu
+                  kind="group"
+                  label={t('list.group')}
+                  value={state.group}
+                  onSelect={(v) => patch({ group: v })}
+                  options={[...GROUP_KEYS.filter((g) => g !== 'none'), 'none' as const].map((g) => ({
+                    value: g,
+                    label: t(`list.groupOption.${g}`),
+                  }))}
+                />
+              </>
+            )}
           </>
         }
       />

@@ -2,8 +2,9 @@
 // Bố cục danh sách task của Paperclip (bản streamlined mặc định): thanh công cụ một hàng (nút tạo, ô tìm, các nút
 // biểu tượng Cột/Lọc/Sắp xếp/Nhóm bên phải), nhóm có tiêu đề viết hoa thu gọn được, dòng task không kẻ (glyph trạng
 // thái, tiêu đề, cột phụ, mã, thời gian), vạch cây cho task con và vạch ngày Hôm nay/Hôm qua. Bỏ mọi control sửa tại
-// dòng (đổi trạng thái, người làm), bảng Kanban và lưu view trong localStorage; chữ do màn hình truyền vào.
-import { ArrowUpDown, Check, ChevronRight, Columns3, Filter, Layers, Search } from 'lucide-react';
+// dòng (đổi trạng thái, người làm) và lưu view trong localStorage; chữ do màn hình truyền vào. Bảng Kanban nằm ở
+// `kanban-board.tsx`, nút chuyển Danh sách/Bảng ở đây.
+import { ArrowUpDown, Check, ChevronRight, Columns3, Filter, Layers, List, Search, SquareKanban } from 'lucide-react';
 import * as React from 'react';
 import { cn } from '../cn';
 import { Button } from '../components/button';
@@ -122,6 +123,51 @@ const ToolbarIconButton = React.forwardRef<HTMLButtonElement, ToolbarIconButtonP
     </Button>
   );
 });
+
+type ViewMode = 'list' | 'board';
+
+interface ToolbarViewToggleProps {
+  value: ViewMode;
+  onChange: (value: ViewMode) => void;
+  /** Nhãn nhóm nút và từng nút. */
+  label: string;
+  listLabel: string;
+  boardLabel: string;
+}
+
+/** Cặp nút Danh sách / Bảng dính liền nhau, đứng đầu nhóm nút bên phải như IssuesList. */
+function ToolbarViewToggle({ value, onChange, label, listLabel, boardLabel }: ToolbarViewToggleProps) {
+  const options = [
+    { mode: 'list' as const, text: listLabel, Icon: List },
+    { mode: 'board' as const, text: boardLabel, Icon: SquareKanban },
+  ];
+  return (
+    // biome-ignore lint/a11y/useSemanticElements: cặp nút dính liền như Paperclip, fieldset kéo theo viền và lề mặc định.
+    <div
+      role="group"
+      aria-label={label}
+      data-slot="view-toggle"
+      className="mr-1 flex shrink-0 items-center overflow-hidden rounded-md border border-border"
+    >
+      {options.map(({ mode, text, Icon }) => (
+        <button
+          key={mode}
+          type="button"
+          title={text}
+          aria-label={text}
+          aria-pressed={value === mode}
+          className={cn(
+            'flex size-8 items-center justify-center transition-colors',
+            value === mode ? 'bg-accent text-foreground' : 'text-muted-foreground hover:text-foreground',
+          )}
+          onClick={() => onChange(mode)}
+        >
+          <Icon aria-hidden className="size-3.5" />
+        </button>
+      ))}
+    </div>
+  );
+}
 
 // ---------------------------------------------------------------------------------------------------------------
 // Bảng chọn của thanh công cụ.
@@ -616,6 +662,8 @@ export type {
   ToolbarColumnsMenuProps,
   ToolbarFilterMenuProps,
   ToolbarSearchProps,
+  ToolbarViewToggleProps,
+  ViewMode,
 };
 export {
   CollectionTitle,
@@ -633,6 +681,7 @@ export {
   ToolbarFilterMenu,
   ToolbarIconButton,
   ToolbarSearch,
+  ToolbarViewToggle,
   TreeSpacer,
   TreeToggle,
 };

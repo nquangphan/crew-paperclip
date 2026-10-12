@@ -14,6 +14,9 @@
   },
   "dependencies": {
     "@crew/paperclip-plugin": "workspace:*",
+    "@dnd-kit/core": "^6.3.1",
+    "@dnd-kit/sortable": "^10.0.0",
+    "@dnd-kit/utilities": "^3.2.2",
     "@paperclipai/shared": "workspace:*",
     "@tailwindcss/typography": "^0.5.20",
     "@tanstack/react-query": "^5.102.8",

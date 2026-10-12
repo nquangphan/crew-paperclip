@@ -73,6 +73,24 @@
       "earlier": "Earlier"
     }
   },
+  "board": {
+    "viewMode": "View mode",
+    "listView": "List view",
+    "boardView": "Board view",
+    "compactOn": "Use compact cards",
+    "compactOff": "Use comfortable cards",
+    "coldCollapse": "Collapse cold lanes",
+    "coldExpand": "Expand cold lanes",
+    "pageSize": "Cards per column",
+    "perColumn": "{{count}} per column",
+    "reset": "Reset board density",
+    "showMore": "Show {{count}} more",
+    "showing": "Showing {{shown}} of {{total}}",
+    "liveBelow": "{{count}} live below",
+    "nextStep": "Next step",
+    "nextStepTitle": "This task needs a next step",
+    "moveFailed": "Could not change the status of {{identifier}}"
+  },
   "new": {
     "button": "New request",
     "title": "New request",

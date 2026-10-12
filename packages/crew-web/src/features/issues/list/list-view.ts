@@ -127,3 +127,32 @@ export function liveIssueIds(
   }
   return out;
 }
+
+/** Số yêu cầu con (mọi cấp) đang chạy của từng yêu cầu cha, chỉ tính trong cây đã tải (collectSubtreeLiveCounts). */
+export function subtreeLiveCounts(
+  issues: readonly { id: string; parentId?: string | null }[],
+  live: ReadonlySet<string>,
+): Map<string, number> {
+  const counts = new Map<string, number>();
+  if (issues.length === 0 || live.size === 0) return counts;
+  const parentOf = new Map(issues.map((i) => [i.id, i.parentId ?? null]));
+  for (const liveId of live) {
+    if (!parentOf.has(liveId)) continue;
+    const seen = new Set<string>([liveId]);
+    let parentId = parentOf.get(liveId) ?? null;
+    while (parentId && !seen.has(parentId)) {
+      seen.add(parentId);
+      counts.set(parentId, (counts.get(parentId) ?? 0) + 1);
+      parentId = parentOf.get(parentId) ?? null;
+    }
+  }
+  return counts;
+}
+
+/** Run xong mà yêu cầu chưa có bước tiếp và không còn gì đang chạy (isSuccessfulRunHandoffRequired). */
+export function needsNextStep(issue: Pick<CompactIssue, 'successfulRunHandoff' | 'scheduledRetry'>): boolean {
+  const handoff = issue.successfulRunHandoff;
+  if (handoff?.required !== true) return false;
+  if (!handoff.hasLiveContinuation) return true;
+  return issue.scheduledRetry?.status === 'scheduled_retry';
+}

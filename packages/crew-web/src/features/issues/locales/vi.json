@@ -73,6 +73,24 @@
       "earlier": "Trước đó"
     }
   },
+  "board": {
+    "viewMode": "Chế độ xem",
+    "listView": "Danh sách",
+    "boardView": "Bảng",
+    "compactOn": "Thẻ gọn",
+    "compactOff": "Thẻ thoáng",
+    "coldCollapse": "Thu cột lạnh",
+    "coldExpand": "Mở cột lạnh",
+    "pageSize": "Số thẻ mỗi cột",
+    "perColumn": "{{count}} mỗi cột",
+    "reset": "Đặt lại mật độ bảng",
+    "showMore": "Hiện thêm {{count}}",
+    "showing": "Đang hiện {{shown}}/{{total}}",
+    "liveBelow": "{{count}} con đang chạy",
+    "nextStep": "Cần bước tiếp",
+    "nextStepTitle": "Yêu cầu này cần bước tiếp theo",
+    "moveFailed": "Không đổi được trạng thái của {{identifier}}"
+  },
   "new": {
     "button": "Yêu cầu mới",
     "title": "Yêu cầu mới",

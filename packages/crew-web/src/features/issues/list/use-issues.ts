@@ -1,7 +1,9 @@
-// Dữ liệu và trạng thái bộ lọc của danh sách yêu cầu. Lọc, sắp xếp, nhóm, cột nằm trong URL query, không ghi DB.
+// Dữ liệu và trạng thái bộ lọc của danh sách yêu cầu. Lọc, sắp xếp, nhóm, cột, chế độ Danh sách/Bảng và mật độ bảng
+// nằm trong URL query, không ghi DB.
 import type { CompactIssue } from '@paperclipai/shared';
 import { useQuery } from '@tanstack/react-query';
 import { api, type CrewRoot, type IssueListFilters, queryKeys } from '@/api';
+import { KANBAN_COLUMN_DEFAULT_PAGE_SIZE, KANBAN_COLUMN_PAGE_SIZE_OPTIONS, type KanbanColumnPageSize } from '@/ds';
 import { useVisibleProjects } from '@/features/access';
 import { RESEARCH_LABEL_NAME } from '../new/kinds';
 import { byUpdatedDesc } from './tree';
@@ -17,6 +19,14 @@ export const GROUP_KEYS = ['none', 'status', 'assignee', 'project'] as const;
 export type GroupKey = (typeof GROUP_KEYS)[number];
 export const KIND_FILTERS = ['all', 'research', 'other'] as const;
 export type KindFilter = (typeof KIND_FILTERS)[number];
+export const VIEW_MODES = ['list', 'board'] as const;
+export type ViewMode = (typeof VIEW_MODES)[number];
+/** Mật độ thẻ: tự động gọn khi bảng quá nhiều thẻ, hoặc ép gọn/thoáng. */
+export const BOARD_DENSITIES = ['auto', 'compact', 'comfortable'] as const;
+export type BoardDensity = (typeof BOARD_DENSITIES)[number];
+/** Cột lạnh (Backlog, Xong, Đã hủy) mở hay thu thành thanh dọc. */
+export const BOARD_LANE_MODES = ['expanded', 'collapsed'] as const;
+export type BoardLaneMode = (typeof BOARD_LANE_MODES)[number];
 /** Thứ tự trạng thái của Paperclip (bộ lọc và nhóm theo trạng thái). */
 export const STATUS_OPTIONS = ['in_progress', 'todo', 'backlog', 'in_review', 'blocked', 'done', 'cancelled'] as const;
 
@@ -30,6 +40,10 @@ export interface ListState {
   group: GroupKey;
   hidden: ColumnId[];
   shown: ColumnId[];
+  view: ViewMode;
+  density: BoardDensity;
+  lanes: BoardLaneMode;
+  pageSize: KanbanColumnPageSize;
 }
 
 /** Tên tham số URL của từng trường trạng thái. */
@@ -43,7 +57,20 @@ export const PARAM = {
   group: 'group',
   hidden: 'hide',
   shown: 'show',
+  view: 'view',
+  density: 'density',
+  lanes: 'lanes',
+  pageSize: 'per',
 } as const;
+
+/** Giá trị mặc định riêng từng trường; trùng thì bỏ khóa khỏi URL. */
+const DEFAULT_VALUE: Partial<Record<keyof typeof PARAM, string>> = {
+  sort: 'updated',
+  view: 'list',
+  density: 'auto',
+  lanes: 'expanded',
+  pageSize: String(KANBAN_COLUMN_DEFAULT_PAGE_SIZE),
+};
 
 const oneOf = <T extends string>(options: readonly T[], value: string | null, fallback: T): T =>
   options.find((o) => o === value) ?? fallback;
@@ -60,6 +87,12 @@ export function parseListState(params: URLSearchParams): ListState {
     group: oneOf(GROUP_KEYS, params.get(PARAM.group), 'none'),
     hidden: columnList(params.get(PARAM.hidden)),
     shown: columnList(params.get(PARAM.shown)),
+    view: oneOf(VIEW_MODES, params.get(PARAM.view), 'list'),
+    density: oneOf(BOARD_DENSITIES, params.get(PARAM.density), 'auto'),
+    lanes: oneOf(BOARD_LANE_MODES, params.get(PARAM.lanes), 'expanded'),
+    pageSize:
+      KANBAN_COLUMN_PAGE_SIZE_OPTIONS.find((n) => String(n) === params.get(PARAM.pageSize)) ??
+      KANBAN_COLUMN_DEFAULT_PAGE_SIZE,
   };
 }
 
@@ -90,8 +123,9 @@ export function columnPatch(
 export function patchParams(params: URLSearchParams, patch: Partial<Record<keyof typeof PARAM, string | null>>) {
   const next = new URLSearchParams(params);
   for (const [field, value] of Object.entries(patch)) {
-    const name = PARAM[field as keyof typeof PARAM];
-    const isDefault = !value || value === 'all' || (name === PARAM.sort && value === 'updated') || value === 'none';
+    const key = field as keyof typeof PARAM;
+    const name = PARAM[key];
+    const isDefault = !value || value === 'all' || value === 'none' || DEFAULT_VALUE[key] === value;
     if (isDefault) next.delete(name);
     else next.set(name, value);
   }
