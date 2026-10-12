@@ -80,23 +80,23 @@ Thanh bên trái chia nhóm giống Paperclip gốc. Trên ảnh:
 
 Các nhóm còn lại:
 {{roles:owner}}
-- **Công việc**: Yêu cầu, **Chờ duyệt** (góp ý của Phòng Marketing, con số là số mục đang chờ), Project, Docs.
+- **Công việc**: Yêu cầu, Roadmap, **Chờ duyệt** (góp ý của Phòng Marketing, con số là số mục đang chờ), Project, Docs.
 - **Tổ chức**: Agent, Skills, Máy.
 - **Hệ thống**: **Thành viên**, Cài đặt, Hướng dẫn, **Mở giao diện Paperclip gốc**.
 {{/roles}}
 {{roles:operator}}
-- **Công việc**: Yêu cầu, Project, Docs.
+- **Công việc**: Yêu cầu, Roadmap, Project, Docs.
 - **Tổ chức**: Agent, Skills, Máy.
 - **Hệ thống**: Cài đặt, Hướng dẫn.
 {{/roles}}
 {{roles:viewer}}
-- **Công việc**: Yêu cầu, Project, Docs.
+- **Công việc**: Yêu cầu, Roadmap, Project, Docs.
 - **Hệ thống**: Cài đặt, Hướng dẫn.
 
 Bạn không thấy Hộp thư, Agent, Skills và Máy vì vai trò Chỉ xem không dùng các trang đó.
 {{/roles}}
 {{roles:contributor}}
-- **Công việc**: Yêu cầu, **Góp ý của tôi** (những gì bạn đã gửi), Project, Docs.
+- **Công việc**: Yêu cầu, Roadmap, **Góp ý của tôi** (những gì bạn đã gửi), Project, Docs.
 - **Hệ thống**: Cài đặt, Hướng dẫn.
 {{/roles}}
 
@@ -236,6 +236,30 @@ Bạn đọc được mọi thứ trong cửa sổ, nhưng không có ô bình l
 {{roles:contributor}}
 Ô bình luận của bạn gửi bình luận để owner duyệt (mục [Bình luận góp ý](#send-comment)). Bạn không sửa hay đổi trạng thái được.
 {{/roles}}
+
+### Roadmap {#roadmap}
+
+{{shot:roadmap}}
+
+Trang [Roadmap](/roadmap) vẽ cả company thành một bản đồ: company ở giữa, các project tỏa quanh. Mỗi project ghi số yêu cầu do người tạo và số đang mở. Bạn chỉ thấy các project được cấp; yêu cầu do agent tự tạo (routine) không hiện.
+
+Trên ảnh:
+1. **Đường dẫn** company › project › yêu cầu: bấm một chặng để về tầng đó.
+2. Nút **Docs** của project: số trang tài liệu, hoặc **Chưa có docs** khi máy chưa gửi bản docs nào.
+3. Một **yêu cầu**: viền trái theo màu trạng thái, thanh tiến độ "x/y việc con xong".
+4. **Bản đồ / Danh sách**: xem cùng nội dung dạng danh sách lồng nhau (gọn hơn trên điện thoại, đọc được bằng trình đọc màn hình).
+
+#### Đi vào và lùi ra
+
+1. Bấm một project: bản đồ phóng vào project đó rồi thu ra để lộ các yêu cầu của nó.
+2. Bấm một yêu cầu: lộ cây việc con (cả cháu chắt). Đường liền nối cha với con; đường đứt có mũi tên là **chặn**: việc ở đầu mũi tên phải chờ việc kia xong.
+3. Bấm một việc con, hoặc yêu cầu ở giữa: mở [cửa sổ chi tiết yêu cầu](#issue-popup).
+4. Bấm **Docs**: lộ thư mục và trang tài liệu của project. Bấm thư mục để đi vào, bấm trang để đọc trong cửa sổ nổi; link trong bài mở trang khác ngay trong cửa sổ, nút **Mở trong trang Docs** mở đúng trang đó ở trang [Docs](/docs).
+5. Lùi một tầng bằng nút **Lùi**, phím **Esc**, đường dẫn ở trên, hoặc nút Back của trình duyệt.
+
+Kéo để di chuyển, cuộn hoặc chụm hai ngón để phóng to, nút **+ / − / ⤢** ở góc dưới phải. Một tầng quá nhiều mục thì hiện nút **+N khác**: bấm để xem đủ ở dạng danh sách.
+
+> **Mẹo:** tầng đang xem nằm trên địa chỉ trang, nên chép địa chỉ là gửi được đúng chỗ đang xem cho người khác.
 
 ### Giao một yêu cầu mới {#new-request roles=owner,operator}
 

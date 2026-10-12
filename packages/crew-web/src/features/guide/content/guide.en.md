@@ -80,23 +80,23 @@ The left sidebar is grouped like the original Paperclip. On the screenshot:
 
 The other groups:
 {{roles:owner}}
-- **Work**: Requests, **Pending approval** (Marketing contributions, the number is how many are waiting), Projects, Docs.
+- **Work**: Requests, Roadmap, **Pending approval** (Marketing contributions, the number is how many are waiting), Projects, Docs.
 - **Org**: Agents, Skills, Machines.
 - **System**: **Members**, Settings, Guide, **Open original Paperclip UI**.
 {{/roles}}
 {{roles:operator}}
-- **Work**: Requests, Projects, Docs.
+- **Work**: Requests, Roadmap, Projects, Docs.
 - **Org**: Agents, Skills, Machines.
 - **System**: Settings, Guide.
 {{/roles}}
 {{roles:viewer}}
-- **Work**: Requests, Projects, Docs.
+- **Work**: Requests, Roadmap, Projects, Docs.
 - **System**: Settings, Guide.
 
 You do not see Inbox, Agents, Skills and Machines because the Viewer role does not use those pages.
 {{/roles}}
 {{roles:contributor}}
-- **Work**: Requests, **My contributions** (what you have sent), Projects, Docs.
+- **Work**: Requests, Roadmap, **My contributions** (what you have sent), Projects, Docs.
 - **System**: Settings, Guide.
 {{/roles}}
 
@@ -236,6 +236,30 @@ You can read everything in the popup, but there is no comment box and no action 
 {{roles:contributor}}
 Your comment box sends comments for the owner to approve (section [Contribution comments](#send-comment)). You cannot edit or change the status.
 {{/roles}}
+
+### Roadmap {#roadmap}
+
+{{shot:roadmap}}
+
+The [Roadmap](/roadmap) page draws the whole company as a map: the company in the middle, its projects around it. Each project shows how many human-created requests it has and how many are open. You only see the projects granted to you; requests created by agents on their own (routines) are not shown.
+
+On the screenshot:
+1. **Path** company › project › request: click a step to go back to that level.
+2. The project's **Docs** node: the number of doc pages, or **No docs yet** when no machine has sent a docs snapshot.
+3. A **request**: left border in its status color, a progress bar "x/y sub-tasks done".
+4. **Map / List**: the same content as a nested list (more compact on a phone, readable by screen readers).
+
+#### Going in and out
+
+1. Click a project: the map zooms into it, then zooms out to reveal its requests.
+2. Click a request: its tree of sub-tasks appears (grandchildren too). A solid line links parent and child; a dashed line with an arrow means **blocks**: the task at the arrow waits for the other one to finish.
+3. Click a sub-task, or the request in the middle: opens the [request popup](#issue-popup).
+4. Click **Docs**: the project's doc folders and pages appear. Click a folder to go in, click a page to read it in a popup; links in the text open the other page right in the popup, and **Open in Docs page** opens that page on the [Docs](/docs) page.
+5. Go up one level with **Back**, the **Esc** key, the path at the top, or the browser Back button.
+
+Drag to move, scroll or pinch to zoom, or use **+ / − / ⤢** at the bottom right. When a level has too many items, a **+N more** node appears: click it to see them all in the list view.
+
+> **Tip:** the level you are on is part of the page address, so copying the address sends someone exactly what you are looking at.
 
 ### Create a new request {#new-request roles=owner,operator}
 

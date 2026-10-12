@@ -55,6 +55,7 @@
     "issues-filter": "The Filter panel of the request list",
     "issues-columns": "The Columns panel: pick the columns shown on each row",
     "issue-popup": "The request detail popup",
+    "roadmap": "The Roadmap page at project level: the Docs node and requests around the project",
     "issue-gate": "A request awaiting your approval: Approve, Request changes, Cancel request, Force Done",
     "force-done": "The Force Done dialog",
     "new-request": "The New request dialog",

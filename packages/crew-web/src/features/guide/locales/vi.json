@@ -55,6 +55,7 @@
     "issues-filter": "Bảng Lọc của danh sách yêu cầu",
     "issues-columns": "Bảng Cột: chọn cột hiện trên mỗi dòng",
     "issue-popup": "Cửa sổ chi tiết một yêu cầu",
+    "roadmap": "Trang Roadmap ở tầng project: nút Docs và các yêu cầu tỏa quanh project",
     "issue-gate": "Yêu cầu đang chờ bạn duyệt: nút Duyệt, Yêu cầu sửa, Hủy yêu cầu, Ép Done",
     "force-done": "Hộp thoại Ép Done",
     "new-request": "Hộp thoại Yêu cầu mới",

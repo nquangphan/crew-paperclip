@@ -263,5 +263,15 @@
     "spec": "e2e/specs/s8-remove-project.spec.ts",
     "tests": ["PW-F10 "],
     "tier": "T2"
+  },
+  "S22.1": {
+    "spec": "e2e/specs/s22-roadmap.spec.ts",
+    "tests": ["PW-S22-1 ", "PW-S22-3 "],
+    "tier": "T1"
+  },
+  "S22.2": {
+    "spec": "e2e/specs/s22-roadmap.spec.ts",
+    "tests": ["PW-S22-2 "],
+    "tier": "T1"
   }
 }

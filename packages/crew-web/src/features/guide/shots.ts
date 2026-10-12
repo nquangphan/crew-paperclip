@@ -27,6 +27,7 @@ export const GUIDE_SHOTS: readonly GuideShot[] = [
   shot('issues-filter'),
   shot('issues-columns'),
   shot('issue-popup', ALL),
+  shot('roadmap'),
   shot('issue-gate'),
   shot('force-done'),
   shot('new-request'),

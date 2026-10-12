@@ -523,6 +523,28 @@ const RECIPES: Recipe[] = [
     },
   },
   {
+    id: 'roadmap',
+    as: ['owner'],
+    frame: 'main',
+    open: async (c) => {
+      await go(c, 'roadmap');
+      const body = main(c.page);
+      await body.locator('button[data-roadmap-kind="project"]').filter({ hasText: GUIDE_PROJECTS[0].name }).click();
+      await expect(c.page).toHaveURL(/project=/);
+      const docs = body.locator('button[data-roadmap-kind="docs"]');
+      await expect(docs).not.toHaveAttribute('aria-disabled', 'true');
+      await settle(c.page);
+      // Chuyển tầng có hiệu ứng camera: chờ thu ra xong mới chụp.
+      await c.page.waitForTimeout(900);
+      return [
+        m(body.getByRole('navigation', { name: c.L('Đường dẫn trang', 'Breadcrumb') }), 1),
+        m(docs, 2),
+        m(body.locator('button[data-roadmap-kind="request"]:not([data-center])').first(), 3),
+        m(btn(body, c.L('Danh sách', 'List')), 4),
+      ];
+    },
+  },
+  {
     id: 'members',
     as: ['owner'],
     frame: 'main',
