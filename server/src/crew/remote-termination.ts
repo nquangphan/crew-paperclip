@@ -106,11 +106,17 @@ export async function recordSshRemoteTermination(
 
 type ResumeFn = (runId: string, companyId: string) => Promise<void>;
 
-/** Stock re-evaluation of messages saved behind this run (imported lazily: heartbeat imports the Crew hooks). */
+/**
+ * Stock Stop acknowledgement and re-evaluation of messages saved behind this run (imported lazily: heartbeat imports
+ * the Crew hooks). `acknowledgeRemoteStop` is exposed by core patch C9.
+ */
 async function stockResume(db: Db): Promise<ResumeFn> {
   const { heartbeatService } = await import("../services/heartbeat.js");
   const heartbeat = heartbeatService(db);
   return async (runId, companyId) => {
+    // Stock acknowledges a legacy Stop right after the lease release, before this receipt exists (the SSH stop runs
+    // in the background), so it is repeated here; the cleanup sweep does the same after a provider receipt.
+    await heartbeat.acknowledgeRemoteStop(runId, companyId);
     const [run] = await db.select().from(heartbeatRuns).where(and(
       eq(heartbeatRuns.companyId, companyId), eq(heartbeatRuns.id, runId),
     ));
@@ -119,9 +125,9 @@ async function stockResume(db: Db): Promise<ResumeFn> {
 }
 
 /**
- * Records the receipt, then asks stock admission to re-evaluate user messages that were deferred while the
- * receipt was missing. The periodic `resumeExecutionWaitComments` sweep would also pick them up; this only
- * removes the wait. Never throws.
+ * Records the receipt, then acknowledges a requested Stop of a legacy conversation run and asks stock admission to
+ * re-evaluate user messages that were deferred while the receipt was missing. The periodic
+ * `resumeExecutionWaitComments` sweep would also pick them up; this only removes the wait. Never throws.
  */
 export async function settleSshRemoteTermination(
   input: RunLeaseReleasedInput,

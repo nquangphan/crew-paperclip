@@ -153,6 +153,18 @@
       "tests": ["packages/adapters/opencode-local/src/server/session-codec.crew.test.ts"]
     },
     {
+      "id": "P8",
+      "kind": "driver-patch",
+      "file": "server/src/services/environment-runtime.ts",
+      "symbol": "createSshEnvironmentDriver.retryPendingSandboxTeardown",
+      "scope": "function createSshEnvironmentDriver(",
+      "anchor": "    retryPendingSandboxTeardown: (input) => retrySshPendingTeardown(db, input),",
+      "importLine": "import { retrySshPendingTeardown } from \"../crew/ssh-pending-teardown.js\";",
+      "description": "The SSH driver gets the pending_cleanup teardown retry the stock cleanup sweep calls (stock SSH has none, so an SSH lease moved to pending_cleanup by an Interrupt or the orphaned-active-lease sweep failed with destroy_failed forever). It returns a stopped receipt only when the legacy run provably never launched an adapter or Crew's stop command on the host finds no process of the run left; otherwise it throws and the sweep retries with its backoff, with a crew.remote_stop activity per attempt and one crew.remote_stop.escalated activity when the attempts reach the stock cap.",
+      "upstreamPr": null,
+      "tests": ["server/src/__tests__/crew-ssh-pending-teardown.db.test.ts"]
+    },
+    {
       "id": "C1",
       "kind": "core-patch",
       "file": "server/src/routes/onboarding-seed.ts",
@@ -256,6 +268,19 @@
       "tests": [
         "server/src/__tests__/crew-plugin-data-viewer.test.ts",
         "server/src/__tests__/crew-viewer-write-matrix.test.ts"
+      ]
+    },
+    {
+      "id": "C9",
+      "kind": "core-patch",
+      "file": "server/src/services/heartbeat.ts",
+      "symbol": "heartbeatService return (acknowledgeRemoteStop)",
+      "anchor": "    acknowledgeRemoteStop,",
+      "description": "Expose the stock acknowledgeRemoteStop on the heartbeat service. Stock acknowledges a Stop right after the lease release, but the SSH stop and its termination receipt land later in the background (H3), so a legacy SSH run stayed at executionCancellation.state = requested and later user messages were held; Crew calls it again once the receipt is written, before resumeRemoteStopComments, as the stock cleanup sweep does after a provider receipt.",
+      "upstreamPr": null,
+      "tests": [
+        "server/src/__tests__/crew-ssh-pending-teardown.db.test.ts",
+        "server/src/__tests__/crew-remote-termination.db.test.ts"
       ]
     }
   ]

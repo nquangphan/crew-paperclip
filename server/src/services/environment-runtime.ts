@@ -1221,6 +1221,8 @@ function createSshEnvironmentDriver(db: Db): EnvironmentRuntimeDriver {
       return await environmentsSvc.releaseLease(input.lease.id, input.status);
     },
 
+    retryPendingSandboxTeardown: (input) => retrySshPendingTeardown(db, input),
+
     async realizeWorkspace(input) {
       const record = buildWorkspaceRealizationRecordFromDriverInput({
         environment: input.environment,
@@ -4472,3 +4474,4 @@ export function environmentRuntimeService(
 export type EnvironmentRuntimeService = ReturnType<typeof environmentRuntimeService>;
 import { crewCoreHooks } from "../crew/core-hooks.js";
 import { sshLeaseWorkspaceRealization } from "../crew/ssh-in-place.js";
+import { retrySshPendingTeardown } from "../crew/ssh-pending-teardown.js";
