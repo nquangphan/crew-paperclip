@@ -26,6 +26,9 @@ beforeAll(async () => {
   Element.prototype.hasPointerCapture ??= () => false;
   Element.prototype.releasePointerCapture ??= () => {};
   Element.prototype.scrollIntoView ??= () => {};
+  // jsdom không có object URL; ảnh chưa upload hiện qua URL này.
+  URL.createObjectURL = () => 'blob:preview';
+  URL.revokeObjectURL = () => {};
 });
 afterEach(cleanup);
 
@@ -204,7 +207,8 @@ describe('NewRequestDialog', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Đính kèm file' }));
     const input = document.querySelector('input[type="file"]') as HTMLInputElement;
     fireEvent.change(input, { target: { files: [new File(['x'], 'mockup.png', { type: 'image/png' })] } });
-    expect(await screen.findByText('mockup.png')).toBeTruthy();
+    expect((await screen.findByRole('img', { name: 'mockup.png' })).getAttribute('src')).toBe('blob:preview');
+    expect(screen.queryByText('mockup.png')).toBeNull();
     expect(posts(calls)).toHaveLength(0);
   });
 
@@ -220,8 +224,8 @@ describe('NewRequestDialog', () => {
     description.setSelectionRange(11, 11);
     const image = new File(['png'], 'image.png', { type: 'image/png' });
     fireEvent.paste(description, { clipboardData: { files: [image], getData: () => '' } });
-    const item = await screen.findByText(/^anh-dan-\d+-1\.png$/);
-    expect(description.value).toBe(`Sửa nút này[Ảnh đính kèm: ${item.textContent}]`);
+    const item = await screen.findByRole('img', { name: /^anh-dan-\d+-1\.png$/ });
+    expect(description.value).toBe(`Sửa nút này[Ảnh đính kèm: ${item.getAttribute('alt')}]`);
     expect(posts(calls)).toHaveLength(0);
     fireEvent.click(screen.getByRole('button', { name: 'Tạo' }));
     await waitFor(() => expect(calls.some((c) => c.url.endsWith('/issues/i-new/attachments'))).toBe(true));
@@ -233,7 +237,7 @@ describe('NewRequestDialog', () => {
     await fillReady();
     const description = screen.getByLabelText('Mô tả');
     fireEvent.paste(description, { clipboardData: { files: [], getData: () => 'chữ' } });
-    expect(screen.queryByText(/^anh-dan-/)).toBeNull();
+    expect(screen.queryByRole('img', { name: /^anh-dan-/ })).toBeNull();
   });
 
   it('server từ chối thì hiện lỗi nguyên văn và giữ dialog mở', async () => {

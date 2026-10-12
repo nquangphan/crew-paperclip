@@ -2,7 +2,7 @@
 import { warnForAttachment } from '@crew/paperclip-plugin/shared/attachment-rules';
 import type { Issue } from '@paperclipai/shared';
 import { useQuery } from '@tanstack/react-query';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { api, queryKeys } from '@/api';
 import {
   AttachmentPicker,
@@ -76,6 +76,21 @@ export function pastedImages(data: Pick<DataTransfer, 'files'>, now = Date.now()
       const ext = (f.type.slice('image/'.length).split('+')[0] ?? '').replace('jpeg', 'jpg') || 'png';
       return new File([f], `anh-dan-${now}-${i + 1}.${ext}`, { type: f.type, lastModified: now });
     });
+}
+
+/** Ảnh chưa upload hiện thành hình từ object URL; thu hồi URL khi bỏ ảnh hay đóng dialog. */
+function LocalImage({ file }: { file: File }) {
+  const [url, setUrl] = useState<string | null>(null);
+  useEffect(() => {
+    const next = URL.createObjectURL(file);
+    setUrl(next);
+    return () => URL.revokeObjectURL(next);
+  }, [file]);
+  return (
+    <span className="min-w-0 flex-1">
+      {url ? <img src={url} alt={file.name} className="max-h-40 max-w-full rounded-md border object-contain" /> : null}
+    </span>
+  );
 }
 
 const fileKey = (file: File) => `${file.name}:${file.size}:${file.lastModified}`;
@@ -237,7 +252,11 @@ function RequestForm({
           <ul className="grid gap-2">
             {files.map((file) => (
               <li key={fileKey(file)} className="flex items-center gap-2">
-                <span className="min-w-0 flex-1 truncate">{file.name}</span>
+                {file.type.startsWith('image/') ? (
+                  <LocalImage file={file} />
+                ) : (
+                  <span className="min-w-0 flex-1 truncate">{file.name}</span>
+                )}
                 <Button
                   type="button"
                   variant="ghost"

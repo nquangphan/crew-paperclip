@@ -9,7 +9,7 @@ import { Trash2 } from '@/ds/icons';
 import { useCompanyAccess } from '@/features/access';
 import { useT } from '@/i18n';
 
-/** File đính kèm của issue (S6.6): tải về cho mọi người, xóa chỉ với file do chính mình tạo, có xác nhận. */
+/** File đính kèm của issue (S6.6): ảnh hiện thành hình, file khác hiện tên; tải về cho mọi người, xóa chỉ với file do chính mình tạo, có xác nhận. */
 export function Attachments({ issueId }: { issueId: string }) {
   const { t } = useT('issues');
   const me = useMe();
@@ -40,14 +40,31 @@ export function Attachments({ issueId }: { issueId: string }) {
       <ul className="flex flex-col gap-1">
         {(list.data ?? []).map((a) => (
           <li key={a.id} className="flex items-center gap-2">
-            <a
-              className="min-w-0 flex-1 truncate"
-              href={api.attachments.contentUrl(a.id)}
-              target="_blank"
-              rel="noreferrer noopener"
-            >
-              {nameOf(a)} · {t('detail.attachments.size', { kb: Math.max(1, Math.round(a.byteSize / 1024)) })}
-            </a>
+            {a.contentType.startsWith('image/') ? (
+              // Ảnh hiện thẳng thành hình, bấm mở cỡ thật; tên file chỉ còn ở alt cho trình đọc màn hình.
+              <a
+                className="min-w-0 flex-1"
+                href={api.attachments.contentUrl(a.id)}
+                target="_blank"
+                rel="noreferrer noopener"
+              >
+                <img
+                  src={api.attachments.contentUrl(a.id)}
+                  alt={nameOf(a)}
+                  loading="lazy"
+                  className="max-h-60 max-w-full rounded-md border object-contain"
+                />
+              </a>
+            ) : (
+              <a
+                className="min-w-0 flex-1 truncate"
+                href={api.attachments.contentUrl(a.id)}
+                target="_blank"
+                rel="noreferrer noopener"
+              >
+                {nameOf(a)} · {t('detail.attachments.size', { kb: Math.max(1, Math.round(a.byteSize / 1024)) })}
+              </a>
+            )}
             {a.createdByUserId === me.id && !readOnly ? (
               <Button
                 variant="ghost"

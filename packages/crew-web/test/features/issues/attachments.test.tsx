@@ -14,16 +14,37 @@ afterEach(cleanup);
 
 // Nguồn: GET /api/issues/:id/attachments (IssueAttachment).
 const FILES = [
-  { id: 'at1', originalFilename: 'cua-toi.png', byteSize: 2048, createdByUserId: 'u1', createdByAgentId: null },
-  { id: 'at2', originalFilename: 'cua-agent.md', byteSize: 10, createdByUserId: null, createdByAgentId: 'a1' },
-  { id: 'at3', originalFilename: 'cua-nguoi-khac.txt', byteSize: 10, createdByUserId: 'u2', createdByAgentId: null },
+  {
+    id: 'at1',
+    originalFilename: 'cua-toi.png',
+    contentType: 'image/png',
+    byteSize: 2048,
+    createdByUserId: 'u1',
+    createdByAgentId: null,
+  },
+  {
+    id: 'at2',
+    originalFilename: 'cua-agent.md',
+    contentType: 'text/markdown',
+    byteSize: 10,
+    createdByUserId: null,
+    createdByAgentId: 'a1',
+  },
+  {
+    id: 'at3',
+    originalFilename: 'cua-nguoi-khac.txt',
+    contentType: 'text/plain',
+    byteSize: 10,
+    createdByUserId: 'u2',
+    createdByAgentId: null,
+  },
 ];
 
 describe('Attachments (S6.6)', () => {
   it('chỉ có nút xóa ở file do người dùng hiện tại tạo', async () => {
     mockServer({ 'GET /api/issues/i1/attachments': { body: FILES } });
     mount(<Attachments issueId="i1" />);
-    await screen.findByText(/cua-toi\.png/);
+    await screen.findByText(/cua-agent\.md/);
     expect(screen.getAllByRole('button', { name: /^Xóa / })).toHaveLength(1);
     expect(screen.getByRole('button', { name: 'Xóa cua-toi.png' })).toBeTruthy();
   });
@@ -33,6 +54,16 @@ describe('Attachments (S6.6)', () => {
     mount(<Attachments issueId="i1" />);
     const link = await screen.findByRole('link', { name: /cua-agent\.md/ });
     expect(link.getAttribute('href')).toBe('/api/attachments/at2/content');
+  });
+
+  it('ảnh hiện thành hình (không hiện tên file), bấm mở nội dung; file khác vẫn hiện tên', async () => {
+    mockServer({ 'GET /api/issues/i1/attachments': { body: FILES } });
+    mount(<Attachments issueId="i1" />);
+    const img = await screen.findByRole('img', { name: 'cua-toi.png' });
+    expect(img.getAttribute('src')).toBe('/api/attachments/at1/content');
+    expect(img.closest('a')?.getAttribute('href')).toBe('/api/attachments/at1/content');
+    expect(screen.queryByText(/cua-toi\.png/)).toBeNull();
+    expect(screen.getByText(/cua-agent\.md/)).toBeTruthy();
   });
 
   it('xóa phải qua hộp xác nhận, hủy thì không gọi API', async () => {
