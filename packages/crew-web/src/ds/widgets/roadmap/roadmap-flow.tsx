@@ -297,8 +297,8 @@ function Flow({ level, levelKey, direction, focusId, onOpen, labels }: RoadmapCa
       PADDING,
     );
     void rf.setCenter(view.x, view.y, { zoom: view.zoom, duration: motionMs('--roadmap-zoom-in', 300) });
-    // biome-ignore lint/correctness/useExhaustiveDependencies: chỉ chạy khi tập nút đổi, không theo từng lần dựng lại.
-  }, [levelKey, shape, rf]);
+    // Chạy lại khi dữ liệu đổi nhưng chỉ dời camera khi tập nút (shape) đổi trong cùng tầng.
+  }, [levelKey, shape, level, positions, rf]);
 
   return (
     <div className="flex flex-col gap-2">
