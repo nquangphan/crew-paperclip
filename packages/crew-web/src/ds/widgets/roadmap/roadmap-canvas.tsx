@@ -3,7 +3,7 @@ import { Component, lazy, type ReactNode, Suspense } from 'react';
 import { useT } from '@/i18n';
 import { ErrorState } from '../../components/error-state';
 import { Spinner } from '../../components/spinner';
-import type { RoadmapLevel, RoadmapNode } from './roadmap-types';
+import type { RoadmapEdgeKind, RoadmapLevel, RoadmapNode } from './roadmap-types';
 
 export type {
   RoadmapEdge,
@@ -25,11 +25,18 @@ interface RoadmapCanvasProps {
   /** Khóa của tầng đang xem; đổi khóa thì chạy chuyển động camera. Cập nhật dữ liệu cùng khóa không chạy lại. */
   levelKey: string;
   direction: RoadmapDirection;
-  /** Khi lùi tầng: id nút vừa rời (camera bắt đầu ở đó, focus trả về đó). */
+  /**
+   * Khi lùi tầng: id nút vừa rời (camera bắt đầu ở đó, focus trả về đó). Khi vào tầng: nút camera canh vào và nhận
+   * focus thay cho nút tâm (bản đồ Crew dùng cho việc đang xem).
+   */
   focusId?: string | null;
   /** Bấm một nút (sau khi camera phóng vào nếu là nút đi sâu được). */
   onOpen: (node: RoadmapNode) => void;
   labels: { canvas: string; hint?: string };
+  /** `page`: cao gần hết màn hình (trang Roadmap); `panel`: khung vừa phải nằm trong trang khác (chi tiết ticket). */
+  size?: 'page' | 'panel';
+  /** Mục thêm trong chú giải: loại cạnh (mặc định cha-con và chặn), mục "Việc đang xem". */
+  legend?: { edges?: readonly RoadmapEdgeKind[]; current?: boolean };
 }
 
 class CanvasBoundary extends Component<{ fallback: ReactNode; children: ReactNode }, { failed: boolean }> {

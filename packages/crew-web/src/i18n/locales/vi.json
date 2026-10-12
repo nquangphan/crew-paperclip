@@ -274,7 +274,10 @@
     "assigneeLine": "Người làm: {{name}} · Vòng sửa: {{round}}/{{max}}",
     "unassigned": "Chưa giao",
     "bundle": "Bundle {{id}} #{{seq}}",
-    "missingIssue": "Quan hệ {{kind}} thiếu issue: {{from}} → {{to}}"
+    "missingIssue": "Quan hệ {{kind}} thiếu issue: {{from}} → {{to}}",
+    "hint": "Bấm một việc để mở · kéo để xem thêm",
+    "roundsShort": "Vòng sửa {{round}}/{{max}}",
+    "current": "Việc đang xem"
   },
   "crewSummary": {
     "label": "Tóm tắt Crew",
@@ -337,7 +340,9 @@
     "legend": {
       "label": "Chú thích",
       "parent": "Cha → con",
-      "blocks": "Chặn (phải xong trước)"
+      "blocks": "Chặn (phải xong trước)",
+      "repair": "Vòng sửa",
+      "current": "Việc đang xem"
     },
     "controls": {
       "label": "Điều khiển bản đồ",

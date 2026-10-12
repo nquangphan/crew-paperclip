@@ -13,8 +13,13 @@ type TFn = ReturnType<typeof useT>['t'];
 const statusText = (t: TFn, status: string | null | undefined) =>
   status ? t(`status.${status}`, { defaultValue: status }) : '';
 
-/** Nhãn đọc màn hình của một nút. */
+/** Nhãn đọc màn hình của một nút, kèm các ghi chú không vừa thẻ (`notes`). */
 export function roadmapNodeLabel(t: TFn, node: RoadmapNode): string {
+  const base = baseLabel(t, node);
+  return node.notes?.length ? `${base}. ${node.notes.join('. ')}` : base;
+}
+
+function baseLabel(t: TFn, node: RoadmapNode): string {
   switch (node.kind) {
     case 'company':
       return t('roadmap.aria.company', { name: node.title, projects: node.total ?? 0, open: node.open ?? 0 });
@@ -136,6 +141,7 @@ function Face({ node, center }: { node: RoadmapNode; center: boolean }) {
           <IssueHead node={node} />
           <strong className={cn('block font-semibold', center ? 'line-clamp-2' : 'truncate')}>{node.title}</strong>
           <Progress done={node.done ?? 0} total={node.total ?? 0} />
+          {node.detail ? <Meta>{node.detail}</Meta> : null}
         </>
       );
     case 'ticket':
@@ -151,6 +157,7 @@ function Face({ node, center }: { node: RoadmapNode; center: boolean }) {
               .filter(Boolean)
               .join(' · ')}
           </Meta>
+          {node.detail ? <Meta>{node.detail}</Meta> : null}
         </>
       );
     case 'docs':
@@ -206,6 +213,12 @@ const CENTER: Partial<Record<RoadmapNode['kind'], string>> = {
   docs: 'w-[200px]',
 };
 
+/** Tooltip của nút có ghi chú: tiêu đề đầy đủ (thẻ cắt bớt) rồi mỗi ghi chú một dòng. */
+function nodeTooltip(node: RoadmapNode): string {
+  const head = [node.identifier, node.title].filter(Boolean).join(' · ');
+  return [head, ...(node.notes ?? [])].join('\n');
+}
+
 export interface RoadmapNodeButtonProps {
   node: RoadmapNode;
   center: boolean;
@@ -235,8 +248,11 @@ export function RoadmapNodeButton({ node, center, dimmed, enter, onActivate }: R
       data-roadmap-id={node.id}
       data-roadmap-kind={node.kind}
       data-center={center || undefined}
+      data-current={node.current || undefined}
       aria-label={roadmapNodeLabel(t, node)}
+      aria-current={node.current || undefined}
       aria-disabled={node.disabled || undefined}
+      title={node.notes?.length ? nodeTooltip(node) : undefined}
       onClick={() => {
         if (!node.disabled) onActivate();
       }}
@@ -247,6 +263,7 @@ export function RoadmapNodeButton({ node, center, dimmed, enter, onActivate }: R
         SHAPE[node.kind],
         center && CENTER[node.kind],
         center && 'shadow-md',
+        node.current && 'ring-2 ring-primary ring-offset-2 ring-offset-background',
         node.disabled && 'cursor-default border-dashed border-border bg-muted/40 text-muted-foreground shadow-none',
         dimmed && 'pointer-events-none opacity-15',
         enter && 'roadmap-node-enter',

@@ -1093,6 +1093,13 @@
   --roadmap-zoom-out: 650ms;
 }
 
+/* Cạnh vòng sửa của bản đồ Crew: vòng sửa sinh ra khi review trả về, nên dùng màu "đang duyệt". Khai lại ở .dark để
+   biến tham chiếu lấy giá trị của theme tối. */
+:root,
+.dark {
+  --roadmap-edge-repair: var(--status-task-icon-in_review);
+}
+
 @keyframes roadmap-node-enter {
   from {
     opacity: 0;

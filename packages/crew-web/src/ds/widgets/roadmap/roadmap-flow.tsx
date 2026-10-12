@@ -23,10 +23,10 @@ import { type CSSProperties, type RefObject, useCallback, useEffect, useMemo, us
 import { useT } from '@/i18n';
 import { cn } from '../../cn';
 import type { RoadmapCanvasProps } from './roadmap-canvas';
-import { layoutLevel, MAX_FIT_ZOOM, readableView } from './roadmap-layout';
+import { layoutLevel, MAX_FIT_ZOOM, pairFocus, readableView } from './roadmap-layout';
 import { RoadmapLegend } from './roadmap-legend';
 import { RoadmapNodeButton } from './roadmap-node';
-import type { RoadmapNode, RoadmapPoint } from './roadmap-types';
+import type { RoadmapEdgeKind, RoadmapNode, RoadmapPoint } from './roadmap-types';
 
 /** Độ phóng khi camera lao vào một nút. */
 const DIVE_ZOOM = 2.4;
@@ -116,7 +116,14 @@ function clipToBox(c: RoadmapPoint, w: number, h: number, toward: RoadmapPoint):
   return s >= 1 ? c : { x: c.x + dx * s, y: c.y + dy * s };
 }
 
-function useNodeBox(id: string) {
+interface NodeBox {
+  /** Tâm khung nút (đơn vị bản đồ). */
+  c: RoadmapPoint;
+  w: number;
+  h: number;
+}
+
+function useNodeBox(id: string): NodeBox | null {
   const internal = useInternalNode(id);
   if (!internal) return null;
   const w = internal.measured.width ?? 0;
@@ -125,40 +132,62 @@ function useNodeBox(id: string) {
   return { c: { x: p.x + w / 2, y: p.y + h / 2 }, w, h };
 }
 
+/** Nét của từng loại cạnh (chú giải dùng cùng màu và kiểu nét). */
+const EDGE_CLASS: Record<RoadmapEdgeKind, string> = {
+  parent: 'stroke-muted-foreground/40!',
+  blocks: 'stroke-primary! [stroke-dasharray:6_5]',
+  repair: 'stroke-(--roadmap-edge-repair)! [stroke-dasharray:2_4]',
+};
+const EDGE_MARKER_COLOR: Partial<Record<RoadmapEdgeKind, string>> = {
+  blocks: 'var(--primary)',
+  repair: 'var(--roadmap-edge-repair)',
+};
+const isEdgeKind = (v: string | undefined): v is RoadmapEdgeKind => !!v && v in EDGE_CLASS;
+
+/** Đường cong nhẹ giữa viền hai nút (`side` đổi phía cong để hai loại cạnh giữa cùng cặp nút không trùng nhau). */
+function curve(a: NodeBox, b: NodeBox, side: 1 | -1) {
+  const from = clipToBox(a.c, a.w + 8, a.h + 8, b.c);
+  const to = clipToBox(b.c, b.w + 8, b.h + 8, a.c);
+  const mx = (from.x + to.x) / 2;
+  const my = (from.y + to.y) / 2;
+  const len = Math.hypot(to.x - from.x, to.y - from.y) || 1;
+  const bend = side * Math.min(60, len * 0.15);
+  const cx = mx - ((to.y - from.y) / len) * bend;
+  const cy = my + ((to.x - from.x) / len) * bend;
+  return `M ${from.x},${from.y} Q ${cx},${cy} ${to.x},${to.y}`;
+}
+
+/** Vòng tự quay về chính nút (việc đã qua vòng sửa): cung nhỏ ở góc trên phải của thẻ. */
+function selfLoop(a: NodeBox) {
+  const x = a.c.x + a.w / 2 - 24;
+  const y = a.c.y - a.h / 2 - 4;
+  return `M ${x},${y} C ${x - 6},${y - 40} ${x + 52},${y - 34} ${x + 28},${y - 2}`;
+}
+
 function FlowEdge({ id, source, target, markerEnd, data, type }: EdgeProps<Edge<EdgeData>>) {
   const a = useNodeBox(source);
   const b = useNodeBox(target);
   if (!a || !b) return null;
-  const blocks = type === 'blocks';
+  const kind: RoadmapEdgeKind = isEdgeKind(type) ? type : 'parent';
   let d: string;
-  if (blocks) {
-    // Cạnh chặn: cong nhẹ để không trùng cạnh cha-con, mũi tên chạm viền nút đích.
-    const from = clipToBox(a.c, a.w + 8, a.h + 8, b.c);
-    const to = clipToBox(b.c, b.w + 8, b.h + 8, a.c);
-    const mx = (from.x + to.x) / 2;
-    const my = (from.y + to.y) / 2;
-    const len = Math.hypot(to.x - from.x, to.y - from.y) || 1;
-    const bend = Math.min(60, len * 0.15);
-    const cx = mx - ((to.y - from.y) / len) * bend;
-    const cy = my + ((to.x - from.x) / len) * bend;
-    d = `M ${from.x},${from.y} Q ${cx},${cy} ${to.x},${to.y}`;
-  } else {
-    d = `M ${a.c.x},${a.c.y} L ${b.c.x},${b.c.y}`;
-  }
+  if (kind === 'parent') d = `M ${a.c.x},${a.c.y} L ${b.c.x},${b.c.y}`;
+  else if (source === target) d = selfLoop(a);
+  // Cạnh chặn/vòng sửa: cong nhẹ để không trùng cạnh cha-con, mũi tên chạm viền nút đích.
+  else d = curve(a, b, kind === 'blocks' ? 1 : -1);
   const style: CSSProperties & Record<string, string> = {};
   if (data?.enterDelay != null) style['--enter-delay'] = `${data.enterDelay}ms`;
   return (
     <path
       id={id}
       d={d}
-      data-edge-kind={blocks ? 'blocks' : 'parent'}
+      data-edge-kind={kind}
       aria-hidden
       fill="none"
-      markerEnd={blocks ? markerEnd : undefined}
+      markerEnd={kind === 'parent' ? undefined : markerEnd}
       style={style}
       className={cn(
         'react-flow__edge-path stroke-2',
-        blocks ? 'stroke-primary! [stroke-dasharray:6_5]' : 'stroke-muted-foreground/40!',
+        EDGE_CLASS[kind],
         data?.enterDelay != null && 'roadmap-edge-enter',
       )}
     />
@@ -166,9 +195,9 @@ function FlowEdge({ id, source, target, markerEnd, data, type }: EdgeProps<Edge<
 }
 
 const NODE_TYPES = { roadmap: FlowNode };
-const EDGE_TYPES = { parent: FlowEdge, blocks: FlowEdge };
+const EDGE_TYPES: Record<RoadmapEdgeKind, typeof FlowEdge> = { parent: FlowEdge, blocks: FlowEdge, repair: FlowEdge };
 
-function Flow({ level, levelKey, direction, focusId, onOpen, labels }: RoadmapCanvasProps) {
+function Flow({ level, levelKey, direction, focusId, onOpen, labels, size = 'page', legend }: RoadmapCanvasProps) {
   const { t } = useT();
   const rf = useReactFlow();
   const wrap = useRef<HTMLDivElement>(null);
@@ -236,7 +265,9 @@ function Flow({ level, levelKey, direction, focusId, onOpen, labels }: RoadmapCa
         source: edge.source,
         target: edge.target,
         type: edge.kind,
-        markerEnd: edge.kind === 'blocks' ? { type: MarkerType.ArrowClosed, color: 'var(--primary)' } : undefined,
+        markerEnd: EDGE_MARKER_COLOR[edge.kind]
+          ? { type: MarkerType.ArrowClosed, color: EDGE_MARKER_COLOR[edge.kind] }
+          : undefined,
         data: { enterDelay: animate ? 250 + Math.min(i * 10, 400) : null },
         focusable: false,
         selectable: false,
@@ -248,6 +279,15 @@ function Flow({ level, levelKey, direction, focusId, onOpen, labels }: RoadmapCa
     [level.edges, animate],
   );
 
+  // Vào tầng kèm nút chọn sẵn (bản đồ Crew: việc đang xem): canh cả tâm lẫn nút đó khi vừa, không thì canh vào nút.
+  const entryFocus = useCallback(
+    (size: { width: number; height: number }) =>
+      direction === 'in' && focusId && positions[focusId]
+        ? pairFocus(level, positions, size, PADDING, focusId)
+        : undefined,
+    [direction, focusId, positions, level],
+  );
+
   // Camera theo tầng: chỉ chạy khi đổi tầng, cập nhật trực tiếp (cùng tầng) không làm bản đồ nhảy.
   const shownKey = useRef<string | null>(null);
   useEffect(() => {
@@ -257,18 +297,14 @@ function Flow({ level, levelKey, direction, focusId, onOpen, labels }: RoadmapCa
     setDiving(null);
     const zoomOut = motionMs('--roadmap-zoom-out', 650);
     const anchor = direction === 'out' && focusId ? (positions[focusId] ?? { x: 0, y: 0 }) : { x: 0, y: 0 };
-    const focusTarget = direction === 'out' && focusId && positions[focusId] ? focusId : level.center.id;
+    // Lùi tầng: focus về nút vừa rời. Vào tầng có `focusId` (bản đồ Crew: việc đang xem): camera thu ra quanh nút đó.
+    const focusTarget = focusId && positions[focusId] ? focusId : level.center.id;
     const run = async () => {
       if (direction !== 'none') await rf.setCenter(anchor.x, anchor.y, { zoom: DIVE_ZOOM, duration: 0 });
       // Thu ra tới độ phóng còn đọc được chữ, tâm ở nút đang focus; tầng lớn hơn khung thì kéo để xem phần còn lại.
       const box = wrap.current;
-      const view = readableView(
-        level,
-        positions,
-        { width: box?.clientWidth ?? 0, height: box?.clientHeight ?? 0 },
-        PADDING,
-        positions[focusTarget],
-      );
+      const size = { width: box?.clientWidth ?? 0, height: box?.clientHeight ?? 0 };
+      const view = readableView(level, positions, size, PADDING, entryFocus(size) ?? positions[focusTarget]);
       const fitted = rf.setCenter(view.x, view.y, { zoom: view.zoom, duration: direction === 'none' ? 0 : zoomOut });
       let tries = 0;
       const focus = () => {
@@ -280,7 +316,7 @@ function Flow({ level, levelKey, direction, focusId, onOpen, labels }: RoadmapCa
       await fitted;
     };
     void run();
-  }, [levelKey, direction, focusId, positions, level, rf]);
+  }, [levelKey, direction, focusId, positions, level, rf, entryFocus]);
 
   // Cùng tầng mà tập nút đổi (dữ liệu live, nút Docs tải xong): vừa lại màn hình nhẹ nhàng để không nút nào khuất.
   const shape = useMemo(() => all.map((n) => n.id).join('|'), [all]);
@@ -290,15 +326,11 @@ function Flow({ level, levelKey, direction, focusId, onOpen, labels }: RoadmapCa
     shownShape.current = { key: levelKey, shape };
     if (!prev || prev.key !== levelKey || prev.shape === shape || busy.current) return;
     const box = wrap.current;
-    const view = readableView(
-      level,
-      positions,
-      { width: box?.clientWidth ?? 0, height: box?.clientHeight ?? 0 },
-      PADDING,
-    );
+    const size = { width: box?.clientWidth ?? 0, height: box?.clientHeight ?? 0 };
+    const view = readableView(level, positions, size, PADDING, entryFocus(size));
     void rf.setCenter(view.x, view.y, { zoom: view.zoom, duration: motionMs('--roadmap-zoom-in', 300) });
     // Chạy lại khi dữ liệu đổi nhưng chỉ dời camera khi tập nút (shape) đổi trong cùng tầng.
-  }, [levelKey, shape, level, positions, rf]);
+  }, [levelKey, shape, level, positions, rf, entryFocus]);
 
   return (
     <div className="flex flex-col gap-2">
@@ -306,7 +338,10 @@ function Flow({ level, levelKey, direction, focusId, onOpen, labels }: RoadmapCa
         ref={wrap}
         data-slot="roadmap-canvas"
         data-level={levelKey}
-        className="relative h-[calc(100dvh-17rem)] min-h-[24rem] w-full overflow-hidden rounded-lg border bg-background"
+        className={cn(
+          'relative w-full overflow-hidden rounded-lg border bg-background',
+          size === 'page' ? 'h-[calc(100dvh-17rem)] min-h-[24rem]' : 'h-[min(34rem,70dvh)] min-h-[20rem]',
+        )}
       >
         <ReactFlow
           className="roadmap-flow"
@@ -348,7 +383,7 @@ function Flow({ level, levelKey, direction, focusId, onOpen, labels }: RoadmapCa
         ) : null}
       </div>
       {/* Chú giải nằm dưới khung bản đồ nên không bao giờ che nút. */}
-      <RoadmapLegend />
+      <RoadmapLegend edges={legend?.edges} current={legend?.current} />
     </div>
   );
 }

@@ -200,7 +200,7 @@ Trên ảnh:
    - **docs**: *Đạt* là tài liệu khớp code, *Lỗi* là Integrator sẽ sửa, *Chưa có* là chưa tới bước kiểm.
 3. **Thuộc tính**: trạng thái, người làm, project, loại, model, giai đoạn và người duyệt, vòng sửa (tối đa 5), giờ tạo và cập nhật. Nhóm **Runtime** cho biết runtime đã chọn và các lần tự chuyển.
 
-Bên dưới là mô tả, tài liệu, đính kèm, run của yêu cầu và **Bình luận**: agent ghi lại từng bước ở đây và run đang chạy hiện trực tiếp. Nút **Mở map** vẽ sơ đồ yêu cầu gốc và các yêu cầu con kèm kết quả **Kiểm docs**.
+Bên dưới là mô tả, tài liệu, đính kèm, run của yêu cầu và **Bình luận**: agent ghi lại từng bước ở đây và run đang chạy hiện trực tiếp. Nút **Mở map** vẽ yêu cầu gốc ở giữa và các yêu cầu con tỏa quanh, cùng kiểu với bản đồ [Roadmap](/roadmap): việc bạn đang xem có viền đậm, nét đứt là chặn (phải xong trước), nét chấm là vòng sửa; bấm một thẻ để mở việc đó, rê chuột lên thẻ để xem đủ loại việc, giai đoạn và số vòng sửa. Bên dưới bản đồ là kết quả **Kiểm docs**.
 
 Đóng cửa sổ bằng **Esc**, nút **×**, bấm ra vùng nền, hoặc nút Back của trình duyệt: bạn về đúng chỗ cũ trong danh sách.
 

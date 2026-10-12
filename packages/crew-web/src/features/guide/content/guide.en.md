@@ -200,7 +200,7 @@ On the screenshot:
    - **docs**: *Pass* means the docs match the code, *Fail* means the Integrator will fix them, *None* means the check has not run yet.
 3. **Properties**: status, assignee, project, kind, model, stages and approver, review round (max 5), created and updated times. The **Runtime** group shows the chosen runtime and any automatic switches.
 
-Below are the description, documents, attachments, the request's runs and **Comments**: agents log each step there and a live run streams in. **Open map** draws the root request and its sub-requests with the **Docs check** result.
+Below are the description, documents, attachments, the request's runs and **Comments**: agents log each step there and a live run streams in. **Open map** draws the root request in the middle with its sub-requests around it, in the same style as the [Roadmap](/roadmap) map: the task you are viewing has a bold outline, dashed lines mean blocks (must finish first), dotted lines are fix rounds; click a card to open that task, hover a card to see its kind, stage and fix rounds. The **Docs check** result sits below the map.
 
 Close the popup with **Esc**, the **×** button, a click on the backdrop, or the browser Back button: you return to the same place in the list.
 

@@ -274,7 +274,10 @@
     "assigneeLine": "Assignee: {{name}} · Fix rounds: {{round}}/{{max}}",
     "unassigned": "Unassigned",
     "bundle": "Bundle {{id}} #{{seq}}",
-    "missingIssue": "{{kind}} relation is missing an issue: {{from}} → {{to}}"
+    "missingIssue": "{{kind}} relation is missing an issue: {{from}} → {{to}}",
+    "hint": "Click a task to open it · drag to see more",
+    "roundsShort": "Fix rounds {{round}}/{{max}}",
+    "current": "Task you are viewing"
   },
   "crewSummary": {
     "label": "Crew summary",
@@ -337,7 +340,9 @@
     "legend": {
       "label": "Legend",
       "parent": "Parent → child",
-      "blocks": "Blocks (must finish first)"
+      "blocks": "Blocks (must finish first)",
+      "repair": "Fix round",
+      "current": "Task you are viewing"
     },
     "controls": {
       "label": "Map controls",

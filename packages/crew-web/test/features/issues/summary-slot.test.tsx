@@ -75,7 +75,9 @@ describe('SummarySlot (S6.1–S6.3)', () => {
     });
     mountAt(CHILD);
     fireEvent.click(await screen.findByRole('button', { name: 'Mở map' }));
-    expect(await screen.findByText(/CRE-37 · Thêm trang đăng nhập/)).toBeTruthy();
+    const card = (await screen.findByText('Thêm trang đăng nhập')).closest('button');
+    expect(card?.getAttribute('aria-label')).toMatch(/^CRE-37: Thêm trang đăng nhập/);
+    expect(screen.getByRole('region', { name: 'Bản đồ yêu cầu Crew' })).toBeTruthy();
     expect(screen.getByRole('region', { name: 'Kiểm docs' })).toBeTruthy();
     expect(screen.getByText(/integrator/)).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: 'Đóng map' }));
@@ -89,7 +91,7 @@ describe('SummarySlot (S6.1–S6.3)', () => {
     });
     mountAt(CHILD);
     fireEvent.click(await screen.findByRole('button', { name: 'Mở map' }));
-    fireEvent.click(await screen.findByText(/CRE-37 · Thêm trang đăng nhập/));
+    fireEvent.click(await screen.findByText('Thêm trang đăng nhập'));
     await waitFor(() => expect(screen.getByTestId('where').textContent).toBe('/TPS/issues/CRE-37'));
   });
 

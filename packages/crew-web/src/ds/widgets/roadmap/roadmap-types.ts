@@ -34,9 +34,16 @@ export interface RoadmapNode {
   disabled?: boolean;
   /** Dòng phụ tự do (đường dẫn trang docs). */
   subtitle?: string | null;
+  /** Dòng chi tiết thêm dưới thẻ yêu cầu/việc con (bản đồ Crew: giai đoạn · vòng sửa). */
+  detail?: string | null;
+  /** Thông tin không vừa thẻ: hiện trong tooltip (title) và nối vào nhãn đọc màn hình. */
+  notes?: readonly string[];
+  /** Việc đang xem (bản đồ Crew ở trang chi tiết): viền nổi bật. */
+  current?: boolean;
 }
 
-export type RoadmapEdgeKind = 'parent' | 'blocks';
+/** `repair`: vòng sửa của bản đồ Crew (việc được sửa → việc sửa; cùng nút = việc đã qua vòng sửa). */
+export type RoadmapEdgeKind = 'parent' | 'blocks' | 'repair';
 
 export interface RoadmapEdge {
   id: string;
@@ -51,8 +58,11 @@ export interface RoadmapLevel {
   edges: RoadmapEdge[];
   /** Số mục không vẽ vì vượt trần (đã có nút "+N khác" trong `nodes`). */
   overflow: number;
-  /** `rings`: vòng đồng tâm quanh tâm; `tree`: cây tỏa tròn theo `parentId`. */
-  layout: 'rings' | 'tree';
+  /**
+   * `rings`: vòng đồng tâm quanh tâm; `tree`: cây tỏa tròn theo `parentId`; `spread-tree`: cây tỏa tròn gọn trên các
+   * elip dẹt ngang, nới dần tới khi không thẻ nào chồng lên nhau (khung nhỏ, cây rộng hoặc sâu).
+   */
+  layout: 'rings' | 'tree' | 'spread-tree';
 }
 
 export interface RoadmapPoint {

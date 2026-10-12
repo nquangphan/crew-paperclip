@@ -1,6 +1,6 @@
 // crew: tự dựng
 // Bố cục thuần của bản đồ Roadmap: tâm ở gốc (0,0), nút con tỏa tròn. Không phụ thuộc thư viện vẽ.
-import type { RoadmapLevel, RoadmapPoint } from './roadmap-types';
+import type { RoadmapLevel, RoadmapNode, RoadmapPoint } from './roadmap-types';
 
 /**
  * Đặt `n` điểm trên các vòng đồng tâm quanh gốc, vòng đầu bán kính `r0`, mỗi vòng sau xa thêm `gap`. Mỗi vòng chứa
@@ -107,6 +107,11 @@ const FEW_R0 = { round: 230, card: 280 } as const;
 /** Vị trí tâm mỗi nút của một tầng (tâm tầng ở gốc). Nút "+N khác" ở tầng cây nằm ngay dưới tâm. */
 export function layoutLevel(level: RoadmapLevel): Record<string, RoadmapPoint> {
   const out: Record<string, RoadmapPoint> = { [level.center.id]: { x: 0, y: 0 } };
+  if (level.layout === 'spread-tree') {
+    Object.assign(out, compactTree(level));
+    for (const node of level.nodes) if (node.kind === 'more') out[node.id] = { x: 0, y: 150 };
+    return out;
+  }
   if (level.layout === 'tree') {
     Object.assign(out, radialTree(level.center.id, level.nodes));
     for (const node of level.nodes) if (node.kind === 'more') out[node.id] = { x: 0, y: 150 };
@@ -142,6 +147,77 @@ const CENTER_SIZE: Partial<Record<RoadmapLevel['center']['kind'], { w: number; h
   docs: { w: 200, h: 64 },
 };
 
+/** Chiều cao thêm của một dòng chi tiết (`detail`) trên thẻ. */
+const DETAIL_LINE = 18;
+
+/** Kích thước gần đúng của một nút trên bản đồ (nút tâm to hơn, thẻ có dòng chi tiết cao hơn). */
+export function roadmapNodeSize(node: RoadmapNode, center: boolean): { w: number; h: number } {
+  const s = (center ? CENTER_SIZE[node.kind] : undefined) ?? NODE_SIZE[node.kind];
+  return node.detail ? { w: s.w, h: s.h + DETAIL_LINE } : s;
+}
+
+/** Khe tối thiểu giữa hai thẻ (đơn vị bản đồ) khi xếp cây gọn. */
+const SPREAD_GAP = { x: 24, y: 20 } as const;
+/**
+ * Elip của cây gọn: bán trục vòng đầu (`x`, `y`) và độ nới thêm mỗi tầng sâu (`gx`, `gy`). Vòng đầu vừa đủ để thẻ
+ * con (180×~90) không chạm thẻ tâm (232×~140); dẹt ngang như vòng thẻ của Roadmap vì thẻ rộng hơn cao.
+ */
+const COMPACT = { x: 232, y: 150, gx: 210, gy: 120 } as const;
+/**
+ * Mỗi bước nới elip tới khi không còn thẻ chồng nhau: dọc nhanh hơn ngang, vì cột chính của trang chi tiết hẹp
+ * (bề ngang mới là thứ khiến phải kéo) còn chiều cao khung bản đồ thường dư.
+ */
+const SPREAD_STEP = { x: 0.03, y: 0.08 } as const;
+const SPREAD_MAX_STEPS = 120;
+
+function overlaps(level: RoadmapLevel, positions: Record<string, RoadmapPoint>): boolean {
+  const boxes = [level.center, ...level.nodes].flatMap((node, i) => {
+    const p = positions[node.id];
+    return p ? [{ p, s: roadmapNodeSize(node, i === 0) }] : [];
+  });
+  for (let i = 0; i < boxes.length; i++) {
+    for (let j = i + 1; j < boxes.length; j++) {
+      const a = boxes[i];
+      const b = boxes[j];
+      if (
+        Math.abs(a.p.x - b.p.x) < (a.s.w + b.s.w) / 2 + SPREAD_GAP.x &&
+        Math.abs(a.p.y - b.p.y) < (a.s.h + b.s.h) / 2 + SPREAD_GAP.y
+      ) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+/**
+ * Cây gọn (bản đồ Crew ở trang chi tiết, khung nhỏ hơn trang Roadmap): cùng góc và thứ tự như `radialTree` (mỗi nhánh
+ * một cung theo số lá), nhưng mỗi tầng nằm trên một elip dẹt ngang, bắt đầu nhỏ nhất có thể rồi nới dần tới khi không còn
+ * hai thẻ chồng nhau. Gia đình vài việc con vừa khung ở độ phóng đọc được; cây rộng hoặc sâu tự giãn ra.
+ */
+export function compactTree(level: RoadmapLevel): Record<string, RoadmapPoint> {
+  // radialTree với bán kính 1 và khoảng tầng 1: giữ góc, độ sâu = bán kính.
+  const unit = radialTree(level.center.id, level.nodes, { radius: 1, ringGap: 1, leafArc: 0 });
+  const polar = Object.entries(unit).map(([id, p]) => ({
+    id,
+    angle: Math.atan2(p.y, p.x),
+    depth: Math.max(1, Math.round(Math.hypot(p.x, p.y))),
+  }));
+  const place = (step: number) => {
+    const out: Record<string, RoadmapPoint> = { [level.center.id]: { x: 0, y: 0 } };
+    for (const { id, angle, depth } of polar) {
+      const rx = (1 + step * SPREAD_STEP.x) * (COMPACT.x + (depth - 1) * COMPACT.gx);
+      const ry = (1 + step * SPREAD_STEP.y) * (COMPACT.y + (depth - 1) * COMPACT.gy);
+      out[id] = { x: round(rx * Math.cos(angle)), y: round(ry * Math.sin(angle)) };
+    }
+    return out;
+  };
+  let out = place(0);
+  for (let step = 1; step <= SPREAD_MAX_STEPS && overlaps(level, out); step++) out = place(step);
+  delete out[level.center.id];
+  return out;
+}
+
 /** Độ phóng nhỏ nhất khi tự canh: chữ trên thẻ (12–14px) vẫn đọc được. Thiếu chỗ thì người xem kéo để xem tiếp. */
 export const READABLE_ZOOM = 1;
 /** Độ phóng lớn nhất khi tự canh (tầng ít nút không bị phóng quá to). */
@@ -172,7 +248,7 @@ export function readableView(
   for (const [i, node] of [level.center, ...level.nodes].entries()) {
     const p = positions[node.id];
     if (!p) continue;
-    const s = (i === 0 ? CENTER_SIZE[node.kind] : undefined) ?? NODE_SIZE[node.kind];
+    const s = roadmapNodeSize(node, i === 0);
     minX = Math.min(minX, p.x - s.w / 2);
     maxX = Math.max(maxX, p.x + s.w / 2);
     minY = Math.min(minY, p.y - s.h / 2);
@@ -191,4 +267,31 @@ export function readableView(
     y: round(target.y - (padding.top - padding.bottom) / (2 * zoom)),
     zoom,
   };
+}
+
+/**
+ * Điểm canh camera khi vào tầng với một nút được chọn (bản đồ Crew: việc đang xem). Nếu thẻ tâm và thẻ được chọn cùng
+ * vừa vùng nhìn ở READABLE_ZOOM thì canh giữa cả hai (thấy được yêu cầu lẫn việc đang xem), không thì canh vào thẻ chọn.
+ */
+export function pairFocus(
+  level: RoadmapLevel,
+  positions: Record<string, RoadmapPoint>,
+  viewport: { width: number; height: number },
+  padding: ViewPadding,
+  focusId: string,
+): RoadmapPoint {
+  const node = level.nodes.find((n) => n.id === focusId);
+  const p = positions[focusId];
+  const c = positions[level.center.id] ?? { x: 0, y: 0 };
+  if (!node || !p) return c;
+  const a = roadmapNodeSize(level.center, true);
+  const b = roadmapNodeSize(node, false);
+  const minX = Math.min(c.x - a.w / 2, p.x - b.w / 2);
+  const maxX = Math.max(c.x + a.w / 2, p.x + b.w / 2);
+  const minY = Math.min(c.y - a.h / 2, p.y - b.h / 2);
+  const maxY = Math.max(c.y + a.h / 2, p.y + b.h / 2);
+  const availW = viewport.width - padding.left - padding.right;
+  const availH = viewport.height - padding.top - padding.bottom;
+  const fits = (maxX - minX) * READABLE_ZOOM <= availW && (maxY - minY) * READABLE_ZOOM <= availH;
+  return fits ? { x: round((minX + maxX) / 2), y: round((minY + maxY) / 2) } : p;
 }

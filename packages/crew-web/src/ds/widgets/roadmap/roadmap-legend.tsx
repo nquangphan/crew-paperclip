@@ -1,11 +1,12 @@
 // crew: tự dựng
-// Chú giải của bản đồ Roadmap: bảy trạng thái (cùng biểu tượng và màu với danh sách yêu cầu) và hai loại cạnh. Nằm dưới
+// Chú giải của bản đồ Roadmap: bảy trạng thái (cùng biểu tượng và màu với danh sách yêu cầu) và các loại cạnh. Nằm dưới
 // khung bản đồ (không che nút); thu gọn được bằng nút "Chú thích", mặc định thu gọn trên màn hẹp.
 import { ChevronDown } from 'lucide-react';
 import { useId, useState } from 'react';
 import { useT } from '@/i18n';
 import { cn } from '../../cn';
 import { StatusGlyph } from '../status-glyph';
+import type { RoadmapEdgeKind } from './roadmap-types';
 
 export const ROADMAP_STATUSES = [
   'backlog',
@@ -21,7 +22,24 @@ export const ROADMAP_STATUSES = [
 const NARROW = '(max-width: 639px)';
 const startsOpen = () => typeof window === 'undefined' || !window.matchMedia?.(NARROW).matches;
 
-export function RoadmapLegend({ className }: { className?: string }) {
+/** Mẫu nét của từng loại cạnh, khớp nét vẽ trong roadmap-flow.tsx. */
+const EDGE_SWATCH: Record<RoadmapEdgeKind, string> = {
+  parent: 'border-muted-foreground/50',
+  blocks: 'border-dashed border-primary',
+  repair: 'border-dotted border-(--roadmap-edge-repair)',
+};
+
+export interface RoadmapLegendProps {
+  className?: string;
+  /** Loại cạnh cần chú giải (mặc định cha-con và chặn). */
+  edges?: readonly RoadmapEdgeKind[];
+  /** Thêm mục "Việc đang xem" (bản đồ Crew ở trang chi tiết). */
+  current?: boolean;
+}
+
+const DEFAULT_EDGES: readonly RoadmapEdgeKind[] = ['parent', 'blocks'];
+
+export function RoadmapLegend({ className, edges = DEFAULT_EDGES, current = false }: RoadmapLegendProps) {
   const { t } = useT();
   const [open, setOpen] = useState(startsOpen);
   const listId = useId();
@@ -48,14 +66,18 @@ export function RoadmapLegend({ className }: { className?: string }) {
             <span>{t(`status.${status}`)}</span>
           </li>
         ))}
-        <li className="flex items-center gap-1.5">
-          <span aria-hidden className="w-5 border-t-2 border-muted-foreground/50" />
-          <span>{t('roadmap.legend.parent')}</span>
-        </li>
-        <li className="flex items-center gap-1.5">
-          <span aria-hidden className="w-5 border-t-2 border-dashed border-primary" />
-          <span>{t('roadmap.legend.blocks')}</span>
-        </li>
+        {edges.map((kind) => (
+          <li key={kind} className="flex items-center gap-1.5">
+            <span aria-hidden className={cn('w-5 border-t-2', EDGE_SWATCH[kind])} />
+            <span>{t(`roadmap.legend.${kind}`)}</span>
+          </li>
+        ))}
+        {current ? (
+          <li className="flex items-center gap-1.5">
+            <span aria-hidden className="size-3 rounded-sm bg-card ring-2 ring-primary" />
+            <span>{t('roadmap.legend.current')}</span>
+          </li>
+        ) : null}
       </ul>
     </section>
   );
