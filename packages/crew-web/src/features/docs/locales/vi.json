@@ -1,13 +1,17 @@
 {
   "title": "Docs",
   "description": "Tài liệu của từng project, đọc từ bản docs mới nhất máy đã gửi lên.",
+  "project": "Project",
+  "tree": "Các trang tài liệu",
+  "toc": "Trên trang này",
   "loadFailed": "Không tải được docs",
   "empty": "Chưa có project nào có docs",
   "emptyHint": "Project có docs sau khi máy gửi bản docs đầu tiên.",
   "noSnapshot": "Project này chưa có bản docs",
   "noSnapshotHint": "Máy chưa gửi bản docs nào cho project này.",
+  "noPages": "Bản docs này chưa có trang nào",
+  "noPagesHint": "Máy đã gửi bản docs nhưng không có file markdown nào được đưa vào.",
   "meta": "Commit {{commit}}, nhận lúc {{at}}",
-  "pick": "Chọn một trang ở danh sách bên trái.",
   "search": {
     "label": "Tìm trong tài liệu",
     "placeholder": "Nhập từ khóa, ví dụ greet",
@@ -16,6 +20,8 @@
   },
   "page": {
     "missing": "Thiếu trang: {{path}}",
+    "missingHint": "Trang có thể đã bị đổi tên hoặc xóa ở commit mới nhất. Chọn trang khác ở thanh bên.",
+    "brokenTitle": "Không mở được liên kết",
     "brokenClick": "Liên kết hỏng: không có trang {{href}}"
   },
   "links": {

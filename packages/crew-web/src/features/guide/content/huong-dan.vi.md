@@ -577,9 +577,10 @@ Trang [Docs](/docs) là tài liệu của từng project, đọc từ bản mớ
 
 #### Cách làm
 
-1. Chọn project; trang hiện commit và giờ nhận.
-2. Bấm trang trong cây (1) để đọc. Link trong trang mở thẳng trang đích; link hỏng ghi "Thiếu trang".
+1. Chọn project ở ô **Project** trên thanh bên trái. Trang chủ docs của project (`index.md` hoặc `README.md`) mở sẵn; dưới tiêu đề bài là đường dẫn file, commit và giờ nhận.
+2. Bấm trang trong cây (1) để đọc; bấm tên thư mục để thu gọn hay mở ra. Link trong bài mở thẳng trang đích; link hỏng báo "Liên kết hỏng". Bài có nhiều mục thì cột **Trên trang này** bên phải liệt kê các mục để nhảy tới.
 3. Gõ từ khóa ở ô **Tìm trong tài liệu** (2).
+4. Muốn gửi trang cho người khác thì chép địa chỉ trên thanh trình duyệt: link giữ đúng project và trang.
 
 > **Mẹo:** file có dấu hiệu chứa mật khẩu hay token không bao giờ được gửi lên; chỉ tên file hiện ở mục "File bị bỏ do quét bí mật". Tab **Docs** trong một project cho cùng nội dung.
 

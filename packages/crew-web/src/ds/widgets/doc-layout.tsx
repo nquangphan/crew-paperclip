@@ -1,16 +1,66 @@
 // crew: tự dựng
-// Bố cục trang tài liệu (trang Hướng dẫn): mục lục dính bên trái theo nhóm, nội dung bên phải, từng mục có neo, hình có
-// khung và chú thích. Màn hình nhỏ thì mục lục nằm trên nội dung.
+// Bố cục trang tài liệu (trang Hướng dẫn, trang Docs): mục lục dính bên trái, nội dung ở giữa, cột phải tùy chọn; từng
+// mục có neo, hình có khung và chú thích. Màn hình nhỏ thì mọi cột xếp chồng thành một.
 import type * as React from 'react';
 import { cn } from '../cn';
 
-/** Hai cột: mục lục (dính khi cuộn) và nội dung. */
-function DocLayout({ nav, children }: { nav: React.ReactNode; children: React.ReactNode }) {
+/**
+ * Hai cột: mục lục (dính khi cuộn) và nội dung. Có `aside` (ví dụ mục lục "Trên trang này") thì thành ba cột từ mốc
+ * `xl`; dưới mốc đó cột phải ẩn, trang tự hiện bản thay thế trong nội dung (DocToc `collapsed`).
+ */
+function DocLayout({
+  nav,
+  aside,
+  children,
+}: {
+  nav: React.ReactNode;
+  aside?: React.ReactNode;
+  children: React.ReactNode;
+}) {
   return (
-    <div data-slot="doc-layout" className="grid grid-cols-1 gap-8 lg:grid-cols-[15rem_minmax(0,1fr)]">
-      <div className="lg:sticky lg:top-4 lg:max-h-[calc(100vh-2rem)] lg:self-start lg:overflow-auto">{nav}</div>
+    <div
+      data-slot="doc-layout"
+      className={cn(
+        'grid grid-cols-1 gap-8 lg:grid-cols-[15rem_minmax(0,1fr)]',
+        aside ? 'xl:grid-cols-[16rem_minmax(0,1fr)_13rem]' : null,
+      )}
+    >
+      <div className="min-w-0 lg:sticky lg:top-4 lg:max-h-[calc(100vh-2rem)] lg:self-start lg:overflow-auto">{nav}</div>
       <div className="flex min-w-0 flex-col gap-10">{children}</div>
+      {aside ? (
+        <aside className="hidden xl:sticky xl:top-4 xl:block xl:max-h-[calc(100vh-2rem)] xl:self-start xl:overflow-auto">
+          {aside}
+        </aside>
+      ) : null}
     </div>
+  );
+}
+
+/**
+ * Một bài đọc: tiêu đề lớn, dòng thông tin phụ (commit, giờ cập nhật…) và thân bài. Chiều rộng chữ giới hạn cho dễ đọc.
+ */
+function DocArticle({ title, meta, children }: { title: string; meta?: React.ReactNode; children: React.ReactNode }) {
+  return (
+    <article aria-label={title} data-slot="doc-article" className="flex w-full max-w-3xl min-w-0 flex-col gap-6">
+      <header className="flex flex-col gap-2 border-b pb-4">
+        <h1 className="text-2xl font-semibold tracking-tight break-words sm:text-3xl">{title}</h1>
+        {meta ? (
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted-foreground">{meta}</div>
+        ) : null}
+      </header>
+      {children}
+    </article>
+  );
+}
+
+/** Phần phụ gọn ở cuối bài hoặc cuối thanh bên (liên kết trong trang, file bị bỏ…): tiêu đề nhỏ, chữ nhỏ. */
+function DocAppendix({ title, hint, children }: { title: string; hint?: string; children: React.ReactNode }) {
+  return (
+    <section aria-label={title} data-slot="doc-appendix" className="flex flex-col gap-2 border-t pt-4 text-sm">
+      <h2 className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">{title}</h2>
+      {hint ? <p className="text-xs text-muted-foreground">{hint}</p> : null}
+      {children}
+    </section>
   );
 }
 
@@ -103,4 +153,4 @@ function DocFigure({
 }
 
 export type { DocNavGroup };
-export { DocFigure, DocGroup, DocLayout, DocNav, DocSection };
+export { DocAppendix, DocArticle, DocFigure, DocGroup, DocLayout, DocNav, DocSection };

@@ -577,9 +577,10 @@ The [Docs](/docs) page is each project's documentation, read from the latest cop
 
 #### How to
 
-1. Pick a project; the page shows the commit and when it arrived.
-2. Click a page in the tree (1) to read it. Links open the target page; broken links say "Missing page".
+1. Pick a project in the **Project** box at the top of the left sidebar. The project's docs home (`index.md` or `README.md`) opens first; under the title you see the file path, the commit and when it arrived.
+2. Click a page in the tree (1) to read it; click a folder name to collapse or expand it. Links open the target page; broken links say "Broken link". Long pages list their sections under **On this page** on the right so you can jump to one.
 3. Type a keyword in **Search the docs** (2).
+4. To share a page, copy the address from the browser bar: the link keeps the project and the page.
 
 > **Tip:** files that look like they hold passwords or tokens are never sent; only their names appear under "Files skipped by the secret scan". A project's **Docs** tab shows the same content.
 

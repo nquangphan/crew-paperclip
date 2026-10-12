@@ -5,6 +5,8 @@ import { cn } from '../cn';
 interface MarkdownProps {
   markdown: string;
   className?: string;
+  /** `document`: trang tài liệu đọc dài, chữ lớn hơn ở màn rộng và heading có id cho mục lục. */
+  variant?: 'default' | 'document';
 }
 
 // Tải lười: react-markdown và micromark chỉ tải khi trang thật sự hiện markdown, không nằm trong chunk khởi đầu.
@@ -20,8 +22,8 @@ const LazyRenderer = lazy(load);
 if (import.meta.env.MODE === 'test') await load();
 
 /** Render markdown (xem markdown-renderer). Lần đầu, trong lúc tải thư viện, hiện chữ thô để nội dung không trống. */
-function MarkdownView({ markdown, className }: MarkdownProps) {
-  if (Loaded) return <Loaded markdown={markdown} className={className} />;
+function MarkdownView({ markdown, className, variant }: MarkdownProps) {
+  if (Loaded) return <Loaded markdown={markdown} className={className} variant={variant} />;
   return (
     <Suspense
       fallback={
@@ -30,9 +32,10 @@ function MarkdownView({ markdown, className }: MarkdownProps) {
         </div>
       }
     >
-      <LazyRenderer markdown={markdown} className={className} />
+      <LazyRenderer markdown={markdown} className={className} variant={variant} />
     </Suspense>
   );
 }
 
+export type { MarkdownProps };
 export { MarkdownView };

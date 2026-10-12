@@ -18,6 +18,7 @@ export {
   ExternalLink,
   FileText,
   Folder,
+  FolderOpen,
   Globe,
   Inbox,
   Info,
