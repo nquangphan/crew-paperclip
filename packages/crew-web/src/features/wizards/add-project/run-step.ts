@@ -22,6 +22,7 @@ import {
   renderInstructions,
   roleOfSlot,
 } from '@/lib/instructions';
+import { type HostMachine, machineHost } from '../machine-host';
 import { ADD_PROJECT_STEPS, type AddProjectStepId, projectSlots, slotBranch, slotName } from './steps';
 import { JobFailedError, JobTimeoutError, waitJob } from './wait-job';
 
@@ -233,13 +234,13 @@ export const required = (refs: Record<string, string>, key: string): string => {
 };
 
 /**
- * Environment SSH `in_place` mẫu của company (có secret SSH và `knownHosts`, vì environment mới luôn bật
- * `strictHostKeyChecking`): ưu tiên bản có `crewLoadGate`, rồi bản mới nhất. Bảng environment không có `company_id`
- * nên danh sách là của cả instance; chỉ nhận mẫu có secret SSH thuộc đúng company (`companySecretIds`), nếu không
- * environment mới sẽ trỏ secret của company khác và server chặn run.
+ * Environment SSH `in_place` dùng làm mẫu được (có secret SSH và `knownHosts`, vì environment mới luôn bật
+ * `strictHostKeyChecking`). Bảng environment không có `company_id` nên danh sách là của cả instance; chỉ nhận mẫu có
+ * secret SSH thuộc đúng company (`companySecretIds`), nếu không environment mới sẽ trỏ secret của company khác và
+ * server chặn run.
  */
-export function pickTemplate(envs: EnvironmentRow[], companySecretIds: ReadonlySet<string>): EnvironmentRow | null {
-  const ok = envs.filter((env) => {
+export function templateCandidates(envs: EnvironmentRow[], companySecretIds: ReadonlySet<string>): EnvironmentRow[] {
+  return envs.filter((env) => {
     const ref = env.config.privateKeySecretRef as { secretId?: unknown } | undefined;
     return (
       typeof ref?.secretId === 'string' &&
@@ -247,45 +248,117 @@ export function pickTemplate(envs: EnvironmentRow[], companySecretIds: ReadonlyS
       env.status === 'active' &&
       env.driver === 'ssh' &&
       env.metadata?.workspaceRealizationMode === 'in_place' &&
-      typeof ref?.secretId === 'string' &&
       typeof env.config.host === 'string' &&
       typeof env.config.username === 'string' &&
       typeof env.config.knownHosts === 'string' &&
       env.config.knownHosts.trim() !== ''
     );
   });
+}
+
+/** Máy nhận environment mới: host SSH của máy và khóa project (để ưu tiên mẫu của chính project). */
+export interface TemplateTarget {
+  host: string;
+  projectKey?: string;
+}
+
+/**
+ * Mẫu cho environment mới trên máy `target.host`: chỉ environment SSH trỏ đúng host đó (environment mới chép host,
+ * cổng và `knownHosts` của mẫu, nên mẫu của máy khác sẽ đưa agent sang máy khác). Ưu tiên mẫu của agent cùng project
+ * (`~/crew-agents/<khóa>/`), rồi bản có `crewLoadGate`, rồi bản mới nhất. Không có mẫu trên máy đó thì null.
+ */
+export function pickTemplate(
+  envs: EnvironmentRow[],
+  companySecretIds: ReadonlySet<string>,
+  target: TemplateTarget,
+): EnvironmentRow | null {
+  const ok = templateCandidates(envs, companySecretIds).filter((env) => env.config.host === target.host);
+  const under = target.projectKey ? `/crew-agents/${target.projectKey}/` : null;
+  const own = (env: EnvironmentRow) => {
+    const path = env.config.remoteWorkspacePath;
+    return under && typeof path === 'string' && path.includes(under) ? 1 : 0;
+  };
   const gate = (env: EnvironmentRow) => (env.metadata?.crewLoadGate ? 1 : 0);
-  ok.sort((a, b) => gate(b) - gate(a) || (isTime(b.createdAt) || 0) - (isTime(a.createdAt) || 0));
+  ok.sort((a, b) => own(b) - own(a) || gate(b) - gate(a) || (isTime(b.createdAt) || 0) - (isTime(a.createdAt) || 0));
   return ok[0] ?? null;
 }
 
-/** Mẫu của company `companyId`: environment trong `envs` có secret SSH nằm trong danh sách secret của company. */
-export async function pickCompanyTemplate(
-  api: { secrets: { list(companyId: string): Promise<{ id: string }[]> } },
-  companyId: string,
+/** Máy của run: host SSH suy được (null nếu không), tên hiển thị và các mẫu của company. */
+export interface MachineTarget {
+  host: string | null;
+  label: string;
+  candidates: EnvironmentRow[];
+}
+
+/**
+ * Host SSH của máy của run (theo `machineHost`). Company chỉ có một máy mà không suy được thì nhận host khi mọi mẫu
+ * của company cùng một host (không có máy khác để nhầm sang).
+ */
+export async function machineTargetOf(
+  api: {
+    crew: { machines(companyId: string): Promise<unknown> };
+    secrets: { list(companyId: string): Promise<{ id: string }[]> };
+  },
+  run: SetupRun,
   envs: EnvironmentRow[],
-): Promise<EnvironmentRow | null> {
-  const secrets = await api.secrets.list(companyId);
-  return pickTemplate(envs, new Set(secrets.map((secret) => secret.id)));
+): Promise<MachineTarget> {
+  const [machines, secrets] = await Promise.all([machinesOf(api, run.companyId), api.secrets.list(run.companyId)]);
+  const candidates = templateCandidates(envs, new Set(secrets.map((secret) => secret.id)));
+  const machine = machines.find((m) => m.machineId === run.machineId);
+  const label = machine?.hostname || run.machineId;
+  let host = machine ? machineHost(machine, machines, envs) : null;
+  if (!host && machine && machines.length === 1) {
+    const hosts = new Set(candidates.map((env) => env.config.host as string));
+    if (hosts.size === 1) host = [...hosts][0] ?? null;
+  }
+  return { host, label, candidates };
+}
+
+/** Mẫu trên đúng máy của run; không có thì dừng bước, không bao giờ chép mẫu của máy khác. */
+export function templateFor(target: MachineTarget, projectKey: string): EnvironmentRow {
+  if (target.candidates.length === 0) throw new StepError('errors.noTemplate');
+  if (!target.host) throw new StepError('errors.noMachineHost', { machine: target.label });
+  const ids = new Set(target.candidates.flatMap((env) => secretIdOf(env) ?? []));
+  const template = pickTemplate(target.candidates, ids, { host: target.host, projectKey });
+  if (!template) throw new StepError('errors.noMachineTemplate', { machine: target.label, host: target.host });
+  return template;
+}
+
+const secretIdOf = (env: EnvironmentRow): string | undefined =>
+  (env.config.privateKeySecretRef as { secretId?: string } | undefined)?.secretId;
+
+/** Bản tin các máy (`crew.machines`) đọc phòng thủ: phần tử không có `machineId` bị bỏ. */
+async function machinesOf(
+  api: { crew: { machines(companyId: string): Promise<unknown> } },
+  companyId: string,
+): Promise<HostMachine[]> {
+  const machines = await api.crew.machines(companyId);
+  if (!Array.isArray(machines)) return [];
+  return machines.filter(
+    (m): m is HostMachine => typeof m === 'object' && m !== null && typeof m.machineId === 'string',
+  );
+}
+
+/** Phần SSH của environment (host, cổng, user, secret, `knownHosts`) chép từ mẫu. */
+export function sshConfigOf(template: EnvironmentRow): Record<string, unknown> {
+  const config = template.config;
+  return {
+    host: config.host,
+    ...(config.port === undefined ? {} : { port: config.port }),
+    username: config.username,
+    privateKeySecretRef: { type: 'secret_ref', secretId: secretIdOf(template), version: 'latest' },
+    knownHosts: config.knownHosts,
+    strictHostKeyChecking: true,
+  };
 }
 
 export function environmentBody(template: EnvironmentRow, name: string, checkout: string, description: string) {
-  const config = template.config;
-  const secretId = (config.privateKeySecretRef as { secretId: string }).secretId;
   const gate = template.metadata?.crewLoadGate;
   return {
     name,
     description,
     driver: 'ssh',
-    config: {
-      host: config.host,
-      ...(config.port === undefined ? {} : { port: config.port }),
-      username: config.username,
-      remoteWorkspacePath: checkout,
-      privateKeySecretRef: { type: 'secret_ref', secretId, version: 'latest' },
-      knownHosts: config.knownHosts,
-      strictHostKeyChecking: true,
-    },
+    config: { ...sshConfigOf(template), remoteWorkspacePath: checkout },
     metadata: { workspaceRealizationMode: 'in_place', ...(gate ? { crewLoadGate: gate } : {}) },
   };
 }
@@ -361,7 +434,7 @@ const STEPS: Record<AddProjectStepId, StepWork> = {
     const input = inputOf(run);
     const all = { ...runRefs(run), ...refs };
     const envs = await ctx.api.environments.list(run.companyId);
-    let template: EnvironmentRow | null = null;
+    let target: MachineTarget | null = null;
     for (const slot of projectSlots(input.executors)) {
       const key = `environment_${slot}`;
       if (refs[key] ?? all[key]) {
@@ -377,8 +450,8 @@ const STEPS: Record<AddProjectStepId, StepWork> = {
         refs[key] = lost.id;
         continue;
       }
-      template ??= await pickCompanyTemplate(ctx.api, run.companyId, envs);
-      if (!template) throw new StepError('errors.noTemplate');
+      target ??= await machineTargetOf(ctx.api, run, envs);
+      const template = templateFor(target, input.key);
       const description = ctx.t('addProject.environmentDescription', { role: slot, project: input.name.trim() });
       refs[key] = (
         await ctx.api.environments.create(run.companyId, environmentBody(template, name, checkout, description))

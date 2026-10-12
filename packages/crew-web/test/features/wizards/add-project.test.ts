@@ -387,6 +387,34 @@ describe('runAddProject', () => {
     expect(f.names()).not.toContain('environments.create');
   });
 
+  it('hai máy: environment của project chép mẫu trên máy của run (ghép cặp), không lấy mẫu mới nhất của máy kia', async () => {
+    const f = fakeApi({ run: addProjectRun({ machineId: 'm2' }) });
+    const bookIp = '100.100.157.19';
+    f.state.machines = [
+      ...f.state.machines,
+      {
+        machineId: 'm2',
+        hostname: 'macbook',
+        latest: { superpowers: { pinned: '5.0.7', pinDir: PIN }, checkouts: [] },
+        pairing: { environmentId: 'env-book', tailscaleIp: bookIp },
+      },
+    ];
+    f.state.environments.push({
+      ...structuredClone(TEMPLATE_ENV),
+      id: 'env-book',
+      name: 'macbook',
+      config: { ...TEMPLATE_ENV.config, host: bookIp, knownHosts: `${bookIp} ssh-ed25519 BOOK` },
+      createdAt: '2026-09-01T00:00:00Z',
+    });
+    const run = await runAddProject(ctxOf(f.api), f.state.run);
+    expect(run.status).toBe('done');
+    const creates = f.calls.filter((c) => c.fn === 'environments.create');
+    expect(creates).toHaveLength(4);
+    for (const c of creates) {
+      expect(c.args[1]).toMatchObject({ config: { host: bookIp, knownHosts: `${bookIp} ssh-ed25519 BOOK` } });
+    }
+  });
+
   it('bước đã done thì bỏ qua, không begin lại', async () => {
     const f = fakeApi();
     const run = await runAddProjectStep(

@@ -150,6 +150,10 @@ export function fakeApi(opts: { run?: SetupRun; busy?: boolean; jobOutcome?: Job
     busy: opts.busy ?? false,
     /** Mã chủ khóa bước như plugin: begin cấp mới, finish phải gửi lại đúng mã. */
     lockToken: null as string | null,
+    /** Bản tin máy (`crew.machines`): mặc định một máy chưa ghép cặp, chưa báo checkout. */
+    machines: [
+      { machineId: 'm1', hostname: 'mac-mini', latest: { superpowers: { pinned: '5.0.7', pinDir: PIN } } },
+    ] as Record<string, unknown>[],
   };
 
   /** Ghi lời gọi; lỗi tiêm cho lần gọi thứ n (đếm từ 1) thì ném. */
@@ -290,6 +294,16 @@ export function fakeApi(opts: { run?: SetupRun; busy?: boolean; jobOutcome?: Job
         state.environments.push(env);
         return structuredClone(env);
       },
+      /** PATCH như server: `config` gộp nông với config đang có, trường khác thay. */
+      update: async (id: string, body: Record<string, unknown>) => {
+        record('environments.update', id, structuredClone(body));
+        const env = state.environments.find((e) => e.id === id);
+        if (!env) throw new ApiError(404, 'Environment not found');
+        const { config, ...rest } = structuredClone(body);
+        Object.assign(env, rest);
+        if (config) env.config = { ...(env.config as object), ...(config as object) };
+        return structuredClone(env);
+      },
       archive: async (id: string) => {
         record('environments.archive', id);
         const env = state.environments.find((e) => e.id === id);
@@ -387,7 +401,7 @@ export function fakeApi(opts: { run?: SetupRun; busy?: boolean; jobOutcome?: Job
     crew: {
       machines: async (companyId: string) => {
         record('crew.machines', companyId);
-        return [{ machineId: 'm1', hostname: 'mac-mini', latest: { superpowers: { pinned: '5.0.7', pinDir: PIN } } }];
+        return structuredClone(state.machines);
       },
     },
   };

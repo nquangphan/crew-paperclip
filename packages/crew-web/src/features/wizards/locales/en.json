@@ -139,6 +139,8 @@
     "noProject": "No project yet: the Create project step has not finished",
     "checkoutMissing": "The machine returned no checkout for role {{role}}",
     "noTemplate": "The company has no template SSH environment (in_place, with an SSH secret) to copy",
+    "noMachineHost": "Unknown SSH host for machine {{machine}} (not paired, and no environment points at a checkout on it): pair the machine on the Machines page, then press Continue",
+    "noMachineTemplate": "No template SSH environment on machine {{machine}} ({{host}}) to copy; templates of other machines are never used. Pair the machine on the Machines page, then press Continue",
     "noPinDir": "The machine has not reported its pinned Superpowers (superpowers.pinDir): update crew-mac on the machine, then press Continue",
     "instructionsConflict": "AGENTS.md of {{name}} was just changed elsewhere: press Continue to write it again",
     "wrongAgentKind": "The setup run is not an agent creation run",

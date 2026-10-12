@@ -35,14 +35,16 @@ import {
   executeStep,
   isTime,
   lockOf,
+  machineTargetOf,
   pauseAgents,
-  pickCompanyTemplate,
   pinDirOf,
   required,
   resultOf,
   runJob,
   StepError,
+  sshConfigOf,
   type Translate,
+  templateFor,
 } from '../add-project/run-step';
 import { slotBranch, slotName } from '../add-project/steps';
 import { ADD_AGENT_STEPS, type AddAgentStepId, slotCheckout } from './steps';
@@ -53,7 +55,10 @@ type AgentDetail = ReadinessAgent & { name: string };
 export interface AddAgentApi {
   setup: AddProjectApi['setup'];
   jobs: AddProjectApi['jobs'];
-  environments: AddProjectApi['environments'];
+  environments: AddProjectApi['environments'] & {
+    /** PATCH environment (config gộp nông với config đang có, như server). */
+    update(id: string, body: Record<string, unknown>): Promise<unknown>;
+  };
   secrets: AddProjectApi['secrets'];
   projects: Pick<AddProjectApi['projects'], 'list'>;
   agents: AddProjectApi['agents'] & {
@@ -315,17 +320,28 @@ const STEPS: Record<AddAgentStepId, StepWork> = {
     if (!environmentId) {
       const envs = await api.environments.list(companyId);
       const name = slotName(run.projectKey, input.slot);
+      const target = await machineTargetOf(api, run, envs);
       // Environment đang dùng đã đúng checkout thì giữ; rồi tới environment của ô (cùng tên, cùng checkout) — một
-      // checkout chỉ cần một environment, kể cả khi thay agent của ô.
+      // checkout chỉ cần một environment, kể cả khi thay agent của ô. Biết host của máy thì environment còn phải trỏ
+      // đúng host đó: environment đúng checkout mà sai máy được sửa tại chỗ theo mẫu của máy (chế độ sửa).
       const ok = (env: (typeof envs)[number]) => checkEnvironment(env as ReadinessEnvironment, checkout);
+      const onMachine = (env: (typeof envs)[number]) => target.host === null || env.config.host === target.host;
+      const mine = (env: (typeof envs)[number]) => env.id === agent.defaultEnvironmentId || env.name === name;
       const reuse =
-        envs.find((env) => env.id === agent.defaultEnvironmentId && ok(env)) ??
-        envs.find((env) => env.name === name && ok(env));
+        envs.find((env) => env.id === agent.defaultEnvironmentId && ok(env) && onMachine(env)) ??
+        envs.find((env) => env.name === name && ok(env) && onMachine(env));
+      const wrongMachine = reuse ? undefined : envs.find((env) => mine(env) && ok(env));
       if (reuse) {
         environmentId = reuse.id;
+      } else if (wrongMachine) {
+        const template = templateFor(target, run.projectKey);
+        const ssh = sshConfigOf(template);
+        // Mẫu không ghi cổng thì đặt 22: PATCH gộp config, cổng của máy cũ không được ở lại.
+        await api.environments.update(wrongMachine.id, { config: { port: 22, ...ssh } });
+        environmentId = wrongMachine.id;
+        refs.repaired = String(wrongMachine.config.host ?? '').slice(0, 200);
       } else {
-        const template = await pickCompanyTemplate(api, companyId, envs);
-        if (!template) throw new StepError('errors.noTemplate');
+        const template = templateFor(target, run.projectKey);
         const description = ctx.t('addAgent.environmentDescription', { role: input.slot, project: run.projectKey });
         environmentId = (
           await api.environments.create(companyId, environmentBody(template, name, checkout, description))

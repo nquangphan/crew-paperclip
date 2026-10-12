@@ -661,3 +661,120 @@ describe('ô runtime Codex/OpenCode', () => {
     ]);
   });
 });
+
+describe('environment theo máy của run (hai máy)', () => {
+  const BOOK_IP = '100.100.157.19';
+  const MINI = {
+    machineId: 'm1',
+    hostname: 'mac-mini',
+    latest: {
+      superpowers: { pinned: '5.0.7', pinDir: PIN },
+      checkouts: [{ path: '/Users/owner/crew-agents/old/assistant' }],
+    },
+  };
+  const BOOK = {
+    machineId: 'm2',
+    hostname: 'Phans-MacBook-Pro.local',
+    latest: { superpowers: { pinned: '5.0.7', pinDir: PIN }, checkouts: [] },
+    pairing: { environmentId: 'env-book-pair', tailscaleIp: BOOK_IP },
+  };
+  const bookEnv = (id: string, path: string, createdAt: string) => ({
+    ...structuredClone(TEMPLATE_ENV),
+    id,
+    name: id,
+    config: {
+      ...TEMPLATE_ENV.config,
+      host: BOOK_IP,
+      remoteWorkspacePath: path,
+      knownHosts: `${BOOK_IP} ssh-ed25519 BOOK`,
+    },
+    createdAt,
+  });
+
+  /** Mẫu mới nhất của company ở Mac mini; MacBook có environment ghép cặp cũ hơn. */
+  function twoMachines(run: SetupRun) {
+    const f = setup(run);
+    f.state.machines = [MINI, BOOK];
+    f.state.environments = [
+      { ...structuredClone(TEMPLATE_ENV), createdAt: '2026-10-11T00:00:00Z' },
+      bookEnv('env-book-pair', '/Users/owner', '2026-09-01T00:00:00Z'),
+    ];
+    return f;
+  }
+
+  it('máy MacBook: environment mới chép host, cổng, knownHosts của MacBook, không lấy mẫu mới nhất của Mac mini', async () => {
+    const f = twoMachines(addAgentRun('executor-2', { machineId: 'm2' }));
+    const run = await runAddAgent(ctxOf(f.api), f.state.run);
+    expect(run.status).toBe('done');
+    expect(f.calls.find((c) => c.fn === 'environments.create')?.args[1]).toMatchObject({
+      name: 'demo-executor-2',
+      config: {
+        host: BOOK_IP,
+        port: 2222,
+        knownHosts: `${BOOK_IP} ssh-ed25519 BOOK`,
+        remoteWorkspacePath: '/Users/owner/crew-agents/demo/executor-2',
+      },
+    });
+  });
+
+  it('máy chưa có environment mẫu nào: dừng ở bước environment, không chép mẫu của máy khác', async () => {
+    const f = twoMachines(addAgentRun('executor-2', { machineId: 'm2' }));
+    // MacBook vẫn biết host (IP Tailscale của lần ghép) nhưng không còn environment nào trên host đó.
+    f.state.environments = f.state.environments.filter((e) => e.id !== 'env-book-pair');
+    const run = await runAddAgent(ctxOf(f.api), f.state.run);
+    expect(run.status).toBe('failed');
+    expect(run.steps.environment?.error).toContain('errors.noMachineTemplate');
+    expect(run.steps.environment?.error).toContain('Phans-MacBook-Pro.local');
+    expect(f.names()).not.toContain('environments.create');
+  });
+
+  it('Sửa tiếp từ bước environment: environment đúng checkout mà sai máy được sửa host tại chỗ theo mẫu của máy', async () => {
+    const f = twoMachines(
+      addAgentRun('executor', {
+        machineId: 'm2',
+        input: { projectId: PROJECT, slot: 'executor', name: 'demo-executor', model: 'claude-sonnet-5' },
+      }),
+    );
+    // Environment của ô do lỗi cũ trỏ Mac mini (host, knownHosts), checkout thì ở MacBook.
+    f.state.environments.push({
+      ...structuredClone(TEMPLATE_ENV),
+      id: 'env-demo-executor',
+      name: 'demo-executor',
+      config: { ...TEMPLATE_ENV.config, port: 22, remoteWorkspacePath: '/Users/owner/crew-agents/demo/executor' },
+    });
+    const seeded = await prepareFixRun(ctxOf(f.api), f.state.run, { agentId: ID.executor, step: 'environment' });
+    const run = await runAddAgentStep(ctxOf(f.api), seeded, 'environment');
+
+    expect(run.steps.environment?.status).toBe('done');
+    expect(run.steps.environment?.refs).toMatchObject({ environment: 'env-demo-executor', repaired: 'mac.local' });
+    expect(f.names()).not.toContain('environments.create');
+    const fixed = f.state.environments.find((e) => e.id === 'env-demo-executor') as { config: Record<string, unknown> };
+    expect(fixed.config).toMatchObject({
+      host: BOOK_IP,
+      port: 2222,
+      knownHosts: `${BOOK_IP} ssh-ed25519 BOOK`,
+      remoteWorkspacePath: '/Users/owner/crew-agents/demo/executor',
+      strictHostKeyChecking: true,
+    });
+  });
+
+  it('environment đúng checkout và đúng máy thì giữ nguyên, không PATCH', async () => {
+    const f = twoMachines(
+      addAgentRun('executor', {
+        machineId: 'm2',
+        input: { projectId: PROJECT, slot: 'executor', name: 'demo-executor', model: 'claude-sonnet-5' },
+      }),
+    );
+    f.state.environments.push(
+      bookEnv('env-demo-executor', '/Users/owner/crew-agents/demo/executor', '2026-10-05T00:00:00Z'),
+    );
+    const seeded = await prepareFixRun(ctxOf(f.api), f.state.run, { agentId: ID.executor, step: 'environment' });
+    const run = await runAddAgentStep(ctxOf(f.api), seeded, 'environment');
+    expect(run.steps.environment?.refs).toEqual({
+      environment: 'env-demo-executor',
+      checkout: '/Users/owner/crew-agents/demo/executor',
+    });
+    expect(f.names()).not.toContain('environments.update');
+    expect(f.names()).not.toContain('environments.create');
+  });
+});

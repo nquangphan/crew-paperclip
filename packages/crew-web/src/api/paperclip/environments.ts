@@ -9,6 +9,9 @@ export const environmentsApi = {
   get: (environmentId: string): Promise<Environment> => call('environments.get', { id: environmentId }),
   create: (companyId: string, body: Record<string, unknown>): Promise<Environment> =>
     call('environments.create', { companyId }, { body }),
+  /** PATCH: server gộp `config` với config đang có (wizard tạo agent sửa host SSH của environment sai máy). */
+  update: (environmentId: string, body: Record<string, unknown>): Promise<Environment> =>
+    call('environments.update', { id: environmentId }, { body }),
   archive: (environmentId: string): Promise<Environment> =>
     call('environments.update', { id: environmentId }, { body: { status: 'archived' } }),
 };

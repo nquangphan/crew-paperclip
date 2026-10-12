@@ -139,6 +139,8 @@
     "noProject": "Chưa có project: bước Tạo project chưa xong",
     "checkoutMissing": "Máy không trả checkout cho vai trò {{role}}",
     "noTemplate": "Company chưa có environment SSH mẫu (in_place, có secret SSH) để chép",
+    "noMachineHost": "Không biết host SSH của máy {{machine}} (máy chưa ghép cặp, cũng chưa có environment nào trỏ checkout của máy): ghép cặp máy ở trang Máy rồi bấm Chạy tiếp",
+    "noMachineTemplate": "Chưa có environment SSH mẫu trên máy {{machine}} ({{host}}) để chép; không dùng mẫu của máy khác. Ghép cặp máy ở trang Máy rồi bấm Chạy tiếp",
     "noPinDir": "Máy chưa báo bản ghim Superpowers (superpowers.pinDir): cập nhật crew-mac trên máy rồi bấm Chạy tiếp",
     "instructionsConflict": "AGENTS.md của {{name}} vừa bị sửa ở nơi khác: bấm Chạy tiếp để ghi lại",
     "wrongAgentKind": "Setup run không phải lần tạo agent",
