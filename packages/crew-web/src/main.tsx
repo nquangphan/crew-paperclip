@@ -5,6 +5,9 @@ import '@/ds/tokens.css';
 import { AppProviders, createQueryClient } from '@/app/providers';
 import { createAppRouter } from '@/app/router';
 import { initI18n } from '@/i18n';
+import { installStaleChunkReload } from '@/lib/stale-chunk-reload';
+
+installStaleChunkReload(window);
 
 const container = document.getElementById('root');
 if (!container) throw new Error('Thiếu phần tử #root');
