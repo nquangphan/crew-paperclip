@@ -294,10 +294,17 @@ function DetailSection({
   );
 }
 
-/** Ô soạn cố định đáy cột chính, khung bo tròn như composer của Paperclip. */
+/**
+ * Ô soạn cuối cột chính, khung bo tròn như composer của Paperclip. Từ `md` trở lên dính đáy khung cuộn; dưới `md`
+ * (điện thoại) nằm yên cuối luồng trao đổi, vì dính đáy sẽ che mất khoảng một phần tư màn hình (bản đồ Crew, nút
+ * phóng to). Đệm đáy chừa vùng an toàn (thanh home của iPhone).
+ */
 function ComposerDock({ children }: { children: React.ReactNode }) {
   return (
-    <div data-slot="composer-dock" className="sticky bottom-0 z-10 bg-background pt-2 pb-3">
+    <div
+      data-slot="composer-dock"
+      className="bg-background pt-2 pb-[max(0.75rem,env(safe-area-inset-bottom))] md:sticky md:bottom-0 md:z-10"
+    >
       <div className="flex flex-col gap-2 rounded-2xl border bg-background p-3 shadow-sm [&_textarea]:min-h-16 [&_textarea]:resize-none [&_textarea]:border-0 [&_textarea]:bg-transparent dark:[&_textarea]:bg-transparent [&_textarea]:shadow-none [&_textarea]:focus-visible:ring-0">
         {children}
       </div>

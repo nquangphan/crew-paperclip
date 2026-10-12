@@ -87,6 +87,8 @@ test.describe('màn hẹp 390px', () => {
       await expect(popup.getByText('Yêu cầu nháp: agent chưa làm')).toBeVisible();
       const start = popup.getByRole('button', { name: 'Bắt đầu làm' });
       await expect(start).toBeInViewport();
+      // Điện thoại: ô soạn nằm yên cuối luồng, không dính đáy che nội dung.
+      await expect(popup.locator('[data-slot="composer-dock"]')).toHaveCSS('position', 'static');
       await shot(page, info, 'draft-phone');
       await start.click();
       await expect(popup.getByTestId('start-work-notice')).toContainText(`Đã bắt đầu ${draft.identifier}`);

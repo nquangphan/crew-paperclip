@@ -20,6 +20,8 @@ test('PW-S6-MAP-1 bản đồ Crew ở chi tiết việc con: thẻ Roadmap, tô
   await page.getByRole('button', { name: 'Mở map' }).click();
   const canvas = page.locator('[data-slot="crew-map"] [data-slot="roadmap-canvas"]');
   await expect(canvas).toBeVisible();
+  // Màn rộng: ô soạn vẫn dính đáy khung cuộn.
+  await expect(page.locator('[data-slot="composer-dock"]')).toHaveCSS('position', 'sticky');
 
   const cards = canvas.locator('button[data-roadmap-id]');
   await expect(cards).toHaveCount(map.nodes.length);
