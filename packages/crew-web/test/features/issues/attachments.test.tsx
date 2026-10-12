@@ -66,6 +66,17 @@ describe('Attachments (S6.6)', () => {
     expect(screen.getByText(/cua-agent\.md/)).toBeTruthy();
   });
 
+  it('nhiều ảnh nằm chung một hàng tự xuống dòng, file khác ở danh sách riêng bên dưới', async () => {
+    const second = { ...FILES[0], id: 'at4', originalFilename: 'anh-2.png', createdByUserId: 'u2' };
+    mockServer({ 'GET /api/issues/i1/attachments': { body: [FILES[0], FILES[1], second] } });
+    mount(<Attachments issueId="i1" />);
+    const first = await screen.findByRole('img', { name: 'cua-toi.png' });
+    const row = first.closest('ul');
+    expect(row?.className).toContain('flex-wrap');
+    expect(screen.getByRole('img', { name: 'anh-2.png' }).closest('ul')).toBe(row);
+    expect(screen.getByText(/cua-agent\.md/).closest('ul')).not.toBe(row);
+  });
+
   it('xóa phải qua hộp xác nhận, hủy thì không gọi API', async () => {
     const s = mockServer({ 'GET /api/issues/i1/attachments': { body: FILES } });
     mount(<Attachments issueId="i1" />);

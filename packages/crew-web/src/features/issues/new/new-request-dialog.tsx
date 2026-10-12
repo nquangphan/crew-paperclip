@@ -87,12 +87,15 @@ function LocalImage({ file }: { file: File }) {
     return () => URL.revokeObjectURL(next);
   }, [file]);
   return (
-    <span className="min-w-0 flex-1">
-      {url ? <img src={url} alt={file.name} className="max-h-40 max-w-full rounded-md border object-contain" /> : null}
+    <span className="block">
+      {url ? (
+        <img src={url} alt={file.name} className="h-28 w-auto max-w-full rounded-md border object-contain" />
+      ) : null}
     </span>
   );
 }
 
+const isImageFile = (file: File) => file.type.startsWith('image/');
 const fileKey = (file: File) => `${file.name}:${file.size}:${file.lastModified}`;
 
 /** Thêm file mới, bỏ file trùng tên-cỡ-ngày đã chọn. */
@@ -143,6 +146,19 @@ function RequestForm({
   const noRoles = projectId !== '' && roles.isSuccess && assistantId === null;
 
   const ready = projectId !== '' && assistantId !== null && title.trim() !== '' && !create.isPending;
+
+  const removeButton = (file: File, className?: string) => (
+    <Button
+      type="button"
+      variant="ghost"
+      size="xs"
+      className={className}
+      aria-label={t('new.remove', { name: file.name })}
+      onClick={() => setFiles((prev) => prev.filter((f) => fileKey(f) !== fileKey(file)))}
+    >
+      ×
+    </Button>
+  );
 
   const submit = (draft: boolean) => {
     if (!ready || assistantId === null) return;
@@ -248,26 +264,27 @@ function RequestForm({
           onFiles={(picked) => setFiles((prev) => addFiles(prev, picked))}
           warnFor={warnForAttachment}
         />
-        {files.length > 0 ? (
-          <ul className="grid gap-2">
-            {files.map((file) => (
-              <li key={fileKey(file)} className="flex items-center gap-2">
-                {file.type.startsWith('image/') ? (
-                  <LocalImage file={file} />
-                ) : (
-                  <span className="min-w-0 flex-1 truncate">{file.name}</span>
-                )}
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="xs"
-                  aria-label={t('new.remove', { name: file.name })}
-                  onClick={() => setFiles((prev) => prev.filter((f) => fileKey(f) !== fileKey(file)))}
-                >
-                  ×
-                </Button>
+        {files.some(isImageFile) ? (
+          // Ảnh xếp theo hàng, hết chỗ mới xuống dòng.
+          <ul className="flex flex-wrap gap-2">
+            {files.filter(isImageFile).map((file) => (
+              <li key={fileKey(file)} className="relative">
+                <LocalImage file={file} />
+                {removeButton(file, 'absolute top-1 right-1 bg-background/80')}
               </li>
             ))}
+          </ul>
+        ) : null}
+        {files.some((f) => !isImageFile(f)) ? (
+          <ul className="grid gap-2">
+            {files
+              .filter((f) => !isImageFile(f))
+              .map((file) => (
+                <li key={fileKey(file)} className="flex items-center gap-2">
+                  <span className="min-w-0 flex-1 truncate">{file.name}</span>
+                  {removeButton(file)}
+                </li>
+              ))}
           </ul>
         ) : null}
       </Field>

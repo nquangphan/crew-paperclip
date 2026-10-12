@@ -26,6 +26,25 @@ export function Attachments({ issueId }: { issueId: string }) {
   });
   const nameOf = (a: IssueAttachment) => a.originalFilename ?? t('detail.attachments.unnamed');
 
+  const isImage = (a: IssueAttachment) => a.contentType.startsWith('image/');
+  const images = (list.data ?? []).filter(isImage);
+  const others = (list.data ?? []).filter((a) => !isImage(a));
+  const deleteButton = (a: IssueAttachment, className?: string) =>
+    a.createdByUserId === me.id && !readOnly ? (
+      <Button
+        variant="ghost"
+        size="icon-sm"
+        className={className}
+        aria-label={t('detail.attachments.deleteFile', { name: nameOf(a) })}
+        onClick={() => {
+          remove.reset();
+          setToDelete(a);
+        }}
+      >
+        <Trash2 aria-hidden />
+      </Button>
+    ) : null;
+
   return (
     <DetailSection title={t('detail.attachments.heading')} count={list.data?.length}>
       {list.isLoading ? <Skeleton /> : null}
@@ -37,25 +56,28 @@ export function Attachments({ issueId }: { issueId: string }) {
         />
       ) : null}
       {list.data?.length === 0 ? <MutedText>{t('detail.attachments.empty')}</MutedText> : null}
-      <ul className="flex flex-col gap-1">
-        {(list.data ?? []).map((a) => (
-          <li key={a.id} className="flex items-center gap-2">
-            {a.contentType.startsWith('image/') ? (
-              // Ảnh hiện thẳng thành hình, bấm mở cỡ thật; tên file chỉ còn ở alt cho trình đọc màn hình.
-              <a
-                className="min-w-0 flex-1"
-                href={api.attachments.contentUrl(a.id)}
-                target="_blank"
-                rel="noreferrer noopener"
-              >
+      {images.length > 0 ? (
+        // Ảnh xếp theo hàng, hết chỗ mới xuống dòng; bấm mở cỡ thật, tên file chỉ còn ở alt.
+        <ul className="flex flex-wrap gap-2">
+          {images.map((a) => (
+            <li key={a.id} className="relative">
+              <a href={api.attachments.contentUrl(a.id)} target="_blank" rel="noreferrer noopener">
                 <img
                   src={api.attachments.contentUrl(a.id)}
                   alt={nameOf(a)}
                   loading="lazy"
-                  className="max-h-60 max-w-full rounded-md border object-contain"
+                  className="h-40 w-auto max-w-full rounded-md border object-contain"
                 />
               </a>
-            ) : (
+              {deleteButton(a, 'absolute top-1 right-1 bg-background/80')}
+            </li>
+          ))}
+        </ul>
+      ) : null}
+      {others.length > 0 ? (
+        <ul className="flex flex-col gap-1">
+          {others.map((a) => (
+            <li key={a.id} className="flex items-center gap-2">
               <a
                 className="min-w-0 flex-1 truncate"
                 href={api.attachments.contentUrl(a.id)}
@@ -64,23 +86,11 @@ export function Attachments({ issueId }: { issueId: string }) {
               >
                 {nameOf(a)} · {t('detail.attachments.size', { kb: Math.max(1, Math.round(a.byteSize / 1024)) })}
               </a>
-            )}
-            {a.createdByUserId === me.id && !readOnly ? (
-              <Button
-                variant="ghost"
-                size="icon-sm"
-                aria-label={t('detail.attachments.deleteFile', { name: nameOf(a) })}
-                onClick={() => {
-                  remove.reset();
-                  setToDelete(a);
-                }}
-              >
-                <Trash2 aria-hidden />
-              </Button>
-            ) : null}
-          </li>
-        ))}
-      </ul>
+              {deleteButton(a)}
+            </li>
+          ))}
+        </ul>
+      ) : null}
       {remove.error ? <ErrorState title={t('detail.attachments.deleteFailed')} message={remove.error.message} /> : null}
       <ConfirmDialog
         open={toDelete !== null}
