@@ -261,6 +261,8 @@
   --new-issue-visual-viewport-offset-top: 0px;
   --new-issue-dialog-top-gap: max(1rem, env(safe-area-inset-top));
   --new-issue-dialog-bottom-gap: max(1rem, env(safe-area-inset-bottom));
+  /* Dialog chung: không cao quá khung nhìn (trừ khoảng hở trên/dưới và vùng an toàn), thân cuộn bên trong. */
+  --sz-dialog-max-h: calc(100dvh - max(1rem, env(safe-area-inset-top)) - max(1rem, env(safe-area-inset-bottom)));
   --mobile-entity-picker-visual-viewport-height: 100dvh;
   --mobile-entity-picker-backdrop: color-mix(in oklab, var(--foreground) 50%, transparent);
 

@@ -74,7 +74,8 @@ test('PW-S5-3 file đính kèm: .png không cảnh báo, .zip cảnh báo trư�
   const input = dialog.locator('input[type="file"]');
   await input.setInputFiles({ name: 'anh.png', mimeType: 'image/png', buffer: Buffer.from('png') });
   await expect(dialog.getByRole('alert')).toHaveCount(0);
-  await expect(dialog.getByText('anh.png')).toBeVisible();
+  // Ảnh hiện thành ô xem trước (tên file là alt), không phải dòng chữ.
+  await expect(dialog.getByRole('img', { name: 'anh.png' })).toBeVisible();
 
   await input.setInputFiles({ name: 'goi.zip', mimeType: 'application/zip', buffer: Buffer.from('PK') });
   const warn = dialog.getByRole('alert');
@@ -210,6 +211,34 @@ test('PW-S5-7 Hủy / đóng dialog không tạo issue @t1', async ({ page, comp
   const reopened = await openDialog(page, company.path('issues'));
   await expect(reopened.getByLabel('Tiêu đề')).toHaveValue('');
   expect(await listIssues(api, company.id, title)).toEqual([]);
+});
+
+test('PW-S5-8 mô tả rất dài: dialog không cao quá khung nhìn, nút Tạo luôn thấy (máy tính, điện thoại) @t1', async ({
+  page,
+  company,
+}) => {
+  const longText = Array.from({ length: 120 }, (_, i) => `Dòng ${i + 1}: mô tả rất dài của yêu cầu.`).join('\n');
+  for (const size of [
+    { width: 1440, height: 900 },
+    { width: 390, height: 844 },
+  ]) {
+    await page.setViewportSize(size);
+    const dialog = await openDialog(page, company.path('issues'));
+    await dialog.getByLabel('Mô tả').fill(longText);
+    const box = await dialog.boundingBox();
+    expect(box, 'khung dialog').not.toBeNull();
+    expect(box?.y ?? -1).toBeGreaterThanOrEqual(0);
+    expect((box?.y ?? 0) + (box?.height ?? Number.POSITIVE_INFINITY)).toBeLessThanOrEqual(size.height);
+    // Nút hành động dính chân dialog, kể cả khi đang gõ ở cuối mô tả.
+    await page.keyboard.type('\nDòng gõ thêm');
+    await expect(dialog.getByRole('button', { name: 'Tạo', exact: true })).toBeInViewport({ ratio: 1 });
+    await expect(dialog.getByRole('button', { name: 'Lưu nháp (chưa chạy)' })).toBeInViewport({ ratio: 1 });
+    // Phần dưới mô tả (đính kèm) vẫn cuộn tới được.
+    await dialog.getByRole('button', { name: 'Đính kèm file' }).scrollIntoViewIfNeeded();
+    await expect(dialog.getByRole('button', { name: 'Đính kèm file' })).toBeInViewport();
+    await page.keyboard.press('Escape');
+    await expect(dialog).toBeHidden();
+  }
 });
 
 /** Chọn project nền, điền tiêu đề, bấm Tạo (hoặc Lưu nháp); trả issue vừa tạo và ghi để cuối ca hủy. */
