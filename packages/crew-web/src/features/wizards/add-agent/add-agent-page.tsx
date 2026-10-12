@@ -46,9 +46,11 @@ import {
   slotModels,
   slotOfAgent,
 } from '@/lib/instructions';
+import { CHECKOUT_RE, type HostEnvironment, projectCheckoutOn, projectMachine } from '../machine-host';
 import { companyHref, findAgentRun } from '../resume';
 import { type RunHooks, SetupProgress } from '../setup-progress';
-import { type AddAgentSeed, prepareFixRun, runAddAgent } from './run-step';
+import { resolveRepoRoot } from './repo-root';
+import { type AddAgentSeed, agentRunRefs, prepareFixRun, runAddAgent } from './run-step';
 import { ADD_AGENT_STEPS, type AddAgentStepId, isAddAgentStep, ROLE_SLOTS } from './steps';
 import { type AddAgentForm, type AddAgentFormErrors, validateAddAgent } from './validate';
 
@@ -87,8 +89,6 @@ function holderOf(roles: ProjectRoles | null | undefined, slot: string): string 
   if (!roles || !(ROLE_SLOTS as readonly string[]).includes(slot)) return null;
   return agentOfSlot(roles, slot as CrewRoleSlot);
 }
-
-const CHECKOUT_KEY_RE = /\/crew-agents\/([a-z][a-z0-9-]{1,30})\/[^/]+$/;
 
 function AddAgentFormView({
   fix,
@@ -162,16 +162,23 @@ function AddAgentFormView({
     .filter((r) => r.kind === 'add-project' && r.projectId === projectId)
     .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))[0];
 
-  // Khóa, folder, máy: lấy từ lần thêm project của project; project do app tạo thì suy khóa từ checkout của agent vai trò.
+  // Environment mặc định của các agent vai trò theo thứ tự ô: checkout `~/crew-agents/<khóa>/<ô>` và host SSH của máy
+  // chạy agent. Thứ tự cố định để form luôn hỏi cùng một checkout (dùng lại được việc kiểm đã xong).
+  const roleEnvs: HostEnvironment[] = (() => {
+    if (!projectRoles) return [];
+    return slotAgents(projectRoles).flatMap(([, id]) => {
+      const agent = agents.data?.find((a) => a.id === id);
+      const env = agent ? environments.data?.find((e) => e.id === agent.defaultEnvironmentId) : undefined;
+      return env ? [env as HostEnvironment] : [];
+    });
+  })();
+
+  // Khóa, folder, máy: lấy từ lần thêm project của project; project do app tạo thì suy từ agent vai trò.
   const derivedKey = (() => {
     if (projectRun) return projectRun.projectKey;
-    if (!projectRoles) return '';
-    const ids = new Set(slotAgents(projectRoles).map(([, id]) => id));
-    for (const a of agents.data ?? []) {
-      if (!ids.has(a.id)) continue;
-      const env = environments.data?.find((e) => e.id === a.defaultEnvironmentId);
-      const path = env?.config.remoteWorkspacePath;
-      const match = typeof path === 'string' ? CHECKOUT_KEY_RE.exec(path) : null;
+    for (const env of roleEnvs) {
+      const path = env.config.remoteWorkspacePath;
+      const match = typeof path === 'string' ? CHECKOUT_RE.exec(path) : null;
       if (match?.[1]) return match[1];
     }
     return '';
@@ -179,10 +186,43 @@ function AddAgentFormView({
   // Suy được khóa thì khóa cố định: checkout, environment và job dựng theo khóa này phải là của chính project.
   const keyLocked = derivedKey !== '';
   const key = keyLocked ? derivedKey : (overrides.key ?? '');
-  const derivedFolder =
-    projectRun?.steps.inspect?.refs?.root ?? (projectRun ? (projectRun.input as AddProjectInput).folder : '');
   const machineList = machines.data ?? [];
-  const derivedMachine = projectRun?.machineId ?? (machineList.length === 1 ? (machineList[0]?.machineId ?? '') : '');
+  const placement = { key, roleEnvs, machines: machineList, envs: (environments.data ?? []) as HostEnvironment[] };
+  const projectMachineId =
+    (projectRun && machineList.some((m) => m.machineId === projectRun.machineId) ? projectRun.machineId : '') ||
+    projectMachine(placement);
+  const derivedMachine = projectMachineId || (machineList.length === 1 ? (machineList[0]?.machineId ?? '') : '');
+  const machineId = overrides.machineId ?? derivedMachine;
+  // Folder đã biết trên máy đã chọn: lần thêm project, rồi lần tạo agent gần nhất của project trên máy đó.
+  const knownFolder = (() => {
+    if (projectRun && projectRun.machineId === machineId) {
+      return projectRun.steps.inspect?.refs?.root ?? (projectRun.input as AddProjectInput).folder;
+    }
+    const agentRun = runs
+      .filter(
+        (r) =>
+          r.kind === 'add-agent' &&
+          r.machineId === machineId &&
+          (r.input as AddAgentInput).projectId === projectId &&
+          agentRunRefs(r).folder,
+      )
+      .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))[0];
+    return agentRun ? (agentRunRefs(agentRun).folder ?? '') : '';
+  })();
+  // Chưa biết thì hỏi máy repo gốc sau một checkout đang có của project trên máy đó.
+  const source = !knownFolder && machineId ? projectCheckoutOn(machineId, placement) : null;
+  const repoRoot = useQuery({
+    queryKey: ['wizards', 'repoRoot', company.id, machineId, source],
+    enabled: source !== null,
+    staleTime: Number.POSITIVE_INFINITY,
+    retry: false,
+    queryFn: ({ signal }) =>
+      resolveRepoRoot(api, { companyId: company.id, machineId, checkout: source as string }, { signal }),
+  });
+  const resolvedRoot = source !== null ? (repoRoot.data ?? '') : '';
+  const derivedFolder = knownFolder || resolvedRoot;
+  const folderLocked = derivedFolder !== '';
+  const folderPending = source !== null && repoRoot.isPending;
   const taken = (name: string) => (agents.data ?? []).some((a) => a.name === name && a.status !== 'terminated');
   const derivedName = (() => {
     if (fixAgent) return fixAgent.name;
@@ -211,9 +251,9 @@ function AddAgentFormView({
     slot,
     name: fix ? derivedName : (overrides.name ?? derivedName),
     model: fix ? derivedModel : chosenModel,
-    machineId: overrides.machineId ?? derivedMachine,
+    machineId,
     key,
-    folder: overrides.folder ?? derivedFolder,
+    folder: folderLocked ? derivedFolder : (overrides.folder ?? ''),
   };
   const set = <K extends keyof AddAgentForm>(field: K, value: AddAgentForm[K]) =>
     setOverrides((o) => ({ ...o, [field]: value }));
@@ -290,6 +330,17 @@ function AddAgentFormView({
     holderHint && knownSlot && isRuntimeSlot(knownSlot)
       ? `${holderHint} ${t('addAgent.form.runtimeHint', { runtime: runtimeOfSlot(knownSlot) })}`
       : holderHint;
+
+  // Folder suy được thì chỉ đọc kèm nguồn; đang hỏi máy thì chờ; không suy được mới cho nhập.
+  const folderHint = knownFolder
+    ? t('addAgent.form.folderKnown')
+    : resolvedRoot
+      ? t('addAgent.form.folderFromCheckout', { path: source })
+      : folderPending
+        ? t('addAgent.form.folderAsking', { path: source })
+        : source !== null
+          ? `${t('addAgent.form.folderAskFailed', { path: source })} ${t('addAgent.form.folderHint')}`
+          : t('addAgent.form.folderHint');
 
   return (
     <Card>
@@ -379,7 +430,13 @@ function AddAgentFormView({
           <Field
             label={t('addAgent.form.machine')}
             htmlFor="add-agent-machine"
-            hint={machineList.length === 0 ? t('addAgent.form.noMachines') : undefined}
+            hint={
+              machineList.length === 0
+                ? t('addAgent.form.noMachines')
+                : projectMachineId !== '' && form.machineId === projectMachineId
+                  ? t('addAgent.form.machineDerived')
+                  : undefined
+            }
             error={err('machineId')}
           >
             <Select value={form.machineId} onValueChange={(v) => set('machineId', v)}>
@@ -411,16 +468,13 @@ function AddAgentFormView({
             />
           </Field>
 
-          <Field
-            label={t('addAgent.form.folder')}
-            htmlFor="add-agent-folder"
-            hint={t('addAgent.form.folderHint')}
-            error={err('folder')}
-          >
+          <Field label={t('addAgent.form.folder')} htmlFor="add-agent-folder" hint={folderHint} error={err('folder')}>
             <Input
               id="add-agent-folder"
               value={form.folder}
               autoComplete="off"
+              readOnly={folderLocked || folderPending}
+              placeholder={folderPending ? t('addAgent.form.folderAskingPlaceholder') : undefined}
               onChange={(e) => set('folder', e.target.value)}
             />
           </Field>
@@ -432,7 +486,7 @@ function AddAgentFormView({
           ) : null}
 
           <div className="flex gap-2">
-            <Button type="submit" disabled={create.isPending}>
+            <Button type="submit" disabled={create.isPending || folderPending}>
               {fix ? t('addAgent.fix.submit') : t('addAgent.form.submit')}
             </Button>
           </div>

@@ -208,6 +208,125 @@ describe('AddAgentPage', () => {
     expect(field('Khóa project').value).toBe('cu');
   });
 
+  it('project thêm từ app Mac (không có lần thêm project): máy và folder suy từ agent vai trò, không phải nhập', async () => {
+    const bookIp = '100.100.157.19';
+    const root = '/Users/owner/Documents/projects/demo_root';
+    const checkout = (role: string) => `/Users/owner/crew-agents/demo/${role}`;
+    const roleEnv = (a: (typeof AGENTS)[number]) => ({
+      id: a.defaultEnvironmentId,
+      name: a.name,
+      driver: 'ssh',
+      status: 'active',
+      config: { host: bookIp, remoteWorkspacePath: checkout(a.name.slice(5)) },
+      metadata: { workspaceRealizationMode: 'in_place' },
+    });
+    const machines = [
+      { ...MACHINES[0], latest: { ...MACHINES[0]?.latest, checkouts: [] } },
+      {
+        machineId: 'm2',
+        hostname: 'Phans-MacBook-Pro.local',
+        online: true,
+        latest: {
+          superpowers: { pinned: '5.0.7', pinDir: PIN },
+          checkouts: ['assistant', 'executor', 'reviewer', 'integrator'].map((r) => ({ path: checkout(r) })),
+        },
+        pairing: { pairedAt: 'x', revokedAt: null, environmentId: 'env-pair', tailscaleIp: bookIp },
+      },
+    ];
+    let created: Record<string, unknown> | null = null;
+    const { calls } = server(
+      {
+        'GET /api/companies/c-tps/environments': { body: AGENTS.map(roleEnv) },
+        ...data('crew.machines', machines),
+        [`GET ${PLUGIN}/machine-jobs`]: () => ({
+          body: created
+            ? [
+                {
+                  ...created,
+                  id: 'j1',
+                  status: 'failed',
+                  errorCode: 'folder_not_git',
+                  errorText: `${checkout('assistant')} là worktree phụ của repo ${root}: chọn thư mục repo chính (worktree chính)`,
+                },
+              ]
+            : [],
+        }),
+        [`POST ${PLUGIN}/machine-jobs`]: (init: RequestInit | undefined) => {
+          created = JSON.parse(String(init?.body));
+          return { status: 201, body: { ...created, id: 'j1', status: 'queued', setupRunId: null } };
+        },
+        [`POST ${PLUGIN}/setup-runs`]: { status: 201, body: { ...AGENT_RUN, steps: {}, status: 'running' } },
+        [`GET ${PLUGIN}/setup-runs/run-a`]: { body: { ...AGENT_RUN, steps: {}, status: 'running' } },
+        [`POST ${PLUGIN}/setup-runs/run-a/steps/agent/begin`]: { status: 409, body: { error: 'Bước agent đang chạy' } },
+      },
+      [],
+    );
+    const router = mount('/TPS/agents/new?project=p1&slot=executor-2');
+
+    await waitFor(() => expect(field('Folder repo trên máy').value).toBe(root));
+    expect(field('Folder repo trên máy').readOnly).toBe(true);
+    expect(screen.getByText(`Repo gốc của checkout ${checkout('assistant')} trên máy, không cần nhập.`)).toBeTruthy();
+    expect(screen.getByRole('combobox', { name: 'Máy' }).textContent).toContain('Phans-MacBook-Pro.local');
+    expect(screen.getByText('Máy đang chạy các agent của project.')).toBeTruthy();
+    expect(field('Khóa project').value).toBe('demo');
+    // Việc kiểm folder chỉ đọc, xếp cho máy chạy agent, ngoài setup run.
+    expect(calls.find((c) => c.method === 'POST' && c.url.endsWith('/machine-jobs'))?.body).toEqual({
+      companyId: 'c-tps',
+      machineId: 'm2',
+      kind: 'inspect-folder',
+      payload: { kind: 'inspect-folder', folder: checkout('assistant') },
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Bắt đầu' }));
+    await waitFor(() => expect(router.state.location.search).toBe('?resume=run-a'));
+    expect(calls.find((c) => c.method === 'POST' && c.url === `${PLUGIN}/setup-runs`)?.body).toMatchObject({
+      machineId: 'm2',
+      projectKey: 'demo',
+    });
+    expect(router.state.location.state).toMatchObject({ seed: { folder: root } });
+  });
+
+  it('không suy được repo gốc (máy không trả gốc): folder để nhập, kèm lý do', async () => {
+    const checkout = (role: string) => `/Users/owner/crew-agents/demo/${role}`;
+    const job = {
+      id: 'j1',
+      companyId: 'c-tps',
+      machineId: 'm1',
+      kind: 'inspect-folder',
+      payload: { kind: 'inspect-folder', folder: checkout('assistant') },
+      setupRunId: null,
+    };
+    let queued = false;
+    server(
+      {
+        'GET /api/companies/c-tps/environments': {
+          body: AGENTS.map((a) => ({
+            id: a.defaultEnvironmentId,
+            config: { host: 'mac.local', remoteWorkspacePath: checkout(a.name.slice(5)) },
+          })),
+        },
+        ...data('crew.machines', [
+          { ...MACHINES[0], latest: { ...MACHINES[0]?.latest, checkouts: [{ path: checkout('assistant') }] } },
+        ]),
+        [`GET ${PLUGIN}/machine-jobs`]: () => ({
+          body: queued
+            ? [{ ...job, status: 'failed', errorCode: 'folder_missing', errorText: 'Không tìm thấy folder' }]
+            : [],
+        }),
+        [`POST ${PLUGIN}/machine-jobs`]: () => {
+          queued = true;
+          return { status: 201, body: { ...job, status: 'queued' } };
+        },
+      },
+      [],
+    );
+    mount('/TPS/agents/new?project=p1&slot=executor-2');
+    expect(await screen.findByText(/Không hỏi được máy repo gốc của checkout/)).toBeTruthy();
+    expect(field('Folder repo trên máy').readOnly).toBe(false);
+    fireEvent.change(field('Folder repo trên máy'), { target: { value: '/Users/owner/code/demo' } });
+    expect(field('Folder repo trên máy').value).toBe('/Users/owner/code/demo');
+  });
+
   it('?fix= có lần tạo agent dở của agent đó → chuyển sang chạy tiếp lần đó', async () => {
     server({ [`GET ${PLUGIN}/setup-runs/run-a`]: { body: AGENT_RUN } }, [PROJECT_RUN, AGENT_RUN]);
     const router = mount(`/TPS/agents/new?fix=${ID.spare}&step=workspace`);

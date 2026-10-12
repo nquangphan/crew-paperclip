@@ -545,9 +545,10 @@ Use it to add an Executor or replace a role holder. Open it with [Create agent](
 
 #### How to
 
-1. Pick the **Project** and the **Role slot**, name the agent, pick the **Model** and **Machine**. A project with no roles yet also needs a **Project key** and **Repo folder on the machine**.
-2. Click **Start**. The wizard runs 6 steps: create agent, pin Superpowers and AGENTS.md, SSH environment, build the checkout on the machine, record the role, update the Assistant's AGENTS.md.
-3. When done you get **Open agent** and **Open project**. If a step stops, click **Continue**.
+1. Pick the **Project** and the **Role slot**, name the agent, pick the **Model**.
+2. **Machine**, **Project key** and **Repo folder on the machine** fill in from the project's running agents, including projects added from the Mac app: the machine is the one running the agents, the folder is the main repo behind the checkout `~/crew-agents/<key>/<slot>` (the form asks the 2P Crew app on the machine, a few seconds). Only when nothing can be derived (no agents yet, or the app on the machine is not open) do you pick the machine and type the folder.
+3. Click **Start**. The wizard runs 6 steps: create agent, pin Superpowers and AGENTS.md, SSH environment (copies the SSH host of the chosen machine; with no template environment on that machine it stops instead of borrowing another machine), build the checkout on the machine, record the role, update the Assistant's AGENTS.md.
+4. When done you get **Open agent** and **Open project**. If a step stops, click **Continue**. **Continue fixing** from the environment step also repairs an environment that points at the wrong machine.
 
 > **Tip:** only people on the web can create agents. An agent cannot create another agent.
 

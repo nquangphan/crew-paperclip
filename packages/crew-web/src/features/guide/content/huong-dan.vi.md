@@ -545,9 +545,10 @@ Dùng khi cần thêm Executor hoặc thay người giữ vai trò. Mở bằng 
 
 #### Cách làm
 
-1. Chọn **Project** và **Ô vai trò**, đặt **Tên agent**, chọn **Model** và **Máy**. Project chưa có vai trò thì điền thêm **Khóa project** và **Folder repo trên máy**.
-2. Bấm **Bắt đầu**. Wizard chạy 6 bước: tạo agent, ghim Superpowers và AGENTS.md, environment SSH, dựng checkout trên máy, ghi vai trò, cập nhật AGENTS.md của Trợ Lý.
-3. Xong có **Mở agent** và **Mở project**. Bước nào dừng thì bấm **Chạy tiếp**.
+1. Chọn **Project** và **Ô vai trò**, đặt **Tên agent**, chọn **Model**.
+2. **Máy**, **Khóa project** và **Folder repo trên máy** tự điền theo các agent đang chạy của project, kể cả project thêm từ app Mac: máy là máy đang chạy agent, folder là repo gốc của checkout `~/crew-agents/<khóa>/<ô>` (form hỏi app 2P Crew trên máy vài giây). Chỉ khi không suy được (project chưa có agent, hay app trên máy chưa mở) thì mới phải chọn máy và nhập folder.
+3. Bấm **Bắt đầu**. Wizard chạy 6 bước: tạo agent, ghim Superpowers và AGENTS.md, environment SSH (chép host SSH của đúng máy đã chọn; máy chưa có environment mẫu thì dừng, không mượn máy khác), dựng checkout trên máy, ghi vai trò, cập nhật AGENTS.md của Trợ Lý.
+4. Xong có **Mở agent** và **Mở project**. Bước nào dừng thì bấm **Chạy tiếp**. **Sửa tiếp** từ bước environment sửa luôn environment trỏ nhầm máy.
 
 > **Mẹo:** chỉ người dùng trên web tạo được agent. Agent không tạo được agent khác.
 
