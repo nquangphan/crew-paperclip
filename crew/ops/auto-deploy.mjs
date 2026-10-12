@@ -25,6 +25,7 @@ import {
   existsSync,
   mkdirSync,
   readFileSync,
+  realpathSync,
   renameSync,
   rmdirSync,
   statSync,
@@ -815,7 +816,16 @@ function main(argv) {
   return 2;
 }
 
-if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+/** True when this file is the entry script. Real paths: mktemp -d on macOS is /var/… while the module URL is /private/var/…. */
+function isMain() {
+  try {
+    return Boolean(process.argv[1]) && realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url));
+  } catch {
+    return false;
+  }
+}
+
+if (isMain()) {
   try {
     process.exitCode = main(process.argv.slice(2));
   } catch (e) {

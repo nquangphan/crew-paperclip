@@ -1,7 +1,7 @@
 // Tests for auto-deploy.mjs (queue, config, comment format, worker decisions, enqueue + launchd hand-off).
 // Run: node --test crew/ops/auto-deploy.test.mjs
 import { spawnSync } from "node:child_process";
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, test } from "node:test";
@@ -446,4 +446,15 @@ test("enqueue: --simulate-merge-ok is refused outside dry-run; dry-run uses its 
   assert.match(readFileSync(f.log, "utf8"), /com\.2p\.crew\.auto-deploy\.paperclip\.dry\.plist/);
   assert.ok(existsSync(path.join(f.home, ".crew/auto-deploy/paperclip-dry/job.json")));
   assert.match(JSON.parse(readFileSync(path.join(f.root, "body.json"), "utf8")).body, /CHẠY THỬ/);
+});
+
+test("CLI runs when started through a symlinked path (mktemp -d on macOS is /var -> /private/var)", () => {
+  const dir = tmp("crew-autodeploy-cli-");
+  const real = path.join(dir, "real");
+  mkdirSync(real);
+  writeFileSync(path.join(real, "auto-deploy.mjs"), readFileSync(path.join(OPS, "auto-deploy.mjs")));
+  symlinkSync(real, path.join(dir, "link"));
+  const r = spawnSync(process.execPath, [path.join(dir, "link", "auto-deploy.mjs"), "nope"], { encoding: "utf8" });
+  assert.equal(r.status, 2);
+  assert.match(r.stderr, /usage: auto-deploy\.mjs/);
 });
