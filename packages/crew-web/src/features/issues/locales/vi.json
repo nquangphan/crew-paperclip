@@ -91,6 +91,7 @@
     "titlePlaceholder": "Việc cần làm, một câu",
     "descriptionLabel": "Mô tả",
     "descriptionPlaceholder": "Mô tả (markdown)",
+    "pastedImage": "[Ảnh đính kèm: {{name}}]",
     "assignee": "Người nhận",
     "assigneeHint": "Trợ Lý của project, không đổi được.",
     "noRoles": "Project này chưa có bảng vai trò Crew nên chưa biết ai là Trợ Lý. Đặt vai trò ở trang Project rồi tạo lại.",

@@ -91,6 +91,7 @@
     "titlePlaceholder": "What needs doing, in one sentence",
     "descriptionLabel": "Description",
     "descriptionPlaceholder": "Description (markdown)",
+    "pastedImage": "[Attached image: {{name}}]",
     "assignee": "Assignee",
     "assigneeHint": "The project's Assistant, fixed.",
     "noRoles": "This project has no Crew role table yet, so the Assistant is unknown. Set roles on the Project page and try again.",

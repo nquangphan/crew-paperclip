@@ -65,6 +65,19 @@ export function NewRequestDialog({ open, onOpenChange, companyId, onCreated }: N
   );
 }
 
+/**
+ * Ảnh dán từ clipboard thành file đính kèm. Ảnh chụp màn hình nào cũng tên `image.png`, nên đặt lại tên theo giờ dán
+ * và thứ tự để hai lần dán không trùng tên.
+ */
+export function pastedImages(data: Pick<DataTransfer, 'files'>, now = Date.now()): File[] {
+  return Array.from(data.files)
+    .filter((f) => f.type.startsWith('image/'))
+    .map((f, i) => {
+      const ext = (f.type.slice('image/'.length).split('+')[0] ?? '').replace('jpeg', 'jpg') || 'png';
+      return new File([f], `anh-dan-${now}-${i + 1}.${ext}`, { type: f.type, lastModified: now });
+    });
+}
+
 const fileKey = (file: File) => `${file.name}:${file.size}:${file.lastModified}`;
 
 /** Thêm file mới, bỏ file trùng tên-cỡ-ngày đã chọn. */
@@ -198,6 +211,16 @@ function RequestForm({
           value={description}
           placeholder={t('new.descriptionPlaceholder')}
           onChange={(e) => setDescription(e.target.value)}
+          onPaste={(e) => {
+            const images = pastedImages(e.clipboardData);
+            if (images.length === 0) return;
+            // Ảnh vào danh sách đính kèm; mô tả giữ một dòng nhắc tên file ở chỗ con trỏ để agent biết ảnh nói về đoạn nào.
+            e.preventDefault();
+            setFiles((prev) => addFiles(prev, images));
+            const el = e.currentTarget;
+            const note = images.map((f) => t('new.pastedImage', { name: f.name })).join('\n');
+            setDescription((prev) => `${prev.slice(0, el.selectionStart)}${note}${prev.slice(el.selectionEnd)}`);
+          }}
         />
       </Field>
 

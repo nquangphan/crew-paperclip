@@ -10,7 +10,7 @@ interface AttachmentPickerProps {
   warnFor: (name: string) => string | null;
 }
 
-/** Chọn file; file có cảnh báo hiện cho người dùng xem trước, rồi họ chọn gửi tiếp hoặc bỏ. */
+/** Chọn file (nút `type="button"` để không gửi form chứa nó); file có cảnh báo hiện cho người dùng xem trước, rồi họ chọn gửi tiếp hoặc bỏ. */
 function AttachmentPicker({ onFiles, warnFor }: AttachmentPickerProps) {
   const { t } = useT();
   const inputRef = React.useRef<HTMLInputElement>(null);
@@ -34,7 +34,7 @@ function AttachmentPicker({ onFiles, warnFor }: AttachmentPickerProps) {
     <div data-slot="attachment-picker" className="flex flex-col gap-2">
       <input ref={inputRef} type="file" multiple className="hidden" onChange={onChange} />
       <div>
-        <Button variant="outline" size="sm" onClick={() => inputRef.current?.click()}>
+        <Button type="button" variant="outline" size="sm" onClick={() => inputRef.current?.click()}>
           <Plus aria-hidden />
           {t('attachment.choose')}
         </Button>
@@ -49,6 +49,7 @@ function AttachmentPicker({ onFiles, warnFor }: AttachmentPickerProps) {
           </ul>
           <div className="flex gap-2">
             <Button
+              type="button"
               size="sm"
               onClick={() => {
                 onFiles(pending.files);
@@ -57,7 +58,7 @@ function AttachmentPicker({ onFiles, warnFor }: AttachmentPickerProps) {
             >
               {t('attachment.proceed')}
             </Button>
-            <Button variant="ghost" size="sm" onClick={() => setPending(null)}>
+            <Button type="button" variant="ghost" size="sm" onClick={() => setPending(null)}>
               {t('attachment.discard')}
             </Button>
           </div>

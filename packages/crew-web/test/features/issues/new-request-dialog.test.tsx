@@ -196,6 +196,46 @@ describe('NewRequestDialog', () => {
     expect(order.indexOf('issues')).toBeLessThan(order.indexOf('attachments'));
   });
 
+  it('bấm Đính kèm file và chọn file không gửi yêu cầu', async () => {
+    const { calls } = mockServer(routes());
+    mount();
+    await fillReady();
+    await screen.findByText('Trợ Lý Alpha');
+    fireEvent.click(screen.getByRole('button', { name: 'Đính kèm file' }));
+    const input = document.querySelector('input[type="file"]') as HTMLInputElement;
+    fireEvent.change(input, { target: { files: [new File(['x'], 'mockup.png', { type: 'image/png' })] } });
+    expect(await screen.findByText('mockup.png')).toBeTruthy();
+    expect(posts(calls)).toHaveLength(0);
+  });
+
+  it('dán ảnh từ clipboard vào mô tả: ảnh vào đính kèm, mô tả có dòng nhắc tên ảnh, không gửi yêu cầu', async () => {
+    const { calls } = mockServer(
+      routes({ 'POST /api/companies/c1/issues/i-new/attachments': { status: 201, body: { id: 'att' } } }),
+    );
+    mount();
+    await fillReady();
+    await screen.findByText('Trợ Lý Alpha');
+    const description = screen.getByLabelText('Mô tả') as HTMLTextAreaElement;
+    fireEvent.change(description, { target: { value: 'Sửa nút này' } });
+    description.setSelectionRange(11, 11);
+    const image = new File(['png'], 'image.png', { type: 'image/png' });
+    fireEvent.paste(description, { clipboardData: { files: [image], getData: () => '' } });
+    const item = await screen.findByText(/^anh-dan-\d+-1\.png$/);
+    expect(description.value).toBe(`Sửa nút này[Ảnh đính kèm: ${item.textContent}]`);
+    expect(posts(calls)).toHaveLength(0);
+    fireEvent.click(screen.getByRole('button', { name: 'Tạo' }));
+    await waitFor(() => expect(calls.some((c) => c.url.endsWith('/issues/i-new/attachments'))).toBe(true));
+  });
+
+  it('dán chữ thường vào mô tả không thêm đính kèm', async () => {
+    mockServer(routes());
+    mount();
+    await fillReady();
+    const description = screen.getByLabelText('Mô tả');
+    fireEvent.paste(description, { clipboardData: { files: [], getData: () => 'chữ' } });
+    expect(screen.queryByText(/^anh-dan-/)).toBeNull();
+  });
+
   it('server từ chối thì hiện lỗi nguyên văn và giữ dialog mở', async () => {
     mockServer(
       routes({ 'POST /api/companies/c1/issues': { status: 422, body: { error: 'Project không giao được' } } }),
