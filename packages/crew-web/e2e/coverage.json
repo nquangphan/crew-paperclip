@@ -163,6 +163,11 @@
     "tests": ["PW-S6-18 "],
     "tier": "T1"
   },
+  "S6.19": {
+    "spec": "e2e/specs/s6-draft-start.spec.ts",
+    "tests": ["PW-S6-19a ", "PW-S6-19b ", "PW-S6-19c "],
+    "tier": "T1"
+  },
   "S8.7": {
     "spec": "e2e/specs/s8-remove-project.spec.ts",
     "tests": ["PW-S8-7 "],

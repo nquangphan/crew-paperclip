@@ -206,6 +206,45 @@ describe('popup chi tiết yêu cầu `?issue=`', () => {
     expect(screen.getByRole('dialog', { name: 'Sửa trang đăng nhập' })).toBe(dialog);
   });
 
+  /** Nháp: `backlog`, giao Trợ Lý, chưa vào stage nào. Đọc lại trước khi gửi qua uuid; PATCH đổi sang `todo`. */
+  function draftServer() {
+    const draft = { ...ISSUE, status: 'backlog', executionState: null };
+    let current: unknown = draft;
+    const s = server({
+      'GET /api/issues/TPS-2': () => ({ body: current }),
+      'GET /api/issues/i1': () => ({ body: current }),
+      'PATCH /api/issues/i1': () => {
+        current = { ...draft, status: 'todo' };
+        return { body: current };
+      },
+    });
+    return { ...s, patches: () => s.calls.filter((c) => c.method === 'PATCH') };
+  }
+
+  it('popup của yêu cầu nháp: rõ là nháp, Bắt đầu làm gửi {status:"todo"} và báo ngay trong popup', async () => {
+    const s = draftServer();
+    mountAt('/TPS/inbox?issue=TPS-2');
+    const dialog = await popup();
+    expect(await within(dialog).findByText('Yêu cầu nháp: agent chưa làm')).toBeTruthy();
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Bắt đầu làm' }));
+    await waitFor(() => expect(s.patches()).toHaveLength(1));
+    expect(s.patches()[0].body).toEqual({ status: 'todo' });
+    expect(await within(dialog).findByText('Đã bắt đầu TPS-2')).toBeTruthy();
+    await waitFor(() => expect(within(dialog).queryByText('Yêu cầu nháp: agent chưa làm')).toBeNull());
+    expect(within(dialog).queryByRole('button', { name: 'Bắt đầu làm' })).toBeNull();
+  });
+
+  it('trang đầy đủ của yêu cầu nháp: thông báo Bắt đầu làm nổi ở góc (host khi không có popup)', async () => {
+    const s = draftServer();
+    mountAt('/TPS/issues/TPS-2');
+    fireEvent.click(await screen.findByRole('button', { name: 'Bắt đầu làm' }));
+    await waitFor(() => expect(s.patches()).toHaveLength(1));
+    const notice = await screen.findByTestId('start-work-notice');
+    expect(notice.getAttribute('data-slot')).toBe('floating-notice');
+    expect(within(notice).getByText('Đã bắt đầu TPS-2')).toBeTruthy();
+    expect(screen.getAllByTestId('start-work-notice')).toHaveLength(1);
+  });
+
   it('mở bằng URL yêu cầu của project không được cấp: báo không có quyền, không đánh dấu đã đọc', async () => {
     const { calls } = server(projectAccessRoute('c1', ['p-khac']));
     mountAt('/TPS/inbox?issue=TPS-2');

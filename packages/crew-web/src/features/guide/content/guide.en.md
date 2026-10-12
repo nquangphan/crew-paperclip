@@ -276,6 +276,7 @@ A request is the only way to give work to the agent team. Every request goes thr
 5. **Attach** images or files if needed. Unusual file types show a warning; you can still send them.
 6. The **Assignee** is always the project's Assistant and cannot be changed.
 7. Click **Create** (6). To keep the team from starting yet, click **Save draft (does not run)** (5).
+8. A draft request has the **Draft** status and is not handed to an agent yet. When you want the team to work on it, open the request (or use the button on its row on the Requests page) and click **Start work**: the request moves to **To do** and the Assistant is called right away, as if you had created it without saving a draft.
 
 | Kind | When | Notes |
 |---|---|---|
@@ -760,7 +761,7 @@ Agent comments contain lines starting with `crew-`: machine-readable evidence.
 | You see | Cause | Fix |
 |---|---|---|
 | A project is missing from New request | The project is not ready | The project's **Readiness** tab, click **Continue setup** |
-| A request does not run | Saved as draft, or the Assistant is paused | Create it again without "Save draft"; check [Agents](/agents) |
+| A request does not run | Saved as draft, or the Assistant is paused | Open the request and click **Start work**; check [Agents](/agents) |
 | A request sits for long | The machine is overloaded (load above 8) | Close heavy apps on the Mac |
 | **Blocked** | Waiting for your answer, or for another sub-request | Open the request or the Inbox **Awaiting my approval** tab |
 | docs **Fail** | Code changed but the docs did not | The Integrator fixes it; if it repeats, message the Assistant |

@@ -6,6 +6,7 @@ import { queryKeys } from '@/api';
 import { useCompany, useMe } from '@/app/hooks';
 import { NotFoundPage } from '@/app/not-found-page';
 import {
+  Alert,
   Button,
   ComposerDock,
   EmptyState,
@@ -35,6 +36,7 @@ import { History } from './history';
 import { forcedDoneActive } from './history-format';
 import { IssueRuns } from './issue-runs';
 import { PropertiesPanel } from './properties-panel';
+import { DRAFT_STATUS, StartWorkButton, StartWorkNotice } from './start-work';
 import { DescriptionEditor, TitleEditor } from './title-editor';
 import {
   useAgentNames,
@@ -214,12 +216,19 @@ export function IssueDetail({ issueRef, variant, onClose }: IssueDetailProps) {
         actions={
           readOnly ? undefined : (
             <div className="flex flex-wrap items-start gap-2">
+              <StartWorkButton issue={issue} />
               <ActionsSlot issue={issue} />
               <ForceDoneAction issue={issue} childIssues={childIssues} />
             </div>
           )
         }
       />
+      {variant === 'popup' ? <StartWorkNotice /> : null}
+      {issue.status === DRAFT_STATUS ? (
+        <Alert title={t('startWork.draftTitle')}>
+          {t(readOnly ? 'startWork.draftBodyReadOnly' : 'startWork.draftBody')}
+        </Alert>
+      ) : null}
       <SummarySlot issue={issue} />
       <DescriptionEditor issue={issue} author={creator ?? undefined} />
       <Documents issueId={issue.id} />

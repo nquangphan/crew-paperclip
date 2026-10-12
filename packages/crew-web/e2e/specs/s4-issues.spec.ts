@@ -142,7 +142,7 @@ test('PW-S4-2 tìm, lọc (trạng thái, project, người làm, loại), sắp
     await page.getByRole('button', { name: 'Nhóm' }).click();
     await page.getByRole('menuitemradio', { name: 'Trạng thái' }).click();
     await expect(page.getByTestId('group-heading').filter({ hasText: 'Cần làm' })).toHaveCount(1);
-    await expect(page.getByTestId('group-heading').filter({ hasText: 'Tồn đọng' })).toHaveCount(1);
+    await expect(page.getByTestId('group-heading').filter({ hasText: 'Nháp' })).toHaveCount(1);
     await page.getByRole('button', { name: 'Cần làm', exact: true }).click();
     await expect(rowOf(page, a.identifier)).toHaveCount(0);
     await page.getByRole('button', { name: 'Cần làm', exact: true }).click();

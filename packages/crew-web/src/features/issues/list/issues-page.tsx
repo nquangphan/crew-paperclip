@@ -47,6 +47,7 @@ import { contributionHref } from '@/features/contributions/contribution-popup-ho
 import { useAuthorNames, useContributions } from '@/features/contributions/use-contributions';
 import { useSelectableAgents } from '@/features/wizards';
 import { formatDateTime, formatRelative, useT } from '@/i18n';
+import { StartWorkButton } from '../detail/start-work';
 import { NewRequestDialog } from '../new/new-request-dialog';
 import { IssueLink, useIssueOpener } from '../popup/issue-nav';
 import { boardLayout, IssuesBoard } from './issues-board';
@@ -251,6 +252,7 @@ export function IssuesPage() {
     const labels = issue.labels ?? [];
     return (
       <>
+        <StartWorkButton issue={issue} size="xs" />
         {live.has(issue.id) ? <LiveBadge label={t('list.live')} /> : null}
         {show('stage') ? (
           <RowCell size="lg">{root ? <StageBadge stage={resolveStageKey(root.stage, root.kind)} /> : null}</RowCell>

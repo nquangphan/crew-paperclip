@@ -276,6 +276,7 @@ Yêu cầu là cách duy nhất để giao việc cho đội agent. Mọi yêu c
 5. **Đính kèm** ảnh hoặc file nếu cần. File có đuôi lạ hiện cảnh báo, bạn vẫn gửi được.
 6. **Người nhận** luôn là Trợ Lý của project, không đổi được.
 7. Bấm **Tạo** (6). Chưa muốn đội bắt đầu thì bấm **Lưu nháp (chưa chạy)** (5).
+8. Yêu cầu nháp có trạng thái **Nháp** và chưa giao cho agent. Khi muốn đội làm, mở yêu cầu (hoặc dùng nút trên dòng của nó ở trang Yêu cầu) rồi bấm **Bắt đầu làm**: yêu cầu chuyển sang **Cần làm** và Trợ Lý được gọi ngay, như khi tạo không lưu nháp.
 
 | Loại | Khi nào | Ghi chú |
 |---|---|---|
@@ -760,7 +761,7 @@ Bình luận của agent có các dòng bắt đầu bằng `crew-`: bằng ch�
 | Bạn thấy | Nguyên nhân | Cách xử lý |
 |---|---|---|
 | Project không có trong hộp thoại Yêu cầu mới | Project chưa sẵn sàng | Tab **Sẵn sàng** của project, bấm **Làm tiếp** |
-| Yêu cầu không chạy | Lưu nháp, hoặc Trợ Lý đang tạm dừng | Tạo lại không chọn "Lưu nháp"; kiểm trang [Agent](/agents) |
+| Yêu cầu không chạy | Lưu nháp, hoặc Trợ Lý đang tạm dừng | Mở yêu cầu, bấm **Bắt đầu làm**; kiểm trang [Agent](/agents) |
 | Yêu cầu đứng lâu | Máy quá tải (tải trên 8) | Đóng bớt app nặng trên Mac |
 | **Bị chặn** | Chờ bạn trả lời, hoặc chờ yêu cầu con khác | Mở yêu cầu hoặc tab **Chờ tôi duyệt** của Hộp thư |
 | docs **Lỗi** | Code đổi mà tài liệu chưa theo | Integrator tự sửa; lặp nhiều lần thì nhắn Trợ Lý |

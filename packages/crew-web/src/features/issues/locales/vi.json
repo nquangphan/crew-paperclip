@@ -381,5 +381,17 @@
       "policy_missing": "thiếu workflow duyệt",
       "roles_unconfigured": "project chưa cấu hình vai trò"
     }
+  },
+  "startWork": {
+    "button": "Bắt đầu làm",
+    "sending": "Đang bắt đầu…",
+    "started": "Đã bắt đầu {{identifier}}",
+    "startedBody": "Trợ Lý đã được gọi và sẽ bắt đầu làm yêu cầu này.",
+    "failed": "Không bắt đầu được {{identifier}}",
+    "stale": "Yêu cầu không còn là nháp (đang ở {{status}}), nên không gửi gì. Trang đã tải lại.",
+    "dismiss": "Đóng",
+    "draftTitle": "Yêu cầu nháp: agent chưa làm",
+    "draftBody": "Bấm Bắt đầu làm khi bạn muốn đội bắt đầu. Trợ Lý sẽ được gọi ngay.",
+    "draftBodyReadOnly": "Yêu cầu này đang lưu để làm sau, chưa giao cho agent."
   }
 }

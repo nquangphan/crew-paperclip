@@ -152,7 +152,7 @@ test('PW-S0-5 đổi trạng thái issue qua API: trang đang mở cập nhật 
   const row = page.getByTestId('inbox-row').filter({ hasText: issue.identifier });
   await expect(row).toContainText('Cần làm');
   await api.patch(`/api/issues/${issue.id}`, { status: 'backlog' });
-  await expect(row).toContainText('Tồn đọng', { timeout: 5_000 });
+  await expect(row).toContainText('Nháp', { timeout: 5_000 });
 });
 
 test.describe('màn hẹp 390px', () => {

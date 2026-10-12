@@ -364,6 +364,24 @@ describe('IssuesPage dòng kiểu Paperclip', () => {
     fireEvent.click(await screen.findByRole('link', { name: 'Yêu cầu 3' }));
     await waitFor(() => expect(loc()).toBe('/TPS/issues?issue=TPS-3'));
   });
+
+  it('dòng nháp có nút Bắt đầu làm: gửi {status:"todo"}, không mở popup; dòng khác không có nút', async () => {
+    const draft = issue('6', { status: 'backlog', updatedAt: '2026-10-11T05:00:00.000Z' });
+    const s = server({
+      'GET /api/companies/c1/issues': { body: [draft, ...ISSUES] },
+      'GET /api/issues/6': { body: draft },
+      'PATCH /api/issues/6': { body: { ...draft, status: 'todo' } },
+    });
+    mount();
+    const row = (await screen.findByText('Yêu cầu 6')).closest<HTMLElement>('[data-testid="issue-row"]');
+    expect(row).toBeTruthy();
+    const start = within(row as HTMLElement).getByRole('button', { name: 'Bắt đầu làm' });
+    expect(screen.getAllByRole('button', { name: 'Bắt đầu làm' })).toHaveLength(1);
+    fireEvent.click(start);
+    await waitFor(() => expect(s.calls.filter((c) => c.method === 'PATCH')).toHaveLength(1));
+    expect(s.calls.find((c) => c.method === 'PATCH')?.body).toEqual({ status: 'todo' });
+    expect(loc()).toBe('/TPS/issues');
+  });
 });
 
 describe('IssuesPage lỗi và trống', () => {

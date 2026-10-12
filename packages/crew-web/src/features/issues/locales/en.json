@@ -381,5 +381,17 @@
       "policy_missing": "no review workflow",
       "roles_unconfigured": "project roles not configured"
     }
+  },
+  "startWork": {
+    "button": "Start work",
+    "sending": "Starting…",
+    "started": "Started {{identifier}}",
+    "startedBody": "The Assistant has been called and will start on this request.",
+    "failed": "Could not start {{identifier}}",
+    "stale": "This request is no longer a draft (it is {{status}}), so nothing was sent. The page has been reloaded.",
+    "dismiss": "Dismiss",
+    "draftTitle": "Draft request: no agent is working on it",
+    "draftBody": "Click Start work when you want the team to begin. The Assistant is called right away.",
+    "draftBodyReadOnly": "This request is saved for later and has not been handed to an agent."
   }
 }
