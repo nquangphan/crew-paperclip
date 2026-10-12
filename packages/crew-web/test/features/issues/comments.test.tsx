@@ -66,6 +66,29 @@ describe('IssuePage luồng bình luận (S6.4)', () => {
     expect(items[1].textContent).toContain('Bạn');
   });
 
+  it('bình luận cao quá 10 dòng thu gọn, có nút Hiện đủ / Thu gọn; bình luận ngắn không có nút', async () => {
+    // jsdom không tính layout: cho nội dung có chữ DÀI cao 1000px, còn lại 20px (line-height mặc định 24px).
+    vi.spyOn(HTMLElement.prototype, 'scrollHeight', 'get').mockImplementation(function (this: HTMLElement) {
+      return this.textContent?.includes('DÀI') ? 1000 : 20;
+    });
+    server({
+      'GET /api/issues/i1/comments': {
+        body: [COMMENTS[0], { ...COMMENTS[1], id: 'cm3', body: 'Báo cáo DÀI\n\nnhiều đoạn' }],
+      },
+    });
+    mount(<IssuePage />);
+    const items = await screen.findAllByTestId('comment');
+    expect(items[0].querySelector('[data-collapsed]')).toBeNull();
+    expect(items[0].textContent).not.toContain('Hiện đủ');
+    await waitFor(() => expect(items[1].querySelector('[data-collapsed]')).not.toBeNull());
+    const toggle = screen.getByRole('button', { name: 'Hiện đủ' });
+    expect(toggle.getAttribute('aria-expanded')).toBe('false');
+    fireEvent.click(toggle);
+    expect(items[1].querySelector('[data-collapsed]')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Thu gọn' }));
+    expect(items[1].querySelector('[data-collapsed]')).not.toBeNull();
+  });
+
   it('run đang chạy hiện transcript thu gọn', async () => {
     server({
       'GET /api/issues/i1/live-runs': { body: [{ id: 'r1', status: 'running', agentId: 'a1' }] },

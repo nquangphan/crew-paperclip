@@ -1,9 +1,11 @@
 // crew: tự dựng
 import type { IssueComment } from '@paperclipai/shared';
 import { useQuery } from '@tanstack/react-query';
+import { useLayoutEffect, useRef, useState } from 'react';
 import { api, queryKeys } from '@/api';
 import { useMe } from '@/app/hooks';
 import {
+  Button,
   ChatDivider,
   ChatMessage,
   ErrorState,
@@ -44,6 +46,58 @@ function LiveRunTranscript({ run, agentName }: { run: LiveRun; agentName: string
       {events.error ? <ErrorState title={t('detail.comments.liveFailed')} message={events.error.message} /> : null}
       <Transcript entries={entries} />
     </section>
+  );
+}
+
+/** Số dòng tối đa của một bình luận khi thu gọn. */
+export const COLLAPSED_LINES = 10;
+
+/**
+ * Nội dung bình luận cao quá {@link COLLAPSED_LINES} dòng thì thu gọn, có nút hiện đủ / thu gọn. Đo chiều cao thật
+ * sau khi render (markdown có tiêu đề, code, ảnh nên không đếm dòng nguồn được); đổi kích thước thì đo lại.
+ */
+function CollapsibleBody({ markdown }: { markdown: string }) {
+  const { t } = useT('issues');
+  const ref = useRef<HTMLDivElement>(null);
+  const [overflows, setOverflows] = useState(false);
+  const [expanded, setExpanded] = useState(false);
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const measure = () => {
+      // Khi đang mở hết thì so với chiều cao giới hạn tính từ line-height, không phải clientHeight.
+      const lineHeight = Number.parseFloat(getComputedStyle(el).lineHeight) || 24;
+      setOverflows(el.scrollHeight > lineHeight * COLLAPSED_LINES + 1);
+    };
+    measure();
+    if (typeof ResizeObserver === 'undefined') return;
+    const observer = new ResizeObserver(measure);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+  const collapsed = overflows && !expanded;
+  return (
+    <div className="flex flex-col gap-1">
+      <div
+        ref={ref}
+        data-collapsed={collapsed ? '' : undefined}
+        className={collapsed ? 'relative max-h-[10lh] overflow-hidden' : undefined}
+      >
+        <MarkdownView markdown={markdown} />
+      </div>
+      {overflows ? (
+        <Button
+          type="button"
+          variant="link"
+          size="xs"
+          className="self-start px-0"
+          aria-expanded={expanded}
+          onClick={() => setExpanded((v) => !v)}
+        >
+          {expanded ? t('detail.comments.showLess') : t('detail.comments.showMore')}
+        </Button>
+      ) : null}
+    </div>
   );
 }
 
@@ -139,7 +193,7 @@ export function Comments({ issueId, agentNames }: CommentsProps) {
               </>
             }
           >
-            <MarkdownView markdown={c.body} />
+            <CollapsibleBody markdown={c.body} />
           </ChatMessage>
         );
       })}

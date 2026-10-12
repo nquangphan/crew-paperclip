@@ -159,6 +159,8 @@
       }
     },
     "comments": {
+      "showMore": "Hiện đủ",
+      "showLess": "Thu gọn",
       "heading": "Bình luận",
       "empty": "Chưa có bình luận",
       "loadFailed": "Không tải được bình luận",

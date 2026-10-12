@@ -159,6 +159,8 @@
       }
     },
     "comments": {
+      "showMore": "Show more",
+      "showLess": "Show less",
       "heading": "Comments",
       "empty": "No comments yet",
       "loadFailed": "Could not load comments",
