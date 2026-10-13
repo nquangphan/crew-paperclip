@@ -3,6 +3,7 @@ import type { Issue, PluginContext, PluginEvent } from "@paperclipai/plugin-sdk"
 import { pluginManifestV1Schema } from "../../../shared/src/validators/plugin.js";
 import manifest from "../manifest.js";
 import { upsertProjectRoles } from "../roles/data.js";
+import { runClaudeRetryJob } from "../runtimes/claude-retry.js";
 import { applyFallback, handleRunFailed, registerRuntimeFallback, runRuntimeFallbackJob, runStuckReviewerSweep } from "../runtimes/fallback.js";
 import { type PluginHost, startPluginHost } from "./plugin-host-db.js";
 
@@ -66,6 +67,9 @@ async function addWait(run: string, issue: string, agentId: string, runtime: str
   await host.sql.unsafe(`INSERT INTO ${host.ns}.crew_runtime_waits (run_id,company_id,issue_id,agent_id,machine_id,runtime,first_seen_at)
     VALUES ($1,$2,$3,$4,$5,$6,now() - make_interval(secs => $7))`, [run, companyId, issue, agentId, mini, runtime, secondsAgo]);
 }
+const retries = () => host.sql.unsafe(
+  `SELECT issue_id::text AS issue_id, agent_id::text AS agent_id, run_id::text AS run_id, attempts, next_at
+   FROM ${host.ns}.crew_runtime_retries ORDER BY issue_id`);
 const handledAt = async (run: string) =>
   (await host.sql.unsafe(`SELECT handled_at FROM ${host.ns}.crew_runtime_waits WHERE run_id = $1`, [run]))[0]?.handled_at ?? null;
 
@@ -113,7 +117,7 @@ beforeAll(async () => {
 }, 120_000);
 afterAll(async () => { await host?.cleanup(); });
 beforeEach(async () => {
-  for (const table of ["crew_runtime_decisions", "crew_runtime_switches", "crew_runtime_waits"]) await host.sql.unsafe(`DELETE FROM ${host.ns}.${table}`);
+  for (const table of ["crew_runtime_decisions", "crew_runtime_switches", "crew_runtime_waits", "crew_runtime_retries"]) await host.sql.unsafe(`DELETE FROM ${host.ns}.${table}`);
   await host.sql`DELETE FROM heartbeat_runs`;
   await host.sql`DELETE FROM issues`;
   await host.sql`UPDATE agents SET status = 'idle'`;
@@ -196,15 +200,25 @@ describe("executor", () => {
     expect(calls.filter((call) => call.kind !== "get")).toEqual([]);
   });
 
-  it("large: từ chối, comment, không block (chờ Claude); gửi lại không comment thêm", async () => {
+  it("large lỗi đăng nhập: từ chối, hẹn đánh thức lại sau 5 phút, không block; gửi lại không comment thêm", async () => {
     const issue = addIssue(10, { description: marker("large", "claude_local", "claude-opus-5", "high"), assigneeAgentId: executor });
     const run = await addRun(30, executor);
     expect(await handleRunFailed(ctx, failed(run, executor, issue, "claude_auth_required"))).toBe("refused");
     expect(await decisions(issue)).toEqual([expect.objectContaining({ kind: "fallback_refused", trigger: "auth", reason: "mức large chỉ chạy Claude", to_agent_id: null })]);
-    expect(of("comment")).toEqual([[issue, `Crew: không chuyển runtime cho run \`${run}\`: mức large chỉ chạy Claude. Crew chờ Claude chạy lại.`, companyId]]);
+    expect(of("comment")).toEqual([[issue, `Crew: không chuyển runtime cho run \`${run}\`: mức large chỉ chạy Claude. Crew đánh thức lại Claude sau 5 phút (lần 1/4).`, companyId]]);
     expect(of("update")).toEqual([]);
+    expect(of("wake")).toEqual([]);
     expect(await handleRunFailed(ctx, failed(run, executor, issue, "claude_auth_required"))).toBe("duplicate");
     expect(of("comment")).toHaveLength(1);
+    expect(await retries()).toEqual([expect.objectContaining({ issue_id: issue, agent_id: executor, run_id: run, attempts: 0 })]);
+  });
+
+  it("large hết quota: stock hẹn chạy lại lúc quota hồi, Crew không hẹn thêm", async () => {
+    const issue = addIssue(14, { description: marker("large", "claude_local", "claude-opus-5", "high"), assigneeAgentId: executor });
+    const run = await addRun(45, executor, "failed", "provider_quota");
+    expect(await handleRunFailed(ctx, failed(run, executor, issue, null))).toBe("refused");
+    expect(of("comment")).toEqual([[issue, `Crew: không chuyển runtime cho run \`${run}\`: mức large chỉ chạy Claude. Crew chờ Claude chạy lại khi quota hồi.`, companyId]]);
+    expect(await retries()).toEqual([]);
   });
 
   it("đã chuyển 2 lần: từ chối và block; runtime đã thử bị bỏ khi đếm", async () => {
@@ -237,6 +251,116 @@ describe("executor", () => {
     expect(await decisions(issue)).toEqual([expect.objectContaining({ kind: "fallback_refused", reason: "Crew không đổi được assignee (Crew: override sai)" })]);
     expect(of("comment")).toEqual([[issue, `Crew: không chuyển runtime cho run \`${run}\`: Crew không đổi được assignee (Crew: override sai).`, companyId]]);
     expect(of("wake")).toEqual([]);
+  });
+});
+
+describe("large: Claude lỗi đăng nhập thì Crew đánh thức lại theo backoff", () => {
+  const large = (n: number) => addIssue(n, { description: marker("large", "claude_local", "claude-opus-5", "high"), assigneeAgentId: executor });
+  /** Run Claude của executor trên issue, tạo lúc `minutes` phút sau mốc của test. */
+  const t0 = Date.now();
+  const at = (minutes: number) => new Date(t0 + minutes * 60_000);
+  async function issueRun(n: number, issue: string, status: string, minutes: number): Promise<string> {
+    const run = runId(n);
+    await host.sql`INSERT INTO heartbeat_runs (id,company_id,agent_id,status,context_snapshot,created_at)
+      VALUES (${run},${companyId},${executor},${status},${host.sql.json({ issueId: issue })},${at(minutes)})`;
+    return run;
+  }
+  const wakeOf = (run: string) => [expect.any(String), companyId, { reason: "crew_claude_retry", idempotencyKey: `crew_claude_retry:${run}` }];
+
+  it("TPS-208: hẹn 5 phút, chưa tới hạn không đánh thức; tới hạn đánh thức một lần rồi chờ kết quả", async () => {
+    const issue = large(80);
+    const run = await issueRun(80, issue, "failed", 0);
+    expect(await handleRunFailed(ctx, failed(run, executor, issue, "claude_auth_required"))).toBe("refused");
+    const [row] = await retries();
+    const due = new Date(row!.next_at).getTime() - Date.now();
+    expect(due).toBeGreaterThan(4 * 60_000);
+    expect(due).toBeLessThanOrEqual(5 * 60_000);
+    calls = [];
+    expect(await runClaudeRetryJob(ctx, new Date())).toEqual({ woken: 0, cleared: 0 });
+    expect(of("wake")).toEqual([]);
+    expect(await runClaudeRetryJob(ctx, new Date(Date.now() + 6 * 60_000))).toEqual({ woken: 1, cleared: 0 });
+    expect(of("wake")).toEqual([[issue, companyId, { reason: "crew_claude_retry", idempotencyKey: `crew_claude_retry:${run}` }]]);
+    expect(await retries()).toEqual([expect.objectContaining({ attempts: 1, next_at: null })]);
+    calls = [];
+    expect(await runClaudeRetryJob(ctx, new Date(Date.now() + 60 * 60_000))).toEqual({ woken: 0, cleared: 0 });
+    expect(of("wake")).toEqual([]);
+  });
+
+  it("run đánh thức lại hỏng tiếp: chờ 15, 30, 60 phút; hết 4 lần thì comment rõ và block, không đánh thức nữa", async () => {
+    const issue = large(81);
+    let run = await issueRun(81, issue, "failed", 0);
+    const waits: string[] = [];
+    for (let attempt = 1; attempt <= 4; attempt++) {
+      calls = [];
+      expect(await handleRunFailed(ctx, failed(run, executor, issue, "claude_auth_required"))).toBe("refused");
+      waits.push(String(of("comment")[0]?.[1]).replace(/^.*Crew /, ""));
+      expect(await runClaudeRetryJob(ctx, new Date(Date.now() + 2 * 60 * 60_000))).toEqual({ woken: 1, cleared: 0 });
+      expect(of("wake")).toEqual([wakeOf(run)]);
+      run = await issueRun(81 + attempt, issue, "failed", attempt);
+    }
+    expect(waits).toEqual([1, 2, 3, 4].map((n) => `đánh thức lại Claude sau ${[5, 15, 30, 60][n - 1]} phút (lần ${n}/4).`));
+    calls = [];
+    expect(await handleRunFailed(ctx, failed(run, executor, issue, "claude_auth_required"))).toBe("refused");
+    expect(of("comment")).toEqual([[issue, `Crew: không chuyển runtime cho run \`${run}\`: mức large chỉ chạy Claude. `
+      + "Crew đã đánh thức lại Claude 4 lần mà vẫn lỗi; dừng tự chạy lại và chuyển issue sang blocked. "
+      + "Kiểm tra Claude trên máy mac-mini (đăng nhập, `claude` chạy được) rồi mở lại issue.", companyId]]);
+    expect(of("update")).toEqual([[issue, { status: "blocked" }, companyId]]);
+    expect(await retries()).toEqual([]);
+    calls = [];
+    expect(await runClaudeRetryJob(ctx, new Date(Date.now() + 5 * 60 * 60_000))).toEqual({ woken: 0, cleared: 0 });
+    expect(of("wake")).toEqual([]);
+  });
+
+  it("run đánh thức lại thành công: xóa dòng, lần lỗi sau bắt đầu lại từ 5 phút", async () => {
+    const issue = large(82);
+    const run = await issueRun(90, issue, "failed", 0);
+    await handleRunFailed(ctx, failed(run, executor, issue, "claude_auth_required"));
+    await runClaudeRetryJob(ctx, new Date(Date.now() + 6 * 60_000));
+    await issueRun(91, issue, "succeeded", 6);
+    expect(await runClaudeRetryJob(ctx, new Date(Date.now() + 7 * 60_000))).toEqual({ woken: 0, cleared: 1 });
+    expect(await retries()).toEqual([]);
+    calls = [];
+    const again = await issueRun(92, issue, "failed", 20);
+    await handleRunFailed(ctx, failed(again, executor, issue, "claude_auth_required"));
+    expect(of("comment")[0]?.[1]).toMatch(/sau 5 phút \(lần 1\/4\)\.$/);
+  });
+
+  it("có người đánh thức trước (board comment): không đánh thức thêm; issue đổi người, đóng hay blocked: xóa dòng", async () => {
+    const issue = large(83);
+    const run = await issueRun(93, issue, "failed", 0);
+    await handleRunFailed(ctx, failed(run, executor, issue, "claude_auth_required"));
+    await issueRun(94, issue, "running", 2);
+    calls = [];
+    expect(await runClaudeRetryJob(ctx, new Date(Date.now() + 6 * 60_000))).toEqual({ woken: 0, cleared: 0 });
+    expect(of("wake")).toEqual([]);
+    expect(await retries()).toEqual([expect.objectContaining({ attempts: 0, next_at: null })]);
+
+    for (const [n, patch] of [[84, { assigneeAgentId: codexExec }], [85, { status: "done" }], [86, { status: "blocked" }]] as const) {
+      const other = large(n);
+      await handleRunFailed(ctx, failed(await issueRun(n + 20, other, "failed", 0), executor, other, "claude_auth_required"));
+      issues.set(other, { ...issues.get(other)!, ...patch } as Issue);
+    }
+    calls = [];
+    expect(await runClaudeRetryJob(ctx, new Date(Date.now() + 6 * 60_000))).toEqual({ woken: 0, cleared: 3 });
+    expect(of("wake")).toEqual([]);
+    expect((await retries()).map((row) => row.issue_id)).toEqual([issue]);
+  });
+
+  it("lỗi đánh thức (issue bị chặn): không tính lần, thử lại sau 5 phút", async () => {
+    const issue = large(87);
+    const run = await issueRun(110, issue, "failed", 0);
+    await handleRunFailed(ctx, failed(run, executor, issue, "adapter_engine_unavailable"));
+    const wakeup = ctx.issues.requestWakeup;
+    ctx.issues.requestWakeup = (async () => { throw new Error("Issue is blocked by unresolved blockers"); }) as never;
+    try {
+      const now = new Date(Date.now() + 6 * 60_000);
+      expect(await runClaudeRetryJob(ctx, now)).toEqual({ woken: 0, cleared: 0 });
+      const [row] = await retries();
+      expect(row).toEqual(expect.objectContaining({ attempts: 0 }));
+      expect(new Date(row!.next_at).getTime()).toBe(now.getTime() + 5 * 60_000);
+    } finally {
+      ctx.issues.requestWakeup = wakeup;
+    }
   });
 });
 

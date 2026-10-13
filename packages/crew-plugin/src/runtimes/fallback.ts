@@ -3,6 +3,7 @@ import { storedVerifiedCrewCompanies } from "../companies/data.js";
 import { type ProjectRoles, readProjectRoles } from "../roles/data.js";
 import { checkedId, jsonObject, pluginNamespace, UUID } from "../shared/db.js";
 import { CREW_RUNTIME_CATALOG, CREW_RUNTIMES, type CrewRuntime, isCrewRuntime } from "./catalog.js";
+import { CLAUDE_RETRY_MAX, runClaudeRetryJob, scheduleClaudeRetry } from "./claude-retry.js";
 import { classifyRuntimeFailure, type FailureClass } from "./classify.js";
 import {
   chooseFallback, FALLBACK_TRIGGER_REASON, type FallbackCandidate, type FallbackTrigger, REFUSED_LARGE, runtimeHealthOf,
@@ -240,7 +241,9 @@ async function executorFallback(
 
 /**
  * Không chuyển được: comment một lần (dòng `fallback_refused` có `run_id` giữ cho lần sau không lặp). Công tắc tắt thì run
- * giữ `queued` chờ owner bật lại; `large` chờ Claude chạy lại (stock retry); còn lại chuyển issue sang `blocked`.
+ * giữ `queued` chờ owner bật lại. `large` hết quota thì stock hẹn chạy lại lúc quota hồi; `large` lỗi đăng nhập hay runtime
+ * không chạy được thì stock không chạy lại (chờ người sửa đăng nhập), nên Crew hẹn đánh thức lại theo backoff
+ * (`scheduleClaudeRetry`) và chặn issue khi hết lượt. Còn lại chuyển issue sang `blocked`.
  */
 async function refuseExecutor(
   ctx: Ctx, input: FallbackInput, fromRuntime: CrewRuntime, machineId: string | null, reason: string,
@@ -252,8 +255,22 @@ async function refuseExecutor(
     await ctx.issues.createComment(issueId, `${head} Runtime ${fromRuntime} đang tắt trên máy ${hostname}; run chờ tới khi owner bật lại.`, companyId);
     return;
   }
-  if (reason === REFUSED_LARGE) {
-    await ctx.issues.createComment(issueId, `${head} Crew chờ Claude chạy lại.`, companyId);
+  if (reason === REFUSED_LARGE && trigger === "quota") {
+    await ctx.issues.createComment(issueId, `${head} Crew chờ Claude chạy lại khi quota hồi.`, companyId);
+    return;
+  }
+  if (reason === REFUSED_LARGE && runId !== null) {
+    const retry = await scheduleClaudeRetry(ctx, { companyId, issueId, agentId: input.agentId, runId });
+    if (retry.kind === "scheduled") {
+      await ctx.issues.createComment(issueId,
+        `${head} Crew đánh thức lại Claude sau ${retry.delayMinutes} phút (lần ${retry.attempt}/${CLAUDE_RETRY_MAX}).`, companyId);
+      return;
+    }
+    const hostname = await hostnameOf(ctx, companyId, machineId);
+    await ctx.issues.createComment(issueId,
+      `${head} Crew đã đánh thức lại Claude ${CLAUDE_RETRY_MAX} lần mà vẫn lỗi; dừng tự chạy lại và chuyển issue sang blocked. `
+      + `Kiểm tra Claude trên máy ${hostname} (đăng nhập, \`claude\` chạy được) rồi mở lại issue.`, companyId);
+    await blockIssue(ctx, companyId, issueId, runId);
     return;
   }
   await ctx.issues.createComment(issueId, head, companyId);
@@ -444,5 +461,6 @@ export function registerRuntimeFallback(ctx: PluginContext): void {
   ctx.jobs.register(RUNTIME_FALLBACK_JOB_KEY, async () => {
     await runRuntimeFallbackJob(ctx, new Date());
     await runStuckReviewerSweep(ctx);
+    await runClaudeRetryJob(ctx, new Date());
   });
 }
