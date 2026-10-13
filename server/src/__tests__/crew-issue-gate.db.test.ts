@@ -650,6 +650,50 @@ suite("crew issue gate in issueService.update", () => {
     expect(done).toMatchObject({ status: "done", description });
   });
 
+  it("owner yêu cầu sửa ở stage owner rồi duyệt: stage push mở pull request và done với bằng chứng docs của stage 2", async () => {
+    const c = await company();
+    const issueId = await issue(c, { status: "in_progress", assigneeAgentId: c.executorId, executionPolicy: c.root });
+    const [sReview, sIntegrator, sOwner, sPush] = c.root.stages.map((s) => s.id) as [string, string, string, string];
+    await act(c, issueId, { agentId: c.executorId }, "done");
+    await act(c, issueId, { agentId: c.reviewerId }, "done");
+    await postComment(c, issueId, c.integratorId, docsLine(0));
+    await act(c, issueId, { agentId: c.integratorId }, "done");
+    // Owner yêu cầu sửa ở stage của mình: stock trả về executor, nộp lại thì về thẳng stage owner, không qua stage docs.
+    expect(await act(c, issueId, { userId: "owner-1" }, "in_progress")).toMatchObject({
+      assigneeAgentId: c.executorId,
+      executionState: { status: "changes_requested", currentStageId: sOwner },
+    });
+    expect(await act(c, issueId, { agentId: c.executorId }, "done")).toMatchObject({
+      assigneeUserId: "owner-1",
+      executionState: { status: "pending", currentStageId: sOwner, completedStageIds: [sReview, sIntegrator] },
+    });
+    expect(await act(c, issueId, { userId: "owner-1" }, "done")).toMatchObject({
+      assigneeAgentId: c.integratorId,
+      executionState: { status: "pending", currentStageId: sPush },
+    });
+    const pr = "https://github.com/acme/app/pull/32";
+    await postComment(c, issueId, c.integratorId, `crew-merge sha=${SHA_HEAD} branch=main pushed=pr pr=${pr}\n`);
+    const description = `Yêu cầu\n\n## Tổng kết của Trợ Lý\n\n### Merge request\n\n- Pull request: ${pr}\n`;
+    expect(await act(c, issueId, { agentId: c.integratorId }, "done", { description })).toMatchObject({
+      status: "done",
+      description,
+    });
+  });
+
+  it("yêu cầu sửa ở stage reviewer sau bằng chứng docs: stage docs chạy lại nên docs cũ vẫn bị 422 docs_stale", async () => {
+    const c = await company();
+    const issueId = await issue(c, { status: "in_progress", assigneeAgentId: c.executorId, executionPolicy: c.root });
+    await act(c, issueId, { agentId: c.executorId }, "done");
+    await postComment(c, issueId, c.integratorId, docsLine(0));
+    await act(c, issueId, { agentId: c.reviewerId }, "in_progress");
+    await act(c, issueId, { agentId: c.executorId }, "done");
+    await act(c, issueId, { agentId: c.reviewerId }, "done");
+    await expect(act(c, issueId, { agentId: c.integratorId }, "done")).rejects.toMatchObject({
+      status: 422,
+      details: { code: "crew_gate_blocked", violations: ["docs_stale"] },
+    });
+  });
+
   it("luồng gốc 4 stage: pushed=pr thiếu URL hay URL không phải pull request GitHub thì 422 push_missing", async () => {
     const c = await company();
     for (const line of [

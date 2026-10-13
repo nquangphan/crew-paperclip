@@ -90,6 +90,10 @@ export interface IssueGateFacts {
   approvals: ReadonlyArray<{ stageId: string; actorAgentId: string | null; actorUserId: string | null; createdAt: Date }>;
   /** Lần gần nhất issue rời `done`/`cancelled` (activity `crew.gate.cycle_reset`); approval/bằng chứng cũ hơn không tính. */
   cycleStartedAt: Date | null;
+  /**
+   * Yêu cầu sửa gần nhất làm stage docs chạy lại: ở stage docs hoặc stage trước nó. Yêu cầu sửa ở stage owner hay
+   * push không tính, vì stock nộp lại về đúng stage đó chứ không về stage docs.
+   */
   lastChangesRequestedAt: Date | null;
   /** Comment `crew-docs-check` mới nhất (chưa xóa) của participant stage docs. */
   docsEvidence: { evidence: DocsCheckEvidence; createdAt: Date } | null;
@@ -497,7 +501,6 @@ export async function crewBeforeIssueWrite(input: IssueWriteHookInput): Promise<
     })
     .from(issueExecutionDecisions)
     .where(eq(issueExecutionDecisions.issueId, issueId));
-  const changes = decisions.filter((d) => d.outcome === "changes_requested").map((d) => d.createdAt.getTime());
 
   const [cycle] = await tx
     .select({ createdAt: activityLog.createdAt })
@@ -513,6 +516,16 @@ export async function crewBeforeIssueWrite(input: IssueWriteHookInput): Promise<
     .limit(1);
 
   const pinnedPolicy = effectivePolicy(locked, patch);
+  // Bằng chứng docs chỉ cũ đi khi stock chạy lại stage docs: stock nộp lại về đúng stage đã yêu cầu sửa và giữ các
+  // stage đã xong, nên yêu cầu sửa ở stage sau stage docs (owner, push) không đưa issue về stage docs. Stage push vẫn
+  // phải giao đúng commit của bằng chứng docs (`push_sha_mismatch`) và sau lần duyệt mới nhất của owner (`push_stale`).
+  const docsStageIndex = pinnedPolicy?.stages.findIndex((s) => s.id === docsGateStages(pinnedPolicy)[0]?.id) ?? -1;
+  const afterDocsStageIds = new Set(
+    docsStageIndex < 0 ? [] : (pinnedPolicy?.stages.slice(docsStageIndex + 1).map((s) => s.id) ?? []),
+  );
+  const changes = decisions
+    .filter((d) => d.outcome === "changes_requested" && !afterDocsStageIds.has(d.stageId))
+    .map((d) => d.createdAt.getTime());
   const agentsOf = (stages: IssueExecutionStage[]) => [
     ...new Set(stages.flatMap((stage) => stage.participants.flatMap((p) => (p.type === "agent" && p.agentId ? [p.agentId] : [])))),
   ];
