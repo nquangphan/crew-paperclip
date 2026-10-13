@@ -93,7 +93,7 @@ export interface IssueGateFacts {
   lastChangesRequestedAt: Date | null;
   /** Comment `crew-docs-check` mới nhất (chưa xóa) của participant stage docs. */
   docsEvidence: { evidence: DocsCheckEvidence; createdAt: Date } | null;
-  /** Comment `crew-merge … pushed=yes` mới nhất (chưa xóa) của participant stage push. */
+  /** Comment `crew-merge … pushed=yes` hoặc `pushed=pr pr=<url>` mới nhất (chưa xóa) của participant stage push. */
   pushEvidence: (CrewMergeEvidence & { createdAt: Date }) | null;
 }
 

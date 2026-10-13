@@ -239,19 +239,26 @@ export function policyGateFingerprint(policy: unknown): string {
   );
 }
 
-export const CREW_MERGE_RE = /^crew-merge sha=([0-9a-f]{40}) branch=(\S+) pushed=yes$/;
+/**
+ * `pushed=yes`: đã push thẳng vào nhánh mặc định (repo không ở GitHub). `pushed=pr pr=<url>`: đã đẩy nhánh
+ * `crew/req/<identifier>` và mở pull request vào nhánh mặc định; owner bấm Merge trên GitHub.
+ */
+export const CREW_MERGE_RE =
+  /^crew-merge sha=([0-9a-f]{40}) branch=(\S+) pushed=(?:yes|pr pr=(https:\/\/github\.com\/[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+\/pull\/[1-9][0-9]*))$/;
 
 export interface CrewMergeEvidence {
   sha: string;
   branch: string;
+  /** URL pull request khi integrator mở PR thay vì push thẳng; `null` với `pushed=yes`. */
+  pr: string | null;
 }
 
-/** Báo push của integrator ở stage push: chỉ dòng đầu, `pushed=yes`. */
+/** Báo giao code của integrator ở stage push: chỉ dòng đầu, `pushed=yes` hoặc `pushed=pr pr=<url GitHub>`. */
 export function parseCrewMergeEvidence(body: string): CrewMergeEvidence | null {
   const first = body.split("\n", 1)[0]?.trim() ?? "";
   const match = CREW_MERGE_RE.exec(first);
   if (!match) return null;
-  return { sha: match[1] as string, branch: match[2] as string };
+  return { sha: match[1] as string, branch: match[2] as string, pr: match[3] ?? null };
 }
 
 /**

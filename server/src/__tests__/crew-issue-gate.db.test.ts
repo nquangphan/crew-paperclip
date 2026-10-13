@@ -553,6 +553,7 @@ suite("crew issue gate in issueService.update", () => {
     issueId: string,
     actor: { agentId: string } | { userId: string },
     requestedStatus: string,
+    extra: { description?: string } = {},
   ) {
     const [row] = await db.select().from(issues).where(eq(issues.id, issueId));
     const policy = normalizeIssueExecutionPolicy(row!.executionPolicy);
@@ -575,7 +576,7 @@ suite("crew issue gate in issueService.update", () => {
     return db.transaction(async (tx) => {
       const updated = await issueService(db).update(
         issueId,
-        { status: requestedStatus as never, ...transition.patch, actorAgentId: agentId, actorUserId: userId },
+        { status: requestedStatus as never, ...extra, ...transition.patch, actorAgentId: agentId, actorUserId: userId },
         tx,
         [],
         [],
@@ -637,6 +638,31 @@ suite("crew issue gate in issueService.update", () => {
       .from(activityLog)
       .where(and(eq(activityLog.entityId, issueId), eq(activityLog.action, "crew.policy.board_override")));
     expect(overrides).toHaveLength(0);
+  });
+
+  it("luồng gốc 4 stage: integrator mở pull request (crew-merge pushed=pr) rồi done kèm mục Merge request trong mô tả", async () => {
+    const c = await company();
+    const issueId = await runRootToPush(c);
+    const pr = "https://github.com/acme/app/pull/12";
+    await postComment(c, issueId, c.integratorId, `crew-merge sha=${SHA_HEAD} branch=main pushed=pr pr=${pr}\n\nPR đang mở`);
+    const description = `Yêu cầu\n\n## Tổng kết của Trợ Lý\n\n### Kết quả\n- Xong.\n\n### Merge request\n\n- Pull request: ${pr}\n`;
+    const done = await act(c, issueId, { agentId: c.integratorId }, "done", { description });
+    expect(done).toMatchObject({ status: "done", description });
+  });
+
+  it("luồng gốc 4 stage: pushed=pr thiếu URL hay URL không phải pull request GitHub thì 422 push_missing", async () => {
+    const c = await company();
+    for (const line of [
+      `crew-merge sha=${SHA_HEAD} branch=main pushed=pr`,
+      `crew-merge sha=${SHA_HEAD} branch=main pushed=pr pr=https://gitlab.com/acme/app/merge_requests/3`,
+    ]) {
+      const issueId = await runRootToPush(c);
+      await postComment(c, issueId, c.integratorId, line);
+      await expect(act(c, issueId, { agentId: c.integratorId }, "done")).rejects.toMatchObject({
+        status: 422,
+        details: { code: "crew_gate_blocked", violations: ["push_missing"] },
+      });
+    }
   });
 
   it("luồng gốc 4 stage: integrator thiếu docs ở stage 2 bị 422 docs_missing", async () => {

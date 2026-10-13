@@ -42,7 +42,15 @@ test("integrator xuống dòng ngay sau exit=N rồi đọc lại dòng đầu c
   assert.ok(evidence.indexOf("GET /api/issues/<id>/comments") < evidence.indexOf('"status":"done"'), "đọc lại trước PATCH done");
 });
 
-const MERGE_CHECK_RE = /^crew-merge sha=([0-9a-f]{40}) branch=(\S+) pushed=yes$/;
+const MERGE_CHECK_RE =
+  /^crew-merge sha=([0-9a-f]{40}) branch=(\S+) pushed=(?:yes|pr pr=(https:\/\/github\.com\/[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+\/pull\/[1-9][0-9]*))$/;
+/** Phần integrator.md trước mục script PR (script được chép nguyên văn ra file, có test riêng ở integrator-pr.test.mjs). */
+const integratorProse = () => {
+  const text = read("integrator");
+  const at = text.indexOf("\n## Script mở pull request");
+  assert.ok(at > 0, "thiếu mục Script mở pull request");
+  return text.slice(0, at);
+};
 const POLICY_SOURCE = new URL("../../server/src/crew/issue-policy.ts", import.meta.url);
 
 test("regex crew-docs-check trong test trùng chuỗi regex của server", { skip: !existsSync(POLICY_SOURCE) && "issue-policy.ts chưa có trên nhánh này" }, () => {
@@ -107,7 +115,11 @@ test("dòng mẫu crew-merge của integrator đúng định dạng", () => {
   const line = templateLine(read("integrator"), "crew-merge sha=");
   assert.match(line, /^crew-merge sha=[0-9a-f]{40} branch=\S+ pushed=(yes|no)$/);
   // dòng pushed=yes là dòng server chấp nhận để hoàn tất stage push
-  assert.match(line.replace("pushed=no", "pushed=yes"), /^crew-merge sha=([0-9a-f]{40}) branch=(\S+) pushed=yes$/);
+  assert.match(line.replace("pushed=no", "pushed=yes"), MERGE_CHECK_RE);
+  // dòng pull request mẫu (script viết ra) cũng là dòng server chấp nhận
+  const pr = /`(crew-merge sha=<T> branch=<nhánh mặc định> pushed=pr pr=<URL pull request>)`/.exec(read("integrator"));
+  assert.ok(pr, "thiếu dòng mẫu crew-merge pushed=pr");
+  assert.match(fill(pr[1]).replace("<URL pull request>", "https://github.com/acme/app/pull/3"), MERGE_CHECK_RE);
 });
 
 test("dòng mẫu crew-review của reviewer đúng định dạng", () => {
@@ -218,8 +230,14 @@ test("integrator che token ngoài URL, không dựa vào plugin hay mention", ()
 });
 
 test("integrator không dặn lộ URL remote và lọc output push", () => {
-  const text = read("integrator");
+  const text = integratorProse();
   assert.doesNotMatch(text, /remote\.origin\.url|git remote get-url/);
+  // Script PR đọc URL remote vào biến để nhận ra GitHub, không bao giờ in ra, và xóa biến ngay sau khi lấy owner/repo.
+  const script = read("integrator").slice(text.length);
+  const uses = script.split("\n").filter((l) => l.includes("$origin"));
+  assert.ok(uses.length > 0);
+  for (const l of uses) assert.doesNotMatch(l, /\b(echo|cat)\b|> ?"\$D/, l);
+  assert.match(script, /^origin=$/m);
   assert.match(text, /không chạy `git remote -v`/);
   assert.match(text, /Không dán output thô/);
   assert.match(text, /:\/\/\*\*\*@/);
@@ -622,7 +640,7 @@ test("integrator không bảo ghi bằng chứng rồi PATCH lại sau 422", () 
   const stage2 = text.slice(text.indexOf("## Ghi bằng chứng rồi quyết định"), text.indexOf("## Lỗi server"));
   assert.ok(stage2.indexOf("crew-docs-check commit=") < stage2.indexOf('"status":"done"'), "bằng chứng phải đứng trước PATCH");
   const stage4 = text.slice(text.indexOf("## Stage 4"));
-  assert.ok(stage4.indexOf("crew-merge sha=") < stage4.indexOf("`PUSHED=yes` (hoặc đã push"), "crew-merge phải đứng trước PATCH done");
+  assert.ok(stage4.indexOf("crew-merge sha=") < stage4.indexOf("8. `PUSHED=yes` hoặc `PUSHED=pr`"), "crew-merge phải đứng trước PATCH done");
   assert.match(stage4, /`PATCH` này là lệnh ghi cuối/);
 });
 
@@ -879,12 +897,39 @@ test("integrator: deploy tự động chỉ khi repo có crew/release/auto-deplo
   assert.match(step, /Không tự chạy `ssh`, `launchctl`, `deploy\.sh`/);
   for (const status of ["queued", "failed"]) {
     assert.ok(step.includes(`\`crew-deploy sha=<T> status=${status}\``), `thiếu dòng mẫu crew-deploy status=${status}`);
-    assert.match(`crew-deploy sha=${"a".repeat(40)} status=${status}`, /^crew-deploy sha=[0-9a-f]{40} status=(queued|deployed|failed|rolled_back)$/);
+    assert.match(`crew-deploy sha=${"a".repeat(40)} status=${status}`, /^crew-deploy sha=[0-9a-f]{40} status=(queued|deployed|failed|rolled_back|cancelled)$/);
   }
   assert.ok(stage4.indexOf("crew-merge sha=") < stage4.indexOf("7b."), "crew-merge phải đứng trước bước deploy");
-  assert.ok(stage4.indexOf("7b.") < stage4.indexOf("`PUSHED=yes` (hoặc đã push"), "bước deploy phải đứng trước PATCH done");
+  assert.ok(stage4.indexOf("7b.") < stage4.indexOf("8. `PUSHED=yes` hoặc `PUSHED=pr`"), "bước deploy phải đứng trước PATCH done");
+  assert.match(step, /Với `PUSHED=pr` \(hoặc đã giao bằng `pushed=pr` ở bước 1\) thêm `--pr <URL pull request>` vào cuối lệnh `enqueue`/);
+  assert.match(step, /PR đóng mà không merge thì job tự báo `status=cancelled`/);
   assert.match(stage4, /nhảy tới bước 7b \(deploy tự động, nếu repo bật\) và bước 8/);
   assert.match(stage4, /sau nó chỉ được có comment `crew-deploy` của bước 7b/);
+});
+
+test("integrator: stage 4 mở pull request thay vì push vào nhánh mặc định khi origin ở GitHub", () => {
+  const text = integratorProse();
+  const stage4 = text.slice(text.indexOf("## Stage 4"));
+  const step2 = stage4.slice(stage4.indexOf("2. **Mở pull request.**"), stage4.indexOf("**Push thẳng"));
+  assert.ok(step2.length > 0, "thiếu bước 2 mở pull request");
+  for (const needle of [
+    "`T` là `EVIDENCE`",
+    "không merge `origin/$DEFAULT` vào",
+    'bash "$D/crew-pr.sh" "$D"',
+    "`rc=0`: `PUSHED=pr`",
+    "`rc=3`: `origin` không ở GitHub: làm bước 3–6",
+    "`### Merge request`",
+    "`## Tổng kết của Trợ Lý`",
+    "**không** tự gộp, không sửa conflict",
+    "`GH_TOKEN`",
+    "không push lại bằng `--force`",
+  ]) assert.ok(step2.includes(needle), `bước 2 thiếu: ${needle}`);
+  assert.ok(stage4.indexOf("2. **Mở pull request.**") < stage4.indexOf('git push origin "${T}:refs/heads/${DEFAULT}"'), "PR trước, push thẳng chỉ là đường dự phòng");
+  assert.match(stage4, /\*\*Push thẳng \(bước 3–6\): chỉ khi bước 2 trả `rc=3`\.\*\*/);
+  assert.ok(stage4.includes('-d @"$D/merge-comment.json"'), "đăng nguyên comment script viết");
+  assert.ok(stage4.includes('-d @"$D/done.json"'), "PATCH done kèm mô tả mới từ file");
+  assert.match(text, /9\. Ở stage 4 khi `origin` ở GitHub: push vào nhánh mặc định, chạy `gh pr merge`/);
+  assert.match(stage4, /pushed=pr pr=<URL>` mới hơn bằng chứng mới nhất và X bằng `EVIDENCE`/);
 });
 
 test("integrator: mọi ref git dạng <biến>:<đường dẫn> giữ ngoặc nhọn (zsh hiểu $T:c, $T:r là modifier)", () => {
@@ -915,4 +960,12 @@ test("assistant: điểm cần owner chốt viết đủ ngay tại chỗ, đán
   assert.ok(text.includes('"prompt":"Q1. <câu hỏi đầy đủ>"'));
   assert.ok(text.includes('"label":"a) <lựa chọn> — <nghĩa là gì>"'));
   assert.ok(text.includes("Trợ Lý: chờ owner trả lời câu hỏi trong thẻ trên issue này.\\n<các điểm Q1, Q2… viết đủ"));
+});
+
+test("assistant: không tự mở pull request, giữ mục con Merge request do integrator thêm", () => {
+  const text = read("assistant");
+  assert.match(text, /2\. Sửa file, commit hay push trong worktree, hay mở pull request \(`gh pr …`\)/);
+  const close = section(text, "## Đóng issue gốc");
+  assert.match(close, /Không tự viết mục con `### Merge request`: integrator thêm nó/);
+  assert.match(close, /bản cũ có mục con `### Merge request` thì chép nguyên mục con đó vào cuối bản mới/);
 });

@@ -235,10 +235,33 @@ describe("policyGateFingerprint", () => {
 
 describe("parseCrewMergeEvidence", () => {
   it("chỉ nhận dòng đầu pushed=yes", () => {
-    expect(parseCrewMergeEvidence(`crew-merge sha=${SHA_HEAD} branch=main pushed=yes\nlog`)).toEqual({ sha: SHA_HEAD, branch: "main" });
+    expect(parseCrewMergeEvidence(`crew-merge sha=${SHA_HEAD} branch=main pushed=yes\nlog`)).toEqual({ sha: SHA_HEAD, branch: "main", pr: null });
     expect(parseCrewMergeEvidence(`crew-merge sha=${SHA_HEAD} branch=main pushed=no`)).toBeNull();
     expect(parseCrewMergeEvidence(`ghi chú\ncrew-merge sha=${SHA_HEAD} branch=main pushed=yes`)).toBeNull();
     expect(parseCrewMergeEvidence(`crew-merge sha=${SHA_HEAD.slice(1)} branch=main pushed=yes`)).toBeNull();
+  });
+
+  it("nhận pushed=pr kèm URL pull request GitHub hợp lệ", () => {
+    const pr = "https://github.com/nquangphan/kidy_school_2.0_docs/pull/5";
+    expect(parseCrewMergeEvidence(`crew-merge sha=${SHA_HEAD} branch=main pushed=pr pr=${pr}\n\nPR có conflict`)).toEqual({
+      sha: SHA_HEAD,
+      branch: "main",
+      pr,
+    });
+    for (const bad of [
+      `crew-merge sha=${SHA_HEAD} branch=main pushed=pr`,
+      `crew-merge sha=${SHA_HEAD} branch=main pushed=pr pr=`,
+      `crew-merge sha=${SHA_HEAD} branch=main pushed=pr pr=http://github.com/a/b/pull/5`,
+      `crew-merge sha=${SHA_HEAD} branch=main pushed=pr pr=https://gitlab.com/a/b/pull/5`,
+      `crew-merge sha=${SHA_HEAD} branch=main pushed=pr pr=https://github.com/a/b/issues/5`,
+      `crew-merge sha=${SHA_HEAD} branch=main pushed=pr pr=https://github.com/a/b/pull/0`,
+      `crew-merge sha=${SHA_HEAD} branch=main pushed=pr pr=https://github.com/a/b/pull/5x`,
+      `crew-merge sha=${SHA_HEAD} branch=main pushed=pr pr=https://github.com/a/b/pull/5 thêm`,
+      `crew-merge sha=${SHA_HEAD} branch=main pushed=yes pr=https://github.com/a/b/pull/5`,
+      `crew-merge sha=${SHA_HEAD} branch=main pushed=no pr=https://github.com/a/b/pull/5`,
+    ]) {
+      expect(parseCrewMergeEvidence(bad), bad).toBeNull();
+    }
   });
 });
 
@@ -675,10 +698,19 @@ describe("evaluateIssueGate", () => {
       approvals: stored,
       docsEvidence: { ...docsOk, createdAt: T0 },
     };
-    const push = (createdAt: Date, sha = SHA_HEAD) => ({ sha, branch: "main", createdAt });
+    const push = (createdAt: Date, sha = SHA_HEAD, pr: string | null = null) => ({ sha, branch: "main", pr, createdAt });
+    const PR = "https://github.com/acme/app/pull/12";
 
     it("integrator hoàn tất stage push với crew-merge mới hơn owner và đúng sha: done", () => {
       expect(evaluateIssueGate(facts({ ...base, pushEvidence: push(T2) }))).toEqual({ kind: "allow", notes: [] });
+    });
+
+    it("bằng chứng pull request (pushed=pr) hoàn tất stage push như push thẳng, cùng luật thời điểm và sha", () => {
+      expect(evaluateIssueGate(facts({ ...base, pushEvidence: push(T2, SHA_HEAD, PR) }))).toEqual({ kind: "allow", notes: [] });
+      expect(evaluateIssueGate(facts({ ...base, pushEvidence: push(T0, SHA_HEAD, PR) }))).toMatchObject({ violations: ["push_stale"] });
+      expect(evaluateIssueGate(facts({ ...base, pushEvidence: push(T2, SHA_BASE, PR) }))).toMatchObject({
+        violations: ["push_sha_mismatch"],
+      });
     });
 
     it("thiếu, cũ hơn quyết định owner, hoặc lệch sha bằng chứng docs: 422", () => {
