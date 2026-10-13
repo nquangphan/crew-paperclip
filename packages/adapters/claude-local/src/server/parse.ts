@@ -8,8 +8,9 @@ import {
 } from "@paperclipai/adapter-utils/server-utils";
 
 // The legacy login-prompt markers. The Claude CLI prints these words when it
-// asks the user to log in. The detector matches them against any probe output
-// line, which includes the raw stdout and stderr. This scope is pre-existing.
+// asks the user to log in. The detector matches them against Claude's own
+// output only: the parsed result, stderr, plain-text stdout lines, and the text
+// of an assistant event the CLI flags as an error. See claudeOwnStdoutLines.
 const CLAUDE_LOGIN_PROMPT_RE =
   /(?:not\s+logged\s+in|please\s+log\s+in|please\s+run\s+(?:`?claude\s+login`?|\/login)|login\s+required|requires\s+login|unauthorized|authentication\s+required|invalid\s+api\s+key[\s\S]{0,120}(?:\/login|claude\s+login|log\s+in))/i;
 
@@ -203,6 +204,40 @@ function claudeResultIndicatesAuthFailure(parsed: Record<string, unknown>): bool
   return extractClaudeErrorMessages(parsed).length > 0;
 }
 
+// Collect the stdout lines that Claude itself wrote. A stream-json event line
+// carries model prose or tool output (a tool result can print "Unauthorized"
+// from any API it called), so an event line counts only when it is an
+// assistant event the CLI flags with an error, such as its synthetic
+// authentication_failed message. Plain-text lines are CLI messages and count.
+function claudeOwnStdoutLines(stdout: string): string[] {
+  const lines: string[] = [];
+  for (const rawLine of stdout.split(/\r?\n/)) {
+    const line = rawLine.trim();
+    if (!line) continue;
+    const event = parseJson(line);
+    if (typeof event !== "object" || event === null || Array.isArray(event)) {
+      lines.push(line);
+      continue;
+    }
+    if (asString(event.type, "") !== "assistant" || !asString(event.error, "").trim()) continue;
+    const content = parseObject(event.message).content;
+    for (const block of Array.isArray(content) ? content : []) {
+      const text = asString(parseObject(block).text, "").trim();
+      if (text) lines.push(text);
+    }
+  }
+  return lines;
+}
+
+// A terminal result with subtype success and is_error false means Claude
+// authenticated and finished. Such a run is never an auth failure, even when it
+// later exits nonzero (for example a background process stopped after the
+// result) or its output repeats an auth phrase.
+function isClaudeSuccessResult(parsed: Record<string, unknown> | null): boolean {
+  if (!parsed) return false;
+  return asString(parsed.subtype, "").trim().toLowerCase() === "success" && !asBoolean(parsed.is_error, false);
+}
+
 export function detectClaudeLoginRequired(input: {
   parsed: Record<string, unknown> | null;
   stdout: string;
@@ -210,11 +245,12 @@ export function detectClaudeLoginRequired(input: {
 }): { requiresLogin: boolean; loginUrl: string | null } {
   const parsed = input.parsed ?? null;
   const resultText = asString(parsed?.result, "").trim();
+  const loginUrl = extractClaudeLoginUrl([input.stdout, input.stderr].join("\n"));
+  if (isClaudeSuccessResult(parsed)) return { requiresLogin: false, loginUrl };
 
-  // The legacy login-prompt markers keep their broad scope. They match against
-  // every output line, which includes the parsed result, the parsed errors, and
-  // the raw stdout and stderr.
-  const promptLines = [resultText, ...extractClaudeErrorMessages(parsed ?? {}), input.stdout, input.stderr]
+  // The legacy login-prompt markers match against Claude's own output: the
+  // parsed result, the parsed errors, Claude's own stdout lines, and stderr.
+  const promptLines = [resultText, ...extractClaudeErrorMessages(parsed ?? {}), ...claudeOwnStdoutLines(input.stdout), input.stderr]
     .join("\n")
     .split(/\r?\n/)
     .map((line) => line.trim())
@@ -229,10 +265,7 @@ export function detectClaudeLoginRequired(input: {
     claudeResultIndicatesAuthFailure(parsed) &&
     CLAUDE_AUTH_TOKEN_FAILURE_RE.test(collectClaudeTerminalText(parsed));
 
-  return {
-    requiresLogin: loginPrompt || tokenFailure,
-    loginUrl: extractClaudeLoginUrl([input.stdout, input.stderr].join("\n")),
-  };
+  return { requiresLogin: loginPrompt || tokenFailure, loginUrl };
 }
 
 export function describeClaudeFailure(parsed: Record<string, unknown>): string | null {

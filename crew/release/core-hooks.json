@@ -165,6 +165,16 @@
       "tests": ["server/src/__tests__/crew-ssh-pending-teardown.db.test.ts"]
     },
     {
+      "id": "P9",
+      "kind": "adapter-patch",
+      "file": "packages/adapters/claude-local/src/server/parse.ts",
+      "symbol": "detectClaudeLoginRequired",
+      "anchor": "  if (isClaudeSuccessResult(parsed)) return { requiresLogin: false, loginUrl };",
+      "description": "A Claude result with subtype success and is_error false is never classified as claude_auth_required, and the login-prompt markers (unauthorized, please run /login, ...) are matched only against Claude's own output: the parsed result and errors, stderr, plain-text stdout lines, and assistant events the CLI flags with an error. Stock matched them against every stdout line, so a successful run whose tool output printed an OpenAPI \"401 Unauthorized\" and that exited 255 after its final result (a background process stopped by the terminal-result cleanup) was labelled claude_auth_required, which showed the auth-repair card, blocked the retry and switched the runtime. The run still ends failed (stock unmanaged background task policy); only the auth label is dropped.",
+      "upstreamPr": null,
+      "tests": ["packages/adapters/claude-local/src/server/parse.auth.crew.test.ts"]
+    },
+    {
       "id": "C1",
       "kind": "core-patch",
       "file": "server/src/routes/onboarding-seed.ts",

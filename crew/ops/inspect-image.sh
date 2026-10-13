@@ -1,6 +1,6 @@
 #!/bin/sh
 # Checks a built overlay image before deploy. Usage: inspect-image.sh <image-tag> [<commit>]
-# Runs on the VPS (deploy.sh, set -e) and on the Mac. Adapter patches P2-P7 (core-hooks.json adapter-patch):
+# Runs on the VPS (deploy.sh, set -e) and on the Mac. Adapter patches P2-P7, P9 (core-hooks.json adapter-patch):
 #  - in-image check, always: needs only docker; compares /app files with crew-adapter-expect.json from the overlay tarball.
 #  - host check against <commit> (default: fork HEAD): needs node + the fork git repo, so only on the Mac. On the VPS it is
 #    skipped with a WARNING (never fails deploy); run `crew/ops/inspect-image.sh <tag> <commit>` from the Mac for the full check.
@@ -33,7 +33,7 @@ docker run --rm --entrypoint sh "$1" -c '
   cd "$P" && node --input-type=module -e "import(\"./dist/manifest.js\").then((m) => console.log(\"plugin bundle ok; manifest \" + m.default.id + \" \" + m.default.capabilities.join(\",\")), (e) => console.log(\"plugin bundle FAIL \" + e.message))"
 '
 RC=$?
-# Adapter patches P2-P7, check 1: INSIDE the image (needs only docker): inspect-adapters.mjs is piped into the image's
+# Adapter patches P2-P7, P9, check 1: INSIDE the image (needs only docker): inspect-adapters.mjs is piped into the image's
 # node and compares /app files with the sha256/anchor manifest overlay-source.sh shipped (crew-adapter-expect.json).
 HERE=$(cd "$(dirname "$0")" && pwd -P)
 docker run --rm --entrypoint node -i "$1" --input-type=module - --in-image < "$HERE/inspect-adapters.mjs" || RC=1
