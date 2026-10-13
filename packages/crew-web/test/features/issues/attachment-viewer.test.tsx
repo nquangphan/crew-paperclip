@@ -199,4 +199,28 @@ describe('hộp xem file đính kèm', () => {
     expect(await within(viewer()).findByText('Không tải được nội dung file')).toBeTruthy();
     expect(within(viewer()).getByText('Attachment not found')).toBeTruthy();
   });
+
+  it('ảnh base64 trong markdown bấm mở hộp xem: hiện ảnh, Tải về từ chính ảnh, không có Mở tab mới, không bộ đếm', async () => {
+    const fetchMock = serve();
+    const src = 'data:image/jpeg;base64,/9j/4AAQSkZJRg==';
+    mountViewer(`![mockup trang chủ](${src})`);
+    fireEvent.click(await screen.findByRole('button', { name: 'mockup trang chủ' }));
+    const box = viewer();
+    expect(box.dataset.kind).toBe('image');
+    expect(within(box).getByRole('heading', { name: 'mockup trang chủ' })).toBeTruthy();
+    expect(within(box).getByRole('img', { name: 'mockup trang chủ' }).getAttribute('src')).toBe(src);
+    expect(within(box).getByRole('link', { name: 'Tải về' }).getAttribute('href')).toBe(src);
+    expect(within(box).queryByRole('link', { name: 'Mở tab mới' })).toBeNull();
+    expect(within(box).queryByTestId('attachment-viewer-counter')).toBeNull();
+    expect(fetchMock.mock.calls.some(([u]) => String(u).startsWith('data:'))).toBe(false);
+  });
+
+  it('ảnh SVG base64 trong markdown bị chặn, không bấm được', async () => {
+    serve();
+    mountViewer('![sơ đồ](data:image/svg+xml;base64,PHN2Zz48L3N2Zz4=)');
+    expect(await screen.findByText('sơ đồ')).toBeTruthy();
+    expect(screen.getByText('(ảnh bị chặn)')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'sơ đồ' })).toBeNull();
+    expect(document.querySelector('img[src^="data:"]')).toBeNull();
+  });
 });

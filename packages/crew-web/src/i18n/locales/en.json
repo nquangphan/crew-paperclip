@@ -48,6 +48,13 @@
     "fileWarning": "{{name}}: {{warning}}",
     "proceed": "Send anyway",
     "discard": "Discard",
+    "image": {
+      "untitled": "Image",
+      "blocked": "image blocked",
+      "broken": "image failed to load",
+      "tooLarge": "image too large to show, {{size}}",
+      "download": "Download image"
+    },
     "viewer": {
       "download": "Download",
       "openInNewTab": "Open in new tab",

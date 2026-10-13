@@ -1,8 +1,14 @@
 // @vitest-environment jsdom
-import { cleanup, render as rtlRender, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render as rtlRender, waitFor } from '@testing-library/react';
 import type { ReactElement } from 'react';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { MarkdownView } from '@/ds';
+import { initI18n, setLanguage } from '@/i18n';
+
+beforeAll(async () => {
+  await initI18n();
+  await setLanguage('vi');
+});
 
 afterEach(cleanup);
 
@@ -59,5 +65,63 @@ describe('MarkdownView', () => {
   it('ảnh //host là ảnh ngoài', async () => {
     const { container } = await render(<MarkdownView markdown="![a](//x.example/t.png)" />);
     expect(container.querySelector('img')).toBeNull();
+  });
+  it('ảnh base64 JPEG hiện trong trang, vừa cột và có trần cao', async () => {
+    const src = 'data:image/jpeg;base64,/9j/4AAQSkZJRg==';
+    const { container } = await render(<MarkdownView markdown={`![mockup](${src})`} />);
+    const img = container.querySelector('img');
+    expect(img?.getAttribute('src')).toBe(src);
+    expect(img?.getAttribute('alt')).toBe('mockup');
+    expect(img?.className).toContain('max-w-full');
+    expect(img?.className).toContain('max-h-96');
+  });
+  it('ảnh SVG base64 bị chặn: không có img, hiện alt và ghi chú ảnh bị chặn', async () => {
+    const { container } = await render(
+      <MarkdownView markdown="![logo độc](data:image/svg+xml;base64,PHN2ZyBvbmxvYWQ9YWxlcnQoMSk+)" />,
+    );
+    expect(container.querySelector('img')).toBeNull();
+    expect(container.innerHTML).not.toContain('data:image/svg');
+    const note = container.querySelector('[data-slot="markdown-image-note"]');
+    expect(note?.textContent).toContain('logo độc');
+    expect(note?.textContent).toContain('ảnh bị chặn');
+  });
+  it('data: loại khác (HTML) bị chặn, không alt thì hiện tên tạm', async () => {
+    const { container } = await render(<MarkdownView markdown="![](data:text/html;base64,PGgxPg==)" />);
+    expect(container.querySelector('img')).toBeNull();
+    expect(container.querySelector('[data-slot="markdown-image-note"]')?.textContent).toContain('Ảnh');
+  });
+  it('link data: vẫn bị bỏ href (chỉ ảnh mới qua luật ảnh)', async () => {
+    const { container } = await render(<MarkdownView markdown="[x](data:text/html;base64,PGgxPg==)" />);
+    expect(container.querySelector('a')?.getAttribute('href') ?? '').not.toMatch(/^data:/i);
+  });
+  it('ảnh lỗi tải thay bằng tên ảnh, không để trống', async () => {
+    const { container } = await render(<MarkdownView markdown="![sơ đồ luồng](/api/attachments/x9/content)" />);
+    const img = container.querySelector('img');
+    if (!img) throw new Error('thiếu img');
+    fireEvent.error(img);
+    expect(container.querySelector('img')).toBeNull();
+    const note = container.querySelector('[data-slot="markdown-image-note"]');
+    expect(note?.textContent).toContain('sơ đồ luồng');
+    expect(note?.textContent).toContain('không tải được ảnh');
+  });
+  it('ảnh base64 trên 5 MB không hiện, có link Tải ảnh; trang không treo', async () => {
+    const src = `data:image/png;base64,${'A'.repeat(7 * 1024 * 1024)}`;
+    const started = performance.now();
+    const { container } = await render(<MarkdownView markdown={`Ảnh lớn:\n\n![to](${src})`} />);
+    // Phân tích nguyên chuỗi mất khoảng 0,2 giây mỗi MB; URL được tách ra trước nên render gần như tức thì.
+    expect(performance.now() - started).toBeLessThan(500);
+    expect(container.querySelector('img')).toBeNull();
+    const link = container.querySelector('[data-slot="markdown-image-note"] a');
+    expect(link?.textContent).toBe('Tải ảnh');
+    expect(link?.getAttribute('download')).toBe('to');
+  });
+  it('ảnh base64 3 MB vẫn hiện, đúng nguyên src; khối code chứa URL dài hiện lại đúng chữ gốc', async () => {
+    const src = `data:image/webp;base64,${'B'.repeat(4 * 1024 * 1024)}`;
+    const md = `![lớn](${src})\n\n\`\`\`\n${src.slice(0, 70_000)}\n\`\`\``;
+    const started = performance.now();
+    const { container } = await render(<MarkdownView markdown={md} />);
+    expect(performance.now() - started).toBeLessThan(500);
+    expect(container.querySelector('img')?.getAttribute('src')).toBe(src);
+    expect(container.querySelector('code')?.textContent).toBe(`${src.slice(0, 70_000)}\n`);
   });
 });

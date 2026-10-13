@@ -48,6 +48,13 @@
     "fileWarning": "{{name}}: {{warning}}",
     "proceed": "Gửi vẫn tiếp tục",
     "discard": "Bỏ chọn",
+    "image": {
+      "untitled": "Ảnh",
+      "blocked": "ảnh bị chặn",
+      "broken": "không tải được ảnh",
+      "tooLarge": "ảnh quá lớn để hiện, {{size}}",
+      "download": "Tải ảnh"
+    },
     "viewer": {
       "download": "Tải về",
       "openInNewTab": "Mở tab mới",

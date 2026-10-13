@@ -3,7 +3,7 @@
 // code render từ nội dung chữ, HTML (mockup) trong iframe sandbox, file khác hiện thông tin và nút tải về.
 // Màn hẹp (dưới md) là tấm phủ kín màn hình; màn rộng là hộp lớn giữa màn hình.
 import { ChevronLeft, ChevronRight, Download, ExternalLink, FileText, XIcon } from 'lucide-react';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useT } from '@/i18n';
 import { Button } from '../components/button';
 import { Dialog, DialogClose, DialogContent, DialogDescription, DialogTitle } from '../components/dialog';
@@ -169,6 +169,9 @@ function AttachmentViewer({ file, onClose, nav, text }: AttachmentViewerProps) {
     ? viewerKindFor({ contentType: file.contentType, name: file.name, byteSize: file.byteSize })
     : 'other';
   const hasNav = Boolean(nav && nav.total > 1 && kind === 'image');
+  const inlineData = file ? /^data:/i.test(file.url) : false;
+  // Nút đã mở hộp (ảnh trong bình luận đang thu gọn): đóng hộp thì trả focus về đó mà không cuộn khung thu gọn.
+  const opener = useRef<HTMLElement | null>(null);
 
   return (
     <Dialog
@@ -185,7 +188,17 @@ function AttachmentViewer({ file, onClose, nav, text }: AttachmentViewerProps) {
           onOpenAutoFocus={(e) => {
             // Không tự đặt focus vào nút Tải về (vòng focus gây hiểu nhầm); focus khung để phím mũi tên chạy ngay.
             e.preventDefault();
+            opener.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
             (e.currentTarget as HTMLElement | null)?.focus();
+          }}
+          onCloseAutoFocus={(e) => {
+            // Trả focus về nút đã mở hộp để bàn phím đi tiếp từ đó, không cuộn: ảnh nằm một phần trong khung thu gọn
+            // (overflow ẩn) thì focus thường sẽ cuộn khung đó, đẩy mất dòng đầu bình luận.
+            const el = opener.current;
+            opener.current = null;
+            if (!el?.isConnected) return;
+            e.preventDefault();
+            el.focus({ preventScroll: true });
           }}
           onKeyDown={(e) => {
             if (!hasNav || !nav) return;
@@ -217,17 +230,20 @@ function AttachmentViewer({ file, onClose, nav, text }: AttachmentViewerProps) {
                 <span className="max-sm:hidden">{t('attachment.viewer.download')}</span>
               </a>
             </Button>
-            <Button variant="ghost" size="icon-sm" asChild>
-              <a
-                href={file.url}
-                target="_blank"
-                rel="noreferrer noopener"
-                aria-label={t('attachment.viewer.openInNewTab')}
-                title={t('attachment.viewer.openInNewTab')}
-              >
-                <ExternalLink aria-hidden />
-              </a>
-            </Button>
+            {/* Trình duyệt chặn mở URL `data:` ở tab mới (trang trắng), nên ảnh nhúng không có nút này. */}
+            {inlineData ? null : (
+              <Button variant="ghost" size="icon-sm" asChild>
+                <a
+                  href={file.url}
+                  target="_blank"
+                  rel="noreferrer noopener"
+                  aria-label={t('attachment.viewer.openInNewTab')}
+                  title={t('attachment.viewer.openInNewTab')}
+                >
+                  <ExternalLink aria-hidden />
+                </a>
+              </Button>
+            )}
             <DialogClose asChild>
               <Button variant="ghost" size="icon-sm" aria-label={t('action.close')}>
                 <XIcon aria-hidden />

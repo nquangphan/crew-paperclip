@@ -8,6 +8,8 @@ interface AttachmentLinkHandler {
   match: (href: string) => string | null;
   /** Mở hộp xem file; `name` là chữ của link hoặc alt của ảnh (dùng khi file không có trong danh sách). */
   open: (id: string, opts: { name?: string; image?: boolean }) => void;
+  /** Mở hộp xem cho ảnh base64 nhúng thẳng trong markdown (không phải file đính kèm); `src` đã qua luật ảnh. */
+  openImage: (src: string, opts: { name?: string; contentType: string; byteSize: number }) => void;
 }
 
 const AttachmentLinkContext = createContext<AttachmentLinkHandler | null>(null);

@@ -19,7 +19,12 @@ interface ViewerTarget {
   /** Chữ của link / alt của ảnh: tên tạm khi file không có trong danh sách đính kèm của yêu cầu. */
   name?: string;
   image?: boolean;
+  /** Ảnh base64 nhúng thẳng trong markdown: hiện từ chính `src`, không phải file trên server. */
+  inline?: { src: string; contentType: string; byteSize: number };
 }
+
+/** Đếm lần mở ảnh nhúng để mỗi lần có id riêng (trạng thái lỗi tải của hộp xem ghi theo id). */
+let inlineSeq = 0;
 
 /** Ảnh trong danh sách đính kèm của yêu cầu, đúng thứ tự danh sách: dãy để bấm trước/sau. */
 export function imageAttachments(files: readonly IssueAttachment[]): IssueAttachment[] {
@@ -31,13 +36,24 @@ export function imageAttachments(files: readonly IssueAttachment[]): IssueAttach
 
 /**
  * File cần hiện: lấy thông tin từ danh sách đính kèm; link trỏ file ngoài danh sách (yêu cầu khác) thì dùng chữ của
- * link làm tên và đoán loại theo đuôi (ảnh trong markdown chắc chắn là ảnh).
+ * link làm tên và đoán loại theo đuôi (ảnh trong markdown chắc chắn là ảnh). Ảnh base64 nhúng trong markdown hiện từ
+ * chính `src` (đã qua luật ảnh của markdown), tải về cũng từ `src`.
  */
 export function viewerFileFor(
   target: ViewerTarget,
   files: readonly IssueAttachment[],
   unnamed: string,
 ): AttachmentViewerFile {
+  if (target.inline) {
+    return {
+      id: target.id,
+      name: target.name?.trim() || unnamed,
+      contentType: target.inline.contentType,
+      byteSize: target.inline.byteSize,
+      url: target.inline.src,
+      downloadUrl: target.inline.src,
+    };
+  }
   const meta = files.find((a) => a.id === target.id);
   return {
     id: target.id,
@@ -82,7 +98,14 @@ export function AttachmentViewerProvider({ issueId, children }: { issueId: strin
   });
 
   const handler = useMemo<AttachmentLinkHandler>(
-    () => ({ match: api.attachments.idFromHref, open: (id, opts) => setTarget({ id, ...opts }) }),
+    () => ({
+      match: api.attachments.idFromHref,
+      open: (id, opts) => setTarget({ id, ...opts }),
+      openImage: (src, { name, contentType, byteSize }) => {
+        inlineSeq += 1;
+        setTarget({ id: `inline-${inlineSeq}`, name, image: true, inline: { src, contentType, byteSize } });
+      },
+    }),
     [],
   );
 
