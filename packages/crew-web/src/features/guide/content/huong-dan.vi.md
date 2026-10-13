@@ -299,6 +299,16 @@ Yêu cầu là cách duy nhất để giao việc cho đội agent. Mọi yêu c
 
 > **Mẹo:** một yêu cầu, một mục tiêu. Hai việc không liên quan thì tạo hai yêu cầu. Thiếu thông tin cũng không sao, Trợ Lý sẽ hỏi lại.
 
+#### Thêm việc con vào một yêu cầu
+
+Muốn bổ sung một việc cho yêu cầu đang chạy, mở yêu cầu gốc (trang đầy đủ hoặc cửa sổ nổi) rồi bấm **Thêm việc con** ở đầu trang. Nút chỉ có trên yêu cầu gốc chưa xong và chưa hủy.
+
+1. Viết **Tiêu đề**, **Mô tả** (markdown) và **Đính kèm** nếu cần, như khi tạo yêu cầu mới. Loại việc theo yêu cầu gốc; bạn không chọn người làm hay model.
+2. Bấm **Thêm việc con**. Việc con hiện ở **Yêu cầu con** của yêu cầu gốc, và trong luồng bình luận có dòng "Đã thêm việc con …" để báo Trợ Lý.
+3. Trợ Lý ghi việc đó vào kế hoạch, chọn executor và model rồi giao. Việc con đi đúng luồng như các việc con Trợ Lý tự tách: executor làm, Reviewer duyệt, Integrator gộp vào nhánh của yêu cầu trước khi bạn duyệt yêu cầu gốc.
+
+Chỉ thêm được khi yêu cầu đang ở bước Trợ Lý (**Cần làm**, **Đang làm**, **Bị chặn**). Yêu cầu còn **Nháp** thì ghi thêm việc vào mô tả, hoặc bấm **Bắt đầu làm** trước. Yêu cầu đã sang Reviewer, Integrator hay chờ duyệt thì hộp thoại giải thích lý do: code đã gộp và kết quả kiểm tài liệu sẽ không còn đúng nếu chèn việc giữa chừng. Lúc đó đợi tới bước **Owner duyệt**, bấm **Yêu cầu sửa** và ghi rõ việc cần thêm; yêu cầu quay về Trợ Lý, việc mới được làm, review và gộp trước khi bạn duyệt lại.
+
 ### Duyệt, yêu cầu sửa, hủy, mở lại {#approve roles=owner}
 
 {{shot:issue-gate}}
@@ -755,6 +765,7 @@ Bình luận của agent có các dòng bắt đầu bằng `crew-`: bằng ch�
 |---|---|
 | `crew-plan root=… children=… bundles=…` | Kế hoạch của Trợ Lý: mấy yêu cầu con, mấy gói |
 | `crew-bundle id=… seq=…` | Yêu cầu con thuộc gói nào, thứ mấy. Cùng gói thì một Executor làm lần lượt và nhớ ngữ cảnh |
+| `crew-owner-child issue=CRE-…` | Trong kế hoạch: Trợ Lý đã nhận việc con do owner hoặc thành viên thêm (nút **Thêm việc con**) và giao executor ngay trên việc đó |
 | `crew-model complexity=… model=… effort=… runtime=…` | Độ khó, model và runtime: Sonnet cho việc vừa và nhỏ, Opus cho việc lớn. `runtime=` là `claude_local`, `codex_local` hoặc `opencode_local`; không có là Claude |
 | `crew-stack on=CRE-…` | Việc này xây tiếp trên code của việc kia |
 | `crew-kind research` | Việc nghiên cứu, không sửa code |

@@ -10,13 +10,13 @@ const load = (lang: 'vi' | 'en') =>
   };
 
 describe('MISSING_FEATURES (BA mục 2)', () => {
-  it('đủ số dòng của BA mục 2 trừ hai dòng đã có luồng (gỡ agent, gỡ project)', () => {
-    expect(BA_MISSING_ROWS).toBe(51);
+  it('đủ số dòng của BA mục 2 trừ ba dòng đã có luồng (gỡ agent, gỡ project, thêm việc con)', () => {
+    expect(BA_MISSING_ROWS).toBe(50);
     expect(MISSING_FEATURES).toHaveLength(BA_MISSING_ROWS);
   });
   it('số dòng theo nhóm khớp 5 bảng của BA', () => {
     const count = (g: string) => MISSING_FEATURES.filter((f) => f.group === g).length;
-    expect(MISSING_GROUPS.map(count)).toEqual([13, 12, 13, 4, 9]);
+    expect(MISSING_GROUPS.map(count)).toEqual([13, 11, 13, 4, 9]);
     expect(MISSING_GROUPS).toEqual(['nav', 'issue', 'agent', 'project', 'company']);
   });
   it('id không trùng và chỉ dùng mã lý do KD/HK/CL/RS', () => {

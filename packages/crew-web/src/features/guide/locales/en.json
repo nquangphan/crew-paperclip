@@ -177,11 +177,6 @@
       "where": "Comment box",
       "note": "The model is chosen by task difficulty. You can only change an agent default model, on its Runtime tab."
     },
-    "addSubIssue": {
-      "feature": "Adding a sub-request by hand",
-      "where": "Sub-request editor",
-      "note": "The Assistant splits work and sets bundles and blockers. A sub-request made by hand would have no bundle. To add work, ask the Assistant in a comment."
-    },
     "queuedComment": {
       "feature": "Queued comments: edit, reorder, steer, interrupt",
       "where": "Comment area",

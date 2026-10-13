@@ -299,6 +299,16 @@ A request is the only way to give work to the agent team. Every request goes thr
 
 > **Tip:** one request, one goal. Two unrelated tasks make two requests. Missing details are fine; the Assistant will ask.
 
+#### Add a child request
+
+To add work to a running request, open the root request (full page or popup) and click **Add child request** at the top. The button only appears on root requests that are not done or cancelled.
+
+1. Write the **Title**, **Description** (markdown) and **Attachments** as for a new request. The type follows the root request; you do not pick the assignee or the model.
+2. Click **Add child request**. The child shows under **Child requests** of the root, and the comment thread gets an "Added child request …" line that notifies the Assistant.
+3. The Assistant adds it to the plan, picks the executor and model, and assigns it. The child follows the same path as the children the Assistant splits out itself: the executor works on it, the Reviewer reviews it, and the Integrator merges it into the request branch before you approve the root request.
+
+You can only add a child while the request is at the Assistant step (**To do**, **In progress**, **Blocked**). For a **Draft**, add the work to the description, or click **Start work** first. Once the request has moved on to the Reviewer, the Integrator or your approval, the dialog explains why not: the merged code and the docs check would no longer match if work were inserted midway. Wait for the **Owner approval** step, click **Request changes** and describe the extra work; the request goes back to the Assistant and the new work is done, reviewed and merged before you approve again.
+
 ### Approve, request changes, cancel, reopen {#approve roles=owner}
 
 {{shot:issue-gate}}
@@ -755,6 +765,7 @@ Agent comments contain lines starting with `crew-`: machine-readable evidence.
 |---|---|
 | `crew-plan root=… children=… bundles=…` | The Assistant's plan: how many sub-requests and bundles |
 | `crew-bundle id=… seq=…` | Which bundle a sub-request is in, and its position. One Executor does a bundle in order and keeps the context |
+| `crew-owner-child issue=CRE-…` | In a plan: the Assistant took over a child request added by the owner or a member (the **Add child request** button) and assigned an executor on it |
 | `crew-model complexity=… model=… effort=… runtime=…` | Difficulty, model and runtime: Sonnet for small and medium work, Opus for large. `runtime=` is `claude_local`, `codex_local` or `opencode_local`; missing means Claude |
 | `crew-stack on=CRE-…` | This task builds on the code of another |
 | `crew-kind research` | A research task, no code change |

@@ -177,11 +177,6 @@
       "where": "Ô soạn bình luận",
       "note": "Model được chọn theo độ khó của từng việc. Bạn chỉ đổi được model mặc định của agent, ở tab Cấu hình chạy."
     },
-    "addSubIssue": {
-      "feature": "Tự thêm yêu cầu con từ giao diện",
-      "where": "Phần sửa yêu cầu con",
-      "note": "Trợ Lý tách việc, gắn gói (bundle) và việc phải xong trước. Việc con tạo tay sẽ không có gói. Muốn thêm việc thì nhắn Trợ Lý trong bình luận."
-    },
     "queuedComment": {
       "feature": "Bình luận xếp hàng: sửa, đổi thứ tự, steer, interrupt",
       "where": "Khung bình luận",
