@@ -611,6 +611,25 @@ test("assistant: lưu kế hoạch đầy đủ trước POST đầu, đối so�
   assert.match(text, /đối soát.*trước.*Đóng issue gốc/s);
 });
 
+test("assistant: việc con owner thêm được nhận vào kế hoạch trước mọi bước, sửa ngay trên việc con, không POST", () => {
+  const text = read("assistant");
+  const dispatch = text.slice(text.indexOf("## Mỗi lần được đánh thức"), text.indexOf("## Câu hỏi và điểm cần owner chốt"));
+  const owner = dispatch.indexOf("0. **Việc con owner thêm**");
+  assert.ok(owner > 0 && owner < dispatch.indexOf("1. **Yêu cầu sửa trên gốc**"), "bước việc con owner thêm đứng đầu");
+  assert.match(dispatch, /Chưa có kế hoạch lô đầu/);
+  const section = text.slice(text.indexOf("## Việc con owner thêm"), text.indexOf("## Tách việc"));
+  assert.ok(section.length > 0, "thiếu mục Việc con owner thêm");
+  for (const needle of [
+    "`createdByUserId` khác rỗng", "`createdByAgentId` rỗng", "dòng `crew-child`", "revision=owner-<identifier việc con>",
+    "crew-owner-child issue=<identifier việc con> id=<id việc con>", "PATCH /api/issues/<id việc con>",
+    "crew-child key=owner-<identifier việc con> revision=owner-<identifier việc con>", "không bao giờ `POST`",
+    "board_child_open", "không tạo con thay thế",
+  ]) assert.ok(section.includes(needle), `thiếu ${needle}`);
+  // Ghi kế hoạch trước PATCH việc con.
+  assert.ok(section.indexOf("Ghi kế hoạch **trước**") < section.indexOf("PATCH /api/issues/<id việc con>"));
+  assert.match(text, /\| `crew_gate_blocked` \|[^\n]*board_child_open/);
+});
+
 test("assistant: yêu cầu sửa gốc được xử lý trước khi đóng lại", () => {
   const text = read("assistant");
   const dispatch = text.slice(text.indexOf("## Mỗi lần được đánh thức"), text.indexOf("## Hiểu yêu cầu"));
