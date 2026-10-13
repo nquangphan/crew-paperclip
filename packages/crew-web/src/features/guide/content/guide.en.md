@@ -232,7 +232,7 @@ A small request usually finishes in 15 to 30 minutes.
 
 If a request is unclear, the Assistant posts a **question card** in it ("Assistant needs to ask") with options and an **Other** box. The request becomes **Blocked** while waiting. Pick an answer and click **Send answer**; the Assistant continues. An "Assistant needs confirmation" card has **Accept** and **Decline** (give a reason when declining).
 
-You can edit the title and description, comment and attach files. Click an attachment (or a file link in the description or a comment) to view it right in the page instead of a new tab: images open large with previous/next buttons and arrow keys, PDFs, markdown, code and HTML mockups render in place; other files offer **Download**. A running run has a **Stop run** button (with confirmation).
+You can edit the title and description, comment and attach files. Click an attachment (or a file link in the description or a comment) to view it right in the page instead of a new tab: images open large with previous/next buttons and arrow keys, PDFs, markdown, code and HTML mockups render in place; other files offer **Download**. The comment box sits right above the thread, with the newest comment on top. Images in the description and comments (attachments, base64-embedded PNG/JPEG/GIF/WebP) fit the column and open large on click; SVG and other embedded types are blocked and show only their name with an "image blocked" note, and images from other websites show as links. A running run has a **Stop run** button (with confirmation).
 {{/roles}}
 {{roles:owner}}
 A request awaiting your approval has **Approve**, **Request changes**, **Cancel request** and **Force Done** right under the title (section [Approve, request changes, cancel, reopen](#approve)).
