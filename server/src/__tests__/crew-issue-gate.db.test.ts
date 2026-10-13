@@ -19,6 +19,7 @@ import {
   toolConnections,
 } from "@paperclipai/db";
 import { getEmbeddedPostgresTestSupport, startEmbeddedPostgresTestDatabase } from "./helpers/embedded-postgres.js";
+import { CREW_OWNER_CHANGES_RESTART_ACTION } from "../crew/issue-gate.ts";
 import { buildCrewPolicy, CREW_POLICY_CONFIG_ENV } from "../crew/issue-policy.ts";
 import {
   applyIssueExecutionPolicyTransition,
@@ -35,7 +36,9 @@ type Principal = { type: "agent" | "user"; agentId: string | null; userId: strin
 
 const SHA_BASE = "a".repeat(40);
 const SHA_HEAD = "b".repeat(40);
-const docsLine = (exit: number) => `crew-docs-check commit=${SHA_HEAD} range=${SHA_BASE}..${SHA_HEAD} exit=${exit}`;
+const SHA_FIX = "c".repeat(40);
+const docsLineFor = (sha: string, exit: number) => `crew-docs-check commit=${sha} range=${SHA_BASE}..${sha} exit=${exit}`;
+const docsLine = (exit: number) => docsLineFor(SHA_HEAD, exit);
 const minutesAgo = (n: number) => new Date(Date.now() - n * 60_000);
 
 suite("crew issue gate in issueService.update", () => {
@@ -650,34 +653,177 @@ suite("crew issue gate in issueService.update", () => {
     expect(done).toMatchObject({ status: "done", description });
   });
 
-  it("owner yêu cầu sửa ở stage owner rồi duyệt: stage push mở pull request và done với bằng chứng docs của stage 2", async () => {
-    const c = await company();
+  async function rootAtOwner(c: Company) {
     const issueId = await issue(c, { status: "in_progress", assigneeAgentId: c.executorId, executionPolicy: c.root });
-    const [sReview, sIntegrator, sOwner, sPush] = c.root.stages.map((s) => s.id) as [string, string, string, string];
     await act(c, issueId, { agentId: c.executorId }, "done");
     await act(c, issueId, { agentId: c.reviewerId }, "done");
     await postComment(c, issueId, c.integratorId, docsLine(0));
     await act(c, issueId, { agentId: c.integratorId }, "done");
-    // Owner yêu cầu sửa ở stage của mình: stock trả về executor, nộp lại thì về thẳng stage owner, không qua stage docs.
+    return issueId;
+  }
+
+  async function restartActivities(issueId: string) {
+    return db
+      .select()
+      .from(activityLog)
+      .where(and(eq(activityLog.entityId, issueId), eq(activityLog.action, CREW_OWNER_CHANGES_RESTART_ACTION)));
+  }
+
+  const prDone = async (c: Company, issueId: string, sha: string) => {
+    const pr = "https://github.com/acme/app/pull/32";
+    await postComment(c, issueId, c.integratorId, `crew-merge sha=${sha} branch=main pushed=pr pr=${pr}\n`);
+    const description = `Yêu cầu\n\n## Tổng kết của Trợ Lý\n\n### Merge request\n\n- Pull request: ${pr}\n`;
+    return act(c, issueId, { agentId: c.integratorId }, "done", { description });
+  };
+
+  it("owner yêu cầu sửa ở stage owner, Trợ Lý thêm con sửa có code mới: gốc chạy lại reviewer → integrator docs mới → owner → PR đúng commit mới", async () => {
+    const c = await company();
+    const issueId = await rootAtOwner(c);
+    const [sReview, sIntegrator, sOwner, sPush] = c.root.stages.map((s) => s.id) as [string, string, string, string];
+    const ownerP = { type: "user", agentId: null, userId: "owner-1" };
+
+    // 1. Owner yêu cầu sửa ở stage 3: việc về Trợ Lý, mọi stage đã xong bị xóa để lần nộp sau chạy lại từ stage 1.
     expect(await act(c, issueId, { userId: "owner-1" }, "in_progress")).toMatchObject({
+      status: "in_progress",
       assigneeAgentId: c.executorId,
-      executionState: { status: "changes_requested", currentStageId: sOwner },
+      executionState: {
+        status: "changes_requested",
+        currentStageId: null,
+        currentStageType: "approval",
+        currentParticipant: ownerP,
+        completedStageIds: [],
+        lastDecisionOutcome: "changes_requested",
+      },
+    });
+    expect(await restartActivities(issueId)).toMatchObject([
+      { actorType: "user", actorId: "owner-1", details: { stageId: sOwner, clearedStageIds: [sReview, sIntegrator] } },
+    ]);
+
+    // 2. Trợ Lý thêm con sửa; executor làm, reviewer duyệt.
+    const childId = await issue(c, {
+      parentId: issueId,
+      status: "in_progress",
+      assigneeAgentId: c.executorId,
+      executionPolicy: c.child,
+      createdByUserId: null,
+      createdByAgentId: c.executorId,
+    });
+    await act(c, childId, { agentId: c.executorId }, "done");
+    expect(await act(c, childId, { agentId: c.reviewerId }, "done")).toMatchObject({ status: "done" });
+
+    // 3–4. Trợ Lý nộp lại: gốc về stage 1 (reviewer), không về thẳng owner.
+    expect(await act(c, issueId, { agentId: c.executorId }, "done")).toMatchObject({
+      status: "in_review",
+      assigneeAgentId: c.reviewerId,
+      executionState: { status: "pending", currentStageId: sReview, completedStageIds: [] },
+    });
+    expect(await act(c, issueId, { agentId: c.reviewerId }, "done")).toMatchObject({
+      assigneeAgentId: c.integratorId,
+      executionState: { status: "pending", currentStageId: sIntegrator, completedStageIds: [sReview] },
+    });
+
+    // 5. Stage 2 đòi bằng chứng docs mới hơn yêu cầu sửa của owner: bằng chứng của vòng trước bị 422 docs_stale.
+    await expect(act(c, issueId, { agentId: c.integratorId }, "done")).rejects.toMatchObject({
+      status: 422,
+      details: { code: "crew_gate_blocked", violations: ["docs_stale"] },
+    });
+    await postComment(c, issueId, c.integratorId, docsLineFor(SHA_FIX, 0));
+    expect(await act(c, issueId, { agentId: c.integratorId }, "done")).toMatchObject({
+      assigneeUserId: "owner-1",
+      executionState: { status: "pending", currentStageId: sOwner, completedStageIds: [sReview, sIntegrator] },
+    });
+
+    // 6. Owner duyệt.
+    expect(await act(c, issueId, { userId: "owner-1" }, "done")).toMatchObject({
+      assigneeAgentId: c.integratorId,
+      executionState: { status: "pending", currentStageId: sPush, completedStageIds: [sReview, sIntegrator, sOwner] },
+    });
+
+    // 7. Stage 4: pull request phải đúng merged commit mới (có code của con sửa), commit cũ bị 422.
+    await postComment(c, issueId, c.integratorId, `crew-merge sha=${SHA_HEAD} branch=main pushed=pr pr=https://github.com/acme/app/pull/32\n`);
+    await expect(act(c, issueId, { agentId: c.integratorId }, "done")).rejects.toMatchObject({
+      status: 422,
+      details: { code: "crew_gate_blocked", violations: ["push_sha_mismatch"] },
+    });
+    expect(await prDone(c, issueId, SHA_FIX)).toMatchObject({ status: "done" });
+    const overrides = await db
+      .select()
+      .from(activityLog)
+      .where(and(eq(activityLog.entityId, issueId), eq(activityLog.action, "crew.policy.board_override")));
+    expect(overrides).toHaveLength(0);
+  });
+
+  it("owner yêu cầu sửa không cần code mới: vẫn chạy lại từ reviewer, integrator ghi lại bằng chứng docs cho cùng commit", async () => {
+    const c = await company();
+    const issueId = await rootAtOwner(c);
+    const [sReview, sIntegrator, sOwner, sPush] = c.root.stages.map((s) => s.id) as [string, string, string, string];
+    await act(c, issueId, { userId: "owner-1" }, "in_progress");
+    expect(await act(c, issueId, { agentId: c.executorId }, "done")).toMatchObject({
+      assigneeAgentId: c.reviewerId,
+      executionState: { status: "pending", currentStageId: sReview, completedStageIds: [] },
+    });
+    await act(c, issueId, { agentId: c.reviewerId }, "done");
+    await expect(act(c, issueId, { agentId: c.integratorId }, "done")).rejects.toMatchObject({
+      details: { violations: ["docs_stale"] },
+    });
+    await postComment(c, issueId, c.integratorId, docsLine(0));
+    expect(await act(c, issueId, { agentId: c.integratorId }, "done")).toMatchObject({
+      executionState: { currentStageId: sOwner, completedStageIds: [sReview, sIntegrator] },
+    });
+    expect(await act(c, issueId, { userId: "owner-1" }, "done")).toMatchObject({ executionState: { currentStageId: sPush } });
+    expect(await prDone(c, issueId, SHA_HEAD)).toMatchObject({ status: "done" });
+  });
+
+  it("issue gốc đã ở trạng thái owner yêu cầu sửa từ trước khi có luật chạy lại: nộp lại về stage owner, PR với bằng chứng docs cũ vẫn done", async () => {
+    const c = await company();
+    const [sReview, sIntegrator, sOwner, sPush] = c.root.stages.map((s) => s.id) as [string, string, string, string];
+    const ownerP = { type: "user" as const, agentId: null, userId: "owner-1" };
+    const issueId = await issue(c, {
+      status: "in_progress",
+      assigneeAgentId: c.executorId,
+      executionPolicy: c.root,
+      executionState: {
+        ...state(c, "pending", sOwner, ownerP, [sReview, sIntegrator]),
+        status: "changes_requested",
+        lastDecisionOutcome: "changes_requested",
+      },
+    });
+    await approve(c, issueId, sReview, c.reviewerId, minutesAgo(30));
+    await comment(c, issueId, c.integratorId, docsLine(0), minutesAgo(25));
+    await approve(c, issueId, sIntegrator, c.integratorId, minutesAgo(20));
+    await db.insert(issueExecutionDecisions).values({
+      companyId: c.companyId,
+      issueId,
+      stageId: sOwner,
+      stageType: "approval",
+      actorUserId: "owner-1",
+      outcome: "changes_requested",
+      body: "sửa",
+      createdAt: minutesAgo(10),
     });
     expect(await act(c, issueId, { agentId: c.executorId }, "done")).toMatchObject({
       assigneeUserId: "owner-1",
       executionState: { status: "pending", currentStageId: sOwner, completedStageIds: [sReview, sIntegrator] },
     });
-    expect(await act(c, issueId, { userId: "owner-1" }, "done")).toMatchObject({
+    expect(await restartActivities(issueId)).toHaveLength(0);
+    expect(await act(c, issueId, { userId: "owner-1" }, "done")).toMatchObject({ executionState: { currentStageId: sPush } });
+    expect(await prDone(c, issueId, SHA_HEAD)).toMatchObject({ status: "done" });
+  });
+
+  it("integrator yêu cầu sửa ở stage push (giao lỗi): nộp lại về stage push, không chạy lại từ đầu, bằng chứng docs vẫn còn hiệu lực", async () => {
+    const c = await company();
+    const issueId = await runRootToPush(c);
+    const [sReview, sIntegrator, sOwner, sPush] = c.root.stages.map((s) => s.id) as [string, string, string, string];
+    expect(await act(c, issueId, { agentId: c.integratorId }, "in_progress")).toMatchObject({
+      assigneeAgentId: c.executorId,
+      executionState: { status: "changes_requested", currentStageId: sPush, completedStageIds: [sReview, sIntegrator, sOwner] },
+    });
+    expect(await act(c, issueId, { agentId: c.executorId }, "done")).toMatchObject({
       assigneeAgentId: c.integratorId,
       executionState: { status: "pending", currentStageId: sPush },
     });
-    const pr = "https://github.com/acme/app/pull/32";
-    await postComment(c, issueId, c.integratorId, `crew-merge sha=${SHA_HEAD} branch=main pushed=pr pr=${pr}\n`);
-    const description = `Yêu cầu\n\n## Tổng kết của Trợ Lý\n\n### Merge request\n\n- Pull request: ${pr}\n`;
-    expect(await act(c, issueId, { agentId: c.integratorId }, "done", { description })).toMatchObject({
-      status: "done",
-      description,
-    });
+    expect(await restartActivities(issueId)).toHaveLength(0);
+    expect(await prDone(c, issueId, SHA_HEAD)).toMatchObject({ status: "done" });
   });
 
   it("yêu cầu sửa ở stage reviewer sau bằng chứng docs: stage docs chạy lại nên docs cũ vẫn bị 422 docs_stale", async () => {

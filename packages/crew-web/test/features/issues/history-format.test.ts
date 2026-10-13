@@ -77,6 +77,18 @@ describe('buildHistory', () => {
     expect(rows.every((r) => !r.forced)).toBe(true);
   });
 
+  it('owner yêu cầu sửa ở bước duyệt: dòng báo lần nộp lại chạy lại từ Reviewer', () => {
+    const rows = buildHistory(
+      [
+        ev('crew.gate.owner_changes_restart', '2026-10-10T02:00:00.000Z', {
+          details: { stageId: 's2', clearedStageIds: ['s1'] },
+        }),
+      ],
+      ctx,
+    );
+    expect(rows.map((r) => r.text)).toEqual(['Owner yêu cầu sửa: lần nộp lại chạy lại từ Reviewer']);
+  });
+
   it('bỏ bản ghi đã đọc/lưu hộp thư của riêng người dùng', () => {
     const rows = buildHistory(
       [ev('issue.read_marked', '2026-10-10T01:00:00.000Z'), ev('issue.inbox_archived', '2026-10-10T01:00:00.000Z')],

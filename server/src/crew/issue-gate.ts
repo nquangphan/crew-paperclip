@@ -47,9 +47,10 @@ export interface IssueWriteHookInput {
   issueId: string;
   existing: typeof issues.$inferSelect;
   /**
-   * Chỉ được sửa ba chỗ: `executionState = null` (kèm trả việc cho executor) khi issue Crew rời `done`/`cancelled`,
-   * `executionState = null` khi board ép issue vào `done` mà lệnh ghi không tự đặt `executionState`, và
-   * `assigneeAdapterOverrides` khi issue Crew đổi giữa executor và agent của stage (`routeAssigneeOverrides`).
+   * Chỉ được sửa bốn chỗ: `executionState = null` (kèm trả việc cho executor) khi issue Crew rời `done`/`cancelled`,
+   * `executionState = null` khi board ép issue vào `done` mà lệnh ghi không tự đặt `executionState`, `executionState`
+   * yêu cầu sửa ở stage owner (`restartAfterOwnerChanges`), và `assigneeAdapterOverrides` khi issue Crew đổi giữa
+   * executor và agent của stage (`routeAssigneeOverrides`).
    */
   patch: Partial<typeof issues.$inferInsert>;
   actorAgentId: string | null | undefined;
@@ -91,8 +92,10 @@ export interface IssueGateFacts {
   /** Lần gần nhất issue rời `done`/`cancelled` (activity `crew.gate.cycle_reset`); approval/bằng chứng cũ hơn không tính. */
   cycleStartedAt: Date | null;
   /**
-   * Yêu cầu sửa gần nhất làm stage docs chạy lại: ở stage docs hoặc stage trước nó. Yêu cầu sửa ở stage owner hay
-   * push không tính, vì stock nộp lại về đúng stage đó chứ không về stage docs.
+   * Lần gần nhất stage docs phải chạy lại: yêu cầu sửa ở stage docs hoặc stage trước nó, hoặc lần owner yêu cầu sửa
+   * làm issue chạy lại từ stage đầu (activity `crew.gate.owner_changes_restart`). Yêu cầu sửa ở stage push, và yêu cầu
+   * sửa ở stage owner chưa có activity đó (issue đang dở từ trước luật chạy lại), không tính: stock nộp lại về đúng
+   * stage đó chứ không về stage docs.
    */
   lastChangesRequestedAt: Date | null;
   /** Comment `crew-docs-check` mới nhất (chưa xóa) của participant stage docs. */
@@ -121,6 +124,8 @@ export type IssueGateVerdict =
     };
 
 export const CREW_CYCLE_RESET_ACTION = "crew.gate.cycle_reset";
+/** Owner yêu cầu sửa ở stage owner và issue gốc sẽ chạy lại từ stage đầu (`restartAfterOwnerChanges`). */
+export const CREW_OWNER_CHANGES_RESTART_ACTION = "crew.gate.owner_changes_restart";
 const TERMINAL_STATUSES = new Set(["done", "cancelled"]);
 
 function has(patch: Readonly<Record<string, unknown>>, key: string): boolean {
@@ -186,6 +191,45 @@ export function pushGateStages(policy: IssueExecutionPolicy | null): IssueExecut
   if (!policy) return [];
   const afterApproval = firstApprovalIndex(policy);
   return policy.stages.filter((s, index) => s.type === "review" && index > afterApproval);
+}
+
+/**
+ * Stage owner chạy lại từ đầu khi bị yêu cầu sửa: stage `approval` đứng sau stage docs (template gốc: stage 3). Stock
+ * nộp lại về đúng stage đã yêu cầu sửa và giữ các stage đã xong, nên code mới của con sửa sẽ không được reviewer xem ở
+ * cấp gốc, không được integrator gộp và kiểm docs, rồi pull request giao commit cũ. Research và việc con không có stage
+ * docs nên không đổi.
+ */
+export function ownerRestartStages(policy: IssueExecutionPolicy | null): IssueExecutionStage[] {
+  const docsStage = docsGateStages(policy)[0];
+  if (!policy || !docsStage) return [];
+  const docsIndex = policy.stages.findIndex((s) => s.id === docsStage.id);
+  return policy.stages.filter((s, index) => s.type === "approval" && index > docsIndex);
+}
+
+/**
+ * State thay cho state yêu cầu sửa stock vừa dựng ở stage owner, hoặc `null` khi lệnh ghi không phải yêu cầu sửa ở
+ * stage owner. Xóa `completedStageIds` và stage hiện tại để lần nộp lại của Trợ Lý (stock `nextPendingStage`) bắt đầu
+ * từ stage đầu: reviewer, integrator gộp và kiểm docs, owner duyệt lại, rồi stage push. Giữ `currentStageType`,
+ * `currentParticipant` (owner đã yêu cầu sửa) và `lastDecisionId` để giao diện và Trợ Lý đọc đúng quyết định.
+ * Luôn chạy lại, kể cả khi không có code mới: server không biết lần sửa có code hay không, còn bỏ sót code chưa
+ * review thì đắt hơn một vòng reviewer và integrator không có gì mới.
+ */
+export function restartAfterOwnerChanges(
+  policy: IssueExecutionPolicy | null,
+  lockedExecutionState: unknown,
+  nextExecutionState: unknown,
+): Record<string, unknown> | null {
+  const lockedState = parseIssueExecutionState(lockedExecutionState);
+  const nextState = parseIssueExecutionState(nextExecutionState);
+  if (lockedState?.status !== "pending" || nextState?.status !== "changes_requested") return null;
+  if (!lockedState.currentStageId || nextState.currentStageId !== lockedState.currentStageId) return null;
+  if (!ownerRestartStages(policy).some((s) => s.id === lockedState.currentStageId)) return null;
+  return {
+    ...(nextExecutionState as Record<string, unknown>),
+    currentStageId: null,
+    currentStageIndex: null,
+    completedStageIds: [],
+  };
 }
 
 export const CODEX_REVIEWER_FALLBACK_NOTE = "codex_reviewer_fallback";
@@ -502,23 +546,24 @@ export async function crewBeforeIssueWrite(input: IssueWriteHookInput): Promise<
     .from(issueExecutionDecisions)
     .where(eq(issueExecutionDecisions.issueId, issueId));
 
-  const [cycle] = await tx
-    .select({ createdAt: activityLog.createdAt })
-    .from(activityLog)
-    .where(
-      and(
-        eq(activityLog.entityType, "issue"),
-        eq(activityLog.entityId, issueId),
-        eq(activityLog.action, CREW_CYCLE_RESET_ACTION),
-      ),
-    )
-    .orderBy(desc(activityLog.createdAt))
-    .limit(1);
+  const latestActivity = async (action: string) => {
+    const [row] = await tx
+      .select({ createdAt: activityLog.createdAt })
+      .from(activityLog)
+      .where(and(eq(activityLog.entityType, "issue"), eq(activityLog.entityId, issueId), eq(activityLog.action, action)))
+      .orderBy(desc(activityLog.createdAt))
+      .limit(1);
+    return row ?? null;
+  };
+  const cycle = await latestActivity(CREW_CYCLE_RESET_ACTION);
+  const ownerRestart = await latestActivity(CREW_OWNER_CHANGES_RESTART_ACTION);
 
   const pinnedPolicy = effectivePolicy(locked, patch);
-  // Bằng chứng docs chỉ cũ đi khi stock chạy lại stage docs: stock nộp lại về đúng stage đã yêu cầu sửa và giữ các
-  // stage đã xong, nên yêu cầu sửa ở stage sau stage docs (owner, push) không đưa issue về stage docs. Stage push vẫn
-  // phải giao đúng commit của bằng chứng docs (`push_sha_mismatch`) và sau lần duyệt mới nhất của owner (`push_stale`).
+  // Bằng chứng docs chỉ cũ đi khi stage docs chạy lại: yêu cầu sửa ở stage docs hay trước nó (stock nộp lại về đúng
+  // stage đó), hoặc owner yêu cầu sửa và issue chạy lại từ stage đầu (activity restart, ghi cùng lệnh ghi đó). Yêu cầu
+  // sửa ở stage sau stage docs tự nó không tính: stage push được nộp lại về đúng stage push, và yêu cầu sửa ở stage
+  // owner từ trước luật chạy lại được nộp lại về stage owner. Stage push vẫn phải giao đúng commit của bằng chứng docs
+  // (`push_sha_mismatch`) và sau lần duyệt mới nhất của owner (`push_stale`).
   const docsStageIndex = pinnedPolicy?.stages.findIndex((s) => s.id === docsGateStages(pinnedPolicy)[0]?.id) ?? -1;
   const afterDocsStageIds = new Set(
     docsStageIndex < 0 ? [] : (pinnedPolicy?.stages.slice(docsStageIndex + 1).map((s) => s.id) ?? []),
@@ -526,6 +571,7 @@ export async function crewBeforeIssueWrite(input: IssueWriteHookInput): Promise<
   const changes = decisions
     .filter((d) => d.outcome === "changes_requested" && !afterDocsStageIds.has(d.stageId))
     .map((d) => d.createdAt.getTime());
+  if (ownerRestart) changes.push(ownerRestart.createdAt.getTime());
   const agentsOf = (stages: IssueExecutionStage[]) => [
     ...new Set(stages.flatMap((stage) => stage.participants.flatMap((p) => (p.type === "agent" && p.agentId ? [p.agentId] : [])))),
   ];
@@ -658,6 +704,18 @@ export async function crewBeforeIssueWrite(input: IssueWriteHookInput): Promise<
         reason: handBack.reason,
       });
     }
+  }
+  const restarted = has(patch, "executionState")
+    ? restartAfterOwnerChanges(pinnedPolicy, locked.executionState, patch.executionState)
+    : null;
+  if (restarted) {
+    input.patch.executionState = restarted as typeof input.patch.executionState;
+    const lockedState = parseIssueExecutionState(locked.executionState);
+    await activity(CREW_OWNER_CHANGES_RESTART_ACTION, {
+      stageId: lockedState?.currentStageId ?? null,
+      decisionId: restarted.lastDecisionId ?? null,
+      clearedStageIds: lockedState?.completedStageIds ?? [],
+    });
   }
   if (verdict.kind === "override") {
     // Board ép vào `done` mà không qua transition stock (ví dụ plugin gọi thẳng service): không để stage `pending`

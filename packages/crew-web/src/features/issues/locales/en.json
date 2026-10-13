@@ -372,6 +372,7 @@
       "interactionCreated": "The assistant asked a question",
       "interactionAnswered": "Answered the assistant",
       "cycleReset": "Reopened, new round started",
+      "ownerChangesRestart": "Owner requested changes: the resubmission restarts at the Reviewer",
       "docsUninitialized": "Repo has no docs setup; docs gate passed",
       "boardOverride": "Owner closed past the gates",
       "forceDone": "Forced Done"

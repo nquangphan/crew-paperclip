@@ -3,7 +3,15 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterAll, describe, expect, it, vi } from "vitest";
 import { TASK_WATCHDOG_PRODUCT_BUG_ORIGIN_KIND } from "@paperclipai/shared";
-import { crewBeforeIssueWrite, docsGateStages, evaluateIssueGate, pushGateStages, type IssueGateFacts } from "../crew/issue-gate.ts";
+import {
+  crewBeforeIssueWrite,
+  docsGateStages,
+  evaluateIssueGate,
+  ownerRestartStages,
+  pushGateStages,
+  restartAfterOwnerChanges,
+  type IssueGateFacts,
+} from "../crew/issue-gate.ts";
 import { normalizeIssueExecutionPolicy } from "../services/issue-execution-policy.ts";
 import { RECOVERY_ORIGIN_KINDS } from "../services/recovery/origins.ts";
 import { TASK_WATCHDOG_ORIGIN_KIND } from "../services/task-watchdog-scope.ts";
@@ -1059,5 +1067,49 @@ describe("evaluateIssueGate", () => {
         }),
       ),
     ).toMatchObject({ kind: "block", violations: ["policy_missing"] });
+  });
+});
+
+describe("owner yêu cầu sửa ở stage duyệt: issue gốc chạy lại từ stage đầu", () => {
+  const ownerP = { type: "user", agentId: null, userId: "owner-1" };
+  const integratorP = { type: "agent", agentId: INTEGRATOR, userId: null };
+  const changesAt = (policy: typeof root, stageId: string, participant: object, completedIds: string[]) => ({
+    ...pending(policy, stageId, participant, completedIds),
+    status: "changes_requested",
+    lastDecisionId: "66666666-6666-4666-8666-666666666666",
+    lastDecisionOutcome: "changes_requested",
+  });
+
+  it("stage chạy lại là stage approval đứng sau stage docs; research và việc con không có", () => {
+    expect(ownerRestartStages(root4).map((s) => s.id)).toEqual([r4Owner]);
+    expect(ownerRestartStages(root).map((s) => s.id)).toEqual([sOwner]);
+    expect(ownerRestartStages(buildCrewPolicy("research", roles, "owner-1"))).toEqual([]);
+    expect(ownerRestartStages(buildCrewPolicy("child", roles))).toEqual([]);
+    expect(ownerRestartStages(null)).toEqual([]);
+  });
+
+  it("yêu cầu sửa ở stage owner: xóa stage đã xong và stage hiện tại, giữ người yêu cầu, loại stage và quyết định", () => {
+    const locked = pending(root4, r4Owner, ownerP, [r4Review, r4Integrator]);
+    const next = changesAt(root4, r4Owner, ownerP, [r4Review, r4Integrator]);
+    expect(restartAfterOwnerChanges(root4, locked, next)).toEqual({
+      ...next,
+      currentStageId: null,
+      currentStageIndex: null,
+      completedStageIds: [],
+    });
+  });
+
+  it("không đụng yêu cầu sửa ở stage reviewer, integrator hay push, hay lệnh ghi không phải quyết định yêu cầu sửa", () => {
+    const atPush = pending(root4, r4Push, integratorP, [r4Review, r4Integrator, r4Owner]);
+    expect(restartAfterOwnerChanges(root4, atPush, changesAt(root4, r4Push, integratorP, [r4Review, r4Integrator, r4Owner]))).toBeNull();
+    const atIntegrator = pending(root4, r4Integrator, integratorP, [r4Review]);
+    expect(restartAfterOwnerChanges(root4, atIntegrator, changesAt(root4, r4Integrator, integratorP, [r4Review]))).toBeNull();
+    const atOwner = pending(root4, r4Owner, ownerP, [r4Review, r4Integrator]);
+    const approved = { ...pending(root4, r4Push, integratorP, [r4Review, r4Integrator, r4Owner]), lastDecisionOutcome: "approved" };
+    expect(restartAfterOwnerChanges(root4, atOwner, approved)).toBeNull();
+    // Đã ở trạng thái yêu cầu sửa (ví dụ issue đang dở từ trước khi có luật này): không đổi lại.
+    const stored = changesAt(root4, r4Owner, ownerP, [r4Review, r4Integrator]);
+    expect(restartAfterOwnerChanges(root4, stored, stored)).toBeNull();
+    expect(restartAfterOwnerChanges(root4, atOwner, null)).toBeNull();
   });
 });

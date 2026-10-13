@@ -11,6 +11,7 @@ import { formatDateTime, type Lang } from '@/i18n';
 export const FORCE_DONE_ACTION = 'crew.issue.force_done';
 export const BOARD_OVERRIDE_ACTION = 'crew.policy.board_override';
 const CYCLE_RESET_ACTION = 'crew.gate.cycle_reset';
+const OWNER_CHANGES_RESTART_ACTION = 'crew.gate.owner_changes_restart';
 const MERGE_WINDOW_MS = 5_000;
 const CLOSED = new Set(['done', 'cancelled']);
 
@@ -34,6 +35,7 @@ const ACTION_KEY: Record<string, string> = {
   'issue.thread_interaction_accepted': 'interactionAnswered',
   'issue.thread_interaction_rejected': 'interactionAnswered',
   [CYCLE_RESET_ACTION]: 'cycleReset',
+  [OWNER_CHANGES_RESTART_ACTION]: 'ownerChangesRestart',
   'crew.docs_gate.uninitialized': 'docsUninitialized',
   [BOARD_OVERRIDE_ACTION]: 'boardOverride',
   [FORCE_DONE_ACTION]: 'forceDone',

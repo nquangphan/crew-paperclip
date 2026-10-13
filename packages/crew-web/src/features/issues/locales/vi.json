@@ -372,6 +372,7 @@
       "interactionCreated": "Trợ Lý đặt câu hỏi",
       "interactionAnswered": "Trả lời câu hỏi của Trợ Lý",
       "cycleReset": "Mở lại, bắt đầu vòng mới",
+      "ownerChangesRestart": "Owner yêu cầu sửa: lần nộp lại chạy lại từ Reviewer",
       "docsUninitialized": "Repo chưa khởi tạo docs, cổng docs cho qua",
       "boardOverride": "Owner đóng vượt cổng",
       "forceDone": "Ép Done"
