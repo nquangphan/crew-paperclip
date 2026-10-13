@@ -8,12 +8,16 @@ import { afterEach, test } from "node:test";
 import assert from "node:assert/strict";
 import { fileURLToPath } from "node:url";
 import {
+  addWaiting,
   commentBody,
   jobEnv,
   mergeQueue,
   needsFullGates,
   parseConfig,
   parseDeployLog,
+  parsePrView,
+  PR_MAX_WAIT_MS,
+  PR_POLL_MS,
   plistFor,
   postCheckFailures,
   queueTarget,
@@ -82,6 +86,25 @@ test("queue keeps the newest commit as target and every issue", () => {
   assert.equal(queueTarget([], isAnc), null);
 });
 
+test("waiting pull requests survive queue updates; one entry per issue", () => {
+  const PR = "https://github.com/acme/app/pull/7";
+  let q = addWaiting({ target: null, issues: [] }, { issueId: I1, sha: A, pr: PR, at: "t1" });
+  q = addWaiting(q, { issueId: I1, sha: B, pr: PR, at: "t2" });
+  assert.deepEqual(q.waiting, [{ issueId: I1, sha: B, pr: PR, at: "t2" }]);
+  q = mergeQueue(q, { issueId: I2, sha: C, at: "t3" }, isAnc);
+  assert.equal(q.target, C);
+  assert.equal(q.waiting.length, 1, "mergeQueue keeps the waiting list");
+});
+
+test("gh pr view output: merged needs a merge commit, open and closed are plain states", () => {
+  assert.deepEqual(parsePrView(JSON.stringify({ state: "MERGED", mergeCommit: { oid: C }, baseRefName: "crew/v3.5" })), { state: "merged", sha: C, base: "crew/v3.5" });
+  assert.deepEqual(parsePrView(JSON.stringify({ state: "OPEN", mergeCommit: null })), { state: "open" });
+  assert.deepEqual(parsePrView(JSON.stringify({ state: "CLOSED", mergeCommit: null })), { state: "closed" });
+  assert.equal(parsePrView(JSON.stringify({ state: "MERGED", mergeCommit: null })).state, "error");
+  assert.equal(parsePrView("not json").state, "error");
+  assert.equal(parsePrView(JSON.stringify({ state: "DRAFT" })).state, "error");
+});
+
 test("only crew-web or docs changes skip the server gates", () => {
   assert.equal(needsFullGates(["packages/crew-web/src/a.tsx", "docs/x.md"]), false);
   assert.equal(needsFullGates(["packages/crew-web/src/a.tsx", "server/src/crew/x.ts"]), true);
@@ -105,7 +128,8 @@ test("deploy.sh output gives the rollback TS on success and on late failures", (
 test("comment first line is exactly the machine-readable line", () => {
   const body = commentBody({ sha: A, status: "rolled_back", lines: ["lý do"] });
   assert.equal(body.split("\n")[0], `crew-deploy sha=${A} status=rolled_back`);
-  assert.match(body.split("\n")[0], /^crew-deploy sha=[0-9a-f]{40} status=(queued|deployed|failed|rolled_back)$/);
+  assert.match(body.split("\n")[0], /^crew-deploy sha=[0-9a-f]{40} status=(queued|deployed|failed|rolled_back|cancelled)$/);
+  assert.equal(commentBody({ sha: A, status: "cancelled" }).split("\n")[0], `crew-deploy sha=${A} status=cancelled`);
   assert.throws(() => commentBody({ sha: "abc", status: "deployed" }));
   assert.throws(() => commentBody({ sha: A, status: "done" }));
 });
@@ -145,6 +169,7 @@ function world(opts = {}) {
     healthy: opts.healthy ?? true,
     mergeComments: opts.mergeComments ?? true,
     newManifest: opts.newManifest,
+    prViews: opts.prViews ?? [],
     calls: [],
     comments: [],
     logs: [],
@@ -167,6 +192,10 @@ function world(opts = {}) {
     appendHistory: () => {},
     sh: (cmd, args) => {
       w.calls.push([cmd, ...args].join(" "));
+      if (cmd === "gh") {
+        const v = w.prViews.length > 1 ? w.prViews.shift() : w.prViews[0];
+        return typeof v === "string" ? { code: 0, out: v, stdout: v } : v;
+      }
       if (cmd === "git") {
         const g = args.slice(1);
         if (g[0] === "merge-base") return { code: isAnc(g[2], g[3] === "origin/crew/v3.5" ? C : g[3]) ? 0 : 1, out: "" };
@@ -189,7 +218,11 @@ function world(opts = {}) {
       const [cmd, a1, a2, a3] = args;
       switch (cmd) {
         case "comments":
-          return { code: 0, out: w.mergeComments ? `agent-1\tcrew-merge sha=${w.queue.issues.find((i) => i.issueId === a1)?.sha} branch=crew/v3.5 pushed=yes\n` : "-\tcrew-merge sha=x\n" };
+        {
+          const i = w.queue.issues.find((x) => x.issueId === a1);
+          const line = i?.pr ? `crew-merge sha=${i.approvedSha} branch=crew/v3.5 pushed=pr pr=${i.pr}` : `crew-merge sha=${i?.sha} branch=crew/v3.5 pushed=yes`;
+          return { code: 0, out: w.mergeComments ? `agent-1\t${line}\n` : "-\tcrew-merge sha=x\n" };
+        }
         case "image":
           return { code: 0, out: w.images.has(a1) ? "present\n" : "absent\n" };
         case "build":
@@ -325,6 +358,61 @@ test("worker: new plugin capabilities stop the deploy for a manual look", () => 
   assert.ok(!w.calls.some((c) => c.startsWith("vps deploy")));
 });
 
+const PR = "https://github.com/acme/paperclip/pull/42";
+const view = (state, oid = null, base = "crew/v3.5") => JSON.stringify({ state, mergeCommit: oid ? { oid } : null, baseRefName: base });
+const waitingOn = (sha = A, at = "2026-10-12T08:00:00.000Z") => ({ target: null, issues: [], waiting: [{ issueId: I1, sha, pr: PR, at }] });
+
+test("worker: waits for the pull request, then deploys its merge commit and names the PR and approved commit", () => {
+  const { w, deps } = world({ queue: waitingOn(A), prViews: [view("OPEN"), view("OPEN"), view("MERGED", B)] });
+  workerLoop(JOB, deps);
+  const polls = w.calls.filter((c) => c.startsWith("gh pr view"));
+  assert.equal(polls.length, 3);
+  assert.equal(polls[0], `gh pr view ${PR} --json state,mergeCommit,baseRefName`);
+  assert.ok(w.time >= 2 * PR_POLL_MS, "polls are spaced by PR_POLL_MS");
+  assert.ok(w.calls.some((c) => c === `vps comments ${I1}`), "checks the integrator's pushed=pr line");
+  assert.equal(w.comments.length, 1);
+  assert.equal(first(w.comments[0]), `crew-deploy sha=${B} status=deployed`);
+  assert.match(w.comments[0].body, new RegExp(`Pull request ${PR} đã merge thành \`${B}\`; commit owner duyệt: \`${A}\``));
+  assert.equal(w.running, B);
+  assert.deepEqual(w.queue, { target: null, issues: [], waiting: [] });
+});
+
+test("worker: a pull request closed without merging ends with status=cancelled and no deploy", () => {
+  const { w, deps } = world({ queue: waitingOn(A), prViews: [view("OPEN"), view("CLOSED")] });
+  workerLoop(JOB, deps);
+  assert.equal(w.comments.length, 1);
+  assert.equal(first(w.comments[0]), `crew-deploy sha=${A} status=cancelled`);
+  assert.match(w.comments[0].body, /đã đóng mà không merge/);
+  assert.ok(!w.calls.some((c) => /^(corepack|vps deploy|vps build)/.test(c)));
+  assert.deepEqual(w.queue.waiting, []);
+});
+
+test("worker: a pull request still open after the maximum wait is reported failed; gh errors keep waiting", () => {
+  const { w, deps } = world({ queue: waitingOn(A), prViews: [{ code: 1, out: "HTTP 502" }, view("OPEN")] });
+  workerLoop(JOB, deps);
+  assert.equal(first(w.comments[0]), `crew-deploy sha=${A} status=failed`);
+  assert.match(w.comments[0].body, /chưa merge sau 72 giờ/);
+  const polls = w.calls.filter((c) => c.startsWith("gh pr view")).length;
+  assert.ok(polls >= PR_MAX_WAIT_MS / PR_POLL_MS && polls <= PR_MAX_WAIT_MS / PR_POLL_MS + 2, `polls ${polls}`);
+  assert.ok(!w.calls.some((c) => c.startsWith("corepack")));
+});
+
+test("worker: a pull request merged into another branch is not deployed", () => {
+  const { w, deps } = world({ queue: waitingOn(A), prViews: [view("MERGED", B, "main")] });
+  workerLoop(JOB, deps);
+  assert.equal(first(w.comments[0]), `crew-deploy sha=${A} status=failed`);
+  assert.match(w.comments[0].body, /không phải nhánh deploy `crew\/v3\.5`/);
+  assert.ok(!w.calls.some((c) => c.startsWith("corepack")));
+});
+
+test("worker: a merged pull request without the integrator's pushed=pr line is refused", () => {
+  const { w, deps } = world({ queue: waitingOn(A), prViews: [view("MERGED", B)], mergeComments: false });
+  workerLoop(JOB, deps);
+  assert.equal(first(w.comments[0]), `crew-deploy sha=${B} status=failed`);
+  assert.match(w.comments[0].body, /pushed=pr pr=<url>/);
+  assert.ok(!w.calls.some((c) => c.startsWith("corepack")));
+});
+
 test("worker dry-run: runs no gate, build, deploy or comment; prints the comment instead", () => {
   const { w, deps } = world({ queue: { target: A, issues: [{ issueId: I1, sha: A }] }, busy: 1 });
   workerLoop({ ...JOB, dryRun: true }, deps);
@@ -427,6 +515,27 @@ test("enqueue: refuses a commit that is not on origin/<branch> and says so in th
   assert.equal(body.split("\n")[0], `crew-deploy sha=${f.local} status=failed`);
   assert.match(body, /không nằm trên `origin\/crew\/v3\.5`/);
   assert.ok(!existsSync(f.log) || !/bootstrap/.test(readFileSync(f.log, "utf8")));
+});
+
+test("enqueue --pr: queues the approved commit as waiting for the pull request, even though it is not on the branch yet", () => {
+  const f = fixtureRepo();
+  const pr = "https://github.com/acme/paperclip/pull/9";
+  const r = f.enqueue(f.local, I1, ["--pr", pr]);
+  assert.equal(r.status, 0, r.stderr);
+  const body = JSON.parse(readFileSync(path.join(f.root, "body.json"), "utf8")).body;
+  assert.equal(body.split("\n")[0], `crew-deploy sha=${f.local} status=queued`);
+  assert.match(body, new RegExp(`Chưa deploy: job chờ pull request ${pr} được merge vào \`crew/v3\.5\``));
+  assert.match(body, /status=cancelled/);
+  const q = JSON.parse(readFileSync(path.join(f.home, ".crew/auto-deploy/paperclip/queue.json"), "utf8"));
+  assert.equal(q.target, null);
+  assert.deepEqual(q.issues, []);
+  assert.deepEqual(q.waiting.map((x) => [x.issueId, x.sha, x.pr]), [[I1, f.local, pr]]);
+  assert.match(readFileSync(f.log, "utf8"), /^bootstrap gui\/\d+ /m);
+  for (const bad of ["https://gitlab.com/a/b/pull/1", "https://github.com/a/b/pull/1;x", "nope"]) {
+    const refused = f.enqueue(f.two, I2, ["--pr", bad]);
+    assert.equal(refused.status, 1, bad);
+    assert.match(refused.stderr, /--pr phải là URL pull request GitHub/);
+  }
 });
 
 test("enqueue: repos without crew/release/auto-deploy.json are a silent no-op (exit 3, no body)", () => {

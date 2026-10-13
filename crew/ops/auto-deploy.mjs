@@ -1,13 +1,17 @@
 #!/usr/bin/env node
 // Auto-deploy after owner approval, for repos that opt in with crew/release/auto-deploy.json.
 //
-//   enqueue --issue <uuid> --sha <40 hex> [--repo <path>] [--body-out <file>] [--dry-run [--simulate-merge-ok]]
-//           [--max-wait-min <n>]
-//     Run by the integrator in its stage-4 run, after `crew-merge … pushed=yes`. Queues the commit, starts the worker
-//     under launchd when it is not running, and writes the `crew-deploy … status=queued` comment body (JSON) for the
-//     integrator to post with its own run token. Exit 0 queued, 3 not enabled, 1 refused/failed (body says why).
+//   enqueue --issue <uuid> --sha <40 hex> [--pr <GitHub pull request URL>] [--repo <path>] [--body-out <file>]
+//           [--dry-run [--simulate-merge-ok]] [--max-wait-min <n>]
+//     Run by the integrator in its stage-4 run, after `crew-merge … pushed=yes` (direct push: the commit is queued for
+//     deploy) or `crew-merge … pushed=pr pr=<url>` (pull request: the job waits for the owner to merge it, then deploys
+//     the merge commit). Starts the worker under launchd when it is not running, and writes the
+//     `crew-deploy … status=queued` comment body (JSON) for the integrator to post with its own run token.
+//     Exit 0 queued, 3 not enabled, 1 refused/failed (body says why).
 //   worker --state-dir <dir>
 //     Run by launchd only. Deploys the newest queued commit, reports on every covered issue, repeats, then exits.
+//     Pull requests still open are polled with `gh pr view` every PR_POLL_MS for at most PR_MAX_WAIT_MS: merged into
+//     the configured branch -> its merge commit is queued; closed unmerged -> `status=cancelled`; too old -> `failed`.
 //   status [--repo-key <key>] [--dry-run]
 //     Prints the worker status file.
 //
@@ -39,8 +43,11 @@ import { fileURLToPath } from "node:url";
 export const CONFIG_PATH = "crew/release/auto-deploy.json";
 export const SHA_RE = /^[0-9a-f]{40}$/;
 export const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-export const STATUSES = ["queued", "deployed", "failed", "rolled_back"];
+export const PR_URL_RE = /^https:\/\/github\.com\/[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+\/pull\/[1-9][0-9]*$/;
+export const STATUSES = ["queued", "deployed", "failed", "rolled_back", "cancelled"];
 const MIN = 60_000;
+export const PR_POLL_MS = 5 * MIN;
+export const PR_MAX_WAIT_MS = 72 * 60 * MIN;
 
 // ---------------------------------------------------------------------------------------------------------------
 // Pure helpers (unit-tested)
@@ -80,11 +87,38 @@ export const expandHome = (p, home) => (p.startsWith("~/") ? path.join(home, p.s
  */
 export function mergeQueue(queue, entry, isAncestor) {
   const issues = queue?.issues ?? [];
-  if (issues.some((i) => i.issueId === entry.issueId && i.sha === entry.sha)) return { target: queue.target, issues };
+  if (issues.some((i) => i.issueId === entry.issueId && i.sha === entry.sha)) return { ...queue, target: queue.target, issues };
   const next = [...issues.filter((i) => i.issueId !== entry.issueId), entry];
   let target = queue?.target ?? null;
   if (!target || !isAncestor(entry.sha, target)) target = entry.sha;
-  return { target, issues: next };
+  return { ...(queue ?? {}), target, issues: next };
+}
+
+/** Adds (or replaces, per issue) a pull request the worker waits on before it can deploy anything for that issue. */
+export function addWaiting(queue, entry) {
+  const waiting = (queue?.waiting ?? []).filter((w) => w.issueId !== entry.issueId);
+  return { target: queue?.target ?? null, issues: queue?.issues ?? [], ...(queue ?? {}), waiting: [...waiting, entry] };
+}
+
+/**
+ * Reads `gh pr view --json state,mergeCommit,baseRefName`. Returns {state:"merged", sha, base} | {state:"closed"} |
+ * {state:"open"} | {state:"error", reason}.
+ */
+export function parsePrView(text) {
+  let j;
+  try {
+    j = JSON.parse(text);
+  } catch {
+    return { state: "error", reason: "gh pr view không trả JSON" };
+  }
+  if (j?.state === "OPEN") return { state: "open" };
+  if (j?.state === "CLOSED") return { state: "closed" };
+  if (j?.state === "MERGED") {
+    const sha = j.mergeCommit?.oid;
+    if (typeof sha !== "string" || !SHA_RE.test(sha)) return { state: "error", reason: "PR đã merge nhưng thiếu mergeCommit.oid" };
+    return { state: "merged", sha, base: typeof j.baseRefName === "string" ? j.baseRefName : null };
+  }
+  return { state: "error", reason: `state lạ: ${String(j?.state)}` };
 }
 
 /** Target recomputed from scratch, e.g. after dropping issues. */
@@ -320,6 +354,8 @@ export function enqueue(argv, env = process.env) {
   const result = (code, status, lines, extra = {}) => ({ code, sha, body: status ? commentBody({ sha, status, lines }) : null, ...extra });
   if (!SHA_RE.test(sha)) return { code: 1, sha, body: null, error: "--sha phải là 40 hex" };
   if (!UUID_RE.test(issueId)) return { code: 1, sha, body: null, error: "--issue phải là uuid" };
+  const pr = a.pr ?? null;
+  if (pr !== null && !PR_URL_RE.test(pr)) return { code: 1, sha, body: null, error: "--pr phải là URL pull request GitHub" };
   if (a["simulate-merge-ok"] && !dryRun) return { code: 1, sha, body: null, error: "--simulate-merge-ok chỉ dùng với --dry-run" };
 
   const raw = git(repo, ["show", `${sha}:${CONFIG_PATH}`]);
@@ -337,10 +373,13 @@ export function enqueue(argv, env = process.env) {
     cfg.maxWaitMinutes = m;
   }
 
-  const fetch = git(repo, ["fetch", "-q", "origin", cfg.branch], { timeout: 2 * MIN });
-  if (fetch.code !== 0) return result(1, "failed", [`Không xếp hàng deploy: \`git fetch origin ${cfg.branch}\` lỗi (rc ${fetch.code}).`]);
-  if (git(repo, ["merge-base", "--is-ancestor", sha, `origin/${cfg.branch}`]).code !== 0)
-    return result(1, "failed", [`Không xếp hàng deploy: ${sha} không nằm trên \`origin/${cfg.branch}\`.`]);
+  // A pull request is not merged yet: the worker checks the merge commit once GitHub reports it.
+  if (pr === null) {
+    const fetch = git(repo, ["fetch", "-q", "origin", cfg.branch], { timeout: 2 * MIN });
+    if (fetch.code !== 0) return result(1, "failed", [`Không xếp hàng deploy: \`git fetch origin ${cfg.branch}\` lỗi (rc ${fetch.code}).`]);
+    if (git(repo, ["merge-base", "--is-ancestor", sha, `origin/${cfg.branch}`]).code !== 0)
+      return result(1, "failed", [`Không xếp hàng deploy: ${sha} không nằm trên \`origin/${cfg.branch}\`.`]);
+  }
   const commonDir = git(repo, ["rev-parse", "--path-format=absolute", "--git-common-dir"]);
   if (commonDir.code !== 0) return result(1, "failed", ["Không xếp hàng deploy: không đọc được thư mục git của repo."]);
 
@@ -353,7 +392,9 @@ export function enqueue(argv, env = process.env) {
   let started = false;
   try {
     withLock(stateDir, () => {
-      const queue = mergeQueue(readJson(path.join(stateDir, "queue.json"), { target: null, issues: [] }), { issueId, sha, at: new Date().toISOString() }, isAncestor);
+      const current = readJson(path.join(stateDir, "queue.json"), { target: null, issues: [] });
+      const at = new Date().toISOString();
+      const queue = pr === null ? mergeQueue(current, { issueId, sha, at }, isAncestor) : addWaiting(current, { issueId, sha, pr, at });
       writeJson(path.join(stateDir, "queue.json"), queue);
       // A live worker re-reads the queue before it exits (under this same lock), unless it already said it is exiting.
       const status = readJson(path.join(stateDir, "status.json"), {});
@@ -382,9 +423,17 @@ export function enqueue(argv, env = process.env) {
   } catch (e) {
     return result(1, "failed", [`Không xếp hàng deploy: ${e.message}.`]);
   }
+  const job = `Job chạy riêng trên Mac mini (launchd \`${label}\`, ${started ? "vừa khởi động" : "đang chạy, sẽ lấy yêu cầu này"})`;
+  const pipeline = `kiểm (test/typecheck/biome; thêm verify.sh khi đổi server), build image, chờ hết run đang chạy (tối đa ${cfg.maxWaitMinutes} phút), deploy, kiểm sau deploy (tự rollback nếu xấu) rồi báo kết quả tại đây.`;
   const lines = [
     `Đã xếp hàng deploy tự động lên prod (${cfg.publicUrl}) lúc ${vnTime(new Date())}${dryRun ? " — CHẠY THỬ (dry-run), không deploy thật" : ""}.`,
-    `Job chạy riêng trên Mac mini (launchd \`${label}\`, ${started ? "vừa khởi động" : "đang chạy, sẽ lấy commit này"}): kiểm (test/typecheck/biome; thêm verify.sh khi đổi server), build image \`crew-v3/paperclip:v3-${sha.slice(0, 9)}\`, chờ hết run đang chạy (tối đa ${cfg.maxWaitMinutes} phút), deploy, kiểm sau deploy (tự rollback nếu xấu) rồi báo kết quả tại đây.`,
+    ...(pr === null
+      ? [`${job}: ${pipeline.replace("build image", `build image \`crew-v3/paperclip:v3-${sha.slice(0, 9)}\``)}`]
+      : [
+          `Chưa deploy: job chờ pull request ${pr} được merge vào \`${cfg.branch}\` (hỏi GitHub mỗi ${PR_POLL_MS / MIN} phút, tối đa ${PR_MAX_WAIT_MS / 60 / MIN} giờ).`,
+          `${job}: khi PR đã merge thì deploy đúng merge commit trên \`${cfg.branch}\`: ${pipeline}`,
+          `PR đóng mà không merge thì job dừng với \`status=cancelled\`; quá ${PR_MAX_WAIT_MS / 60 / MIN} giờ chưa merge thì báo \`status=failed\`.`,
+        ]),
     "Có commit mới hơn được duyệt trong lúc chờ thì chỉ deploy bản mới nhất một lần.",
   ];
   return result(0, "queued", lines, { stateDir, label, started });
@@ -424,7 +473,10 @@ export function workerLoop(job, deps) {
   /** Posts (or, in dry-run, prints) one comment per issue. Never throws. */
   const report = (issues, sha, status, lines) => {
     for (const issue of issues) {
-      const own = issue.sha === sha ? [] : ["", `Commit được duyệt của yêu cầu này: \`${issue.sha}\` (nằm trong bản trên).`];
+      const own = [];
+      if (issue.sha !== sha) own.push("", `Commit được duyệt của yêu cầu này: \`${issue.sha}\` (nằm trong bản trên).`);
+      if (issue.pr && issue.approvedSha)
+        own.push("", `Pull request ${issue.pr} đã merge thành \`${issue.sha}\`; commit owner duyệt: \`${issue.approvedSha}\`.`);
       const body = commentBody({ sha, status, lines: [...lines, ...own] });
       if (dry) {
         deps.log(`DRY-RUN: sẽ comment lên issue ${issue.issueId}:\n${body}\n--- hết comment ---`);
@@ -436,23 +488,75 @@ export function workerLoop(job, deps) {
     deps.appendHistory({ at: deps.now().toISOString(), sha, status, issues: issues.map((i) => i.issueId), dryRun: dry });
   };
 
+  /** Pull requests the integrator opened: ask GitHub, queue the merged ones, end the closed and too-old ones. */
+  let lastPrPoll = null;
+  const pollPullRequests = () => {
+    const waiting = deps.readQueue().waiting ?? [];
+    if (waiting.length === 0) return;
+    if (lastPrPoll !== null && deps.now().getTime() - lastPrPoll < PR_POLL_MS) return;
+    lastPrPoll = deps.now().getTime();
+    const outcomes = waiting.map((entry) => {
+      const r = deps.sh("gh", ["pr", "view", entry.pr, "--json", "state,mergeCommit,baseRefName"], { timeout: 2 * MIN });
+      const view = r.code === 0 ? parsePrView(r.stdout ?? r.out) : { state: "error", reason: `gh pr view lỗi (rc ${r.code}): ${tail(redact(r.out), 2).replaceAll("\n", " | ")}` };
+      if (view.state === "error") deps.log(`PR ${entry.pr}: ${view.reason}`);
+      const age = deps.now().getTime() - new Date(entry.at).getTime();
+      return { entry, view, expired: !(age < PR_MAX_WAIT_MS) };
+    });
+    if (outcomes.some((o) => o.view.state === "merged")) gitDir(["fetch", "-q", "origin", cfg.branch], { timeout: 5 * MIN });
+    const finished = [];
+    deps.withLock(() => {
+      let q = deps.readQueue();
+      for (const o of outcomes) {
+        const { entry, view } = o;
+        const still = (q.waiting ?? []).some((w) => w.issueId === entry.issueId && w.pr === entry.pr && w.sha === entry.sha);
+        if (!still) continue; // replaced by a newer enqueue in the meantime
+        let end = null;
+        if (view.state === "merged" && view.base === cfg.branch) {
+          q = mergeQueue(q, { issueId: entry.issueId, sha: view.sha, approvedSha: entry.sha, pr: entry.pr, at: deps.now().toISOString() }, isAncestor);
+          deps.log(`PR ${entry.pr} đã merge: xếp hàng ${view.sha.slice(0, 9)}`);
+        } else if (view.state === "merged")
+          end = ["failed", [`Pull request ${entry.pr} được merge vào \`${view.base ?? "?"}\`, không phải nhánh deploy \`${cfg.branch}\`: không deploy.`]];
+        else if (view.state === "closed") end = ["cancelled", [`Pull request ${entry.pr} đã đóng mà không merge: không deploy.`]];
+        else if (o.expired)
+          end = ["failed", [
+            `Pull request ${entry.pr} chưa merge sau ${PR_MAX_WAIT_MS / 60 / MIN} giờ: job thôi chờ, không deploy.`,
+            ...(view.state === "error" ? [`Lần hỏi GitHub cuối lỗi: ${view.reason}.`] : []),
+            "Merge sau thời điểm này thì foreman deploy tay.",
+          ]];
+        else continue;
+        if (end) finished.push({ entry, status: end[0], lines: end[1] });
+        q = { ...q, waiting: (q.waiting ?? []).filter((w) => !(w.issueId === entry.issueId && w.pr === entry.pr && w.sha === entry.sha)) };
+      }
+      deps.writeQueue(q);
+    });
+    for (const f of finished) report([{ issueId: f.entry.issueId, sha: f.entry.sha }], f.entry.sha, f.status, [...f.lines, "Prod giữ nguyên bản đang chạy."]);
+  };
+
   for (;;) {
+    pollPullRequests();
     const batch = deps.withLock(() => {
       const q = deps.readQueue();
-      if (!q.target || q.issues.length === 0) {
-        deps.setStatus({ state: "exiting", step: "idle", message: "hàng đợi trống" });
-        return null;
+      if (q.target && q.issues.length > 0) return q;
+      const waiting = q.waiting ?? [];
+      if (waiting.length > 0) {
+        deps.setStatus({ state: "waiting", step: "chờ PR merge", message: waiting.map((w) => w.pr).join(" ") });
+        return "wait";
       }
-      return q;
+      deps.setStatus({ state: "exiting", step: "idle", message: "hàng đợi trống" });
+      return null;
     });
     if (!batch) return;
+    if (batch === "wait") {
+      deps.sleep(Math.max(1000, PR_POLL_MS - (deps.now().getTime() - lastPrPoll)));
+      continue;
+    }
     const sha = batch.target;
     const covered = batch.issues.filter((i) => isAncestor(i.sha, sha));
     const drop = (issues) =>
       deps.withLock(() => {
         const q = deps.readQueue();
         const left = q.issues.filter((i) => !issues.some((d) => d.issueId === i.issueId && d.sha === i.sha));
-        deps.writeQueue({ target: queueTarget(left, isAncestor), issues: left });
+        deps.writeQueue({ ...q, target: queueTarget(left, isAncestor), issues: left });
       });
     const fail = (issues, reason, extra = []) => {
       deps.log(`THẤT BẠI ${sha.slice(0, 9)}: ${reason}`);
@@ -481,7 +585,9 @@ export function workerLoop(job, deps) {
           continue;
         }
         const r = deps.vps(["comments", issue.issueId], 2 * MIN);
-        const want = `crew-merge sha=${issue.sha} branch=${cfg.branch} pushed=yes`;
+        const want = issue.pr
+          ? `crew-merge sha=${issue.approvedSha} branch=${cfg.branch} pushed=pr pr=${issue.pr}`
+          : `crew-merge sha=${issue.sha} branch=${cfg.branch} pushed=yes`;
         const ok = r.code === 0 && r.out.split("\n").some((l) => {
           const [author, first] = l.split("\t");
           return author && author !== "-" && first === want;
@@ -489,7 +595,7 @@ export function workerLoop(job, deps) {
         if (!ok) unverified.push(issue);
       }
       if (unverified.length > 0) {
-        fail(unverified, `không thấy comment \`crew-merge sha=<sha> branch=${cfg.branch} pushed=yes\` của agent trên issue (hoặc không đọc được comment).`);
+        fail(unverified, `không thấy comment \`crew-merge sha=<sha> branch=${cfg.branch} pushed=yes\` (hoặc \`pushed=pr pr=<url>\` khớp pull request) của agent trên issue (hoặc không đọc được comment).`);
         if (unverified.length === issues.length) return;
         throw new Superseded(sha); // re-plan with the verified issues only
       }
