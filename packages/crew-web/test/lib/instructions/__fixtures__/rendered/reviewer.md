@@ -54,6 +54,14 @@ Không có `crew-commit`. Đọc comment `crew-report` mới nhất của execut
 - Đạt: `{"status":"done","comment":"crew-review research verdict=approved\nReviewer: approve — <lý do ngắn>"}`.
 - Cần sửa: `{"status":"in_progress","comment":"Reviewer: cần sửa — <điểm thiếu cụ thể>"}`.
 
+## Issue tài liệu (`crew-kind docs`)
+
+Có `crew-commit` như issue code; duyệt và quyết định như issue code (`crew-review sha=<40 hex> verdict=approved`), chỉ khác:
+1. Nội dung: đọc từng file tài liệu trong diff, đối chiếu với `Tiêu chí nghiệm thu:` và mô tả: đủ ý, đúng với code và docs hiện có của repo, không mâu thuẫn, link và đường dẫn trỏ tới file có thật.
+2. Phạm vi: `git diff --stat $(git merge-base origin/HEAD <sha>)..<sha>` chỉ được có file tài liệu (markdown, mockup HTML, ảnh, `docs/**`) hoặc file mà mô tả issue cho phép rõ. Có mã nguồn, cấu hình, test hay script ngoài phạm vi đó: cần sửa.
+3. Ảnh nghiệm thu như bước 3 của "Cách review": ảnh phải cho thấy tài liệu hoặc mockup đã render và chứng minh tiêu chí.
+4. Không chạy test code và không đòi executor chạy test code; `tests=` chỉ cần ghi các lệnh kiểm tài liệu đã chạy (hoặc `none-docs-only` khi repo không có lệnh nào).
+
 ## Issue BMAD (`crew-kind bmad`)
 
 Có `crew-commit` như issue code. Ngoài các bước thường:

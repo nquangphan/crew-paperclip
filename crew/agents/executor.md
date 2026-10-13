@@ -37,7 +37,7 @@ Mọi `GET/POST/PATCH/PUT /api/…` bên dưới dùng đúng mẫu này (commen
 
 ## Trước khi làm
 
-1. Đọc issue, mô tả và toàn bộ comment. Với issue Crew, tiêu chí nghiệm thu nằm cuối `description` dưới heading `Tiêu chí nghiệm thu:`; coi mỗi dòng `- <tiêu chí>` là một điều kiện phải kiểm. Issue research theo mục riêng bên dưới, không tạo nhánh. Với issue code, **nhánh trước tiên**, trước khi sửa bất cứ file nào: `git fetch origin`, rồi chọn nền theo thứ tự: dòng `crew-fix base=<40 hex>` thì dùng `<base>`; dòng `crew-stack on=<identifier>` thì xác minh SHA theo mục "Chọn SHA nền crew-stack"; không có dòng nào thì dùng `origin/HEAD`. Tạo nhánh bằng `git switch -c crew/<identifier> <sha đã duyệt của issue đó>` khi có `crew-stack`, bằng `git switch -c crew/<identifier> <base>` khi có `crew-fix`, hoặc bằng `git switch -c crew/<identifier> origin/HEAD` khi không có marker nền. Nhánh đã có thì `git switch crew/<identifier>`. Kiểm `git branch --show-current` in đúng `crew/<identifier>`.
+1. Đọc issue, mô tả và toàn bộ comment. Với issue Crew, tiêu chí nghiệm thu nằm cuối `description` dưới heading `Tiêu chí nghiệm thu:`; coi mỗi dòng `- <tiêu chí>` là một điều kiện phải kiểm. Issue research theo mục riêng bên dưới, không tạo nhánh. Với issue code (kể cả issue tài liệu `crew-kind docs`), **nhánh trước tiên**, trước khi sửa bất cứ file nào: `git fetch origin`, rồi chọn nền theo thứ tự: dòng `crew-fix base=<40 hex>` thì dùng `<base>`; dòng `crew-stack on=<identifier>` thì xác minh SHA theo mục "Chọn SHA nền crew-stack"; không có dòng nào thì dùng `origin/HEAD`. Tạo nhánh bằng `git switch -c crew/<identifier> <sha đã duyệt của issue đó>` khi có `crew-stack`, bằng `git switch -c crew/<identifier> <base>` khi có `crew-fix`, hoặc bằng `git switch -c crew/<identifier> origin/HEAD` khi không có marker nền. Nhánh đã có thì `git switch crew/<identifier>`. Kiểm `git branch --show-current` in đúng `crew/<identifier>`.
 2. Comment bắt đầu bằng `Crew: lần chạy lại sau run …` nghĩa là run trước của bạn đã dừng giữa chừng sau khi commit. Chạy `git show --stat <sha>` cho từng commit được liệt kê, bỏ commit không thuộc issue này (danh sách quét mọi nhánh local), giữ phần đã đúng, chỉ làm phần còn thiếu. Không làm lại, không commit trùng nội dung. Comment ghi "danh sách bị cắt" thì chạy thêm `git log --branches HEAD` để thấy đủ. Comment bắt đầu bằng `Crew: chuyển runtime sau run …` xử lý như comment `Crew: lần chạy lại sau run …`: run trước do executor khác (runtime khác, worktree khác) làm và đã dừng vì hết quota, mất đăng nhập hay runtime bị tắt; nay issue giao cho bạn. Nhánh và commit của run trước được giữ, nên `git fetch origin` rồi `git switch crew/<identifier>` (nhánh đã có), kiểm commit được liệt kê như trên và chỉ làm phần còn thiếu. Session của runtime cũ không mang sang: đọc lại issue, comment và diff của nhánh. Comment `Crew: chuyển từ …` chỉ để biết, không cần trả lời.
 3. Comment `Reviewer: cần sửa` là vòng sửa: chỉ sửa đúng các điểm được nêu. Việc integrator cần sửa trên issue gốc đến dưới dạng issue con mới giao cho bạn (mô tả nêu điểm cần sửa): làm như mọi issue con, báo `crew-commit` rồi `done` để qua reviewer; đừng sửa thẳng trên issue gốc khi nó đang ở tay integrator. Comment `Integrator: chưa push được …` là việc của owner, không cần bạn làm gì.
 4. Thấy thông báo `crew-workflow blocked` hoặc `crew-workflow warn:` trong log hoặc comment: làm đúng điều được nêu rồi mới tiếp.
@@ -53,7 +53,7 @@ Trước khi sửa file, comment trên B một dòng `crew-stack-base sha=<40 he
 
 ## Cách làm
 
-- Dùng skill `superpowers:test-driven-development` cho mọi thay đổi code (test thất bại trước, rồi code), `superpowers:systematic-debugging` khi lỗi chưa rõ nguyên nhân, `superpowers:verification-before-completion` trước khi báo xong. Issue đã có plan thì làm theo plan, không brainstorm lại.
+- Dùng skill `superpowers:test-driven-development` cho mọi thay đổi code (test thất bại trước, rồi code; issue tài liệu theo mục riêng bên dưới), `superpowers:systematic-debugging` khi lỗi chưa rõ nguyên nhân, `superpowers:verification-before-completion` trước khi báo xong. Issue đã có plan thì làm theo plan, không brainstorm lại.
 - Mô tả issue có dòng `crew-fix base=<40 hex>` là issue sửa lỗi trên code đã có: tạo nhánh từ đúng `base` (`git switch -c crew/<identifier> <base>`), không từ `origin/HEAD`, rồi chỉ sửa điểm được nêu. `crew-commit` của bạn ghi sha mới như thường.
 - **Chỉ chạy test liên quan, không bao giờ chạy full suite** (cả unit lẫn E2E): test của file/module bạn đổi, test mới cho tiêu chí nghiệm thu, typecheck/lint của package bị đổi. E2E chỉ chạy đúng spec phủ phần bạn đổi, lọc bằng tên file hoặc `--grep`; không có spec liên quan thì không chạy E2E. Ghi đúng các lệnh đã chạy vào `tests=` của `crew-commit`.
 - Hook git chặn commit (ví dụ `crew-docs check --staged`): sửa đúng điều hook yêu cầu. Không dùng `--no-verify` (không có ngoại lệ).
@@ -63,6 +63,15 @@ Trước khi sửa file, comment trên B một dòng `crew-stack-base sha=<40 he
 ## Issue research (`crew-kind research`)
 
 Mô tả có dòng `crew-kind research`: không tạo nhánh, không sửa file, không commit. Đọc docs và code cần thiết, dùng `superpowers:brainstorming` để so các phương án, rồi viết một comment, **dòng đầu** đúng `crew-report`, sau đó: câu hỏi được giao, các phương án, đề xuất và lý do, nguồn (`file:dòng`, lệnh đã chạy). Rồi `PATCH /api/issues/<id>` với `{"status":"done","comment":"Executor: xong báo cáo research, chờ review."}`. Không đăng `crew-commit` cho issue research.
+
+## Issue tài liệu (`crew-kind docs`)
+
+Mô tả có dòng `crew-kind docs`: đầu ra là file tài liệu trong repo (markdown, spec, mockup HTML, ảnh). Làm như issue code ở các bước nhánh, commit, `crew-commit`, ảnh nghiệm thu và báo xong, chỉ khác:
+
+- Không dùng `superpowers:test-driven-development`, không viết test code, không chạy test code (unit, E2E, typecheck, build).
+- Chỉ tạo hoặc sửa file tài liệu. Không sửa mã nguồn, cấu hình, test hay script, trừ khi mô tả issue ghi rõ file đó.
+- Chỉ chạy kiểm tra liên quan tới tài liệu mà repo có sẵn: hook docs/lint chạy khi commit, lệnh lint markdown và kiểm link của repo (nếu có), và `crew-docs check` khi repo có `docs/flows.yaml` (`node "$(git config --get crew-docs.bundle)" check --staged` trước commit). Không bịa lệnh repo không có. Ghi đúng các lệnh đã chạy vào `tests=` của `crew-commit`; repo không có lệnh kiểm nào thì ghi `tests=none-docs-only`.
+- Ảnh nghiệm thu vẫn bắt buộc: mở tài liệu hoặc mockup chính đã viết (render markdown thành HTML, mở file mockup) bằng Playwright, chụp PNG phần chứng minh từng `Tiêu chí nghiệm thu:`, rồi đính kèm như mục "Ảnh nghiệm thu". Ảnh là nội dung của issue (ví dụ ảnh minh họa trong docs) thì commit vào repo như mọi file tài liệu.
 
 ## Giữ worktree sạch cho lần chạy sau
 
@@ -82,7 +91,7 @@ Mục này áp dụng khi bạn chạy bằng Codex (`codex_local`) hay OpenCode
 
 ## Ảnh nghiệm thu (bắt buộc với issue code)
 
-Issue code nào cũng phải có ảnh nghiệm thu đính kèm vào chính issue trước khi báo xong (issue research không cần).
+Issue code nào cũng phải có ảnh nghiệm thu đính kèm vào chính issue trước khi báo xong (issue tài liệu cũng vậy; issue research không cần).
 
 - Chụp kết quả chạy thật của code mới, đủ để owner nhìn là thấy từng `Tiêu chí nghiệm thu:` đã đạt: thay đổi có giao diện (web, app, simulator) thì chụp đúng màn hình/trạng thái đó, kể cả cỡ điện thoại nếu giao diện có bản điện thoại; thay đổi không có giao diện (API, script, logic) thì chụp kết quả chạy thật (output test liên quan, response API, log lệnh), ví dụ ghi output ra một trang HTML rồi chụp PNG bằng Playwright.
 - Chạy với môi trường local/dev của repo. Không bao giờ trỏ vào prod để chụp ảnh. Ảnh không được lộ credential, token hay dữ liệu cá nhân thật.

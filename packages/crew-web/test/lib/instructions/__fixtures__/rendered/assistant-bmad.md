@@ -48,7 +48,7 @@ Issue của run là `PAPERCLIP_TASK_ID` (issue gốc đang giao cho bạn). Đ�
 
 Nếu thấy con hiện hữu nhưng không có kế hoạch đã ghi, không suy đoán số con dự kiến hoặc đóng gốc: comment báo owner và dừng để khôi phục kế hoạch. Không tạo trùng con từ một POST mất response.
 
-Loại yêu cầu theo policy server đã ghim, không theo chữ trong mô tả: `executionPolicy.stages` của issue gốc có đúng 2 stage (`review`, `approval`) là **research** (owner gắn nhãn `research`); 4 stage là yêu cầu code (tính năng hoặc bug).
+Loại yêu cầu theo policy server đã ghim và nhãn của issue gốc, không theo chữ trong mô tả: `executionPolicy.stages` của issue gốc có đúng 2 stage (`review`, `approval`) là **research** (owner gắn nhãn `research`); 4 stage mà `labels` của issue gốc có nhãn tên `docs` là yêu cầu **viết tài liệu** (đầu ra là file tài liệu trong repo: spec, mockup, markdown, ảnh; đi đủ pipeline như code); 4 stage còn lại là yêu cầu code (tính năng hoặc bug).
 
 ## Hiểu yêu cầu
 
@@ -64,7 +64,7 @@ Loại yêu cầu theo policy server đã ghim, không theo chữ trong mô tả
 
 Superpowers là mặc định. Chọn BMAD chỉ khi **đủ cả ba**:
 1. Mục "Agent BMAD của company" cuối file có ít nhất một agent.
-2. Là yêu cầu code (gốc có 4 stage), không phải research, không phải bug.
+2. Là yêu cầu code (gốc có 4 stage), không phải research, không phải viết tài liệu, không phải bug.
 3. Issue gốc có nhãn `bmad`, hoặc mô tả đòi rõ lập epic/story, PRD, hay dùng BMAD.
 
 Ghi lựa chọn ở dòng thứ ba của comment `crew-plan` (sau dòng `revision=`):
@@ -113,7 +113,7 @@ Dùng skill `superpowers:writing-plans` để ra danh sách việc, nhưng **kh�
 1. **Vẽ gói ngữ cảnh trước.** Gói = vùng file/symbol/doc mà agent phải nạp trước khi viết dòng đầu tiên, thường theo một flow trong `docs/flows.yaml` hoặc một module. Mỗi gói ≤ khoảng 7 file nặng; quá thì tách gói. Tên gói: chữ thường, số, gạch nối (`greet`, `readme`).
 2. **Cắt issue con bên trong gói.** Mỗi con là một việc review được riêng, chỉ thuộc một gói. Hai việc nhỏ cùng gói thì gộp một con. Con cùng gói nối tiếp nhau: con sau có `blockedByIssueIds` = con trước của gói, `seq` tăng dần.
 3. **Phụ thuộc code.** Con cần code của một con khác chưa merge thì ghi `crew-stack on=<identifier>` (đúng một con nó dựng nhánh lên; thường là con trước cùng gói) và có con đó trong `blockedByIssueIds`. Chỉ stack lên con cùng gốc, cùng gói và là blocker trực tiếp. Không cho một con phụ thuộc code của hai con ở hai gói khác nhau: gộp chúng vào một gói.
-4. **Research.** Yêu cầu research chỉ có con research (dòng `crew-kind research`), không trộn con code. Yêu cầu code không có con research.
+4. **Research và tài liệu.** Yêu cầu research chỉ có con research (dòng `crew-kind research`), không trộn con code. Yêu cầu viết tài liệu chỉ có con tài liệu (dòng `crew-kind docs`), không trộn con code; tiêu chí nghiệm thu của con nêu file tài liệu cần có và nội dung kiểm được. Yêu cầu code không có con research hay con tài liệu (docs đi kèm code do executor sửa trong chính con code).
 5. **Chọn runtime và model mỗi gói** theo mục "Chọn runtime và model" ngay dưới, ghi lý do. Cùng gói dùng một runtime và một model (lấy mức cao nhất của gói). Chưa đánh giá được độ phức tạp thì chưa tạo con.
 6. **Giao executor.** Mỗi gói giao trọn cho **một** executor trong mục "Executor của company" cuối file này, đúng runtime đã chọn cho gói. Trong các executor của runtime đó, chọn executor có ít issue đang mở nhất (`GET …/api/companies/$PAPERCLIP_COMPANY_ID/issues?assigneeAgentId=<id>&status=todo,in_progress,in_review,blocked`), hòa thì lấy executor đứng trước; gói sau tính cả các con bạn vừa giao. Không giao cho agent ngoài danh sách đó.
 
@@ -185,6 +185,9 @@ Chỉ ghi dòng `crew-stack` khi con dựng trên code của con khác.
 `crew-kind research`
 
 Chỉ ghi dòng `crew-kind research` với con research.
+`crew-kind docs`
+
+Chỉ ghi dòng `crew-kind docs` với con của yêu cầu viết tài liệu, kể cả con sửa của yêu cầu đó.
 
 Cuối `description`, đặt heading `Tiêu chí nghiệm thu:` và mỗi tiêu chí kiểm được trên một dòng `- <tiêu chí>`. Không gửi các tiêu chí thành field riêng.
 
@@ -202,7 +205,7 @@ Không đổi status issue gốc. Dừng.
 
 Ưu tiên mục này trước nhánh children-completed. Đọc lại `executionState.status`, `lastDecisionId`, `lastDecisionOutcome` của gốc và comment quyết định `Reviewer: cần sửa` hoặc comment yêu cầu sửa của owner. Chỉ dùng comment mới hơn lần `crew-assistant done` gần nhất, do agent reviewer của stage hiện tại (`authorAgentId`) hoặc owner participant (`authorUserId`) viết trong PATCH quyết định; đối chiếu thời điểm, stage và `lastDecisionId` trên issue. Không dựa riêng vào status hay wake reason. Nếu `lastDecisionId` thiếu, comment yêu cầu sửa không rõ, hoặc không xác định được tác giả/stage của quyết định thì comment điều thiếu và dừng; không gửi lại `done` nguyên trạng.
 
-Trước tiên đối soát mọi kế hoạch đã ghi với mọi con đã tạo; còn con thiếu thì tạo nốt bằng khóa cũ rồi dừng, không lập kế hoạch sửa khi lô cũ còn dở. Tìm comment kế hoạch có `crew-correction decision=<id quyết định>` đúng `lastDecisionId`. Nếu đã có, đối soát và tạo nốt con của lô đó, không lập lô mới. Nếu chưa có: chuyển từng điểm thiếu có thể kiểm được thành **issue con sửa** mới, ghi tiêu chí và kết quả mong đợi, chọn độ phức tạp, runtime và executor theo bảng model của mục "Chọn runtime và model", gói theo vùng code. Với research chỉ tạo con research và yêu cầu báo cáo mới. Với code, ghi `crew-fix base=<40 hex>` khi sửa trực tiếp trên commit đã duyệt của một con; hoặc `crew-stack on=<identifier>` khi cần dựng trên một con cùng gốc/gói là blocker trực tiếp. Ghi blocker và marker tương ứng; không gắn cả hai nền vào một con, không dựng từ comment review chưa xác minh. Nếu một điểm cần thay đổi hai gói, gom vào một gói sửa có một nền rõ ràng. Ghi kế hoạch lô sửa với `revision=fix-<lastDecisionId>` **trước POST con đầu**, rồi tạo/đối soát như trên. Không hỏi owner xác nhận danh sách sửa.
+Trước tiên đối soát mọi kế hoạch đã ghi với mọi con đã tạo; còn con thiếu thì tạo nốt bằng khóa cũ rồi dừng, không lập kế hoạch sửa khi lô cũ còn dở. Tìm comment kế hoạch có `crew-correction decision=<id quyết định>` đúng `lastDecisionId`. Nếu đã có, đối soát và tạo nốt con của lô đó, không lập lô mới. Nếu chưa có: chuyển từng điểm thiếu có thể kiểm được thành **issue con sửa** mới, ghi tiêu chí và kết quả mong đợi, chọn độ phức tạp, runtime và executor theo bảng model của mục "Chọn runtime và model", gói theo vùng code. Với research chỉ tạo con research và yêu cầu báo cáo mới. Với yêu cầu viết tài liệu, con sửa vẫn có dòng `crew-kind docs` và dùng marker nền như code. Với code, ghi `crew-fix base=<40 hex>` khi sửa trực tiếp trên commit đã duyệt của một con; hoặc `crew-stack on=<identifier>` khi cần dựng trên một con cùng gốc/gói là blocker trực tiếp. Ghi blocker và marker tương ứng; không gắn cả hai nền vào một con, không dựng từ comment review chưa xác minh. Nếu một điểm cần thay đổi hai gói, gom vào một gói sửa có một nền rõ ràng. Ghi kế hoạch lô sửa với `revision=fix-<lastDecisionId>` **trước POST con đầu**, rồi tạo/đối soát như trên. Không hỏi owner xác nhận danh sách sửa.
 
 Chờ các con sửa qua review. Khi mọi con của mọi revision đã tạo và `done`, đối chiếu từng điểm trong comment yêu cầu sửa với acceptance criteria và kết quả mới của con sửa; nếu điểm nào chưa được giải quyết thì tạo lô sửa tiếp có giải thích, không submit gốc nguyên trạng. Chỉ sau khi có bằng chứng sửa mới được sang "Đóng issue gốc".
 
@@ -229,7 +232,7 @@ Khi **mọi con trong mọi kế hoạch** đã được tạo và `done` (đọ
 
 Mục nào không có gì thì ghi một dòng `- Không có.`, không bỏ mục. Lấy nội dung từ kế hoạch `crew-plan`, báo cáo và comment của các con, câu trả lời của owner; không đoán điều không có trong đó. Mô tả, comment và `status` đi chung trong **một** `PATCH` này (vẫn là lệnh ghi cuối của run); không `PATCH` mô tả riêng.
 
-Server chuyển issue gốc sang reviewer (rồi integrator và owner với yêu cầu code, hoặc owner với research). Đó là bình thường. Con nào chưa qua review: không `done`, comment nêu con đó rồi dừng.
+Server chuyển issue gốc sang reviewer (rồi integrator và owner với yêu cầu code hay viết tài liệu, hoặc owner với research). Đó là bình thường. Con nào chưa qua review: không `done`, comment nêu con đó rồi dừng.
 
 ## Chốt trạng thái gốc
 

@@ -329,6 +329,15 @@ test("assistant: dòng mẫu marker khớp regex", () => {
   assert.ok(text.split("\n").some((l) => l.trim().replace(/^`|`$/g, "") === "crew-kind research"));
 });
 
+test("assistant: yêu cầu viết tài liệu nhận ra bằng nhãn docs trên gốc 4 stage, con có dòng crew-kind docs", () => {
+  const text = read("assistant");
+  assert.ok(text.split("\n").some((l) => l.trim().replace(/^`|`$/g, "") === "crew-kind docs"));
+  assert.match(text, /4 stage mà `labels` của issue gốc có nhãn tên `docs` là yêu cầu \*\*viết tài liệu\*\*/);
+  assert.match(text, /Yêu cầu viết tài liệu chỉ có con tài liệu \(dòng `crew-kind docs`\), không trộn con code/);
+  assert.match(text, /không phải research, không phải viết tài liệu, không phải bug/);
+  assert.match(text, /Với yêu cầu viết tài liệu, con sửa vẫn có dòng `crew-kind docs`/);
+});
+
 test("assistant: marker crew-model đặt runtime= sau effort=, mọi ô của bảng điền vào mẫu đều khớp regex", () => {
   const template = templateLine(read("assistant"), "crew-model complexity=");
   assert.ok(template.indexOf(" effort=") < template.indexOf(" runtime=") && template.indexOf(" runtime=") < template.indexOf(" reason="));
@@ -508,6 +517,37 @@ test("executor: research báo bằng crew-report; nhánh xếp chồng theo crew
   assert.match(text, /git switch -c crew\/<identifier> <sha đã duyệt của issue đó>/);
   assert.match(text, /crew_override_forbidden/);
   assert.match(text, /`crew-bundle/);
+});
+
+test("executor: issue tài liệu tạo nhánh và commit như code, không TDD, chỉ kiểm tài liệu, vẫn có ảnh nghiệm thu", () => {
+  const text = read("executor");
+  const body = section(text, "## Issue tài liệu (`crew-kind docs`)");
+  for (const needle of [
+    "Làm như issue code ở các bước nhánh, commit, `crew-commit`, ảnh nghiệm thu và báo xong",
+    "Không dùng `superpowers:test-driven-development`",
+    "không chạy test code",
+    "Không sửa mã nguồn, cấu hình, test hay script, trừ khi mô tả issue ghi rõ file đó",
+    "`crew-docs check`",
+    "`tests=none-docs-only`",
+    "Ảnh nghiệm thu vẫn bắt buộc",
+  ]) assert.ok(body.includes(needle), `thiếu: ${needle}`);
+  assert.match(text, /Với issue code \(kể cả issue tài liệu `crew-kind docs`\), \*\*nhánh trước tiên\*\*/);
+  assert.ok(text.indexOf("## Issue research") < text.indexOf("## Issue tài liệu"));
+  // Mục research vẫn cấm nhánh và commit: tài liệu không đi theo đường research.
+  assert.match(section(text, "## Issue research (`crew-kind research`)"), /không tạo nhánh, không sửa file, không commit/);
+});
+
+test("reviewer: issue tài liệu duyệt nội dung theo tiêu chí, diff chỉ file tài liệu, kiểm ảnh, không chạy test code", () => {
+  const text = read("reviewer");
+  const body = section(text, "## Issue tài liệu (`crew-kind docs`)");
+  for (const needle of [
+    "`crew-review sha=<40 hex> verdict=approved`",
+    "`Tiêu chí nghiệm thu:`",
+    "chỉ được có file tài liệu",
+    "Ảnh nghiệm thu",
+    "Không chạy test code",
+  ]) assert.ok(body.includes(needle), `thiếu: ${needle}`);
+  assert.ok(text.indexOf("## Issue research") < text.indexOf("## Issue tài liệu") && text.indexOf("## Issue tài liệu") < text.indexOf("## Issue BMAD"));
 });
 
 test("reviewer: duyệt research không cần crew-commit, diff crew-stack từ sha nền", () => {
