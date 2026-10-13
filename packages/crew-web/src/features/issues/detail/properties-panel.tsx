@@ -13,6 +13,7 @@ import {
   StatusLabel,
 } from '@/ds';
 import { formatDateTime, useT } from '@/i18n';
+import { labelledKindOf } from '../new/kinds';
 import { IssueLink } from '../popup/issue-nav';
 import { RuntimeSlot } from './crew/runtime-slot';
 import type { ChildSummary } from './use-issue';
@@ -80,7 +81,7 @@ export function PropertiesPanel({
   const policy = issue.executionPolicy;
   const state = issue.executionState;
   const model = parseCrewModel(issue.description);
-  const isResearch = (issue.labels ?? []).some((l) => l.name === 'research');
+  const labelledKind = labelledKindOf(issue.labels);
   const assignee = issue.assigneeAgentId
     ? (agentNames[issue.assigneeAgentId] ?? t('detail.comments.agent'))
     : issue.assigneeUserId
@@ -106,7 +107,11 @@ export function PropertiesPanel({
           {projectName ? <ProjectTag name={projectName} /> : none}
         </PropertyRow>
         <PropertyRow label={t('detail.props.kind')}>
-          {isResearch ? t('detail.props.kindResearch') : t('detail.props.kindCode')}
+          {labelledKind === 'research'
+            ? t('detail.props.kindResearch')
+            : labelledKind === 'docs'
+              ? t('detail.props.kindDocs')
+              : t('detail.props.kindCode')}
         </PropertyRow>
         <PropertyRow label={t('detail.props.model')} wrap>
           {model ? t('detail.props.modelValue', { ...model, runtime: t(`crew.runtime.name.${model.runtime}`) }) : none}

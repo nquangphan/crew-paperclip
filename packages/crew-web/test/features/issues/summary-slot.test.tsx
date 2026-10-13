@@ -84,6 +84,21 @@ describe('SummarySlot (S6.1–S6.3)', () => {
     expect(screen.queryByRole('region', { name: 'Kiểm docs' })).toBeNull();
   });
 
+  it('yêu cầu gốc có nhãn docs: map ghi loại Viết tài liệu cho việc con, đọc nhãn từ issue gốc', async () => {
+    const s = mockServer({
+      [`POST ${DATA}/crew.map`]: { body: { data: map } },
+      [`POST ${DATA}/crew.docsCheck`]: { body: { data: docs.ok } },
+      'GET /api/issues/i-root': { body: { ...ISSUE, id: 'i-root', labels: [{ id: 'l-docs', name: 'docs' }] } },
+    });
+    mountAt(CHILD);
+    fireEvent.click(await screen.findByRole('button', { name: 'Mở map' }));
+    await waitFor(() => {
+      const card = screen.getByText('Thêm trang đăng nhập').closest('button');
+      expect(card?.getAttribute('aria-label')).toMatch(/Viết tài liệu/);
+    });
+    expect(s.calls.some((c) => c.method === 'GET' && c.url.endsWith('/api/issues/i-root'))).toBe(true);
+  });
+
   it('bấm ô trong map điều hướng tới issue đó', async () => {
     mockServer({
       [`POST ${DATA}/crew.map`]: { body: { data: map } },

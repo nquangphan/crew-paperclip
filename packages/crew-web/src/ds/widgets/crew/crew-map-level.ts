@@ -24,11 +24,13 @@ export const CREW_MAP_EDGE_KINDS: readonly RoadmapEdgeKind[] = ['parent', 'block
 const byIdentifier = (a: CrewMapNode, b: CrewMapNode) =>
   a.identifier.localeCompare(b.identifier, 'vi', { numeric: true }) || a.id.localeCompare(b.id);
 
-function facts(t: TFn, issue: CrewMapNode, current: boolean) {
+function facts(t: TFn, issue: CrewMapNode, current: boolean, docs: boolean) {
   const stage = issue.stage ? t(`stage.${resolveStageKey(issue.stage, issue.kind)}`) : t('stage.none');
   const rounds = t('crewMap.roundsShort', { round: issue.reviewRounds, max: issue.maxReviewRounds });
+  // Yêu cầu viết tài liệu đi pipeline của code nên worker báo `code`; việc sửa (`fix`) vẫn hiện là Sửa.
+  const kind = docs && issue.kind === 'code' ? 'docs' : issue.kind;
   const notes = [
-    t(`crewMap.kind.${issue.kind}`),
+    t(`crewMap.kind.${kind}`),
     t('crewMap.stageLine', { stage }),
     t('crewMap.assigneeLine', {
       name: issue.assignee?.name ?? t('crewMap.unassigned'),
@@ -45,8 +47,14 @@ function facts(t: TFn, issue: CrewMapNode, current: boolean) {
 /**
  * Bản đồ Crew → tầng Roadmap. Việc không nối được về gốc qua `parentId` (dữ liệu hỏng) vẫn được vẽ, treo thẳng dưới
  * gốc, để không mất thông tin. Cạnh trỏ tới issue không có trong bản đồ bị bỏ và ghi vào `diagnostics`.
+ * `docs`: yêu cầu gốc có nhãn `docs` (worker không đọc được nhãn), việc loại code hiện là Viết tài liệu.
  */
-export function crewMapLevel(map: CrewMap, currentIssueId: string | undefined, t: TFn): CrewMapLevel {
+export function crewMapLevel(
+  map: CrewMap,
+  currentIssueId: string | undefined,
+  t: TFn,
+  { docs = false }: { docs?: boolean } = {},
+): CrewMapLevel {
   const rootId = map.root.id;
   const byId = new Map(map.nodes.map((n) => [n.id, n]));
   if (!byId.has(rootId)) byId.set(rootId, map.root);
@@ -85,7 +93,7 @@ export function crewMapLevel(map: CrewMap, currentIssueId: string | undefined, t
       children: childCount.get(issue.id) ?? 0,
       assignee: issue.assignee?.name ?? null,
       current,
-      ...facts(t, issue, current),
+      ...facts(t, issue, current, docs),
     };
   });
   const rootCurrent = rootId === currentIssueId;
@@ -98,7 +106,7 @@ export function crewMapLevel(map: CrewMap, currentIssueId: string | undefined, t
     total: all.length,
     done: all.filter((n) => n.status === 'done').length,
     current: rootCurrent,
-    ...facts(t, root, rootCurrent),
+    ...facts(t, root, rootCurrent, docs),
   };
 
   // Cạnh cha-con theo cây đã dựng (luôn khớp bố cục); phụ thuộc và vòng sửa lấy từ worker.

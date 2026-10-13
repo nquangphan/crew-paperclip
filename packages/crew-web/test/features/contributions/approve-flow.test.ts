@@ -30,7 +30,7 @@ const CHOICES: IssueApprovalChoices = {
   projectId: 'p1',
   assigneeAgentId: 'a-assistant',
   kind: 'code',
-  researchLabelId: null,
+  kindLabelIds: { research: null, docs: null },
   draft: false,
 };
 
@@ -93,7 +93,12 @@ describe('approveContribution', () => {
 
   it('bước đăng issue luôn gửi allowDuplicate: true, kể cả lưu nháp và loại Nghiên cứu', async () => {
     const { deps } = fakeDeps();
-    await approveContribution('c1', ISSUE, { ...CHOICES, draft: true, kind: 'research', researchLabelId: 'l-r' }, deps);
+    await approveContribution(
+      'c1',
+      ISSUE,
+      { ...CHOICES, draft: true, kind: 'research', kindLabelIds: { research: 'l-r', docs: null } },
+      deps,
+    );
     expect(vi.mocked(deps.createIssue).mock.calls[0]?.[1]).toMatchObject({ allowDuplicate: true });
   });
 
@@ -140,7 +145,7 @@ describe('approveContribution', () => {
     await approveContribution(
       'c1',
       ISSUE,
-      { ...CHOICES, projectId: 'p2', draft: true, kind: 'research', researchLabelId: 'l-r' },
+      { ...CHOICES, projectId: 'p2', draft: true, kind: 'research', kindLabelIds: { research: 'l-r', docs: null } },
       deps,
     );
     expect(deps.createIssue).toHaveBeenCalledWith(
@@ -215,7 +220,12 @@ describe('approveContribution', () => {
   it('yêu cầu loại Nghiên cứu mà company chưa có nhãn: lỗi trước khi khóa', async () => {
     const { deps } = fakeDeps();
     await expect(
-      approveContribution('c1', ISSUE, { ...CHOICES, kind: 'research', researchLabelId: null }, deps),
+      approveContribution(
+        'c1',
+        ISSUE,
+        { ...CHOICES, kind: 'research', kindLabelIds: { research: null, docs: null } },
+        deps,
+      ),
     ).rejects.toThrow('research');
     expect(deps.approve).not.toHaveBeenCalled();
   });

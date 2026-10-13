@@ -30,8 +30,8 @@ import { useCompanyAccess, useVisibleProjects } from '@/features/access';
 import { NewContributionDialog } from '@/features/contributions/new-contribution-dialog';
 import { useProjectReadiness } from '@/features/readiness';
 import { useT } from '@/i18n';
-import { isRequestKind, REQUEST_KINDS, type RequestKind } from './kinds';
-import { projectRolesOrNull, useCreateRequest, useResearchLabelId } from './use-create-request';
+import { availableKinds, isRequestKind, missingKindLabels, NO_KIND_LABELS, type RequestKind } from './kinds';
+import { projectRolesOrNull, useCreateRequest, useKindLabelIds } from './use-create-request';
 
 export interface CreatedRequest {
   draft: boolean;
@@ -129,14 +129,17 @@ function RequestForm({
     queryFn: () => projectRolesOrNull(companyId, projectId),
     enabled: projectId !== '',
   });
-  const researchLabel = useResearchLabelId(companyId);
+  const kindLabels = useKindLabelIds(companyId);
   const create = useCreateRequest(companyId);
 
   const loadingProjects = readiness.isLoading || projects.isLoading;
   const readyIds = new Set((readiness.data ?? []).filter((r) => r.state === 'ready').map((r) => r.projectId));
   const readyProjects = (projects.data ?? []).filter((p) => readyIds.has(p.id));
-  const researchId = researchLabel.data ?? null;
-  const kinds = REQUEST_KINDS.filter((k) => k !== 'research' || researchId !== null);
+  const kindLabelIds = kindLabels.data ?? NO_KIND_LABELS;
+  const kinds = availableKinds(kindLabelIds);
+  const kindHint = missingKindLabels(kindLabelIds)
+    .map((k) => t(`new.labelMissing.${k}`))
+    .join(' ');
   const assistantId = roles.data?.assistantAgentId ?? null;
   const assistant = agents.data?.find((a) => a.id === assistantId);
   const noRoles = projectId !== '' && roles.isSuccess && assistantId === null;
@@ -164,7 +167,7 @@ function RequestForm({
         projectId,
         assigneeAgentId: assistantId,
         kind,
-        researchLabelId: researchId,
+        kindLabelIds,
         draft,
         files,
       },
@@ -207,7 +210,7 @@ function RequestForm({
         )}
       </Field>
 
-      <Field label={t('new.kind')} hint={researchId === null ? t('new.researchMissing') : undefined}>
+      <Field label={t('new.kind')} hint={kindHint || undefined}>
         <Select value={kind} onValueChange={(v) => isRequestKind(v) && setKind(v)}>
           <SelectTrigger aria-label={t('new.kind')} className="w-full">
             <SelectValue />

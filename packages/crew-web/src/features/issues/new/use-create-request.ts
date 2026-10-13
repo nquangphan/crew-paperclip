@@ -3,7 +3,7 @@ import type { Issue } from '@paperclipai/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ApiError, api, queryKeys } from '@/api';
 import { getI18n } from '@/i18n';
-import { findResearchLabelId, type RequestKind } from './kinds';
+import { findKindLabelIds, isLabelledKind, type KindLabelIds, type RequestKind } from './kinds';
 
 export interface CreateRequestInput {
   companyId: string;
@@ -13,7 +13,8 @@ export interface CreateRequestInput {
   /** Trợ Lý của project (roles.assistantAgentId). */
   assigneeAgentId: string;
   kind: RequestKind;
-  researchLabelId: string | null;
+  /** Id nhãn của loại Nghiên cứu và Viết tài liệu (null khi company chưa có nhãn). */
+  kindLabelIds: KindLabelIds;
   /** true: lưu nháp (backlog, chưa đánh thức agent). */
   draft: boolean;
   files: File[];
@@ -28,7 +29,7 @@ export interface CreateRequestResult {
 /** Trường dựng body tạo issue; dùng chung cho dialog Yêu cầu mới và bước đăng khi owner duyệt góp ý. */
 export type CreateBodyInput = Pick<
   CreateRequestInput,
-  'title' | 'description' | 'projectId' | 'assigneeAgentId' | 'kind' | 'researchLabelId' | 'draft'
+  'title' | 'description' | 'projectId' | 'assigneeAgentId' | 'kind' | 'kindLabelIds' | 'draft'
 > & {
   /** Khóa idempotent của route stock: gọi lại cùng khóa thì server trả issue cũ, không tạo bản trùng. */
   idempotencyKey?: string;
@@ -51,9 +52,10 @@ export function buildCreateBody(input: CreateBodyInput): Record<string, unknown>
     ...(input.idempotencyKey ? { idempotencyKey: input.idempotencyKey } : {}),
     ...(input.allowDuplicate ? { allowDuplicate: true } : {}),
   };
-  if (input.kind === 'research') {
-    if (!input.researchLabelId) throw new Error(getI18n().t('new.researchMissing', { ns: 'issues' }));
-    body.labelIds = [input.researchLabelId];
+  if (isLabelledKind(input.kind)) {
+    const labelId = input.kindLabelIds[input.kind];
+    if (!labelId) throw new Error(getI18n().t(`new.labelMissing.${input.kind}`, { ns: 'issues' }));
+    body.labelIds = [labelId];
   }
   return body;
 }
@@ -83,13 +85,16 @@ export function useCreateRequest(companyId: string) {
   });
 }
 
-/** Id nhãn `research` của company (dùng chung cache nhãn). Không có nhãn này thì null và dialog ẩn loại Nghiên cứu. */
-export function useResearchLabelId(companyId: string) {
+/**
+ * Id nhãn `research` và `docs` của company (dùng chung cache nhãn). Thiếu nhãn nào thì id đó null và dialog ẩn loại
+ * tương ứng.
+ */
+export function useKindLabelIds(companyId: string) {
   return useQuery({
     queryKey: queryKeys.labels(companyId),
     enabled: companyId !== '',
     queryFn: () => api.labels.list(companyId),
-    select: findResearchLabelId,
+    select: findKindLabelIds,
   });
 }
 

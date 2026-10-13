@@ -106,7 +106,6 @@
     "project": "Project",
     "projectPlaceholder": "Choose a project",
     "kind": "Type",
-    "researchMissing": "The company has no “research” label, so the Research type is unavailable.",
     "assignee": "Assigned agent",
     "assigneePlaceholder": "Choose an agent",
     "assigneeHint": "Defaults to the project's Assistant.",

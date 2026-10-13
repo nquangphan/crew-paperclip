@@ -54,6 +54,7 @@
     "progress": "{{done}}/{{total}} children done",
     "kindOption": {
       "research": "Research",
+      "docs": "Write docs",
       "other": "Code / Bug"
     },
     "sortOption": {
@@ -102,9 +103,13 @@
     "kinds": {
       "code": "Code",
       "bug": "Bug",
-      "research": "Research"
+      "research": "Research",
+      "docs": "Write docs"
     },
-    "researchMissing": "The company has no “research” label, so the Research type is unavailable.",
+    "labelMissing": {
+      "research": "The company has no “research” label, so the Research type is unavailable.",
+      "docs": "The company has no “docs” label, so the Write docs type is unavailable."
+    },
     "titleLabel": "Title",
     "titlePlaceholder": "What needs doing, in one sentence",
     "descriptionLabel": "Description",
@@ -162,6 +167,7 @@
       "unassigned": "Unassigned",
       "owner": "Owner",
       "kindResearch": "Research",
+      "kindDocs": "Write docs",
       "kindCode": "Code / Bug",
       "stageType": {
         "review": "Reviewer",

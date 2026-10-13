@@ -5,7 +5,7 @@ import { useQuery } from '@tanstack/react-query';
 import { api, type CrewRoot, type IssueListFilters, queryKeys } from '@/api';
 import { KANBAN_COLUMN_DEFAULT_PAGE_SIZE, KANBAN_COLUMN_PAGE_SIZE_OPTIONS, type KanbanColumnPageSize } from '@/ds';
 import { useVisibleProjects } from '@/features/access';
-import { RESEARCH_LABEL_NAME } from '../new/kinds';
+import { labelledKindOf } from '../new/kinds';
 import { byUpdatedDesc } from './tree';
 
 /** Cột phụ bên phải dòng theo thứ tự hiển thị. */
@@ -17,7 +17,7 @@ export const SORT_KEYS = ['updated', 'created', 'title'] as const;
 export type SortKey = (typeof SORT_KEYS)[number];
 export const GROUP_KEYS = ['none', 'status', 'assignee', 'project'] as const;
 export type GroupKey = (typeof GROUP_KEYS)[number];
-export const KIND_FILTERS = ['all', 'research', 'other'] as const;
+export const KIND_FILTERS = ['all', 'research', 'docs', 'other'] as const;
 export type KindFilter = (typeof KIND_FILTERS)[number];
 export const VIEW_MODES = ['list', 'board'] as const;
 export type ViewMode = (typeof VIEW_MODES)[number];
@@ -144,14 +144,14 @@ export function serverFilters(state: ListState): IssueListFilters {
   };
 }
 
-export function isResearch(issue: CompactIssue, rootsById: ReadonlyMap<string, CrewRoot>): boolean {
-  if (rootsById.get(issue.id)?.kind === 'research') return true;
-  return (issue.labels ?? []).some((l) => l.name === RESEARCH_LABEL_NAME);
+/** Loại của dòng: policy research của `crew.roots` trước, rồi nhãn `research`/`docs`; còn lại là Code / Bug. */
+export function issueKindOf(issue: CompactIssue, rootsById: ReadonlyMap<string, CrewRoot>): Exclude<KindFilter, 'all'> {
+  if (rootsById.get(issue.id)?.kind === 'research') return 'research';
+  return labelledKindOf(issue.labels) ?? 'other';
 }
 
 export function matchesKind(issue: CompactIssue, kind: KindFilter, rootsById: ReadonlyMap<string, CrewRoot>): boolean {
-  if (kind === 'all') return true;
-  return isResearch(issue, rootsById) === (kind === 'research');
+  return kind === 'all' || issueKindOf(issue, rootsById) === kind;
 }
 
 export function sortCompare(sort: SortKey): (a: CompactIssue, b: CompactIssue) => number {

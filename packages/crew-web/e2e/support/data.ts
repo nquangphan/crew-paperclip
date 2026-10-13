@@ -172,6 +172,14 @@ export async function researchLabelId(api: Api, companyId: string): Promise<stri
   return labels.find((l) => l.name === 'research')?.id ?? null;
 }
 
+/** Id nhãn `name` của company; chưa có thì tạo (nhãn loại yêu cầu như `docs` là cấu hình company, không dọn). */
+export async function ensureLabel(api: Api, companyId: string, name: string, color: string): Promise<string> {
+  const labels = await api.get<{ id: string; name: string }[]>(`/api/companies/${companyId}/labels`);
+  const found = labels.find((l) => l.name === name);
+  if (found) return found.id;
+  return (await api.post<{ id: string }>(`/api/companies/${companyId}/labels`, { name, color })).id;
+}
+
 /**
  * Issue đang chờ board duyệt theo API. Danh sách issue của server luôn trả `executionState: null`
  * (server/src/services/issues.ts), nên phải đọc từng issue `in_review` để biết stage và người tham gia.

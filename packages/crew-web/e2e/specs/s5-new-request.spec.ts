@@ -4,7 +4,7 @@
 import type { Page } from '@playwright/test';
 import type { Api } from '../support/api';
 import { trackIssue } from '../support/cleanup';
-import { archiveProject, createProject, uniqueToken } from '../support/data';
+import { archiveProject, createIssue, createProject, ensureLabel, uniqueToken } from '../support/data';
 import { expect, test } from '../support/fixtures';
 
 interface IssueFull {
@@ -239,6 +239,35 @@ test('PW-S5-8 mô tả rất dài: dialog không cao quá khung nhìn, nút Tạ
     await page.keyboard.press('Escape');
     await expect(dialog).toBeHidden();
   }
+});
+
+test('PW-S5-9 loại Viết tài liệu: chọn được khi company có nhãn docs; yêu cầu gắn nhãn docs hiện loại Viết tài liệu @t1', async ({
+  page,
+  company,
+  api,
+}, testInfo) => {
+  const docsLabel = await ensureLabel(api, company.id, 'docs', '#16a34a');
+  const dialog = await openDialog(page, company.path('issues'));
+  const kind = dialog.getByRole('combobox', { name: 'Loại' });
+  await kind.click();
+  await expect(page.getByRole('option', { name: 'Viết tài liệu', exact: true })).toBeVisible();
+  await page.screenshot({ path: testInfo.outputPath('new-request-docs-kind.png') });
+  await page.getByRole('option', { name: 'Viết tài liệu', exact: true }).click();
+  await expect(kind).toHaveText('Viết tài liệu');
+  await expect(dialog.getByText('chưa có nhãn “docs”')).toHaveCount(0);
+  await page.keyboard.press('Escape');
+  await expect(dialog).toBeHidden();
+
+  // Không có project sẵn sàng ở T1 nên tạo yêu cầu bằng API với nhãn docs, như dialog gửi.
+  const issue = await createIssue(api, company.id, {
+    title: `PW-S5-9 viết tài liệu ${uniqueToken()}`,
+    status: 'backlog',
+    labelIds: [docsLabel],
+  });
+  await page.goto(company.path(`issues/${issue.identifier}`));
+  const props = page.getByTestId('properties-panel');
+  await expect(props.getByText('Viết tài liệu', { exact: true })).toBeVisible();
+  await page.screenshot({ path: testInfo.outputPath('issue-docs-kind.png'), fullPage: true });
 });
 
 /** Chọn project nền, điền tiêu đề, bấm Tạo (hoặc Lưu nháp); trả issue vừa tạo và ghi để cuối ca hủy. */

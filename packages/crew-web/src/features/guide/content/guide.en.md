@@ -173,7 +173,7 @@ The toolbar on the screenshot:
 #### Filter the list
 
 1. Click **Filter** (5).
-2. Tick one value in each section: status, assignee, project, kind (**Research** or **Code / Bug**). The list updates right away.
+2. Tick one value in each section: status, assignee, project, kind (**Research**, **Write docs** or **Code / Bug**). The list updates right away.
 3. Click a selected value again to remove it, or **Clear** to remove all. The button becomes **Filters: n** while n filters are on.
 
 {{shot:issues-columns}}
@@ -271,7 +271,7 @@ A request is the only way to give work to the agent team. Every request goes thr
 
 1. Click **New request** in the sidebar or on the Requests page.
 2. Pick the **Project** (1). Only **ready** projects are listed. If none is ready, the dialog says so (see [Projects](#projects)).
-3. Pick the **Type** (2): **Code**, **Bug** or **Research** (table below).
+3. Pick the **Type** (2): **Code**, **Bug**, **Research** or **Write docs** (table below).
 4. Write a one-sentence **Title** (3) and a **Description** (4): what you want, why, where, and what must not change.
 5. **Attach** images or files if needed. Unusual file types show a warning; you can still send them.
 6. The **Assignee** is always the project's Assistant and cannot be changed.
@@ -283,6 +283,7 @@ A request is the only way to give work to the agent team. Every request goes thr
 | **Code** | Add or change a feature | Goes through every approval step |
 | **Bug** | Something is broken | Describe the **symptom**: "clicking X gives Y, it should give Z". The agent writes a failing test first, then fixes |
 | **Research** | Compare or propose, no code change | Only two approval steps: Reviewer then owner, no push. The company needs a "research" label |
+| **Write docs** | You need documentation files in the repo: specs, mockups, markdown, images | Goes through every approval step like Code (merge, docs check, owner approval, then push). The agent writes no code tests and changes no code unless the request says so; it still attaches screenshots of the docs or mockups. The company needs a "docs" label |
 
 > **Good example:** *Title:* Add an Export to Excel button on the report page. *Description:* The Revenue report needs an Export to Excel button; the file has Date, Order, Total columns. Do not change how totals are computed.
 
@@ -448,7 +449,7 @@ The **Pending approval** item in the left sidebar shows how many items wait; Ove
 #### Approve a request
 
 1. Click **Approve** (2) on the request row.
-2. The **Approve request** dialog lets you pick the **Project**, **Type** (Code, Bug, Research), the **Assigned agent** (defaults to the project's Assistant) and **Save as draft**.
+2. The **Approve request** dialog lets you pick the **Project**, **Type** (Code, Bug, Research, Write docs), the **Assigned agent** (defaults to the project's Assistant) and **Save as draft**.
 3. Click **Approve**. The request is posted word for word as if you had posted it, and agents start (unless saved as draft).
 
 #### Approve a comment
@@ -747,6 +748,7 @@ Agent comments contain lines starting with `crew-`: machine-readable evidence.
 | `crew-model complexity=… model=… effort=… runtime=…` | Difficulty, model and runtime: Sonnet for small and medium work, Opus for large. `runtime=` is `claude_local`, `codex_local` or `opencode_local`; missing means Claude |
 | `crew-stack on=CRE-…` | This task builds on the code of another |
 | `crew-kind research` | A research task, no code change |
+| `crew-kind docs` | A documentation task: only doc files change, no code tests |
 | `crew-review … verdict=approved` | The Reviewer approved |
 | `crew-docs-check commit=… exit=0` | The Integrator checked the docs on the merged code; `exit=0` means pass |
 | `crew-merge sha=… pushed=yes` | Pushed to the main branch |

@@ -46,13 +46,14 @@ const ROLES = {
 };
 const AGENTS = [{ id: 'a-assist', name: 'Trợ Lý Alpha' }];
 const RESEARCH = { id: 'l-research', name: 'research' };
+const DOCS = { id: 'l-docs', name: 'docs' };
 
 function routes(over: Record<string, unknown> = {}) {
   return {
     'GET /api/companies/c1/projects': { body: PROJECTS },
     'GET /api/companies/c1/agents': { body: AGENTS },
     'GET /api/plugins/crew.core/api/projects/p1/roles': { body: { roles: ROLES } },
-    'GET /api/companies/c1/labels': { body: [RESEARCH] },
+    'GET /api/companies/c1/labels': { body: [RESEARCH, DOCS] },
     'POST /api/companies/c1/issues': { status: 201, body: { id: 'i-new', identifier: 'TPS-5' } },
     ...over,
   } as Parameters<typeof mockServer>[0];
@@ -149,6 +150,36 @@ describe('NewRequestDialog', () => {
     fireEvent.keyDown(kindTrigger(), { key: 'Enter' });
     expect(screen.queryByRole('option', { name: 'Nghiên cứu' })).toBeNull();
     expect(screen.getByRole('option', { name: 'Code' })).toBeTruthy();
+  });
+
+  it('loại Viết tài liệu gửi labelIds nhãn docs', async () => {
+    const { calls } = mockServer(routes());
+    mount();
+    await fillReady();
+    await screen.findByText('Trợ Lý Alpha');
+    await waitFor(() => {
+      fireEvent.keyDown(kindTrigger(), { key: 'Enter' });
+      expect(screen.getByRole('option', { name: 'Viết tài liệu' })).toBeTruthy();
+    });
+    const names = within(screen.getByRole('listbox'))
+      .getAllByRole('option')
+      .map((o) => o.textContent);
+    expect(names).toEqual(['Code', 'Bug', 'Nghiên cứu', 'Viết tài liệu']);
+    fireEvent.click(screen.getByRole('option', { name: 'Viết tài liệu' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Tạo' }));
+    await waitFor(() => expect(posts(calls)).toHaveLength(1));
+    expect(posts(calls)[0].body).toMatchObject({ labelIds: ['l-docs'] });
+  });
+
+  it('không có nhãn docs thì ẩn loại Viết tài liệu và hiện gợi ý, Nghiên cứu vẫn chọn được', async () => {
+    mockServer(routes({ 'GET /api/companies/c1/labels': { body: [RESEARCH] } }));
+    mount();
+    await fillReady();
+    await screen.findByText(/chưa có nhãn “docs”/);
+    expect(screen.queryByText(/chưa có nhãn “research”/)).toBeNull();
+    fireEvent.keyDown(kindTrigger(), { key: 'Enter' });
+    expect(screen.queryByRole('option', { name: 'Viết tài liệu' })).toBeNull();
+    expect(screen.getByRole('option', { name: 'Nghiên cứu' })).toBeTruthy();
   });
 
   it('Lưu nháp gửi status backlog (S5.6)', async () => {

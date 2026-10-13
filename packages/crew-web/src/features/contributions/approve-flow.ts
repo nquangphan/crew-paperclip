@@ -6,7 +6,7 @@
 // Bước 2 lỗi thì không gọi bước 3: mục giữ `approving` ("Đang duyệt dở"), owner bấm Duyệt lại thì server trả cùng khóa,
 // route stock trả lại bản ghi cũ thay vì tạo bản trùng.
 import { ApiError, api, type Contribution, type ContributionApproval } from '@/api';
-import type { RequestKind } from '@/features/issues/new/kinds';
+import type { KindLabelIds, RequestKind } from '@/features/issues/new/kinds';
 import { buildCreateBody } from '@/features/issues/new/use-create-request';
 
 /** Lựa chọn của owner trong dialog duyệt yêu cầu. */
@@ -14,7 +14,8 @@ export interface IssueApprovalChoices {
   projectId: string;
   assigneeAgentId: string;
   kind: RequestKind;
-  researchLabelId: string | null;
+  /** Id nhãn của loại Nghiên cứu và Viết tài liệu (null khi company chưa có nhãn). */
+  kindLabelIds: KindLabelIds;
   /** true: lưu nháp (backlog, chưa đánh thức agent). */
   draft: boolean;
 }
@@ -68,7 +69,7 @@ const ALREADY_APPROVED_CODES = new Set(['crew_contribution_decided', 'crew_contr
 
 /**
  * Duyệt một mục góp ý. Yêu cầu (kind = issue) cần `choices`; bình luận thì bỏ qua. Lỗi kiểm lựa chọn (thiếu nhãn
- * research) ném trước khi khóa, để không để lại mục "Đang duyệt dở" vô cớ.
+ * research hay docs) ném trước khi khóa, để không để lại mục "Đang duyệt dở" vô cớ.
  */
 export async function approveContribution(
   companyId: string,

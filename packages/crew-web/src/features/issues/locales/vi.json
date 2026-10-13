@@ -54,6 +54,7 @@
     "progress": "{{done}}/{{total}} con xong",
     "kindOption": {
       "research": "Nghiên cứu",
+      "docs": "Viết tài liệu",
       "other": "Code / Bug"
     },
     "sortOption": {
@@ -102,9 +103,13 @@
     "kinds": {
       "code": "Code",
       "bug": "Bug",
-      "research": "Nghiên cứu"
+      "research": "Nghiên cứu",
+      "docs": "Viết tài liệu"
     },
-    "researchMissing": "Company chưa có nhãn “research” nên chưa chọn được loại Nghiên cứu.",
+    "labelMissing": {
+      "research": "Company chưa có nhãn “research” nên chưa chọn được loại Nghiên cứu.",
+      "docs": "Company chưa có nhãn “docs” nên chưa chọn được loại Viết tài liệu."
+    },
     "titleLabel": "Tiêu đề",
     "titlePlaceholder": "Việc cần làm, một câu",
     "descriptionLabel": "Mô tả",
@@ -162,6 +167,7 @@
       "unassigned": "Chưa giao",
       "owner": "Owner",
       "kindResearch": "Nghiên cứu",
+      "kindDocs": "Viết tài liệu",
       "kindCode": "Code / Bug",
       "stageType": {
         "review": "Reviewer",

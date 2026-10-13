@@ -24,8 +24,14 @@ import {
   SelectValue,
   Spinner,
 } from '@/ds';
-import { isRequestKind, REQUEST_KINDS, type RequestKind } from '@/features/issues/new/kinds';
-import { projectRolesOrNull, useResearchLabelId } from '@/features/issues/new/use-create-request';
+import {
+  availableKinds,
+  isRequestKind,
+  missingKindLabels,
+  NO_KIND_LABELS,
+  type RequestKind,
+} from '@/features/issues/new/kinds';
+import { projectRolesOrNull, useKindLabelIds } from '@/features/issues/new/use-create-request';
 import { useSelectableAgents } from '@/features/wizards';
 import { useT } from '@/i18n';
 import { contributionErrorKey } from './approve-flow';
@@ -106,11 +112,14 @@ function ApproveIssueForm({
     queryFn: () => projectRolesOrNull(company.id, projectId),
     enabled: projectId !== '',
   });
-  const researchLabel = useResearchLabelId(company.id);
+  const kindLabels = useKindLabelIds(company.id);
 
   const projectChoices = (projects.data ?? []).filter((p) => !p.archivedAt || p.id === c.projectId);
-  const researchId = researchLabel.data ?? null;
-  const kinds = REQUEST_KINDS.filter((k) => k !== 'research' || researchId !== null);
+  const kindLabelIds = kindLabels.data ?? NO_KIND_LABELS;
+  const kinds = availableKinds(kindLabelIds);
+  const kindHint = missingKindLabels(kindLabelIds)
+    .map((k) => ti(`new.labelMissing.${k}`))
+    .join(' ');
   const assistantId = roles.data?.assistantAgentId ?? null;
   const assigneeId = assigneeChoice ?? assistantId;
   const agentChoices = selectable(agents.data, [assigneeId]);
@@ -123,7 +132,7 @@ function ApproveIssueForm({
     approve.mutate(
       {
         contribution: c,
-        choices: { projectId, assigneeAgentId: assigneeId, kind, researchLabelId: researchId, draft },
+        choices: { projectId, assigneeAgentId: assigneeId, kind, kindLabelIds, draft },
       },
       { onSuccess: onApproved },
     );
@@ -172,10 +181,7 @@ function ApproveIssueForm({
         )}
       </Field>
 
-      <Field
-        label={t('approveDialog.kind')}
-        hint={researchId === null ? t('approveDialog.researchMissing') : undefined}
-      >
+      <Field label={t('approveDialog.kind')} hint={kindHint || undefined}>
         <Select value={kind} onValueChange={(v) => isRequestKind(v) && setKind(v)}>
           <SelectTrigger aria-label={t('approveDialog.kind')} className="w-full">
             <SelectValue />

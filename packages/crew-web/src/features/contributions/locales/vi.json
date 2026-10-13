@@ -106,7 +106,6 @@
     "project": "Project",
     "projectPlaceholder": "Chọn project",
     "kind": "Loại",
-    "researchMissing": "Company chưa có nhãn “research” nên chưa chọn được loại Nghiên cứu.",
     "assignee": "Agent nhận việc",
     "assigneePlaceholder": "Chọn agent",
     "assigneeHint": "Mặc định là Trợ Lý của project.",

@@ -66,9 +66,12 @@ describe('PropertiesPanel chỉ đọc (S6.13)', () => {
     expect(within(screen.getByTestId('properties-panel')).getByText(/claude-sonnet-5 .*runtime Claude/)).toBeTruthy();
   });
 
-  it('loại Nghiên cứu theo nhãn research, còn lại là Code / Bug', () => {
+  it('loại Nghiên cứu theo nhãn research, Viết tài liệu theo nhãn docs, còn lại là Code / Bug', () => {
     panel({ ...ISSUE, labels: [{ id: 'l1', name: 'research' }] });
     expect(within(screen.getByTestId('properties-panel')).getByText('Nghiên cứu')).toBeTruthy();
+    cleanup();
+    panel({ ...ISSUE, labels: [{ id: 'l2', name: 'docs' }] });
+    expect(within(screen.getByTestId('properties-panel')).getByText('Viết tài liệu')).toBeTruthy();
     cleanup();
     panel();
     expect(within(screen.getByTestId('properties-panel')).getByText('Code / Bug')).toBeTruthy();
