@@ -183,6 +183,16 @@
     "tests": ["PW-S6-20a ", "PW-S6-20b ", "PW-S6-20c "],
     "tier": "T1"
   },
+  "S6.4": {
+    "spec": "e2e/specs/s6-comments.spec.ts",
+    "tests": ["PW-S6-4a ", "PW-S6-4b "],
+    "tier": "T1"
+  },
+  "S6.5": {
+    "spec": "e2e/specs/s6-comments.spec.ts",
+    "tests": ["PW-S6-4a "],
+    "tier": "T1"
+  },
   "S6.6": {
     "spec": "e2e/specs/s6-attachment-viewer.spec.ts",
     "tests": ["PW-S6-6a ", "PW-S6-6b "],

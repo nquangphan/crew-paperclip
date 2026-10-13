@@ -1,6 +1,6 @@
 // clone: ui/src/pages/IssueDetail.tsx + ui/src/components/{StatusGlyph,Identity,issue-properties/primitives,task-chat/TaskChatBubble}.tsx @ v2026.1005.0 (rút gọn cho Crew)
-// Bố cục trang chi tiết task của Paperclip: thanh breadcrumb trên cùng, cột chính (tiêu đề, mô tả, luồng trao đổi,
-// ô soạn cố định đáy) và cột Thuộc tính bên phải chia nhóm. Bỏ mọi control sửa của Paperclip; chữ do màn hình truyền vào.
+// Bố cục trang chi tiết task của Paperclip: thanh breadcrumb trên cùng, cột chính (tiêu đề, mô tả, ô soạn, luồng trao
+// đổi mới nhất trước) và cột Thuộc tính bên phải chia nhóm. Bỏ mọi control sửa của Paperclip; chữ do màn hình truyền vào.
 import { ChevronRight, Folder } from 'lucide-react';
 import type * as React from 'react';
 import { cn } from '../cn';
@@ -133,7 +133,7 @@ function IssueTopBar({ root, status, title, identifier, actions }: IssueTopBarPr
 
 interface IssueDetailFrameProps {
   topBar: React.ReactNode;
-  /** Cột chính: header, mô tả, luồng trao đổi, ô soạn. */
+  /** Cột chính: header, mô tả, ô soạn, luồng trao đổi. */
   children: React.ReactNode;
   /** Cột phải: Thuộc tính (và các khối bổ sung sau này). */
   side: React.ReactNode;
@@ -295,16 +295,13 @@ function DetailSection({
 }
 
 /**
- * Ô soạn cuối cột chính, khung bo tròn như composer của Paperclip. Từ `md` trở lên dính đáy khung cuộn; dưới `md`
- * (điện thoại) nằm yên cuối luồng trao đổi, vì dính đáy sẽ che mất khoảng một phần tư màn hình (bản đồ Crew, nút
- * phóng to). Đệm đáy chừa vùng an toàn (thanh home của iPhone).
+ * Ô soạn ngay trên luồng trao đổi (luồng xếp mới nhất trước, nên viết và đọc tin mới cùng ở đầu), khung bo tròn như
+ * composer của Paperclip. Nằm yên trong dòng chảy ở mọi cỡ màn hình: ô đã ở đầu luồng nên không cần dính đáy, và dính
+ * sẽ che nội dung (trên điện thoại mất khoảng một phần tư màn hình: bản đồ Crew, nút phóng to).
  */
 function ComposerDock({ children }: { children: React.ReactNode }) {
   return (
-    <div
-      data-slot="composer-dock"
-      className="bg-background pt-2 pb-[max(0.75rem,env(safe-area-inset-bottom))] md:sticky md:bottom-0 md:z-10"
-    >
+    <div data-slot="composer-dock" className="bg-background pt-2">
       <div className="flex flex-col gap-2 rounded-2xl border bg-background p-3 shadow-sm [&_textarea]:min-h-16 [&_textarea]:resize-none [&_textarea]:border-0 [&_textarea]:bg-transparent dark:[&_textarea]:bg-transparent [&_textarea]:shadow-none [&_textarea]:focus-visible:ring-0">
         {children}
       </div>

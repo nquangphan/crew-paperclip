@@ -89,8 +89,8 @@ interface IssueDetailProps {
 /**
  * Nội dung chi tiết yêu cầu, dùng chung cho trang đầy đủ và popup `?issue=` (S6.4 đến S6.6, S6.12 đến S6.16).
  * Bố cục theo trang IssueDetail của Paperclip: thanh breadcrumb, cột chính (tiêu đề, mô tả, tài liệu, đính kèm,
- * run, luồng trao đổi, ô soạn cố định đáy) và cột Thuộc tính bên phải (thuộc tính, Lịch sử). Phần Crew gắn qua các
- * khe trong ./crew: tóm tắt/map/docs dưới tiêu đề, nút cổng và Ép Done cạnh tiêu đề, thẻ câu hỏi trên ô soạn.
+ * run, ô soạn rồi luồng trao đổi mới nhất trước) và cột Thuộc tính bên phải (thuộc tính, Lịch sử). Phần Crew gắn qua
+ * các khe trong ./crew: tóm tắt/map/docs dưới tiêu đề, nút cổng và Ép Done cạnh tiêu đề, thẻ câu hỏi trên ô soạn.
  *
  * Yêu cầu thuộc company khác prefix trên URL thì chuyển sang trang đầy đủ ở prefix đúng (hoặc 404 nếu không có
  * quyền company đó), không hiện ở company sai: sự kiện trực tiếp, danh sách con và thao tác cổng đều theo company
@@ -238,13 +238,13 @@ export function IssueDetail({ issueRef, variant, onClose }: IssueDetailProps) {
         <Documents issueId={issue.id} />
         <Attachments issueId={issue.id} />
         <IssueRuns issueId={issue.id} agentNames={agentNames} />
-        <Comments issueId={issue.id} agentNames={agentNames} />
         <InteractionsSlot issue={issue} />
         {readOnly && !isContributor ? null : (
           <ComposerDock>
             <Composer issue={issue} />
           </ComposerDock>
         )}
+        <Comments issueId={issue.id} agentNames={agentNames} />
       </IssueDetailFrame>
     </AttachmentViewerProvider>
   );

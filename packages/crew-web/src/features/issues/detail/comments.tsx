@@ -18,6 +18,7 @@ import { ContributionActions } from '@/features/contributions/contribution-actio
 import { ContributionChip, isPendingComment, PendingComment } from '@/features/contributions/pending-comments';
 import { useAuthorNames, useIssueContributions } from '@/features/contributions/use-contributions';
 import { formatDateTime, useT } from '@/i18n';
+import { newestFirstThread } from './comment-thread';
 
 /** Một run đang chạy của issue (GET /issues/:id/live-runs). */
 interface LiveRun {
@@ -57,8 +58,9 @@ interface CommentsProps {
 }
 
 /**
- * Luồng trao đổi kiểu chat của Paperclip (S6.4): bình luận của người nằm phải trong bong bóng, của agent nằm trái
- * có tên; cuối luồng là transcript của run đang chạy. Không có nút like/dislike (BA mục 2: feedbackVote).
+ * Luồng trao đổi kiểu chat của Paperclip (S6.4), mới nhất ở trên cùng (ngay dưới ô soạn): bình luận của người nằm phải
+ * trong bong bóng, của agent nằm trái có tên; transcript của run đang chạy đứng đầu luồng vì là việc đang diễn ra.
+ * Không có nút like/dislike (BA mục 2: feedbackVote).
  */
 export function Comments({ issueId, agentNames }: CommentsProps) {
   const { t, lang } = useT('issues');
@@ -85,11 +87,8 @@ export function Comments({ issueId, agentNames }: CommentsProps) {
     return t('detail.comments.agent');
   };
 
-  // Bình luận chờ duyệt xếp xen vào bình luận thật theo giờ gửi; bình luận thật đứng trước khi trùng giờ.
-  const thread = [
-    ...(list.data ?? []).map((item) => ({ type: 'comment' as const, item })),
-    ...pending.map((item) => ({ type: 'pending' as const, item })),
-  ].sort((a, b) => new Date(a.item.createdAt).getTime() - new Date(b.item.createdAt).getTime());
+  // Mới nhất ở trên cùng; bình luận chờ duyệt xếp xen vào bình luận thật theo giờ gửi.
+  const thread = newestFirstThread(list.data ?? [], pending);
 
   return (
     <section aria-label={t('detail.comments.heading')} className="flex flex-col gap-5">
@@ -102,6 +101,9 @@ export function Comments({ issueId, agentNames }: CommentsProps) {
         />
       ) : null}
       {list.data?.length === 0 && pending.length === 0 ? <MutedText>{t('detail.comments.empty')}</MutedText> : null}
+      {(live.data ?? []).map((run) => (
+        <LiveRunTranscript key={run.id} run={run} agentName={agentNames[run.agentId] ?? t('detail.comments.agent')} />
+      ))}
       {thread.map((entry) => {
         if (entry.type === 'pending') {
           return (
@@ -153,9 +155,6 @@ export function Comments({ issueId, agentNames }: CommentsProps) {
           </ChatMessage>
         );
       })}
-      {(live.data ?? []).map((run) => (
-        <LiveRunTranscript key={run.id} run={run} agentName={agentNames[run.agentId] ?? t('detail.comments.agent')} />
-      ))}
     </section>
   );
 }

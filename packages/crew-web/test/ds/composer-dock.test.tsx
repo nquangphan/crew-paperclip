@@ -17,14 +17,18 @@ const dockClasses = (): string[] => {
 };
 
 describe('ComposerDock', () => {
-  it('chỉ dính đáy từ md trở lên; điện thoại nằm yên cuối luồng để không che nội dung', () => {
+  it('không dính ở cỡ màn hình nào: ô soạn nằm trên luồng mới nhất trước, dính sẽ che nội dung', () => {
     const classes = dockClasses();
-    expect(classes).toEqual(expect.arrayContaining(['md:sticky', 'md:bottom-0', 'md:z-10']));
-    expect(classes).not.toContain('sticky');
-    expect(classes).not.toContain('bottom-0');
+    expect(classes.some((c) => /(^|:)sticky$/.test(c))).toBe(false);
+    expect(classes.some((c) => /(^|:)(bottom|top)-/.test(c))).toBe(false);
   });
 
-  it('đệm đáy chừa vùng an toàn của màn hình', () => {
-    expect(dockClasses()).toContain('pb-[max(0.75rem,env(safe-area-inset-bottom))]');
+  it('khung bo tròn quanh ô soạn', () => {
+    render(
+      <ComposerDock>
+        <textarea aria-label="Soạn" />
+      </ComposerDock>,
+    );
+    expect(screen.getByLabelText('Soạn').parentElement?.className).toContain('rounded-2xl');
   });
 });

@@ -56,14 +56,50 @@ function server(over: Record<string, unknown> = {}) {
 }
 
 describe('IssuePage luồng bình luận (S6.4)', () => {
-  it('liệt kê bình luận theo thứ tự kèm tên người viết', async () => {
+  it('liệt kê bình luận mới nhất trước kèm tên người viết', async () => {
     server();
     mount(<IssuePage />);
     const items = await screen.findAllByTestId('comment');
     expect(items).toHaveLength(2);
-    expect(items[0].textContent).toContain('Executor Alpha');
-    expect(items[0].textContent).toContain('xong');
-    expect(items[1].textContent).toContain('Bạn');
+    expect(items[0].textContent).toContain('Bạn');
+    expect(items[1].textContent).toContain('Executor Alpha');
+    expect(items[1].textContent).toContain('xong');
+  });
+
+  it('ô soạn nằm trên luồng bình luận, không dính đáy', async () => {
+    server();
+    mount(<IssuePage />);
+    const [first] = await screen.findAllByTestId('comment');
+    const box = screen.getByRole('textbox', { name: 'Viết bình luận' });
+    expect(box.compareDocumentPosition(first) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(box.closest('[data-slot="composer-dock"]')?.className).not.toMatch(/sticky/);
+  });
+
+  it('gửi bình luận xong, bình luận mới hiện trên cùng', async () => {
+    const posted = {
+      id: 'cm9',
+      authorType: 'user',
+      authorAgentId: null,
+      authorUserId: 'u1',
+      body: 'Bình luận mới nhất',
+      createdAt: '2026-10-10T05:00:00.000Z',
+    };
+    let list = COMMENTS;
+    server({
+      'GET /api/issues/i1/comments': () => ({ body: list }),
+      'POST /api/issues/i1/comments': () => {
+        list = [...COMMENTS, posted];
+        return { body: posted };
+      },
+    });
+    mount(<IssuePage />);
+    await screen.findAllByTestId('comment');
+    fireEvent.change(screen.getByRole('textbox', { name: 'Viết bình luận' }), {
+      target: { value: 'Bình luận mới nhất' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Gửi bình luận' }));
+    await waitFor(() => expect(screen.getAllByTestId('comment')).toHaveLength(3));
+    expect(screen.getAllByTestId('comment')[0].textContent).toContain('Bình luận mới nhất');
   });
 
   it('bình luận cao quá 10 dòng thu gọn, có nút Hiện đủ / Thu gọn; bình luận ngắn không có nút', async () => {
@@ -77,16 +113,17 @@ describe('IssuePage luồng bình luận (S6.4)', () => {
       },
     });
     mount(<IssuePage />);
+    // Mới nhất trước: bình luận dài (02:00) đứng đầu, bình luận ngắn (01:00) thứ hai.
     const items = await screen.findAllByTestId('comment');
-    expect(items[0].querySelector('[data-collapsed]')).toBeNull();
-    expect(items[0].textContent).not.toContain('Hiện đủ');
-    await waitFor(() => expect(items[1].querySelector('[data-collapsed]')).not.toBeNull());
+    expect(items[1].querySelector('[data-collapsed]')).toBeNull();
+    expect(items[1].textContent).not.toContain('Hiện đủ');
+    await waitFor(() => expect(items[0].querySelector('[data-collapsed]')).not.toBeNull());
     const toggle = screen.getByRole('button', { name: 'Hiện đủ' });
     expect(toggle.getAttribute('aria-expanded')).toBe('false');
     fireEvent.click(toggle);
-    expect(items[1].querySelector('[data-collapsed]')).toBeNull();
+    expect(items[0].querySelector('[data-collapsed]')).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: 'Thu gọn' }));
-    expect(items[1].querySelector('[data-collapsed]')).not.toBeNull();
+    expect(items[0].querySelector('[data-collapsed]')).not.toBeNull();
   });
 
   it('run đang chạy hiện transcript thu gọn', async () => {
