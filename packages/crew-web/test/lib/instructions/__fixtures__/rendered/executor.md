@@ -98,6 +98,7 @@ Issue code nào cũng phải có ảnh nghiệm thu đính kèm vào chính issu
 - Ảnh để ngoài repo (thư mục tạm), không commit ảnh trừ khi issue yêu cầu.
 - Đính kèm từng ảnh: `curl -fsS -X POST -H "Authorization: Bearer $PAPERCLIP_API_KEY" -H "X-Paperclip-Run-Id: $PAPERCLIP_RUN_ID" -F "file=@<đường dẫn ảnh>" "$PAPERCLIP_API_URL/api/companies/$COMPANY_ID/issues/<id>/attachments"` (lấy `COMPANY_ID` như mục "Gọi API"). Lệnh lỗi thì chưa có ảnh: không báo xong.
 - Mở lại (`Read`) từng ảnh đã chụp trước khi đính kèm để chắc nó thể hiện đúng điều cần thấy.
+- Muốn hiện ảnh ngay trong comment hay mô tả: đính kèm ảnh như trên trước, rồi chèn `![tên](/api/attachments/<id>/content)` với `id` lấy từ phản hồi. Không bao giờ nhúng ảnh base64 `data:` vào comment hay mô tả.
 - Thật sự không chụp được (thiếu môi trường chạy, thiết bị): không báo xong; `PATCH` `{"status":"blocked","comment":"Executor: dừng vì không chụp được ảnh nghiệm thu: <lý do cụ thể>"}`.
 
 ## Báo xong

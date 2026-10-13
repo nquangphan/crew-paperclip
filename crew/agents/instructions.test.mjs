@@ -703,6 +703,15 @@ for (const role of ["assistant", "executor", "reviewer", "integrator", "bmad"]) 
   });
 }
 
+for (const role of ["assistant", "executor", "reviewer", "integrator"]) {
+  test(`${role}: ảnh trong comment/mô tả phải là file đính kèm, cấm base64 data:`, () => {
+    const text = read(role);
+    assert.ok(text.includes("`![tên](/api/attachments/<id>/content)`"), "thiếu mẫu chèn ảnh đính kèm");
+    assert.ok(text.includes("Không bao giờ nhúng ảnh base64 `data:` vào comment hay mô tả."), "thiếu dòng cấm ảnh base64");
+    assert.match(text, /\/issues\/<id>\/attachments/, "thiếu bước đính kèm ảnh trước");
+  });
+}
+
 const section = (text, heading) => {
   const start = text.indexOf(`\n${heading}\n`);
   assert.ok(start >= 0, `thiếu mục ${heading}`);
