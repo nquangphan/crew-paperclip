@@ -376,9 +376,18 @@ suite("crew agent-to-agent assignment", () => {
       const s = await seedRuntimes();
       expect(reviewers(await childOf(s, { createdByAgentId: s.a, assigneeAgentId: s.e1 }))).toEqual([[s.cr, s.r]]);
       expect(reviewers(await childOf(s, { createdByAgentId: s.a, assigneeAgentId: s.eo }))).toEqual([[s.cr, s.r]]);
-      // Chưa giao ai, board hay hệ thống tạo con: cũng là issue con code.
+      // Agent tạo con chưa giao ai, hay board tạo con đã giao executor: cũng là issue con code.
       expect(reviewers(await childOf(s, { createdByAgentId: s.a }))).toEqual([[s.cr, s.r]]);
       expect(reviewers(await childOf(s, { createdByUserId: "owner-1", assigneeAgentId: s.e1 }))).toEqual([[s.cr, s.r]]);
+    });
+
+    it("H4: việc con board thêm mà chưa có executor (chưa giao, chưa marker) nhận reviewer Claude", async () => {
+      const s = await seedRuntimes();
+      // Trợ Lý chọn executor sau khi tạo (có thể là Codex), còn policy đã ghim: không để reviewer Codex review code Codex.
+      expect(reviewers(await childOf(s, { createdByUserId: "owner-1" }))).toEqual([[s.r]]);
+      expect(reviewers(await childOf(s, { createdByUserId: "owner-1", description: "Thêm nút" }))).toEqual([[s.r]]);
+      const marker = "crew-model complexity=small model=claude-sonnet-5 effort=medium runtime=claude_local reason=thử";
+      expect(reviewers(await childOf(s, { createdByUserId: "owner-1", description: marker }))).toEqual([[s.cr, s.r]]);
     });
 
     it("H4 giữ reviewer Claude: executor Codex (assignee hay marker runtime=), bmad, issue gốc, Codex tắt, reviewer pause, không environment", async () => {

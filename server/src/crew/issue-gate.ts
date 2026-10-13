@@ -1,5 +1,5 @@
 import { isDeepStrictEqual } from "node:util";
-import { and, desc, eq, inArray, isNull, like, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, isNotNull, isNull, like, notInArray, sql } from "drizzle-orm";
 import {
   activityLog,
   agents,
@@ -95,6 +95,11 @@ export interface IssueGateFacts {
   docsEvidence: { evidence: DocsCheckEvidence; createdAt: Date } | null;
   /** Comment `crew-merge … pushed=yes` hoặc `pushed=pr pr=<url>` mới nhất (chưa xóa) của participant stage push. */
   pushEvidence: (CrewMergeEvidence & { createdAt: Date }) | null;
+  /**
+   * Số việc con chưa xong (không `done`/`cancelled`) do board (owner, thành viên) tạo dưới issue gốc này; chỉ đếm khi
+   * agent ghi lên issue gốc. Không truyền là 0.
+   */
+  openBoardChildren?: number;
 }
 
 export type IssueGateVerdict =
@@ -318,6 +323,17 @@ export function evaluateIssueGate(f: IssueGateFacts): IssueGateVerdict {
   // Việc nội bộ của hệ thống (watchdog, recovery) không có policy: agent được giao đóng được như stock.
   if (f.locked.housekeeping && !policy?.stages.length) return { kind: "allow", notes };
 
+  // Agent nộp việc (không phải participant đang duyệt một stage): route đã gộp transition stock nên `done` của người làm
+  // tới đây thành state `pending` của stage đầu (hoặc `done` khi không còn stage). Còn việc con board thêm chưa xong thì
+  // chặn, để Trợ Lý nhận việc đó vào kế hoạch trước khi yêu cầu gốc sang Reviewer.
+  const submitting =
+    f.actor.kind === "agent" &&
+    lockedState?.status !== "pending" &&
+    (nextState?.status === "pending" || (nextStatus === "done" && f.locked.status !== "done"));
+  if (submitting && (f.openBoardChildren ?? 0) > 0) {
+    return { kind: "block", code: "crew_gate_blocked", violations: ["board_child_open"] };
+  }
+
   const enteringDone = nextStatus === "done" && f.locked.status !== "done";
   const newlyCompleted = (stage: IssueExecutionStage) =>
     (nextState?.completedStageIds ?? []).includes(stage.id) &&
@@ -423,6 +439,8 @@ const BLOCK_MESSAGES: Record<string, string> = {
   agent_cancel_forbidden: "Crew: chỉ board được hủy issue; agent muốn bỏ việc thì chuyển blocked kèm lý do.",
   participant_changed:
     "Crew: chỉ board đổi người đang review; hệ thống chỉ được chuyển reviewer Codex sang reviewer Claude của project.",
+  board_child_open:
+    "Crew: yêu cầu còn việc con do owner hoặc thành viên thêm chưa xong; nhận việc đó vào kế hoạch và chờ nó xong rồi mới nộp.",
 };
 
 export async function crewBeforeIssueWrite(input: IssueWriteHookInput): Promise<void> {
@@ -525,6 +543,25 @@ export async function crewBeforeIssueWrite(input: IssueWriteHookInput): Promise<
   const pushParsed = pushComment ? parseCrewMergeEvidence(pushComment.body) : null;
   if (pushComment && pushParsed) pushEvidence = { ...pushParsed, createdAt: pushComment.createdAt };
 
+  // Việc con board thêm dưới issue gốc, chưa xong: chỉ cần khi agent đổi trạng thái/state của issue gốc. Đọc trong
+  // transaction của lệnh ghi.
+  let openBoardChildren = 0;
+  if (actor.kind === "agent" && !locked.parentId && (has(patch, "status") || has(patch, "executionState"))) {
+    const [row] = await tx
+      .select({ count: sql<number>`count(*)::int` })
+      .from(issues)
+      .where(
+        and(
+          eq(issues.companyId, locked.companyId),
+          eq(issues.parentId, issueId),
+          isNotNull(issues.createdByUserId),
+          isNull(issues.createdByAgentId),
+          notInArray(issues.status, [...TERMINAL_STATUSES]),
+        ),
+      );
+    openBoardChildren = row?.count ?? 0;
+  }
+
   // Issue watchdog/recovery chỉ được miễn khi người ghi không phải agent đang làm issue nguồn.
   let housekeeping = isCrewHousekeepingIssue(locked);
   if (housekeeping && actor.kind === "agent") {
@@ -553,6 +590,7 @@ export async function crewBeforeIssueWrite(input: IssueWriteHookInput): Promise<
     lastChangesRequestedAt: changes.length > 0 ? new Date(Math.max(...changes)) : null,
     docsEvidence,
     pushEvidence,
+    openBoardChildren,
   });
   if (verdict.kind === "block") {
     const message =

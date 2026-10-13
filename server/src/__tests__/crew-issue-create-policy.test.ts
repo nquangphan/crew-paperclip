@@ -6,7 +6,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { and, eq } from "drizzle-orm";
 import { agents, companies, createDb, issues, labels, projects, routineTriggers } from "@paperclipai/db";
 import { getEmbeddedPostgresTestSupport, startEmbeddedPostgresTestDatabase } from "./helpers/embedded-postgres.js";
-import { decideCreatePolicy, executorRuntimeOf } from "../crew/issue-create-policy.ts";
+import { boardChildAwaitingExecutor, decideCreatePolicy, executorRuntimeOf } from "../crew/issue-create-policy.ts";
 import { buildCrewPolicy, CREW_MAX_REVIEW_ROUNDS, CREW_POLICY_CONFIG_ENV } from "../crew/issue-policy.ts";
 import { heartbeatService } from "../services/heartbeat.ts";
 import { issueService } from "../services/issues.js";
@@ -115,6 +115,17 @@ describe("decideCreatePolicy", () => {
       ownerUserId: "owner-1",
     });
   });
+  it("việc con board thêm chờ executor: board tạo, có cha, chưa giao ai, chưa marker crew-model", () => {
+    const marker = "crew-model complexity=small model=claude-sonnet-5 effort=medium reason=thử";
+    expect(boardChildAwaitingExecutor({ createdByUserId: "owner-1", parentId: "p" })).toBe(true);
+    expect(boardChildAwaitingExecutor({ createdByUserId: "owner-1", parentId: "p", description: "Thêm nút" })).toBe(true);
+    expect(boardChildAwaitingExecutor({ createdByUserId: "owner-1", parentId: "p", assigneeAgentId: "e" })).toBe(false);
+    expect(boardChildAwaitingExecutor({ createdByUserId: "owner-1", parentId: "p", description: marker })).toBe(false);
+    expect(boardChildAwaitingExecutor({ createdByUserId: "owner-1" })).toBe(false);
+    expect(boardChildAwaitingExecutor({ createdByAgentId: "a", parentId: "p" })).toBe(false);
+    expect(boardChildAwaitingExecutor({ parentId: "p" })).toBe(false);
+  });
+
   it("board tạo issue con không policy: template con", () => {
     expect(decideCreatePolicy({ data: { createdByUserId: "owner-1", parentId: "p" }, roles, ownerUserId: "owner-1" })).toEqual(
       { kind: "set", template: "child" },

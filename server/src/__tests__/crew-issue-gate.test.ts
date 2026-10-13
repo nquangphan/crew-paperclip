@@ -434,6 +434,43 @@ describe("evaluateIssueGate", () => {
     expect(selfAssign(null).kind).not.toBe("block");
   });
 
+  it("việc con board thêm chưa xong: chặn agent nộp yêu cầu gốc, không chặn participant duyệt stage hay board", () => {
+    const assistant = "assistant-agent";
+    const working = { status: "in_progress", executionPolicy: root, executionState: null, assigneeAgentId: assistant, assigneeUserId: null };
+    // Route đã gộp transition stock: `done` của Trợ Lý tới gate thành `in_review` + state chờ Reviewer.
+    const submit = { status: "in_review", executionState: pending(root, sReview, reviewerParticipant), assigneeAgentId: REVIEWER };
+    const actor = { kind: "agent" as const, agentId: assistant };
+    expect(evaluateIssueGate(facts({ locked: working, patch: submit, actor, openBoardChildren: 1 }))).toMatchObject({
+      kind: "block",
+      code: "crew_gate_blocked",
+      violations: ["board_child_open"],
+    });
+    // Nộp lại sau Yêu cầu sửa (state `changes_requested`, không phải stage đang chờ): vẫn chặn.
+    const afterChanges = { ...working, executionState: { ...completed([]), status: "changes_requested", lastDecisionOutcome: "changes_requested" } };
+    expect(evaluateIssueGate(facts({ locked: afterChanges, patch: submit, actor, openBoardChildren: 2 }))).toMatchObject({
+      violations: ["board_child_open"],
+    });
+    expect(evaluateIssueGate(facts({ locked: working, patch: submit, actor, openBoardChildren: 0 }))).toEqual({ kind: "allow", notes: [] });
+    expect(evaluateIssueGate(facts({ locked: working, patch: submit, actor }))).toEqual({ kind: "allow", notes: [] });
+    // Trợ Lý chỉ comment hay đặt `blocked`: không phải nộp.
+    expect(evaluateIssueGate(facts({ locked: working, patch: { status: "blocked" }, actor, openBoardChildren: 1 }))).toEqual({
+      kind: "allow",
+      notes: [],
+    });
+    // Board nộp thay thì không chặn bởi luật này.
+    const board = { kind: "board" as const, userId: "owner-1" };
+    expect(evaluateIssueGate(facts({ locked: working, patch: submit, actor: board, openBoardChildren: 1 })).kind).not.toBe("block");
+    // Reviewer duyệt stage đang chờ (state trước là `pending`): không xét việc con.
+    const reviewerApproves = {
+      status: "in_review",
+      executionState: { ...pending(root, sIntegrator, { type: "agent", agentId: INTEGRATOR, userId: null }, [sReview]), lastDecisionOutcome: "approved" },
+      assigneeAgentId: INTEGRATOR,
+    };
+    expect(
+      evaluateIssueGate(facts({ patch: reviewerApproves, actor: { kind: "agent", agentId: REVIEWER }, openBoardChildren: 1 })).kind,
+    ).not.toBe("block");
+  });
+
   it("chặn agent đổi stage hoặc xóa policy", () => {
     const shrunk = { ...root, stages: root.stages.slice(0, 1) };
     expect(evaluateIssueGate(facts({ patch: { executionPolicy: shrunk } }))).toMatchObject({

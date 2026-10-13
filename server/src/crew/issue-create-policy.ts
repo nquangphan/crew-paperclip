@@ -221,9 +221,25 @@ export function executorRuntimeOf(description: string | null | undefined, assign
 }
 
 /**
+ * Việc con board (owner, thành viên) thêm vào yêu cầu mà chưa giao ai và chưa có marker `crew-model`: Trợ Lý chọn
+ * executor (mọi runtime) sau khi tạo, còn policy đã ghim lúc tạo và agent không đổi được. Ghim reviewer Codex lúc này có
+ * thể thành Codex review chính code Codex, nên việc con loại này luôn nhận reviewer Claude.
+ */
+export function boardChildAwaitingExecutor(data: IssueCreateFields): boolean {
+  return (
+    !data.createdByAgentId &&
+    !!data.createdByUserId?.trim() &&
+    !!data.parentId &&
+    !data.assigneeAgentId &&
+    !CREW_MODEL_LINE_RE.test(data.description ?? "")
+  );
+}
+
+/**
  * Reviewer của issue con code (H4): reviewer Codex của project khi `chooseReviewer` cho phép, công tắc `codex_local` đọc
  * trên máy của reviewer Codex. Reviewer Codex không có environment thì không xác định máy (công tắc mặc định, tắt), như
- * cổng H1. Đọc trạng thái/máy/công tắc lỗi thì reviewer Claude (không chặn tạo issue vì một ô tùy chọn).
+ * cổng H1. Đọc trạng thái/máy/công tắc lỗi thì reviewer Claude (không chặn tạo issue vì một ô tùy chọn). Việc con board
+ * thêm mà chưa có executor (`boardChildAwaitingExecutor`) luôn nhận reviewer Claude.
  */
 async function chooseChildReviewer(
   db: Db,
@@ -233,6 +249,7 @@ async function chooseChildReviewer(
 ): Promise<ReviewerChoice | null> {
   const codexReviewerAgentId = roles.codexReviewerAgentId;
   if (!codexReviewerAgentId) return null;
+  if (boardChildAwaitingExecutor(data)) return null;
   try {
     const [codex] = await db
       .select({ status: agents.status, defaultEnvironmentId: agents.defaultEnvironmentId })
