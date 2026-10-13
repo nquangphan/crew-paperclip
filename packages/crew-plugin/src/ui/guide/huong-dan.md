@@ -150,7 +150,7 @@ Khi dòng tóm tắt báo **Owner duyệt**:
    - bình luận của reviewer;
    - dòng `crew-docs-check … exit=0` (tài liệu đạt);
    - map: mọi việc con đã xong.
-2. **Đồng ý:** viết một bình luận ngắn, ví dụ "Duyệt", rồi đổi trạng thái (**Status** ở bảng Properties bên phải) sang **Done**. Bình luận và việc đổi trạng thái đi cùng nhau. Integrator sẽ tự đẩy code lên `main` và ghi `crew-merge … pushed=yes`.
+2. **Đồng ý:** viết một bình luận ngắn, ví dụ "Duyệt", rồi đổi trạng thái (**Status** ở bảng Properties bên phải) sang **Done**. Bình luận và việc đổi trạng thái đi cùng nhau. Integrator sẽ đẩy nhánh `crew/req/<mã yêu cầu>`, mở pull request vào nhánh chính, ghi `crew-merge … pushed=pr pr=<link>` và thêm mục **Merge request** (link PR, trạng thái, conflict nếu có) vào tổng kết của Trợ Lý. Bạn bấm **Merge** trên GitHub; Integrator không tự gộp.
 3. **Chưa đồng ý:** viết rõ cần sửa gì, rồi đổi trạng thái về **In Progress**. Việc quay lại để sửa.
 
 Nếu Inbox hiện sẵn nút **Approve** / **Request changes** cho yêu cầu đó, bấm thẳng cũng được. Hai nút này có cùng tác dụng với hai cách ở trên.
@@ -198,7 +198,8 @@ Bấm **Crew** ở thanh bên trái.
 | `crew-kind research` | Việc nghiên cứu, không sửa code |
 | `crew-review … verdict=approved` | Reviewer đã duyệt |
 | `crew-docs-check commit=… exit=0` | Integrator đã kiểm tài liệu trên code đã gộp. `exit=0` là đạt |
-| `crew-merge sha=… pushed=yes` | Đã đẩy lên `main` |
+| `crew-merge sha=… pushed=pr pr=…` | Đã mở pull request vào nhánh chính, chờ owner bấm Merge trên GitHub |
+| `crew-merge sha=… pushed=yes` | Đã đẩy thẳng lên nhánh chính (repo không ở GitHub) |
 | `crew-assistant done children=…` | Trợ Lý xác nhận mọi việc con đã xong |
 
 ---

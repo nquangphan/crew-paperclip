@@ -19,13 +19,13 @@ Mỗi mục trả lời một việc: **là gì**, **làm từng bước thế n
 
 ### 2P Crew là gì {#what-is-crew}
 
-2P Crew là một đội agent AI biết lập trình. Bạn viết yêu cầu bằng lời, ví dụ "thêm nút xuất Excel ở trang báo cáo". Đội agent tự chia việc, viết code, tự review, cập nhật tài liệu rồi đẩy code lên nhánh chính. Con người chỉ trả lời khi được hỏi và duyệt ở bước cuối.
+2P Crew là một đội agent AI biết lập trình. Bạn viết yêu cầu bằng lời, ví dụ "thêm nút xuất Excel ở trang báo cáo". Đội agent tự chia việc, viết code, tự review, cập nhật tài liệu rồi mở pull request vào nhánh chính. Con người chỉ trả lời khi được hỏi, duyệt ở bước cuối và bấm Merge trên GitHub.
 
 | Thành phần | Là gì |
 |---|---|
 | **Company** | Không gian làm việc chứa mọi yêu cầu, project và agent. Chọn ở ô trên cùng của thanh bên trái |
 | **Project** | Một repo code mà đội agent làm việc trên đó |
-| **Agent** | Một "người làm" là AI. Mỗi project có bốn vai trò: Trợ Lý, Executor (viết code), Reviewer (kiểm tra), Integrator (gộp code và đẩy lên) |
+| **Agent** | Một "người làm" là AI. Mỗi project có bốn vai trò: Trợ Lý, Executor (viết code), Reviewer (kiểm tra), Integrator (gộp code và mở pull request) |
 | **Máy** | Máy Mac chạy agent, có app 2P Crew đang mở |
 | **Yêu cầu** | Một việc giao cho đội. Mọi yêu cầu đi qua Trợ Lý và các bước duyệt cố định |
 
@@ -213,8 +213,18 @@ Bạn giao cho Trợ Lý
   → Trợ Lý chia thành yêu cầu con, chọn model, giao cho Executor
   → Executor viết code (test trước)  →  Reviewer duyệt từng yêu cầu con
   → yêu cầu gốc qua: (1) Reviewer → (2) Integrator gộp code, kiểm tài liệu
-     → (3) OWNER DUYỆT → (4) Integrator đẩy code lên nhánh chính
+     → (3) OWNER DUYỆT → (4) Integrator mở pull request vào nhánh chính
+  → owner bấm Merge trên GitHub
 ```
+
+#### Pull request sau khi duyệt
+
+Duyệt xong, Integrator không tự gộp vào nhánh chính. Nó đẩy nhánh `crew/req/<mã yêu cầu>` đúng bản code bạn đã duyệt, mở một pull request vào nhánh chính rồi thêm mục **Merge request** vào cuối phần **Tổng kết của Trợ Lý** trong mô tả yêu cầu: link PR, trạng thái và conflict nếu có. Nội dung PR lấy từ chính phần tổng kết đó.
+
+- Mở link, xem thay đổi trên GitHub rồi bấm **Merge**. Code chỉ vào nhánh chính lúc bạn bấm.
+- PR báo conflict thì Integrator không tự sửa: bạn xử lý trên GitHub, hoặc mở lại yêu cầu và ghi rõ cần sửa gì.
+- Repo không ở GitHub thì Integrator đẩy thẳng vào nhánh chính như trước và ghi rõ điều đó trong bình luận.
+- Project bật deploy tự động chỉ deploy sau khi PR được merge, đúng commit merge trên nhánh deploy. PR đóng mà không merge thì không deploy (bình luận `crew-deploy … status=cancelled`); quá 3 ngày chưa merge thì job thôi chờ.
 
 Một yêu cầu nhỏ thường xong trong 15 đến 30 phút.
 
@@ -283,7 +293,7 @@ Yêu cầu là cách duy nhất để giao việc cho đội agent. Mọi yêu c
 | **Code** | Thêm hoặc sửa tính năng | Đi đủ các bước duyệt |
 | **Bug** | Có lỗi | Tả **triệu chứng**: "bấm X thì ra Y, đúng ra phải Z". Agent viết test bắt lỗi rồi mới sửa |
 | **Nghiên cứu** | Cần so sánh, đề xuất, không sửa code | Chỉ hai bước duyệt: Reviewer rồi owner, không đẩy code. Company phải có nhãn "research" |
-| **Viết tài liệu** | Cần file tài liệu trong repo: spec, mockup, markdown, ảnh | Đi đủ các bước duyệt như Code (gộp, kiểm docs, owner duyệt rồi đẩy lên). Agent không viết test code, không sửa code trừ khi yêu cầu ghi rõ; vẫn đính kèm ảnh chụp tài liệu hoặc mockup. Company phải có nhãn "docs" |
+| **Viết tài liệu** | Cần file tài liệu trong repo: spec, mockup, markdown, ảnh | Đi đủ các bước duyệt như Code (gộp, kiểm docs, owner duyệt rồi mở pull request). Agent không viết test code, không sửa code trừ khi yêu cầu ghi rõ; vẫn đính kèm ảnh chụp tài liệu hoặc mockup. Company phải có nhãn "docs" |
 
 > **Ví dụ tốt:** *Tiêu đề:* Thêm nút xuất Excel ở trang báo cáo. *Mô tả:* Trang Báo cáo doanh thu cần nút Xuất Excel, file có cột Ngày, Đơn hàng, Tổng tiền. Không đổi cách tính tổng.
 
@@ -302,7 +312,7 @@ Khi giai đoạn là **Owner duyệt**, đến lượt bạn. Yêu cầu hiện 
 
 | Nút | Dùng khi | Chuyện xảy ra |
 |---|---|---|
-| **Duyệt** (1) | Đồng ý | Hộp thoại có ô **Lời nhắn khi duyệt** điền sẵn "Đã xem, duyệt.", không được để trống. Xác nhận thì Integrator đẩy code và yêu cầu thành **Hoàn thành** |
+| **Duyệt** (1) | Đồng ý | Hộp thoại có ô **Lời nhắn khi duyệt** điền sẵn "Đã xem, duyệt.", không được để trống. Xác nhận thì Integrator mở pull request (link ở mục **Merge request** của tổng kết) và yêu cầu thành **Hoàn thành**; code vào nhánh chính khi bạn bấm Merge trên GitHub |
 | **Yêu cầu sửa** (2) | Chưa đồng ý | Viết **Lý do cần sửa** (ít nhất 5 ký tự), **Gửi yêu cầu sửa**. Việc quay về người làm, tính thêm một vòng sửa |
 | **Hủy yêu cầu** (3) | Không cần nữa | Có hộp xác nhận. Yêu cầu thành **Đã hủy**, run đang chạy bị dừng |
 | **Ép Done** (4) | Bất khả kháng | Mục [Ép Done](#force-done) |
@@ -751,7 +761,8 @@ Bình luận của agent có các dòng bắt đầu bằng `crew-`: bằng ch�
 | `crew-kind docs` | Việc viết tài liệu: chỉ sửa file tài liệu, không chạy test code |
 | `crew-review … verdict=approved` | Reviewer đã duyệt |
 | `crew-docs-check commit=… exit=0` | Integrator đã kiểm tài liệu trên code đã gộp; `exit=0` là đạt |
-| `crew-merge sha=… pushed=yes` | Đã đẩy lên nhánh chính |
+| `crew-merge sha=… pushed=pr pr=…` | Đã mở pull request vào nhánh chính, chờ owner bấm Merge trên GitHub |
+| `crew-merge sha=… pushed=yes` | Đã đẩy thẳng lên nhánh chính (repo không ở GitHub) |
 | `crew-assistant done children=…` | Trợ Lý xác nhận mọi yêu cầu con đã xong |
 
 ### Sự cố thường gặp {#troubleshooting}

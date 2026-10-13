@@ -19,13 +19,13 @@ Each section answers one task: **what it is**, **how to do it step by step**, th
 
 ### What 2P Crew is {#what-is-crew}
 
-2P Crew is a team of AI agents that can program. You write a request in plain words, for example "add an Export to Excel button on the report page". The agents split the work, write code, review it, update the docs and push the code to the main branch. People only answer questions and approve at the last step.
+2P Crew is a team of AI agents that can program. You write a request in plain words, for example "add an Export to Excel button on the report page". The agents split the work, write code, review it, update the docs and open a pull request into the main branch. People only answer questions, approve at the last step and click Merge on GitHub.
 
 | Part | What it is |
 |---|---|
 | **Company** | The workspace holding every request, project and agent. Pick it at the top of the left sidebar |
 | **Project** | A code repository the agents work on |
-| **Agent** | An AI "worker". Each project has four roles: Assistant, Executor (writes code), Reviewer (checks), Integrator (merges and pushes) |
+| **Agent** | An AI "worker". Each project has four roles: Assistant, Executor (writes code), Reviewer (checks), Integrator (merges and opens the pull request) |
 | **Machine** | A Mac that runs agents, with the 2P Crew app open |
 | **Request** | A task for the team. Every request goes through the Assistant and fixed approval steps |
 
@@ -213,8 +213,18 @@ You give it to the Assistant
   → the Assistant splits it into sub-requests, picks models, assigns Executors
   → Executors write code (tests first)  →  the Reviewer approves each sub-request
   → the root request goes: (1) Reviewer → (2) Integrator merges, checks docs
-     → (3) OWNER APPROVAL → (4) Integrator pushes to the main branch
+     → (3) OWNER APPROVAL → (4) Integrator opens a pull request into the main branch
+  → the owner clicks Merge on GitHub
 ```
+
+#### The pull request after approval
+
+After approval the Integrator does not merge into the main branch itself. It pushes the branch `crew/req/<request key>` at exactly the code you approved, opens a pull request into the main branch, and adds a **Merge request** subsection at the end of the **Assistant summary** ("Tổng kết của Trợ Lý") in the request description: the PR link, its state and any conflict. The PR description is taken from that summary.
+
+- Open the link, review the changes on GitHub and click **Merge**. The code reaches the main branch only when you click.
+- If the PR reports a conflict, the Integrator does not fix it: resolve it on GitHub, or reopen the request and say what to change.
+- Repositories not hosted on GitHub are pushed straight to the main branch as before, and the comment says so.
+- A project with auto-deploy deploys only after the PR is merged, at the merge commit on the deploy branch. A PR closed without merging is not deployed (comment `crew-deploy … status=cancelled`); after 3 days without a merge the job stops waiting.
 
 A small request usually finishes in 15 to 30 minutes.
 
@@ -283,7 +293,7 @@ A request is the only way to give work to the agent team. Every request goes thr
 | **Code** | Add or change a feature | Goes through every approval step |
 | **Bug** | Something is broken | Describe the **symptom**: "clicking X gives Y, it should give Z". The agent writes a failing test first, then fixes |
 | **Research** | Compare or propose, no code change | Only two approval steps: Reviewer then owner, no push. The company needs a "research" label |
-| **Write docs** | You need documentation files in the repo: specs, mockups, markdown, images | Goes through every approval step like Code (merge, docs check, owner approval, then push). The agent writes no code tests and changes no code unless the request says so; it still attaches screenshots of the docs or mockups. The company needs a "docs" label |
+| **Write docs** | You need documentation files in the repo: specs, mockups, markdown, images | Goes through every approval step like Code (merge, docs check, owner approval, then a pull request). The agent writes no code tests and changes no code unless the request says so; it still attaches screenshots of the docs or mockups. The company needs a "docs" label |
 
 > **Good example:** *Title:* Add an Export to Excel button on the report page. *Description:* The Revenue report needs an Export to Excel button; the file has Date, Order, Total columns. Do not change how totals are computed.
 
@@ -302,7 +312,7 @@ When the stage is **Owner approval**, it is your turn. The request shows in the 
 
 | Button | When | What happens |
 |---|---|---|
-| **Approve** (1) | You agree | The dialog has an **Approval note** prefilled with "Reviewed, approved."; it cannot be empty. Confirm and the Integrator pushes; the request becomes **Done** |
+| **Approve** (1) | You agree | The dialog has an **Approval note** prefilled with "Reviewed, approved."; it cannot be empty. Confirm and the Integrator opens a pull request (link in the **Merge request** part of the summary); the request becomes **Done** and the code reaches the main branch when you click Merge on GitHub |
 | **Request changes** (2) | You do not agree yet | Write **What needs fixing** (at least 5 characters), **Send change request**. The work goes back and counts one more review round |
 | **Cancel request** (3) | No longer needed | Asks for confirmation. The request becomes **Cancelled** and running runs stop |
 | **Force Done** (4) | Exceptional cases | Section [Force Done](#force-done) |
@@ -751,7 +761,8 @@ Agent comments contain lines starting with `crew-`: machine-readable evidence.
 | `crew-kind docs` | A documentation task: only doc files change, no code tests |
 | `crew-review … verdict=approved` | The Reviewer approved |
 | `crew-docs-check commit=… exit=0` | The Integrator checked the docs on the merged code; `exit=0` means pass |
-| `crew-merge sha=… pushed=yes` | Pushed to the main branch |
+| `crew-merge sha=… pushed=pr pr=…` | Pull request opened into the main branch, waiting for the owner to click Merge on GitHub |
+| `crew-merge sha=… pushed=yes` | Pushed straight to the main branch (repository not on GitHub) |
 | `crew-assistant done children=…` | The Assistant confirms every sub-request is done |
 
 ### Troubleshooting {#troubleshooting}
