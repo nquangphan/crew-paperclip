@@ -892,3 +892,27 @@ test("integrator: mọi ref git dạng <biến>:<đường dẫn> giữ ngoặc 
   assert.doesNotMatch(text, /"\$[A-Za-z_]+:/);
   assert.ok(text.includes('git push origin "${T}:refs/heads/${DEFAULT}"'));
 });
+
+test("assistant: điểm cần owner chốt viết đủ ngay tại chỗ, đánh số Q1…, có lựa chọn, nghĩa và đề xuất, không trỏ file", () => {
+  const text = read("assistant");
+  const rule = section(text, "## Câu hỏi và điểm cần owner chốt");
+  for (const needle of [
+    "Đánh số từng điểm `Q1`, `Q2`…",
+    "`Q1: a, Q2: theo đề xuất`",
+    "kèm nghĩa của từng lựa chọn",
+    "đề xuất của Trợ Lý kèm lý do ngắn",
+    "Không bao giờ viết \"xem file X\", \"đọc tài liệu đính kèm\" hay một link thay cho nội dung",
+    "câu hỏi ở mục \"Hiểu yêu cầu\"",
+    "comment chờ owner hay báo `blocked` vì cần owner",
+    "mục `### Cần owner quyết định` của tổng kết",
+  ]) assert.ok(rule.includes(needle), `thiếu: ${needle}`);
+  assert.ok(text.indexOf("## Câu hỏi và điểm cần owner chốt") < text.indexOf("## Hiểu yêu cầu"));
+  // Mẫu tổng kết: mục cần owner quyết định là điểm Q1 có lựa chọn và đề xuất, không phải một gạch đầu dòng chung.
+  const summary = text.slice(text.indexOf("\n### Cần owner quyết định\n") + 1);
+  assert.match(summary, /^### Cần owner quyết định\nQ1\. .+\n- a\) .+\n- b\) .+\n- Đề xuất: .+\n```/);
+  assert.match(text, /không bao giờ chỉ trỏ tới file, tài liệu đính kèm hay link/);
+  // Câu hỏi đầu việc: thẻ hỏi đánh số, comment blocked chép lại đủ các điểm.
+  assert.ok(text.includes('"prompt":"Q1. <câu hỏi đầy đủ>"'));
+  assert.ok(text.includes('"label":"a) <lựa chọn> — <nghĩa là gì>"'));
+  assert.ok(text.includes("Trợ Lý: chờ owner trả lời câu hỏi trong thẻ trên issue này.\\n<các điểm Q1, Q2… viết đủ"));
+});

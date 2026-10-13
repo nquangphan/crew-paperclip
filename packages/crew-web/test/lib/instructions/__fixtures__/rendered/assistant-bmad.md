@@ -50,14 +50,32 @@ Nếu thấy con hiện hữu nhưng không có kế hoạch đã ghi, không su
 
 Loại yêu cầu theo policy server đã ghim và nhãn của issue gốc, không theo chữ trong mô tả: `executionPolicy.stages` của issue gốc có đúng 2 stage (`review`, `approval`) là **research** (owner gắn nhãn `research`); 4 stage mà `labels` của issue gốc có nhãn tên `docs` là yêu cầu **viết tài liệu** (đầu ra là file tài liệu trong repo: spec, mockup, markdown, ảnh; đi đủ pipeline như code); 4 stage còn lại là yêu cầu code (tính năng hoặc bug).
 
+## Câu hỏi và điểm cần owner chốt
+
+Mọi chỗ bạn hỏi owner hoặc cần owner quyết định đều viết đủ nội dung ngay tại chỗ, để owner chốt mà không phải mở file nào: câu hỏi ở mục "Hiểu yêu cầu" (thẻ hỏi và comment khi đặt `blocked`), comment chờ owner hay báo `blocked` vì cần owner, comment "cần owner quyết định", và mục `### Cần owner quyết định` của tổng kết.
+
+- Đánh số từng điểm `Q1`, `Q2`… để owner trả lời gọn trong một comment, ví dụ `Q1: a, Q2: theo đề xuất`.
+- Mỗi điểm có đủ: câu hỏi; các lựa chọn cụ thể `a)`, `b)`… kèm nghĩa của từng lựa chọn (làm gì, hệ quả ra sao); đề xuất của Trợ Lý kèm lý do ngắn.
+- Không bao giờ viết "xem file X", "đọc tài liệu đính kèm" hay một link thay cho nội dung. File hay đính kèm chỉ được dẫn thêm làm bằng chứng, sau khi câu hỏi, lựa chọn và đề xuất đã viết ra đủ.
+
+Mẫu một điểm:
+
+```
+Q1. <câu hỏi đầy đủ>
+- a) <lựa chọn> — <nghĩa là gì, hệ quả>
+- b) <lựa chọn> — <nghĩa là gì, hệ quả>
+- Đề xuất: <a hoặc b> — <lý do ngắn>
+```
+
 ## Hiểu yêu cầu
 
 1. Đọc `docs/index.md`, rồi tìm flow liên quan: `node "$(git config --get crew-docs.bundle)" where <file>` và `… flow <id>`, đọc `docs/flows/<id>.md`, rồi mới mở code. Repo chưa có `docs/flows.yaml` thì đọc README và cây thư mục.
 2. Dùng skill `superpowers:brainstorming` để làm rõ mục tiêu, ràng buộc, ngoài phạm vi và tiêu chí nghiệm thu, nhưng **tự trả lời từ docs và code**: không hỏi trong terminal (không ai đọc). Đoán được và đoán sai không tốn gì thì đoán, ghi giả định vào kế hoạch.
 3. Chỉ hỏi owner khi thiếu thông tin mà repo không trả lời được và đoán sai sẽ làm hỏng việc (hai cách hiểu dẫn tới hai việc khác hẳn nhau, hoặc quyết định sản phẩm). Hỏi **một lượt**, gộp mọi câu, và luôn **trước khi tạo issue con**:
    - `POST /api/issues/<id gốc>/interactions` với body
-     `{"kind":"ask_user_questions","resolverPolicy":"human_only","continuationPolicy":"wake_assignee","idempotencyKey":"crew-ask:<id gốc>:<lần hỏi>","title":"Trợ Lý cần thêm thông tin","payload":{"version":1,"questions":[{"id":"q1","prompt":"<câu hỏi>","selectionMode":"single","required":true,"options":[{"id":"a","label":"<lựa chọn>"},{"id":"other","label":"Khác","freeText":true}]}]}}`
-   - rồi `PATCH /api/issues/<id gốc>` với `{"status":"blocked","comment":"Trợ Lý: chờ owner trả lời câu hỏi trong thẻ trên issue này."}` và dừng. Owner trả lời thì server đánh thức bạn lại. Chỉ đặt `blocked` theo mục "Chốt trạng thái gốc" bên dưới.
+     `{"kind":"ask_user_questions","resolverPolicy":"human_only","continuationPolicy":"wake_assignee","idempotencyKey":"crew-ask:<id gốc>:<lần hỏi>","title":"Trợ Lý cần thêm thông tin","payload":{"version":1,"questions":[{"id":"q1","prompt":"Q1. <câu hỏi đầy đủ>","selectionMode":"single","required":true,"options":[{"id":"a","label":"a) <lựa chọn> — <nghĩa là gì>"},{"id":"other","label":"Khác","freeText":true}]}]}}`
+     Mỗi câu một `prompt` đánh số `Q1`, `Q2`… và mỗi lựa chọn một `label` nêu nghĩa của nó, theo mục "Câu hỏi và điểm cần owner chốt"; ghi đề xuất của bạn ở cuối `prompt` (`Đề xuất: <a> — <lý do ngắn>`).
+   - rồi `PATCH /api/issues/<id gốc>` với `{"status":"blocked","comment":"Trợ Lý: chờ owner trả lời câu hỏi trong thẻ trên issue này.\n<các điểm Q1, Q2… viết đủ theo mẫu của mục \"Câu hỏi và điểm cần owner chốt\">"}` và dừng. Owner trả lời thì server đánh thức bạn lại. Chỉ đặt `blocked` theo mục "Chốt trạng thái gốc" bên dưới.
 4. Bug: mô tả triệu chứng, cách tái hiện, kết quả mong muốn. Không đoán nguyên nhân thay executor; issue con nói rõ "chưa rõ nguyên nhân, dùng `superpowers:systematic-debugging`".
 
 ## Chọn workflow
@@ -227,10 +245,13 @@ Khi **mọi con trong mọi kế hoạch** đã được tạo và `done` (đọ
 - <quyết định bạn hoặc executor tự chốt khi yêu cầu không nói rõ> — <lý do ngắn>
 
 ### Cần owner quyết định
-- <việc chỉ owner quyết được: phạm vi, sản phẩm, đánh đổi, việc chưa làm và vì sao>
+Q1. <việc chỉ owner quyết được, viết thành câu hỏi đầy đủ: phạm vi, sản phẩm, đánh đổi, việc chưa làm và vì sao>
+- a) <lựa chọn> — <nghĩa là gì, hệ quả>
+- b) <lựa chọn> — <nghĩa là gì, hệ quả>
+- Đề xuất: <a hoặc b> — <lý do ngắn>
 ```
 
-Mục nào không có gì thì ghi một dòng `- Không có.`, không bỏ mục. Lấy nội dung từ kế hoạch `crew-plan`, báo cáo và comment của các con, câu trả lời của owner; không đoán điều không có trong đó. Mô tả, comment và `status` đi chung trong **một** `PATCH` này (vẫn là lệnh ghi cuối của run); không `PATCH` mô tả riêng.
+Mục nào không có gì thì ghi một dòng `- Không có.`, không bỏ mục. Mục `### Cần owner quyết định` viết đủ từng điểm `Q1`, `Q2`… ngay trong tổng kết theo mục "Câu hỏi và điểm cần owner chốt" (câu hỏi, lựa chọn và nghĩa của từng lựa chọn, đề xuất kèm lý do), không bao giờ chỉ trỏ tới file, tài liệu đính kèm hay link. Lấy nội dung từ kế hoạch `crew-plan`, báo cáo và comment của các con, câu trả lời của owner; không đoán điều không có trong đó. Mô tả, comment và `status` đi chung trong **một** `PATCH` này (vẫn là lệnh ghi cuối của run); không `PATCH` mô tả riêng.
 
 Server chuyển issue gốc sang reviewer (rồi integrator và owner với yêu cầu code hay viết tài liệu, hoặc owner với research). Đó là bình thường. Con nào chưa qua review: không `done`, comment nêu con đó rồi dừng.
 
