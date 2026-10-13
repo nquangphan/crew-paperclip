@@ -323,7 +323,7 @@ Khi giai đoạn là **Owner duyệt**, đến lượt bạn. Yêu cầu hiện 
 | Nút | Dùng khi | Chuyện xảy ra |
 |---|---|---|
 | **Duyệt** (1) | Đồng ý | Hộp thoại có ô **Lời nhắn khi duyệt** điền sẵn "Đã xem, duyệt.", không được để trống. Xác nhận thì Integrator mở pull request (link ở mục **Merge request** của tổng kết) và yêu cầu thành **Hoàn thành**; code vào nhánh chính khi bạn bấm Merge trên GitHub |
-| **Yêu cầu sửa** (2) | Chưa đồng ý | Viết **Lý do cần sửa** (ít nhất 5 ký tự), **Gửi yêu cầu sửa**. Việc quay về người làm, tính thêm một vòng sửa |
+| **Yêu cầu sửa** (2) | Chưa đồng ý | Viết **Lý do cần sửa** (ít nhất 5 ký tự), **Gửi yêu cầu sửa**. Việc quay về người làm, tính thêm một vòng sửa. Với yêu cầu code hay viết tài liệu, lần nộp lại chạy lại từ đầu: Reviewer xem lại, Integrator gộp lại cả việc sửa mới và kiểm docs, rồi mới về bạn duyệt lại; **Lịch sử** ghi dòng *Owner yêu cầu sửa: lần nộp lại chạy lại từ Reviewer* |
 | **Hủy yêu cầu** (3) | Không cần nữa | Có hộp xác nhận. Yêu cầu thành **Đã hủy**, run đang chạy bị dừng |
 | **Ép Done** (4) | Bất khả kháng | Mục [Ép Done](#force-done) |
 | **Mở lại** | Yêu cầu đã xong hoặc đã hủy mà cần làm lại | Yêu cầu về **Cần làm**, chạy lại từ đầu ở vòng mới |

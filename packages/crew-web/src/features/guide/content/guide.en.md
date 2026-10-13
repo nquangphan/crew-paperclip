@@ -323,7 +323,7 @@ When the stage is **Owner approval**, it is your turn. The request shows in the 
 | Button | When | What happens |
 |---|---|---|
 | **Approve** (1) | You agree | The dialog has an **Approval note** prefilled with "Reviewed, approved."; it cannot be empty. Confirm and the Integrator opens a pull request (link in the **Merge request** part of the summary); the request becomes **Done** and the code reaches the main branch when you click Merge on GitHub |
-| **Request changes** (2) | You do not agree yet | Write **What needs fixing** (at least 5 characters), **Send change request**. The work goes back and counts one more review round |
+| **Request changes** (2) | You do not agree yet | Write **What needs fixing** (at least 5 characters), **Send change request**. The work goes back and counts one more review round. For a code or documentation request, the resubmission starts over: the Reviewer looks again, the Integrator merges again including the new fixes and reruns the docs check, and only then does it come back for your approval; **History** shows *Owner requested changes: the resubmission restarts at the Reviewer* |
 | **Cancel request** (3) | No longer needed | Asks for confirmation. The request becomes **Cancelled** and running runs stop |
 | **Force Done** (4) | Exceptional cases | Section [Force Done](#force-done) |
 | **Reopen** | A done or cancelled request needs more work | The request goes back to **To do** and runs again in a new round |

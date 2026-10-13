@@ -49,6 +49,8 @@ Nhánh mặc định: `git fetch origin`, rồi `DEFAULT=$(git symbolic-ref --sh
    - `git merge --no-ff --no-edit <sha> -m "merge(<identifier>): <tiêu đề issue con>"` theo thứ tự blocker.
 3. Conflict: `git merge --abort`, rồi yêu cầu sửa theo mục "Yêu cầu sửa" (nêu conflict ở `<file>`, giữa `<sha A>` và `<sha B>`).
 
+Owner yêu cầu sửa ở stage owner thì server cho issue gốc chạy lại từ reviewer, nên bạn gặp lại stage 2 của cùng issue gốc: gộp lại từ đầu như trên, gồm `sha` đã review của các con sửa mới, kiểm lại và ghi bằng chứng `crew-docs-check` mới cho merged commit đó, kể cả khi không có con sửa nào (bằng chứng cũ hơn yêu cầu sửa của owner bị server trả `docs_stale`). Stage 4 sau lần owner duyệt lại giao đúng commit mới đó: script bước 2 đẩy nhánh `crew/req/<identifier>` và cập nhật pull request đang mở nếu có.
+
 ## Yêu cầu sửa
 
 Bạn không `PATCH` `in_progress` trên issue gốc: stock đưa issue gốc về lại stage integrator mà không qua reviewer, nên mã sửa không bao giờ được review và issue kẹt tới vòng 5. Việc cần executor làm thêm (code lỗi, conflict, commit chưa được review) đi qua **một issue con mới**: `POST /api/companies/<companyId>/issues` với `"parentId":"<id gốc>"`, giao cho executor đã làm issue chứa `sha` cần sửa (tác giả của `crew-commit` đó, không mặc định executor của issue gốc), không gửi `executionPolicy`, không gửi `assigneeAdapterOverrides`, không giao cho reviewer hay integrator. Mô tả nêu rõ điểm cần sửa và có **một dòng riêng** đúng dạng sau để executor dựng nhánh từ đúng commit đó và reviewer xem đúng phần sửa:
@@ -68,7 +70,7 @@ Sau đó comment trên issue gốc nêu lý do và issue con vừa tạo, rồi 
 
 1. `POST /api/issues/<id>/comments` với **dòng đầu đúng định dạng** (một dòng, không chữ thừa), sau đó là output lệnh trong khối code:
    `crew-docs-check commit=<git rev-parse HEAD> range=<BASE 40 ký tự>..<git rev-parse HEAD> exit=<DOCS_EXIT>`
-   `commit` phải bằng vế phải của range (merged commit). Comment phải mới hơn lần `Reviewer`/`Integrator: cần sửa` gần nhất, nên viết lại sau mỗi vòng sửa.
+   `commit` phải bằng vế phải của range (merged commit). Comment phải mới hơn lần `Reviewer`/`Integrator: cần sửa` và lần owner yêu cầu sửa gần nhất, nên viết lại sau mỗi vòng sửa.
    Phải xuống dòng ngay sau `exit=<DOCS_EXIT>`: trong JSON `body` có `\n\n` ngay sau `exit=<DOCS_EXIT>` rồi mới tới khối code; không viết khối code dính liền trên cùng dòng. Rồi `GET /api/issues/<id>/comments` đọc lại comment vừa đăng: dòng đầu phải kết thúc đúng ở `exit=<DOCS_EXIT>`; sai thì đăng lại comment mới cho đúng trước khi sang bước 2.
 2. `DOCS_EXIT` là 0 hoặc 3: `PATCH /api/issues/<id>` `{"status":"done","comment":"Integrator: approve — crew/req/<identifier> tại <sha>; test <lệnh>: pass; docs exit <DOCS_EXIT>"}`. Server chuyển sang stage owner.
 3. `DOCS_EXIT`=1 hoặc test không qua: sửa được (docs) thì sửa, commit, chạy lại và ghi bằng chứng mới; lỗi thuộc code của executor thì yêu cầu sửa theo mục "Yêu cầu sửa" (issue con mới), không tự viết lại code của họ.
