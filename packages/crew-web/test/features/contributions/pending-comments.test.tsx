@@ -70,18 +70,19 @@ describe('bình luận chờ trong luồng bình luận', () => {
     mount(<IssuePage />);
     const pending = await screen.findAllByTestId('pending-comment');
     expect(pending).toHaveLength(2);
-    expect(within(pending[0]).getByText('Chờ duyệt')).toBeTruthy();
-    expect(within(pending[1]).getByText('Bị từ chối')).toBeTruthy();
-    expect(pending[0].textContent).toContain('Đang chờ');
+    // Mới nhất trước: góp ý bị loại (02:30) đứng trên góp ý đang chờ (02:00).
+    expect(within(pending[0]).getByText('Bị từ chối')).toBeTruthy();
+    expect(within(pending[1]).getByText('Chờ duyệt')).toBeTruthy();
+    expect(pending[1].textContent).toContain('Đang chờ');
 
     const order = [...document.querySelectorAll('[data-testid="comment"], [data-testid="pending-comment"]')].map(
       (el) => el.textContent ?? '',
     );
     expect(order).toHaveLength(4);
-    expect(order[0]).toContain('Bình luận sớm');
-    expect(order[1]).toContain('Đang chờ');
-    expect(order[2]).toContain('Bị loại');
-    expect(order[3]).toContain('Bình luận muộn');
+    expect(order[0]).toContain('Bình luận muộn');
+    expect(order[1]).toContain('Bị loại');
+    expect(order[2]).toContain('Đang chờ');
+    expect(order[3]).toContain('Bình luận sớm');
     expect(screen.queryByRole('button', { name: 'Duyệt' })).toBeNull();
     expect(screen.queryByRole('button', { name: 'Từ chối' })).toBeNull();
     expect(calls.some((c) => c.url.includes('/contributions?issueId=i1'))).toBe(true);
@@ -92,7 +93,7 @@ describe('bình luận chờ trong luồng bình luận', () => {
     mount(<IssuePage />);
     const chip = await screen.findByTestId('contribution-chip');
     expect(chip.textContent).toBe('Góp ý của Lan Marketing');
-    const late = (await screen.findAllByTestId('comment'))[1];
+    const late = (await screen.findAllByTestId('comment'))[0];
     expect(within(late).getByTestId('contribution-chip')).toBeTruthy();
   });
 
