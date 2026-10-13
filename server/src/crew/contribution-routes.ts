@@ -26,6 +26,7 @@ import {
   selfHeal,
   toContribution,
 } from "./contributions.js";
+import { crewPluginStartupWait } from "./plugin-startup-wait.js";
 import { crewProjectAccessRoutes } from "./project-access-routes.js";
 
 const BASE = "/crew/companies/:companyId";
@@ -65,6 +66,8 @@ export function crewContributionRoutes(db: Db): Router {
   });
 
   router.use(crewProjectAccessRoutes(db));
+  // Router này gắn trước route plugin stock: request `/plugins/...` lúc vừa khởi động chờ worker plugin đăng ký xong.
+  router.use("/plugins", crewPluginStartupWait());
 
   router.get(`${BASE}/access`, async (req, res) => {
     const actor = await resolveContributionActor(db, req, req.params.companyId, { requireTables: false });
