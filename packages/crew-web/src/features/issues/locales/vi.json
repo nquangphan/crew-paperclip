@@ -399,5 +399,42 @@
     "draftTitle": "Yêu cầu nháp: agent chưa làm",
     "draftBody": "Bấm Bắt đầu làm khi bạn muốn đội bắt đầu. Trợ Lý sẽ được gọi ngay.",
     "draftBodyReadOnly": "Yêu cầu này đang lưu để làm sau, chưa giao cho agent."
+  },
+  "addChild": {
+    "button": "Thêm việc con",
+    "title": "Thêm việc con vào {{identifier}}",
+    "description": "Trợ Lý nhận việc này vào kế hoạch, chọn executor và model. Việc con được review rồi gộp vào nhánh của yêu cầu như mọi việc con khác.",
+    "assignee": "Người làm",
+    "assigneeValue": "Trợ Lý giao cho executor, bạn không cần chọn.",
+    "kindValue": "Theo yêu cầu gốc: {{kind}}",
+    "submit": "Thêm việc con",
+    "adding": "Đang thêm…",
+    "retryNotify": "Báo lại Trợ Lý",
+    "failed": "Không thêm được việc con",
+    "partialTitle": "Đã tạo {{identifier}} nhưng chưa báo được Trợ Lý",
+    "partialBody": "Lỗi: {{message}}. Bấm Báo lại Trợ Lý để gửi lại bình luận trên yêu cầu gốc; việc con không bị tạo lần nữa.",
+    "staleTitle": "Yêu cầu đã đổi trạng thái",
+    "stale": {
+      "draft": "Yêu cầu đang là nháp ({{status}}), nên chưa thêm gì. Đóng hộp thoại để xem lại.",
+      "review": "Yêu cầu đã qua bước Trợ Lý (đang ở {{status}}), nên chưa thêm gì. Đóng hộp thoại để xem lại.",
+      "closed": "Yêu cầu đã kết thúc (đang ở {{status}}), nên chưa thêm gì."
+    },
+    "blocked": {
+      "draft": {
+        "title": "Yêu cầu còn là nháp",
+        "body": "Trợ Lý chưa nhận yêu cầu này nên chưa có kế hoạch để gắn việc con. Ghi thêm việc vào mô tả của yêu cầu, hoặc bấm Bắt đầu làm rồi thêm việc con."
+      },
+      "review": {
+        "title": "Yêu cầu đã qua bước Trợ Lý",
+        "body": "Yêu cầu đang được review, gộp code hoặc chờ duyệt, nên không chèn thêm việc con giữa chừng: code đã gộp và kết quả kiểm tài liệu sẽ không còn đúng. Muốn thêm việc, khi tới bước Owner duyệt hãy bấm Yêu cầu sửa và ghi rõ việc cần thêm. Yêu cầu quay về Trợ Lý, Trợ Lý tạo việc con, việc đó được review và gộp trước khi bạn duyệt lại."
+      }
+    },
+    "close": "Đóng",
+    "rootComment": "Đã thêm việc con {{identifier}}: {{title}}\nTrợ Lý: nhận việc này vào kế hoạch rồi giao cho executor.",
+    "added": "Đã thêm {{identifier}}",
+    "addedBody": "Trợ Lý được báo qua bình luận trên yêu cầu này và sẽ giao việc cho executor.",
+    "openChild": "Mở việc con",
+    "failedUploads": "Chưa tải lên được: {{names}}. Mở việc con để đính kèm lại.",
+    "dismiss": "Đóng"
   }
 }

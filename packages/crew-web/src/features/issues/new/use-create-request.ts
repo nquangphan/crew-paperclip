@@ -60,16 +60,22 @@ export function buildCreateBody(input: CreateBodyInput): Record<string, unknown>
   return body;
 }
 
-export async function createRequest(input: CreateRequestInput): Promise<CreateRequestResult> {
-  const issue = await api.issues.create(input.companyId, buildCreateBody(input));
+/** Upload lần lượt từng file vào issue; trả tên các file upload lỗi (issue vẫn giữ, không ném). */
+export async function uploadAttachments(companyId: string, issueId: string, files: readonly File[]): Promise<string[]> {
   const failedUploads: string[] = [];
-  for (const file of input.files) {
+  for (const file of files) {
     try {
-      await api.attachments.upload(input.companyId, issue.id, file);
+      await api.attachments.upload(companyId, issueId, file);
     } catch {
       failedUploads.push(file.name);
     }
   }
+  return failedUploads;
+}
+
+export async function createRequest(input: CreateRequestInput): Promise<CreateRequestResult> {
+  const issue = await api.issues.create(input.companyId, buildCreateBody(input));
+  const failedUploads = await uploadAttachments(input.companyId, issue.id, input.files);
   return { issue, failedUploads };
 }
 

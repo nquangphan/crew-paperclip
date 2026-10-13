@@ -45,11 +45,15 @@ export interface ChildSummary {
   status: string;
 }
 
+/** Khóa query danh sách con của một yêu cầu (dùng chung để thêm việc con xong thì chèn ngay vào danh sách). */
+export const childIssuesKey = (companyId: string, parentId: string | undefined) =>
+  queryKeys.issues(companyId, { parentId, limit: 200 });
+
 export function useChildIssues(companyId: string, parentId: string | undefined): ChildSummary[] {
   const filters = { parentId, limit: 200 };
   const visible = useVisibleProjects();
   const { data } = useQuery({
-    queryKey: queryKeys.issues(companyId, filters),
+    queryKey: childIssuesKey(companyId, parentId),
     queryFn: () => api.issues.listCompact(companyId, filters),
     enabled: Boolean(parentId),
     select: visible.filterIssues,

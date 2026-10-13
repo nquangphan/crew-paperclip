@@ -23,6 +23,7 @@ import {
 import { Check, Copy, ExternalLink, X } from '@/ds/icons';
 import { useCompanyAccess, useVisibleProjects } from '@/features/access';
 import { useT } from '@/i18n';
+import { AddChildAction } from '../new/add-child-dialog';
 import { issuePageHref } from '../popup/issue-href';
 import { AttachmentViewerProvider } from './attachment-viewer-provider';
 import { Attachments } from './attachments';
@@ -220,6 +221,7 @@ export function IssueDetail({ issueRef, variant, onClose }: IssueDetailProps) {
               <div className="flex flex-wrap items-start gap-2">
                 <StartWorkButton issue={issue} />
                 <ActionsSlot issue={issue} />
+                <AddChildAction issue={issue} />
                 <ForceDoneAction issue={issue} childIssues={childIssues} />
               </div>
             )

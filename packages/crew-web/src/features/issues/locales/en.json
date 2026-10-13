@@ -399,5 +399,42 @@
     "draftTitle": "Draft request: no agent is working on it",
     "draftBody": "Click Start work when you want the team to begin. The Assistant is called right away.",
     "draftBodyReadOnly": "This request is saved for later and has not been handed to an agent."
+  },
+  "addChild": {
+    "button": "Add child request",
+    "title": "Add a child request to {{identifier}}",
+    "description": "The Assistant folds this into the plan and picks the executor and model. The child is reviewed and merged into the request branch like every other child.",
+    "assignee": "Assignee",
+    "assigneeValue": "The Assistant assigns an executor; you do not pick one.",
+    "kindValue": "Same as the request: {{kind}}",
+    "submit": "Add child request",
+    "adding": "Adding…",
+    "retryNotify": "Notify the Assistant again",
+    "failed": "Could not add the child request",
+    "partialTitle": "{{identifier}} was created but the Assistant was not notified",
+    "partialBody": "Error: {{message}}. Click Notify the Assistant again to resend the comment on the request; the child is not created twice.",
+    "staleTitle": "The request has changed",
+    "stale": {
+      "draft": "The request is a draft ({{status}}), so nothing was added. Close this dialog to review it.",
+      "review": "The request is past the Assistant step (now {{status}}), so nothing was added. Close this dialog to review it.",
+      "closed": "The request has ended (now {{status}}), so nothing was added."
+    },
+    "blocked": {
+      "draft": {
+        "title": "The request is still a draft",
+        "body": "The Assistant has not picked up this request, so there is no plan to attach a child to. Add the work to the request description, or click Start work and then add a child."
+      },
+      "review": {
+        "title": "The request is past the Assistant step",
+        "body": "The request is in review, being merged, or waiting for approval, so a child cannot be inserted midway: the merged code and the docs check would no longer match. To add work, wait for the Owner approval step, click Request changes and describe the extra work. The request goes back to the Assistant, who creates a child; that child is reviewed and merged before you approve again."
+      }
+    },
+    "close": "Close",
+    "rootComment": "Added child request {{identifier}}: {{title}}\nAssistant: fold this into the plan and assign it to an executor.",
+    "added": "Added {{identifier}}",
+    "addedBody": "The Assistant was notified by a comment on this request and will assign an executor.",
+    "openChild": "Open the child request",
+    "failedUploads": "Not uploaded: {{names}}. Open the child to attach them again.",
+    "dismiss": "Dismiss"
   }
 }

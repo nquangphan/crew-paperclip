@@ -178,6 +178,11 @@
     "tests": ["PW-S6-19a ", "PW-S6-19b ", "PW-S6-19c "],
     "tier": "T1"
   },
+  "S6.20": {
+    "spec": "e2e/specs/s6-add-child.spec.ts",
+    "tests": ["PW-S6-20a ", "PW-S6-20b ", "PW-S6-20c "],
+    "tier": "T1"
+  },
   "S6.6": {
     "spec": "e2e/specs/s6-attachment-viewer.spec.ts",
     "tests": ["PW-S6-6a ", "PW-S6-6b "],
