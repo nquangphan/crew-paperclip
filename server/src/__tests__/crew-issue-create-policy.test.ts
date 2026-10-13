@@ -7,7 +7,7 @@ import { and, eq } from "drizzle-orm";
 import { agents, companies, createDb, issues, labels, projects, routineTriggers } from "@paperclipai/db";
 import { getEmbeddedPostgresTestSupport, startEmbeddedPostgresTestDatabase } from "./helpers/embedded-postgres.js";
 import { decideCreatePolicy, executorRuntimeOf } from "../crew/issue-create-policy.ts";
-import { buildCrewPolicy, CREW_POLICY_CONFIG_ENV } from "../crew/issue-policy.ts";
+import { buildCrewPolicy, CREW_MAX_REVIEW_ROUNDS, CREW_POLICY_CONFIG_ENV } from "../crew/issue-policy.ts";
 import { heartbeatService } from "../services/heartbeat.ts";
 import { issueService } from "../services/issues.js";
 import { routineService } from "../services/routines.ts";
@@ -333,6 +333,24 @@ suite("crew policy in issueService.create", () => {
       ((await db.select().from(issues).where(eq(issues.id, id)))[0]!.executionPolicy as { stages: { type: string }[] }).stages.map((s) => s.type);
     expect(await stagesOf(research.id)).toEqual(["review", "approval"]);
     expect(await stagesOf(plain.id)).toEqual(["review", "review", "approval", "review"]);
+  });
+
+  it("board tạo gốc với nhãn docs nhận đủ pipeline gốc: reviewer, integrator merge, owner duyệt, integrator push", async () => {
+    const { companyId, reviewerId, integratorId } = await seed();
+    const labelId = randomUUID();
+    await db.insert(labels).values({ id: labelId, companyId, name: "docs", color: "#16a34a" });
+    const created = await issueService(db).create(companyId, { title: "d", createdByUserId: "owner-1", labelIds: [labelId] } as never);
+    const policy = (await db.select().from(issues).where(eq(issues.id, created.id)))[0]!.executionPolicy as {
+      maxReviewRounds: number;
+      stages: { type: string; participants: { type: string; agentId?: string | null; userId?: string | null }[] }[];
+    };
+    expect(policy.stages.map((s) => [s.type, s.participants.map((p) => p.agentId ?? p.userId)])).toEqual([
+      ["review", [reviewerId]],
+      ["review", [integratorId]],
+      ["approval", ["owner-1"]],
+      ["review", [integratorId]],
+    ]);
+    expect(policy.maxReviewRounds).toBe(CREW_MAX_REVIEW_ROUNDS);
   });
 
   it("board tạo gốc trong project theo dõi không nhận policy; ngoài project vẫn bốn stage; con vẫn nhận template con", async () => {
