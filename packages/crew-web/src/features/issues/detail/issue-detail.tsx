@@ -24,6 +24,7 @@ import { Check, Copy, ExternalLink, X } from '@/ds/icons';
 import { useCompanyAccess, useVisibleProjects } from '@/features/access';
 import { useT } from '@/i18n';
 import { issuePageHref } from '../popup/issue-href';
+import { AttachmentViewerProvider } from './attachment-viewer-provider';
 import { Attachments } from './attachments';
 import { Comments } from './comments';
 import { Composer } from './composer';
@@ -175,72 +176,74 @@ export function IssueDetail({ issueRef, variant, onClose }: IssueDetailProps) {
   );
 
   return (
-    <IssueDetailFrame
-      variant={variant}
-      topBar={
-        <IssueTopBar
-          root={<Link to={`/${company.issuePrefix}/issues`}>{t('detail.root')}</Link>}
-          status={issue.status}
-          title={issue.title}
-          identifier={code}
-          actions={topActions}
-        />
-      }
-      side={
-        <>
-          <SidePanelTitle>{t('detail.props.heading')}</SidePanelTitle>
-          <PropertiesPanel
-            issue={issue}
-            agentNames={agentNames}
-            projectName={projectName}
-            childIssues={childIssues}
-            forcedDone={forcedDoneActive(activity.data ?? [], issue.status)}
+    <AttachmentViewerProvider issueId={issue.id}>
+      <IssueDetailFrame
+        variant={variant}
+        topBar={
+          <IssueTopBar
+            root={<Link to={`/${company.issuePrefix}/issues`}>{t('detail.root')}</Link>}
+            status={issue.status}
+            title={issue.title}
+            identifier={code}
+            actions={topActions}
           />
-          <History issue={issue} agentNames={agentNames} />
-        </>
-      }
-    >
-      <IssueHeader
-        status={issue.status}
-        statusLabel={statusLabel}
-        title={<TitleEditor issue={issue} popup={variant === 'popup'} />}
-        identifier={code}
-        meta={
-          projectName || assignee ? (
-            <>
-              {projectName ? <ProjectTag name={projectName} /> : null}
-              {assignee ? <Identity name={assignee} /> : null}
-            </>
-          ) : null
         }
-        actions={
-          readOnly ? undefined : (
-            <div className="flex flex-wrap items-start gap-2">
-              <StartWorkButton issue={issue} />
-              <ActionsSlot issue={issue} />
-              <ForceDoneAction issue={issue} childIssues={childIssues} />
-            </div>
-          )
+        side={
+          <>
+            <SidePanelTitle>{t('detail.props.heading')}</SidePanelTitle>
+            <PropertiesPanel
+              issue={issue}
+              agentNames={agentNames}
+              projectName={projectName}
+              childIssues={childIssues}
+              forcedDone={forcedDoneActive(activity.data ?? [], issue.status)}
+            />
+            <History issue={issue} agentNames={agentNames} />
+          </>
         }
-      />
-      {variant === 'popup' ? <StartWorkNotice /> : null}
-      {issue.status === DRAFT_STATUS ? (
-        <Alert title={t('startWork.draftTitle')}>
-          {t(readOnly ? 'startWork.draftBodyReadOnly' : 'startWork.draftBody')}
-        </Alert>
-      ) : null}
-      <SummarySlot issue={issue} />
-      <DescriptionEditor issue={issue} author={creator ?? undefined} />
-      <Documents issueId={issue.id} />
-      <Attachments issueId={issue.id} />
-      <IssueRuns issueId={issue.id} agentNames={agentNames} />
-      <Comments issueId={issue.id} agentNames={agentNames} />
-      <InteractionsSlot issue={issue} />
-      {readOnly && !isContributor ? null : (
-        <ComposerDock>
-          <Composer issue={issue} />
-        </ComposerDock>
-      )}
-    </IssueDetailFrame>
+      >
+        <IssueHeader
+          status={issue.status}
+          statusLabel={statusLabel}
+          title={<TitleEditor issue={issue} popup={variant === 'popup'} />}
+          identifier={code}
+          meta={
+            projectName || assignee ? (
+              <>
+                {projectName ? <ProjectTag name={projectName} /> : null}
+                {assignee ? <Identity name={assignee} /> : null}
+              </>
+            ) : null
+          }
+          actions={
+            readOnly ? undefined : (
+              <div className="flex flex-wrap items-start gap-2">
+                <StartWorkButton issue={issue} />
+                <ActionsSlot issue={issue} />
+                <ForceDoneAction issue={issue} childIssues={childIssues} />
+              </div>
+            )
+          }
+        />
+        {variant === 'popup' ? <StartWorkNotice /> : null}
+        {issue.status === DRAFT_STATUS ? (
+          <Alert title={t('startWork.draftTitle')}>
+            {t(readOnly ? 'startWork.draftBodyReadOnly' : 'startWork.draftBody')}
+          </Alert>
+        ) : null}
+        <SummarySlot issue={issue} />
+        <DescriptionEditor issue={issue} author={creator ?? undefined} />
+        <Documents issueId={issue.id} />
+        <Attachments issueId={issue.id} />
+        <IssueRuns issueId={issue.id} agentNames={agentNames} />
+        <Comments issueId={issue.id} agentNames={agentNames} />
+        <InteractionsSlot issue={issue} />
+        {readOnly && !isContributor ? null : (
+          <ComposerDock>
+            <Composer issue={issue} />
+          </ComposerDock>
+        )}
+      </IssueDetailFrame>
+    </AttachmentViewerProvider>
   );
 }

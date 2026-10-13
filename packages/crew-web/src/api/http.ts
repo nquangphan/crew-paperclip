@@ -91,29 +91,45 @@ export async function http<T = unknown>(
     payload = JSON.stringify(body);
   }
 
-  let res: Response;
+  const res = await send(`${path}${buildQuery(opts.query)}`, {
+    method,
+    credentials: 'include',
+    headers,
+    body: payload,
+    signal: opts.signal,
+  });
+  if (res.status === 204) return undefined as T;
+  const data = await readBody(res);
+  if (!res.ok) throw failure(res.status, data, opts.skipUnauthorizedRedirect);
+  return data as T;
+}
+
+/** fetch với lỗi mạng đổi thành ApiError (giữ nguyên AbortError để người gọi biết là đã hủy). */
+async function send(url: string, init: RequestInit): Promise<Response> {
   try {
-    res = await fetch(`${path}${buildQuery(opts.query)}`, {
-      method,
-      credentials: 'include',
-      headers,
-      body: payload,
-      signal: opts.signal,
-    });
+    return await fetch(url, init);
   } catch (err) {
     if (err instanceof DOMException && err.name === 'AbortError') throw err;
     throw new ApiError(0, err instanceof Error ? err.message : String(err), 'network');
   }
+}
 
-  if (res.status === 204) return undefined as T;
-  const data = await readBody(res);
-  if (!res.ok) {
-    const { message, code } = readError(res.status, data);
-    if (res.status === 401 && !opts.skipUnauthorizedRedirect) {
-      const to = loginRedirectPath(window.location);
-      if (to) onUnauthorized(to);
-    }
-    throw new ApiError(res.status, message, code, data);
+/** ApiError cho phản hồi lỗi; 401 thì về trang đăng nhập (trừ khi được bảo bỏ qua). */
+function failure(status: number, data: unknown, skipUnauthorizedRedirect?: boolean): ApiError {
+  const { message, code } = readError(status, data);
+  if (status === 401 && !skipUnauthorizedRedirect) {
+    const to = loginRedirectPath(window.location);
+    if (to) onUnauthorized(to);
   }
-  return data as T;
+  return new ApiError(status, message, code, data);
+}
+
+/**
+ * GET một đường cùng origin, trả nguyên văn body (không parse JSON) — dùng đọc nội dung file đính kèm dạng chữ.
+ * Lỗi giống `http`: ApiError, 401 về trang đăng nhập.
+ */
+export async function httpText(path: string, opts: { signal?: AbortSignal } = {}): Promise<string> {
+  const res = await send(path, { method: 'GET', credentials: 'include', signal: opts.signal });
+  if (!res.ok) throw failure(res.status, await readBody(res));
+  return res.text();
 }

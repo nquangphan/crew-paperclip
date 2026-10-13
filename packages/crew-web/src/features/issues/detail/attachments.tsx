@@ -1,20 +1,35 @@
 // crew: tự dựng
 import type { IssueAttachment } from '@paperclipai/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useState } from 'react';
+import { type MouseEvent, useState } from 'react';
 import { api, queryKeys } from '@/api';
 import { useMe } from '@/app/hooks';
-import { Button, ConfirmDialog, DetailSection, ErrorState, ImageGallery, ImageTile, MutedText, Skeleton } from '@/ds';
+import {
+  Button,
+  ConfirmDialog,
+  DetailSection,
+  ErrorState,
+  ImageGallery,
+  ImageTile,
+  isPlainClick,
+  MutedText,
+  Skeleton,
+  useAttachmentLinks,
+} from '@/ds';
 import { Trash2 } from '@/ds/icons';
 import { useCompanyAccess } from '@/features/access';
 import { useT } from '@/i18n';
 
-/** File đính kèm của issue (S6.6): ảnh hiện thành hình, file khác hiện tên; tải về cho mọi người, xóa chỉ với file do chính mình tạo, có xác nhận. */
+/**
+ * File đính kèm của issue (S6.6): ảnh hiện thành hình, file khác hiện tên; bấm mở hộp xem tại chỗ (khi nằm trong
+ * AttachmentViewerProvider), Cmd/Ctrl+click vẫn theo link; xóa chỉ với file do chính mình tạo, có xác nhận.
+ */
 export function Attachments({ issueId }: { issueId: string }) {
   const { t } = useT('issues');
   const me = useMe();
   const { readOnly } = useCompanyAccess();
   const qc = useQueryClient();
+  const viewer = useAttachmentLinks();
   const [toDelete, setToDelete] = useState<IssueAttachment | null>(null);
   const list = useQuery({ queryKey: queryKeys.attachments(issueId), queryFn: () => api.attachments.list(issueId) });
   const remove = useMutation({
@@ -25,6 +40,8 @@ export function Attachments({ issueId }: { issueId: string }) {
     },
   });
   const nameOf = (a: IssueAttachment) => a.originalFilename ?? t('detail.attachments.unnamed');
+
+  const openInViewer = viewer ? (a: IssueAttachment) => viewer.open(a.id, { name: nameOf(a) }) : null;
 
   // Bản ghi cũ hay thiếu content-type thì coi là file thường, không làm vỡ trang.
   const isImage = (a: IssueAttachment) => (a.contentType ?? '').startsWith('image/');
@@ -57,13 +74,14 @@ export function Attachments({ issueId }: { issueId: string }) {
       ) : null}
       {list.data?.length === 0 ? <MutedText>{t('detail.attachments.empty')}</MutedText> : null}
       {images.length > 0 ? (
-        // Ảnh xếp theo hàng, hết chỗ mới xuống dòng; bấm mở cỡ thật, tên file chỉ còn ở alt.
+        // Ảnh xếp theo hàng, hết chỗ mới xuống dòng; bấm mở hộp xem, tên file chỉ còn ở alt.
         <ImageGallery>
           {images.map((a) => (
             <ImageTile
               key={a.id}
               src={api.attachments.contentUrl(a.id)}
               href={api.attachments.contentUrl(a.id)}
+              onOpen={openInViewer ? () => openInViewer(a) : undefined}
               alt={nameOf(a)}
               action={deleteButton(a)}
             />
@@ -77,8 +95,15 @@ export function Attachments({ issueId }: { issueId: string }) {
               <a
                 className="min-w-0 flex-1 truncate"
                 href={api.attachments.contentUrl(a.id)}
-                target="_blank"
-                rel="noreferrer noopener"
+                {...(openInViewer
+                  ? {
+                      onClick: (e: MouseEvent<HTMLAnchorElement>) => {
+                        if (!isPlainClick(e)) return;
+                        e.preventDefault();
+                        openInViewer(a);
+                      },
+                    }
+                  : { target: '_blank', rel: 'noreferrer noopener' })}
               >
                 {nameOf(a)} · {t('detail.attachments.size', { kb: Math.max(1, Math.round(a.byteSize / 1024)) })}
               </a>

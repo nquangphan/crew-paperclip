@@ -47,7 +47,21 @@
     "warnTitle": "Kiểm tra trước khi gửi",
     "fileWarning": "{{name}}: {{warning}}",
     "proceed": "Gửi vẫn tiếp tục",
-    "discard": "Bỏ chọn"
+    "discard": "Bỏ chọn",
+    "viewer": {
+      "download": "Tải về",
+      "openInNewTab": "Mở tab mới",
+      "previous": "Ảnh trước",
+      "next": "Ảnh sau",
+      "counter": "{{n}} / {{total}}",
+      "description": "Xem file {{name}}",
+      "loadFailed": "Không tải được nội dung file",
+      "noPreview": "Chưa xem trước được loại file này trong trang. Tải về để mở.",
+      "previewFailed": "Không hiện được file này trong trang. Tải về để mở.",
+      "unknownType": "Không rõ loại",
+      "size": "Dung lượng",
+      "type": "Loại"
+    }
   },
   "confirm": {
     "typeToConfirm": "Gõ \"{{text}}\" để xác nhận"

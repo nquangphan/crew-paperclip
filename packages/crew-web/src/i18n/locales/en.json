@@ -47,7 +47,21 @@
     "warnTitle": "Check before sending",
     "fileWarning": "{{name}}: {{warning}}",
     "proceed": "Send anyway",
-    "discard": "Discard"
+    "discard": "Discard",
+    "viewer": {
+      "download": "Download",
+      "openInNewTab": "Open in new tab",
+      "previous": "Previous image",
+      "next": "Next image",
+      "counter": "{{n}} / {{total}}",
+      "description": "Viewing file {{name}}",
+      "loadFailed": "Could not load the file content",
+      "noPreview": "This file type cannot be previewed in the page. Download it to open.",
+      "previewFailed": "This file cannot be shown in the page. Download it to open.",
+      "unknownType": "Unknown type",
+      "size": "Size",
+      "type": "Type"
+    }
   },
   "confirm": {
     "typeToConfirm": "Type \"{{text}}\" to confirm"

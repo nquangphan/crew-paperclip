@@ -23,6 +23,8 @@ export const queryKeys = {
   issue: (idOrRef: string) => ['issue', idOrRef] as const,
   comments: (issueId: string) => ['issue', issueId, 'comments'] as const,
   attachments: (issueId: string) => ['issue', issueId, 'attachments'] as const,
+  /** Nội dung chữ của một file đính kèm (file không đổi sau khi tải lên). */
+  attachmentText: (attachmentId: string) => ['attachment', attachmentId, 'text'] as const,
   documents: (issueId: string) => ['issue', issueId, 'documents'] as const,
   document: (issueId: string, key: string) => ['issue', issueId, 'documents', key] as const,
   interactions: (issueId: string) => ['issue', issueId, 'interactions'] as const,

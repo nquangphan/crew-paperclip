@@ -1,6 +1,7 @@
 // crew: tự dựng
 import type * as React from 'react';
 import { cn } from '../cn';
+import { isPlainClick } from './attachment-link-context';
 
 /** Ảnh xếp theo hàng, hết chỗ mới xuống dòng. Con là các {@link ImageTile}. */
 function ImageGallery({ children }: { children: React.ReactNode }) {
@@ -10,8 +11,10 @@ function ImageGallery({ children }: { children: React.ReactNode }) {
 interface ImageTileProps {
   src: string;
   alt: string;
-  /** Có thì bấm ảnh mở link này ở tab mới (ảnh cỡ thật). */
+  /** Link ảnh cỡ thật. Có `onOpen` thì bấm thường gọi `onOpen` (xem trong trang), không thì mở tab mới. */
   href?: string;
+  /** Mở ảnh trong hộp xem tại chỗ; Cmd/Ctrl+click vẫn theo `href`. */
+  onOpen?: () => void;
   /** `md` cho ảnh đã đính kèm, `sm` cho ảnh xem trước lúc soạn. */
   size?: 'sm' | 'md';
   /** Nút thao tác (xóa, bỏ) đè ở góc trên phải ảnh. */
@@ -19,7 +22,7 @@ interface ImageTileProps {
 }
 
 /** Một ảnh trong {@link ImageGallery}: chiều cao cố định, giữ tỉ lệ; tên file chỉ còn ở `alt`. */
-function ImageTile({ src, alt, href, size = 'md', action }: ImageTileProps) {
+function ImageTile({ src, alt, href, onOpen, size = 'md', action }: ImageTileProps) {
   const img = (
     <img
       src={src}
@@ -30,7 +33,19 @@ function ImageTile({ src, alt, href, size = 'md', action }: ImageTileProps) {
   );
   return (
     <li className="relative">
-      {href ? (
+      {href && onOpen ? (
+        <a
+          href={href}
+          className="block cursor-zoom-in"
+          onClick={(e) => {
+            if (!isPlainClick(e)) return;
+            e.preventDefault();
+            onOpen();
+          }}
+        >
+          {img}
+        </a>
+      ) : href ? (
         <a href={href} target="_blank" rel="noreferrer noopener">
           {img}
         </a>
