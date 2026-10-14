@@ -5,7 +5,7 @@
 set -euo pipefail
 ROOT=/opt/crew-v3-spike
 OUT=$ROOT/backups/daily
-KEEP_DAYS=${KEEP_DAYS:-14}
+KEEP_SETS=${KEEP_SETS:-1}
 TS=$(date +%Y%m%d-%H%M)
 
 AV=$(awk '/MemAvailable/ {print int($2/1024)}' /proc/meminfo)
@@ -47,7 +47,12 @@ tar_gz "$OUT/paperclip-data-$TS.tar.gz" -C "$ROOT/data" \
 tar_gz "$OUT/config-$TS.tar.gz" -C "$ROOT" .env docker-compose.yml ssh
 
 echo "$TS" > "$OUT/LATEST"
-find "$OUT" -type f \( -name 'db-*.dump' -o -name '*.tar.gz' -o -name 'issues-*.txt' \) -mtime +"$KEEP_DAYS" -delete
+# Giữ KEEP_SETS bộ backup mới nhất (một bộ = db/paperclip-data/config/issues cùng TS), xóa các bộ cũ hơn.
+ls -1 "$OUT"/db-*.dump 2>/dev/null | sed -E 's#.*/db-([0-9]{8}-[0-9]{4})\.dump#\1#' | sort -r | tail -n +"$((KEEP_SETS + 1))" |
+  while read -r old; do
+    [ -n "$old" ] || continue
+    find "$OUT" -maxdepth 1 -type f \( -name "db-$old.dump" -o -name "paperclip-data-$old.tar.gz" -o -name "config-$old.tar.gz" -o -name "issues-$old.txt" \) -delete
+  done
 
 HEALTH=$(curl -s --max-time 10 http://100.105.105.12:3100/api/health | python3 -c 'import json,sys; print(json.load(sys.stdin).get("databaseBackup",{}).get("status"))' || echo unknown)
 echo "backup $TS ok: $(du -ch "$OUT"/*-"$TS".* | tail -1 | cut -f1) total, builtin=$HEALTH"
