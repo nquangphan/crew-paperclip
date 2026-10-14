@@ -4,13 +4,24 @@ import { Code2, Download, Eye } from "lucide-react";
 import { issuesApi } from "@/api/issues";
 import { Button } from "@/components/ui/button";
 import { MarkdownBody } from "@/components/MarkdownBody";
+import { MissingFilePlaceholder } from "@/components/StoredImage";
+import { MISSING_FILE_LABEL } from "@/lib/retention-placeholders";
 import { attachmentDownloadPath, isMarkdownAttachment, isTextAttachment } from "@/lib/issue-attachments";
 import { queryKeys } from "@/lib/queryKeys";
 
 export const TEXT_PREVIEW_MAX_BYTES = 512 * 1024;
 
+/** The attachment row exists but storage no longer has its file. */
+export class MissingAttachmentFileError extends Error {
+  constructor() {
+    super(MISSING_FILE_LABEL);
+    this.name = "MissingAttachmentFileError";
+  }
+}
+
 /** Bound the actual response, not just producer-supplied attachment metadata. */
 export async function readTextPreview(response: Response) {
+  if (response.status === 404) throw new MissingAttachmentFileError();
   if (!response.ok) throw new Error(`Could not load file (${response.status}).`);
   if (!response.body) throw new Error("The file response is empty.");
   const reader = response.body.getReader();
@@ -89,6 +100,9 @@ export function TaskAttachmentPanel({ issueId, attachmentId }: { issueId: string
   if (attachments.isError) return <div className="p-4" role="alert">Could not load attachment details. <Button onClick={() => void attachments.refetch()}>Retry</Button></div>;
   if (!attachment) return <p className="p-4 text-sm" role="status">File no longer available. Close this tab or choose another file.</p>;
   const downloadUrl = attachmentDownloadPath(attachment);
+  if (content.error instanceof MissingAttachmentFileError) {
+    return <div className="p-4"><MissingFilePlaceholder /></div>;
+  }
   if (!eligible || content.isError) {
     return (
       <div className="space-y-3 p-4" role="alert">

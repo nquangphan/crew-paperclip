@@ -3,6 +3,7 @@ import { act } from "react";
 import { createRoot } from "react-dom/client";
 import type { HeartbeatRun } from "@paperclipai/shared";
 import { afterEach, expect, it, vi } from "vitest";
+import { ApiError } from "../api/client";
 import { LogViewer } from "./AgentDetail";
 import { LogViewer as ProductionLogViewer } from "./AgentDetail.production";
 
@@ -91,4 +92,20 @@ it.each([LogViewer, ProductionLogViewer])("polls logs when WebSocket constructio
     await act(async () => root.unmount());
   }
   expect(sockets[0].close).toHaveBeenCalled();
+});
+
+it("shows a quiet placeholder when a settled run's log was removed by retention", async () => {
+  vi.spyOn(document, "visibilityState", "get").mockReturnValue("visible");
+  log.mockRejectedValue(new ApiError("Run log not found", 404, { error: "Run log not found" }));
+  const run = { id: "run-old", companyId: "company-1", agentId: "agent-1", status: "succeeded", logRef: "log" } as HeartbeatRun;
+  const container = document.createElement("div");
+  const root = createRoot(container);
+  try {
+    await act(async () => root.render(<LogViewer run={run} adapterType="codex_local" />));
+    expect(container.querySelector("[data-run-log-missing]")?.textContent).toBe("Log đã được dọn sau 7 ngày");
+    expect(container.textContent).not.toContain("Run log not found");
+    expect(log).toHaveBeenCalledTimes(1);
+  } finally {
+    await act(async () => root.unmount());
+  }
 });

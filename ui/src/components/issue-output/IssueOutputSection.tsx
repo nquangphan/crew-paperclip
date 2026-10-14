@@ -1,3 +1,4 @@
+import { StoredImage } from "@/components/StoredImage";
 import { Play } from "lucide-react";
 import type { IssueWorkProduct } from "@paperclipai/shared";
 import {
@@ -56,7 +57,7 @@ function OutputMediaPreview({
           preload="metadata"
         />
       ) : (
-        <img
+        <StoredImage
           src={meta.contentPath}
           alt={filename}
           className="h-full w-full object-cover"

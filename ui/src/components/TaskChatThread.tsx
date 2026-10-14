@@ -122,6 +122,7 @@ import {
 import { heartbeatsApi, type RuntimeRequestResolution } from "@/api/heartbeats";
 import { issuesApi } from "@/api/issues";
 import { queryKeys } from "@/lib/queryKeys";
+import { RUN_LOG_MISSING_LABEL } from "@/lib/retention-placeholders";
 import { useQueryClient } from "@tanstack/react-query";
 import { TaskChatPresentationProvider } from "@/components/task-chat/presentation-mode";
 
@@ -909,6 +910,7 @@ export function TaskChatThread(props: TaskChatThreadProps) {
     isInitialHydrating: logsAreInitiallyHydrating,
     hydratedRunIds: hydratedLogRunIds,
     errorsByRun: logErrorsByRun,
+    missingLogRunIds,
     retry: retryLogs,
   } = useLiveRunTranscripts({ runs: logRuns, companyId });
   const fallbackByRunRef = useRef(
@@ -1723,6 +1725,23 @@ export function TaskChatThread(props: TaskChatThreadProps) {
         });
       }
       if (entries.length === 0) {
+        // The run's activity log was removed (log retention). Say so where
+        // the activity would have been instead of silently dropping it.
+        if (missingLogRunIds?.has(source.id)) {
+          const id = `${source.id}:log-missing`;
+          entriesWithFailures.push({
+            ms: toMs(meta?.finishedAt ?? meta?.startedAt ?? meta?.createdAt),
+            order: 3,
+            id,
+            item: {
+              id,
+              kind: "marker",
+              variant: "turn_boundary",
+              tone: "neutral",
+              label: RUN_LOG_MISSING_LABEL,
+            },
+          });
+        }
         if (sourceIsPaperclipRunner && sourceYielded) {
           settledRunIds.add(source.id);
           continue;
@@ -2097,6 +2116,7 @@ export function TaskChatThread(props: TaskChatThreadProps) {
     transcriptByRun,
     linkedRunMetaById,
     lastCommentIdByRun,
+    missingLogRunIds,
     comments,
     steeringAnchorsByRun,
     legacyTimelineAnchorsByRun,

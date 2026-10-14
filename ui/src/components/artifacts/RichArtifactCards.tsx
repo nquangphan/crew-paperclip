@@ -1,3 +1,4 @@
+import { StoredImage } from "@/components/StoredImage";
 import { useState, type ReactNode } from "react";
 import ReactMarkdown from "react-markdown";
 import {
@@ -328,7 +329,7 @@ function Markdown({ body }: { body: string }) {
             );
             if (localPreview)
               return (
-                <img
+                <StoredImage
                   src={localPreview}
                   alt={alt ?? ""}
                   loading="lazy"

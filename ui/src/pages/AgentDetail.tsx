@@ -3,6 +3,7 @@ import { InstructionHistory } from "../components/InstructionHistory";
 import { AgentCharacter } from "../components/AgentCharacter";
 import { characterStateForAgent } from "@paperclipai/shared";
 import { mergeRunLogChunks, readChunkSeq } from "../lib/run-log-chunks";
+import { RUN_LOG_MISSING_LABEL } from "../lib/retention-placeholders";
 import { getPageVisibility, usePageVisibility } from "../lib/page-visibility";
 import { useCallback, useEffect, useMemo, useState, useRef } from "react";
 import { useParams, useNavigate, Link, Navigate, useBeforeUnload, type NavigateFunction } from "@/lib/router";
@@ -602,6 +603,8 @@ function WorkspaceOperationLogViewer({
     queryKey: ["workspace-operation-log", operation.id],
     queryFn: () => heartbeatsApi.workspaceOperationLog(operation.id),
     enabled: open && Boolean(operation.logRef),
+    // A log removed by retention stays gone; retrying only delays the message.
+    retry: (failureCount, err) => !(err instanceof ApiError && err.status === 404) && failureCount < 3,
     refetchInterval: open && operation.status === "running" ? 2000 : false,
   });
 
@@ -622,11 +625,13 @@ function WorkspaceOperationLogViewer({
       {open && (
         <div className="rounded-md border border-border bg-background/70 p-2">
           {isLoading && <div className="text-xs text-muted-foreground">Loading log...</div>}
-          {error && (
+          {error instanceof ApiError && error.status === 404 ? (
+            <div className="text-xs text-muted-foreground">{RUN_LOG_MISSING_LABEL}</div>
+          ) : error ? (
             <div className="text-xs text-destructive">
               {error instanceof Error ? error.message : "Failed to load workspace operation log"}
             </div>
-          )}
+          ) : null}
           {!isLoading && !error && chunks.length === 0 && (
             <div className="text-xs text-muted-foreground">No persisted log lines.</div>
           )}
@@ -3987,6 +3992,8 @@ export function LogViewer({ run, adapterType }: { run: HeartbeatRun; adapterType
   const [loading, setLoading] = useState(true);
   const [logLoading, setLogLoading] = useState(!!run.logRef);
   const [logError, setLogError] = useState<string | null>(null);
+  // The run's persisted log was removed (log retention); events still render.
+  const [logMissing, setLogMissing] = useState(false);
   const [logOffset, setLogOffsetState] = useState(0);
   const logOffsetRef = useRef(0);
   const setLogOffset = useCallback((next: number | ((previous: number) => number)) => {
@@ -4164,6 +4171,7 @@ export function LogViewer({ run, adapterType }: { run: HeartbeatRun; adapterType
     setHasMoreLog(false);
     setLoadingMoreLog(false);
     setLogError(null);
+    setLogMissing(false);
   }, [run.id, run.logRef, setLogOffset]);
 
   // Fetch persisted shell log, retaining partial rows and offsets across hides.
@@ -4189,7 +4197,8 @@ export function LogViewer({ run, adapterType }: { run: HeartbeatRun; adapterType
         setHasMoreLog(!shouldPollShellLog && result.nextOffset !== undefined);
       } catch (err) {
         if (!cancelled) {
-          if (shouldPollShellLog && isRunLogUnavailable(err)) {
+          if (isRunLogUnavailable(err)) {
+            if (!shouldPollShellLog) setLogMissing(true);
             setLogLoading(false);
             return;
           }
@@ -4451,7 +4460,11 @@ export function LogViewer({ run, adapterType }: { run: HeartbeatRun; adapterType
   }
 
   if (events.length === 0 && logLines.length === 0 && !logError) {
-    return <p className="text-xs text-muted-foreground">No log events.</p>;
+    return (
+      <p className="text-xs text-muted-foreground" data-run-log-missing={logMissing ? "" : undefined}>
+        {logMissing ? RUN_LOG_MISSING_LABEL : "No log events."}
+      </p>
+    );
   }
 
   const levelColors: Record<string, string> = {
@@ -4555,6 +4568,11 @@ export function LogViewer({ run, adapterType }: { run: HeartbeatRun; adapterType
         {logError && (
           <div className="mt-3 rounded-xl border border-red-500/20 bg-red-500/[0.06] px-3 py-2 text-xs text-red-700 dark:text-red-300">
             {logError}
+          </div>
+        )}
+        {logMissing && (
+          <div className="mt-3 text-xs text-muted-foreground" data-run-log-missing="">
+            {RUN_LOG_MISSING_LABEL}
           </div>
         )}
         <div ref={logEndRef} />

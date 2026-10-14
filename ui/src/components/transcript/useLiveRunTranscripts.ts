@@ -130,6 +130,9 @@ export function useLiveRunTranscripts({
   const [chunksByRun, setChunksByRun] = useState<Map<string, RunLogChunk[]>>(new Map());
   const [hydratedRunIds, setHydratedRunIds] = useState<Set<string>>(new Set());
   const [errorsByRun, setErrorsByRun] = useState<ReadonlyMap<string, Error>>(new Map());
+  // Settled runs whose persisted log is gone (404), e.g. removed by log
+  // retention. Consumers show a placeholder instead of an empty activity.
+  const [missingLogRunIds, setMissingLogRunIds] = useState<ReadonlySet<string>>(new Set());
   const [retryGeneration, setRetryGeneration] = useState(0);
   const retry = useCallback(() => {
     missingTerminalLogRunIdsRef.current.clear();
@@ -258,6 +261,10 @@ export function useLiveRunTranscripts({
       const next = new Map([...previous].filter(([id]) => retainedRunIds.has(id)));
       return next.size === previous.size ? previous : next;
     });
+    setMissingLogRunIds((previous) => {
+      const next = new Set([...previous].filter((id) => retainedRunIds.has(id)));
+      return next.size === previous.size ? previous : next;
+    });
 
     for (const key of pendingLogRowsByRunRef.current.keys()) {
       const runId = key.replace(/:records$/, "");
@@ -325,6 +332,12 @@ export function useLiveRunTranscripts({
           next.delete(run.id);
           return next;
         });
+        setMissingLogRunIds((previous) => {
+          if (!previous.has(run.id)) return previous;
+          const next = new Set(previous);
+          next.delete(run.id);
+          return next;
+        });
         appendChunks(run.id, parsePersistedLogContent(run.id, result.content, pendingLogRowsByRunRef.current));
 
         if (result.nextOffset !== undefined) {
@@ -344,7 +357,15 @@ export function useLiveRunTranscripts({
             return next;
           });
           // A newly started run may not have created its log yet.
-          if (isTerminalStatus(run.status)) missingTerminalLogRunIdsRef.current.add(run.id);
+          if (isTerminalStatus(run.status)) {
+            missingTerminalLogRunIdsRef.current.add(run.id);
+            setMissingLogRunIds((previous) => {
+              if (previous.has(run.id)) return previous;
+              const next = new Set(previous);
+              next.add(run.id);
+              return next;
+            });
+          }
         } else {
           setErrorsByRun((previous) => {
             if (previous.has(run.id)) return previous;
@@ -570,7 +591,7 @@ export function useLiveRunTranscripts({
 
   return {
     transcriptByRun,
-    hydratedRunIds, errorsByRun, retry,
+    hydratedRunIds, errorsByRun, missingLogRunIds, retry,
     isInitialHydrating: normalizedRuns.some((run) => canReadPersistedLog(run) && !hydratedRunIds.has(run.id)),
     hasOutputForRun(runId: string) {
       return (chunksByRun.get(runId)?.length ?? 0) > 0 || runById.get(runId)?.hasStoredOutput === true;

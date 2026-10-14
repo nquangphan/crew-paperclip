@@ -4,6 +4,7 @@ import { Check, Copy, ExternalLink, WrapText } from "lucide-react";
 import Markdown, { defaultUrlTransform, type Components, type Options } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { cn } from "../lib/utils";
+import { StoredImage } from "./StoredImage";
 import { GithubIcon } from "@/components/icons/github-icon";
 import { Link, useCaseHref } from "@/lib/router";
 import { useTheme } from "../context/ThemeContext";
@@ -932,12 +933,14 @@ function MarkdownBodyImpl({
           Image: {alt || "Untitled image"}{src ? ` (${src})` : ""}
         </span>
       );
-    } else if (resolveImageSrc || onImageClick) {
+    } else {
+      // Stored images can disappear (storage retention); show a placeholder
+      // instead of a broken image inside the comment.
       map.img = ({ node: _node, src, alt, ...imgProps }) => {
         const resolved = resolveImageSrc && src ? resolveImageSrc(src) : null;
         const finalSrc = resolved ?? src;
         return (
-          <img
+          <StoredImage
             {...imgProps}
             src={finalSrc}
             alt={alt ?? ""}

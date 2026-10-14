@@ -22,6 +22,7 @@ const transcriptState = vi.hoisted(() => ({
   transcriptByRun: new Map(),
   isInitialHydrating: false,
   hydratedRunIds: undefined as Set<string> | undefined,
+  missingLogRunIds: new Set<string>(),
 }));
 const nativeTranscriptState = vi.hoisted(() => ({
   transcriptByRun: new Map(),
@@ -52,6 +53,7 @@ vi.mock("@/components/transcript/useLiveRunTranscripts", () => ({
       transcriptByRun: new Map(transcriptState.transcriptByRun),
       isInitialHydrating: transcriptState.isInitialHydrating,
       hydratedRunIds: transcriptState.hydratedRunIds,
+      missingLogRunIds: new Set(transcriptState.missingLogRunIds),
     };
   },
 }));
@@ -114,6 +116,7 @@ beforeEach(() => {
   transcriptState.transcriptByRun.clear();
   transcriptState.isInitialHydrating = false;
   transcriptState.hydratedRunIds = undefined;
+  transcriptState.missingLogRunIds.clear();
   nativeTranscriptState.transcriptByRun.clear();
   nativeTranscriptState.errorsByRun.clear();
   nativeTranscriptState.hydratedRunIds = undefined;
@@ -788,6 +791,29 @@ describe("TaskChatThread runtime transcript selection", () => {
     expect(marker?.textContent.includes("after the plan was saved")).toBe(evidence === "matching" || evidence === "document_only");
     expect(Boolean(marker?.querySelector('a[href*="document-plan"]'))).toBe(evidence === "matching" || evidence === "document_only");
     expect(marker?.querySelector('[data-testid="task-chat-run-failed-try-again"]')).toBeNull();
+  });
+
+  it("keeps an old reply readable and marks its activity log as cleaned up", () => {
+    transcriptState.hydratedRunIds = new Set(["old-run"]);
+    transcriptState.missingLogRunIds.add("old-run");
+    render(<TaskChatThread
+      comments={[{
+        id: "reply", companyId: "company", issueId: "issue",
+        authorType: "agent" as const, authorAgentId: "agent-1", authorUserId: null, runId: "old-run",
+        body: "Old answer", presentation: null, metadata: null,
+        createdAt: new Date("2026-08-25T18:00:03.000Z"), updatedAt: new Date("2026-08-25T18:00:03.000Z"),
+      }]}
+      onAdd={async () => {}}
+      linkedRuns={[{
+        runId: "old-run", runtimeMode: "legacy", status: "succeeded",
+        agentId: "agent-1", agentName: "Runner", adapterType: "claude_local",
+        createdAt: "2026-08-25T18:00:00.000Z", startedAt: "2026-08-25T18:00:00.000Z", finishedAt: "2026-08-25T18:00:02.000Z",
+      }]}
+    />);
+    expect(container.textContent).toContain("Old answer");
+    expect(container.textContent).toContain("Log đã được dọn sau 7 ngày");
+    expect(container.textContent).not.toContain("Some task history could not be loaded");
+    expect(container.querySelector('[data-testid="task-chat-history-loading"]')).toBeNull();
   });
 
   it("uses neutral wording for an unclassified historical legacy failure", () => {

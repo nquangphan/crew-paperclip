@@ -1,3 +1,4 @@
+import { StoredImage } from "@/components/StoredImage";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Dialog as DialogPrimitive } from "radix-ui";
 import { ChevronLeft, ChevronRight, Download, X } from "lucide-react";
@@ -148,11 +149,12 @@ export function ImageGalleryModal({
                   playsInline
                 />
               ) : (
-                <img
+                <StoredImage
                   ref={setMediaRef}
                   src={current.contentPath}
                   alt={filename}
                   className="max-w-full max-h-full object-contain select-none rounded-lg"
+                  placeholderClassName="border-white/30 bg-white/10 px-4 py-3 text-sm text-white/80"
                   draggable={false}
                 />
               )}

@@ -1,3 +1,4 @@
+import { StoredImage } from "@/components/StoredImage";
 import { Download, ExternalLink, Maximize2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -47,7 +48,7 @@ export function OutputPrimaryCard({ item, creatorName, onMediaClick }: OutputPri
             aria-label={`Browse ${filename} in gallery`}
             onClick={() => onMediaClick(item)}
           >
-            <img src={meta.contentPath} alt={filename} className="h-full w-full object-contain" />
+            <StoredImage src={meta.contentPath} alt={filename} className="h-full w-full object-contain" />
           </button>
         ) : (
           <a
@@ -57,7 +58,7 @@ export function OutputPrimaryCard({ item, creatorName, onMediaClick }: OutputPri
             className="block aspect-video w-full overflow-hidden bg-black"
             aria-label={`Open ${filename}`}
           >
-            <img src={meta.contentPath} alt={filename} className="h-full w-full object-contain" />
+            <StoredImage src={meta.contentPath} alt={filename} className="h-full w-full object-contain" />
           </a>
         )
       ) : (

@@ -1,3 +1,4 @@
+import { StoredImage } from "@/components/StoredImage";
 import { TextAttachmentContext } from "@/context/TextAttachmentContext";
 import { isTextAttachment } from "@/lib/issue-attachments";
 import { useContext, useMemo, useState, type DragEvent, type ReactNode } from "react";
@@ -299,7 +300,7 @@ export function IssueAttachmentsSection({
               className="group relative aspect-square cursor-pointer scroll-mt-20 overflow-hidden rounded-lg border border-border bg-accent/10"
               onClick={() => onImageClick(attachment)}
             >
-              <img
+              <StoredImage
                 src={attachment.contentPath}
                 alt={attachment.originalFilename ?? "attachment"}
                 className="h-full w-full object-cover"

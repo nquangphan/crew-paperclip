@@ -4,7 +4,7 @@ import { queryKeys } from "@/lib/queryKeys";
 import { act } from "react";
 import { createRoot } from "react-dom/client";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { TaskAttachmentPanel, TextAttachmentPreview, readTextPreview, TEXT_PREVIEW_MAX_BYTES } from "./TaskAttachmentPanel";
+import { MissingAttachmentFileError, TaskAttachmentPanel, TextAttachmentPreview, readTextPreview, TEXT_PREVIEW_MAX_BYTES } from "./TaskAttachmentPanel";
 import { isTextAttachment } from "@/lib/issue-attachments";
 import { readTaskSidePanelState, taskPanelAttachmentTab, writeTaskSidePanelState } from "@/lib/task-side-panel-state";
 vi.mock("@/components/MarkdownBody", () => ({ MarkdownBody: ({ children }: { children: string }) => <article data-rendered>{children}</article> }));
@@ -63,7 +63,22 @@ describe("text attachment tabs", () => {
     expect(host.querySelector('a[aria-label="Download notes.txt"] svg')).not.toBeNull();
     await act(async () => root.unmount());
   });
+  it("shows a placeholder without retry when the stored file was deleted", async () => {
+    const fetch = vi.fn(async () => new Response(JSON.stringify({ error: "Object not found" }), { status: 404 }));
+    vi.stubGlobal("fetch", fetch);
+    const client = new QueryClient({ defaultOptions: { queries: { staleTime: Infinity, retry: false } } });
+    client.setQueryData(queryKeys.issues.attachments("task"), [{ id: "old", originalFilename: "old.md", contentType: "text/markdown", byteSize: 12, contentPath: "/api/attachments/old/content" }]);
+    const host = document.createElement("div"); const root = createRoot(host);
+    await act(async () => root.render(<QueryClientProvider client={client}><TaskAttachmentPanel issueId="task" attachmentId="old" /></QueryClientProvider>));
+    await act(async () => { await new Promise((resolve) => setTimeout(resolve, 0)); });
+    expect(host.querySelector("[data-missing-file]")?.textContent).toBe("File không còn");
+    expect(host.textContent).not.toContain("Retry");
+    expect(fetch).toHaveBeenCalledTimes(1);
+    await act(async () => root.unmount()); client.clear();
+  });
+
   it("rejects HTTP errors, oversized responses and binary data", async () => {
+    await expect(readTextPreview(new Response("gone", { status: 404 }))).rejects.toBeInstanceOf(MissingAttachmentFileError);
     await expect(readTextPreview(new Response("denied", { status: 403 }))).rejects.toThrow("403");
     await expect(readTextPreview(new Response("x".repeat(TEXT_PREVIEW_MAX_BYTES + 1)))).rejects.toThrow("too large");
     await expect(readTextPreview(new Response("binary\0data"))).rejects.toThrow("binary");

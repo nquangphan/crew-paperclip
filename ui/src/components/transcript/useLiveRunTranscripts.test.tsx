@@ -273,8 +273,9 @@ describe("useLiveRunTranscripts", () => {
     logMock.mockReset();
     logMock.mockRejectedValue(new ApiError("Run log not found", 404, { error: "Run log not found" }));
 
+    let latest!: ReturnType<typeof useLiveRunTranscripts>;
     function Harness() {
-      useLiveRunTranscripts({
+      latest = useLiveRunTranscripts({
         companyId: "company-1",
         runs: [{ id: "run-404", status: "failed", adapterType: "codex_local" }],
       });
@@ -298,6 +299,12 @@ describe("useLiveRunTranscripts", () => {
     });
 
     expect(logMock).toHaveBeenCalledTimes(1);
+    // A log removed by retention is reported as missing, not as a load error,
+    // and the run counts as hydrated so the thread does not keep loading.
+    expect(latest.missingLogRunIds.has("run-404")).toBe(true);
+    expect(latest.errorsByRun.size).toBe(0);
+    expect(latest.hydratedRunIds.has("run-404")).toBe(true);
+    expect(latest.isInitialHydrating).toBe(false);
 
     act(() => {
       root.unmount();

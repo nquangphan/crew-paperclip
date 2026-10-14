@@ -1,3 +1,4 @@
+import { StoredImage } from "@/components/StoredImage";
 import { TextAttachmentContext } from "@/context/TextAttachmentContext";
 import { isTextAttachment } from "@/lib/issue-attachments";
 import { ArtifactPreview } from "@/components/artifacts/ArtifactCard";
@@ -280,7 +281,7 @@ function TaskChatBubbleContent({
                   aria-label={`Open ${ref.name || `image ${index + 1}`}`}
                   onClick={() => openImage(ref.url)}
                 >
-                  <img
+                  <StoredImage
                     src={ref.openPath ?? ref.url}
                     alt={ref.name}
                     loading="lazy"
