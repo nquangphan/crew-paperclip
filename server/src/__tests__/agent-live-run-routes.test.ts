@@ -1,3 +1,6 @@
+import { promises as fs } from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import express from "express";
 import request from "supertest";
 import { type SQL } from "drizzle-orm";
@@ -607,6 +610,45 @@ describe("agent live run routes", () => {
       content: "chunk",
       nextOffset: 5,
     });
+  });
+
+  it("answers 404 (not 500) for a run log whose file was deleted by retention", async () => {
+    const { createDurableRunLogStore } = await vi.importActual<
+      typeof import("../services/run-log-store.js")
+    >("../services/run-log-store.js");
+    const baseDir = await fs.mkdtemp(path.join(os.tmpdir(), "run-log-retention-"));
+    try {
+      const store = createDurableRunLogStore({ basePath: baseDir });
+      const handle = await store.begin({ companyId: "company-1", agentId: "agent-1", runId: "run-old" });
+      await store.append(handle, { stream: "stdout", chunk: "old output", ts: "2026-01-01T00:00:00.000Z" });
+      await store.finalize(handle);
+      await fs.rm(path.join(baseDir, handle.logRef));
+      mockHeartbeatService.readLog.mockImplementation(
+        (_run: unknown, opts?: { offset?: number; limitBytes?: number }) =>
+          store.read(handle, opts),
+      );
+
+      const res = await requestApp(await createApp(), (baseUrl) =>
+        request(baseUrl).get("/api/heartbeat-runs/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/log"),
+      );
+
+      expect(res.status, JSON.stringify(res.body)).toBe(404);
+      expect(res.body).toEqual({ error: "Run log not found" });
+    } finally {
+      await fs.rm(baseDir, { recursive: true, force: true });
+    }
+  });
+
+  it("answers 404 (not 500) for a workspace operation log whose file is gone", async () => {
+    const { notFound } = await vi.importActual<typeof import("../errors.js")>("../errors.js");
+    mockWorkspaceOperationService.readLog.mockRejectedValue(notFound("Workspace operation log not found"));
+
+    const res = await requestApp(await createApp(), (baseUrl) =>
+      request(baseUrl).get("/api/workspace-operations/operation-1/log"),
+    );
+
+    expect(res.status, JSON.stringify(res.body)).toBe(404);
+    expect(res.body).toEqual({ error: "Workspace operation log not found" });
   });
 
   it.each(["skill_test", "task_bridge"])(

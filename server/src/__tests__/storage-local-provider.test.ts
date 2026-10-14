@@ -118,4 +118,25 @@ describe("local disk storage provider", () => {
     await service.deleteObject("company-1", stored.objectKey);
     await expect(service.getObject("company-1", stored.objectKey)).rejects.toMatchObject({ status: 404 });
   });
+
+  it("reports a file removed from disk outside the app as 404, never a raw ENOENT", async () => {
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-storage-"));
+    tempRoots.push(root);
+    const service = createStorageService(createLocalDiskStorageProvider(root));
+    const stored = await service.putFile({
+      companyId: "company-1",
+      namespace: "issues/issue-1",
+      originalFilename: "old.png",
+      contentType: "image/png",
+      body: Buffer.from("old", "utf8"),
+    });
+
+    await fs.rm(path.join(root, stored.objectKey));
+
+    await expect(service.headObject("company-1", stored.objectKey)).resolves.toEqual({ exists: false });
+    await expect(service.getObject("company-1", stored.objectKey)).rejects.toMatchObject({
+      status: 404,
+      message: "Object not found",
+    });
+  });
 });

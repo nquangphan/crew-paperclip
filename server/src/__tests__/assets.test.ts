@@ -1,5 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import express from "express";
+import { promises as fs } from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import { Readable } from "node:stream";
 import request from "supertest";
 import { MAX_ATTACHMENT_BYTES } from "../attachment-types.js";
@@ -515,5 +518,37 @@ describe("GET /api/assets/:assetId/content", () => {
     expect(res.headers["content-disposition"]).toBe('inline; filename="logo.png"');
     expect(res.headers["x-content-type-options"]).toBe("nosniff");
     expect(res.headers).not.toHaveProperty("content-security-policy");
+  });
+
+  it("answers 404 (not 500) when an inline image's stored file was deleted", async () => {
+    const [
+      { createLocalDiskStorageProvider },
+      { createStorageService: createRealStorageService },
+      { assetRoutes },
+      { errorHandler },
+    ] = await Promise.all([
+      vi.importActual<typeof import("../storage/local-disk-provider.js")>("../storage/local-disk-provider.js"),
+      vi.importActual<typeof import("../storage/service.js")>("../storage/service.js"),
+      vi.importActual<typeof import("../routes/assets.js")>("../routes/assets.js"),
+      vi.importActual<typeof import("../middleware/index.js")>("../middleware/index.js"),
+    ]);
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "asset-missing-"));
+    try {
+      getAssetByIdMock.mockResolvedValue({ ...createAsset(), objectKey: "company-1/assets/issues/old.png" });
+      const app = express();
+      app.use((req, _res, next) => {
+        req.actor = { type: "board", source: "local_implicit", userId: "user-1" };
+        next();
+      });
+      app.use("/api", assetRoutes({} as any, createRealStorageService(createLocalDiskStorageProvider(root))));
+      app.use(errorHandler);
+
+      const res = await requestApp(app, baseUrl => request(baseUrl).get("/api/assets/asset-1/content"));
+
+      expect(res.status).toBe(404);
+      expect(res.body).toEqual({ error: "Object not found" });
+    } finally {
+      await fs.rm(root, { recursive: true, force: true });
+    }
   });
 });

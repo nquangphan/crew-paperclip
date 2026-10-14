@@ -1,3 +1,6 @@
+import { promises as fs } from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import { Readable } from "node:stream";
 import type { IncomingMessage } from "node:http";
 import express from "express";
@@ -697,6 +700,29 @@ describe("issue attachment routes", () => {
     expect(res.status).toBe(416);
     expect(res.headers["content-range"]).toBe("bytes */4");
     expect(storage.getObject).not.toHaveBeenCalled();
+  });
+
+  it("answers 404 (not 500) when the stored attachment file was deleted", async () => {
+    const [{ createLocalDiskStorageProvider }, { createStorageService: createRealStorageService }] = await Promise.all([
+      vi.importActual<typeof import("../storage/local-disk-provider.js")>("../storage/local-disk-provider.js"),
+      vi.importActual<typeof import("../storage/service.js")>("../storage/service.js"),
+    ]);
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "attachment-missing-"));
+    try {
+      const storage = createRealStorageService(createLocalDiskStorageProvider(root));
+      mockIssueService.getAttachmentById.mockResolvedValue({
+        ...makeAttachment("image/png", "old.png"),
+        objectKey: "company-1/issues/issue-1/old.png",
+      });
+
+      const app = await createApp(storage);
+      const res = await request(app).get("/api/attachments/attachment-1/content");
+
+      expect(res.status).toBe(404);
+      expect(res.body).toEqual({ error: "Object not found" });
+    } finally {
+      await fs.rm(root, { recursive: true, force: true });
+    }
   });
 
   it("rejects cross-company attachment content reads", async () => {
