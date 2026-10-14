@@ -48,6 +48,7 @@
     "fileWarning": "{{name}}: {{warning}}",
     "proceed": "Send anyway",
     "discard": "Discard",
+    "missing": "File no longer available",
     "image": {
       "untitled": "Image",
       "blocked": "image blocked",

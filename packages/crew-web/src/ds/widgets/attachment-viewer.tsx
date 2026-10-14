@@ -28,6 +28,8 @@ interface AttachmentViewerText {
   status: 'pending' | 'error' | 'success';
   data?: string;
   error?: string;
+  /** Lỗi là file không còn trên server (404, đã bị dọn): hiện ghi chú trung tính, không có nút thử lại. */
+  missing?: boolean;
   onRetry?: () => void;
 }
 
@@ -48,22 +50,27 @@ interface AttachmentViewerProps {
   text?: AttachmentViewerText;
 }
 
-/** Thân hộp: mỗi loại một cách hiện. Ảnh/video/PDF lỗi tải thì quay về thẻ thông tin. */
+/**
+ * Thân hộp: mỗi loại một cách hiện. Ảnh/video/PDF lỗi tải thì quay về thẻ thông tin; file trên server lỗi tải (đã bị
+ * dọn khỏi lưu trữ) hay nội dung chữ trả 404 thì thẻ ghi "File không còn" và không có nút tải về.
+ */
 function ViewerBody({
   file,
   kind,
   text,
   failed,
+  missing,
   onFail,
 }: {
   file: AttachmentViewerFile;
   kind: ViewerKind;
   text?: AttachmentViewerText;
   failed: boolean;
+  missing: boolean;
   onFail: () => void;
 }) {
   const { t, lang } = useT();
-  if (kind === 'other' || failed) {
+  if (kind === 'other' || failed || missing) {
     return (
       <div className="flex h-full items-center justify-center p-6">
         <div className="flex w-full max-w-sm flex-col items-center gap-3 rounded-lg border bg-background p-6 text-center">
@@ -77,15 +84,23 @@ function ViewerBody({
             <dt className="text-muted-foreground">{t('attachment.viewer.type')}</dt>
             <dd className="truncate">{file.contentType || t('attachment.viewer.unknownType')}</dd>
           </dl>
-          <p className="text-sm text-muted-foreground">
-            {t(failed ? 'attachment.viewer.previewFailed' : 'attachment.viewer.noPreview')}
+          <p data-slot="attachment-viewer-note" className="text-sm text-muted-foreground">
+            {t(
+              missing
+                ? 'attachment.missing'
+                : failed
+                  ? 'attachment.viewer.previewFailed'
+                  : 'attachment.viewer.noPreview',
+            )}
           </p>
-          <Button asChild>
-            <a href={file.downloadUrl} download={file.name}>
-              <Download aria-hidden />
-              {t('attachment.viewer.download')}
-            </a>
-          </Button>
+          {missing ? null : (
+            <Button asChild>
+              <a href={file.downloadUrl} download={file.name}>
+                <Download aria-hidden />
+                {t('attachment.viewer.download')}
+              </a>
+            </Button>
+          )}
         </div>
       </div>
     );
@@ -170,6 +185,9 @@ function AttachmentViewer({ file, onClose, nav, text }: AttachmentViewerProps) {
     : 'other';
   const hasNav = Boolean(nav && nav.total > 1 && kind === 'image');
   const inlineData = file ? /^data:/i.test(file.url) : false;
+  const failed = file !== null && failedId === file.id;
+  // File trên server không còn (ảnh/video lỗi tải, nội dung chữ 404): không còn gì để tải hay mở tab mới.
+  const missing = (failed && !inlineData) || (text?.status === 'error' && text.missing === true);
   // Nút đã mở hộp (ảnh trong bình luận đang thu gọn): đóng hộp thì trả focus về đó mà không cuộn khung thu gọn.
   const opener = useRef<HTMLElement | null>(null);
 
@@ -224,14 +242,16 @@ function AttachmentViewer({ file, onClose, nav, text }: AttachmentViewerProps) {
                 {t('attachment.viewer.counter', { n: nav.index + 1, total: nav.total })}
               </span>
             ) : null}
-            <Button variant="ghost" size="sm" asChild>
-              <a href={file.downloadUrl} download={file.name} aria-label={t('attachment.viewer.download')}>
-                <Download aria-hidden />
-                <span className="max-sm:hidden">{t('attachment.viewer.download')}</span>
-              </a>
-            </Button>
+            {missing ? null : (
+              <Button variant="ghost" size="sm" asChild>
+                <a href={file.downloadUrl} download={file.name} aria-label={t('attachment.viewer.download')}>
+                  <Download aria-hidden />
+                  <span className="max-sm:hidden">{t('attachment.viewer.download')}</span>
+                </a>
+              </Button>
+            )}
             {/* Trình duyệt chặn mở URL `data:` ở tab mới (trang trắng), nên ảnh nhúng không có nút này. */}
-            {inlineData ? null : (
+            {inlineData || missing ? null : (
               <Button variant="ghost" size="icon-sm" asChild>
                 <a
                   href={file.url}
@@ -255,7 +275,8 @@ function AttachmentViewer({ file, onClose, nav, text }: AttachmentViewerProps) {
               file={file}
               kind={kind}
               text={text}
-              failed={failedId === file.id}
+              failed={failed}
+              missing={missing}
               onFail={() => setFailedId(file.id)}
             />
             {hasNav && nav ? (

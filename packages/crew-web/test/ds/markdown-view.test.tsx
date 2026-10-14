@@ -94,7 +94,7 @@ describe('MarkdownView', () => {
     const { container } = await render(<MarkdownView markdown="[x](data:text/html;base64,PGgxPg==)" />);
     expect(container.querySelector('a')?.getAttribute('href') ?? '').not.toMatch(/^data:/i);
   });
-  it('ảnh lỗi tải thay bằng tên ảnh, không để trống', async () => {
+  it('ảnh file trên server lỗi tải (file đã bị dọn) thay bằng tên ảnh kèm "File không còn", không để trống', async () => {
     const { container } = await render(<MarkdownView markdown="![sơ đồ luồng](/api/attachments/x9/content)" />);
     const img = container.querySelector('img');
     if (!img) throw new Error('thiếu img');
@@ -102,6 +102,14 @@ describe('MarkdownView', () => {
     expect(container.querySelector('img')).toBeNull();
     const note = container.querySelector('[data-slot="markdown-image-note"]');
     expect(note?.textContent).toContain('sơ đồ luồng');
+    expect(note?.textContent).toContain('File không còn');
+  });
+  it('ảnh base64 lỗi giải mã vẫn ghi "không tải được ảnh"', async () => {
+    const { container } = await render(<MarkdownView markdown="![hỏng](data:image/png;base64,AAAA)" />);
+    const img = container.querySelector('img');
+    if (!img) throw new Error('thiếu img');
+    fireEvent.error(img);
+    const note = container.querySelector('[data-slot="markdown-image-note"]');
     expect(note?.textContent).toContain('không tải được ảnh');
   });
   it('ảnh base64 trên 5 MB không hiện, có link Tải ảnh; trang không treo', async () => {

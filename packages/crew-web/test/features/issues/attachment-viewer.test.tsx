@@ -48,7 +48,8 @@ function serve() {
     if (url === '/api/issues/i1/attachments') return new Response(JSON.stringify(FILES), { status: 200 });
     const m = /^\/api\/attachments\/([^/]+)\/content$/.exec(url);
     if (m && TEXT[m[1]] !== undefined) return new Response(TEXT[m[1]], { status: 200 });
-    if (m && m[1] === 'broken') return new Response(JSON.stringify({ error: 'Attachment not found' }), { status: 404 });
+    if (m && m[1] === 'broken') return new Response(JSON.stringify({ error: 'Object not found' }), { status: 404 });
+    if (m && m[1] === 'flaky') return new Response(JSON.stringify({ error: 'Storage unavailable' }), { status: 500 });
     return new Response(JSON.stringify({ error: `no mock ${url}` }), { status: 404 });
   });
   globalThis.fetch = fetchMock as unknown as typeof fetch;
@@ -193,11 +194,40 @@ describe('hộp xem file đính kèm', () => {
 
   it('link file không có trong danh sách: lấy chữ của link làm tên, loại theo đuôi; lỗi tải hiện thông báo', async () => {
     serve();
-    mountViewer('[bao-cao.md](/api/attachments/broken/content)');
+    mountViewer('[bao-cao.md](/api/attachments/flaky/content)');
     fireEvent.click(await screen.findByText('bao-cao.md'));
     expect(within(viewer()).getByRole('heading', { name: 'bao-cao.md' })).toBeTruthy();
     expect(await within(viewer()).findByText('Không tải được nội dung file')).toBeTruthy();
-    expect(within(viewer()).getByText('Attachment not found')).toBeTruthy();
+    expect(within(viewer()).getByText('Storage unavailable')).toBeTruthy();
+  });
+
+  it('file chữ đã bị dọn khỏi lưu trữ (404): ghi "File không còn", không lỗi đỏ, không Thử lại, không Tải về', async () => {
+    const fetchMock = serve();
+    mountViewer('[bao-cao.md](/api/attachments/broken/content)');
+    fireEvent.click(await screen.findByText('bao-cao.md'));
+    expect(await within(viewer()).findByText('File không còn')).toBeTruthy();
+    expect(within(viewer()).queryByRole('alert')).toBeNull();
+    expect(within(viewer()).queryByRole('button', { name: 'Thử lại' })).toBeNull();
+    expect(viewer().querySelector('a[download]')).toBeNull();
+    expect(fetchMock.mock.calls.filter(([u]) => String(u) === '/api/attachments/broken/content')).toHaveLength(1);
+  });
+
+  it('ảnh đính kèm đã bị dọn: ô ảnh thành "File không còn", mở hộp xem cũng ghi như vậy, trang vẫn đủ', async () => {
+    serve();
+    mountViewer('![ảnh cũ](/api/attachments/gone/content)');
+    // Ô ảnh trong mục Đính kèm lỗi tải: thành ô ghi chú cùng cỡ, không còn link mở.
+    const tiles = await screen.findAllByRole('img', { name: 'anh-1.png' });
+    fireEvent.error(tiles[0]);
+    const missingTile = document.querySelector('[data-slot="image-tile-missing"]');
+    expect(missingTile?.textContent).toContain('File không còn');
+    expect(missingTile?.closest('a')).toBeNull();
+    // Ảnh trong markdown: mở hộp xem rồi ảnh lỗi tải thì thẻ ghi "File không còn", không nút Tải về.
+    fireEvent.click(screen.getByRole('button', { name: 'ảnh cũ' }));
+    const img = within(viewer()).getByRole('img', { name: 'ảnh cũ' });
+    fireEvent.error(img);
+    expect(within(viewer()).getByText('File không còn')).toBeTruthy();
+    expect(viewer().querySelector('a[download]')).toBeNull();
+    expect(screen.getAllByRole('img', { name: 'anh-2.jpg', hidden: true }).length).toBeGreaterThan(0);
   });
 
   it('ảnh base64 trong markdown bấm mở hộp xem: hiện ảnh, Tải về từ chính ảnh, không có Mở tab mới, không bộ đếm', async () => {

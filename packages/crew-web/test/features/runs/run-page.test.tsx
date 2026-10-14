@@ -99,6 +99,20 @@ describe('RunPage (S12.1)', () => {
     expect(screen.queryByText('Không tải được log')).toBeNull();
   });
 
+  it('run đã xong mà log 404 (đã dọn sau 7 ngày): ghi chú trung tính, trang vẫn đủ, không báo lỗi', async () => {
+    server(
+      { status: 'succeeded', finishedAt: '2026-10-01T01:00:00.000Z' },
+      { [`GET /api/heartbeat-runs/${RUN_ID}/log`]: { status: 404, body: { error: 'Run log not found' } } },
+    );
+    mount();
+    expect(await screen.findByText('Log đã được dọn sau 7 ngày')).toBeTruthy();
+    expect(await screen.findByText('Đang sửa trang đăng nhập')).toBeTruthy();
+    expect(await screen.findByRole('link', { name: /Sửa trang đăng nhập/ })).toBeTruthy();
+    expect(screen.queryByText('Không tải được log')).toBeNull();
+    expect(screen.queryByText('Run chưa có log')).toBeNull();
+    expect(document.querySelector('[data-slot="error-state"]')).toBeNull();
+  });
+
   it('lỗi tải run hiện nguyên văn', async () => {
     mockServer({ [`GET /api/heartbeat-runs/${RUN_ID}`]: { status: 500, body: { error: 'cơ sở dữ liệu hỏng' } } });
     mount();

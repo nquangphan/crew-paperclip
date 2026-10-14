@@ -80,7 +80,12 @@ function RunLog({ runId, active }: { runId: string; active: boolean }) {
       </CardHeader>
       <CardContent className="flex flex-col gap-2">
         {log.error && !missing ? <ErrorState title={t('log.loadFailed')} message={log.error.message} /> : null}
-        {missing || (!log.isLoading && !log.error && !text) ? <MutedText>{t('log.empty')}</MutedText> : null}
+        {missing && !active ? (
+          // Run đã xong mà log 404: file log đã bị dọn (giữ 7 ngày). Run đang chạy thì chỉ là chưa ghi log.
+          <MutedText>{t('log.cleaned')}</MutedText>
+        ) : missing || (!log.isLoading && !log.error && !text) ? (
+          <MutedText>{t('log.empty')}</MutedText>
+        ) : null}
         {text ? <CodeBlock label={t('log.heading')} code={text} /> : null}
       </CardContent>
     </Card>

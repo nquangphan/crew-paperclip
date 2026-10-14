@@ -35,7 +35,8 @@
   "log": {
     "heading": "Log",
     "empty": "Run chưa có log",
-    "loadFailed": "Không tải được log"
+    "loadFailed": "Không tải được log",
+    "cleaned": "Log đã được dọn sau 7 ngày"
   },
   "issues": {
     "heading": "Yêu cầu liên quan",

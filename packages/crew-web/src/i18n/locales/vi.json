@@ -48,6 +48,7 @@
     "fileWarning": "{{name}}: {{warning}}",
     "proceed": "Gửi vẫn tiếp tục",
     "discard": "Bỏ chọn",
+    "missing": "File không còn",
     "image": {
       "untitled": "Ảnh",
       "blocked": "ảnh bị chặn",

@@ -136,24 +136,27 @@ function ImageNote({ label, note, children }: { label: string; note: string; chi
   );
 }
 
-/** Ảnh hiện trong trang; lỗi tải thì thay bằng tên ảnh. `onOpen` có thì bấm ảnh mở hộp xem. */
+/**
+ * Ảnh hiện trong trang; lỗi tải thì thay bằng tên ảnh kèm `failedNote`. `onOpen` có thì bấm ảnh mở hộp xem.
+ */
 function InlineImage({
   src,
   alt,
   label,
   title,
+  failedNote,
   onOpen,
 }: {
   src: string;
   alt: string;
   label: string;
   title?: string;
+  failedNote: string;
   onOpen?: () => void;
 }) {
-  const { t } = useT();
   // Ghi theo src: nội dung đổi sang ảnh khác thì thử tải lại từ đầu.
   const [failedSrc, setFailedSrc] = useState<string | null>(null);
-  if (failedSrc === src) return <ImageNote label={label} note={t('attachment.image.broken')} />;
+  if (failedSrc === src) return <ImageNote label={label} note={failedNote} />;
   const img = (
     <img
       src={src}
@@ -224,6 +227,7 @@ function MarkdownImage({ node: _node, src, alt, title }: ImageProps) {
           alt={altText}
           label={label}
           title={title}
+          failedNote={t('attachment.image.broken')}
           onOpen={
             links
               ? () =>
@@ -238,12 +242,14 @@ function MarkdownImage({ node: _node, src, alt, title }: ImageProps) {
       );
     case 'local': {
       const attachmentId = links ? links.match(source.url) : null;
+      // File trên server lỗi tải gần như luôn là file đã bị xóa khỏi lưu trữ (dọn file cũ).
       return (
         <InlineImage
           src={source.url}
           alt={altText}
           label={label}
           title={title}
+          failedNote={t('attachment.missing')}
           onOpen={
             links && attachmentId
               ? () => links.open(attachmentId, { name: altText || undefined, image: true })

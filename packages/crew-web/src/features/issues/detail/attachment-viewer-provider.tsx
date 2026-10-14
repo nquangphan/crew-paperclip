@@ -2,7 +2,7 @@
 import type { IssueAttachment } from '@paperclipai/shared';
 import { useQuery } from '@tanstack/react-query';
 import { type ReactNode, useMemo, useState } from 'react';
-import { api, queryKeys } from '@/api';
+import { ApiError, api, queryKeys } from '@/api';
 import {
   AttachmentLinkContext,
   type AttachmentLinkHandler,
@@ -122,6 +122,7 @@ export function AttachmentViewerProvider({ issueId, children }: { issueId: strin
                 status: text.status,
                 data: text.data,
                 error: text.error?.message,
+                missing: text.error instanceof ApiError && text.error.status === 404,
                 onRetry: () => void text.refetch(),
               }
             : undefined
