@@ -423,9 +423,17 @@ test("worker: merged pull request keeps the branch while another open pull reque
   const gitHook = branchGit({ locals: [REQ] });
   const { w, deps } = world({ queue: waitingOn(A), prViews: [view("MERGED", B, "crew/v3.5", REQ)], gitHook, openPrs: '[{"number":99}]' });
   workerLoop(JOB, deps);
-  assert.ok(w.calls.some((c) => c.includes(`gh pr list --head ${REQ} --state open --json number`)));
+  assert.ok(w.calls.some((c) => c.includes(`gh pr list --repo `) && c.includes(` --head ${REQ} --state open --json number`)));
   assert.ok(!w.calls.some((c) => /push origin --delete|branch -D/.test(c)));
   assert.ok(w.logs.some((l) => l.includes("còn 1 PR đang mở cùng nhánh")));
+});
+
+test("worker: merged pull request lists open pull requests with --repo taken from the pull request URL", () => {
+  const { w, deps } = world({ queue: waitingOn(A), prViews: [view("MERGED", B, "crew/v3.5", REQ)], gitHook: branchGit({ locals: [REQ] }) });
+  workerLoop(JOB, deps);
+  const list = w.calls.find((c) => c.startsWith("gh pr list"));
+  assert.match(list, /^gh pr list --repo [A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+ --head /);
+  assert.ok(w.calls.some((c) => c.endsWith(`push origin --delete ${REQ}`)));
 });
 
 test("worker: merged pull request keeps the branch when open pull requests cannot be checked", () => {

@@ -1065,7 +1065,7 @@ test("reviewer issue gốc bắt đọc diff gộp và review toàn cục", () =
 test("con E2E dựng nền bằng crew-e2e-base từ các sha đã duyệt; reviewer diff từ nền đó; assistant ghi ngoại lệ", () => {
   const executor = read("executor");
   const body = section(executor, "## Con E2E (`crew-child key=e2e`)");
-  for (const needle of ["crew-child key=e2e", "origin/HEAD", "crew-review sha=<sha> verdict=approved", "git merge --no-ff <sha>", "theo thứ tự phụ thuộc", "`blocked`", "crew-e2e-base sha=", "simulator/emulator, Maestro, browser Playwright", "không ghi `result=pass`"]) {
+  for (const needle of ["crew-child key=e2e", "origin/HEAD", "crew-review sha=<sha> verdict=approved", "git merge --no-ff <sha>", "theo thứ tự phụ thuộc", "`blockedBy[]` của CHÍNH nó", "bỏ qua blocker BMAD, research, docs", "không `blocked`", "git switch -C crew/<identifier> origin/HEAD", "git cherry-pick", "`git cherry-pick` conflict", "`blocked`", "crew-e2e-base sha=", "simulator/emulator, Maestro, browser Playwright", "không ghi `result=pass`"]) {
     assert.ok(body.includes(needle), `executor: thiếu: ${needle}`);
   }
   const review = section(read("reviewer"), "## Cách review");
@@ -1080,19 +1080,36 @@ test("con E2E dựng nền bằng crew-e2e-base từ các sha đã duyệt; revi
   assert.ok(!/e2e=<spec1,spec2>` ngay dưới dòng `crew-commit`/.test(executor));
 });
 
-test("con E2E chỉ bắt buộc với issue gốc tạo từ 2026-10-20; thiếu môi trường E2E thì blocked", () => {
+test("lô sửa có code thì Trợ Lý thêm con E2E e2e-fix-<n>; reviewer kiểm base theo blockedBy", () => {
+  const fix = section(read("assistant"), "## Sửa sau quyết định trên gốc");
+  for (const needle of ["`e2e-fix-<n>`", "`blockedByIssueIds` gồm mọi con sửa của lô", "tự dựng lại nền"]) {
+    assert.ok(fix.includes(needle), `assistant: thiếu: ${needle}`);
+  }
+  const review = section(read("reviewer"), "## Cách review");
+  for (const needle of ["`blockedBy[]` của chính con E2E", "crew-child key=e2e-fix-<n>", "MỚI NHẤT"]) {
+    assert.ok(review.includes(needle), `reviewer: thiếu: ${needle}`);
+  }
+});
+
+test("integrator thiếu môi trường E2E chỉ comment, không đổi status (như DOCS_EXIT=2)", () => {
+  const check = section(read("integrator"), "## Kiểm một lần trên cây đã merge");
+  assert.ok(check.includes("không approve, không đổi status"));
+  assert.ok(!check.includes("`PATCH` `blocked`"));
+});
+
+test("con E2E chỉ bắt buộc với issue gốc tạo từ 2026-10-20", () => {
   for (const name of ["reviewer", "integrator"]) {
     const text = read(name);
     assert.ok(text.includes("2026-10-20T00:00:00+07:00"), `${name}: thiếu mốc ngày`);
     assert.ok(text.includes("không đòi con E2E"), `${name}: thiếu ghi chú không đòi`);
   }
   const integrator = read("integrator");
-  assert.ok(integrator.includes("không approve, `PATCH` `blocked`"));
+  assert.ok(!integrator.includes("không approve, `PATCH` `blocked`"));
 });
 
 test("reviewer issue gốc tự dựng nhánh tạm crew/review-tmp rồi xóa sau khi review", () => {
   const body = section(read("reviewer"), "## Issue gốc (không có `parentId`)");
-  for (const needle of ["crew/review-tmp/<identifier>", "git switch -c crew/review-tmp/<identifier> origin/HEAD", "chạy TRƯỚC integrator", "request changes nêu các con xung đột", "git branch -D crew/review-tmp/<identifier>", "kể cả khi request changes"]) {
+  for (const needle of ["crew/review-tmp/<identifier>", "git switch -C crew/review-tmp/<identifier> origin/HEAD", "chạy TRƯỚC integrator", "request changes nêu các con xung đột", "git branch -D crew/review-tmp/<identifier>", "kể cả khi request changes"]) {
     assert.ok(body.includes(needle), `thiếu: ${needle}`);
   }
 });

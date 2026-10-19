@@ -514,7 +514,11 @@ export function workerLoop(job, deps) {
         deps.log(`PR ${pr}: xóa nhánh local ${name}: rc ${d.code}`);
       };
       if (typeof head === "string" && REQ_BRANCH_RE.test(head)) {
-        const open = deps.sh("gh", ["pr", "list", "--head", head, "--state", "open", "--json", "number"], { timeout: 2 * MIN });
+        // Worker không chạy trong repo git: `gh pr list` cần `--repo` lấy từ URL PR (đã khớp PR_URL_RE khi enqueue).
+        const repo = /^https:\/\/github\.com\/([A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+)\/pull\/[1-9][0-9]*$/.exec(String(pr))?.[1] ?? null;
+        const open = repo
+          ? deps.sh("gh", ["pr", "list", "--repo", repo, "--head", head, "--state", "open", "--json", "number"], { timeout: 2 * MIN })
+          : { code: 1, out: "URL PR không có dạng github.com/<owner>/<repo>/pull/<n>" };
         let openPrs = null;
         try {
           const parsed = JSON.parse(String(open.stdout ?? open.out ?? ""));
