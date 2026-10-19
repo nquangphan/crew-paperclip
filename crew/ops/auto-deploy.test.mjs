@@ -175,6 +175,7 @@ function world(opts = {}) {
     logs: [],
     time: 0,
     onWait: opts.onWait,
+    gitHook: opts.gitHook,
   };
   const deps = {
     home: "/home/t",
@@ -198,6 +199,8 @@ function world(opts = {}) {
       }
       if (cmd === "git") {
         const g = args.slice(1);
+        const hooked = w.gitHook?.(g);
+        if (hooked) return hooked;
         if (g[0] === "merge-base") return { code: isAnc(g[2], g[3] === "origin/crew/v3.5" ? C : g[3]) ? 0 : 1, out: "" };
         if (g[0] === "status") return { code: 0, out: "" };
         if (g[0] === "diff") return { code: 0, out: "packages/crew-web/src/a.tsx\n" };
@@ -359,7 +362,8 @@ test("worker: new plugin capabilities stop the deploy for a manual look", () => 
 });
 
 const PR = "https://github.com/acme/paperclip/pull/42";
-const view = (state, oid = null, base = "crew/v3.5") => JSON.stringify({ state, mergeCommit: oid ? { oid } : null, baseRefName: base });
+const view = (state, oid = null, base = "crew/v3.5", head = undefined) =>
+  JSON.stringify({ state, mergeCommit: oid ? { oid } : null, baseRefName: base, ...(head ? { headRefName: head } : {}) });
 const waitingOn = (sha = A, at = "2026-10-12T08:00:00.000Z") => ({ target: null, issues: [], waiting: [{ issueId: I1, sha, pr: PR, at }] });
 
 test("worker: waits for the pull request, then deploys its merge commit and names the PR and approved commit", () => {
@@ -367,7 +371,7 @@ test("worker: waits for the pull request, then deploys its merge commit and name
   workerLoop(JOB, deps);
   const polls = w.calls.filter((c) => c.startsWith("gh pr view"));
   assert.equal(polls.length, 3);
-  assert.equal(polls[0], `gh pr view ${PR} --json state,mergeCommit,baseRefName`);
+  assert.equal(polls[0], `gh pr view ${PR} --json state,mergeCommit,baseRefName,headRefName`);
   assert.ok(w.time >= 2 * PR_POLL_MS, "polls are spaced by PR_POLL_MS");
   assert.ok(w.calls.some((c) => c === `vps comments ${I1}`), "checks the integrator's pushed=pr line");
   assert.equal(w.comments.length, 1);
@@ -375,6 +379,55 @@ test("worker: waits for the pull request, then deploys its merge commit and name
   assert.match(w.comments[0].body, new RegExp(`Pull request ${PR} đã merge thành \`${B}\`; commit owner duyệt: \`${A}\``));
   assert.equal(w.running, B);
   assert.deepEqual(w.queue, { target: null, issues: [], waiting: [] });
+});
+
+// Scripted git for branch cleanup: `locals` are existing local branches, `checkedOut` live in a worktree.
+const branchGit = ({ locals = [], checkedOut = [], failPush = false, merged = [] } = {}) => (g) => {
+  if (g[0] === "merge-base" && g[2].startsWith("crew/")) return { code: merged.includes(g[2]) ? 0 : 1, out: "" };
+  if (g[0] === "worktree") return { code: 0, out: checkedOut.map((b) => `worktree /w\nbranch refs/heads/${b}\n`).join("\n") };
+  if (g[0] === "for-each-ref") return { code: 0, out: locals.join("\n") };
+  if (g[0] === "show-ref") return { code: locals.includes(g[3].replace("refs/heads/", "")) ? 0 : 1, out: "" };
+  if (g[0] === "push") return { code: failPush ? 1 : 0, out: failPush ? "remote: boom" : "" };
+  return null;
+};
+const REQ = "crew/req/TPS-10";
+
+test("worker: merged pull request deletes crew/req/<id> on origin and locally, plus merged child branches", () => {
+  const gitHook = branchGit({ locals: [REQ, "crew/TPS-11", "crew/TPS-12", "crew/TPS-13", "crew/v3.5"], checkedOut: ["crew/TPS-13"], merged: ["crew/TPS-11", "crew/TPS-13"] });
+  const { w, deps } = world({ queue: waitingOn(A), prViews: [view("MERGED", B, "crew/v3.5", REQ)], gitHook });
+  workerLoop(JOB, deps);
+  assert.ok(w.calls.some((c) => c.endsWith(`push origin --delete ${REQ}`)));
+  assert.ok(w.calls.some((c) => c.endsWith(`branch -D ${REQ}`)));
+  assert.ok(w.calls.some((c) => c.endsWith("branch -D crew/TPS-11")), "child already inside the merge commit");
+  assert.ok(!w.calls.some((c) => c.endsWith("branch -D crew/TPS-12")), "child not inside the merge commit kept");
+  assert.ok(!w.calls.some((c) => c.endsWith("branch -D crew/TPS-13")), "checked-out branch kept");
+  assert.ok(!w.calls.some((c) => /branch -D crew\/v3\.5/.test(c)), "non child shape untouched");
+  assert.ok(!w.calls.some((c) => /push origin --delete crew\/TPS-/.test(c)), "child remotes never deleted");
+  assert.equal(first(w.comments[0]), `crew-deploy sha=${B} status=deployed`);
+});
+
+test("worker: closed pull request deletes its request branch; child branches stay", () => {
+  const gitHook = branchGit({ locals: [REQ, "crew/TPS-11"] });
+  const { w, deps } = world({ queue: waitingOn(A), prViews: [view("CLOSED", null, "crew/v3.5", REQ)], gitHook });
+  workerLoop(JOB, deps);
+  assert.ok(w.calls.some((c) => c.endsWith(`push origin --delete ${REQ}`)));
+  assert.ok(!w.calls.some((c) => c.endsWith("branch -D crew/TPS-11")));
+  assert.equal(first(w.comments[0]), `crew-deploy sha=${A} status=cancelled`);
+});
+
+test("worker: head branch outside crew/req/<id> is never touched; push failure is only logged", () => {
+  const other = world({ queue: waitingOn(A), prViews: [view("CLOSED", null, "crew/v3.5", "feature/x")], gitHook: branchGit({ locals: ["feature/x"] }) });
+  workerLoop(JOB, other.deps);
+  assert.ok(!other.w.calls.some((c) => /push origin --delete|branch -D/.test(c)));
+  const failing = world({ queue: waitingOn(A), prViews: [view("CLOSED", null, "crew/v3.5", REQ)], gitHook: branchGit({ locals: [REQ], failPush: true }) });
+  workerLoop(JOB, failing.deps);
+  assert.ok(failing.w.logs.some((l) => l.includes(`xóa nhánh remote ${REQ}: rc 1`)));
+  assert.equal(first(failing.w.comments[0]), `crew-deploy sha=${A} status=cancelled`);
+});
+
+test("gh pr view output carries headRefName when present", () => {
+  assert.equal(parsePrView(JSON.stringify({ state: "CLOSED", headRefName: REQ })).head, REQ);
+  assert.equal(parsePrView(JSON.stringify({ state: "MERGED", mergeCommit: { oid: C }, headRefName: REQ })).head, REQ);
 });
 
 test("worker: a pull request closed without merging ends with status=cancelled and no deploy", () => {

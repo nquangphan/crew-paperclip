@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { assertWriteAllowed } from '../e2e/support/api';
 import { formatSql } from '../e2e/support/db';
 import { CREW_E2E_PROD_COMPANY_ID, isProd, TPS_COMPANY_ID } from '../e2e/support/env';
+import { agentsToTerminate, selectJunkProjects } from '../e2e/support/junk-projects';
 
 describe('e2e/support/db formatSql', () => {
   it('nhận SELECT thường và tham số', () => {
@@ -89,5 +90,46 @@ describe('e2e/support/api assertWriteAllowed (guard ghi prod)', () => {
   it('ngoài prod không chặn', async () => {
     process.env.CREW_E2E_BASE_URL = 'http://127.0.0.1:5183';
     await expect(run('POST', '/api/crew/companies/anything/contributions')).resolves.toBeUndefined();
+  });
+});
+
+describe('e2e/support/junk-projects', () => {
+  const runs = [
+    { projectKey: 'e2e-base', projectId: 'p-base' },
+    { projectKey: 'e2e-rm-abc1234', projectId: 'p-rm' },
+  ];
+  const projects = [
+    { id: 'p-base', name: 'E2E base' },
+    { id: 'p-old', name: 'E2E base 2' },
+    { id: 'p-rm', name: 'E2E gỡ e2e-rm-abc1234' },
+    { id: 'p-s4', name: 'PW-S4-2 s42abc' },
+    { id: 'p-neg', name: 'e2e-neg-xyz' },
+    { id: 'p-real', name: 'Dự án thật' },
+  ];
+  const ctx = { baseProjectId: 'p-base', baseKey: 'e2e-base', runs };
+
+  it('chọn project rác theo tiền tố, giữ base hiện hành và project lạ', () => {
+    const ids = selectJunkProjects(projects, ctx).map((j) => j.project.id);
+    expect(ids).toEqual(['p-old', 'p-rm', 'p-s4', 'p-neg']);
+  });
+  it('không chọn project có khóa setup run là base dù tên giống rác', () => {
+    const odd = [{ id: 'p-x', name: 'E2E base 3' }];
+    const r = [{ projectKey: 'e2e-base', projectId: 'p-x' }];
+    expect(selectJunkProjects(odd, { baseKey: 'e2e-base', runs: r })).toEqual([]);
+  });
+  it('lấy khóa từ setup run và từ tên project', () => {
+    const [, rm] = selectJunkProjects(projects, ctx);
+    expect(rm?.keys).toEqual(['e2e-rm-abc1234']);
+    const named = selectJunkProjects([{ id: 'n', name: 'E2E gỡ e2e-rm-zzz9' }], { baseKey: 'e2e-base', runs: [] });
+    expect(named[0]?.keys).toEqual(['e2e-rm-zzz9']);
+  });
+  it('chỉ terminate agent chưa terminated đúng khóa, không đụng khóa gần giống', () => {
+    const agents = [
+      { id: '1', name: 'e2e-rm-abc1234-assistant', status: 'paused' },
+      { id: '2', name: 'e2e-rm-abc1234-executor-1', status: 'terminated' },
+      { id: '3', name: 'e2e-rm-abc12345-assistant', status: 'idle' },
+      { id: '4', name: 'e2e-base-assistant', status: 'idle' },
+    ];
+    expect(agentsToTerminate(agents, ['e2e-rm-abc1234']).map((a) => a.id)).toEqual(['1']);
   });
 });
