@@ -307,6 +307,18 @@
         "server/src/__tests__/crew-handoff-rewake-sweep.db.test.ts",
         "server/src/__tests__/crew-handoff-rewake.test.ts"
       ]
+    },
+    {
+      "id": "C11",
+      "kind": "core-patch",
+      "file": "server/src/routes/issues.ts",
+      "symbol": "issueRoutes PATCH /issues/:id (reassignment stop)",
+      "anchor": "          runToStopForReassignment.id === actor.runId &&",
+      "description": "A run that reassigns its own issue (executor to reviewer, reviewer to integrator) is no longer cancelled with issue_reassigned. Stock killed the requesting run before the provider printed its final result, so the run ended cancelled without usage or cost. The run now ends on its own and records usage like any run; the new assignee's wake re-adopts the still-running run as the issue's execution holder, is deferred behind it, and is promoted when it releases, so the two never run the issue side by side. A board user or another agent reassigning still cancels the previous assignee's run as stock does.",
+      "upstreamPr": null,
+      "tests": [
+        "server/src/__tests__/crew-self-handoff-run.db.test.ts"
+      ]
     }
   ]
 }

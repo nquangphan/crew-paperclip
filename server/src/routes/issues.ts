@@ -13388,7 +13388,17 @@ export function issueRoutes(
           agentId: existing.assigneeAgentId,
         });
         const runToStopForReassignment = await resolveActiveIssueRun(existing);
-        if (runToStopForReassignment) {
+        // A run handing off its own issue is finishing its turn. Killing it here
+        // loses the provider's final result, which carries the run's usage and
+        // cost. Let it end on its own: the new assignee's wake re-adopts this run
+        // as the issue's execution holder, waits behind it, and is promoted when
+        // it releases, so the two never execute the issue side by side.
+        const reassignmentStopsActorRun =
+          !!runToStopForReassignment &&
+          !!actor.agentId &&
+          runToStopForReassignment.id === actor.runId &&
+          runToStopForReassignment.agentId === actor.agentId;
+        if (runToStopForReassignment && !reassignmentStopsActorRun) {
           const cancelled = await heartbeat.cancelRun(
             runToStopForReassignment.id,
             "Cancelled before issue reassignment",
