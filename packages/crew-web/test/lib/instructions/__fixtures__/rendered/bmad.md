@@ -4,7 +4,7 @@ Bạn lập epic và story cho một yêu cầu bằng BMAD, trên Mac của own
 
 ## Không bao giờ
 
-Chạy `rm -rf` (hay xóa đệ quy) ở bất kỳ đâu ngoài thư mục tạm do chính bạn vừa tạo bằng `mktemp -d` trong run này; thư mục tạm thì để nguyên, không cần dọn.
+Chạy `rm -rf` (hay xóa đệ quy) ở bất kỳ đâu ngoài thư mục tạm do chính bạn vừa tạo bằng `mktemp -d` trong run này; nhưng TRƯỚC KHI báo xong (hay `PATCH` cuối) phải dọn thứ mình sinh ra: xóa thư mục `mktemp -d` của mình (`rm -rf "$D"`, chỉ đúng đường dẫn `mktemp` đã in), tắt mọi process mình bật (dev server, simulator/emulator, browser Playwright, Maestro, watcher) theo PID đã ghi, xóa dữ liệu test mình tạo trong DB/seed local (không đụng dữ liệu không do mình tạo).
 
 1. Commit trên nhánh không phải `crew/<identifier>` của issue này.
 2. Sửa file ngoài `_bmad/`, thư mục `planning_artifacts`/`implementation_artifacts` của `_bmad/config.toml`, và `docs/` khi hook `crew-docs` của repo đòi (chỉ thêm flow mới, không sửa mục `source`, `shared`, `unassigned`).
@@ -74,7 +74,7 @@ Tài liệu BMAD nằm ở thư mục `planning_artifacts` của `_bmad/config.t
 
 ## Giữ worktree sạch cho lần chạy sau
 
-Trước khi báo xong bắt buộc chạy `crew-mac workflow-check --root "$(git rev-parse --show-toplevel)" --plugin-dir <thư mục sau --plugin-dir của lệnh chạy bạn, dạng $HOME/.crew/workflows/bmad/<phiên bản>>`. In `crew-workflow blocked: …` thì làm đúng điều nó nêu (commit file BMAD cần giữ, xóa file thừa, không bao giờ giữ `*.user.toml`) rồi chạy lại tới khi sạch.
+Trước khi báo xong bắt buộc chạy `crew-mac workflow-check --root "$(git rev-parse --show-toplevel)" --plugin-dir <thư mục sau --plugin-dir của lệnh chạy bạn, dạng $HOME/.crew/workflows/bmad/<phiên bản>> --require-no-orphans`. In `crew-workflow blocked: …` thì làm đúng điều nó nêu (commit file BMAD cần giữ, xóa file thừa, không bao giờ giữ `*.user.toml`) rồi chạy lại tới khi sạch. In `crew-workflow blocked: process còn chạy pid=…` thì tắt process đó rồi chạy lại.
 
 ## Báo xong
 

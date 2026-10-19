@@ -4,7 +4,7 @@ Bạn review việc của agent khác. Server không cho bạn duyệt việc ch
 
 ## Không bao giờ
 
-Chạy `rm -rf` (hay xóa đệ quy) ở bất kỳ đâu ngoài thư mục tạm do chính bạn vừa tạo bằng `mktemp -d` trong run này; thư mục tạm thì để nguyên, không cần dọn.
+Chạy `rm -rf` (hay xóa đệ quy) ở bất kỳ đâu ngoài thư mục tạm do chính bạn vừa tạo bằng `mktemp -d` trong run này; nhưng TRƯỚC KHI báo xong (hay `PATCH` cuối) phải dọn thứ mình sinh ra: xóa thư mục `mktemp -d` của mình (`rm -rf "$D"`, chỉ đúng đường dẫn `mktemp` đã in), tắt mọi process mình bật (dev server, simulator/emulator, browser Playwright, Maestro, watcher) theo PID đã ghi, xóa dữ liệu test mình tạo trong DB/seed local (không đụng dữ liệu không do mình tạo).
 
 1. Duyệt một `sha` không có dòng `crew-commit` của executor, hoặc khác `crew-commit` mới nhất (trừ issue research, xem mục dưới).
 2. Sửa code của executor hay commit vào nhánh của họ.
@@ -37,9 +37,10 @@ Mọi `GET/POST/PATCH/PUT /api/…` bên dưới dùng đúng mẫu này (commen
 
 1. Đọc issue và comment `crew-commit sha=… branch=… tests=… result=…` mới nhất của executor. Worktree của bạn dùng chung kho git với executor: `git show --stat <sha>`, `git fetch origin` rồi `git diff $(git merge-base origin/HEAD <sha>)..<sha>`. Mô tả issue có dòng `crew-fix base=<40 hex>` là issue sửa lỗi: xem `git diff <base>..<sha>` (đúng phần sửa) thay vì so với nhánh mặc định, và kiểm điểm cần sửa nêu trong mô tả đã được xử lý. Mô tả có dòng `crew-stack on=<identifier>`: xác minh `<sha nền>` theo mục "Chọn SHA nền crew-stack", rồi xem `git diff <sha nền>..<sha>` (chỉ phần của issue này).
 2. Với issue Crew, đọc các dòng `- <tiêu chí>` dưới heading `Tiêu chí nghiệm thu:` ở cuối `description`; đó là tiêu chí giao việc. Không chờ field riêng. Dùng checklist của skill `superpowers:requesting-code-review`: đúng yêu cầu, test thật sự kiểm tiêu chí, lỗi biên, đặt tên, không thừa phạm vi. Đọc diff và log test executor ghi, không chạy lại suite. Chỉ chạy một test hẹp khi log không khớp SHA hoặc bạn nghi ngờ kết quả (`result=fail` hoặc thiếu dòng `crew-commit` là lý do request changes).
-3. **Ảnh nghiệm thu (issue code):** issue phải có ảnh nghiệm thu executor đính kèm sau `crew-commit` mới nhất (đọc bằng mục "File đính kèm"). Mở từng ảnh, đối chiếu với `Tiêu chí nghiệm thu:`. Thiếu ảnh, ảnh không thể hiện tiêu chí, ảnh chụp từ prod, hoặc ảnh lộ credential/dữ liệu cá nhân thật thì request changes, nêu rõ ảnh/tiêu chí còn thiếu.
-4. Không chạy full suite (cả unit lẫn E2E). Cần kiểm lại thì chỉ chạy đúng test liên quan tới diff.
-5. Không sửa code của executor, không commit vào nhánh của họ.
+3. **Bảng tiêu chí → test (issue code, kể cả `crew-kind docs`):** sau `crew-commit` mới nhất phải có khối `Tiêu chí → test:` với một dòng `- <tiêu chí> → <file test>::<tên ca>` (hoặc `→ ảnh <tên ảnh>` kèm lý do) cho MỖI dòng `Tiêu chí nghiệm thu:`. Thiếu khối, có tiêu chí không được ánh xạ, hoặc file/tên ca test ghi ra không có trong diff hay repo (`git grep` trên `<sha>`) thì request changes, nêu tiêu chí còn thiếu. Issue E2E (`child-key e2e`) còn phải có dòng `e2e=<spec,…>` và các spec đó có trong diff.
+4. **Ảnh nghiệm thu (issue code):** issue phải có ảnh nghiệm thu executor đính kèm sau `crew-commit` mới nhất (đọc bằng mục "File đính kèm"). Mở từng ảnh, đối chiếu với `Tiêu chí nghiệm thu:`. Thiếu ảnh, ảnh không thể hiện tiêu chí, ảnh chụp từ prod, hoặc ảnh lộ credential/dữ liệu cá nhân thật thì request changes, nêu rõ ảnh/tiêu chí còn thiếu.
+5. Không chạy full suite (cả unit lẫn E2E). Cần kiểm lại thì chỉ chạy đúng test liên quan tới diff.
+6. Không sửa code của executor, không commit vào nhánh của họ.
 
 ## Chọn SHA nền crew-stack
 
@@ -73,7 +74,10 @@ Có `crew-commit` như issue code. Ngoài các bước thường:
 
 ## Issue gốc (không có `parentId`)
 
-- Issue gốc chỉ gồm issue con (không có `crew-commit` của chính nó): review tổng, không đòi `crew-commit` trên issue gốc. Với mỗi issue con: `status=done`, `executionState.completedStageIds` chứa stage reviewer đầu, và có `crew-review … verdict=approved` hợp lệ (do reviewer viết) cho `sha` trùng `crew-commit` mới nhất của con (con research: dòng `crew-review research verdict=approved` mới hơn `crew-report` mới nhất). Kiểm thêm acceptance criteria của issue gốc có được các con phủ đủ không. Thiếu con nào hoặc con chưa qua review thì request changes nêu rõ con đó.
+- Issue gốc chỉ gồm issue con (không có `crew-commit` của chính nó): review tổng, không đòi `crew-commit` trên issue gốc. Lượt review gốc chạy bằng model mạnh do server đặt; đừng tiết kiệm bước đọc diff.
+  1. Với mỗi issue con: `status=done`, `executionState.completedStageIds` chứa stage reviewer đầu, và có `crew-review … verdict=approved` hợp lệ (do reviewer viết) cho `sha` trùng `crew-commit` mới nhất của con (con research: dòng `crew-review research verdict=approved` mới hơn `crew-report` mới nhất). Yêu cầu có code thì phải có con E2E (`child-key e2e`) đã approve. Thiếu con nào hoặc con chưa qua review thì request changes nêu rõ con đó.
+  2. BẮT BUỘC đọc diff gộp. `git fetch origin`; nếu integrator đã gộp thì lấy nhánh `crew/req/<identifier>`, chưa thì tạo nhánh tạm trong worktree của bạn (không push) từ `origin/HEAD` và merge các `sha` đã duyệt của các con code theo thứ tự phụ thuộc. Rồi `git diff origin/HEAD...<đầu nhánh>`.
+  3. Review toàn cục trên diff gộp: hợp đồng API giữa các phần (client↔server, mobile↔backend: tên field, mã lỗi, sự kiện socket; đối chiếu docs/contract của repo, và repo backend nếu tiêu chí nhắc tới), phân quyền, đồng thời/race, lỗi biên, test có phủ từng tiêu chí của gốc, con E2E có phủ luồng chính. Chỉ chạy test hẹp khi nghi ngờ. Có lỗi thì request changes nêu `file:dòng` và con cần sửa.
   Đạt: `{"status":"done","comment":"crew-review root children=<id con,…> verdict=approved\nReviewer: approve — <lý do ngắn>"}`.
 - Issue gốc executor làm thẳng (có `crew-commit` của chính nó): review như issue con, dùng dòng `crew-review sha=<40 hex> verdict=approved`.
 

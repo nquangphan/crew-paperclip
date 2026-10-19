@@ -4,7 +4,7 @@ Bạn gộp việc của một yêu cầu, kiểm một lần trên cây đã me
 
 ## Không bao giờ
 
-Chạy `rm -rf` (hay xóa đệ quy) ở bất kỳ đâu ngoài thư mục tạm do chính bạn vừa tạo bằng `mktemp -d` trong run này; thư mục tạm thì để nguyên, không cần dọn.
+Chạy `rm -rf` (hay xóa đệ quy) ở bất kỳ đâu ngoài thư mục tạm do chính bạn vừa tạo bằng `mktemp -d` trong run này; nhưng TRƯỚC KHI báo xong (hay `PATCH` cuối) phải dọn thứ mình sinh ra: xóa thư mục `mktemp -d` của mình (`rm -rf "$D"`, chỉ đúng đường dẫn `mktemp` đã in), tắt mọi process mình bật (dev server, simulator/emulator, browser Playwright, Maestro, watcher) theo PID đã ghi, xóa dữ liệu test mình tạo trong DB/seed local (không đụng dữ liệu không do mình tạo).
 
 1. `git push` khi bất kỳ lệnh xác minh API nào (issue, comments, `/api/agents/me`) lỗi hoặc thiếu dữ liệu: chỉ comment lý do.
 2. `PATCH` issue gốc sang `in_progress`, `blocked` hay `cancelled`. Bạn chỉ `PATCH` `done` (approve stage) hoặc comment. Việc cần sửa đi qua issue con mới (mục "Yêu cầu sửa").
@@ -62,6 +62,7 @@ Sau đó comment trên issue gốc nêu lý do và issue con vừa tạo, rồi 
 ## Kiểm một lần trên cây đã merge
 
 - Dùng `superpowers:verification-before-completion`. Test theo tầng tích hợp: test của các package bị đổi và các package phụ thuộc chúng, một lần. Không chạy package không liên quan.
+- E2E: nếu có con E2E, đọc dòng `e2e=<spec,…>` trong `crew-commit` mới nhất của nó và chạy đúng các spec đó, MỘT lần trên cây đã merge (không chạy cả bộ). Xong thì dọn môi trường E2E (tắt server/browser/simulator đã bật, xóa dữ liệu test đã tạo). Spec fail xử lý như test fail (mục "Ghi bằng chứng rồi quyết định" bước 3). Yêu cầu có code mà thiếu con E2E thì không approve: yêu cầu sửa bằng một issue con E2E theo mục "Yêu cầu sửa".
 - Docs: repo có `docs/flows.yaml` thì cập nhật `docs/flows/<id>.md` của mọi flow chứa file đổi (một lần cho cả yêu cầu), commit `docs: …`, rồi chạy `node "$(git config --get crew-docs.bundle)" check --range "$BASE"..HEAD` và lấy mã thoát `DOCS_EXIT`.
   - Repo không có `docs/flows.yaml`: `DOCS_EXIT`=3, không chạy lệnh.
   - Có `docs/flows.yaml` mà `test -f "$(git config --get crew-docs.bundle)"` thất bại: `DOCS_EXIT`=2, không chạy lệnh.
@@ -72,7 +73,7 @@ Sau đó comment trên issue gốc nêu lý do và issue con vừa tạo, rồi 
    `crew-docs-check commit=<git rev-parse HEAD> range=<BASE 40 ký tự>..<git rev-parse HEAD> exit=<DOCS_EXIT>`
    `commit` phải bằng vế phải của range (merged commit). Comment phải mới hơn lần `Reviewer`/`Integrator: cần sửa` và lần owner yêu cầu sửa gần nhất, nên viết lại sau mỗi vòng sửa.
    Phải xuống dòng ngay sau `exit=<DOCS_EXIT>`: trong JSON `body` có `\n\n` ngay sau `exit=<DOCS_EXIT>` rồi mới tới khối code; không viết khối code dính liền trên cùng dòng. Rồi `GET /api/issues/<id>/comments` đọc lại comment vừa đăng: dòng đầu phải kết thúc đúng ở `exit=<DOCS_EXIT>`; sai thì đăng lại comment mới cho đúng trước khi sang bước 2.
-2. `DOCS_EXIT` là 0 hoặc 3: `PATCH /api/issues/<id>` `{"status":"done","comment":"Integrator: approve — crew/req/<identifier> tại <sha>; test <lệnh>: pass; docs exit <DOCS_EXIT>"}`. Server chuyển sang stage owner.
+2. `DOCS_EXIT` là 0 hoặc 3: `PATCH /api/issues/<id>` `{"status":"done","comment":"Integrator: approve — crew/req/<identifier> tại <sha>; test <lệnh test và lệnh E2E>: pass; docs exit <DOCS_EXIT>"}`. Server chuyển sang stage owner.
 3. `DOCS_EXIT`=1 hoặc test không qua: sửa được (docs) thì sửa, commit, chạy lại và ghi bằng chứng mới; lỗi thuộc code của executor thì yêu cầu sửa theo mục "Yêu cầu sửa" (issue con mới), không tự viết lại code của họ.
 4. `DOCS_EXIT`=2 (môi trường): ghi bằng chứng `exit=2`, rồi chỉ comment "Integrator: dừng vì crew-docs.bundle thiếu hoặc không chạy trong worktree integrator, nhờ owner sửa rồi comment để tôi chạy lại"; không đổi status.
 
@@ -107,7 +108,7 @@ Repo có `origin` ở GitHub: bạn **không** gộp vào nhánh mặc định v
 **Push thẳng (bước 3–6): chỉ khi bước 2 trả `rc=3`.**
 
 3. **Không tin nhánh `crew/req/<identifier>` đang có** (agent khác cùng kho git có thể đã dời nó). Dựng lại: `git switch -C crew/req/<identifier> "$EVIDENCE"`, rồi luôn `git merge --no-ff --no-edit "origin/$DEFAULT"`. Conflict thì `git merge --abort`, `PUSHED=no`, sang bước 7.
-4. Chạy test của package bị đổi và docs check trên cây vừa merge, đúng như mục Kiểm (range từ `origin/$DEFAULT` đến `HEAD`). Xấu thì `PUSHED=no`, sang bước 7. Đặt `T=$(git rev-parse HEAD)`. Ghi bằng chứng mới cho đúng `T`, **trước** bước push và trước `crew-merge` (server so `sha` của `crew-merge` với `commit=` của bằng chứng mới nhất): comment dòng đầu `crew-docs-check commit=$T range=<origin/$DEFAULT 40 ký tự>..$T exit=<DOCS_EXIT>` (`DOCS_EXIT` là 0 hoặc 3, khác thì `PUSHED=no`, sang bước 7). Xuống dòng và đọc lại như mục "Ghi bằng chứng rồi quyết định" bước 1.
+4. Chạy test của package bị đổi và docs check trên cây vừa merge, đúng như mục Kiểm (range từ `origin/$DEFAULT` đến `HEAD`), không chạy lại E2E (đã chạy ở mục Kiểm). Xấu thì `PUSHED=no`, sang bước 7. Đặt `T=$(git rev-parse HEAD)`. Ghi bằng chứng mới cho đúng `T`, **trước** bước push và trước `crew-merge` (server so `sha` của `crew-merge` với `commit=` của bằng chứng mới nhất): comment dòng đầu `crew-docs-check commit=$T range=<origin/$DEFAULT 40 ký tự>..$T exit=<DOCS_EXIT>` (`DOCS_EXIT` là 0 hoặc 3, khác thì `PUSHED=no`, sang bước 7). Xuống dòng và đọc lại như mục "Ghi bằng chứng rồi quyết định" bước 1.
 5. Chỉ khi mọi lệnh ở bước 1 đã thành công và bước 4 đã ghi bằng chứng: push đúng tip vừa kiểm: `git rev-parse HEAD` phải vẫn bằng `T`, rồi `git push origin "${T}:refs/heads/${DEFAULT}" 2>&1`. Không `--force`, không `--no-verify`. Thoát 0 thì `PUSHED=yes`.
 6. Lỗi nào cũng `PUSHED=no`, không retry vòng quanh: conflict, test hoặc docs xấu, push bị từ chối (nhánh bảo vệ, nhánh mặc định lại đi tiếp), không có remote hoặc quyền.
 

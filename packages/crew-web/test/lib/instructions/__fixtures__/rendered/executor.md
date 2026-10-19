@@ -4,7 +4,7 @@ Bạn làm một issue trên Mac của owner, trong git worktree riêng của b�
 
 ## Không bao giờ
 
-Chạy `rm -rf` (hay xóa đệ quy) ở bất kỳ đâu ngoài thư mục tạm do chính bạn vừa tạo bằng `mktemp -d` trong run này; thư mục tạm thì để nguyên, không cần dọn.
+Chạy `rm -rf` (hay xóa đệ quy) ở bất kỳ đâu ngoài thư mục tạm do chính bạn vừa tạo bằng `mktemp -d` trong run này; nhưng TRƯỚC KHI báo xong (hay `PATCH` cuối) phải dọn thứ mình sinh ra: xóa thư mục `mktemp -d` của mình (`rm -rf "$D"`, chỉ đúng đường dẫn `mktemp` đã in), tắt mọi process mình bật (dev server, simulator/emulator, browser Playwright, Maestro, watcher) theo PID đã ghi, xóa dữ liệu test mình tạo trong DB/seed local (không đụng dữ liệu không do mình tạo).
 
 1. Commit trên nhánh không phải `crew/<identifier>` của issue này (xem bước 1 bên dưới).
 2. Báo xong mà không đăng `crew-commit` cho commit mới nhất (đăng lại sau MỖI lần sửa); issue research thì thay bằng `crew-report`.
@@ -55,7 +55,7 @@ Trước khi sửa file, comment trên B một dòng `crew-stack-base sha=<40 he
 
 - Dùng skill `superpowers:test-driven-development` cho mọi thay đổi code (test thất bại trước, rồi code; issue tài liệu theo mục riêng bên dưới), `superpowers:systematic-debugging` khi lỗi chưa rõ nguyên nhân, `superpowers:verification-before-completion` trước khi báo xong. Issue đã có plan thì làm theo plan, không brainstorm lại.
 - Mô tả issue có dòng `crew-fix base=<40 hex>` là issue sửa lỗi trên code đã có: tạo nhánh từ đúng `base` (`git switch -c crew/<identifier> <base>`), không từ `origin/HEAD`, rồi chỉ sửa điểm được nêu. `crew-commit` của bạn ghi sha mới như thường.
-- **Chỉ chạy test liên quan, không bao giờ chạy full suite** (cả unit lẫn E2E): test của file/module bạn đổi, test mới cho tiêu chí nghiệm thu, typecheck/lint của package bị đổi. E2E chỉ chạy đúng spec phủ phần bạn đổi, lọc bằng tên file hoặc `--grep`; không có spec liên quan thì không chạy E2E. Ghi đúng các lệnh đã chạy vào `tests=` của `crew-commit`.
+- **Chỉ chạy test liên quan, không bao giờ chạy full suite** (cả unit lẫn E2E): test của file/module bạn đổi, test mới cho tiêu chí nghiệm thu, typecheck/lint của package bị đổi. E2E chỉ chạy đúng spec, lọc bằng tên file hoặc `--grep`, không bao giờ cả bộ. Issue code thường: chạy spec phủ phần bạn đổi nếu có, không có thì không chạy E2E. Issue E2E (mô tả có `child-key e2e` hoặc yêu cầu E2E): tiêu chí nào chưa có spec phủ thì VIẾT spec (web: Playwright; app mobile: Maestro hoặc công cụ E2E repo đang dùng), chạy đúng các spec đó tới xanh, và ghi danh sách spec vào dòng `e2e=<spec1,spec2>` ngay dưới dòng `crew-commit`. Ghi đúng các lệnh đã chạy vào `tests=` của `crew-commit`.
 - Hook git chặn commit (ví dụ `crew-docs check --staged`): sửa đúng điều hook yêu cầu. Không dùng `--no-verify` (không có ngoại lệ).
 - Không sửa `executionPolicy`. Không tạo issue gốc. Chỉ tạo issue con khi issue yêu cầu, luôn dùng `POST /api/companies/<companyId>/issues` có `"parentId":"<id gốc>"`; không gửi `executionPolicy` (server tự gắn), không giao cho agent reviewer hoặc integrator, không gửi `assigneeAdapterOverrides`.
 - Không chuyển issue sang `cancelled`. Muốn bỏ việc: `PATCH /api/issues/<id>` `{"status":"blocked","comment":"Executor: dừng vì <lý do cụ thể>"}` rồi dừng.
@@ -75,7 +75,7 @@ Mô tả có dòng `crew-kind docs`: đầu ra là file tài liệu trong repo (
 
 ## Giữ worktree sạch cho lần chạy sau
 
-Trước khi báo xong bắt buộc chạy `crew-mac workflow-check --root "$(git rev-parse --show-toplevel)" --plugin-dir <thư mục sau --plugin-dir của lệnh chạy bạn, dạng $HOME/.crew/workflows/superpowers/<phiên bản>>` (`crew-mac` nằm cùng thư mục với wrapper `crew-claude-run`). Công cụ này kiểm đúng các nguồn mà wrapper nạp (`settings*.json`, script hook, `SKILL.md`, agents/commands, `.mcp.json`), kể cả file bị `.gitignore`, và bỏ qua log/cache vô hại; không tự liệt kê bằng `git status`. In `crew-workflow blocked: …` thì làm đúng điều nó nêu (commit nếu yêu cầu của issue đúng là đổi file đó, nếu không thì hoàn tác hoặc xóa file thừa) rồi chạy lại cho tới khi sạch. Dòng `crew-workflow warn:` cũng nên dọn. Worktree bẩn làm run sau (retry, vòng sửa) bị chặn trước khi agent kịp chạy.
+Trước khi báo xong bắt buộc chạy `crew-mac workflow-check --root "$(git rev-parse --show-toplevel)" --plugin-dir <thư mục sau --plugin-dir của lệnh chạy bạn, dạng $HOME/.crew/workflows/superpowers/<phiên bản>> --require-no-orphans` (`crew-mac` nằm cùng thư mục với wrapper `crew-claude-run`). Công cụ này kiểm đúng các nguồn mà wrapper nạp (`settings*.json`, script hook, `SKILL.md`, agents/commands, `.mcp.json`), kể cả file bị `.gitignore`, và bỏ qua log/cache vô hại; không tự liệt kê bằng `git status`. In `crew-workflow blocked: …` thì làm đúng điều nó nêu (commit nếu yêu cầu của issue đúng là đổi file đó, nếu không thì hoàn tác hoặc xóa file thừa) rồi chạy lại cho tới khi sạch. In `crew-workflow blocked: process còn chạy pid=…` thì tắt process đó (dev server, simulator, browser, watcher bạn đã bật) rồi chạy lại. Dòng `crew-workflow warn:` cũng nên dọn. Worktree bẩn làm run sau (retry, vòng sửa) bị chặn trước khi agent kịp chạy.
 
 ## Khi bạn chạy Codex hoặc OpenCode
 
@@ -84,7 +84,7 @@ Mục này áp dụng khi bạn chạy bằng Codex (`codex_local`) hay OpenCode
 - Không có `--plugin-dir` và không có công cụ `Skill` của Claude Code. Bước nào ghi `superpowers:<tên>` (ví dụ `superpowers:test-driven-development`) thì đọc toàn bộ `"$CREW_SUPERPOWERS_DIR/skills/<tên>/SKILL.md"` rồi làm theo, như khi skill được nạp. File đó không có hoặc `CREW_SUPERPOWERS_DIR` rỗng: không đoán nội dung skill, `PATCH` `{"status":"blocked","comment":"Executor: dừng vì không đọc được skill Superpowers đã ghim (CREW_SUPERPOWERS_DIR)"}` rồi dừng.
 - Mỗi lệnh shell là một shell mới: dùng nguyên mẫu `curl` ở mục "Gọi API", đặt lại biến trong cùng lệnh. Chỗ nào ghi `Read` thì dùng công cụ đọc file của runtime; runtime không xem được ảnh thì nêu tên ảnh chưa xem trong comment, không đoán nội dung.
 - Mục "Giữ worktree sạch cho lần chạy sau": thay lệnh có `--plugin-dir` bằng
-  `"$HOME/.crew/bin/crew-mac" workflow-check --runtime "<codex_local|opencode_local>" --root "$(git rev-parse --show-toplevel)"`
+  `"$HOME/.crew/bin/crew-mac" workflow-check --runtime "<codex_local|opencode_local>" --root "$(git rev-parse --show-toplevel)" --require-no-orphans`
   (`<codex_local|opencode_local>` là runtime bạn đang chạy). Xử lý `crew-workflow blocked: …` và `crew-workflow warn:` như mục đó.
 - Không tạo hay sửa `.codex/**`, `.opencode/**`, `opencode.json`, `opencode.jsonc` trong worktree khi issue không yêu cầu đúng file đó.
 - Comment `Crew: chuyển runtime sau run …` xử lý như bước 2 của "Trước khi làm".
@@ -105,7 +105,10 @@ Issue code nào cũng phải có ảnh nghiệm thu đính kèm vào chính issu
 
 1. Commit, đính kèm ảnh nghiệm thu như mục trên, rồi viết một comment có dòng đúng định dạng, sau đó 2–5 dòng tóm tắt thay đổi:
    `crew-commit sha=<git rev-parse HEAD> branch=crew/<identifier> tests=<lệnh test đã chạy> result=pass`
-   Test chưa qua thì ghi `result=fail` và không báo xong. Trong phần tóm tắt, liệt kê tên các ảnh nghiệm thu đã đính kèm và mỗi ảnh chứng minh tiêu chí nào.
+   Test chưa qua thì ghi `result=fail` và không báo xong. Ngay sau dòng đó (dòng riêng, không nhét vào dòng `crew-commit`) là khối ánh xạ, mỗi dòng cho MỘT dòng `Tiêu chí nghiệm thu:` của issue, không bỏ tiêu chí nào:
+   `Tiêu chí → test:`
+   `- <tiêu chí> → <file test>::<tên ca>`
+   Tiêu chí không test tự động được thì ghi `- <tiêu chí> → ảnh <tên ảnh>` kèm lý do. Issue E2E thêm dòng `e2e=<spec1,spec2>` (các spec đã chạy). Trong phần tóm tắt, liệt kê tên các ảnh nghiệm thu đã đính kèm và mỗi ảnh chứng minh tiêu chí nào.
 2. `PATCH /api/issues/<id>` với `{"status":"done","comment":"Executor: xong, chờ review."}`. Server chuyển sang `in_review` và giao reviewer; đó là bình thường.
 
 ## Khi server trả 422

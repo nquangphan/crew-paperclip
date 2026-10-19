@@ -4,7 +4,7 @@ import { test } from "node:test";
 
 const DOCS_CHECK_RE = /^crew-docs-check commit=([0-9a-f]{40}) range=([0-9a-f]{7,40})\.\.([0-9a-f]{40}) exit=([0-3])(?=$|\s|`)/;
 const read = (name) => readFileSync(new URL(`./${name}.md`, import.meta.url), "utf8");
-const RECURSIVE_DELETE_RULE = "Chạy `rm -rf` (hay xóa đệ quy) ở bất kỳ đâu ngoài thư mục tạm do chính bạn vừa tạo bằng `mktemp -d` trong run này; thư mục tạm thì để nguyên, không cần dọn.";
+const RECURSIVE_DELETE_RULE = "Chạy `rm -rf` (hay xóa đệ quy) ở bất kỳ đâu ngoài thư mục tạm do chính bạn vừa tạo bằng `mktemp -d` trong run này; nhưng TRƯỚC KHI báo xong (hay `PATCH` cuối) phải dọn thứ mình sinh ra: xóa thư mục `mktemp -d` của mình (`rm -rf \"$D\"`, chỉ đúng đường dẫn `mktemp` đã in), tắt mọi process mình bật (dev server, simulator/emulator, browser Playwright, Maestro, watcher) theo PID đã ghi, xóa dữ liệu test mình tạo trong DB/seed local (không đụng dữ liệu không do mình tạo).";
 const fill = (line) =>
   line
     .replaceAll("<git rev-parse HEAD>", "a".repeat(40))
@@ -996,4 +996,60 @@ test("assistant: không tự mở pull request, giữ mục con Merge request do
   const close = section(text, "## Đóng issue gốc");
   assert.match(close, /Không tự viết mục con `### Merge request`: integrator thêm nó/);
   assert.match(close, /bản cũ có mục con `### Merge request` thì chép nguyên mục con đó vào cuối bản mới/);
+});
+
+test("mọi instructions bắt dọn rác của run trước khi báo xong", () => {
+  for (const name of ["executor", "reviewer", "integrator", "assistant", "bmad"]) {
+    const text = read(name);
+    for (const needle of ["TRƯỚC KHI báo xong", "tắt mọi process mình bật", "xóa dữ liệu test mình tạo"]) {
+      assert.ok(text.includes(needle), `${name}: thiếu: ${needle}`);
+    }
+  }
+});
+
+test("executor và bmad chạy workflow-check với --require-no-orphans", () => {
+  const executor = read("executor");
+  assert.match(executor, /--plugin-dir <[^`]*> --require-no-orphans`/);
+  assert.ok(executor.includes('--root "$(git rev-parse --show-toplevel)" --require-no-orphans`'));
+  assert.ok(executor.includes("crew-workflow blocked: process còn chạy pid=…"));
+  const bmad = read("bmad");
+  assert.match(bmad, /--plugin-dir <[^`]*> --require-no-orphans`/);
+  assert.ok(bmad.includes("crew-workflow blocked: process còn chạy pid=…"));
+});
+
+test("assistant bắt thêm một con E2E cuối lô cho yêu cầu có code", () => {
+  const text = read("assistant");
+  const body = section(text, "## Tách việc");
+  for (const needle of ["Con E2E cuối lô", "`child-key` là `e2e`", "`blockedByIssueIds` là mọi con code", "mức `medium`", "Playwright", "Maestro", "e2e=<spec1,spec2>", "`children=`"]) {
+    assert.ok(body.includes(needle), `thiếu: ${needle}`);
+  }
+});
+
+test("executor ghi e2e= và bảng Tiêu chí → test sau dòng crew-commit, reviewer đòi cả hai", () => {
+  const executor = read("executor");
+  const done = section(executor, "## Báo xong");
+  assert.ok(done.includes("`Tiêu chí → test:`"));
+  assert.ok(done.includes("`- <tiêu chí> → <file test>::<tên ca>`"));
+  assert.ok(done.includes("e2e=<spec1,spec2>"));
+  assert.ok(executor.includes("VIẾT spec"));
+  const review = section(read("reviewer"), "## Cách review");
+  assert.ok(review.includes("Tiêu chí → test:"));
+  assert.ok(review.includes("không được ánh xạ"));
+});
+
+test("integrator chạy đúng spec e2e= một lần trên cây đã merge, stage 4 không chạy lại", () => {
+  const text = read("integrator");
+  const check = section(text, "## Kiểm một lần trên cây đã merge");
+  assert.ok(check.includes("e2e=<spec,…>"));
+  assert.ok(check.includes("MỘT lần trên cây đã merge"));
+  assert.ok(check.includes("thiếu con E2E thì không approve"));
+  assert.ok(text.includes("test <lệnh test và lệnh E2E>: pass"));
+  assert.ok(text.includes("không chạy lại E2E"));
+});
+
+test("reviewer issue gốc bắt đọc diff gộp và review toàn cục", () => {
+  const body = section(read("reviewer"), "## Issue gốc (không có `parentId`)");
+  for (const needle of ["BẮT BUỘC đọc diff gộp", "crew/req/<identifier>", "git diff origin/HEAD...<đầu nhánh>", "hợp đồng API", "phân quyền", "đồng thời/race", "con E2E", "không đòi `crew-commit` trên issue gốc"]) {
+    assert.ok(body.includes(needle), `thiếu: ${needle}`);
+  }
 });

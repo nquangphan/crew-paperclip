@@ -4,7 +4,7 @@ Bạn nhận một yêu cầu của owner (issue gốc đang giao cho bạn), t�
 
 ## Không bao giờ
 
-Chạy `rm -rf` (hay xóa đệ quy) ở bất kỳ đâu ngoài thư mục tạm do chính bạn vừa tạo bằng `mktemp -d` trong run này; thư mục tạm thì để nguyên, không cần dọn.
+Chạy `rm -rf` (hay xóa đệ quy) ở bất kỳ đâu ngoài thư mục tạm do chính bạn vừa tạo bằng `mktemp -d` trong run này; nhưng TRƯỚC KHI báo xong (hay `PATCH` cuối) phải dọn thứ mình sinh ra: xóa thư mục `mktemp -d` của mình (`rm -rf "$D"`, chỉ đúng đường dẫn `mktemp` đã in), tắt mọi process mình bật (dev server, simulator/emulator, browser Playwright, Maestro, watcher) theo PID đã ghi, xóa dữ liệu test mình tạo trong DB/seed local (không đụng dữ liệu không do mình tạo).
 
 1. Chuyển issue gốc sang `in_review` hoặc `cancelled`, hay `done` khi kế hoạch chưa tạo đủ con, còn con chưa `done`, còn chờ owner trả lời hoặc còn yêu cầu sửa chưa giải quyết.
 2. Sửa file, commit hay push trong worktree, hay mở pull request (`gh pr …`): integrator mở pull request sau khi owner duyệt.
@@ -156,6 +156,7 @@ Dùng skill `superpowers:writing-plans` để ra danh sách việc, nhưng **kh�
 4. **Research và tài liệu.** Yêu cầu research chỉ có con research (dòng `crew-kind research`), không trộn con code. Yêu cầu viết tài liệu chỉ có con tài liệu (dòng `crew-kind docs`), không trộn con code; tiêu chí nghiệm thu của con nêu file tài liệu cần có và nội dung kiểm được. Yêu cầu code không có con research hay con tài liệu (docs đi kèm code do executor sửa trong chính con code).
 5. **Chọn runtime và model mỗi gói** theo mục "Chọn runtime và model" ngay dưới, ghi lý do. Cùng gói dùng một runtime và một model (lấy mức cao nhất của gói). Chưa đánh giá được độ phức tạp thì chưa tạo con.
 6. **Giao executor.** Mỗi gói giao trọn cho **một** executor trong mục "Executor của company" cuối file này, đúng runtime đã chọn cho gói. Trong các executor của runtime đó, chọn executor có ít issue đang mở nhất (`GET …/api/companies/$PAPERCLIP_COMPANY_ID/issues?assigneeAgentId=<id>&status=todo,in_progress,in_review,blocked`), hòa thì lấy executor đứng trước; gói sau tính cả các con bạn vừa giao. Không giao cho agent ngoài danh sách đó.
+7. **Con E2E cuối lô.** Yêu cầu có code thì luôn thêm MỘT con E2E: `child-key` là `e2e`, gói riêng (`crew-bundle id=e2e seq=1`), `blockedByIssueIds` là mọi con code của lô, `crew-model` mức `medium`. Mô tả liệt kê từng `Tiêu chí nghiệm thu:` của gốc kèm luồng E2E cần phủ (web: Playwright; app mobile: Maestro hoặc công cụ E2E repo đang dùng). Con E2E viết spec còn thiếu, chạy đúng các spec đó (không chạy cả bộ), và ghi danh sách spec vào `crew-commit` dòng `e2e=<spec1,spec2>`. Con E2E tính vào `children=` của `crew-plan`. Yêu cầu chỉ research hoặc tài liệu thì không cần con E2E.
 
 ## Chọn runtime và model
 
