@@ -132,4 +132,28 @@ describe('e2e/support/junk-projects', () => {
     ];
     expect(agentsToTerminate(agents, ['e2e-rm-abc1234']).map((a) => a.id)).toEqual(['1']);
   });
+  it('khớp chính xác vai trò wizard tạo, không terminate agent của khóa là phần mở rộng của khóa khác', () => {
+    const agents = [
+      ...['assistant', 'executor', 'executor-2', 'executor-codex', 'executor-opencode', 'reviewer', 'reviewer-codex', 'integrator', 'bmad'].map(
+        (role, i) => ({ id: `ok${i}`, name: `e2e-base-${role}`, status: 'idle' }),
+      ),
+      { id: 'v2a', name: 'e2e-base-v2-assistant', status: 'idle' },
+      { id: 'v2e', name: 'e2e-base-v2-executor-2', status: 'idle' },
+      { id: 'x', name: 'e2e-base-assistant-extra', status: 'idle' },
+      { id: 'y', name: 'e2e-base-other', status: 'idle' },
+    ];
+    expect(agentsToTerminate(agents, ['e2e-base']).map((a) => a.id)).toEqual(Array.from({ length: 9 }, (_, i) => `ok${i}`));
+    expect(agentsToTerminate(agents, ['e2e-base-v2']).map((a) => a.id)).toEqual(['v2a', 'v2e']);
+  });
+  it('không dọn project tạo trong 60 phút gần nhất (lượt E2E khác có thể đang dùng)', () => {
+    const now = Date.parse('2026-10-19T10:00:00+07:00');
+    const list = [
+      { id: 'new', name: 'PW-S4-2 new', createdAt: '2026-10-19T09:30:00+07:00' },
+      { id: 'edge', name: 'PW-S4-2 edge', createdAt: '2026-10-19T09:00:00+07:00' },
+      { id: 'old', name: 'PW-S4-2 old', createdAt: '2026-10-19T08:59:59+07:00' },
+      { id: 'none', name: 'PW-S4-2 none' },
+    ];
+    const ids = selectJunkProjects(list, { baseKey: 'e2e-base', runs: [], now }).map((j) => j.project.id);
+    expect(ids).toEqual(['edge', 'old', 'none']);
+  });
 });

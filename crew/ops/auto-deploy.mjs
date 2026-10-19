@@ -495,8 +495,9 @@ export function workerLoop(job, deps) {
   };
 
   /**
-   * Best-effort branch cleanup after a pull request ended. Deletes the request branch `crew/req/<id>` on origin and
-   * locally, and (merged only) the local child branches `crew/<id>` whose tip is already inside the merge commit.
+   * Best-effort branch cleanup after a pull request was MERGED (a closed, unmerged pull request keeps its branch so it
+   * can be reopened). Deletes the request branch `crew/req/<id>` on origin (only when no open pull
+   * request still uses that head) and locally, and the local child branches `crew/<id>` whose tip is already inside the merge commit.
    * Never deletes a branch checked out in any worktree and never throws or changes deploy state: failures are logged.
    */
   const cleanupBranches = (pr, view) => {
@@ -513,12 +514,22 @@ export function workerLoop(job, deps) {
         deps.log(`PR ${pr}: xóa nhánh local ${name}: rc ${d.code}`);
       };
       if (typeof head === "string" && REQ_BRANCH_RE.test(head)) {
-        if (dry) would(`git push origin --delete ${head}`);
+        const open = deps.sh("gh", ["pr", "list", "--head", head, "--state", "open", "--json", "number"], { timeout: 2 * MIN });
+        let openPrs = null;
+        try {
+          const parsed = JSON.parse(String(open.stdout ?? open.out ?? ""));
+          if (open.code === 0 && Array.isArray(parsed)) openPrs = parsed.length;
+        } catch {
+          // openPrs stays null: không chắc có PR mở thì không xóa.
+        }
+        if (openPrs !== 0) {
+          deps.log(`PR ${pr}: giữ nhánh ${head} (${openPrs === null ? "không kiểm được PR đang mở" : `còn ${openPrs} PR đang mở cùng nhánh`})`);
+        } else if (dry) would(`git push origin --delete ${head}`);
         else {
           const r = gitDir(["push", "origin", "--delete", head], { timeout: 2 * MIN });
           deps.log(`PR ${pr}: xóa nhánh remote ${head}: rc ${r.code} ${tail(redact(r.out), 1).replaceAll("\n", " | ")}`);
         }
-        dropLocal(head);
+        if (openPrs === 0) dropLocal(head);
       } else if (head) deps.log(`PR ${pr}: không xóa nhánh ${head} (không theo mẫu crew/req/<id>)`);
       if (view.state === "merged") {
         const list = gitDir(["for-each-ref", "--format=%(refname:short)", "refs/heads/crew/"]);
@@ -568,7 +579,7 @@ export function workerLoop(job, deps) {
             "Merge sau thời điểm này thì foreman deploy tay.",
           ]];
         else continue;
-        if (view.state === "merged" || view.state === "closed") cleanups.push({ pr: entry.pr, view });
+        if (view.state === "merged") cleanups.push({ pr: entry.pr, view });
         if (end) finished.push({ entry, status: end[0], lines: end[1] });
         q = { ...q, waiting: (q.waiting ?? []).filter((w) => !(w.issueId === entry.issueId && w.pr === entry.pr && w.sha === entry.sha)) };
       }

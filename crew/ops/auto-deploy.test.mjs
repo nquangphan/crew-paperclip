@@ -170,6 +170,7 @@ function world(opts = {}) {
     mergeComments: opts.mergeComments ?? true,
     newManifest: opts.newManifest,
     prViews: opts.prViews ?? [],
+    openPrs: opts.openPrs,
     calls: [],
     comments: [],
     logs: [],
@@ -193,6 +194,10 @@ function world(opts = {}) {
     appendHistory: () => {},
     sh: (cmd, args) => {
       w.calls.push([cmd, ...args].join(" "));
+      if (cmd === "gh" && args[0] === "pr" && args[1] === "list") {
+        const open = w.openPrs ?? "[]";
+        return typeof open === "string" ? { code: 0, out: open, stdout: open } : open;
+      }
       if (cmd === "gh") {
         const v = w.prViews.length > 1 ? w.prViews.shift() : w.prViews[0];
         return typeof v === "string" ? { code: 0, out: v, stdout: v } : v;
@@ -406,23 +411,40 @@ test("worker: merged pull request deletes crew/req/<id> on origin and locally, p
   assert.equal(first(w.comments[0]), `crew-deploy sha=${B} status=deployed`);
 });
 
-test("worker: closed pull request deletes its request branch; child branches stay", () => {
+test("worker: closed pull request keeps its request branch on origin and locally", () => {
   const gitHook = branchGit({ locals: [REQ, "crew/TPS-11"] });
   const { w, deps } = world({ queue: waitingOn(A), prViews: [view("CLOSED", null, "crew/v3.5", REQ)], gitHook });
   workerLoop(JOB, deps);
-  assert.ok(w.calls.some((c) => c.endsWith(`push origin --delete ${REQ}`)));
-  assert.ok(!w.calls.some((c) => c.endsWith("branch -D crew/TPS-11")));
+  assert.ok(!w.calls.some((c) => /push origin --delete|branch -D/.test(c)));
   assert.equal(first(w.comments[0]), `crew-deploy sha=${A} status=cancelled`);
 });
 
+test("worker: merged pull request keeps the branch while another open pull request uses the same head", () => {
+  const gitHook = branchGit({ locals: [REQ] });
+  const { w, deps } = world({ queue: waitingOn(A), prViews: [view("MERGED", B, "crew/v3.5", REQ)], gitHook, openPrs: '[{"number":99}]' });
+  workerLoop(JOB, deps);
+  assert.ok(w.calls.some((c) => c.includes(`gh pr list --head ${REQ} --state open --json number`)));
+  assert.ok(!w.calls.some((c) => /push origin --delete|branch -D/.test(c)));
+  assert.ok(w.logs.some((l) => l.includes("còn 1 PR đang mở cùng nhánh")));
+});
+
+test("worker: merged pull request keeps the branch when open pull requests cannot be checked", () => {
+  for (const openPrs of [{ code: 1, out: "HTTP 502" }, "không phải JSON"]) {
+    const { w, deps } = world({ queue: waitingOn(A), prViews: [view("MERGED", B, "crew/v3.5", REQ)], gitHook: branchGit({ locals: [REQ] }), openPrs });
+    workerLoop(JOB, deps);
+    assert.ok(!w.calls.some((c) => /push origin --delete|branch -D/.test(c)));
+    assert.ok(w.logs.some((l) => l.includes("không kiểm được PR đang mở")));
+  }
+});
+
 test("worker: head branch outside crew/req/<id> is never touched; push failure is only logged", () => {
-  const other = world({ queue: waitingOn(A), prViews: [view("CLOSED", null, "crew/v3.5", "feature/x")], gitHook: branchGit({ locals: ["feature/x"] }) });
+  const other = world({ queue: waitingOn(A), prViews: [view("MERGED", B, "crew/v3.5", "feature/x")], gitHook: branchGit({ locals: ["feature/x"] }) });
   workerLoop(JOB, other.deps);
-  assert.ok(!other.w.calls.some((c) => /push origin --delete|branch -D/.test(c)));
-  const failing = world({ queue: waitingOn(A), prViews: [view("CLOSED", null, "crew/v3.5", REQ)], gitHook: branchGit({ locals: [REQ], failPush: true }) });
+  assert.ok(!other.w.calls.some((c) => /push origin --delete|branch -D feature/.test(c)));
+  const failing = world({ queue: waitingOn(A), prViews: [view("MERGED", B, "crew/v3.5", REQ)], gitHook: branchGit({ locals: [REQ], failPush: true }) });
   workerLoop(JOB, failing.deps);
   assert.ok(failing.w.logs.some((l) => l.includes(`xóa nhánh remote ${REQ}: rc 1`)));
-  assert.equal(first(failing.w.comments[0]), `crew-deploy sha=${A} status=cancelled`);
+  assert.equal(first(failing.w.comments[0]), `crew-deploy sha=${B} status=deployed`);
 });
 
 test("gh pr view output carries headRefName when present", () => {

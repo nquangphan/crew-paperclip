@@ -6,6 +6,7 @@ export interface ProjectRow {
   id: string;
   name: string;
   archivedAt?: string | null;
+  createdAt?: string | null;
 }
 export interface AgentRow {
   id: string;
@@ -25,6 +26,8 @@ export interface JunkProject {
 
 const JUNK_NAME_PREFIXES = ['E2E gỡ', 'PW-S', 'e2e-neg-', 'e2e-rm-'];
 const OLD_BASE_NAME = /^E2E base \d+$/;
+/** Project mới tạo trong khoảng này có thể thuộc lượt E2E khác đang chạy cùng company: không dọn. */
+export const JUNK_MIN_AGE_MS = 60 * 60 * 1000;
 const KEY_IN_NAME = /\be2e-(?:rm|neg)-[a-z0-9]+\b/gi;
 
 export interface JunkContext {
@@ -32,18 +35,23 @@ export interface JunkContext {
   baseProjectId?: string | null;
   baseKey: string;
   runs: SetupRunRow[];
+  /** Mốc hiện tại (ms) để tính tuổi project; mặc định `Date.now()`. */
+  now?: number;
 }
 
-/** Chọn project rác theo tên; project nền hiện hành (theo id hoặc khóa setup run) luôn được giữ. */
+/** Chọn project rác theo tên; project nền hiện hành (theo id hoặc khóa setup run) và project tạo trong 60 phút gần nhất luôn được giữ. */
 export function selectJunkProjects(projects: ProjectRow[], ctx: JunkContext): JunkProject[] {
   const keysById = new Map<string, string[]>();
   for (const r of ctx.runs) {
     if (!r.projectId || !r.projectKey) continue;
     keysById.set(r.projectId, [...(keysById.get(r.projectId) ?? []), r.projectKey]);
   }
+  const now = ctx.now ?? Date.now();
   const out: JunkProject[] = [];
   for (const project of projects) {
     if (project.id === ctx.baseProjectId) continue;
+    const created = project.createdAt ? Date.parse(project.createdAt) : Number.NaN;
+    if (Number.isFinite(created) && now - created < JUNK_MIN_AGE_MS) continue;
     const runKeys = keysById.get(project.id) ?? [];
     if (runKeys.includes(ctx.baseKey)) continue;
     const name = project.name ?? '';
@@ -56,9 +64,14 @@ export function selectJunkProjects(projects: ProjectRow[], ctx: JunkContext): Ju
   return out;
 }
 
-/** Agent chưa terminated có tên `<khóa>-<vai trò>` của một trong các khóa. */
+/** Các ô wizard tạo agent, tên agent là `<khóa>-<ô>` (add-project/steps.ts `slotName`), cộng `bmad`. */
+const AGENT_ROLE_PATTERN = '(?:assistant|executor(?:-\\d+|-codex|-opencode)?|reviewer(?:-codex)?|integrator|bmad)';
+const escapeRegExp = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+/** Agent chưa terminated có tên đúng `<khóa>-<vai trò>` của một trong các khóa (khớp chính xác, không theo tiền tố). */
 export function agentsToTerminate(agents: AgentRow[], keys: string[]): AgentRow[] {
-  return agents.filter((a) => a.status !== 'terminated' && keys.some((k) => a.name.startsWith(`${k}-`)));
+  const matchers = keys.map((k) => new RegExp(`^${escapeRegExp(k)}-${AGENT_ROLE_PATTERN}$`));
+  return agents.filter((a) => a.status !== 'terminated' && matchers.some((re) => re.test(a.name)));
 }
 
 export interface SweepResult {
