@@ -5500,6 +5500,61 @@ describeEmbeddedPostgres("heartbeat orphaned process recovery", () => {
     expect(repairs[0].idempotencyKey).toBe(`issue_disposition_repair:${issueId}:${legacyDispositionFingerprint(companyId, issueId, agentId, runId)}:1`);
   });
 
+  it("does not queue a disposition repair when the run delegated the work to open child issues", async () => {
+    const { companyId, agentId, issueId } = await seedQueuedIssueRunFixture();
+    const childAgentId = randomUUID();
+    const childIssueId = randomUUID();
+    await db.insert(agents).values({
+      id: childAgentId,
+      companyId,
+      name: "ChildExecutor",
+      role: "engineer",
+      status: "idle",
+      adapterType: "codex_local",
+      adapterConfig: {},
+      runtimeConfig: { heartbeat: { wakeOnDemand: true, maxConcurrentRuns: 1 } },
+      permissions: {},
+    });
+    // The parent run splits the work into a child that already has its own
+    // assignment wake, posts its plan, and leaves the parent in progress.
+    mockAdapterExecute.mockImplementationOnce(async (ctx: { runId: string }) => {
+      await db.insert(issues).values({
+        id: childIssueId,
+        companyId,
+        parentId: issueId,
+        title: "Child work",
+        status: "todo",
+        priority: "medium",
+        assigneeAgentId: childAgentId,
+        responsibleUserId: "responsible-user",
+      });
+      await db.insert(agentWakeupRequests).values({
+        companyId,
+        agentId: childAgentId,
+        source: "assignment",
+        triggerDetail: "system",
+        reason: "issue_assigned",
+        payload: { issueId: childIssueId },
+        status: "queued",
+      });
+      await db.insert(issueComments).values({
+        companyId,
+        issueId,
+        authorAgentId: agentId,
+        createdByRunId: ctx.runId,
+        body: "Created the child issue; the parent waits for it.",
+      });
+      return { exitCode: 0, signal: null, timedOut: false, errorMessage: null, summary: "Created the child issue.", provider: "test", model: "test-model" };
+    });
+    const heartbeat = heartbeatService(db);
+    await heartbeat.resumeQueuedRuns();
+    await heartbeat.drainActiveRunExecutions();
+    const wakes = await db.select().from(agentWakeupRequests).where(eq(agentWakeupRequests.agentId, agentId));
+    expect(wakes.filter((w) => w.reason === "issue_disposition_repair")).toHaveLength(0);
+    expect(mockAdapterExecute).toHaveBeenCalledTimes(1);
+    expect((await db.select().from(issues).where(eq(issues.id, issueId)))[0].status).toBe("in_progress");
+  });
+
   it("requeues a missing-disposition handoff when the previous corrective wake was cancelled", async () => {
     const { companyId, agentId, runId, issueId } =
       await seedQueuedIssueRunFixture();

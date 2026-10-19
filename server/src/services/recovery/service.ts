@@ -2876,7 +2876,11 @@ export function recoveryService(
       );
   }
 
-  async function healthyOpenChildIssues(issue: typeof issues.$inferSelect, sameWorkspaceOnly = false) {
+  async function healthyOpenChildIssues(
+    issue: typeof issues.$inferSelect,
+    sameWorkspaceOnly = false,
+    activeOnly = sameWorkspaceOnly,
+  ) {
     if (sameWorkspaceOnly && !issue.projectWorkspaceId) return [];
     const childCandidates = await db
       .select()
@@ -2897,7 +2901,7 @@ export function recoveryService(
       });
       if (
         childState.hasActiveExecutionPath ||
-        (!sameWorkspaceOnly && childState.hasDurableWaitingPath)
+        (!activeOnly && childState.hasDurableWaitingPath)
       ) {
         openChildren.push({ id: child.id, identifier: child.identifier });
       }
@@ -3700,7 +3704,7 @@ export function recoveryService(
     if ((readNonEmptyString(context.issueId) ?? readNonEmptyString(context.taskId)) !== issue.id) {
       return { kind: "skip" as const, reason: "invalid_issue_binding" };
     }
-    const [agent, pause, budget, stop, active, routine, goal, latest, durableWait, workspaceChildren] = await Promise.all([
+    const [agent, pause, budget, stop, active, routine, goal, latest, durableWait, openChildren] = await Promise.all([
       getAgent(run.agentId),
       isAutomaticRecoverySuppressedByPauseHold(db, issue.companyId, issue.id, treeControlSvc),
       isInvocationBudgetBlocked(issue, run.agentId),
@@ -3710,7 +3714,13 @@ export function recoveryService(
       db.select({ status: agentTaskSessions.goalStatus }).from(agentTaskSessions).where(and(eq(agentTaskSessions.companyId, issue.companyId), eq(agentTaskSessions.agentId, run.agentId), eq(agentTaskSessions.taskKey, issue.id))).limit(1),
       getLatestIssueRun(issue.companyId, issue.id),
       hasPersistedDurableWaitPath(issue, run),
-      parseObject(context.paperclipWorkspace).mode === "shared_workspace" ? healthyOpenChildIssues(issue, true) : Promise.resolve([]),
+      // A run that split its work into child issues waits on them: an open
+      // child with a live execution path (queued or running work) owns the next
+      // step in every workspace mode. Stock counted only same-workspace children
+      // of a shared workspace, so a parent that had just delegated its work got
+      // a repair wake. A child that only waits (on a human, or on this agent's
+      // review) does not count, so the parent is still asked to act on it.
+      healthyOpenChildIssues(issue, false, true),
     ]);
     const ownsRepair = active?.kind === "deliberate_wait_without_target" && active.ownerType === "agent";
     return decideLegacyContinuation({
@@ -3722,7 +3732,7 @@ export function recoveryService(
         activeExecution: state.hasActiveExecutionPath || latest?.id !== (dispatchRunId ?? run.id),
         ownedLifecycle: run.issueCommentStatus === "retry_queued" || run.issueCommentStatus === "retry_exhausted" ||
           Boolean(readNonEmptyString(context.goalControlRequestId)) || context.resumeSessionGoalHeartbeat === true ||
-          isPluginManagedIssueLifecycle(issue) || routine.length > 0 || workspaceChildren.length > 0 ||
+          isPluginManagedIssueLifecycle(issue) || routine.length > 0 || openChildren.length > 0 ||
           Boolean(goal[0]?.status && goal[0].status !== "complete") || Boolean(active && !ownsRepair),
         conversation: Boolean(issue.conversationAgentId) || isWaitingConversation(issue),
         agentInvokable: Boolean(agent && await isAgentInvokable(agent) && isHeartbeatWakeOnDemandEnabled(agent)),

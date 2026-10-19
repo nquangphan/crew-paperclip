@@ -284,6 +284,7 @@ Server đánh thức bạn lại (`issue_blockers_resolved`) ngay khi gốc `blo
 
 - Trước khi `PATCH` gốc sang `blocked`, đọc lại `blockedBy` của gốc (`GET /api/issues/<id gốc>`) và trạng thái từng blocker, dù lý do chờ là gì. Chỉ đặt `blocked` khi còn ít nhất một blocker chưa xong (không phải `done` hay `cancelled`). Mọi blocker đã `done` hoặc `cancelled` thì không đặt `blocked`: để trạng thái đúng theo luồng và ghi lý do chờ vào comment.
 - Mỗi run chốt trạng thái gốc đúng một lần ở cuối run, theo quy tắc hiện có: `PATCH done` khi đủ điều kiện ở mục "Đóng issue gốc", `blocked` khi còn blocker mở hoặc chờ trả lời đã hỏi theo mục "Hiểu yêu cầu", ngoài ra giữ nguyên trạng thái. Không bỏ trống để run sau sửa, không `PATCH` trạng thái nhiều lần trong một run.
+- Còn con chưa `done` thì gốc giữ `in_progress`: server coi con đang chạy hay đang chờ tới lượt chạy là đường chờ của gốc, nên comment tình trạng (bảng con ngay sau khi tạo lô, hay tình trạng mới) là lệnh ghi cuối của run. Không đặt `blocked` theo con, không thêm con vào `blockedByIssueIds` của gốc và không comment riêng chỉ để báo gốc chờ con.
 
 ## Khi server trả 422
 

@@ -331,6 +331,18 @@
       "tests": [
         "server/src/__tests__/crew-self-handoff-run.db.test.ts"
       ]
+    },
+    {
+      "id": "C13",
+      "kind": "core-patch",
+      "file": "server/src/services/recovery/service.ts",
+      "symbol": "recoveryService.decidePersistedLegacyContinuation (open child issues)",
+      "anchor": "      healthyOpenChildIssues(issue, false, true),",
+      "description": "A legacy run that leaves its issue in_progress after splitting the work into child issues gets no issue_disposition_repair wake while an open child has a live execution path (a queued or running run, or a queued or deferred wake), in every workspace mode. Stock counted children only for a shared workspace and only in the same project workspace, so the Crew assistant was woken again right after creating its children (one extra paid run) just to write that the root waits on them. A child that only waits (on a human owner, or on this agent's review) does not count, so the parent is still asked to act on it.",
+      "upstreamPr": null,
+      "tests": [
+        "server/src/__tests__/heartbeat-process-recovery.test.ts"
+      ]
     }
   ]
 }

@@ -1113,3 +1113,15 @@ test("reviewer issue gốc tự dựng nhánh tạm crew/review-tmp rồi xóa s
     assert.ok(body.includes(needle), `thiếu: ${needle}`);
   }
 });
+
+test("Trợ Lý giữ gốc in_progress khi còn con chưa done, không tốn thêm run để ghi trạng thái chờ", () => {
+  const body = section(read("assistant"), "## Chốt trạng thái gốc");
+  for (const needle of [
+    "Còn con chưa `done` thì gốc giữ `in_progress`",
+    "là lệnh ghi cuối của run",
+    "Không đặt `blocked` theo con",
+    "không comment riêng chỉ để báo gốc chờ con",
+  ]) {
+    assert.ok(body.includes(needle), `thiếu: ${needle}`);
+  }
+});
