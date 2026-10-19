@@ -758,7 +758,7 @@ export const CREW_ROOT_REVIEWER_OVERRIDES = Object.freeze({
  * Trợ Lý (hay fallback) đặt cho executor sẽ theo issue sang reviewer khi stock chuyển stage. Trên issue có policy Crew,
  * khi assignee đổi mà lệnh ghi không tự đặt override:
  * - giao cho agent của stage (reviewer, reviewer Codex, integrator): override theo vai trò, reviewer Codex là
- *   `gpt-6-sol`/`high`, reviewer Claude trên issue gốc là `claude-opus-5-5`/`high`, còn lại `null` (chạy theo cấu
+ *   `gpt-6-sol`/`high`, reviewer chạy `claude_local` trên issue gốc là `claude-opus-5-5`/`high`, còn lại `null` (chạy theo cấu
  *   hình agent);
  * - giao cho executor: override executor đó để lại lần trước (activity hệ thống), nếu còn hợp với runtime của nó;
  *   không có mà vừa rời agent của stage thì `null`; executor sang executor khác thì giữ như stock.
@@ -791,7 +791,11 @@ async function routeAssigneeOverrides(
   if (!explicit && to !== null) {
     if (participants.has(to)) {
       if (to === roles?.codexReviewerAgentId?.toLowerCase()) next = structuredClone(CREW_CODEX_REVIEWER_OVERRIDES);
-      else if (to === roles?.reviewerAgentId?.toLowerCase() && locked.parentId === null) {
+      else if (
+        to === roles?.reviewerAgentId?.toLowerCase() &&
+        locked.parentId === null &&
+        (await loadAssigneeAdapterType(tx, locked.companyId, to)) === "claude_local"
+      ) {
         next = structuredClone(CREW_ROOT_REVIEWER_OVERRIDES);
       } else next = null;
     } else {

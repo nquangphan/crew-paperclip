@@ -15,7 +15,13 @@ export interface CrewRuntimeSpec {
 export const CREW_RUNTIME_CATALOG: Readonly<Record<CrewRuntime, CrewRuntimeSpec>> = Object.freeze({
   claude_local: {
     effortKey: "effort",
-    models: { "claude-sonnet-5-5": { vision: true }, "claude-opus-5-5": { vision: true } },
+    // Giữ hai id cũ chỉ để chấp nhận override/agent cũ; không đưa vào byComplexity. Giữ một bản để rollout, gỡ ở bản sau.
+    models: {
+      "claude-sonnet-5-5": { vision: true },
+      "claude-opus-5-5": { vision: true },
+      "claude-sonnet-5": { vision: true },
+      "claude-opus-5": { vision: true },
+    },
     byComplexity: {
       trivial: { model: "claude-sonnet-5-5", effort: "low" },
       small: { model: "claude-sonnet-5-5", effort: "medium" },

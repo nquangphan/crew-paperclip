@@ -656,8 +656,42 @@ suite("crew issue gate in issueService.update", () => {
   const EXECUTOR_OVERRIDES = { adapterConfig: { model: "claude-sonnet-5-5", effort: "medium" } };
   const ROOT_REVIEWER_OVERRIDES = { adapterConfig: { model: "claude-opus-5-5", effort: "high" } };
 
+  async function setAdapterType(agentId: string, adapterType: string) {
+    await db.update(agents).set({ adapterType }).where(eq(agents.id, agentId));
+  }
+
+  it("reviewer không chạy claude_local nhận issue gốc: không áp opus, override về null", async () => {
+    for (const adapterType of ["codex_local", "process"]) {
+      const c = await company();
+      await setAdapterType(c.reviewerId, adapterType);
+      const issueId = await issue(c, {
+        status: "in_progress",
+        assigneeAgentId: c.executorId,
+        assigneeAdapterOverrides: EXECUTOR_OVERRIDES,
+        executionPolicy: c.root,
+      });
+      expect(await act(c, issueId, { agentId: c.executorId }, "done")).toMatchObject({
+        status: "in_review",
+        assigneeAgentId: c.reviewerId,
+        assigneeAdapterOverrides: null,
+      });
+    }
+  });
+
+  it("reviewer chuyển issue gốc sang integrator: override opus bị xóa về null", async () => {
+    const c = await company();
+    await setAdapterType(c.reviewerId, "claude_local");
+    const issueId = await issue(c, { status: "in_progress", assigneeAgentId: c.executorId, executionPolicy: c.root });
+    await act(c, issueId, { agentId: c.executorId }, "done");
+    expect(await act(c, issueId, { agentId: c.reviewerId }, "done")).toMatchObject({
+      assigneeAgentId: c.integratorId,
+      assigneeAdapterOverrides: null,
+    });
+  });
+
   it("reviewer Claude nhận issue gốc: override opus-5-5/high thay cho override của executor", async () => {
     const c = await company();
+    await setAdapterType(c.reviewerId, "claude_local");
     const issueId = await issue(c, {
       status: "in_progress",
       assigneeAgentId: c.executorId,
@@ -690,6 +724,7 @@ suite("crew issue gate in issueService.update", () => {
 
   it("issue gốc review lại sau yêu cầu sửa: executor lấy lại override của mình, reviewer vẫn opus-5-5", async () => {
     const c = await company();
+    await setAdapterType(c.reviewerId, "claude_local");
     const issueId = await issue(c, {
       status: "in_progress",
       assigneeAgentId: c.executorId,

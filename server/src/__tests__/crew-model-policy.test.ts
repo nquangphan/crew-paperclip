@@ -29,6 +29,13 @@ describe("CREW_COMPLEXITY_MODEL", () => {
 });
 
 describe("checkAgentAdapterOverrides", () => {
+  it("vẫn chấp nhận hai id Claude cũ nhưng chúng không nằm trong bảng chọn", () => {
+    for (const model of ["claude-sonnet-5", "claude-opus-5"]) {
+      expect(checkAgentAdapterOverrides({ adapterConfig: { model, effort: "high" } }, "claude_local")).toEqual([]);
+      expect(CREW_ALLOWED_MODELS.has(model)).toBe(false);
+      for (const choice of Object.values(CREW_RUNTIME_CATALOG.claude_local.byComplexity)) expect(choice!.model).not.toBe(model);
+    }
+  });
   it("cho phép rỗng và chỉ model/effort trong danh sách", () => {
     for (const value of [undefined, null, {}, { adapterConfig: {} }, { adapterConfig: { model: "claude-opus-5-5", effort: "high" } }]) {
       expect(checkAgentAdapterOverrides(value)).toEqual([]);
@@ -62,7 +69,13 @@ describe("CREW_RUNTIME_CATALOG", () => {
     expect(CREW_RUNTIME_CATALOG).toEqual({
       claude_local: {
         effortKey: "effort",
-        models: { "claude-sonnet-5-5": { vision: true }, "claude-opus-5-5": { vision: true } },
+        // Hai id cũ chỉ để chấp nhận override/agent cũ, không có trong byComplexity.
+        models: {
+          "claude-sonnet-5-5": { vision: true },
+          "claude-opus-5-5": { vision: true },
+          "claude-sonnet-5": { vision: true },
+          "claude-opus-5": { vision: true },
+        },
         byComplexity: {
           trivial: { model: "claude-sonnet-5-5", effort: "low" },
           small: { model: "claude-sonnet-5-5", effort: "medium" },

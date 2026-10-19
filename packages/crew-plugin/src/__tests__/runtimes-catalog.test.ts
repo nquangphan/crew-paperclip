@@ -6,7 +6,13 @@ import * as plugin from "../runtimes/catalog.js";
 const CATALOG = {
   claude_local: {
     effortKey: "effort",
-    models: { "claude-sonnet-5-5": { vision: true }, "claude-opus-5-5": { vision: true } },
+    // Hai id cũ chỉ để chấp nhận override/agent cũ, không có trong byComplexity.
+    models: {
+      "claude-sonnet-5-5": { vision: true },
+      "claude-opus-5-5": { vision: true },
+      "claude-sonnet-5": { vision: true },
+      "claude-opus-5": { vision: true },
+    },
     byComplexity: {
       trivial: { model: "claude-sonnet-5-5", effort: "low" },
       small: { model: "claude-sonnet-5-5", effort: "medium" },

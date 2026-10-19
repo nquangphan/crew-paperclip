@@ -62,7 +62,13 @@ export const CREW_RUNTIME_MODELS: Readonly<
 > = Object.freeze({
   claude_local: {
     effortKey: 'effort',
-    models: { 'claude-sonnet-5-5': { vision: true }, 'claude-opus-5-5': { vision: true } },
+    // Giữ hai id cũ chỉ để chấp nhận override/agent cũ; không đưa vào CREW_MODELS hay ROLE_MODELS. Giữ một bản để rollout, gỡ ở bản sau.
+    models: {
+      'claude-sonnet-5-5': { vision: true },
+      'claude-opus-5-5': { vision: true },
+      'claude-sonnet-5': { vision: true },
+      'claude-opus-5': { vision: true },
+    },
   },
   codex_local: {
     effortKey: 'modelReasoningEffort',
@@ -104,8 +110,11 @@ const RUNTIME_SLOT_DEFAULTS: Readonly<Record<CrewRuntimeSlot, { model: string; e
     'reviewer-codex': { model: CREW_CODEX_REVIEWER_MODEL.model, effort: CREW_CODEX_REVIEWER_MODEL.effort },
   });
 
+/** Id Claude cũ còn trong catalog để server chấp nhận; giao diện không còn cho chọn. */
+const LEGACY_CLAUDE_MODELS: ReadonlySet<string> = new Set(['claude-sonnet-5', 'claude-opus-5']);
+
 export function crewModelsOf(runtime: CrewRuntime): string[] {
-  return Object.keys(CREW_RUNTIME_MODELS[runtime].models);
+  return Object.keys(CREW_RUNTIME_MODELS[runtime].models).filter((model) => !LEGACY_CLAUDE_MODELS.has(model));
 }
 
 /** Model chọn được cho ô: theo runtime của ô; reviewer Codex chỉ có model cố định. */
@@ -119,7 +128,7 @@ export function defaultModelOf(slot: CrewRoleSlot): string {
 }
 
 export function isCrewModel(model: string, runtime: CrewRuntime = 'claude_local'): boolean {
-  return Object.hasOwn(CREW_RUNTIME_MODELS[runtime].models, model);
+  return crewModelsOf(runtime).includes(model);
 }
 
 export const CREW_AGENT_PERMISSIONS = Object.freeze({ canCreateAgents: false, canCreateSkills: false } as const);
