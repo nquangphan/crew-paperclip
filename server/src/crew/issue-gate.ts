@@ -748,7 +748,10 @@ export const CREW_CODEX_REVIEWER_OVERRIDES = Object.freeze({
   }),
 });
 
-/** Override của reviewer Claude trên issue gốc (không có `parentId`): review tổng chạy opus; issue con theo cấu hình agent. */
+/**
+ * Override của reviewer Claude trên issue gốc (không có `parentId`) của yêu cầu code hay viết tài liệu: review tổng chạy
+ * opus. Issue con và gốc của yêu cầu research theo cấu hình agent.
+ */
 export const CREW_ROOT_REVIEWER_OVERRIDES = Object.freeze({
   adapterConfig: Object.freeze({ model: "claude-opus-5-5", effort: "high" }),
 });
@@ -758,8 +761,8 @@ export const CREW_ROOT_REVIEWER_OVERRIDES = Object.freeze({
  * Trợ Lý (hay fallback) đặt cho executor sẽ theo issue sang reviewer khi stock chuyển stage. Trên issue có policy Crew,
  * khi assignee đổi mà lệnh ghi không tự đặt override:
  * - giao cho agent của stage (reviewer, reviewer Codex, integrator): override theo vai trò, reviewer Codex là
- *   `gpt-6-sol`/`high`, reviewer chạy `claude_local` trên issue gốc là `claude-opus-5-5`/`high`, còn lại `null` (chạy theo cấu
- *   hình agent);
+ *   `gpt-6-sol`/`high`, reviewer chạy `claude_local` trên issue gốc (trừ gốc research) là `claude-opus-5-5`/`high`, còn lại
+ *   `null` (chạy theo cấu hình agent);
  * - giao cho executor: override executor đó để lại lần trước (activity hệ thống), nếu còn hợp với runtime của nó;
  *   không có mà vừa rời agent của stage thì `null`; executor sang executor khác thì giữ như stock.
  * Executor rời issue thì override của nó được ghi lại (kể cả `null`), để vòng sau trả về đúng override.
@@ -794,6 +797,7 @@ async function routeAssigneeOverrides(
       else if (
         to === roles?.reviewerAgentId?.toLowerCase() &&
         locked.parentId === null &&
+        !isResearchRootPolicy(policy) &&
         (await loadAssigneeAdapterType(tx, locked.companyId, to)) === "claude_local"
       ) {
         next = structuredClone(CREW_ROOT_REVIEWER_OVERRIDES);
@@ -830,6 +834,15 @@ async function routeAssigneeOverrides(
           : (locked.assigneeAdapterOverrides ?? null),
     },
   });
+}
+
+/**
+ * Policy đã ghim của gốc yêu cầu research: đúng 2 stage `review` rồi `approval` (template `research`, server ghim khi
+ * board tạo gốc có nhãn `research`). Cùng cách nhận biết với Trợ Lý và plugin (`crewPolicyKind`); đọc policy chứ không
+ * đọc nhãn vì nhãn có thể bị gỡ sau khi tạo, còn policy quyết định luồng review.
+ */
+function isResearchRootPolicy(policy: IssueExecutionPolicy): boolean {
+  return policy.stages.length === 2 && policy.stages[0]!.type === "review" && policy.stages[1]!.type === "approval";
 }
 
 /** Override executor `agentId` để lại lần gần nhất rời issue; `undefined` khi chưa từng rời (activity chỉ hệ thống ghi). */

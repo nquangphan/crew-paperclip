@@ -705,6 +705,27 @@ suite("crew issue gate in issueService.update", () => {
     });
   });
 
+  it("reviewer Claude nhận gốc của yêu cầu research: không áp opus, chạy theo cấu hình agent", async () => {
+    const c = await company();
+    await setAdapterType(c.reviewerId, "claude_local");
+    const research = buildCrewPolicy(
+      "research",
+      { reviewerAgentId: c.reviewerId, integratorAgentId: c.integratorId },
+      "owner-1",
+    );
+    const issueId = await issue(c, {
+      status: "in_progress",
+      assigneeAgentId: c.executorId,
+      assigneeAdapterOverrides: EXECUTOR_OVERRIDES,
+      executionPolicy: research,
+    });
+    expect(await act(c, issueId, { agentId: c.executorId }, "done")).toMatchObject({
+      status: "in_review",
+      assigneeAgentId: c.reviewerId,
+      assigneeAdapterOverrides: null,
+    });
+  });
+
   it("reviewer Claude nhận issue con: không override, chạy theo cấu hình agent", async () => {
     const c = await company();
     const rootId = await issue(c, { status: "in_progress", assigneeAgentId: c.executorId, executionPolicy: c.root });
