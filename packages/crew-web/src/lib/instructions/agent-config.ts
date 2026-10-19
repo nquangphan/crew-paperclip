@@ -62,7 +62,7 @@ export const CREW_RUNTIME_MODELS: Readonly<
 > = Object.freeze({
   claude_local: {
     effortKey: 'effort',
-    models: { 'claude-sonnet-5': { vision: true }, 'claude-opus-5': { vision: true } },
+    models: { 'claude-sonnet-5-5': { vision: true }, 'claude-opus-5-5': { vision: true } },
   },
   codex_local: {
     effortKey: 'modelReasoningEffort',
@@ -82,15 +82,15 @@ export const CREW_RUNTIME_MODELS: Readonly<
 export const CREW_CODEX_REVIEWER_MODEL = Object.freeze({ model: 'gpt-6-sol', effort: 'high' } as const);
 
 /** Model Crew cho phép, bằng tập model trong CREW_COMPLEXITY_MODEL của server/src/crew/model-policy.ts. */
-export const CREW_MODELS = ['claude-sonnet-5', 'claude-opus-5'] as const;
+export const CREW_MODELS = ['claude-sonnet-5-5', 'claude-opus-5-5'] as const;
 export type CrewModel = (typeof CREW_MODELS)[number];
 
 /** Model mặc định theo vai trò, như app: Trợ Lý chạy opus, còn lại sonnet. */
 export const ROLE_MODELS: Readonly<Record<CrewRole, CrewModel>> = Object.freeze({
-  assistant: 'claude-opus-5',
-  executor: 'claude-sonnet-5',
-  reviewer: 'claude-sonnet-5',
-  integrator: 'claude-sonnet-5',
+  assistant: 'claude-opus-5-5',
+  executor: 'claude-sonnet-5-5',
+  reviewer: 'claude-sonnet-5-5',
+  integrator: 'claude-sonnet-5-5',
 });
 
 /**

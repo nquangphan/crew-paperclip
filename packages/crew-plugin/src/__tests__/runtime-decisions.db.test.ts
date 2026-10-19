@@ -25,7 +25,7 @@ const rootPolicy = {
   mode: "normal", maxReviewRounds: 5, stages: [reviewStage(reviewer), reviewStage(integrator),
     { id: "s-owner", type: "approval", participants: [{ id: "p-owner", type: "user", userId: "owner" }] }, reviewStage(integrator)],
 };
-const MARKER_CLAUDE = "Việc nhỏ\n\ncrew-model complexity=medium model=claude-sonnet-5 effort=high reason=sửa ba file, có test\n";
+const MARKER_CLAUDE = "Việc nhỏ\n\ncrew-model complexity=medium model=claude-sonnet-5-5 effort=high reason=sửa ba file, có test\n";
 const MARKER_CODEX = "crew-model complexity=medium model=gpt-6-sol effort=high runtime=codex_local reason=thử Codex";
 
 function addIssue(n: number, fields: Partial<Issue>): string {
@@ -104,7 +104,7 @@ describe("dòng select khi có issue mới", () => {
     await handleIssueCreated(ctx, created(id));
     await handleIssueCreated(ctx, created(id));
     expect(await rows(id)).toEqual([
-      { role: "executor", kind: "select", to_agent_id: executor, to_runtime: "claude_local", model: "claude-sonnet-5",
+      { role: "executor", kind: "select", to_agent_id: executor, to_runtime: "claude_local", model: "claude-sonnet-5-5",
         complexity: "medium", reason: "sửa ba file, có test", machine_id: mini },
       { role: "reviewer", kind: "select", to_agent_id: codexReviewer, to_runtime: "codex_local", model: "gpt-6-sol",
         complexity: null, reason: "executor claude_local, Codex bật → reviewer codex_local", machine_id: mini },
@@ -169,7 +169,7 @@ describe("data crew.runtimeDecisions", () => {
       await insertRuntimeDecision(host.ctx, {
         companyId, issueId: id, role: "executor", kind: "fallback", runId: `60000000-0000-4000-8000-${i.toString().padStart(12, "0")}`,
         fromAgentId: codexExec, toAgentId: executor, fromRuntime: "codex_local", toRuntime: "claude_local",
-        model: "claude-sonnet-5", complexity: "medium", trigger: "quota", reason: `lần ${i}`,
+        model: "claude-sonnet-5-5", complexity: "medium", trigger: "quota", reason: `lần ${i}`,
       });
     }
     await host.sql.unsafe(`UPDATE ${host.ns}.crew_runtime_decisions SET decided_at = now() - (interval '1 minute' * (100 - id))`);
@@ -178,7 +178,7 @@ describe("data crew.runtimeDecisions", () => {
     expect(list[0]).toEqual({
       id: expect.any(String), role: "executor", kind: "fallback", runId: "60000000-0000-4000-8000-000000000054", machineId: null,
       fromAgentId: codexExec, fromAgentName: "repo-a-codex", toAgentId: executor, toAgentName: "repo-a-executor",
-      fromRuntime: "codex_local", toRuntime: "claude_local", model: "claude-sonnet-5", complexity: "medium", trigger: "quota",
+      fromRuntime: "codex_local", toRuntime: "claude_local", model: "claude-sonnet-5-5", complexity: "medium", trigger: "quota",
       reason: "lần 54", decidedAt: expect.stringMatching(/Z$/),
     });
     expect(list.at(-1)?.reason).toBe("lần 5");

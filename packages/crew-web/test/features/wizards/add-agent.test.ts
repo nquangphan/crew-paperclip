@@ -32,7 +32,7 @@ const ID = {
 const PROJECT = 'p0000000-0000-4000-8000-000000000001';
 
 function existing(id: string, name: string, role: 'assistant' | 'executor' | 'reviewer' | 'integrator'): FakeAgent {
-  const body = crewAgentCreateBody({ name, role, model: 'claude-sonnet-5', pinDir: PIN, environmentId: `env-${name}` });
+  const body = crewAgentCreateBody({ name, role, model: 'claude-sonnet-5-5', pinDir: PIN, environmentId: `env-${name}` });
   return {
     id,
     name,
@@ -63,7 +63,7 @@ function addAgentRun(slot: CrewRoleSlot, over: Partial<SetupRun> = {}) {
       projectId: PROJECT,
       slot,
       name: `demo-${slot}-moi`,
-      model: isRuntimeSlot(slot) ? defaultModelOf(slot) : 'claude-sonnet-5',
+      model: isRuntimeSlot(slot) ? defaultModelOf(slot) : 'claude-sonnet-5-5',
     },
     steps: {},
     status: 'running',
@@ -114,7 +114,7 @@ describe('runAddAgent', () => {
     const create = f.calls.find((c) => c.fn === 'agents.create');
     expect(create?.args).toEqual([
       COMPANY,
-      crewAgentCreateBody({ name: 'demo-executor-2-moi', role: 'executor', model: 'claude-sonnet-5', pinDir: PIN }),
+      crewAgentCreateBody({ name: 'demo-executor-2-moi', role: 'executor', model: 'claude-sonnet-5-5', pinDir: PIN }),
     ]);
     expect(f.calls.find((c) => c.fn === 'agents.setPermissions')?.args).toEqual([
       newId,
@@ -214,7 +214,7 @@ describe('runAddAgent', () => {
       canAssignTasks: true,
     });
     const body = f.calls.find((c) => c.fn === 'agents.create')?.args[1] as { adapterConfig?: { model?: string } };
-    expect(body.adapterConfig?.model).toBe('claude-sonnet-5');
+    expect(body.adapterConfig?.model).toBe('claude-sonnet-5-5');
     expect(savedContent(f.calls, newId)).toBe(
       renderInstructions('assistant', { agentId: newId, executorIds: [ID.executor], bmadIds: [ID.bmad] }),
     );
@@ -350,7 +350,7 @@ describe('chế độ sửa (agent do app tạo, không có setup run)', () => {
   it('sửa từ bước pin: bỏ bước agent, PATCH ghim lệch, các bước sau đã đạt thì không ghi gì thêm', async () => {
     const f = setup(
       addAgentRun('executor', {
-        input: { projectId: PROJECT, slot: 'executor', name: 'demo-executor', model: 'claude-sonnet-5' },
+        input: { projectId: PROJECT, slot: 'executor', name: 'demo-executor', model: 'claude-sonnet-5-5' },
       }),
     );
     const agent = f.state.agents.find((a) => a.id === ID.executor) as FakeAgent;
@@ -423,7 +423,7 @@ describe('chế độ sửa (agent do app tạo, không có setup run)', () => {
   it('sửa từ bước pin vì AGENTS.md lệch (A3): ghi lại AGENTS.md theo mẫu, cả khi chạy tiếp ở trình duyệt khác', async () => {
     const f = setup(
       addAgentRun('executor', {
-        input: { projectId: PROJECT, slot: 'executor', name: 'demo-executor', model: 'claude-sonnet-5' },
+        input: { projectId: PROJECT, slot: 'executor', name: 'demo-executor', model: 'claude-sonnet-5-5' },
       }),
     );
     f.state.files.set(ID.executor, { content: 'bản lệch', contentHash: 'h-exec' });
@@ -439,7 +439,7 @@ describe('chế độ sửa (agent do app tạo, không có setup run)', () => {
   it('sửa agent chưa có AGENTS.md: ghi file theo mẫu', async () => {
     const f = setup(
       addAgentRun('executor', {
-        input: { projectId: PROJECT, slot: 'executor', name: 'demo-executor', model: 'claude-sonnet-5' },
+        input: { projectId: PROJECT, slot: 'executor', name: 'demo-executor', model: 'claude-sonnet-5-5' },
       }),
     );
     const seeded = await prepareFixRun(ctxOf(f.api), f.state.run, { agentId: ID.executor, step: 'pin' });
@@ -450,7 +450,7 @@ describe('chế độ sửa (agent do app tạo, không có setup run)', () => {
   it('sửa từ bước agent (A1): PATCH merge engine/env/heartbeat, không tạo agent mới', async () => {
     const f = setup(
       addAgentRun('reviewer', {
-        input: { projectId: PROJECT, slot: 'reviewer', name: 'demo-reviewer', model: 'claude-sonnet-5' },
+        input: { projectId: PROJECT, slot: 'reviewer', name: 'demo-reviewer', model: 'claude-sonnet-5-5' },
       }),
     );
     const agent = f.state.agents.find((a) => a.id === ID.reviewer) as FakeAgent;
@@ -476,7 +476,7 @@ describe('chế độ sửa (agent do app tạo, không có setup run)', () => {
   it('lỗi ở chế độ sửa không tạm dừng agent có sẵn', async () => {
     const f = setup(
       addAgentRun('executor', {
-        input: { projectId: PROJECT, slot: 'executor', name: 'demo-executor', model: 'claude-sonnet-5' },
+        input: { projectId: PROJECT, slot: 'executor', name: 'demo-executor', model: 'claude-sonnet-5-5' },
       }),
     );
     f.failOn('agents.get', 1, new ApiError(500, 'Lỗi máy chủ'));
@@ -732,7 +732,7 @@ describe('environment theo máy của run (hai máy)', () => {
     const f = twoMachines(
       addAgentRun('executor', {
         machineId: 'm2',
-        input: { projectId: PROJECT, slot: 'executor', name: 'demo-executor', model: 'claude-sonnet-5' },
+        input: { projectId: PROJECT, slot: 'executor', name: 'demo-executor', model: 'claude-sonnet-5-5' },
       }),
     );
     // Environment của ô do lỗi cũ trỏ Mac mini (host, knownHosts), checkout thì ở MacBook.
@@ -762,7 +762,7 @@ describe('environment theo máy của run (hai máy)', () => {
     const f = twoMachines(
       addAgentRun('executor', {
         machineId: 'm2',
-        input: { projectId: PROJECT, slot: 'executor', name: 'demo-executor', model: 'claude-sonnet-5' },
+        input: { projectId: PROJECT, slot: 'executor', name: 'demo-executor', model: 'claude-sonnet-5-5' },
       }),
     );
     f.state.environments.push(

@@ -51,7 +51,7 @@ describe('PropertiesPanel chỉ đọc (S6.13)', () => {
     expect(within(root).getByText(/Reviewer Alpha/)).toBeTruthy();
     expect(within(root).getByText(/Owner duyệt/)).toBeTruthy();
     expect(within(root).getByText('2/5')).toBeTruthy();
-    expect(within(root).getByText(/claude-sonnet-5/)).toBeTruthy();
+    expect(within(root).getByText(/claude-sonnet-5-5/)).toBeTruthy();
     expect(within(root).getByText(/medium/)).toBeTruthy();
   });
 
@@ -63,7 +63,7 @@ describe('PropertiesPanel chỉ đọc (S6.13)', () => {
     expect(within(screen.getByTestId('properties-panel')).getByText(/gpt-6-sol .*runtime Codex/)).toBeTruthy();
     cleanup();
     panel();
-    expect(within(screen.getByTestId('properties-panel')).getByText(/claude-sonnet-5 .*runtime Claude/)).toBeTruthy();
+    expect(within(screen.getByTestId('properties-panel')).getByText(/claude-sonnet-5-5 .*runtime Claude/)).toBeTruthy();
   });
 
   it('loại Nghiên cứu theo nhãn research, Viết tài liệu theo nhãn docs, còn lại là Code / Bug', () => {

@@ -29,7 +29,7 @@ async function setupProject(api: Api, companyId: string): Promise<Created> {
   };
   const claude = (role: 'assistant' | 'executor' | 'reviewer' | 'integrator') => {
     const name = `e2e-rt-${token}-${role}`;
-    return make(name, crewAgentCreateBody({ name, role, model: 'claude-sonnet-5', pinDir: PIN }));
+    return make(name, crewAgentCreateBody({ name, role, model: 'claude-sonnet-5-5', pinDir: PIN }));
   };
   const codexName = `e2e-rt-${token}-executor-codex`;
   const opencodeName = `e2e-rt-${token}-executor-opencode`;

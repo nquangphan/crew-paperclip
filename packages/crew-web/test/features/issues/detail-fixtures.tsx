@@ -17,7 +17,7 @@ export const ISSUE = {
   ancestors: [{ id: 'i0', identifier: 'TPS-1', title: 'Yêu cầu gốc', status: 'in_progress' }],
   identifier: 'TPS-2',
   title: 'Sửa trang đăng nhập',
-  description: 'Mô tả ban đầu\n\ncrew-model complexity=small model=claude-sonnet-5 effort=medium reason=việc nhỏ',
+  description: 'Mô tả ban đầu\n\ncrew-model complexity=small model=claude-sonnet-5-5 effort=medium reason=việc nhỏ',
   status: 'in_review',
   assigneeAgentId: 'a1',
   assigneeUserId: null,

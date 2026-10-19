@@ -35,7 +35,7 @@ export const agent = (over: Record<string, unknown> = {}) => ({
     engine: 'cli',
     command: '/Users/q/.crew/bin/crew-claude-run',
     extraArgs: ['--setting-sources', 'project,local', '--plugin-dir', PIN_DIR],
-    model: 'claude-sonnet-5',
+    model: 'claude-sonnet-5-5',
     env: {},
   },
   runtimeConfig: { heartbeat: { enabled: false, maxConcurrentRuns: 1 } },

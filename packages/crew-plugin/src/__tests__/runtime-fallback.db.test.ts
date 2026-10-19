@@ -149,10 +149,10 @@ describe("executor", () => {
     const run = await addRun(1, codexExec, "failed", "provider_quota");
     expect(await handleRunFailed(ctx, failed(run, codexExec, issue, null))).toBe("applied");
     expect(await decisions(issue)).toEqual([{ role: "executor", kind: "fallback", run_id: run, from_agent_id: codexExec, to_agent_id: executor,
-      from_runtime: "codex_local", to_runtime: "claude_local", model: "claude-sonnet-5", complexity: "medium", trigger: "quota",
+      from_runtime: "codex_local", to_runtime: "claude_local", model: "claude-sonnet-5-5", complexity: "medium", trigger: "quota",
       reason: "hết quota", machine_id: mini }]);
-    expect(of("update")).toEqual([[issue, { assigneeAgentId: executor, assigneeAdapterOverrides: { adapterConfig: { model: "claude-sonnet-5", effort: "high" } } }, companyId]]);
-    expect(of("comment")).toEqual([[issue, "Crew: chuyển từ codex_local (repo-a-codex) sang claude_local (repo-a-executor), model claude-sonnet-5. "
+    expect(of("update")).toEqual([[issue, { assigneeAgentId: executor, assigneeAdapterOverrides: { adapterConfig: { model: "claude-sonnet-5-5", effort: "high" } } }, companyId]]);
+    expect(of("comment")).toEqual([[issue, "Crew: chuyển từ codex_local (repo-a-codex) sang claude_local (repo-a-executor), model claude-sonnet-5-5. "
       + "Lý do: hết quota. Nhánh và commit của run trước được giữ.", companyId]]);
     expect(of("wake")).toEqual([[issue, companyId, { reason: "crew_runtime_fallback", idempotencyKey: `crew_runtime_fallback:${run}` }]]);
     calls = [];
@@ -165,11 +165,11 @@ describe("executor", () => {
   });
 
   it("đích OpenCode chỉ có model; đích Codex dùng modelReasoningEffort", async () => {
-    const small = addIssue(2, { description: marker("small", "claude_local", "claude-sonnet-5", "medium"), assigneeAgentId: executor });
+    const small = addIssue(2, { description: marker("small", "claude_local", "claude-sonnet-5-5", "medium"), assigneeAgentId: executor });
     await setSwitch("opencode_local", true);
     expect(await applyFallback(ctx, { companyId, issueId: small, runId: await addRun(2, executor), agentId: executor, trigger: "auth" })).toBe("applied");
     expect(of("update").at(-1)?.[1]).toEqual({ assigneeAgentId: opencodeExec, assigneeAdapterOverrides: { adapterConfig: { model: "opencode-go/kimi-k3" } } });
-    const medium = addIssue(3, { description: marker("medium", "claude_local", "claude-sonnet-5", "high"), assigneeAgentId: executor });
+    const medium = addIssue(3, { description: marker("medium", "claude_local", "claude-sonnet-5-5", "high"), assigneeAgentId: executor });
     expect(await applyFallback(ctx, { companyId, issueId: medium, runId: await addRun(3, executor), agentId: executor, trigger: "unavailable" })).toBe("applied");
     expect(of("update").at(-1)?.[1]).toEqual({ assigneeAgentId: codexExec, assigneeAdapterOverrides: { adapterConfig: { model: "gpt-6-sol", modelReasoningEffort: "high" } } });
   });
@@ -201,7 +201,7 @@ describe("executor", () => {
   });
 
   it("large lỗi đăng nhập: từ chối, hẹn đánh thức lại sau 5 phút, không block; gửi lại không comment thêm", async () => {
-    const issue = addIssue(10, { description: marker("large", "claude_local", "claude-opus-5", "high"), assigneeAgentId: executor });
+    const issue = addIssue(10, { description: marker("large", "claude_local", "claude-opus-5-5", "high"), assigneeAgentId: executor });
     const run = await addRun(30, executor);
     expect(await handleRunFailed(ctx, failed(run, executor, issue, "claude_auth_required"))).toBe("refused");
     expect(await decisions(issue)).toEqual([expect.objectContaining({ kind: "fallback_refused", trigger: "auth", reason: "mức large chỉ chạy Claude", to_agent_id: null })]);
@@ -214,7 +214,7 @@ describe("executor", () => {
   });
 
   it("large hết quota: stock hẹn chạy lại lúc quota hồi, Crew không hẹn thêm", async () => {
-    const issue = addIssue(14, { description: marker("large", "claude_local", "claude-opus-5", "high"), assigneeAgentId: executor });
+    const issue = addIssue(14, { description: marker("large", "claude_local", "claude-opus-5-5", "high"), assigneeAgentId: executor });
     const run = await addRun(45, executor, "failed", "provider_quota");
     expect(await handleRunFailed(ctx, failed(run, executor, issue, null))).toBe("refused");
     expect(of("comment")).toEqual([[issue, `Crew: không chuyển runtime cho run \`${run}\`: mức large chỉ chạy Claude. Crew chờ Claude chạy lại khi quota hồi.`, companyId]]);
@@ -234,7 +234,7 @@ describe("executor", () => {
   });
 
   it("issue có ảnh và không còn model đọc ảnh: từ chối", async () => {
-    const issue = addIssue(12, { description: marker("small", "claude_local", "claude-sonnet-5", "medium"), assigneeAgentId: executor });
+    const issue = addIssue(12, { description: marker("small", "claude_local", "claude-sonnet-5-5", "medium"), assigneeAgentId: executor });
     attachments.set(issue, [{ contentType: "image/png" }]);
     await setSwitch("opencode_local", true);
     await setSwitch("codex_local", false);
@@ -255,7 +255,7 @@ describe("executor", () => {
 });
 
 describe("large: Claude lỗi đăng nhập thì Crew đánh thức lại theo backoff", () => {
-  const large = (n: number) => addIssue(n, { description: marker("large", "claude_local", "claude-opus-5", "high"), assigneeAgentId: executor });
+  const large = (n: number) => addIssue(n, { description: marker("large", "claude_local", "claude-opus-5-5", "high"), assigneeAgentId: executor });
   /** Run Claude của executor trên issue, tạo lúc `minutes` phút sau mốc của test. */
   const t0 = Date.now();
   const at = (minutes: number) => new Date(t0 + minutes * 60_000);
@@ -375,7 +375,7 @@ describe("job runtime-fallback (run bị công tắc giữ)", () => {
     await addWait(started, issue, opencodeExec, "opencode_local", 120);
     expect(await runRuntimeFallbackJob(ctx, new Date())).toEqual({ handled: 1, applied: 1 });
     expect(await decisions(issue)).toEqual([expect.objectContaining({ kind: "fallback", run_id: held, trigger: "switch_off", to_agent_id: executor,
-      to_runtime: "claude_local", model: "claude-sonnet-5", reason: "runtime đang tắt trên máy" })]);
+      to_runtime: "claude_local", model: "claude-sonnet-5-5", reason: "runtime đang tắt trên máy" })]);
     // Run cũ còn `queued` (H1 chưa hủy): wake lúc này sẽ nằm sau nó, nên chờ.
     expect(of("wake")).toEqual([]);
     expect(await handledAt(held)).toBeNull();
@@ -444,7 +444,7 @@ describe("job runtime-fallback (run bị công tắc giữ)", () => {
 
 describe("reviewer Codex → reviewer Claude", () => {
   const inReview = (n: number, stage: string[], participant = codexReviewer) => addIssue(n, {
-    status: "in_review", assigneeAgentId: participant, description: marker("medium", "claude_local", "claude-sonnet-5", "high"),
+    status: "in_review", assigneeAgentId: participant, description: marker("medium", "claude_local", "claude-sonnet-5-5", "high"),
     executionPolicy: childPolicy(...stage) as never, executionState: pendingState(participant) as never,
   });
 
@@ -509,7 +509,7 @@ describe("reviewer Codex → reviewer Claude", () => {
 describe("reviewer Codex bị pause/terminate sau khi đã được chọn", () => {
   const stuck = async (n: number, stage: string[], status = "in_review") => {
     const issue = addIssue(n, {
-      status: status as never, assigneeAgentId: codexReviewer, description: marker("medium", "claude_local", "claude-sonnet-5", "high"),
+      status: status as never, assigneeAgentId: codexReviewer, description: marker("medium", "claude_local", "claude-sonnet-5-5", "high"),
       executionPolicy: childPolicy(...stage) as never, executionState: pendingState(codexReviewer) as never,
     });
     await host.sql`INSERT INTO issues (id,company_id,project_id,identifier,title,status,execution_state)

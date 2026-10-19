@@ -106,8 +106,8 @@ describe('runAddProject', () => {
         permissions: { canCreateAgents: false, canCreateSkills: false },
       });
     }
-    expect((agents[0].adapterConfig as { model: string }).model).toBe('claude-opus-5');
-    expect((agents[1].adapterConfig as { model: string }).model).toBe('claude-sonnet-5');
+    expect((agents[0].adapterConfig as { model: string }).model).toBe('claude-opus-5-5');
+    expect((agents[1].adapterConfig as { model: string }).model).toBe('claude-sonnet-5-5');
 
     // Chỉ Trợ Lý giữ quyền giao việc.
     const perms = f.calls.filter((c) => c.fn === 'agents.setPermissions').map((c) => c.args[1]);

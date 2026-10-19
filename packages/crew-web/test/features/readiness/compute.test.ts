@@ -30,7 +30,7 @@ function agent(over: Partial<ReadinessAgent> = {}): ReadinessAgent {
       engine: 'cli',
       command: `${HOME}/.crew/bin/crew-claude-run`,
       extraArgs: ['--setting-sources', 'project,local', '--plugin-dir', PIN],
-      model: 'claude-sonnet-5',
+      model: 'claude-sonnet-5-5',
       env: {},
     },
     runtimeConfig: { heartbeat: { enabled: false, maxConcurrentRuns: 1 } },

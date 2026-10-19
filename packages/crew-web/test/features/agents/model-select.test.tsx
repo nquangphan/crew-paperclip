@@ -34,17 +34,17 @@ describe('ModelSelect', () => {
   it('Lưu gửi PATCH {adapterConfig:{model}} và không gì khác', async () => {
     const s = mockServer({
       'PATCH /api/agents/e2222222-2222-4222-8222-222222222222': {
-        body: agent({ adapterConfig: { model: 'claude-opus-5' } }),
+        body: agent({ adapterConfig: { model: 'claude-opus-5-5' } }),
       },
     });
     const onSaved = vi.fn();
     renderWith(<ModelSelect agent={agent() as never} companyId="c-tps" onSaved={onSaved} />);
     fireEvent.keyDown(screen.getByRole('combobox', { name: 'Model mặc định' }), { key: 'Enter' });
-    fireEvent.click(screen.getByRole('option', { name: 'claude-opus-5' }));
+    fireEvent.click(screen.getByRole('option', { name: 'claude-opus-5-5' }));
     fireEvent.click(screen.getByRole('button', { name: 'Lưu model' }));
     await waitFor(() => expect(onSaved).toHaveBeenCalled());
     const patch = s.calls.find((c) => c.method === 'PATCH');
-    expect(patch?.body).toEqual({ adapterConfig: { model: 'claude-opus-5' } });
+    expect(patch?.body).toEqual({ adapterConfig: { model: 'claude-opus-5-5' } });
     expect(JSON.stringify(patch?.body)).not.toContain('replaceAdapterConfig');
     expect(patch?.url).toContain('companyId=c-tps');
   });
@@ -58,7 +58,7 @@ describe('ModelSelect', () => {
     });
     renderWith(<ModelSelect agent={agent() as never} companyId="c-tps" />);
     fireEvent.keyDown(screen.getByRole('combobox', { name: 'Model mặc định' }), { key: 'Enter' });
-    fireEvent.click(screen.getByRole('option', { name: 'claude-opus-5' }));
+    fireEvent.click(screen.getByRole('option', { name: 'claude-opus-5-5' }));
     fireEvent.click(screen.getByRole('button', { name: 'Lưu model' }));
     expect(await screen.findByText('Model bị từ chối')).toBeTruthy();
   });
@@ -92,11 +92,11 @@ describe('ModelSelect', () => {
     mockServer({});
     renderWith(
       <ModelSelect
-        agent={agent({ adapterType: 'codex_local', adapterConfig: { model: 'claude-sonnet-5' } }) as never}
+        agent={agent({ adapterType: 'codex_local', adapterConfig: { model: 'claude-sonnet-5-5' } }) as never}
         companyId="c-tps"
       />,
     );
-    expect(screen.getByText('Model hiện tại (claude-sonnet-5) không nằm trong bảng model Crew.')).toBeTruthy();
+    expect(screen.getByText('Model hiện tại (claude-sonnet-5-5) không nằm trong bảng model Crew.')).toBeTruthy();
   });
 
   it('reviewer Codex của project: model cố định, không đổi được', async () => {

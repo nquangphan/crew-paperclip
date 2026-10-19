@@ -42,7 +42,7 @@ const PROJECT_RUN = {
   updatedAt: 'x',
 };
 const agent = (id: string, name: string, role: 'assistant' | 'executor' | 'reviewer' | 'integrator') => ({
-  ...crewAgentCreateBody({ name, role, model: 'claude-sonnet-5', pinDir: PIN }),
+  ...crewAgentCreateBody({ name, role, model: 'claude-sonnet-5-5', pinDir: PIN }),
   id,
   status: 'idle',
   defaultEnvironmentId: `env-${name}`,
@@ -58,7 +58,7 @@ const AGENT_RUN = {
   ...PROJECT_RUN,
   id: 'run-a',
   kind: 'add-agent',
-  input: { projectId: 'p1', slot: 'executor-2', name: 'demo-executor-2', model: 'claude-sonnet-5' },
+  input: { projectId: 'p1', slot: 'executor-2', name: 'demo-executor-2', model: 'claude-sonnet-5-5' },
   steps: {
     agent: { status: 'done', at: 'x', refs: { agent: ID.spare, created: 'true', folder: '/Users/owner/code/demo' } },
     pin: { status: 'done', at: 'x', refs: { instructions: 'h' } },
@@ -123,7 +123,7 @@ describe('AddAgentPage', () => {
       kind: 'add-agent',
       projectKey: 'demo',
       machineId: 'm1',
-      input: { projectId: 'p1', slot: 'executor-2', name: 'demo-executor-2', model: 'claude-sonnet-5' },
+      input: { projectId: 'p1', slot: 'executor-2', name: 'demo-executor-2', model: 'claude-sonnet-5-5' },
     });
     expect(await screen.findByText('Đang có người chạy bước này. Đợi một lát rồi bấm Chạy tiếp.')).toBeTruthy();
     expect(calls.some((c) => c.method === 'POST' && c.url.includes('/agents'))).toBe(false);
@@ -360,7 +360,7 @@ describe('AddAgentPage', () => {
     expect(calls.find((c) => c.method === 'POST' && c.url === `${PLUGIN}/setup-runs`)?.body).toMatchObject({
       kind: 'add-agent',
       projectKey: 'demo',
-      input: { projectId: 'p1', slot: 'executor', name: 'demo-executor', model: 'claude-sonnet-5' },
+      input: { projectId: 'p1', slot: 'executor', name: 'demo-executor', model: 'claude-sonnet-5-5' },
     });
     expect(calls.find((c) => c.url === `${PLUGIN}/setup-runs/run-a/steps/agent/finish`)?.body).toEqual({
       companyId: 'c-tps',

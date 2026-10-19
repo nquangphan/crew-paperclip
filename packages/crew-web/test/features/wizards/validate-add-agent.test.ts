@@ -5,7 +5,7 @@ const FORM: AddAgentForm = {
   projectId: 'p1',
   slot: 'executor-2',
   name: 'demo-executor-2',
-  model: 'claude-sonnet-5',
+  model: 'claude-sonnet-5-5',
   machineId: 'm1',
   key: 'demo',
   folder: '/Users/owner/code/demo',
@@ -55,7 +55,7 @@ describe('validateAddAgent', () => {
 
   it('model theo runtime của ô; reviewer Codex chỉ gpt-6-sol', () => {
     expect(validateAddAgent({ ...FORM, slot: 'executor-codex', model: 'gpt-6-luna' }, ctx())).toEqual({});
-    expect(validateAddAgent({ ...FORM, slot: 'executor-codex', model: 'claude-sonnet-5' }, ctx()).model).toBe(
+    expect(validateAddAgent({ ...FORM, slot: 'executor-codex', model: 'claude-sonnet-5-5' }, ctx()).model).toBe(
       'validate.model',
     );
     expect(validateAddAgent({ ...FORM, slot: 'executor-opencode', model: 'opencode-go/glm-5.3' }, ctx())).toEqual({});

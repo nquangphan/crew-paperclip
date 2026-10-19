@@ -119,7 +119,7 @@ test('PW-S13-AUTOFILL Tạo agent: máy và folder repo tự điền từ agent 
       const name = `${key}-${role}`;
       const agent = await api.post<{ id: string }>(
         `/api/companies/${company.id}/agents`,
-        crewAgentCreateBody({ name, role, model: 'claude-sonnet-5', pinDir: PIN, environmentId: env.id }),
+        crewAgentCreateBody({ name, role, model: 'claude-sonnet-5-5', pinDir: PIN, environmentId: env.id }),
       );
       created.agents.push(agent.id);
       ids[role] = agent.id;

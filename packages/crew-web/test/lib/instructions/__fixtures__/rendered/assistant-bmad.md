@@ -92,7 +92,7 @@ Ghi lựa chọn ở dòng thứ ba của comment `crew-plan` (sau dòng `revisi
 
 Với BMAD, lô `v1` chỉ có đúng một con:
 - `child-key=bmad-1`, gói `bmad` seq 1, giao agent BMAD có ít issue đang mở nhất trong danh sách (hòa thì agent đứng trước).
-- Tiêu đề `BMAD: lập epic và story`. Mô tả: chép nguyên mô tả gốc dưới dòng `Yêu cầu của owner:`, rồi các marker mỗi dòng một: `crew-bundle id=bmad seq=1`, `crew-model complexity=large model=claude-opus-5 effort=high runtime=claude_local reason=lập epic/story cho toàn yêu cầu`, `crew-child key=bmad-1 revision=v1`, và dòng marker BMAD dưới đây. Dòng marker phải là **đúng một dòng riêng** trong `description`: chép nguyên văn từng ký tự, không backtick, không thụt đầu dòng, không khoảng trắng thừa, xuống dòng bằng LF (không CRLF). Server chỉ gắn bước owner duyệt khi dòng khớp đúng như vậy:
+- Tiêu đề `BMAD: lập epic và story`. Mô tả: chép nguyên mô tả gốc dưới dòng `Yêu cầu của owner:`, rồi các marker mỗi dòng một: `crew-bundle id=bmad seq=1`, `crew-model complexity=large model=claude-opus-5-5 effort=high runtime=claude_local reason=lập epic/story cho toàn yêu cầu`, `crew-child key=bmad-1 revision=v1`, và dòng marker BMAD dưới đây. Dòng marker phải là **đúng một dòng riêng** trong `description`: chép nguyên văn từng ký tự, không backtick, không thụt đầu dòng, không khoảng trắng thừa, xuống dòng bằng LF (không CRLF). Server chỉ gắn bước owner duyệt khi dòng khớp đúng như vậy:
 
 ```
 crew-kind bmad
@@ -103,7 +103,7 @@ crew-kind bmad
   `- Có file epic/story do skill BMAD chính thức ghi, lệnh crew-mac bmad stories thoát 0`
   `- Mỗi story có tiêu chí nghiệm thu Given/When/Then`
   `- Tối đa 30 story; story trong epic không phụ thuộc story sau`
-- `assigneeAdapterOverrides` `{"adapterConfig":{"model":"claude-opus-5","effort":"high"}}`.
+- `assigneeAdapterOverrides` `{"adapterConfig":{"model":"claude-opus-5-5","effort":"high"}}`.
 Server gắn cho con này stage reviewer rồi owner duyệt. Không tạo con code nào trong lô `v1`.
 
 Ngay sau khi POST con BMAD, đọc lại con đó (`GET /api/issues/<id con>`) và kiểm `executionPolicy.stages` có **đúng 2 stage**, stage 2 là `approval` với participant là user (owner). Sai (thiếu policy, một stage, stage 2 không phải `approval`) thì **không tạo story**: comment trên gốc nêu rõ "Trợ Lý: con BMAD <identifier> không có bước owner duyệt (executionPolicy.stages: <tóm tắt>), cần owner xử lý", rồi xử lý con đó theo quy tắc hiện có (chưa có việc nào làm trên con thì `PATCH` con sang `cancelled`; không thì để nguyên và để owner quyết) và dừng. Không tạo con BMAD thay thế khi chưa có owner trả lời.
@@ -173,15 +173,15 @@ Không chọn reviewer: server tự chọn reviewer Claude hay Codex khi tạo i
 
 | complexity | Thứ tự runtime | `claude_local` | `codex_local` | `opencode_local` | Khi nào |
 |---|---|---|---|---|---|
-| `trivial` | `opencode_local` → `claude_local` → `codex_local` | `claude-sonnet-5` / `low` | `gpt-6-luna` / `low` | `opencode-go/deepseek-v4-flash` / `default` | Đổi chữ, fixture, sửa cơ học có mô tả đủ |
-| `small` | `opencode_local` → `claude_local` → `codex_local` | `claude-sonnet-5` / `medium` | `gpt-6-luna` / `medium` | `opencode-go/kimi-k3` / `default` | Bám khuôn có sẵn, một module |
-| `medium` | `claude_local` → `codex_local` → `opencode_local` | `claude-sonnet-5` / `high` | `gpt-6-sol` / `high` | `opencode-go/glm-5.3` / `default` | Nhiều file trong một module, logic mới cỡ vừa |
-| `large` | `claude_local` | `claude-opus-5` / `high` | — | — | Lõi, bảo mật/phân quyền, migration, scheduler, hợp đồng công khai |
+| `trivial` | `opencode_local` → `claude_local` → `codex_local` | `claude-sonnet-5-5` / `low` | `gpt-6-luna` / `low` | `opencode-go/deepseek-v4-flash` / `default` | Đổi chữ, fixture, sửa cơ học có mô tả đủ |
+| `small` | `opencode_local` → `claude_local` → `codex_local` | `claude-sonnet-5-5` / `medium` | `gpt-6-luna` / `medium` | `opencode-go/kimi-k3` / `default` | Bám khuôn có sẵn, một module |
+| `medium` | `claude_local` → `codex_local` → `opencode_local` | `claude-sonnet-5-5` / `high` | `gpt-6-sol` / `high` | `opencode-go/glm-5.3` / `default` | Nhiều file trong một module, logic mới cỡ vừa |
+| `large` | `claude_local` | `claude-opus-5-5` / `high` | — | — | Lõi, bảo mật/phân quyền, migration, scheduler, hợp đồng công khai |
 
 | runtime | model | ảnh | key effort |
 |---|---|---|---|
-| `claude_local` | `claude-sonnet-5` | có | `effort` |
-| `claude_local` | `claude-opus-5` | có | `effort` |
+| `claude_local` | `claude-sonnet-5-5` | có | `effort` |
+| `claude_local` | `claude-opus-5-5` | có | `effort` |
 | `codex_local` | `gpt-6-luna` | có | `modelReasoningEffort` |
 | `codex_local` | `gpt-6-sol` | có | `modelReasoningEffort` |
 | `opencode_local` | `opencode-go/deepseek-v4-flash` | không | — |

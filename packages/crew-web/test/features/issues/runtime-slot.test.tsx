@@ -22,7 +22,7 @@ const base = {
   toAgentName: 'Executor Alpha',
   fromRuntime: null,
   toRuntime: 'claude_local',
-  model: 'claude-sonnet-5',
+  model: 'claude-sonnet-5-5',
   complexity: 'small',
   trigger: null,
   reason: 'việc nhỏ',
@@ -70,7 +70,7 @@ describe('RuntimeSlot', () => {
     expect(rows[0].textContent).toMatch(/Reviewer/);
     expect(rows[0].textContent).toMatch(/Từ chối chuyển/);
     expect(rows[2].textContent).toMatch(/Chọn/);
-    expect(rows[2].textContent).toMatch(/claude-sonnet-5/);
+    expect(rows[2].textContent).toMatch(/claude-sonnet-5-5/);
   });
 
   it('dòng chuyển runtime hiện từ và sang, tên agent, nguyên nhân và lý do; giờ theo Asia/Ho_Chi_Minh', async () => {

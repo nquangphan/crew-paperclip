@@ -17,12 +17,12 @@ export interface CrewRuntimeSpec {
 export const CREW_RUNTIME_CATALOG: Readonly<Record<CrewRuntime, CrewRuntimeSpec>> = Object.freeze({
   claude_local: {
     effortKey: "effort",
-    models: { "claude-sonnet-5": { vision: true }, "claude-opus-5": { vision: true } },
+    models: { "claude-sonnet-5-5": { vision: true }, "claude-opus-5-5": { vision: true } },
     byComplexity: {
-      trivial: { model: "claude-sonnet-5", effort: "low" },
-      small: { model: "claude-sonnet-5", effort: "medium" },
-      medium: { model: "claude-sonnet-5", effort: "high" },
-      large: { model: "claude-opus-5", effort: "high" },
+      trivial: { model: "claude-sonnet-5-5", effort: "low" },
+      small: { model: "claude-sonnet-5-5", effort: "medium" },
+      medium: { model: "claude-sonnet-5-5", effort: "high" },
+      large: { model: "claude-opus-5-5", effort: "high" },
     },
   },
   codex_local: {

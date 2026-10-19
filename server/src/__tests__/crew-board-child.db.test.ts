@@ -272,7 +272,7 @@ suite("Crew: việc con do board thêm vào yêu cầu gốc", () => {
       "Thêm nút xuất Excel",
       "",
       "crew-bundle id=owner-1 seq=1",
-      "crew-model complexity=small model=claude-sonnet-5 effort=medium runtime=claude_local reason=một nút",
+      "crew-model complexity=small model=claude-sonnet-5-5 effort=medium runtime=claude_local reason=một nút",
       `crew-child key=owner-${child.identifier.toLowerCase()} revision=owner-${child.identifier}`,
       "",
       "Tiêu chí nghiệm thu:",
@@ -281,7 +281,7 @@ suite("Crew: việc con do board thêm vào yêu cầu gốc", () => {
     const folded = await svc.update(child.id, {
       description,
       assigneeAgentId: s.executorId,
-      assigneeAdapterOverrides: { adapterConfig: { model: "claude-sonnet-5", effort: "medium" } },
+      assigneeAdapterOverrides: { adapterConfig: { model: "claude-sonnet-5-5", effort: "medium" } },
       actorAgentId: s.assistantId,
     } as never);
     expect(folded).toMatchObject({ assigneeAgentId: s.executorId, description });

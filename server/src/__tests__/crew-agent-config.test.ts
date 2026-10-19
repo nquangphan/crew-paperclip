@@ -16,7 +16,7 @@ const protectedConfig = {
   command: "crew-claude-run",
   extraArgs: ["--plugin-dir", "/crew/pinned"],
   env: { CREW_TEST_VALUE: { type: "plain", value: "pinned" } },
-  model: "claude-sonnet-5",
+  model: "claude-sonnet-5-5",
 };
 const attacks = [
   ["command", "/bin/sh"],

@@ -22,7 +22,7 @@ const NONE = "không còn runtime nào bật, đã đăng nhập và đủ quota
 describe("chooseFallback", () => {
   it("medium từ codex → claude sonnet high, lý do theo trigger", () => {
     expect(chooseFallback(base)).toEqual({ kind: "fallback", toAgentId: A_CLAUDE, toAgentName: "repo-a-executor",
-      toRuntime: "claude_local", model: "claude-sonnet-5", effort: "high", reason: "hết quota" });
+      toRuntime: "claude_local", model: "claude-sonnet-5-5", effort: "high", reason: "hết quota" });
     expect(chooseFallback({ ...base, trigger: "auth" })).toMatchObject({ reason: "chưa đăng nhập hoặc thiếu key" });
     expect(chooseFallback({ ...base, trigger: "unavailable" })).toMatchObject({ reason: "runtime không chạy được trên máy" });
     expect(chooseFallback({ ...base, trigger: "switch_off" })).toMatchObject({ reason: "runtime đang tắt trên máy" });
@@ -44,7 +44,7 @@ describe("chooseFallback", () => {
 
   it("thứ tự theo độ khó, bỏ runtime đã thử; small từ opencode → claude medium", () => {
     expect(chooseFallback({ ...base, complexity: "small", from: { ...base.from, agentId: A_OC, runtime: "opencode_local" }, tried: ["opencode_local"] }))
-      .toMatchObject({ toRuntime: "claude_local", model: "claude-sonnet-5", effort: "medium" });
+      .toMatchObject({ toRuntime: "claude_local", model: "claude-sonnet-5-5", effort: "medium" });
     expect(chooseFallback({ ...base, complexity: "trivial", from: { ...base.from, agentId: A_CLAUDE, runtime: "claude_local" }, tried: ["opencode_local", "claude_local"] }))
       .toMatchObject({ toRuntime: "codex_local", model: "gpt-6-luna", effort: "low" });
     expect(chooseFallback({ ...base, tried: ["codex_local", "claude_local", "opencode_local"] })).toEqual({ kind: "refused", reason: NONE });

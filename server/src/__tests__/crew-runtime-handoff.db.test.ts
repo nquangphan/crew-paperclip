@@ -187,7 +187,7 @@ suite("Crew: đổi người làm issue (override theo vai trò, đánh thức s
   }
 
   const LUNA = { adapterConfig: { model: "gpt-6-luna", modelReasoningEffort: "medium" } };
-  const SONNET = { adapterConfig: { model: "claude-sonnet-5", effort: "medium" } };
+  const SONNET = { adapterConfig: { model: "claude-sonnet-5-5", effort: "medium" } };
   const SOL_HIGH = { adapterConfig: { model: "gpt-6-sol", modelReasoningEffort: "high" } };
 
   describe("override của executor không áp cho reviewer", () => {
@@ -218,7 +218,7 @@ suite("Crew: đổi người làm issue (override theo vai trò, đánh thức s
     it("executor Claude → reviewer Codex: reviewer chạy gpt-6-sol/high; trả về executor Claude với sonnet/medium", async () => {
       const c = await crewCompany();
       const issueId = await childIssue(c, {
-        status: "in_progress", assigneeAgentId: c.claudeExec, description: marker("small", "claude_local", "claude-sonnet-5", "medium"),
+        status: "in_progress", assigneeAgentId: c.claudeExec, description: marker("small", "claude_local", "claude-sonnet-5-5", "medium"),
         assigneeAdapterOverrides: SONNET, codexReviewer: true,
       });
 
@@ -233,7 +233,7 @@ suite("Crew: đổi người làm issue (override theo vai trò, đánh thức s
     it("reviewer Codex hỏng → plugin chuyển sang reviewer Claude: reviewer Claude không nhận model Codex", async () => {
       const c = await crewCompany();
       const issueId = await childIssue(c, {
-        status: "in_progress", assigneeAgentId: c.claudeExec, description: marker("small", "claude_local", "claude-sonnet-5", "medium"),
+        status: "in_progress", assigneeAgentId: c.claudeExec, description: marker("small", "claude_local", "claude-sonnet-5-5", "medium"),
         assigneeAdapterOverrides: SONNET, codexReviewer: true,
       });
       expect(await act(issueId, { agentId: c.claudeExec }, "in_review")).toMatchObject({ assigneeAgentId: c.codexReviewer });

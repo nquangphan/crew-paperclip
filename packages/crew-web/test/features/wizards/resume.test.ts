@@ -11,7 +11,7 @@ const run = (over: Partial<SetupRun>): SetupRun => ({
   projectKey: 'demo',
   projectId: 'p1',
   machineId: 'm1',
-  input: { projectId: 'p1', slot: 'executor-2', name: 'demo-executor-2', model: 'claude-sonnet-5' },
+  input: { projectId: 'p1', slot: 'executor-2', name: 'demo-executor-2', model: 'claude-sonnet-5-5' },
   steps: { agent: { status: 'done', at: 'x', refs: { agent: AGENT, created: 'true' } } },
   status: 'failed',
   runningStep: null,

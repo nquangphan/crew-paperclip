@@ -6,12 +6,12 @@ import * as plugin from "../runtimes/catalog.js";
 const CATALOG = {
   claude_local: {
     effortKey: "effort",
-    models: { "claude-sonnet-5": { vision: true }, "claude-opus-5": { vision: true } },
+    models: { "claude-sonnet-5-5": { vision: true }, "claude-opus-5-5": { vision: true } },
     byComplexity: {
-      trivial: { model: "claude-sonnet-5", effort: "low" },
-      small: { model: "claude-sonnet-5", effort: "medium" },
-      medium: { model: "claude-sonnet-5", effort: "high" },
-      large: { model: "claude-opus-5", effort: "high" },
+      trivial: { model: "claude-sonnet-5-5", effort: "low" },
+      small: { model: "claude-sonnet-5-5", effort: "medium" },
+      medium: { model: "claude-sonnet-5-5", effort: "high" },
+      large: { model: "claude-opus-5-5", effort: "high" },
     },
   },
   codex_local: {
@@ -77,8 +77,8 @@ describe("bản chép catalog runtime/model ở plugin", () => {
       "Mô tả\ncrew-model complexity=small model=gpt-6-luna effort=medium runtime=codex_local reason=sửa nhỏ\n",
     );
     expect(withRuntime?.slice(1)).toEqual(["small", "gpt-6-luna", "medium", "codex_local", "sửa nhỏ"]);
-    const legacy = plugin.CREW_MODEL_LINE_RE.exec("crew-model complexity=large model=claude-opus-5 effort=high reason=migration");
-    expect(legacy?.slice(1)).toEqual(["large", "claude-opus-5", "high", undefined, "migration"]);
+    const legacy = plugin.CREW_MODEL_LINE_RE.exec("crew-model complexity=large model=claude-opus-5-5 effort=high reason=migration");
+    expect(legacy?.slice(1)).toEqual(["large", "claude-opus-5-5", "high", undefined, "migration"]);
     expect(plugin.CREW_MODEL_LINE_RE.test("crew-model complexity=small runtime=codex_local model=x effort=low reason=r")).toBe(false);
   });
 });

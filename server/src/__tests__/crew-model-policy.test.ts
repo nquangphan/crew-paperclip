@@ -18,19 +18,19 @@ import {
 describe("CREW_COMPLEXITY_MODEL", () => {
   it("giới hạn model và effort cho việc code", () => {
     expect(CREW_COMPLEXITY_MODEL).toEqual({
-      trivial: { model: "claude-sonnet-5", effort: "low" },
-      small: { model: "claude-sonnet-5", effort: "medium" },
-      medium: { model: "claude-sonnet-5", effort: "high" },
-      large: { model: "claude-opus-5", effort: "high" },
+      trivial: { model: "claude-sonnet-5-5", effort: "low" },
+      small: { model: "claude-sonnet-5-5", effort: "medium" },
+      medium: { model: "claude-sonnet-5-5", effort: "high" },
+      large: { model: "claude-opus-5-5", effort: "high" },
     });
-    expect([...CREW_ALLOWED_MODELS].sort()).toEqual(["claude-opus-5", "claude-sonnet-5"]);
+    expect([...CREW_ALLOWED_MODELS].sort()).toEqual(["claude-opus-5-5", "claude-sonnet-5-5"]);
     expect([...CREW_ALLOWED_EFFORTS]).toEqual(["low", "medium", "high"]);
   });
 });
 
 describe("checkAgentAdapterOverrides", () => {
   it("cho phép rỗng và chỉ model/effort trong danh sách", () => {
-    for (const value of [undefined, null, {}, { adapterConfig: {} }, { adapterConfig: { model: "claude-opus-5", effort: "high" } }]) {
+    for (const value of [undefined, null, {}, { adapterConfig: {} }, { adapterConfig: { model: "claude-opus-5-5", effort: "high" } }]) {
       expect(checkAgentAdapterOverrides(value)).toEqual([]);
     }
   });
@@ -62,12 +62,12 @@ describe("CREW_RUNTIME_CATALOG", () => {
     expect(CREW_RUNTIME_CATALOG).toEqual({
       claude_local: {
         effortKey: "effort",
-        models: { "claude-sonnet-5": { vision: true }, "claude-opus-5": { vision: true } },
+        models: { "claude-sonnet-5-5": { vision: true }, "claude-opus-5-5": { vision: true } },
         byComplexity: {
-          trivial: { model: "claude-sonnet-5", effort: "low" },
-          small: { model: "claude-sonnet-5", effort: "medium" },
-          medium: { model: "claude-sonnet-5", effort: "high" },
-          large: { model: "claude-opus-5", effort: "high" },
+          trivial: { model: "claude-sonnet-5-5", effort: "low" },
+          small: { model: "claude-sonnet-5-5", effort: "medium" },
+          medium: { model: "claude-sonnet-5-5", effort: "high" },
+          large: { model: "claude-opus-5-5", effort: "high" },
         },
       },
       codex_local: {
@@ -128,7 +128,7 @@ describe("CREW_RUNTIME_CATALOG", () => {
 
 describe("checkAgentAdapterOverrides theo runtime", () => {
   it("claude_local: luật Claude như cũ", () => {
-    expect(checkAgentAdapterOverrides({ adapterConfig: { model: "claude-opus-5", effort: "high" } }, "claude_local")).toEqual([]);
+    expect(checkAgentAdapterOverrides({ adapterConfig: { model: "claude-opus-5-5", effort: "high" } }, "claude_local")).toEqual([]);
     expect(checkAgentAdapterOverrides({ adapterConfig: { model: "gpt-6-sol" } }, "claude_local")).toEqual(["adapterConfig.model:gpt-6-sol@claude_local"]);
     expect(checkAgentAdapterOverrides({ adapterConfig: { modelReasoningEffort: "high" } }, "claude_local")).toEqual(["adapterConfig.modelReasoningEffort"]);
   });
@@ -143,7 +143,7 @@ describe("checkAgentAdapterOverrides theo runtime", () => {
     expect(checkAgentAdapterOverrides({ adapterConfig: { effort: "low" } }, "opencode_local")).toEqual(["adapterConfig.effort"]);
   });
   it("model của runtime khác bị chặn, ghi @runtime", () => {
-    expect(checkAgentAdapterOverrides({ adapterConfig: { model: "claude-opus-5" } }, "opencode_local")).toEqual(["adapterConfig.model:claude-opus-5@opencode_local"]);
+    expect(checkAgentAdapterOverrides({ adapterConfig: { model: "claude-opus-5-5" } }, "opencode_local")).toEqual(["adapterConfig.model:claude-opus-5-5@opencode_local"]);
     expect(checkAgentAdapterOverrides({ adapterConfig: { model: "opencode-go/glm-5.3" } }, "codex_local")).toEqual(["adapterConfig.model:opencode-go/glm-5.3@codex_local"]);
   });
   it("key ngoài adapterConfig vẫn bị chặn ở mọi runtime", () => {
@@ -152,9 +152,9 @@ describe("checkAgentAdapterOverrides theo runtime", () => {
   });
   it("adapterType lạ hoặc thiếu: luật Claude như cũ", () => {
     expect(checkAgentAdapterOverrides({ adapterConfig: { model: "gpt-6-sol" } }, "hermes")).toEqual(["adapterConfig.model:gpt-6-sol"]);
-    expect(checkAgentAdapterOverrides({ adapterConfig: { model: "claude-opus-5", effort: "high" } })).toEqual([]);
-    expect(checkAgentAdapterOverrides({ adapterConfig: { model: "claude-opus-5", effort: "high" } }, null)).toEqual([]);
-    expect(checkAgentAdapterOverrides({ adapterConfig: { model: "claude-opus-5", effort: "high" } }, "process")).toEqual([]);
+    expect(checkAgentAdapterOverrides({ adapterConfig: { model: "claude-opus-5-5", effort: "high" } })).toEqual([]);
+    expect(checkAgentAdapterOverrides({ adapterConfig: { model: "claude-opus-5-5", effort: "high" } }, null)).toEqual([]);
+    expect(checkAgentAdapterOverrides({ adapterConfig: { model: "claude-opus-5-5", effort: "high" } }, "process")).toEqual([]);
   });
 });
 
@@ -162,8 +162,8 @@ describe("CREW_MODEL_LINE_RE", () => {
   it("nhận marker mới (runtime= sau effort=) và cũ", () => {
     const fresh = "crew-model complexity=small model=opencode-go/kimi-k3 effort=default runtime=opencode_local reason=bám khuôn".match(CREW_MODEL_LINE_RE);
     expect(fresh?.slice(1)).toEqual(["small", "opencode-go/kimi-k3", "default", "opencode_local", "bám khuôn"]);
-    const legacy = "crew-model complexity=large model=claude-opus-5 effort=high reason=bảo mật".match(CREW_MODEL_LINE_RE);
-    expect(legacy?.slice(1)).toEqual(["large", "claude-opus-5", "high", undefined, "bảo mật"]);
+    const legacy = "crew-model complexity=large model=claude-opus-5-5 effort=high reason=bảo mật".match(CREW_MODEL_LINE_RE);
+    expect(legacy?.slice(1)).toEqual(["large", "claude-opus-5-5", "high", undefined, "bảo mật"]);
     expect("mô tả\ncrew-model complexity=medium model=gpt-6-sol effort=high runtime=codex_local reason=x\nhết").toMatch(CREW_MODEL_LINE_RE);
   });
   it("từ chối runtime lạ và thứ tự cũ của plan trước", () => {

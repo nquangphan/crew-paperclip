@@ -212,7 +212,7 @@ suite("crew issue gate in issueService.update", () => {
   it("agent PATCH model/effort hợp lệ hoặc null, board đặt override khác", async () => {
     const c = await company();
     const issueId = await issue(c, { status: "in_progress", assigneeAgentId: c.executorId });
-    await issueService(db).update(issueId, { assigneeAdapterOverrides: { adapterConfig: { model: "claude-sonnet-5", effort: "medium" } }, actorAgentId: c.executorId } as never);
+    await issueService(db).update(issueId, { assigneeAdapterOverrides: { adapterConfig: { model: "claude-sonnet-5-5", effort: "medium" } }, actorAgentId: c.executorId } as never);
     await issueService(db).update(issueId, { assigneeAdapterOverrides: null, actorAgentId: c.executorId } as never);
     await issueService(db).update(issueId, { assigneeAdapterOverrides: { adapterConfig: { extraArgs: ["--verbose"] } }, actorUserId: "owner-1" } as never);
     const [row] = await db.select().from(issues).where(eq(issues.id, issueId));
@@ -261,9 +261,9 @@ suite("crew issue gate in issueService.update", () => {
     const opencodeId = await runtimeAgent(c, "opencode_local");
     const issueId = await issue(c, { status: "todo", assigneeAgentId: opencodeId });
     await expect(issueService(db).update(issueId, {
-      assigneeAdapterOverrides: { adapterConfig: { model: "claude-opus-5" } },
+      assigneeAdapterOverrides: { adapterConfig: { model: "claude-opus-5-5" } },
       actorAgentId: c.executorId,
-    } as never)).rejects.toMatchObject({ status: 422, details: { violations: ["adapterConfig.model:claude-opus-5@opencode_local"] } });
+    } as never)).rejects.toMatchObject({ status: 422, details: { violations: ["adapterConfig.model:claude-opus-5-5@opencode_local"] } });
     await expect(issueService(db).update(issueId, {
       assigneeAdapterOverrides: { adapterConfig: { model: "opencode-go/glm-5.3" } },
       actorAgentId: c.executorId,

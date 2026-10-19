@@ -386,7 +386,7 @@ suite("crew agent-to-agent assignment", () => {
       // Trợ Lý chọn executor sau khi tạo (có thể là Codex), còn policy đã ghim: không để reviewer Codex review code Codex.
       expect(reviewers(await childOf(s, { createdByUserId: "owner-1" }))).toEqual([[s.r]]);
       expect(reviewers(await childOf(s, { createdByUserId: "owner-1", description: "Thêm nút" }))).toEqual([[s.r]]);
-      const marker = "crew-model complexity=small model=claude-sonnet-5 effort=medium runtime=claude_local reason=thử";
+      const marker = "crew-model complexity=small model=claude-sonnet-5-5 effort=medium runtime=claude_local reason=thử";
       expect(reviewers(await childOf(s, { createdByUserId: "owner-1", description: marker }))).toEqual([[s.cr, s.r]]);
     });
 

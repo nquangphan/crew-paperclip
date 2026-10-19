@@ -297,12 +297,12 @@ const MODEL_LINE_RE =
 const RUNTIME_CATALOG = {
   claude_local: {
     effortKey: "effort",
-    models: { "claude-sonnet-5": { vision: true }, "claude-opus-5": { vision: true } },
+    models: { "claude-sonnet-5-5": { vision: true }, "claude-opus-5-5": { vision: true } },
     byComplexity: {
-      trivial: { model: "claude-sonnet-5", effort: "low" },
-      small: { model: "claude-sonnet-5", effort: "medium" },
-      medium: { model: "claude-sonnet-5", effort: "high" },
-      large: { model: "claude-opus-5", effort: "high" },
+      trivial: { model: "claude-sonnet-5-5", effort: "low" },
+      small: { model: "claude-sonnet-5-5", effort: "medium" },
+      medium: { model: "claude-sonnet-5-5", effort: "high" },
+      large: { model: "claude-opus-5-5", effort: "high" },
     },
   },
   codex_local: {
@@ -372,7 +372,7 @@ test("assistant: marker crew-model đặt runtime= sau effort=, mọi ô của b
       assert.deepEqual(legacyWeb.exec(line).slice(1), [level, choice.model, choice.effort ?? "default"]);
     }
   }
-  assert.match("crew-model complexity=large model=claude-opus-5 effort=high reason=bảo mật", MODEL_LINE_RE);
+  assert.match("crew-model complexity=large model=claude-opus-5-5 effort=high reason=bảo mật", MODEL_LINE_RE);
   assert.doesNotMatch("crew-model complexity=small model=x effort=low runtime=gemini_local reason=y", MODEL_LINE_RE);
   assert.doesNotMatch("crew-model complexity=small runtime=opencode_local model=opencode-go/kimi-k3 effort=default reason=y", MODEL_LINE_RE);
 });
@@ -789,7 +789,7 @@ test("assistant: chọn workflow, con BMAD và tạo story từ BMAD", () => {
   assert.match(choose, /Agent BMAD của company/);
   assert.ok(choose.includes("child-key=bmad-1"));
   assert.ok(choose.includes("crew-bundle id=bmad seq=1"));
-  const modelLine = /`(crew-model complexity=large model=claude-opus-5 effort=high runtime=claude_local reason=[^`]+)`/.exec(choose);
+  const modelLine = /`(crew-model complexity=large model=claude-opus-5-5 effort=high runtime=claude_local reason=[^`]+)`/.exec(choose);
   assert.ok(modelLine, "thiếu crew-model của con BMAD");
   assert.match(modelLine[1], MODEL_LINE_RE);
   const story = templateLine(text, "crew-bmad story=")

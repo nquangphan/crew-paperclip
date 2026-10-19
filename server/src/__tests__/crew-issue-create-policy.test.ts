@@ -37,7 +37,7 @@ describe("decideCreatePolicy", () => {
   });
   it("agent dùng model/effort hợp lệ, board được đặt override khác", () => {
     expect(decideCreatePolicy({
-      data: { createdByAgentId: "e", parentId: "p", assigneeAdapterOverrides: { adapterConfig: { model: "claude-opus-5", effort: "high" } } }, roles, ownerUserId: null,
+      data: { createdByAgentId: "e", parentId: "p", assigneeAdapterOverrides: { adapterConfig: { model: "claude-opus-5-5", effort: "high" } } }, roles, ownerUserId: null,
     })).toEqual({ kind: "set", template: "child" });
     expect(decideCreatePolicy({
       data: { createdByUserId: "owner-1", parentId: "p", assigneeAdapterOverrides: { adapterConfig: { extraArgs: [] } } }, roles, ownerUserId: "owner-1",
@@ -48,11 +48,11 @@ describe("decideCreatePolicy", () => {
       decideCreatePolicy({
         data: { createdByAgentId: "e", parentId: "p", assigneeAdapterOverrides: { adapterConfig } }, roles, ownerUserId: null, assigneeAdapterType,
       });
-    expect(child({ model: "claude-opus-5" }, "opencode_local")).toEqual({ kind: "reject", code: "crew_override_forbidden", violations: ["adapterConfig.model:claude-opus-5@opencode_local"] });
+    expect(child({ model: "claude-opus-5-5" }, "opencode_local")).toEqual({ kind: "reject", code: "crew_override_forbidden", violations: ["adapterConfig.model:claude-opus-5-5@opencode_local"] });
     expect(child({ model: "opencode-go/kimi-k3" }, "opencode_local")).toEqual({ kind: "set", template: "child" });
     expect(child({ model: "gpt-6-sol", modelReasoningEffort: "high" }, "codex_local")).toEqual({ kind: "set", template: "child" });
     expect(child({ model: "gpt-6-sol", modelReasoningEffort: "high" })).toEqual({ kind: "reject", code: "crew_override_forbidden", violations: ["adapterConfig.model:gpt-6-sol", "adapterConfig.modelReasoningEffort"] });
-    expect(child({ model: "claude-opus-5", effort: "high" }, "process")).toEqual({ kind: "set", template: "child" });
+    expect(child({ model: "claude-opus-5-5", effort: "high" }, "process")).toEqual({ kind: "set", template: "child" });
   });
   it("agent tạo issue gốc bị từ chối", () => {
     expect(decideCreatePolicy({ data: { createdByAgentId: "e" }, roles, ownerUserId: "owner-1" })).toEqual({
@@ -116,7 +116,7 @@ describe("decideCreatePolicy", () => {
     });
   });
   it("việc con board thêm chờ executor: board tạo, có cha, chưa giao ai, chưa marker crew-model", () => {
-    const marker = "crew-model complexity=small model=claude-sonnet-5 effort=medium reason=thử";
+    const marker = "crew-model complexity=small model=claude-sonnet-5-5 effort=medium reason=thử";
     expect(boardChildAwaitingExecutor({ createdByUserId: "owner-1", parentId: "p" })).toBe(true);
     expect(boardChildAwaitingExecutor({ createdByUserId: "owner-1", parentId: "p", description: "Thêm nút" })).toBe(true);
     expect(boardChildAwaitingExecutor({ createdByUserId: "owner-1", parentId: "p", assigneeAgentId: "e" })).toBe(false);
@@ -417,10 +417,10 @@ suite("crew policy in issueService.create", () => {
     const { executorId, rootId } = await seed();
     const { issue } = await issueService(db).createChild(rootId, {
       title: "con", createdByAgentId: executorId, assigneeAgentId: executorId,
-      assigneeAdapterOverrides: { adapterConfig: { model: "claude-opus-5", effort: "high" } },
+      assigneeAdapterOverrides: { adapterConfig: { model: "claude-opus-5-5", effort: "high" } },
     } as never);
     const [row] = await db.select().from(issues).where(eq(issues.id, issue.id));
-    expect(row!.assigneeAdapterOverrides).toEqual({ adapterConfig: { model: "claude-opus-5", effort: "high" } });
+    expect(row!.assigneeAdapterOverrides).toEqual({ adapterConfig: { model: "claude-opus-5-5", effort: "high" } });
   });
 
   it("override kiểm theo runtime của assignee: executor opencode_local nhận model OpenCode, chặn model Claude", async () => {
@@ -440,8 +440,8 @@ suite("crew policy in issueService.create", () => {
     const before = await db.select().from(issues).where(eq(issues.companyId, companyId));
     await expect(issueService(db).createChild(rootId, {
       title: "con", createdByAgentId: executorId, assigneeAgentId: opencodeId,
-      assigneeAdapterOverrides: { adapterConfig: { model: "claude-opus-5" } },
-    } as never)).rejects.toMatchObject({ status: 422, details: { code: "crew_override_forbidden", violations: ["adapterConfig.model:claude-opus-5@opencode_local"] } });
+      assigneeAdapterOverrides: { adapterConfig: { model: "claude-opus-5-5" } },
+    } as never)).rejects.toMatchObject({ status: 422, details: { code: "crew_override_forbidden", violations: ["adapterConfig.model:claude-opus-5-5@opencode_local"] } });
     expect(await db.select().from(issues).where(eq(issues.companyId, companyId))).toHaveLength(before.length);
     const { issue } = await issueService(db).createChild(rootId, {
       title: "con", createdByAgentId: executorId, assigneeAgentId: opencodeId,

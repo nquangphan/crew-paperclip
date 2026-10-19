@@ -107,8 +107,8 @@ describe("tiến độ wizard trên database thật của host", () => {
       [createBody({ input: { ...projectInput, folder: "relative" } }), "folder phải là đường tuyệt đối"],
       [createBody({ input: { ...projectInput, name: "" } }), "name không hợp lệ"],
       [createBody({ input: { ...projectInput, extra: 1 } }), "trường extra không được hỗ trợ"],
-      [createBody({ kind: "add-agent", input: { projectId: "x", slot: "executor", name: "A", model: "claude-sonnet-5" } }), "projectId phải là uuid"],
-      [createBody({ kind: "add-agent", input: { projectId, slot: "boss", name: "A", model: "claude-sonnet-5" } }), "slot không hợp lệ"],
+      [createBody({ kind: "add-agent", input: { projectId: "x", slot: "executor", name: "A", model: "claude-sonnet-5-5" } }), "projectId phải là uuid"],
+      [createBody({ kind: "add-agent", input: { projectId, slot: "boss", name: "A", model: "claude-sonnet-5-5" } }), "slot không hợp lệ"],
       [createBody({ kind: "add-agent", input: { projectId, slot: "executor", name: "A", model: "bad model" } }), "model không hợp lệ"],
       ["text", "body phải là object"],
     ] as const) {
@@ -117,7 +117,7 @@ describe("tiến độ wizard trên database thật của host", () => {
   });
 
   it("run add-agent không khóa theo key và ghi projectId từ input", async () => {
-    const input = { projectId, slot: "executor-2", name: "Thợ 2", model: "claude-sonnet-5" };
+    const input = { projectId, slot: "executor-2", name: "Thợ 2", model: "claude-sonnet-5-5" };
     const first = await create({ kind: "add-agent", input });
     const second = await create({ kind: "add-agent", input });
     expect(first.projectId).toBe(projectId);
@@ -225,7 +225,7 @@ describe("tiến độ wizard trên database thật của host", () => {
     await finish(withProject.id, "check", { status: "done" });
     expect(await abandon(withProject.id)).toEqual({ status: 409, body: { error: "Lần cài đặt đã xong" } });
 
-    const agentRun = await create({ kind: "add-agent", input: { projectId, slot: "executor", name: "A", model: "claude-sonnet-5" } });
+    const agentRun = await create({ kind: "add-agent", input: { projectId, slot: "executor", name: "A", model: "claude-sonnet-5-5" } });
     expect(await abandon(agentRun.id)).toEqual({ status: 409, body: { error: "Chỉ bỏ được lần thêm project" } });
 
     const other = await create({ projectKey: "demo-3", input: { ...projectInput, key: "demo-3" } });
@@ -245,7 +245,7 @@ describe("tiến độ wizard trên database thật của host", () => {
     await begin(run.id, "project");
     await finish(run.id, "project", { status: "done", projectId });
     const agentBody = (projectKey: string, project = projectId) =>
-      createBody({ kind: "add-agent", projectKey, input: { projectId: project, slot: "executor-2", name: "Thợ 2", model: "claude-sonnet-5" } });
+      createBody({ kind: "add-agent", projectKey, input: { projectId: project, slot: "executor-2", name: "Thợ 2", model: "claude-sonnet-5-5" } });
 
     expect(await call(request("setup.create", { body: agentBody("demo-b") })))
       .toEqual({ status: 400, body: { error: "projectKey không khớp project" } });
@@ -326,7 +326,7 @@ describe("tiến độ wizard trên database thật của host", () => {
     expect(res.body).toMatchObject({ kind: "remove-project", projectKey: "demo", projectId: orphan });
     expect(await removal(removed)).toEqual({ status: 400, body: { error: "Khóa project đã thuộc project khác" } });
     // An agent cannot be added to the old project either: its key now names the orphan's checkouts.
-    expect(await call(request("setup.create", { body: createBody({ kind: "add-agent", input: { projectId: removed, slot: "executor", name: "A", model: "claude-sonnet-5" } }) })))
+    expect(await call(request("setup.create", { body: createBody({ kind: "add-agent", input: { projectId: removed, slot: "executor", name: "A", model: "claude-sonnet-5-5" } }) })))
       .toEqual({ status: 400, body: { error: "Khóa project đã thuộc project khác" } });
   });
 
@@ -356,7 +356,7 @@ describe("tiến độ wizard trên database thật của host", () => {
 
   it("data crew.setupRuns lọc theo kind, status, projectId, mới nhất trước", async () => {
     const a = await create();
-    const b = await create({ kind: "add-agent", input: { projectId, slot: "executor", name: "A", model: "claude-sonnet-5" } });
+    const b = await create({ kind: "add-agent", input: { projectId, slot: "executor", name: "A", model: "claude-sonnet-5-5" } });
     expect((await call(request("setup.create", { body: createBody({ companyId: otherCompany }), company: otherCompany }))).status).toBe(201);
     await host.sql.unsafe(`UPDATE ${host.ns}.crew_setup_runs SET created_at = now() - interval '1 hour' WHERE id = $1`, [a.id]);
     expect((await loadSetupRuns(host.ctx, { companyId })).map((run) => run.id)).toEqual([b.id, a.id]);
