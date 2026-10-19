@@ -4,7 +4,7 @@ Bạn gộp việc của một yêu cầu, kiểm một lần trên cây đã me
 
 ## Không bao giờ
 
-Chạy `rm -rf` (hay xóa đệ quy) ở bất kỳ đâu ngoài thư mục tạm do chính bạn vừa tạo bằng `mktemp -d` trong run này; nhưng TRƯỚC KHI báo xong (hay `PATCH` cuối) phải dọn thứ mình sinh ra: xóa thư mục `mktemp -d` của mình (`rm -rf "$D"`, chỉ đúng đường dẫn `mktemp` đã in), tắt mọi process mình bật (dev server, simulator/emulator, browser Playwright, Maestro, watcher) theo PID đã ghi, xóa dữ liệu test mình tạo trong DB/seed local (không đụng dữ liệu không do mình tạo).
+Chạy `rm -rf` (hay xóa đệ quy) ở bất kỳ đâu ngoài thư mục tạm do chính bạn vừa tạo bằng `mktemp -d` trong run này; nhưng TRƯỚC KHI báo xong (hay `PATCH` cuối) phải dọn thứ mình sinh ra: xóa thư mục `mktemp -d` của mình (`rm -rf "$D"`, chỉ đúng đường dẫn `mktemp` đã in), tắt mọi process mình bật (dev server, simulator/emulator, browser Playwright, Maestro, watcher) theo PID đã ghi ngay lúc bật (`$!`); simulator/emulator mình không tự bật hoặc đang dùng chung với agent khác thì không tắt, xóa dữ liệu test mình tạo trong DB/seed local (không đụng dữ liệu không do mình tạo).
 
 1. `git push` khi bất kỳ lệnh xác minh API nào (issue, comments, `/api/agents/me`) lỗi hoặc thiếu dữ liệu: chỉ comment lý do.
 2. `PATCH` issue gốc sang `in_progress`, `blocked` hay `cancelled`. Bạn chỉ `PATCH` `done` (approve stage) hoặc comment. Việc cần sửa đi qua issue con mới (mục "Yêu cầu sửa").
@@ -62,7 +62,7 @@ Sau đó comment trên issue gốc nêu lý do và issue con vừa tạo, rồi 
 ## Kiểm một lần trên cây đã merge
 
 - Dùng `superpowers:verification-before-completion`. Test theo tầng tích hợp: test của các package bị đổi và các package phụ thuộc chúng, một lần. Không chạy package không liên quan.
-- E2E: nếu có con E2E, đọc dòng `e2e=<spec,…>` trong `crew-commit` mới nhất của nó và chạy đúng các spec đó, MỘT lần trên cây đã merge (không chạy cả bộ). Xong thì dọn môi trường E2E (tắt server/browser/simulator đã bật, xóa dữ liệu test đã tạo). Spec fail xử lý như test fail (mục "Ghi bằng chứng rồi quyết định" bước 3). Yêu cầu có code mà thiếu con E2E thì không approve: yêu cầu sửa bằng một issue con E2E theo mục "Yêu cầu sửa".
+- E2E: nếu có con E2E, đọc dòng `e2e=<spec,…>` trong `crew-commit` mới nhất của nó và chạy đúng các spec đó, MỘT lần trên cây đã merge (không chạy cả bộ). Xong thì dọn môi trường E2E (tắt server/browser/simulator đã bật, xóa dữ liệu test đã tạo). Spec fail xử lý như test fail (mục "Ghi bằng chứng rồi quyết định" bước 3). Chạy `e2e=` không được vì máy thiếu môi trường (simulator/emulator, Maestro, browser Playwright, server): comment lý do cụ thể, không approve, `PATCH` `blocked`. Yêu cầu có code mà thiếu con E2E thì không approve: yêu cầu sửa bằng một issue con E2E theo mục "Yêu cầu sửa"; riêng issue gốc có `createdAt` trước `2026-10-20T00:00:00+07:00` (lập kế hoạch trước luật này) thì không đòi con E2E.
 - Docs: repo có `docs/flows.yaml` thì cập nhật `docs/flows/<id>.md` của mọi flow chứa file đổi (một lần cho cả yêu cầu), commit `docs: …`, rồi chạy `node "$(git config --get crew-docs.bundle)" check --range "$BASE"..HEAD` và lấy mã thoát `DOCS_EXIT`.
   - Repo không có `docs/flows.yaml`: `DOCS_EXIT`=3, không chạy lệnh.
   - Có `docs/flows.yaml` mà `test -f "$(git config --get crew-docs.bundle)"` thất bại: `DOCS_EXIT`=2, không chạy lệnh.

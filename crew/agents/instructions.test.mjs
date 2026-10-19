@@ -4,7 +4,7 @@ import { test } from "node:test";
 
 const DOCS_CHECK_RE = /^crew-docs-check commit=([0-9a-f]{40}) range=([0-9a-f]{7,40})\.\.([0-9a-f]{40}) exit=([0-3])(?=$|\s|`)/;
 const read = (name) => readFileSync(new URL(`./${name}.md`, import.meta.url), "utf8");
-const RECURSIVE_DELETE_RULE = "Chạy `rm -rf` (hay xóa đệ quy) ở bất kỳ đâu ngoài thư mục tạm do chính bạn vừa tạo bằng `mktemp -d` trong run này; nhưng TRƯỚC KHI báo xong (hay `PATCH` cuối) phải dọn thứ mình sinh ra: xóa thư mục `mktemp -d` của mình (`rm -rf \"$D\"`, chỉ đúng đường dẫn `mktemp` đã in), tắt mọi process mình bật (dev server, simulator/emulator, browser Playwright, Maestro, watcher) theo PID đã ghi, xóa dữ liệu test mình tạo trong DB/seed local (không đụng dữ liệu không do mình tạo).";
+const RECURSIVE_DELETE_RULE = "Chạy `rm -rf` (hay xóa đệ quy) ở bất kỳ đâu ngoài thư mục tạm do chính bạn vừa tạo bằng `mktemp -d` trong run này; nhưng TRƯỚC KHI báo xong (hay `PATCH` cuối) phải dọn thứ mình sinh ra: xóa thư mục `mktemp -d` của mình (`rm -rf \"$D\"`, chỉ đúng đường dẫn `mktemp` đã in), tắt mọi process mình bật (dev server, simulator/emulator, browser Playwright, Maestro, watcher) theo PID đã ghi ngay lúc bật (`$!`); simulator/emulator mình không tự bật hoặc đang dùng chung với agent khác thì không tắt, xóa dữ liệu test mình tạo trong DB/seed local (không đụng dữ liệu không do mình tạo).";
 const fill = (line) =>
   line
     .replaceAll("<git rev-parse HEAD>", "a".repeat(40))
@@ -324,6 +324,14 @@ const RUNTIME_CATALOG = {
     },
   },
 };
+// Server và plugin còn giữ hai id Claude cũ trong `models` chỉ để chấp nhận override/agent cũ (không có trong
+// byComplexity và không có trong bảng assistant.md); bỏ chúng trước khi so với bảng md.
+const LEGACY_CLAUDE_MODELS = ["claude-sonnet-5", "claude-opus-5"];
+const withoutLegacyModels = (catalog) => {
+  const copy = JSON.parse(JSON.stringify(catalog));
+  for (const id of LEGACY_CLAUDE_MODELS) delete copy.claude_local.models[id];
+  return copy;
+};
 const RUNTIME_ORDER = {
   trivial: ["opencode_local", "claude_local", "codex_local"],
   small: ["opencode_local", "claude_local", "codex_local"],
@@ -419,7 +427,7 @@ test("bảng runtime/model trong assistant.md trùng catalog của server", asyn
   const { catalog, order } = parseRuntimeTables(read("assistant"));
   if (server.CREW_COMPLEXITY_MODEL) assert.deepEqual(catalog.claude_local.byComplexity, { ...server.CREW_COMPLEXITY_MODEL });
   if (server.CREW_RUNTIME_CATALOG) {
-    assert.deepEqual(JSON.parse(JSON.stringify(server.CREW_RUNTIME_CATALOG)), catalog);
+    assert.deepEqual(withoutLegacyModels(server.CREW_RUNTIME_CATALOG), catalog);
     assert.deepEqual(JSON.parse(JSON.stringify(server.CREW_RUNTIME_ORDER)), order);
   }
 });
@@ -428,7 +436,7 @@ const PLUGIN_CATALOG_SOURCE = new URL("../../packages/crew-plugin/src/runtimes/c
 test("bảng runtime/model trong assistant.md trùng catalog chép ở plugin", { skip: !existsSync(PLUGIN_CATALOG_SOURCE) && "catalog plugin chưa có trên nhánh này" }, async () => {
   const plugin = await import(PLUGIN_CATALOG_SOURCE.href);
   const { catalog, order } = parseRuntimeTables(read("assistant"));
-  assert.deepEqual(JSON.parse(JSON.stringify(plugin.CREW_RUNTIME_CATALOG)), catalog);
+  assert.deepEqual(withoutLegacyModels(plugin.CREW_RUNTIME_CATALOG), catalog);
   assert.deepEqual(JSON.parse(JSON.stringify(plugin.CREW_RUNTIME_ORDER)), order);
 });
 
@@ -1049,7 +1057,42 @@ test("integrator chạy đúng spec e2e= một lần trên cây đã merge, stag
 
 test("reviewer issue gốc bắt đọc diff gộp và review toàn cục", () => {
   const body = section(read("reviewer"), "## Issue gốc (không có `parentId`)");
-  for (const needle of ["BẮT BUỘC đọc diff gộp", "crew/req/<identifier>", "git diff origin/HEAD...<đầu nhánh>", "hợp đồng API", "phân quyền", "đồng thời/race", "con E2E", "không đòi `crew-commit` trên issue gốc"]) {
+  for (const needle of ["BẮT BUỘC đọc diff gộp", "crew/req/<identifier>", "git diff origin/HEAD...crew/review-tmp/<identifier>", "hợp đồng API", "phân quyền", "đồng thời/race", "con E2E", "không đòi `crew-commit` trên issue gốc"]) {
+    assert.ok(body.includes(needle), `thiếu: ${needle}`);
+  }
+});
+
+test("con E2E dựng nền bằng crew-e2e-base từ các sha đã duyệt; reviewer diff từ nền đó; assistant ghi ngoại lệ", () => {
+  const executor = read("executor");
+  const body = section(executor, "## Con E2E (`crew-child key=e2e`)");
+  for (const needle of ["crew-child key=e2e", "origin/HEAD", "crew-review sha=<sha> verdict=approved", "git merge --no-ff <sha>", "theo thứ tự phụ thuộc", "`blocked`", "crew-e2e-base sha=", "simulator/emulator, Maestro, browser Playwright", "không ghi `result=pass`"]) {
+    assert.ok(body.includes(needle), `executor: thiếu: ${needle}`);
+  }
+  const review = section(read("reviewer"), "## Cách review");
+  for (const needle of ["crew-e2e-base sha=<40 hex>", "git diff <crew-e2e-base>..<sha>", "chỉ phần E2E"]) {
+    assert.ok(review.includes(needle), `reviewer: thiếu: ${needle}`);
+  }
+  const assistant = section(read("assistant"), "## Tách việc");
+  assert.ok(assistant.includes("Ngoại lệ duy nhất là con E2E"));
+  assert.ok(assistant.includes("crew-e2e-base"));
+  // Marker nhận diện con E2E là dòng thật trong mô tả, không phải `child-key e2e`.
+  for (const name of ["executor", "reviewer"]) assert.ok(!read(name).includes("`child-key e2e`"), `${name}: còn marker sai`);
+  assert.ok(!/e2e=<spec1,spec2>` ngay dưới dòng `crew-commit`/.test(executor));
+});
+
+test("con E2E chỉ bắt buộc với issue gốc tạo từ 2026-10-20; thiếu môi trường E2E thì blocked", () => {
+  for (const name of ["reviewer", "integrator"]) {
+    const text = read(name);
+    assert.ok(text.includes("2026-10-20T00:00:00+07:00"), `${name}: thiếu mốc ngày`);
+    assert.ok(text.includes("không đòi con E2E"), `${name}: thiếu ghi chú không đòi`);
+  }
+  const integrator = read("integrator");
+  assert.ok(integrator.includes("không approve, `PATCH` `blocked`"));
+});
+
+test("reviewer issue gốc tự dựng nhánh tạm crew/review-tmp rồi xóa sau khi review", () => {
+  const body = section(read("reviewer"), "## Issue gốc (không có `parentId`)");
+  for (const needle of ["crew/review-tmp/<identifier>", "git switch -c crew/review-tmp/<identifier> origin/HEAD", "chạy TRƯỚC integrator", "request changes nêu các con xung đột", "git branch -D crew/review-tmp/<identifier>", "kể cả khi request changes"]) {
     assert.ok(body.includes(needle), `thiếu: ${needle}`);
   }
 });

@@ -4,7 +4,7 @@ Bạn làm một issue trên Mac của owner, trong git worktree riêng của b�
 
 ## Không bao giờ
 
-Chạy `rm -rf` (hay xóa đệ quy) ở bất kỳ đâu ngoài thư mục tạm do chính bạn vừa tạo bằng `mktemp -d` trong run này; nhưng TRƯỚC KHI báo xong (hay `PATCH` cuối) phải dọn thứ mình sinh ra: xóa thư mục `mktemp -d` của mình (`rm -rf "$D"`, chỉ đúng đường dẫn `mktemp` đã in), tắt mọi process mình bật (dev server, simulator/emulator, browser Playwright, Maestro, watcher) theo PID đã ghi, xóa dữ liệu test mình tạo trong DB/seed local (không đụng dữ liệu không do mình tạo).
+Chạy `rm -rf` (hay xóa đệ quy) ở bất kỳ đâu ngoài thư mục tạm do chính bạn vừa tạo bằng `mktemp -d` trong run này; nhưng TRƯỚC KHI báo xong (hay `PATCH` cuối) phải dọn thứ mình sinh ra: xóa thư mục `mktemp -d` của mình (`rm -rf "$D"`, chỉ đúng đường dẫn `mktemp` đã in), tắt mọi process mình bật (dev server, simulator/emulator, browser Playwright, Maestro, watcher) theo PID đã ghi ngay lúc bật (`$!`); simulator/emulator mình không tự bật hoặc đang dùng chung với agent khác thì không tắt, xóa dữ liệu test mình tạo trong DB/seed local (không đụng dữ liệu không do mình tạo).
 
 1. Commit trên nhánh không phải `crew/<identifier>` của issue này (xem bước 1 bên dưới).
 2. Báo xong mà không đăng `crew-commit` cho commit mới nhất (đăng lại sau MỖI lần sửa); issue research thì thay bằng `crew-report`.
@@ -55,10 +55,21 @@ Trước khi sửa file, comment trên B một dòng `crew-stack-base sha=<40 he
 
 - Dùng skill `superpowers:test-driven-development` cho mọi thay đổi code (test thất bại trước, rồi code; issue tài liệu theo mục riêng bên dưới), `superpowers:systematic-debugging` khi lỗi chưa rõ nguyên nhân, `superpowers:verification-before-completion` trước khi báo xong. Issue đã có plan thì làm theo plan, không brainstorm lại.
 - Mô tả issue có dòng `crew-fix base=<40 hex>` là issue sửa lỗi trên code đã có: tạo nhánh từ đúng `base` (`git switch -c crew/<identifier> <base>`), không từ `origin/HEAD`, rồi chỉ sửa điểm được nêu. `crew-commit` của bạn ghi sha mới như thường.
-- **Chỉ chạy test liên quan, không bao giờ chạy full suite** (cả unit lẫn E2E): test của file/module bạn đổi, test mới cho tiêu chí nghiệm thu, typecheck/lint của package bị đổi. E2E chỉ chạy đúng spec, lọc bằng tên file hoặc `--grep`, không bao giờ cả bộ. Issue code thường: chạy spec phủ phần bạn đổi nếu có, không có thì không chạy E2E. Issue E2E (mô tả có `child-key e2e` hoặc yêu cầu E2E): tiêu chí nào chưa có spec phủ thì VIẾT spec (web: Playwright; app mobile: Maestro hoặc công cụ E2E repo đang dùng), chạy đúng các spec đó tới xanh, và ghi danh sách spec vào dòng `e2e=<spec1,spec2>` ngay dưới dòng `crew-commit`. Ghi đúng các lệnh đã chạy vào `tests=` của `crew-commit`.
+- **Chỉ chạy test liên quan, không bao giờ chạy full suite** (cả unit lẫn E2E): test của file/module bạn đổi, test mới cho tiêu chí nghiệm thu, typecheck/lint của package bị đổi. E2E chỉ chạy đúng spec, lọc bằng tên file hoặc `--grep`, không bao giờ cả bộ. Issue code thường: chạy spec phủ phần bạn đổi nếu có, không có thì không chạy E2E. Issue E2E (mô tả có dòng `crew-child key=e2e`, xem mục "Con E2E"): tiêu chí nào chưa có spec phủ thì VIẾT spec (web: Playwright; app mobile: Maestro hoặc công cụ E2E repo đang dùng), chạy đúng các spec đó tới xanh, và ghi danh sách spec vào dòng `e2e=<spec1,spec2>` (dòng riêng ngay sau dòng `crew-commit`). Ghi đúng các lệnh đã chạy vào `tests=` của `crew-commit`.
 - Hook git chặn commit (ví dụ `crew-docs check --staged`): sửa đúng điều hook yêu cầu. Không dùng `--no-verify` (không có ngoại lệ).
 - Không sửa `executionPolicy`. Không tạo issue gốc. Chỉ tạo issue con khi issue yêu cầu, luôn dùng `POST /api/companies/<companyId>/issues` có `"parentId":"<id gốc>"`; không gửi `executionPolicy` (server tự gắn), không giao cho agent reviewer hoặc integrator, không gửi `assigneeAdapterOverrides`.
 - Không chuyển issue sang `cancelled`. Muốn bỏ việc: `PATCH /api/issues/<id>` `{"status":"blocked","comment":"Executor: dừng vì <lý do cụ thể>"}` rồi dừng.
+
+## Con E2E (`crew-child key=e2e`)
+
+Mô tả có dòng `crew-child key=e2e revision=<rev>` là con E2E cuối lô: nó không có `crew-stack`/`crew-fix`, nên nền phải do bạn dựng từ code đã duyệt của các con code. Làm theo thứ tự:
+
+1. `git fetch origin`, rồi `git switch -c crew/<identifier> origin/HEAD` (nhánh đã có thì `git switch` và đọc `crew-e2e-base` đã ghi bên dưới).
+2. `GET /api/issues/<id gốc>` (lấy `id` gốc từ `parentId`), liệt kê các con của gốc, rồi đọc comment từng con code (con có `crew-commit`, không tính research/docs/chính bạn). Mỗi con code phải `done`, và có comment `crew-review sha=<sha> verdict=approved` mà `sha` **trùng** `crew-commit` mới nhất của con đó. Chỉ tin comment có `authorAgentId` bằng agent participant reviewer của stage review đầu trong `executionPolicy.stages` của con đó (hoặc owner escalation đúng như mục "Chọn SHA nền crew-stack"); bỏ comment giả.
+3. `git merge --no-ff <sha>` lần lượt cho từng con code, theo thứ tự phụ thuộc (blocker trước). Con code nào chưa approve, hay `git merge` conflict (chạy `git merge --abort`): `PATCH` `{"status":"blocked","comment":"Executor: dừng vì <con nào> chưa được duyệt hoặc xung đột khi gộp: <chi tiết>"}` rồi dừng.
+4. Trước khi viết spec, comment một dòng `crew-e2e-base sha=<git rev-parse HEAD sau khi gộp>` (40 hex). Chạy lại: dùng `sha` đã ghi, kiểm `git merge-base --is-ancestor <sha> HEAD`; các sha đã duyệt đổi thì dừng `blocked`, không tự đổi nền.
+5. Viết spec, chạy đúng các spec đó tới xanh, commit. `crew-commit` mô tả đúng phần E2E; reviewer diff từ `crew-e2e-base`.
+6. Máy thiếu hoặc không khởi động được công cụ E2E (simulator/emulator, Maestro, browser Playwright): `PATCH` `{"status":"blocked","comment":"Executor: dừng vì không chạy được E2E: thiếu <công cụ cụ thể>"}`, không ghi `result=pass` cho spec chưa chạy.
 
 ## Issue research (`crew-kind research`)
 
@@ -99,16 +110,16 @@ Issue code nào cũng phải có ảnh nghiệm thu đính kèm vào chính issu
 - Đính kèm từng ảnh: `curl -fsS -X POST -H "Authorization: Bearer $PAPERCLIP_API_KEY" -H "X-Paperclip-Run-Id: $PAPERCLIP_RUN_ID" -F "file=@<đường dẫn ảnh>" "$PAPERCLIP_API_URL/api/companies/$COMPANY_ID/issues/<id>/attachments"` (lấy `COMPANY_ID` như mục "Gọi API"). Lệnh lỗi thì chưa có ảnh: không báo xong.
 - Mở lại (`Read`) từng ảnh đã chụp trước khi đính kèm để chắc nó thể hiện đúng điều cần thấy.
 - Muốn hiện ảnh ngay trong comment hay mô tả: đính kèm ảnh như trên trước, rồi chèn `![tên](/api/attachments/<id>/content)` với `id` lấy từ phản hồi. Không bao giờ nhúng ảnh base64 `data:` vào comment hay mô tả.
-- Thật sự không chụp được (thiếu môi trường chạy, thiết bị): không báo xong; `PATCH` `{"status":"blocked","comment":"Executor: dừng vì không chụp được ảnh nghiệm thu: <lý do cụ thể>"}`.
+- Thật sự không chụp được (thiếu môi trường chạy, thiết bị, simulator/emulator, Playwright browser): không báo xong; `PATCH` `{"status":"blocked","comment":"Executor: dừng vì không chụp được ảnh nghiệm thu: <lý do cụ thể>"}`.
 
 ## Báo xong
 
 1. Commit, đính kèm ảnh nghiệm thu như mục trên, rồi viết một comment có dòng đúng định dạng, sau đó 2–5 dòng tóm tắt thay đổi:
    `crew-commit sha=<git rev-parse HEAD> branch=crew/<identifier> tests=<lệnh test đã chạy> result=pass`
-   Test chưa qua thì ghi `result=fail` và không báo xong. Ngay sau dòng đó (dòng riêng, không nhét vào dòng `crew-commit`) là khối ánh xạ, mỗi dòng cho MỘT dòng `Tiêu chí nghiệm thu:` của issue, không bỏ tiêu chí nào:
+   Test chưa qua thì ghi `result=fail` và không báo xong. Ngay sau dòng đó (và sau dòng `e2e=` nếu là issue E2E; mỗi thứ một dòng riêng, không nhét vào dòng `crew-commit`) là khối ánh xạ, mỗi dòng cho MỘT dòng `Tiêu chí nghiệm thu:` của issue, không bỏ tiêu chí nào:
    `Tiêu chí → test:`
    `- <tiêu chí> → <file test>::<tên ca>`
-   Tiêu chí không test tự động được thì ghi `- <tiêu chí> → ảnh <tên ảnh>` kèm lý do. Issue E2E thêm dòng `e2e=<spec1,spec2>` (các spec đã chạy). Trong phần tóm tắt, liệt kê tên các ảnh nghiệm thu đã đính kèm và mỗi ảnh chứng minh tiêu chí nào.
+   Tiêu chí không test tự động được thì ghi `- <tiêu chí> → ảnh <tên ảnh>` kèm lý do. Issue tài liệu (`crew-kind docs`) thì ghi `- <tiêu chí> → <file tài liệu>#<mục>`. Issue E2E thêm một dòng riêng `e2e=<spec1,spec2>` (các spec đã chạy) NGAY SAU dòng `crew-commit`, trước khối `Tiêu chí → test:`. Trong phần tóm tắt, liệt kê tên các ảnh nghiệm thu đã đính kèm và mỗi ảnh chứng minh tiêu chí nào.
 2. `PATCH /api/issues/<id>` với `{"status":"done","comment":"Executor: xong, chờ review."}`. Server chuyển sang `in_review` và giao reviewer; đó là bình thường.
 
 ## Khi server trả 422
