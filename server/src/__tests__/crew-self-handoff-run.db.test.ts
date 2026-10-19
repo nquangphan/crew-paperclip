@@ -304,6 +304,30 @@ describeEmbeddedPostgres("issue self-handoff keeps the handing-off run alive", (
     expect(reviewerRun.contextSnapshot).toMatchObject({ issueId: seeded.issueId });
   }, 120_000);
 
+  it("does not queue a missing-comment wake for the agent that handed off without a comment", async () => {
+    const seeded = await seedRunningExecutor();
+
+    const res = await request(app(seeded.companyId, seeded.ownerUserId, { agentId: seeded.executorId, runId: seeded.executorRunId }))
+      .patch(`/api/issues/${seeded.issueId}`)
+      .send({ assigneeAgentId: seeded.reviewerId });
+    expect(res.status, JSON.stringify(res.body)).toBe(200);
+
+    gateway!.release();
+
+    await waitFor(async () => (await readRun(seeded.executorRunId))?.status === "succeeded");
+    await waitFor(async () => (await runsFor(seeded.reviewerId))[0]?.status === "succeeded");
+
+    const executorWakes = await db.select().from(agentWakeupRequests).where(and(
+      eq(agentWakeupRequests.agentId, seeded.executorId),
+      eq(agentWakeupRequests.reason, "missing_issue_comment"),
+    ));
+    expect(executorWakes).toHaveLength(0);
+    expect(await runsFor(seeded.executorId)).toHaveLength(1);
+    expect((await readRun(seeded.executorRunId))?.issueCommentStatus).toBe("not_applicable");
+    const [reviewerRun] = await runsFor(seeded.reviewerId);
+    expect(reviewerRun.contextSnapshot).toMatchObject({ issueId: seeded.issueId });
+  }, 120_000);
+
   it("still cancels the previous assignee run when the board reassigns", async () => {
     const seeded = await seedRunningExecutor();
 

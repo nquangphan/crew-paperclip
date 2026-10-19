@@ -14203,6 +14203,18 @@ export function heartbeatService(
     return retryRun;
   }
 
+  async function isRunAgentIssueAssignee(
+    run: typeof heartbeatRuns.$inferSelect,
+    issueId: string,
+  ) {
+    const issue = await db
+      .select({ assigneeAgentId: issues.assigneeAgentId })
+      .from(issues)
+      .where(and(eq(issues.companyId, run.companyId), eq(issues.id, issueId)))
+      .then((rows) => rows[0] ?? null);
+    return issue?.assigneeAgentId === run.agentId;
+  }
+
   async function hasDeferredIssueCommentWake(
     companyId: string,
     issueId: string,
@@ -14371,6 +14383,26 @@ export function heartbeatService(
           issueCommentRetryQueuedAt: null,
         });
       }
+      return { outcome: "not_applicable" as const, queuedRun: null };
+    }
+
+    // The run handed the issue to another agent (a self-handoff no longer
+    // cancels the run). A comment retry for the previous assignee would take
+    // the issue execution lock and make the new assignee wait, so only the
+    // current assignee is asked for the missing comment.
+    if (!(await isRunAgentIssueAssignee(run, issueId))) {
+      await patchRunIssueCommentStatus(run.id, {
+        issueCommentStatus: "not_applicable",
+        issueCommentSatisfiedByCommentId: null,
+        issueCommentRetryQueuedAt: null,
+      });
+      await appendRunEvent(run, {
+        eventType: "lifecycle",
+        stream: "system",
+        level: "info",
+        message:
+          "Run ended without an issue comment; the issue now belongs to another assignee, so no comment wake is queued",
+      });
       return { outcome: "not_applicable" as const, queuedRun: null };
     }
 

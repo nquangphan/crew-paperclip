@@ -319,6 +319,18 @@
       "tests": [
         "server/src/__tests__/crew-self-handoff-run.db.test.ts"
       ]
+    },
+    {
+      "id": "C12",
+      "kind": "core-patch",
+      "file": "server/src/services/heartbeat.ts",
+      "symbol": "heartbeatService.finalizeIssueCommentPolicy (missing-comment retry)",
+      "anchor": "    if (!(await isRunAgentIssueAssignee(run, issueId))) {",
+      "description": "Queue the missing_issue_comment retry only when the run's agent is still the issue's assignee. Since a run that reassigns its own issue is no longer cancelled (C11), a run that handed off without posting a comment ended succeeded and stock queued a status-only comment wake for the previous assignee; that wake took the issue execution lock (then was cancelled as issue_assignee_changed) while the new assignee's deferred wake kept waiting. The run's comment status is now not_applicable with a lifecycle event, and the new assignee starts as soon as the run releases the issue.",
+      "upstreamPr": null,
+      "tests": [
+        "server/src/__tests__/crew-self-handoff-run.db.test.ts"
+      ]
     }
   ]
 }
