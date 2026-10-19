@@ -34,7 +34,7 @@ function fakeRoot({ active = "", deployRc = 0 } = {}) {
     `echo "deploy called with $1"; echo "authorization: Bearer leaked"; sleep 1; [ ${deployRc} = 0 ] && echo "deploy ok: old -> $1, rollback TS=20261012-150000"; exit ${deployRc}`,
   );
   script("ops/rollback.sh", `echo "rollback $1"; exit 0`);
-  script("api.sh", `[ "$1 $2" = "GET /issues/${ISSUE}/comments" ] || exit 9; echo '[{"authorAgentId":"ag-1","body":"crew-merge sha=${"a".repeat(40)} branch=crew/v3.5 pushed=yes\\n\\nmore"},{"authorUserId":"u","body":"hello\\tworld"}]'`);
+  script("api.sh", `[ "$1 $2" = "GET /issues/${ISSUE}/comments" ] || exit 9; echo '[{"authorAgentId":"ag-1","body":"crew-merge sha=${"a".repeat(40)} branch=main pushed=yes\\n\\nmore"},{"authorUserId":"u","body":"hello\\tworld"}]'`);
   return root;
 }
 
@@ -106,7 +106,7 @@ test("rollback runs ops/rollback.sh with the TS and prints RC", () => {
 test("comments prints only author and first line", () => {
   const r = helper(fakeRoot(), "comments", ISSUE);
   assert.equal(r.status, 0, r.stderr);
-  assert.equal(r.stdout, `ag-1\tcrew-merge sha=${"a".repeat(40)} branch=crew/v3.5 pushed=yes\n-\thello world\n`);
+  assert.equal(r.stdout, `ag-1\tcrew-merge sha=${"a".repeat(40)} branch=main pushed=yes\n-\thello world\n`);
 });
 
 test("comment without the agent key posts nothing (NO_KEY, exit 4)", () => {
