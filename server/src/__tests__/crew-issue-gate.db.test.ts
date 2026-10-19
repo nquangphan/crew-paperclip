@@ -653,6 +653,62 @@ suite("crew issue gate in issueService.update", () => {
     expect(done).toMatchObject({ status: "done", description });
   });
 
+  const EXECUTOR_OVERRIDES = { adapterConfig: { model: "claude-sonnet-5-5", effort: "medium" } };
+  const ROOT_REVIEWER_OVERRIDES = { adapterConfig: { model: "claude-opus-5-5", effort: "high" } };
+
+  it("reviewer Claude nhận issue gốc: override opus-5-5/high thay cho override của executor", async () => {
+    const c = await company();
+    const issueId = await issue(c, {
+      status: "in_progress",
+      assigneeAgentId: c.executorId,
+      assigneeAdapterOverrides: EXECUTOR_OVERRIDES,
+      executionPolicy: c.root,
+    });
+    expect(await act(c, issueId, { agentId: c.executorId }, "done")).toMatchObject({
+      status: "in_review",
+      assigneeAgentId: c.reviewerId,
+      assigneeAdapterOverrides: ROOT_REVIEWER_OVERRIDES,
+    });
+  });
+
+  it("reviewer Claude nhận issue con: không override, chạy theo cấu hình agent", async () => {
+    const c = await company();
+    const rootId = await issue(c, { status: "in_progress", assigneeAgentId: c.executorId, executionPolicy: c.root });
+    const childId = await issue(c, {
+      parentId: rootId,
+      status: "in_progress",
+      assigneeAgentId: c.executorId,
+      assigneeAdapterOverrides: EXECUTOR_OVERRIDES,
+      executionPolicy: c.child,
+    });
+    expect(await act(c, childId, { agentId: c.executorId }, "done")).toMatchObject({
+      status: "in_review",
+      assigneeAgentId: c.reviewerId,
+      assigneeAdapterOverrides: null,
+    });
+  });
+
+  it("issue gốc review lại sau yêu cầu sửa: executor lấy lại override của mình, reviewer vẫn opus-5-5", async () => {
+    const c = await company();
+    const issueId = await issue(c, {
+      status: "in_progress",
+      assigneeAgentId: c.executorId,
+      assigneeAdapterOverrides: EXECUTOR_OVERRIDES,
+      executionPolicy: c.root,
+    });
+    await act(c, issueId, { agentId: c.executorId }, "done");
+    expect(await act(c, issueId, { agentId: c.reviewerId }, "in_progress")).toMatchObject({
+      assigneeAgentId: c.executorId,
+      assigneeAdapterOverrides: EXECUTOR_OVERRIDES,
+      executionState: { status: "changes_requested" },
+    });
+    expect(await act(c, issueId, { agentId: c.executorId }, "done")).toMatchObject({
+      status: "in_review",
+      assigneeAgentId: c.reviewerId,
+      assigneeAdapterOverrides: ROOT_REVIEWER_OVERRIDES,
+    });
+  });
+
   async function rootAtOwner(c: Company) {
     const issueId = await issue(c, { status: "in_progress", assigneeAgentId: c.executorId, executionPolicy: c.root });
     await act(c, issueId, { agentId: c.executorId }, "done");

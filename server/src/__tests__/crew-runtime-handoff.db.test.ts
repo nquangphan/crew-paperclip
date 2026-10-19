@@ -155,9 +155,15 @@ suite("Crew: đổi người làm issue (override theo vai trò, đánh thức s
     const policy = buildCrewPolicy("child", { reviewerAgentId: c.reviewer, integratorAgentId: c.integrator }, null, {
       codexReviewerAgentId: codexReviewer ? c.codexReviewer : null,
     });
+    // Issue con thật luôn có gốc; thiếu `parentId` thì reviewer Claude nhận override của issue gốc.
+    const parentId = randomUUID();
+    await db.insert(issues).values({
+      id: parentId, companyId: c.companyId, projectId: c.projectId, title: "Yêu cầu gốc", status: "in_progress",
+      createdByUserId: OWNER, responsibleUserId: OWNER,
+    });
     await db.insert(issues).values({
       id, companyId: c.companyId, projectId: c.projectId, title: "Việc thử", status: "todo", createdByUserId: OWNER,
-      responsibleUserId: OWNER, executionPolicy: policy, ...fields,
+      responsibleUserId: OWNER, executionPolicy: policy, parentId, ...fields,
     });
     return id;
   }

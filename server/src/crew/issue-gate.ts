@@ -748,12 +748,18 @@ export const CREW_CODEX_REVIEWER_OVERRIDES = Object.freeze({
   }),
 });
 
+/** Override của reviewer Claude trên issue gốc (không có `parentId`): review tổng chạy opus; issue con theo cấu hình agent. */
+export const CREW_ROOT_REVIEWER_OVERRIDES = Object.freeze({
+  adapterConfig: Object.freeze({ model: "claude-opus-5-5", effort: "high" }),
+});
+
 /**
  * `assigneeAdapterOverrides` là một cột trên issue và lõi áp nó cho bất kỳ agent nào đang là assignee, nên override
  * Trợ Lý (hay fallback) đặt cho executor sẽ theo issue sang reviewer khi stock chuyển stage. Trên issue có policy Crew,
  * khi assignee đổi mà lệnh ghi không tự đặt override:
  * - giao cho agent của stage (reviewer, reviewer Codex, integrator): override theo vai trò, reviewer Codex là
- *   `gpt-6-sol`/`high`, còn lại `null` (chạy theo cấu hình agent);
+ *   `gpt-6-sol`/`high`, reviewer Claude trên issue gốc là `claude-opus-5-5`/`high`, còn lại `null` (chạy theo cấu
+ *   hình agent);
  * - giao cho executor: override executor đó để lại lần trước (activity hệ thống), nếu còn hợp với runtime của nó;
  *   không có mà vừa rời agent của stage thì `null`; executor sang executor khác thì giữ như stock.
  * Executor rời issue thì override của nó được ghi lại (kể cả `null`), để vòng sau trả về đúng override.
@@ -784,7 +790,10 @@ async function routeAssigneeOverrides(
   let next: Record<string, unknown> | null | undefined;
   if (!explicit && to !== null) {
     if (participants.has(to)) {
-      next = to === roles?.codexReviewerAgentId?.toLowerCase() ? structuredClone(CREW_CODEX_REVIEWER_OVERRIDES) : null;
+      if (to === roles?.codexReviewerAgentId?.toLowerCase()) next = structuredClone(CREW_CODEX_REVIEWER_OVERRIDES);
+      else if (to === roles?.reviewerAgentId?.toLowerCase() && locked.parentId === null) {
+        next = structuredClone(CREW_ROOT_REVIEWER_OVERRIDES);
+      } else next = null;
     } else {
       const stashed = await lastExecutorOverrides(tx, locked, to);
       if (stashed !== undefined) {
