@@ -100,9 +100,14 @@ export function addWaiting(queue, entry) {
   return { target: queue?.target ?? null, issues: queue?.issues ?? [], ...(queue ?? {}), waiting: [...waiting, entry] };
 }
 
+/** Integrator's request branch: `crew/req/<identifier>`. Only branches of this shape are ever deleted on the remote. */
+export const REQ_BRANCH_RE = /^crew\/req\/[A-Z][A-Z0-9]*-[0-9]+$/;
+/** Executor's child branch: `crew/<identifier>`. */
+export const CHILD_BRANCH_RE = /^crew\/[A-Z][A-Z0-9]*-[0-9]+$/;
+
 /**
- * Reads `gh pr view --json state,mergeCommit,baseRefName`. Returns {state:"merged", sha, base} | {state:"closed"} |
- * {state:"open"} | {state:"error", reason}.
+ * Reads `gh pr view --json state,mergeCommit,baseRefName,headRefName`. Returns {state:"merged", sha, base, head?} |
+ * {state:"closed", head?} | {state:"open"} | {state:"error", reason}. `head` is present only when GitHub returned it.
  */
 export function parsePrView(text) {
   let j;
@@ -112,11 +117,12 @@ export function parsePrView(text) {
     return { state: "error", reason: "gh pr view không trả JSON" };
   }
   if (j?.state === "OPEN") return { state: "open" };
-  if (j?.state === "CLOSED") return { state: "closed" };
+  const head = typeof j?.headRefName === "string" ? { head: j.headRefName } : {};
+  if (j?.state === "CLOSED") return { state: "closed", ...head };
   if (j?.state === "MERGED") {
     const sha = j.mergeCommit?.oid;
     if (typeof sha !== "string" || !SHA_RE.test(sha)) return { state: "error", reason: "PR đã merge nhưng thiếu mergeCommit.oid" };
-    return { state: "merged", sha, base: typeof j.baseRefName === "string" ? j.baseRefName : null };
+    return { state: "merged", sha, base: typeof j.baseRefName === "string" ? j.baseRefName : null, ...head };
   }
   return { state: "error", reason: `state lạ: ${String(j?.state)}` };
 }
@@ -488,6 +494,43 @@ export function workerLoop(job, deps) {
     deps.appendHistory({ at: deps.now().toISOString(), sha, status, issues: issues.map((i) => i.issueId), dryRun: dry });
   };
 
+  /**
+   * Best-effort branch cleanup after a pull request ended. Deletes the request branch `crew/req/<id>` on origin and
+   * locally, and (merged only) the local child branches `crew/<id>` whose tip is already inside the merge commit.
+   * Never deletes a branch checked out in any worktree and never throws or changes deploy state: failures are logged.
+   */
+  const cleanupBranches = (pr, view) => {
+    try {
+      const head = view.head;
+      const checkedOut = new Set();
+      const wl = gitDir(["worktree", "list", "--porcelain"]);
+      for (const line of String(wl.stdout ?? wl.out ?? "").split("\n")) if (line.startsWith("branch refs/heads/")) checkedOut.add(line.slice("branch refs/heads/".length).trim());
+      const dropLocal = (name) => {
+        if (checkedOut.has(name)) return deps.log(`PR ${pr}: giữ nhánh local ${name} (đang checkout ở một worktree)`);
+        if (gitDir(["show-ref", "--verify", "--quiet", `refs/heads/${name}`]).code !== 0) return;
+        if (dry) return would(`git branch -D ${name}`);
+        const d = gitDir(["branch", "-D", name]);
+        deps.log(`PR ${pr}: xóa nhánh local ${name}: rc ${d.code}`);
+      };
+      if (typeof head === "string" && REQ_BRANCH_RE.test(head)) {
+        if (dry) would(`git push origin --delete ${head}`);
+        else {
+          const r = gitDir(["push", "origin", "--delete", head], { timeout: 2 * MIN });
+          deps.log(`PR ${pr}: xóa nhánh remote ${head}: rc ${r.code} ${tail(redact(r.out), 1).replaceAll("\n", " | ")}`);
+        }
+        dropLocal(head);
+      } else if (head) deps.log(`PR ${pr}: không xóa nhánh ${head} (không theo mẫu crew/req/<id>)`);
+      if (view.state === "merged") {
+        const list = gitDir(["for-each-ref", "--format=%(refname:short)", "refs/heads/crew/"]);
+        for (const name of String(list.stdout ?? list.out ?? "").split("\n").map((n) => n.trim())) {
+          if (CHILD_BRANCH_RE.test(name) && isAncestor(name, view.sha)) dropLocal(name);
+        }
+      }
+    } catch (e) {
+      deps.log(`PR ${pr}: dọn nhánh lỗi: ${e instanceof Error ? e.message : String(e)}`);
+    }
+  };
+
   /** Pull requests the integrator opened: ask GitHub, queue the merged ones, end the closed and too-old ones. */
   let lastPrPoll = null;
   const pollPullRequests = () => {
@@ -496,7 +539,7 @@ export function workerLoop(job, deps) {
     if (lastPrPoll !== null && deps.now().getTime() - lastPrPoll < PR_POLL_MS) return;
     lastPrPoll = deps.now().getTime();
     const outcomes = waiting.map((entry) => {
-      const r = deps.sh("gh", ["pr", "view", entry.pr, "--json", "state,mergeCommit,baseRefName"], { timeout: 2 * MIN });
+      const r = deps.sh("gh", ["pr", "view", entry.pr, "--json", "state,mergeCommit,baseRefName,headRefName"], { timeout: 2 * MIN });
       const view = r.code === 0 ? parsePrView(r.stdout ?? r.out) : { state: "error", reason: `gh pr view lỗi (rc ${r.code}): ${tail(redact(r.out), 2).replaceAll("\n", " | ")}` };
       if (view.state === "error") deps.log(`PR ${entry.pr}: ${view.reason}`);
       const age = deps.now().getTime() - new Date(entry.at).getTime();
@@ -504,6 +547,7 @@ export function workerLoop(job, deps) {
     });
     if (outcomes.some((o) => o.view.state === "merged")) gitDir(["fetch", "-q", "origin", cfg.branch], { timeout: 5 * MIN });
     const finished = [];
+    const cleanups = [];
     deps.withLock(() => {
       let q = deps.readQueue();
       for (const o of outcomes) {
@@ -524,11 +568,13 @@ export function workerLoop(job, deps) {
             "Merge sau thời điểm này thì foreman deploy tay.",
           ]];
         else continue;
+        if (view.state === "merged" || view.state === "closed") cleanups.push({ pr: entry.pr, view });
         if (end) finished.push({ entry, status: end[0], lines: end[1] });
         q = { ...q, waiting: (q.waiting ?? []).filter((w) => !(w.issueId === entry.issueId && w.pr === entry.pr && w.sha === entry.sha)) };
       }
       deps.writeQueue(q);
     });
+    for (const c of cleanups) cleanupBranches(c.pr, c.view);
     for (const f of finished) report([{ issueId: f.entry.issueId, sha: f.entry.sha }], f.entry.sha, f.status, [...f.lines, "Prod giữ nguyên bản đang chạy."]);
   };
 
