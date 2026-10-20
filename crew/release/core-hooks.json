@@ -343,6 +343,18 @@
       "tests": [
         "server/src/__tests__/heartbeat-process-recovery.test.ts"
       ]
+    },
+    {
+      "id": "C14",
+      "kind": "core-patch",
+      "file": "server/src/services/heartbeat.ts",
+      "symbol": "heartbeatService.executeRun (post-cleanup deferred wake promotion)",
+      "anchor": "            logger.error({ err, runId: run.id }, \"failed to promote another agent's deferred wake after cleanup\");",
+      "description": "After an unsuccessful legacy run has released its environment lease, promote a wake another agent (a review participant or a new assignee) deferred behind it on the same issue, through the stock release admission. A conversation run that ends failed, timed_out or interrupted releases the issue while it still owns its environment lease, so the stock release sees execution_owner_active for the run itself and only plans recovery (recoveryOnly) without draining the deferred queue. Stock then retried after cleanup only the run's own agent's deferred wake, so a reviewer's execution_review_requested wake, deferred when the executor moved its own issue to in_review (C11) and the SSH session dropped at the end (exit 255, adapter_failed), stayed deferred until someone commented (TPS-246). The retry goes through the same release admission, so recovery holds, an acknowledged Stop, unconfirmed remote cleanup and a still-held lease keep the wake deferred as before.",
+      "upstreamPr": null,
+      "tests": [
+        "server/src/__tests__/crew-failed-run-deferred-review.db.test.ts"
+      ]
     }
   ]
 }

@@ -26636,11 +26636,27 @@ export function heartbeatService(
           eq(agentWakeupRequests.status, "deferred_issue_execution"),
           sql`${agentWakeupRequests.payload}->>'issueId' = ${String(latestRun.contextSnapshot?.issueId)}`,
         )).limit(1);
-        if (pending) await (pending.payload?.queuedCommentInterrupt
-          ? resumeQueuedCommentInterrupt(run.companyId, pending.id)
-          : releaseIssueExecutionAndPromote(latestRun, { suppressImmediateRecovery: true })).catch(err => {
-          logger.error({ err, runId: run.id }, "failed to promote legacy comment queue after cleanup");
-        });
+        if (pending) {
+          await (pending.payload?.queuedCommentInterrupt
+            ? resumeQueuedCommentInterrupt(run.companyId, pending.id)
+            : releaseIssueExecutionAndPromote(latestRun, { suppressImmediateRecovery: true })).catch(err => {
+            logger.error({ err, runId: run.id }, "failed to promote legacy comment queue after cleanup");
+          });
+        } else if (latestRun.status !== "succeeded") {
+          // An unsuccessful conversation run releases the issue while it still
+          // owns its environment lease, so that release only plans recovery and
+          // leaves the queue intact. A wake deferred behind it for another agent
+          // (a review participant or a new assignee) is promoted now, through
+          // the same release admission and its execution blockers.
+          const [otherAgentWake] = await db.select({ id: agentWakeupRequests.id }).from(agentWakeupRequests).where(and(
+            eq(agentWakeupRequests.companyId, run.companyId), ne(agentWakeupRequests.agentId, run.agentId),
+            eq(agentWakeupRequests.status, "deferred_issue_execution"),
+            sql`${agentWakeupRequests.payload}->>'issueId' = ${String(latestRun.contextSnapshot?.issueId)}`,
+          )).limit(1);
+          if (otherAgentWake) await releaseIssueExecutionAndPromote(latestRun, { suppressImmediateRecovery: true }).catch(err => {
+            logger.error({ err, runId: run.id }, "failed to promote another agent's deferred wake after cleanup");
+          });
+        }
       }
       if (
         !nativeSessionResumeScheduled &&
