@@ -26,6 +26,14 @@ const mount = () =>
     </QueryClientProvider>,
   );
 
+/** Mở chỗ chọn project của nút mời rồi bấm Tạo link (không chọn project nào). */
+const createLink = async () => {
+  fireEvent.click(await screen.findByRole('button', { name: 'Mời Phòng Marketing' }));
+  fireEvent.click(
+    within(await screen.findByTestId('invite-projects-editor')).getByRole('button', { name: 'Tạo link' }),
+  );
+};
+
 const user = (id: string, name: string) => ({ id, name, email: `${id}@example.com` });
 const member = (principalId: string, membershipRole: string, name: string) => ({
   id: `m-${principalId}`,
@@ -120,7 +128,7 @@ describe('trang Thành viên', () => {
       }),
     );
     mount();
-    fireEvent.click(await screen.findByRole('button', { name: 'Mời Phòng Marketing' }));
+    await createLink();
     const input = (await screen.findByLabelText('Link mời')) as HTMLInputElement;
     expect(input.value).toBe(`${window.location.origin}/paperclip/invite/tok-123`);
     const post = calls.find((c) => c.method === 'POST' && c.url.endsWith('/invites'));
@@ -131,6 +139,55 @@ describe('trang Thành viên', () => {
     });
   });
 
+  it('chọn project lúc tạo link: body mang projectIds, project đã gỡ không có trong danh sách', async () => {
+    const { calls } = mockServer(
+      base({
+        'POST /api/companies/c1/invites': { status: 201, body: { ...CONTRIB_INVITE, id: 'inv-new', token: 'tok-7' } },
+      }),
+    );
+    mount();
+    fireEvent.click(await screen.findByRole('button', { name: 'Mời Phòng Marketing' }));
+    const editor = await screen.findByTestId('invite-projects-editor');
+    await waitFor(() => expect(within(editor).getByRole('checkbox', { name: 'Website' })).toBeTruthy());
+    expect(within(editor).queryByText('Cũ')).toBeNull();
+    fireEvent.click(within(editor).getByRole('checkbox', { name: 'Ứng dụng' }));
+    fireEvent.click(within(editor).getByRole('checkbox', { name: 'Website' }));
+    fireEvent.click(within(editor).getByRole('button', { name: 'Tạo link' }));
+    expect(await screen.findByDisplayValue(`${window.location.origin}/paperclip/invite/tok-7`)).toBeTruthy();
+    await waitFor(() => expect(screen.queryByTestId('invite-projects-editor')).toBeNull());
+    const post = calls.find((c) => c.method === 'POST' && c.url.endsWith('/invites'));
+    expect(post?.body).toEqual({
+      allowedJoinTypes: 'human',
+      humanRole: 'viewer',
+      defaultsPayload: { crew: { role: 'contributor', projectIds: ['p2', 'p1'] } },
+    });
+  });
+
+  it('bảng lời mời hiện project đã chọn theo cùng luật với cột Project được xem', async () => {
+    const withProjects = (id: string, projectIds: string[]) =>
+      invite(id, { defaultsPayload: { crew: { role: 'contributor', projectIds } } });
+    mockServer(
+      base({
+        'GET /api/companies/c1/invites': {
+          body: { invites: [withProjects('i1', ['p1', 'p2']), withProjects('i2', ['p1', 'p2', 'p3']), CONTRIB_INVITE] },
+        },
+        'GET /api/companies/c1/projects': {
+          body: [
+            { id: 'p1', name: 'Website', archivedAt: null },
+            { id: 'p2', name: 'Ứng dụng', archivedAt: null },
+            { id: 'p3', name: 'Sự kiện', archivedAt: null },
+          ],
+        },
+      }),
+    );
+    mount();
+    const rows = await screen.findAllByTestId('invite-row');
+    const cell = (row: HTMLElement) => within(row).getByTestId('invite-projects').textContent;
+    await waitFor(() => expect(cell(rows[0])).toBe('Website, Ứng dụng'));
+    expect(cell(rows[1])).toBe('3 project');
+    expect(cell(rows[2])).toBe('Chưa có project');
+  });
+
   it('chép link vào clipboard', async () => {
     const writeText = vi.fn(async () => {});
     vi.stubGlobal('navigator', { clipboard: { writeText } });
@@ -138,7 +195,7 @@ describe('trang Thành viên', () => {
       base({ 'POST /api/companies/c1/invites': { status: 201, body: { ...CONTRIB_INVITE, token: 'tok-9' } } }),
     );
     mount();
-    fireEvent.click(await screen.findByRole('button', { name: 'Mời Phòng Marketing' }));
+    await createLink();
     fireEvent.click(await screen.findByRole('button', { name: 'Chép link' }));
     expect(writeText).toHaveBeenCalledWith(`${window.location.origin}/paperclip/invite/tok-9`);
   });
@@ -190,6 +247,57 @@ describe('trang Thành viên', () => {
       'POST /api/companies/c1/join-requests/jr1/approve',
       'PUT /api/crew/companies/c1/contributors/u4',
     ]);
+  });
+
+  it('Duyệt lời mời có project chọn sẵn: approve, PUT contributors rồi PUT project-access đúng danh sách', async () => {
+    const PROJ_INVITE = invite('inv-p', {
+      defaultsPayload: { crew: { role: 'contributor', projectIds: ['p1', 'p2'] } },
+    });
+    const { calls } = mockServer(
+      base({
+        'GET /api/companies/c1/invites': { body: { invites: [PROJ_INVITE] } },
+        'GET /api/companies/c1/join-requests': { body: [joinRequest('jr1', 'inv-p', 'u4', 'Hoa')] },
+        'POST /api/companies/c1/join-requests/jr1/approve': { body: { id: 'jr1', status: 'approved' } },
+        'PUT /api/crew/companies/c1/contributors/u4': { status: 204 },
+        'PUT /api/crew/companies/c1/project-access/u4': {
+          body: { userId: 'u4', all: false, projectIds: ['p1', 'p2'] },
+        },
+      }),
+    );
+    mount();
+    const [row] = await screen.findAllByTestId('join-request-row');
+    await waitFor(() => expect(within(row).getByTestId('join-request-projects').textContent).toBe('Website, Ứng dụng'));
+    fireEvent.click(within(row).getByRole('button', { name: 'Duyệt' }));
+    await waitFor(() =>
+      expect(calls.some((c) => c.method === 'PUT' && c.url.endsWith('/project-access/u4'))).toBe(true),
+    );
+    const writes = calls.filter((c) => c.method !== 'GET').map((c) => `${c.method} ${c.url}`);
+    expect(writes).toEqual([
+      'POST /api/companies/c1/join-requests/jr1/approve',
+      'PUT /api/crew/companies/c1/contributors/u4',
+      'PUT /api/crew/companies/c1/project-access/u4',
+    ]);
+    expect(calls.find((c) => c.url.endsWith('/project-access/u4'))?.body).toEqual({ projectIds: ['p1', 'p2'] });
+  });
+
+  it('cấp project chọn sẵn lỗi: báo cảnh báo chọn ở cột Project được xem', async () => {
+    const PROJ_INVITE = invite('inv-p', { defaultsPayload: { crew: { role: 'contributor', projectIds: ['p1'] } } });
+    mockServer(
+      base({
+        'GET /api/companies/c1/invites': { body: { invites: [PROJ_INVITE] } },
+        'GET /api/companies/c1/join-requests': { body: [joinRequest('jr1', 'inv-p', 'u4', 'Hoa')] },
+        'POST /api/companies/c1/join-requests/jr1/approve': { body: { id: 'jr1', status: 'approved' } },
+        'PUT /api/crew/companies/c1/contributors/u4': { status: 204 },
+        'PUT /api/crew/companies/c1/project-access/u4': {
+          status: 400,
+          body: { error: 'câu server', code: 'crew_project_access_invalid' },
+        },
+      }),
+    );
+    mount();
+    fireEvent.click(await screen.findByRole('button', { name: 'Duyệt' }));
+    expect(await screen.findByText('Đã duyệt nhưng chưa cấp được project')).toBeTruthy();
+    expect(screen.queryByText('Đã duyệt tham gia nhưng chưa đặt được Phòng Marketing')).toBeNull();
   });
 
   it('Duyệt lời mời thường: không bật dấu', async () => {
@@ -283,7 +391,7 @@ describe('trang Thành viên', () => {
       }),
     );
     mount();
-    fireEvent.click(await screen.findByRole('button', { name: 'Mời Phòng Marketing' }));
+    await createLink();
     expect(await screen.findByDisplayValue(`${window.location.origin}/paperclip/invite/tok-9`)).toBeTruthy();
     const [row] = await screen.findAllByTestId('invite-row');
     fireEvent.click(within(row).getByRole('button', { name: 'Thu hồi' }));

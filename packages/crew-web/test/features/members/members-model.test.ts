@@ -4,6 +4,7 @@ import {
   approveJoin,
   displayRole,
   inviteLink,
+  inviteProjectIds,
   isContributorInvite,
   type PendingJoin,
   pendingJoins,
@@ -50,6 +51,20 @@ describe('isContributorInvite', () => {
   });
 });
 
+describe('inviteProjectIds', () => {
+  it('đọc defaultsPayload.crew.projectIds, bỏ trùng và phần tử không phải chuỗi', () => {
+    const payload = { crew: { role: 'contributor', projectIds: ['p1', 'p2', 'p1', 3, null, ''] } };
+    expect(inviteProjectIds(invite({ defaultsPayload: payload }))).toEqual(['p1', 'p2']);
+  });
+  it('không phải mảng, thiếu crew hoặc không có lời mời thì rỗng', () => {
+    expect(inviteProjectIds(invite({ defaultsPayload: { crew: { projectIds: 'p1' } } }))).toEqual([]);
+    expect(inviteProjectIds(invite({ defaultsPayload: { crew: ['p1'] } }))).toEqual([]);
+    expect(inviteProjectIds(invite({ defaultsPayload: CONTRIBUTOR }))).toEqual([]);
+    expect(inviteProjectIds(invite({ defaultsPayload: null }))).toEqual([]);
+    expect(inviteProjectIds(undefined)).toEqual([]);
+  });
+});
+
 describe('pendingJoins', () => {
   it('nối yêu cầu với lời mời bằng inviteId và chỉ giữ yêu cầu của người đang chờ', () => {
     const invites = [invite({ id: 'inv1', defaultsPayload: CONTRIBUTOR }), invite({ id: 'inv2' })];
@@ -68,6 +83,12 @@ describe('pendingJoins', () => {
       ['b', false, true],
       ['c', false, false],
     ]);
+  });
+
+  it('mang project chọn sẵn của lời mời; không tìm thấy lời mời thì rỗng', () => {
+    const invites = [invite({ id: 'inv1', defaultsPayload: { crew: { role: 'contributor', projectIds: ['p1'] } } })];
+    const joins = pendingJoins([request({ id: 'a' }), request({ id: 'c', inviteId: 'missing' })], invites);
+    expect(joins.map((j) => j.projectIds)).toEqual([['p1'], []]);
   });
 });
 
@@ -91,10 +112,20 @@ describe('displayRole', () => {
 });
 
 describe('approveJoin', () => {
-  const join = (contributor: boolean, requestingUserId: string | null = 'u2'): PendingJoin => ({
+  const join = (
+    contributor: boolean,
+    requestingUserId: string | null = 'u2',
+    projectIds: string[] = [],
+  ): PendingJoin => ({
     request: request({ requestingUserId }),
     contributor,
     inviteFound: true,
+    projectIds,
+  });
+  const okDeps = () => ({
+    approve: vi.fn(async () => {}),
+    enableContributor: vi.fn(async () => {}),
+    setProjectAccess: vi.fn(async () => {}),
   });
 
   it('lời mời khách: duyệt rồi bật dấu theo đúng thứ tự', async () => {
@@ -102,20 +133,60 @@ describe('approveJoin', () => {
     const deps = {
       approve: vi.fn(async (id: string) => void order.push(`approve:${id}`)),
       enableContributor: vi.fn(async (id: string) => void order.push(`enable:${id}`)),
+      setProjectAccess: vi.fn(async () => {}),
     };
     expect(await approveJoin(join(true), deps)).toEqual({});
     expect(order).toEqual(['approve:jr1', 'enable:u2']);
+    expect(deps.setProjectAccess).not.toHaveBeenCalled();
+  });
+
+  it('lời mời có project chọn sẵn: duyệt, bật dấu rồi cấp đúng các project', async () => {
+    const order: string[] = [];
+    const deps = {
+      approve: vi.fn(async (id: string) => void order.push(`approve:${id}`)),
+      enableContributor: vi.fn(async (id: string) => void order.push(`enable:${id}`)),
+      setProjectAccess: vi.fn(async (id: string, ids: string[]) => void order.push(`access:${id}:${ids.join(',')}`)),
+    };
+    expect(await approveJoin(join(true, 'u2', ['p1', 'p2']), deps)).toEqual({});
+    expect(order).toEqual(['approve:jr1', 'enable:u2', 'access:u2:p1,p2']);
+  });
+
+  it('cấp project lỗi: không ném, trả accessError, dấu vẫn đã bật', async () => {
+    const deps = {
+      ...okDeps(),
+      setProjectAccess: vi.fn(async () => {
+        throw new Error('crew_project_access_invalid');
+      }),
+    };
+    const out = await approveJoin(join(true, 'u2', ['p1']), deps);
+    expect(out.accessError?.message).toBe('crew_project_access_invalid');
+    expect(out.markError).toBeUndefined();
+    expect(deps.enableContributor).toHaveBeenCalledWith('u2');
+  });
+
+  it('bật dấu lỗi vẫn thử cấp project, trả cả hai lỗi riêng', async () => {
+    const deps = {
+      ...okDeps(),
+      enableContributor: vi.fn(async () => {
+        throw new Error('crew_contributor_requires_viewer');
+      }),
+    };
+    const out = await approveJoin(join(true, 'u2', ['p1']), deps);
+    expect(out.markError?.message).toBe('crew_contributor_requires_viewer');
+    expect(out.accessError).toBeUndefined();
+    expect(deps.setProjectAccess).toHaveBeenCalledWith('u2', ['p1']);
   });
 
   it('lời mời thường: chỉ duyệt, không bật dấu', async () => {
-    const deps = { approve: vi.fn(async () => {}), enableContributor: vi.fn(async () => {}) };
+    const deps = okDeps();
     expect(await approveJoin(join(false), deps)).toEqual({});
     expect(deps.enableContributor).not.toHaveBeenCalled();
+    expect(deps.setProjectAccess).not.toHaveBeenCalled();
   });
 
   it('bước hai lỗi: không ném, trả lỗi để UI báo', async () => {
     const deps = {
-      approve: vi.fn(async () => {}),
+      ...okDeps(),
       enableContributor: vi.fn(async () => {
         throw new Error('crew_contributor_requires_viewer');
       }),
@@ -130,15 +201,19 @@ describe('approveJoin', () => {
         throw new Error('boom');
       }),
       enableContributor: vi.fn(async () => {}),
+      setProjectAccess: vi.fn(async () => {}),
     };
-    await expect(approveJoin(join(true), deps)).rejects.toThrow('boom');
+    await expect(approveJoin(join(true, 'u2', ['p1']), deps)).rejects.toThrow('boom');
     expect(deps.enableContributor).not.toHaveBeenCalled();
+    expect(deps.setProjectAccess).not.toHaveBeenCalled();
   });
 
-  it('thiếu userId của người xin tham gia: duyệt xong nhưng báo lỗi bật dấu', async () => {
-    const deps = { approve: vi.fn(async () => {}), enableContributor: vi.fn(async () => {}) };
-    const out = await approveJoin(join(true, null), deps);
+  it('thiếu userId của người xin tham gia: duyệt xong nhưng báo lỗi bật dấu và cấp project', async () => {
+    const deps = okDeps();
+    const out = await approveJoin(join(true, null, ['p1']), deps);
     expect(out.markError).toBeInstanceOf(Error);
+    expect(out.accessError).toBeInstanceOf(Error);
     expect(deps.enableContributor).not.toHaveBeenCalled();
+    expect(deps.setProjectAccess).not.toHaveBeenCalled();
   });
 });

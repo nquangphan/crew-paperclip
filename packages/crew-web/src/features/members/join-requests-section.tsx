@@ -16,19 +16,26 @@ import {
 } from '@/ds';
 import { formatDateTime, useT } from '@/i18n';
 import { personName } from './members-model';
-import { useInvites, useMemberActions, usePendingJoins } from './use-members';
+import { ProjectNames } from './project-access-cell';
+import { useInvites, useMemberActions, usePendingJoins, useProjectAccess } from './use-members';
 
-/** Yêu cầu tham gia chờ duyệt. Lời mời khách góp ý được gắn nhãn và duyệt xong thì bật dấu ngay. */
+/**
+ * Yêu cầu tham gia chờ duyệt. Lời mời khách góp ý được gắn nhãn; duyệt xong thì bật dấu và cấp project chọn sẵn trên
+ * lời mời ngay.
+ */
 export function JoinRequestsSection() {
   const { t, lang } = useT('members');
   const invites = useInvites();
   const requests = usePendingJoins(invites.all);
+  const { choices } = useProjectAccess();
   const { approve, reject } = useMemberActions();
   const markError = approve.data?.markError;
+  const accessError = approve.data?.accessError;
   const loading = requests.isLoading || invites.isLoading;
 
   // Không có yêu cầu nào thì ẩn cả mục, trang đã đủ dày.
-  if (!loading && !requests.error && requests.joins.length === 0 && !markError && !approve.error) return null;
+  if (!loading && !requests.error && requests.joins.length === 0 && !markError && !accessError && !approve.error)
+    return null;
 
   return (
     <Section title={t('requests.title')}>
@@ -37,6 +44,11 @@ export function JoinRequestsSection() {
       {markError ? (
         <Alert variant="warning" title={t('requests.markFailed')}>
           {t('requests.markFailedHint')}
+        </Alert>
+      ) : null}
+      {accessError ? (
+        <Alert variant="warning" title={t('requests.accessFailed')}>
+          {t('requests.accessFailedHint')}
         </Alert>
       ) : null}
       {requests.error ? (
@@ -55,6 +67,7 @@ export function JoinRequestsSection() {
             <TableRow>
               <TableHead>{t('requests.person')}</TableHead>
               <TableHead>{t('requests.kind')}</TableHead>
+              <TableHead>{t('requests.projects')}</TableHead>
               <TableHead>{t('requests.createdAt')}</TableHead>
               <TableHead />
             </TableRow>
@@ -85,6 +98,9 @@ export function JoinRequestsSection() {
                         <MutedText>{t('requests.unknownInviteHint')}</MutedText>
                       </span>
                     )}
+                  </TableCell>
+                  <TableCell data-testid="join-request-projects">
+                    <ProjectNames projectIds={join.projectIds} projects={choices} />
                   </TableCell>
                   <TableCell>{formatDateTime(join.request.createdAt, lang)}</TableCell>
                   <TableCell>

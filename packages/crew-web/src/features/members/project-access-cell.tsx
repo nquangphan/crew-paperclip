@@ -19,6 +19,56 @@ export interface ProjectChoice {
   name: string;
 }
 
+/**
+ * Nhãn một danh sách project: không có thì "Chưa có project", từ 2 project trở xuống thì liệt kê tên, nhiều hơn thì
+ * "N project". Chỉ đếm project đang dùng (project đã gỡ không hiện).
+ */
+export function ProjectNames({
+  projectIds,
+  projects,
+}: {
+  projectIds: readonly string[];
+  projects: readonly ProjectChoice[];
+}) {
+  const { t } = useT('members');
+  const names = projects.filter((p) => projectIds.includes(p.id)).map((p) => p.name);
+  if (names.length === 0) return <>{t('projects.none')}</>;
+  return <>{names.length <= 2 ? names.join(', ') : t('projects.count', { count: names.length })}</>;
+}
+
+interface ProjectChecklistProps {
+  /** Tiền tố id của hộp chọn, để hai danh sách trên cùng trang không trùng id. */
+  idPrefix: string;
+  projects: readonly ProjectChoice[];
+  selected: ReadonlySet<string>;
+  onChange: (next: ReadonlySet<string>) => void;
+}
+
+/** Danh sách hộp chọn project đang dùng; company chưa có project thì báo trống. */
+export function ProjectChecklist({ idPrefix, projects, selected, onChange }: ProjectChecklistProps) {
+  const { t } = useT('members');
+  const toggle = (id: string, on: boolean) => {
+    const next = new Set(selected);
+    if (on) next.add(id);
+    else next.delete(id);
+    onChange(next);
+  };
+  return (
+    <>
+      {projects.length === 0 ? <MutedText>{t('projects.empty')}</MutedText> : null}
+      {projects.map((p) => {
+        const id = `${idPrefix}-${p.id}`;
+        return (
+          <span key={p.id} className="flex items-center gap-2">
+            <Checkbox id={id} checked={selected.has(p.id)} onCheckedChange={(v) => toggle(p.id, v === true)} />
+            <Label htmlFor={id}>{p.name}</Label>
+          </span>
+        );
+      })}
+    </>
+  );
+}
+
 interface ProjectAccessCellProps {
   name: string;
   projectIds: readonly string[];
@@ -37,20 +87,7 @@ export function ProjectAccessCell({ name, projectIds, projects, saving, error, o
   const { t } = useT('members');
   const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState<ReadonlySet<string>>(new Set(projectIds));
-  const names = projects.filter((p) => projectIds.includes(p.id)).map((p) => p.name);
-  const label =
-    names.length === 0
-      ? t('projects.none')
-      : names.length <= 2
-        ? names.join(', ')
-        : t('projects.count', { count: names.length });
   const errorKey = memberErrorKey(error);
-  const toggle = (id: string, on: boolean) => {
-    const next = new Set(draft);
-    if (on) next.add(id);
-    else next.delete(id);
-    setDraft(next);
-  };
   const save = () => {
     void onSave([...draft])
       .then(() => setOpen(false))
@@ -73,22 +110,13 @@ export function ProjectAccessCell({ name, projectIds, projects, saving, error, o
           aria-label={t('projects.edit', { name })}
           data-testid="project-access-trigger"
         >
-          {label}
+          <ProjectNames projectIds={projectIds} projects={projects} />
         </Button>
       </PopoverTrigger>
       <PopoverContent align="start">
         <div className="flex flex-col gap-3" data-testid="project-access-editor">
           <PopoverTitle>{t('projects.title', { name })}</PopoverTitle>
-          {projects.length === 0 ? <MutedText>{t('projects.empty')}</MutedText> : null}
-          {projects.map((p) => {
-            const id = `project-access-${p.id}`;
-            return (
-              <span key={p.id} className="flex items-center gap-2">
-                <Checkbox id={id} checked={draft.has(p.id)} onCheckedChange={(v) => toggle(p.id, v === true)} />
-                <Label htmlFor={id}>{p.name}</Label>
-              </span>
-            );
-          })}
+          <ProjectChecklist idPrefix="project-access" projects={projects} selected={draft} onChange={setDraft} />
           {error ? (
             <ErrorState
               title={t('projects.failed')}

@@ -71,3 +71,44 @@ test('PW-S21-1 owner cấp project A cho Phòng Marketing: khách chỉ thấy A
     await archiveProject(api, b.id);
   }
 });
+
+// Chọn sẵn project lúc mời: lời mời mang `defaultsPayload.crew.projectIds`, bảng lời mời hiện project đã chọn. Phần
+// duyệt rồi tự cấp project cần đăng ký tài khoản mới nên chỉ có ở test unit; ca thu hồi lời mời vừa tạo khi xong.
+test('PW-S21-2 mời Phòng Marketing kèm project chọn sẵn: lời mời lưu đúng project @t1', async ({
+  page,
+  api,
+  company,
+}) => {
+  interface Invite {
+    id: string;
+    state: string;
+    defaultsPayload: { crew?: { role?: string; projectIds?: string[] } } | null;
+  }
+  const token = uniqueToken('s21-invite');
+  const a = await createProject(api, company.id, `PW-S21 mời A ${token}`);
+  const b = await createProject(api, company.id, `PW-S21 mời B ${token}`);
+  const findInvite = async () => {
+    const { invites } = await api.get<{ invites: Invite[] }>(`/api/companies/${company.id}/invites?limit=100&offset=0`);
+    return invites.find((i) => i.state === 'active' && i.defaultsPayload?.crew?.projectIds?.includes(a.id)) ?? null;
+  };
+  let inviteId: string | null = null;
+  try {
+    await page.goto(company.path('members'));
+    await page.getByRole('button', { name: 'Mời Phòng Marketing', exact: true }).click();
+    const editor = page.getByTestId('invite-projects-editor');
+    await editor.getByRole('checkbox', { name: a.name }).check();
+    await editor.getByRole('button', { name: 'Tạo link', exact: true }).click();
+    await expect(page.getByLabel('Link mời')).toHaveValue(/\/paperclip\/invite\//);
+
+    await expect.poll(async () => (await findInvite())?.id ?? null).not.toBeNull();
+    const invite = await findInvite();
+    inviteId = invite?.id ?? null;
+    expect(invite?.defaultsPayload?.crew).toEqual({ role: 'contributor', projectIds: [a.id] });
+    expect(invite?.defaultsPayload?.crew?.projectIds).not.toContain(b.id);
+    await expect(page.getByTestId('invite-projects').filter({ hasText: a.name })).toHaveCount(1);
+  } finally {
+    if (inviteId) await api.post(`/api/invites/${inviteId}/revoke`, {});
+    await archiveProject(api, a.id);
+    await archiveProject(api, b.id);
+  }
+});

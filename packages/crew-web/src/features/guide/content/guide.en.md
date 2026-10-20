@@ -700,9 +700,9 @@ The [Members](/members) page is owner-only: members and their roles, Marketing i
 
 #### Invite Marketing
 
-1. Click **Invite Marketing** (1). Copy the link (like `…/paperclip/invite/…`) and send it. The link is shown only once.
+1. Click **Invite Marketing** (1). Tick the projects the invited person will see (several are allowed, or leave it empty to choose later), then click **Create link**. Copy the link (like `…/paperclip/invite/…`) and send it. The link is shown only once.
 2. The person opens the link, signs up or signs in, and sends a join request.
-3. Under **Pending join requests**, the row labelled **Marketing invite**: click **Approve**. The person now has the **Marketing** role.
+3. Under **Pending join requests**, the row labelled **Marketing invite** shows **Projects to grant**: click **Approve**. The person now has the **Marketing** role and sees the projects chosen on the invite right away, with no need to pick them again in **Visible projects**. If the page says **Approved, but projects were not granted**, choose them in the **Visible projects** column.
 
 #### Set or remove Marketing
 
@@ -720,7 +720,7 @@ Every member except owners (Admin, Operator, Viewer, Marketing) only sees the pr
 
 > **Note:** this hides projects in the Crew UI only. Anyone who opens the original Paperclip UI or the core API can still read them. Marketing contributions are enforced on the server: they cannot be sent to a project that was not given, and you cannot approve a contribution from someone who lost access to that project.
 
-> **Tip:** active invitations are listed below with their expiry; click **Revoke** to disable a link.
+> **Tip:** active invitations are listed below with their chosen projects and expiry; click **Revoke** to disable a link.
 
 ### Settings {#settings}
 

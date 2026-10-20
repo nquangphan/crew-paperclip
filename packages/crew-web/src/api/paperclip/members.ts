@@ -61,19 +61,26 @@ export const membersApi = {
 };
 
 export const invitesApi = {
-  /** Lời mời khách góp ý: viewer kèm `defaultsPayload.crew.role = 'contributor'`. */
-  createContributor: (companyId: string): Promise<CreatedInvite> =>
-    call(
+  /**
+   * Lời mời khách góp ý: viewer kèm `defaultsPayload.crew.role = 'contributor'`. `projectIds` (bỏ trùng) là project
+   * người được mời sẽ xem, cấp ngay khi owner duyệt; rỗng thì không ghi khóa này.
+   */
+  createContributor: (companyId: string, projectIds: readonly string[] = []): Promise<CreatedInvite> => {
+    const unique = [...new Set(projectIds)];
+    return call(
       'invites.create',
       { companyId },
       {
         body: {
           allowedJoinTypes: 'human',
           humanRole: 'viewer',
-          defaultsPayload: { crew: { role: 'contributor' } },
+          defaultsPayload: {
+            crew: unique.length > 0 ? { role: 'contributor', projectIds: unique } : { role: 'contributor' },
+          },
         },
       },
-    ),
+    );
+  },
   /**
    * Mọi lời mời của company (mới nhất trước), đọc hết các trang theo `nextOffset`, để nối được yêu cầu tham gia với lời
    * mời cũ. Dừng ở `maxPages` trang (100 lời mời mỗi trang) để một company bất thường không làm treo trang.

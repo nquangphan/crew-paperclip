@@ -700,9 +700,9 @@ Trang [Thành viên](/members) chỉ owner thấy: danh sách thành viên và v
 
 #### Mời Phòng Marketing
 
-1. Bấm **Mời Phòng Marketing** (1). Chép link (dạng `…/paperclip/invite/…`) gửi cho người được mời. Link chỉ hiện một lần.
+1. Bấm **Mời Phòng Marketing** (1). Đánh dấu các project người được mời sẽ xem (chọn được nhiều, hoặc bỏ trống để chọn sau), rồi bấm **Tạo link**. Chép link (dạng `…/paperclip/invite/…`) gửi cho người được mời. Link chỉ hiện một lần.
 2. Người đó mở link, đăng ký hoặc đăng nhập rồi gửi yêu cầu tham gia.
-3. Ở mục **Yêu cầu tham gia chờ duyệt**, dòng có nhãn **Lời mời Phòng Marketing**: bấm **Duyệt**. Người đó hiện vai trò **Phòng Marketing**.
+3. Ở mục **Yêu cầu tham gia chờ duyệt**, dòng có nhãn **Lời mời Phòng Marketing** kèm cột **Project sẽ cấp**: bấm **Duyệt**. Người đó hiện vai trò **Phòng Marketing** và thấy ngay các project đã chọn lúc mời, không phải chọn lại ở cột **Project được xem**. Nếu trang báo **Đã duyệt nhưng chưa cấp được project**, chọn project cho người đó ở cột **Project được xem**.
 
 #### Đặt hoặc gỡ Phòng Marketing
 
@@ -720,7 +720,7 @@ Mọi thành viên trừ owner (Quản trị, Vận hành, Chỉ xem, Phòng Mar
 
 > **Lưu ý:** đây là lớp ẩn của UI Crew. Ai mở thẳng giao diện Paperclip gốc hay API lõi vẫn đọc được. Riêng góp ý của Phòng Marketing bị chặn ở server: không gửi được vào project chưa cấp, và owner không duyệt được góp ý của người đã bị gỡ quyền project đó.
 
-> **Mẹo:** lời mời còn hiệu lực hiện ở bảng dưới kèm giờ hết hạn; bấm **Thu hồi** để link hết dùng được.
+> **Mẹo:** lời mời còn hiệu lực hiện ở bảng dưới kèm project đã chọn và giờ hết hạn; bấm **Thu hồi** để link hết dùng được.
 
 ### Cài đặt {#settings}
 

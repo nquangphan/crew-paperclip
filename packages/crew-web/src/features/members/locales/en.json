@@ -23,7 +23,7 @@
   },
   "invites": {
     "title": "Invite Marketing",
-    "hint": "The invited person opens the link, signs up or signs in, then sends a join request for you to approve.",
+    "hint": "Click Invite Marketing, pick the projects the invited person will see, then create the link. They open it, sign up or sign in and send a join request; once you approve, they get the chosen projects right away.",
     "create": "Invite Marketing",
     "creating": "Creating link",
     "created": "Invite created",
@@ -40,7 +40,11 @@
     "expiresAt": "Expires",
     "revoke": "Revoke",
     "revokeTitle": "Revoke this invite?",
-    "revokeBody": "The link will stop working."
+    "revokeBody": "The link will stop working.",
+    "createLink": "Create link",
+    "projectsTitle": "Projects the invited person will see",
+    "projectsHint": "You can leave this empty and choose later in the Visible projects column.",
+    "projects": "Projects to grant"
   },
   "requests": {
     "title": "Pending join requests",
@@ -59,7 +63,10 @@
     "markFailedHint": "This person is view-only for now. Use Set Marketing in the members list to retry.",
     "unknownInvite": "Unknown invite type",
     "unknownInviteHint": "The invite for this request was not found. If this is a Marketing guest, use Approve and set Marketing.",
-    "approveAsContributor": "Approve and set Marketing"
+    "approveAsContributor": "Approve and set Marketing",
+    "projects": "Projects to grant",
+    "accessFailed": "Approved, but projects were not granted",
+    "accessFailedHint": "This person cannot see the projects chosen on the invite yet. Choose them in the Visible projects column of the members list."
   },
   "errors": {
     "crew_contributor_requires_viewer": "Marketing can only be set for an active view-only member.",

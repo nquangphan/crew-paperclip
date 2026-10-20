@@ -9,6 +9,10 @@ import {
   Field,
   Input,
   MutedText,
+  Popover,
+  PopoverContent,
+  PopoverTitle,
+  PopoverTrigger,
   Section,
   Skeleton,
   Table,
@@ -20,14 +24,21 @@ import {
 } from '@/ds';
 import { Check, Copy } from '@/ds/icons';
 import { formatDateTime, useT } from '@/i18n';
-import { inviteLink, isContributorInvite } from './members-model';
-import { useInvites, useMemberActions } from './use-members';
+import { inviteLink, inviteProjectIds, isContributorInvite } from './members-model';
+import { ProjectChecklist, ProjectNames } from './project-access-cell';
+import { useInvites, useMemberActions, useProjectAccess } from './use-members';
 
-/** Mời khách góp ý: tạo lời mời, hiện link để chép, danh sách lời mời còn hiệu lực kèm nút thu hồi. */
+/**
+ * Mời khách góp ý: chọn sẵn project người được mời sẽ xem rồi tạo lời mời, hiện link để chép, danh sách lời mời còn
+ * hiệu lực kèm project đã chọn và nút thu hồi.
+ */
 export function InvitesSection() {
   const { t, lang } = useT('members');
   const invites = useInvites();
+  const { choices } = useProjectAccess();
   const { createInvite, revokeInvite } = useMemberActions();
+  const [picking, setPicking] = useState(false);
+  const [draft, setDraft] = useState<ReadonlySet<string>>(new Set());
   // Link chỉ hiện một lần sau khi tạo; giữ id lời mời để xóa link khi chính lời mời đó bị thu hồi.
   const [link, setLink] = useState<{ inviteId: string; url: string } | null>(null);
   const [copied, setCopied] = useState(false);
@@ -35,8 +46,11 @@ export function InvitesSection() {
 
   const create = () => {
     setCopied(false);
-    createInvite.mutate(undefined, {
-      onSuccess: (inv) => setLink({ inviteId: inv.id, url: inviteLink(window.location.origin, inv.token) }),
+    createInvite.mutate([...draft], {
+      onSuccess: (inv) => {
+        setLink({ inviteId: inv.id, url: inviteLink(window.location.origin, inv.token) });
+        setPicking(false);
+      },
     });
   };
   const copy = () => {
@@ -51,9 +65,32 @@ export function InvitesSection() {
     <Section title={t('invites.title')}>
       <div className="flex flex-wrap items-center justify-between gap-2">
         <MutedText>{t('invites.hint')}</MutedText>
-        <Button type="button" onClick={create} disabled={createInvite.isPending}>
-          {createInvite.isPending ? t('invites.creating') : t('invites.create')}
-        </Button>
+        <Popover
+          open={picking}
+          onOpenChange={(next) => {
+            if (next) setDraft(new Set());
+            setPicking(next);
+          }}
+        >
+          <PopoverTrigger asChild>
+            <Button type="button">{t('invites.create')}</Button>
+          </PopoverTrigger>
+          <PopoverContent align="end">
+            <div className="flex flex-col gap-3" data-testid="invite-projects-editor">
+              <PopoverTitle>{t('invites.projectsTitle')}</PopoverTitle>
+              <MutedText>{t('invites.projectsHint')}</MutedText>
+              <ProjectChecklist idPrefix="invite-project" projects={choices} selected={draft} onChange={setDraft} />
+              <div className="flex justify-end gap-2">
+                <Button type="button" size="sm" variant="ghost" onClick={() => setPicking(false)}>
+                  {t('projects.cancel')}
+                </Button>
+                <Button type="button" size="sm" disabled={createInvite.isPending} onClick={create}>
+                  {createInvite.isPending ? t('invites.creating') : t('invites.createLink')}
+                </Button>
+              </div>
+            </div>
+          </PopoverContent>
+        </Popover>
       </div>
 
       {createInvite.error ? (
@@ -94,6 +131,7 @@ export function InvitesSection() {
           <TableHeader>
             <TableRow>
               <TableHead>{t('invites.kind')}</TableHead>
+              <TableHead>{t('invites.projects')}</TableHead>
               <TableHead>{t('invites.createdAt')}</TableHead>
               <TableHead>{t('invites.expiresAt')}</TableHead>
               <TableHead />
@@ -103,6 +141,9 @@ export function InvitesSection() {
             {invites.active.map((inv) => (
               <TableRow key={inv.id} data-testid="invite-row">
                 <TableCell>{isContributorInvite(inv) ? t('role.contributor') : (inv.humanRole ?? '')}</TableCell>
+                <TableCell data-testid="invite-projects">
+                  <ProjectNames projectIds={inviteProjectIds(inv)} projects={choices} />
+                </TableCell>
                 <TableCell>{formatDateTime(inv.createdAt, lang)}</TableCell>
                 <TableCell>{formatDateTime(inv.expiresAt, lang)}</TableCell>
                 <TableCell>

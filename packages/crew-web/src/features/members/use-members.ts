@@ -72,7 +72,7 @@ export function useMemberActions() {
     Promise.all(keys.map((k) => qc.invalidateQueries({ queryKey: k })));
 
   const createInvite = useMutation({
-    mutationFn: () => api.invites.createContributor(company.id),
+    mutationFn: (projectIds: string[]) => api.invites.createContributor(company.id, projectIds),
     onSuccess: () => refresh(queryKeys.invites(company.id)),
   });
   const revokeInvite = useMutation({
@@ -84,6 +84,7 @@ export function useMemberActions() {
       approveJoin(join, {
         approve: (id) => api.joinRequests.approve(company.id, id),
         enableContributor: (userId) => api.contributions.enableContributor(company.id, userId),
+        setProjectAccess: (userId, projectIds) => api.projectAccess.set(company.id, userId, projectIds),
       }),
     onSettled: () =>
       refresh(
@@ -91,6 +92,7 @@ export function useMemberActions() {
         queryKeys.members(company.id),
         queryKeys.contributors(company.id),
         queryKeys.invites(company.id),
+        ['project-access', company.id],
       ),
   });
   const reject = useMutation({
