@@ -92,6 +92,13 @@ export function useRoadmapData(companyId: string, p: RoadmapDataParams) {
     enabled: requestId !== null,
   });
 
+  // Run và chi phí của cây yêu cầu; khóa `crew` nên được làm tươi cùng sự kiện issue như bản đồ Crew.
+  const runs = useQuery({
+    queryKey: queryKeys.crew('crew.runs', { companyId, issueId: requestId }),
+    queryFn: () => api.crew.runs(companyId, requestId as string),
+    enabled: visible.ready && requestId !== null,
+  });
+
   const docsProjects = useQuery({
     queryKey: queryKeys.crew('crew.docs.projects', { companyId }),
     queryFn: () => api.crew.docsProjects(companyId),
@@ -119,6 +126,7 @@ export function useRoadmapData(companyId: string, p: RoadmapDataParams) {
     request,
     subtree,
     agents,
+    runs,
     docsProjects,
     hasDocs,
     tree,

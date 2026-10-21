@@ -2,3 +2,4 @@ export { layoutHierarchy, cardWidth, cardHeight, columnGap, rowGap, type Point }
 export { projectCrewMap, type MapEdge, type MapProjection } from "../ui/map/project.js";
 export type { CrewMap, CrewMapNode } from "../handlers/map.js";
 export type { CrewRoot } from "../handlers/roots.js";
+export type { IssueMapRuns, MapRun, MapRunTotals, MapRuns } from "../handlers/runs.js";

@@ -72,6 +72,37 @@ describe('crewMapLevel', () => {
     expect(level.nodes.find((n) => n.id === 'i-c')?.current).toBe(false);
   });
 
+  it('run theo issue lên thẻ việc, yêu cầu gốc hiện tổng cả cây', () => {
+    const run = {
+      id: 'run-1',
+      status: 'running',
+      agentName: 'crew-executor-1',
+      model: 'claude-sonnet-5',
+      createdAt: '2026-10-21T01:00:00.000Z',
+      startedAt: '2026-10-21T01:00:00.000Z',
+      finishedAt: null,
+      costUsd: null,
+      billingType: null,
+    };
+    const withRuns: CrewMapData = {
+      ...map,
+      runs: {
+        byIssue: { 'i-b': { runs: [run], count: 1, costUsd: null, subscription: false } },
+        tree: { count: 1, costUsd: null, subscription: false },
+      },
+    };
+    const { level } = crewMapLevel(withRuns, 'i-b', t);
+    expect(level.nodes.find((n) => n.id === 'i-b')?.runs).toEqual({
+      runs: [run],
+      count: 1,
+      total: { count: 1, costUsd: null, subscription: false, tree: false },
+    });
+    expect(level.nodes.find((n) => n.id === 'i-a')?.runs).toBeUndefined();
+    expect(level.center.runs?.total).toEqual({ count: 1, costUsd: null, subscription: false, tree: true });
+    expect(crewMapLevel(map, 'i-b', t).level.center.runs).toBeUndefined();
+    expect(overlapping(level)).toEqual([]);
+  });
+
   it('phụ thuộc thành cạnh "chặn", vòng sửa giữ nguyên, cạnh thiếu issue thành chẩn đoán', () => {
     const { level, diagnostics } = crewMapLevel(map, undefined, t);
     const edges = level.edges.map((e) => `${e.kind}:${e.source}>${e.target}`);

@@ -1,6 +1,6 @@
 // Mẫu widget Crew cho trang /ds (dữ liệu giả chỉ để xem giao diện).
 import { useState } from 'react';
-import type { CrewMachine, CrewMap as CrewMapData, CrewMapNode } from '@/api/crew/types';
+import type { CrewMachine, CrewMap as CrewMapData, CrewMapNode, IssueMapRuns, MapRun, MapRuns } from '@/api/crew/types';
 import {
   CrewMap,
   CrewSummary,
@@ -9,6 +9,7 @@ import {
   ReadinessBadge,
   RoadmapCanvas,
   type RoadmapLevel,
+  roadmapRuns,
 } from '@/ds';
 
 const node = (id: string, identifier: string, title: string, over: Partial<CrewMapNode> = {}): CrewMapNode => ({
@@ -68,6 +69,71 @@ const nodes = [
   node('f', 'TPS-50', 'Đăng nhập bằng Google', { status: 'cancelled', assignee: null }),
   node('g', 'TPS-51', 'Giới hạn số lần thử', { status: 'todo', stage: stage(0) }),
 ];
+// Run giả đủ trạng thái: TPS-44 có 6 run (một đang chạy), các việc khác vài run; mốc giờ tính lùi từ lúc mở trang.
+const MINUTE = 60_000;
+const opened = Date.now();
+const run = (
+  id: string,
+  status: string,
+  agentName: string,
+  model: string | null,
+  startAgo: number,
+  minutes: number | null,
+  costUsd: number | null,
+): MapRun => {
+  const start = opened - startAgo * MINUTE;
+  return {
+    id,
+    status,
+    agentName,
+    model,
+    createdAt: new Date(start).toISOString(),
+    startedAt: status === 'queued' ? null : new Date(start).toISOString(),
+    finishedAt: minutes === null ? null : new Date(start + minutes * MINUTE).toISOString(),
+    costUsd,
+    billingType: 'subscription_included',
+  };
+};
+const runsOf = (list: MapRun[]): IssueMapRuns => {
+  const costed = list.filter((r) => r.costUsd !== null);
+  return {
+    runs: list,
+    count: list.length,
+    costUsd: costed.length ? Math.round(costed.reduce((sum, r) => sum + (r.costUsd ?? 0), 0) * 100) / 100 : null,
+    subscription: true,
+  };
+};
+const byIssue: Record<string, IssueMapRuns> = {
+  root: runsOf([run('r-root-2', 'succeeded', 'crew-assistant', 'claude-opus-5', 90, 4, 0.31)]),
+  a: runsOf([
+    run('r-a-2', 'succeeded', 'crew-reviewer', 'claude-sonnet-5', 300, 6, 0.24),
+    run('r-a-1', 'succeeded', 'crew-executor-1', 'claude-sonnet-5', 340, 38, 1.92),
+  ]),
+  b1: runsOf([
+    run('r-b1-6', 'running', 'crew-executor-2', 'claude-sonnet-5-5', 12, null, null),
+    run('r-b1-5', 'failed', 'crew-reviewer', 'claude-opus-5', 40, 3, 0.18),
+    run('r-b1-4', 'succeeded', 'crew-executor-2', 'claude-sonnet-5-5', 110, 65, 2.47),
+    run('r-b1-3', 'timed_out', 'crew-executor-2', 'claude-sonnet-5-5', 200, 60, 1.1),
+    run('r-b1-2', 'cancelled', 'crew-executor-2', 'claude-sonnet-5', 260, 2, null),
+    run('r-b1-1', 'succeeded', 'crew-executor-2', 'claude-haiku-4-5', 300, 1, 0.02),
+  ]),
+  b3: runsOf([run('r-b3-1', 'queued', 'crew-reviewer', 'claude-opus-5', 1, null, null)]),
+  c: runsOf([run('r-c-1', 'failed', 'crew-executor-3', 'claude-sonnet-5', 30, 0.5, 0.05)]),
+  e: runsOf([
+    run('r-e-2', 'succeeded', 'crew-reviewer', 'claude-opus-5', 60, 9, 0.66),
+    run('r-e-1', 'succeeded', 'crew-executor-4', 'claude-sonnet-5', 80, 18, 0.83),
+  ]),
+};
+const all = Object.values(byIssue);
+const mapRuns: MapRuns = {
+  byIssue,
+  tree: {
+    count: all.reduce((sum, r) => sum + r.count, 0),
+    costUsd: Math.round(all.reduce((sum, r) => sum + (r.costUsd ?? 0), 0) * 100) / 100,
+    subscription: true,
+  },
+};
+
 const map: CrewMapData = {
   root,
   nodes,
@@ -80,6 +146,7 @@ const map: CrewMapData = {
     { kind: 'repair', from: 'a', to: 'a' },
   ],
   diagnostics: [],
+  runs: mapRuns,
 };
 
 const report: CrewMachine['latest'] = {
@@ -143,6 +210,7 @@ const requestLevel: RoadmapLevel = {
     status: root.status,
     total: nodes.length - 1,
     done: nodes.filter((n) => n.status === 'done').length,
+    runs: roadmapRuns(byIssue.root, mapRuns.tree),
   },
   nodes: nodes.slice(1).map((n) => ({
     id: n.id,
@@ -153,6 +221,7 @@ const requestLevel: RoadmapLevel = {
     parentId: n.parentId,
     children: nodes.filter((c) => c.parentId === n.id).length,
     assignee: n.assignee?.name ?? null,
+    runs: roadmapRuns(byIssue[n.id]),
   })),
   edges: [
     ...nodes.slice(1).map((n) => ({

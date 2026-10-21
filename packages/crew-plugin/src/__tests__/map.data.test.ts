@@ -5,6 +5,7 @@ import { closeRegisteredClients, createDb, pluginDatabaseNamespaces, plugins } f
 import { startEmbeddedPostgresTestDatabase } from "../../../db/src/test-embedded-postgres.js";
 import { pluginDatabaseService } from "../../../../server/src/services/plugin-database.js";
 import { loadCrewMap } from "../handlers/map.js";
+import { loadRequestRuns } from "../handlers/runs.js";
 import { loadDocsCheck } from "../docs/data.js";
 import manifest from "../manifest.js";
 
@@ -45,7 +46,7 @@ it("reads the CRE-36 dependency tree and a CRE-44 repair from embedded PostgreSQ
   const hostDb = createDb(database.connectionString);
   cleanup = async () => { await closeRegisteredClients(database.connectionString); await sql.end(); await database.cleanup(); };
   await sql`INSERT INTO companies (id,name,issue_prefix) VALUES (${company},'Crew map','CRE')`;
-  await sql`INSERT INTO agents (id,company_id,name) VALUES (${agent},${company},'Executor')`;
+  await sql`INSERT INTO agents (id,company_id,name,adapter_config) VALUES (${agent},${company},'Executor',${sql.json({ model: "claude-opus-5" })})`;
   async function issue(id: string, identifier: string, parentId: string | null, description: string, status: string, stages = 1, rounds = 0) {
     await sql`INSERT INTO issues (id,company_id,parent_id,identifier,title,description,status,assignee_agent_id,execution_policy,execution_state)
       VALUES (${id},${company},${parentId},${identifier},${identifier + " title"},${description},${status},${agent},${JSON.stringify(policy(stages))}::jsonb,${JSON.stringify(state(stages, rounds))}::jsonb)`;
@@ -60,6 +61,17 @@ it("reads the CRE-36 dependency tree and a CRE-44 repair from embedded PostgreSQ
   await issue(ids.original, "CRE-45", ids.repairRoot, "Original", "in_review", 1, 2);
   await issue(ids.fix, "CRE-46", ids.repairRoot, `crew-fix base=${"a".repeat(40)}`, "todo");
   await sql`INSERT INTO issue_comments (company_id,issue_id,body) VALUES (${company},${ids.original},${`crew-commit sha=${"a".repeat(40)} branch=crew/CRE-45 tests=ok result=ok`})`;
+  // Run của bản đồ: CRE-37 có hai run (một tính theo cost_events), CRE-38 một run đang chạy chưa báo model.
+  const run = (n: number) => `70000000-0000-4000-8000-00000000000${n}`;
+  await sql`INSERT INTO heartbeat_runs (id,company_id,agent_id,status,created_at,started_at,finished_at,context_snapshot,usage_json) VALUES
+    (${run(1)},${company},${agent},'succeeded','2026-10-21T01:00:00Z','2026-10-21T01:00:00Z','2026-10-21T01:12:00Z',
+      ${sql.json({ issueId: ids.a })},${sql.json({ model: "claude-sonnet-5", costUsd: 0.83, billingType: "subscription_included" })}),
+    (${run(2)},${company},${agent},'failed','2026-10-21T02:00:00Z','2026-10-21T02:00:00Z','2026-10-21T02:03:00Z',
+      ${sql.json({})},${sql.json({ model: "claude-sonnet-5" })}),
+    (${run(3)},${company},${agent},'running','2026-10-21T03:00:00Z','2026-10-21T03:00:00Z',NULL,
+      ${sql.json({ issueId: ids.b })},NULL)`;
+  await sql`INSERT INTO cost_events (company_id,agent_id,issue_id,heartbeat_run_id,provider,model,billing_type,input_tokens,cached_input_tokens,output_tokens,cost_cents,occurred_at)
+    VALUES (${company},${agent},${ids.a},${run(2)},'anthropic','claude-haiku-5','metered_api',10,0,5,40,'2026-10-21T02:03:00Z')`;
   await hostDb.insert(plugins).values({
     id: hostPluginId,
     pluginKey: manifest.id,
@@ -92,6 +104,16 @@ it("reads the CRE-36 dependency tree and a CRE-44 repair from embedded PostgreSQ
   expect(first.nodes.find((node) => node.id === ids.a)?.bundle).toEqual({ id: "core", seq: 1 });
   expect(first.nodes.find((node) => node.id === ids.c)?.kind).toBe("research");
   expect(first.root.stage?.completed).toEqual(stageIds);
+  expect(first.runs?.byIssue[ids.a]).toMatchObject({ count: 2, costUsd: 1.23, subscription: true });
+  expect(first.runs?.byIssue[ids.a].runs.map((r) => [r.id, r.model, r.costUsd])).toEqual([
+    [run(2), "claude-haiku-5", 0.4], [run(1), "claude-sonnet-5", 0.83],
+  ]);
+  expect(first.runs?.byIssue[ids.b].runs[0]).toMatchObject({ status: "running", model: "claude-opus-5", costUsd: null });
+  expect(first.runs?.tree).toEqual({ count: 3, costUsd: 1.23, subscription: true });
+  const requestRuns = await loadRequestRuns(ctx, company, ids.root);
+  expect(requestRuns.tree).toEqual(first.runs?.tree);
+  expect((await loadRequestRuns(ctx, company, ids.b)).tree.count).toBe(1);
+  await expect(loadRequestRuns(ctx, "10000000-0000-4000-8000-000000000099", ids.root)).rejects.toThrow("Không tìm thấy issue");
   expect(await loadDocsCheck(ctx, ids.a, company)).toMatchObject({ commit: "d".repeat(40), exit: 0, author: agent });
   const second = await loadCrewMap(ctx, ids.repairRoot, company);
   expect(second.edges).toContainEqual({ kind: "repair", from: ids.original, to: ids.fix });

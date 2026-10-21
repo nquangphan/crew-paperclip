@@ -377,6 +377,21 @@
     "doc": {
       "close": "Đóng",
       "openInDocs": "Mở trong trang Docs"
+    },
+    "runs": {
+      "more_one": "+{{count}} run",
+      "more_other": "+{{count}} run",
+      "total_one": "{{cost}} · {{count}} run",
+      "total_other": "{{cost}} · {{count}} run",
+      "totalTree_one": "Cả cây {{cost}} · {{count}} run",
+      "totalTree_other": "Cả cây {{cost}} · {{count}} run",
+      "aria_one": "{{count}} run, tổng {{cost}}",
+      "aria_other": "{{count}} run, tổng {{cost}}",
+      "ariaTree_one": "Cả cây {{count}} run, tổng {{cost}}",
+      "ariaTree_other": "Cả cây {{count}} run, tổng {{cost}}",
+      "latest": "Run mới nhất: {{runs}}",
+      "noteSubscription": "Giá quy đổi API, gói thuê bao không bị trừ tiền",
+      "noteApi": "Giá quy đổi API theo số liệu của run"
     }
   }
 }

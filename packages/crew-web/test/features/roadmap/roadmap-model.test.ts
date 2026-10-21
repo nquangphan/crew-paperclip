@@ -179,6 +179,36 @@ describe('buildRequestLevel', () => {
     ]);
   });
 
+  it('run của cây: mỗi thẻ có run của chính nó, yêu cầu gốc có tổng cả cây; chưa tải run thì không có khối run', () => {
+    const run = (id: string) => ({
+      id,
+      status: 'succeeded',
+      agentName: 'executor-1',
+      model: 'claude-sonnet-5',
+      createdAt: '2026-10-21T01:00:00.000Z',
+      startedAt: '2026-10-21T01:00:00.000Z',
+      finishedAt: '2026-10-21T01:10:00.000Z',
+      costUsd: 0.5,
+      billingType: 'subscription_included',
+    });
+    const level = buildRequestLevel({
+      request,
+      descendants,
+      runs: {
+        byIssue: { a: { runs: [run('x1'), run('x2')], count: 2, costUsd: 1, subscription: true } },
+        tree: { count: 2, costUsd: 1, subscription: true },
+      },
+    });
+    expect(level.center.runs).toEqual({
+      runs: [],
+      count: 0,
+      total: { count: 2, costUsd: 1, subscription: true, tree: true },
+    });
+    expect(level.nodes.find((n) => n.id === 'a')?.runs).toMatchObject({ count: 2, total: { tree: false } });
+    expect(level.nodes.find((n) => n.id === 'b')?.runs).toBeUndefined();
+    expect(buildRequestLevel({ request, descendants }).center.runs).toBeUndefined();
+  });
+
   it('vòng cha-con hỏng không treo; issue không nối về yêu cầu bị bỏ', () => {
     const level = buildRequestLevel({
       request,

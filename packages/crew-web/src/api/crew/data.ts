@@ -12,6 +12,7 @@ import type {
   DocsTree,
   MachineJob,
   MachineJobStatus,
+  MapRuns,
   RuntimeDecision,
   SetupRun,
   SkillSyncState,
@@ -22,6 +23,7 @@ export const CREW_DATA_KEYS = {
   'crew.companies': ['S0.2'],
   'crew.roots': ['S4.3'],
   'crew.map': ['S6.1'],
+  'crew.runs': ['S6.1'],
   'crew.docsCheck': ['S6.1', 'S6.3'],
   'crew.runtimeDecisions': ['S6.13'],
   'crew.machines': ['S2.3', 'S15.1'],
@@ -67,6 +69,9 @@ export const crewDataApi = {
   roots: (companyId: string, params: { status?: string } = {}): Promise<CrewRoot[]> =>
     crewData<CrewRoot[]>('crew.roots', companyId, params),
   map: (companyId: string, issueId: string): Promise<CrewMap> => crewData<CrewMap>('crew.map', companyId, { issueId }),
+  /** Run tóm tắt của một yêu cầu và mọi hậu duệ (tầng yêu cầu của trang Roadmap). */
+  runs: (companyId: string, issueId: string): Promise<MapRuns> =>
+    crewData<MapRuns>('crew.runs', companyId, { issueId }),
   /** null: issue chưa có bằng chứng kiểm docs. */
   docsCheck: (companyId: string, issueId: string): Promise<DocsCheckResult | null> =>
     crewData<DocsCheckResult | null>('crew.docsCheck', companyId, { issueId }),

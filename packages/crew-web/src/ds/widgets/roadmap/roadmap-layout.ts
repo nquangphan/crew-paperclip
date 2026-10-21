@@ -1,5 +1,6 @@
 // crew: tự dựng
 // Bố cục thuần của bản đồ Roadmap: tâm ở gốc (0,0), nút con tỏa tròn. Không phụ thuộc thư viện vẽ.
+import { runLines } from './roadmap-runs';
 import type { RoadmapLevel, RoadmapNode, RoadmapPoint } from './roadmap-types';
 
 /**
@@ -146,7 +147,7 @@ const NODE_SIZE: Record<RoadmapLevel['center']['kind'], { w: number; h: number }
   company: { w: 160, h: 160 },
   project: { w: 136, h: 136 },
   request: { w: 236, h: 92 },
-  ticket: { w: 216, h: 82 },
+  ticket: { w: 240, h: 82 },
   docs: { w: 200, h: 64 },
   folder: { w: 200, h: 64 },
   page: { w: 200, h: 64 },
@@ -162,10 +163,20 @@ const CENTER_SIZE: Partial<Record<RoadmapLevel['center']['kind'], { w: number; h
 /** Chiều cao thêm của ô chi tiết (`detail`, dạng dòng lệnh) trên thẻ. */
 const DETAIL_LINE = 30;
 
-/** Kích thước gần đúng của một nút trên bản đồ (nút tâm to hơn, thẻ có dòng chi tiết cao hơn). */
+/** Một dòng run trên thẻ (`leading-4`). */
+export const RUN_LINE = 16;
+/** Phần cố định của khối run: khe trên khối, vạch ngăn + đệm, dòng chân (tổng tiền · số run). */
+export const RUN_BLOCK = 30;
+
+/** Chiều cao thêm của khối run trên thẻ: 0 khi thẻ không có run, không thì phần cố định cộng mỗi dòng run. */
+export function runsHeight(node: Pick<RoadmapNode, 'runs'>): number {
+  return node.runs ? RUN_BLOCK + runLines(node.runs) * RUN_LINE : 0;
+}
+
+/** Kích thước gần đúng của một nút trên bản đồ (nút tâm to hơn, thẻ có dòng chi tiết hay dòng run cao hơn). */
 export function roadmapNodeSize(node: RoadmapNode, center: boolean): { w: number; h: number } {
   const s = (center ? CENTER_SIZE[node.kind] : undefined) ?? NODE_SIZE[node.kind];
-  return node.detail ? { w: s.w, h: s.h + DETAIL_LINE } : s;
+  return { w: s.w, h: s.h + (node.detail ? DETAIL_LINE : 0) + runsHeight(node) };
 }
 
 /** Khe tối thiểu giữa hai thẻ (đơn vị bản đồ) khi xếp cây gọn. */

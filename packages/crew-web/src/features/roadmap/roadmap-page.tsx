@@ -209,6 +209,7 @@ export function RoadmapPage() {
         request,
         descendants: data.subtree.data.items,
         agentName: (id) => names.get(id),
+        runs: data.runs.data,
         cap,
       });
       return { kind: 'ready', level, list: listItems(level), truncated: data.subtree.data.truncated };

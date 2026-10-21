@@ -2,6 +2,7 @@ import type { PluginContext } from "@paperclipai/plugin-sdk";
 import { parseCrewBundle, parseCrewCommit, parseCrewFixBase } from "../shared/markers.js";
 import { jsonObject, checkedId } from "../shared/db.js";
 import { crewPolicyKind } from "../shared/policy.js";
+import { loadMapRuns, type MapRuns } from "./runs.js";
 
 export interface CrewMapNode {
   id: string;
@@ -22,6 +23,8 @@ export interface CrewMap {
   nodes: CrewMapNode[];
   edges: Array<{ kind: "parent" | "dependency" | "repair"; from: string; to: string; label?: string }>;
   diagnostics: string[];
+  /** Run tóm tắt theo issue và tổng cả cây; không có khi issue không thuộc yêu cầu Crew (`not_crew_root`). */
+  runs?: MapRuns;
 }
 
 type LocationRow = { id: string; company_id: string; parent_id: string | null };
@@ -160,7 +163,7 @@ export async function loadCrewMap(ctx: Pick<PluginContext, "db">, issueId: strin
       edges.push({ kind: "repair", from: node.id, to: node.id, label: `${node.reviewRounds} vòng sửa` });
     }
   }
-  return { root, nodes, edges, diagnostics };
+  return { root, nodes, edges, diagnostics, runs: await loadMapRuns(ctx, companyId, ids) };
 }
 
 export function registerMapFeature(ctx: PluginContext): void {

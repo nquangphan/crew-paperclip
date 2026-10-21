@@ -69,6 +69,7 @@ export * from './widgets/roadmap/roadmap-doc-popup';
 export * from './widgets/roadmap/roadmap-layout';
 export * from './widgets/roadmap/roadmap-legend';
 export * from './widgets/roadmap/roadmap-list';
+export * from './widgets/roadmap/roadmap-runs';
 export * from './widgets/row-link';
 export * from './widgets/run-row';
 export * from './widgets/section';

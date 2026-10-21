@@ -231,7 +231,17 @@ export type {
   DocsTree,
 } from '@crew/paperclip-plugin/shared/docs-tree';
 export type { CrewMachine, CrewMachinePairing, MachineCardModel } from '@crew/paperclip-plugin/shared/machine-card';
-export type { CrewMap, CrewMapNode, CrewRoot, MapEdge, MapProjection } from '@crew/paperclip-plugin/shared/map';
+export type {
+  CrewMap,
+  CrewMapNode,
+  CrewRoot,
+  IssueMapRuns,
+  MapEdge,
+  MapProjection,
+  MapRun,
+  MapRuns,
+  MapRunTotals,
+} from '@crew/paperclip-plugin/shared/map';
 
 // I5. Quyết định runtime của một issue (data `crew.runtimeDecisions`): mới nhất trước, tối đa 50 dòng.
 export type RuntimeDecisionKind = 'select' | 'fallback' | 'fallback_refused';

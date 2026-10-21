@@ -377,6 +377,21 @@
     "doc": {
       "close": "Close",
       "openInDocs": "Open in Docs page"
+    },
+    "runs": {
+      "more_one": "+{{count}} run",
+      "more_other": "+{{count}} runs",
+      "total_one": "{{cost}} · {{count}} run",
+      "total_other": "{{cost}} · {{count}} runs",
+      "totalTree_one": "Tree {{cost}} · {{count}} run",
+      "totalTree_other": "Tree {{cost}} · {{count}} runs",
+      "aria_one": "{{count}} run, total {{cost}}",
+      "aria_other": "{{count}} runs, total {{cost}}",
+      "ariaTree_one": "Whole tree {{count}} run, total {{cost}}",
+      "ariaTree_other": "Whole tree {{count}} runs, total {{cost}}",
+      "latest": "Latest runs: {{runs}}",
+      "noteSubscription": "API-equivalent price; the subscription plan is not charged",
+      "noteApi": "API-equivalent price from run usage"
     }
   }
 }

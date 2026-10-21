@@ -2,7 +2,8 @@
 // Tầng công ty → project (+ "Chưa gắn project" cho owner) → yêu cầu gốc do người tạo (+ nút Docs) → cây việc con;
 // nhánh Docs: bộ docs → thư mục → trang. Không gọi API, không đọc URL; trang lo phần đó.
 import { buildDocsTree, type DocsNode } from '@crew/paperclip-plugin/shared/docs-tree';
-import type { RoadmapEdge, RoadmapLevel, RoadmapNode } from '@/ds';
+import type { MapRuns } from '@crew/paperclip-plugin/shared/map';
+import { type RoadmapEdge, type RoadmapLevel, type RoadmapNode, roadmapRuns } from '@/ds';
 
 /** Trần số nút vẽ mỗi tầng; vượt thì có nút "+N khác" mở dạng danh sách. */
 export const CAPS = { projects: 40, requests: 60, tickets: 150, docs: 60 } as const;
@@ -211,6 +212,8 @@ export interface RequestLevelInput {
   /** Hậu duệ của yêu cầu (đã lọc theo quyền xem). Issue không nối được về yêu cầu bị bỏ. */
   descendants: readonly RoadmapIssue[];
   agentName?: (agentId: string) => string | undefined;
+  /** Run tóm tắt của cây yêu cầu (chưa tải thì thẻ không có khối run). */
+  runs?: MapRuns;
   cap?: number;
 }
 
@@ -226,6 +229,7 @@ export function buildRequestLevel(input: RequestLevelInput): RoadmapLevel {
   const cap = input.cap ?? CAPS.tickets;
   const kept = all.slice(0, cap);
   const ids = new Set([request.id, ...kept.map((k) => k.id)]);
+  const runsOf = (id: string) => input.runs?.byIssue[id.toLowerCase()];
   const nodes: RoadmapNode[] = kept.map((t) => ({
     id: t.id,
     kind: 'ticket',
@@ -235,6 +239,7 @@ export function buildRequestLevel(input: RequestLevelInput): RoadmapLevel {
     parentId: t.parentId,
     children: index.get(t.id)?.length ?? 0,
     assignee: t.assigneeAgentId ? (input.agentName?.(t.assigneeAgentId) ?? null) : null,
+    runs: roadmapRuns(runsOf(t.id)),
   }));
   const edges: RoadmapEdge[] = kept.map((t) => ({
     id: `${t.parentId}->${t.id}`,
@@ -259,6 +264,7 @@ export function buildRequestLevel(input: RequestLevelInput): RoadmapLevel {
     status: request.status,
     total: all.length,
     done: all.filter((d) => d.status === 'done').length,
+    runs: input.runs ? roadmapRuns(runsOf(request.id), input.runs.tree) : undefined,
   };
   return { center, nodes, edges, overflow, layout: 'top-down' };
 }

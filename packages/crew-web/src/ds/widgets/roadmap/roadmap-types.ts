@@ -40,6 +40,39 @@ export interface RoadmapNode {
   notes?: readonly string[];
   /** Việc đang xem (bản đồ Crew ở trang chi tiết): viền nổi bật. */
   current?: boolean;
+  /** Run của việc (yêu cầu/việc con): vài dòng mới nhất trong thẻ, chân thẻ là tổng tiền và số run. */
+  runs?: RoadmapRuns;
+}
+
+/** Một run của việc, đủ để vẽ một dòng: trạng thái, agent, model, thời lượng, tiền. */
+export interface RoadmapRun {
+  id: string;
+  /** Trạng thái run của Paperclip: queued, running, succeeded, failed, timed_out, cancelled… */
+  status: string;
+  agentName: string;
+  /** Mã model (`claude-sonnet-5`); null khi chưa biết. */
+  model: string | null;
+  startedAt: string | null;
+  finishedAt: string | null;
+  /** USD quy đổi giá API; null khi không có số liệu (hiện "—"). */
+  costUsd: number | null;
+}
+
+/** Tổng run hiện ở chân thẻ. */
+export interface RoadmapRunTotals {
+  count: number;
+  costUsd: number | null;
+  /** Có run tính theo gói thuê bao: tiền là giá quy đổi, không bị trừ thật. */
+  subscription: boolean;
+}
+
+export interface RoadmapRuns {
+  /** Run của chính việc, mới nhất trước (thẻ vẽ tối đa `ROADMAP_RUN_LINES` dòng). */
+  runs: readonly RoadmapRun[];
+  /** Tổng số run của chính việc, có thể nhiều hơn `runs` (phần dư hiện "+N run"). */
+  count: number;
+  /** Chân thẻ: tổng của việc, hoặc của cả cây (`tree`) với yêu cầu gốc. */
+  total: RoadmapRunTotals & { tree: boolean };
 }
 
 /** `repair`: vòng sửa của bản đồ Crew (việc được sửa → việc sửa; cùng nút = việc đã qua vòng sửa). */

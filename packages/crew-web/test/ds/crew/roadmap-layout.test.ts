@@ -229,6 +229,36 @@ describe('cây trên xuống (top-down)', () => {
     expect(overlaps(level)).toEqual([]);
   });
 
+  it.each([
+    ['3 nhánh × 2 tầng', 3, 2],
+    ['24 con lá (xếp nhiều hàng)', 24, 1],
+  ])('%s, thẻ cao thấp khác nhau theo số dòng run: không thẻ nào chồng nhau', (_name, width, depth) => {
+    const level = uniform(width, depth);
+    const run = (i: number) => ({
+      id: `run-${i}`,
+      status: 'succeeded',
+      agentName: 'executor-1',
+      model: 'claude-sonnet-5',
+      startedAt: null,
+      finishedAt: null,
+      costUsd: 0.5,
+    });
+    level.nodes.forEach((node, i) => {
+      const lines = i % 4;
+      if (lines === 0) return;
+      node.runs = {
+        runs: Array.from({ length: lines }, (_, k) => run(k)),
+        count: lines + (i % 3),
+        total: { count: lines, costUsd: 1, subscription: true, tree: false },
+      };
+      if (i % 5 === 0) node.detail = 'Đang duyệt';
+    });
+    level.center.runs = { runs: [run(0)], count: 1, total: { count: 40, costUsd: 9, subscription: true, tree: true } };
+    const heights = new Set(boxes(level).map((b) => b.s.h));
+    expect(heights.size).toBeGreaterThan(2);
+    expect(overlaps(level)).toEqual([]);
+  });
+
   it('nhiều con lá thì gói thành lưới để cây không quá rộng', () => {
     const level = uniform(24, 1);
     const xs = boxes(level).map((b) => b.p.x);

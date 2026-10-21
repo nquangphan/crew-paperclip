@@ -3,6 +3,7 @@
 // cha-con, cạnh phụ thuộc thành cạnh "chặn", cạnh vòng sửa giữ nguyên. Hàm thuần, không phụ thuộc thư viện vẽ.
 import type { CrewMap, CrewMapNode } from '@crew/paperclip-plugin/shared/map';
 import type { useT } from '@/i18n';
+import { roadmapRuns } from '../roadmap/roadmap-runs';
 import type { RoadmapEdge, RoadmapEdgeKind, RoadmapLevel, RoadmapNode } from '../roadmap/roadmap-types';
 import { resolveStageKey } from '../stage-badge';
 
@@ -78,6 +79,8 @@ export function crewMapLevel(
       p = parentOf.get(p);
     }
   }
+  // Run theo issue (khóa chữ thường); yêu cầu gốc hiện tổng của cả cây ở chân thẻ.
+  const runsOf = (id: string) => map.runs?.byIssue[id.toLowerCase()];
   const childCount = new Map<string, number>();
   for (const p of parentOf.values()) childCount.set(p, (childCount.get(p) ?? 0) + 1);
 
@@ -93,6 +96,7 @@ export function crewMapLevel(
       children: childCount.get(issue.id) ?? 0,
       assignee: issue.assignee?.name ?? null,
       current,
+      runs: roadmapRuns(runsOf(issue.id)),
       ...facts(t, issue, current, docs),
     };
   });
@@ -106,6 +110,7 @@ export function crewMapLevel(
     total: all.length,
     done: all.filter((n) => n.status === 'done').length,
     current: rootCurrent,
+    runs: map.runs ? roadmapRuns(runsOf(rootId), map.runs.tree) : undefined,
     ...facts(t, root, rootCurrent, docs),
   };
 

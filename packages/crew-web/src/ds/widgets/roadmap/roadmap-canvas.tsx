@@ -12,6 +12,9 @@ export type {
   RoadmapNode,
   RoadmapNodeKind,
   RoadmapPoint,
+  RoadmapRun,
+  RoadmapRuns,
+  RoadmapRunTotals,
 } from './roadmap-types';
 
 // @xyflow/react nặng nên chỉ nạp khi trang Roadmap hiện bản đồ (chung chunk với bản đồ yêu cầu Crew).

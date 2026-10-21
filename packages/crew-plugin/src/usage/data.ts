@@ -41,9 +41,9 @@ const MAX_RUNS = 200;
 const ROLE_ORDER: CrewRole[] = ["assistant", "executor", "reviewer", "integrator", "khac"];
 const WINDOWS = new Set([7, 30, 90]);
 
-interface RunRow {
-  runId: string; agentId: string; agentName: string; status: string;
-  startedAt: string | Date | null; finishedAt: string | Date | null;
+export interface RunRow {
+  runId: string; agentId: string; agentName: string; agentModel: string | null; status: string;
+  createdAt: string | Date; startedAt: string | Date | null; finishedAt: string | Date | null;
   usageJson: unknown; modelUsage: unknown; ctxIssue: string | null; ctxProject: string | null; ceIssue: string | null;
   costEventCount: number | string; input: string | number | null; cached: string | number | null; output: string | number | null;
   cents: string | number | null; model: string | null; billingType: string | null;
@@ -58,8 +58,8 @@ const lower = (value: string | null): string | null => (value === null ? null : 
 function fetchRuns(ctx: Db, where: string, params: unknown[]): Promise<RunRow[]> {
   return ctx.db.query<RunRow>(
     `WITH sel AS (SELECT r.id FROM public.heartbeat_runs r WHERE r.company_id = $1 AND (${where}))
-     SELECT r.id::text AS "runId", r.agent_id::text AS "agentId", a.name AS "agentName", r.status,
-       r.started_at AS "startedAt", r.finished_at AS "finishedAt", r.usage_json AS "usageJson",
+     SELECT r.id::text AS "runId", r.agent_id::text AS "agentId", a.name AS "agentName",
+       a.adapter_config->>'model' AS "agentModel", r.status, r.created_at AS "createdAt", r.started_at AS "startedAt", r.finished_at AS "finishedAt", r.usage_json AS "usageJson",
        r.result_json->'modelUsage' AS "modelUsage", lower(r.context_snapshot->>'issueId') AS "ctxIssue",
        lower(r.context_snapshot->>'projectId') AS "ctxProject", ce.issue_id AS "ceIssue",
        coalesce(ce.n, 0)::int AS "costEventCount", ce.input, ce.cached, ce.output, ce.cents, ce.model,
@@ -76,6 +76,18 @@ function fetchRuns(ctx: Db, where: string, params: unknown[]): Promise<RunRow[]>
      WHERE r.company_id = $1 AND r.id IN (SELECT id FROM sel)`,
     params,
   );
+}
+
+/**
+ * Run thuộc một tập issue (id đã kiểm, chữ thường): issue trong `cost_events` hoặc `context_snapshot.issueId`.
+ * Một truy vấn cho cả tập; chủ thật của từng run lấy bằng `ownerOf`.
+ */
+export function fetchIssueRuns(ctx: Db, companyId: string, issueIds: readonly string[]): Promise<RunRow[]> {
+  return fetchRuns(ctx,
+    `lower(r.context_snapshot->>'issueId') IN (SELECT jsonb_array_elements_text($2::jsonb))
+     OR r.id IN (SELECT c.heartbeat_run_id FROM public.cost_events c WHERE c.company_id = $1
+       AND c.issue_id::text IN (SELECT jsonb_array_elements_text($2::jsonb)))`,
+    [companyId, JSON.stringify(issueIds.map((id) => id.toLowerCase()))]);
 }
 
 type RoleBook = Map<string, { assistant: string; executors: Set<string>; reviewer: string; integrator: string }>;
@@ -107,7 +119,7 @@ function roleOf(book: RoleBook, projectId: string | null, agentId: string): Crew
 
 const num = (value: string | number | null): number => Number(value ?? 0);
 
-function toRaw(row: RunRow, owner: string | null, identifier: string | null, role: CrewRole): RawRun {
+export function toRaw(row: RunRow, owner: string | null, identifier: string | null, role: CrewRole): RawRun {
   const costEventCount = Number(row.costEventCount);
   return {
     runId: row.runId, ownerIssueId: owner, identifier, agentId: row.agentId, agentName: row.agentName, role,
@@ -119,7 +131,7 @@ function toRaw(row: RunRow, owner: string | null, identifier: string | null, rol
   };
 }
 
-const ownerOf = (row: RunRow): string | null => lower(row.ceIssue) ?? row.ctxIssue;
+export const ownerOf = (row: RunRow): string | null => lower(row.ceIssue) ?? row.ctxIssue;
 
 function byRole(runs: RolledRun[]): Array<{ role: CrewRole; totals: UsageTotals }> {
   return ROLE_ORDER.flatMap((role) => {
@@ -151,12 +163,7 @@ export async function loadIssueUsage(ctx: Db, companyId: string, issueId: string
   const root = byId.get(rootId);
   if (!root) return null;
 
-  const ids = JSON.stringify([...byId.keys()]);
-  const rows = await fetchRuns(ctx,
-    `lower(r.context_snapshot->>'issueId') IN (SELECT jsonb_array_elements_text($2::jsonb))
-     OR r.id IN (SELECT c.heartbeat_run_id FROM public.cost_events c WHERE c.company_id = $1
-       AND c.issue_id::text IN (SELECT jsonb_array_elements_text($2::jsonb)))`,
-    [companyId, ids]);
+  const rows = await fetchIssueRuns(ctx, companyId, [...byId.keys()]);
   const book = await loadRoles(ctx, companyId);
   const runs = rows.flatMap((row) => {
     const owner = ownerOf(row);
