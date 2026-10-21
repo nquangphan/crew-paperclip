@@ -8,7 +8,7 @@ import { CREW_PLUGIN_KEY, rowsOf } from "./project-roles.js";
 /**
  * Quyền xem project theo từng thành viên (bảng plugin `crew_project_access`, migration `0016_project_access.sql` của
  * `crew.core`). Owner của company thấy mọi project; mọi thành viên người khác (admin, operator, viewer, Phòng
- * Marketing) chỉ thấy project owner đã cấp, mặc định không thấy gì, và không thấy issue không thuộc project nào.
+ * Marketing, Phòng QC) chỉ thấy project owner đã cấp, mặc định không thấy gì, và không thấy issue không thuộc project nào.
  * Agent không bị ảnh hưởng.
  *
  * Chỉ UI Crew và router Crew áp luật này; API lõi của Paperclip không đổi (đọc thẳng API lõi vẫn thấy).

@@ -13,6 +13,7 @@ import {
   createContribution,
   getContribution,
   grantContributor,
+  grantContributorBodySchema,
   listContributions,
   listContributors,
   listQuerySchema,
@@ -47,7 +48,7 @@ function conflictWith(res: Response, code: string, error: string, contribution: 
 }
 
 /**
- * Router Crew cho góp ý chờ duyệt của Phòng Marketing (spec §5). Gắn vào `createApp` bằng vá lõi C7.
+ * Router Crew cho góp ý chờ duyệt của Phòng Marketing và Phòng QC (spec §5). Gắn vào `createApp` bằng vá lõi C7.
  *
  * - Chỉ actor board đăng nhập bằng phiên trình duyệt; agent, board API key và `local_implicit` nhận
  *   `403 crew_contribution_forbidden`.
@@ -75,6 +76,7 @@ export function crewContributionRoutes(db: Db): Router {
       userId: actor.userId,
       membershipRole: actor.membershipRole,
       contributor: actor.contributor,
+      department: actor.department,
       canApprove: actor.isOwner,
     });
   });
@@ -200,7 +202,17 @@ export function crewContributionRoutes(db: Db): Router {
     const actor = await resolveContributionActor(db, req, req.params.companyId, { requireTables: true });
     requireOwner(actor);
     const userId = parseContributorUserId(req.params.userId);
-    const granted = await grantContributor(db, { companyId: actor.companyId, userId, grantedByUserId: actor.userId });
+    const body = grantContributorBodySchema.safeParse(takeBody(res) ?? {});
+    if (!body.success) {
+      throw badRequest("Phòng góp ý không hợp lệ.", { code: CONTRIBUTION_ERRORS.invalid, issues: body.error.issues });
+    }
+    const { department } = body.data;
+    const granted = await grantContributor(db, {
+      companyId: actor.companyId,
+      userId,
+      grantedByUserId: actor.userId,
+      department,
+    });
     if (!granted) {
       res.status(409).json({
         error: "Chỉ bật góp ý cho thành viên viewer đang hoạt động.",
@@ -208,7 +220,7 @@ export function crewContributionRoutes(db: Db): Router {
       });
       return;
     }
-    logger.info({ companyId: actor.companyId, userId }, "crew contributor granted");
+    logger.info({ companyId: actor.companyId, userId, department }, "crew contributor granted");
     res.status(204).end();
   });
 

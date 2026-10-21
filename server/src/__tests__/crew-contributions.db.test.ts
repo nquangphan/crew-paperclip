@@ -20,7 +20,7 @@ import {
   projects,
 } from "@paperclipai/db";
 import { CREW_POLICY_CONFIG_ENV } from "../crew/issue-policy.js";
-import { crewContributionsTable } from "../crew/contributions.js";
+import { contributionTablesReady, crewContributionsTable } from "../crew/contributions.js";
 import { getEmbeddedPostgresTestSupport, startEmbeddedPostgresTestDatabase } from "./helpers/embedded-postgres.js";
 
 const sentry = vi.hoisted(() => ({ captureException: vi.fn() }));
@@ -29,13 +29,14 @@ vi.mock("../sentry.js", async (importOriginal) => ({
   captureException: sentry.captureException,
 }));
 
-// Bảng quyền xem project (0016) đi cùng: khách góp ý chỉ gửi được vào project owner đã cấp.
-const migration = ["0013_contributions.sql", "0016_project_access.sql"]
+// Bảng quyền xem project (0016) đi cùng: khách góp ý chỉ gửi được vào project owner đã cấp. Cột phòng (0018) bắt buộc.
+const statementsOf = (files: string[]) => files
   .map((file) => readFileSync(fileURLToPath(new URL(`../../../packages/crew-plugin/migrations/${file}`, import.meta.url)), "utf8"))
   .join(";")
   .split(";")
   .map((statement) => statement.trim())
   .filter(Boolean);
+const migration = statementsOf(["0013_contributions.sql", "0016_project_access.sql", "0018_contributor_department.sql"]);
 
 const support = await getEmbeddedPostgresTestSupport();
 const suite = support.supported ? describe.sequential : describe.skip;
@@ -215,7 +216,23 @@ suite("Crew: router góp ý chờ duyệt", () => {
 
       const access = await request(await as(users.guest)).get(url("/access"));
       expect(access.status).toBe(200);
-      expect(access.body).toEqual({ userId: users.guest, membershipRole: "viewer", contributor: false, canApprove: false });
+      expect(access.body).toEqual({
+        userId: users.guest, membershipRole: "viewer", contributor: false, department: null, canApprove: false,
+      });
+    });
+
+    it("bảng góp ý chưa có cột phòng (plugin chưa áp 0018) coi như chưa sẵn sàng", async () => {
+      const rollback = new Error("rollback");
+      await expect(db.transaction(async (tx) => {
+        const namespace = crewContributionsTable().split(".")[0]!;
+        await tx.execute(sql.raw(`CREATE SCHEMA IF NOT EXISTS ${namespace}`));
+        for (const statement of statementsOf(["0013_contributions.sql", "0016_project_access.sql"])) await tx.execute(sql.raw(statement));
+        expect(await contributionTablesReady(tx)).toBe(false);
+        for (const statement of statementsOf(["0018_contributor_department.sql"])) await tx.execute(sql.raw(statement));
+        expect(await contributionTablesReady(tx)).toBe(true);
+        throw rollback;
+      })).rejects.toBe(rollback);
+      expect(await contributionTablesReady(db)).toBe(false);
     });
   });
 
@@ -225,20 +242,20 @@ suite("Crew: router góp ý chờ duyệt", () => {
       await db.execute(sql.raw(`CREATE SCHEMA IF NOT EXISTS ${namespace}`));
       for (const statement of migration) await db.execute(sql.raw(statement));
       const owner = await as(users.owner);
-      for (const userId of [users.guest, users.guest2]) {
-        const res = await request(owner).put(url(`/contributors/${userId}`));
-        expect(res.status).toBe(204);
-        await grantProject(userId);
-      }
+      // guest là Phòng Marketing (body rỗng như client cũ), guest2 là Phòng QC: mọi ca quyền bên dưới chạy cho cả hai phòng.
+      expect((await request(owner).put(url(`/contributors/${users.guest}`))).status).toBe(204);
+      expect((await request(owner).put(url(`/contributors/${users.guest2}`)).send({ department: "qc" })).status).toBe(204);
+      for (const userId of [users.guest, users.guest2]) await grantProject(userId);
     });
 
     describe("quyền /access", () => {
       it("trả role từ DB, dấu khách góp ý và quyền duyệt", async () => {
         const cases: [string, unknown][] = [
-          [users.owner, { membershipRole: "owner", contributor: false, canApprove: true }],
-          [users.guest, { membershipRole: "viewer", contributor: true, canApprove: false }],
-          [users.viewer, { membershipRole: "viewer", contributor: false, canApprove: false }],
-          [users.operator, { membershipRole: "operator", contributor: false, canApprove: false }],
+          [users.owner, { membershipRole: "owner", contributor: false, department: null, canApprove: true }],
+          [users.guest, { membershipRole: "viewer", contributor: true, department: "marketing", canApprove: false }],
+          [users.guest2, { membershipRole: "viewer", contributor: true, department: "qc", canApprove: false }],
+          [users.viewer, { membershipRole: "viewer", contributor: false, department: null, canApprove: false }],
+          [users.operator, { membershipRole: "operator", contributor: false, department: null, canApprove: false }],
         ];
         for (const [userId, expected] of cases) {
           const res = await request(await as(userId)).get(url("/access"));
@@ -251,7 +268,9 @@ suite("Crew: router góp ý chờ duyệt", () => {
         const server = await app(board("user-instance-admin", [companyId], { isInstanceAdmin: true, memberships: [] }));
         const access = await request(server).get(url("/access"));
         expect(access.status).toBe(200);
-        expect(access.body).toEqual({ userId: "user-instance-admin", membershipRole: null, contributor: false, canApprove: false });
+        expect(access.body).toEqual({
+          userId: "user-instance-admin", membershipRole: null, contributor: false, department: null, canApprove: false,
+        });
         expect((await request(server).get(url("/contributions"))).status).toBe(403);
       });
 
@@ -314,7 +333,7 @@ suite("Crew: router góp ý chờ duyệt", () => {
         });
         expect(issueItem.status).toBe(201);
         expect(issueItem.body).toMatchObject({
-          kind: "issue", status: "pending", authorUserId: users.guest, projectId, targetIssueId: null,
+          kind: "issue", status: "pending", authorUserId: users.guest, authorDepartment: "marketing", projectId, targetIssueId: null,
           title: "Cần trang giới thiệu", body: "Dòng 1\nDòng 2", decidedAt: null, decidedByUserId: null,
           resultIssueId: null, resultCommentId: null,
         });
@@ -327,6 +346,14 @@ suite("Crew: router góp ý chờ duyệt", () => {
         const noDescription = await request(await as(users.guest)).post(url("/contributions")).send({ kind: "issue", projectId, title: "Chỉ tiêu đề" });
         expect(noDescription.status).toBe(201);
         expect(noDescription.body.body).toBeNull();
+
+        // Phòng QC gửi được y như Phòng Marketing, mục ghi phòng của người gửi.
+        const qcIssue = await request(await as(users.guest2)).post(url("/contributions")).send({ kind: "issue", projectId, title: "Lỗi QC" });
+        expect(qcIssue.status).toBe(201);
+        expect(qcIssue.body).toMatchObject({ status: "pending", authorUserId: users.guest2, authorDepartment: "qc" });
+        const qcComment = await request(await as(users.guest2)).post(url("/contributions")).send({ kind: "comment", issueId, body: "QC góp ý" });
+        expect(qcComment.status).toBe(201);
+        expect(qcComment.body).toMatchObject({ kind: "comment", status: "pending", authorDepartment: "qc" });
         expect(await db.select().from(activityLog)).toHaveLength(before.length);
       });
 
@@ -417,8 +444,11 @@ suite("Crew: router góp ý chờ duyệt", () => {
         expect(new Set(guestList.body.items.map((item: { authorUserId: string }) => item.authorUserId))).toEqual(new Set([users.guest]));
 
         const ownerList = await request(await as(users.owner)).get(url("/contributions"));
-        const ownerIds = (ownerList.body.items as { id: string }[]).map((item) => item.id);
-        expect(ownerIds).toEqual(expect.arrayContaining([mine.id, theirs.id]));
+        const ownerItems = ownerList.body.items as { id: string; authorDepartment: string | null }[];
+        expect(ownerItems.map((item) => item.id)).toEqual(expect.arrayContaining([mine.id, theirs.id]));
+        expect(ownerItems.find((item) => item.id === mine.id)?.authorDepartment).toBe("marketing");
+        expect(ownerItems.find((item) => item.id === theirs.id)?.authorDepartment).toBe("qc");
+        expect((await request(await as(users.owner)).get(url(`/contributions/${theirs.id}`))).body.authorDepartment).toBe("qc");
 
         expect((await request(await as(users.guest)).get(url(`/contributions/${theirs.id}`))).status).toBe(404);
         expect((await request(await as(users.guest)).get(url(`/contributions/${mine.id}`))).status).toBe(200);
@@ -754,7 +784,7 @@ suite("Crew: router góp ý chờ duyệt", () => {
         const list = await request(owner).get(url("/contributors"));
         expect(list.status).toBe(200);
         expect(list.body.items).toEqual(expect.arrayContaining([
-          { userId: temp, grantedAt: expect.any(String), grantedByUserId: users.owner },
+          { userId: temp, department: "marketing", grantedAt: expect.any(String), grantedByUserId: users.owner },
         ]));
 
         const created = await request(await as(temp)).post(url("/contributions")).send({ kind: "comment", issueId, body: "x" });
@@ -764,6 +794,38 @@ suite("Crew: router góp ý chờ duyệt", () => {
         const after = await request(await as(temp)).post(url("/contributions")).send({ kind: "comment", issueId, body: "x" });
         expect(after.status).toBe(403);
         expect((await request(await as(temp)).get(url("/access"))).body.contributor).toBe(false);
+      });
+
+      it("PUT nhận phòng marketing/qc, đổi phòng bằng PUT lại; phòng lạ hay trường lạ 400", async () => {
+        const owner = await as(users.owner);
+        const temp = `user-dept-${randomUUID()}`;
+        await db.insert(companyMemberships).values({ companyId, principalType: "user", principalId: temp, status: "active", membershipRole: "viewer" });
+        roles[temp] = "viewer";
+        await grantProject(temp);
+        const departmentOf = async () => (await request(owner).get(url("/contributors"))).body.items
+          .find((entry: { userId: string }) => entry.userId === temp)?.department;
+
+        expect((await request(owner).put(url(`/contributors/${temp}`)).send({ department: "qc" })).status).toBe(204);
+        expect(await departmentOf()).toBe("qc");
+        expect((await request(await as(temp)).get(url("/access"))).body).toMatchObject({ contributor: true, department: "qc" });
+        const item = await createIssueContribution(undefined, temp);
+
+        expect((await request(owner).put(url(`/contributors/${temp}`)).send({ department: "marketing" })).status).toBe(204);
+        expect(await departmentOf()).toBe("marketing");
+        expect((await request(await as(temp)).get(url("/access"))).body.department).toBe("marketing");
+        // Mục chờ hiện phòng hiện tại của người gửi.
+        expect((await request(owner).get(url(`/contributions/${item.id}`))).body.authorDepartment).toBe("marketing");
+
+        for (const body of [{ department: "sales" }, { department: null }, { department: "qc", extra: 1 }]) {
+          const res = await request(owner).put(url(`/contributors/${temp}`)).send(body);
+          expect(res.status, JSON.stringify(body)).toBe(400);
+          expect(res.body.code).toBe("crew_contribution_invalid");
+        }
+        expect(await departmentOf()).toBe("marketing");
+
+        // Gỡ dấu thì mục cũ không còn phòng.
+        expect((await request(owner).delete(url(`/contributors/${temp}`))).status).toBe(204);
+        expect((await request(owner).get(url(`/contributions/${item.id}`))).body.authorDepartment).toBeNull();
       });
 
       it("owner nâng khách lên operator thì dấu hết tác dụng", async () => {

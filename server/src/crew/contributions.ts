@@ -12,10 +12,12 @@ import { assertProjectVisible, canSeeProject, issueProjectId, PROJECT_ACCESS_ERR
 import { CREW_PLUGIN_KEY, rowsOf } from "./project-roles.js";
 
 /**
- * Góp ý chờ owner duyệt của thành viên "Phòng Marketing" (khóa `contributor`).
+ * Góp ý chờ owner duyệt của thành viên góp ý (khóa `contributor`), thuộc "Phòng Marketing" hoặc "Phòng QC". Hai phòng có
+ * cùng quyền; phòng chỉ để owner phân biệt người gửi.
  *
  * Nội dung chờ nằm ở hai bảng plugin `crew_contributions`/`crew_contributors` (migration `0013_contributions.sql` của
- * `crew.core`), không bao giờ ở bảng lõi, nên mọi đường đọc của agent không thấy. Chỉ server (router Crew) đọc/ghi hai
+ * `crew.core`, cột `department` từ `0018_contributor_department.sql`), không bao giờ ở bảng lõi, nên mọi đường đọc của
+ * agent không thấy. Chỉ server (router Crew) đọc/ghi hai
  * bảng này. Không ghi activity, không phát event: dấu vết nằm ngay trong dòng góp ý.
  */
 
@@ -27,6 +29,10 @@ export const CONTRIBUTION_KINDS = ["issue", "comment"] as const;
 export const CONTRIBUTION_STATUSES = ["pending", "approving", "approved", "rejected"] as const;
 export type ContributionKind = (typeof CONTRIBUTION_KINDS)[number];
 export type ContributionStatus = (typeof CONTRIBUTION_STATUSES)[number];
+/** Phòng của thành viên góp ý; dòng cũ (trước migration 0018) là `marketing`. */
+export const CONTRIBUTOR_DEPARTMENTS = ["marketing", "qc"] as const;
+export type ContributorDepartment = (typeof CONTRIBUTOR_DEPARTMENTS)[number];
+export const DEFAULT_CONTRIBUTOR_DEPARTMENT: ContributorDepartment = "marketing";
 
 /** Owner khác chỉ giành lại một mục `approving` khi người đang duyệt đã giữ khóa quá lâu. */
 export const APPROVING_LOCK_MINUTES = 10;
@@ -52,6 +58,8 @@ export interface Contribution {
   kind: ContributionKind;
   status: ContributionStatus;
   authorUserId: string;
+  /** Phòng hiện tại của người gửi; `null` khi người đó không còn dấu góp ý. */
+  authorDepartment: ContributorDepartment | null;
   projectId: string | null;
   targetIssueId: string | null;
   title: string | null;
@@ -125,8 +133,10 @@ export interface ContributionActor {
   userId: string;
   /** Role membership `active` của user trong company, đọc từ DB; `null` khi không có membership. */
   membershipRole: string | null;
-  /** Viewer có dấu khách góp ý (Phòng Marketing). */
+  /** Viewer có dấu khách góp ý (Phòng Marketing hoặc Phòng QC). */
   contributor: boolean;
+  /** Phòng của dấu góp ý còn hiệu lực; `null` khi không phải khách góp ý. */
+  department: ContributorDepartment | null;
   /** Owner của chính company: người duy nhất được duyệt/từ chối và bật/gỡ dấu. */
   isOwner: boolean;
   /** Hai bảng góp ý đã có (plugin đã áp migration). */
@@ -172,8 +182,17 @@ export async function resolveContributionActor(
 
   const tablesReady = await contributionTablesReady(db);
   if (opts.requireTables && !tablesReady) throw contributionsUnavailable();
-  const contributor = membershipRole === "viewer" && tablesReady && (await isContributorFlagged(db, companyId, userId));
-  return { companyId, userId, membershipRole, contributor, isOwner: membershipRole === "owner", tablesReady };
+  const department =
+    membershipRole === "viewer" && tablesReady ? await contributorDepartment(db, companyId, userId) : null;
+  return {
+    companyId,
+    userId,
+    membershipRole,
+    contributor: department !== null,
+    department,
+    isOwner: membershipRole === "owner",
+    tablesReady,
+  };
 }
 
 export function requireOwner(actor: ContributionActor): void {
@@ -181,7 +200,7 @@ export function requireOwner(actor: ContributionActor): void {
 }
 
 export function requireContributor(actor: ContributionActor): void {
-  if (!actor.contributor) throw contributionForbidden("Crew: chỉ thành viên Phòng Marketing được gửi góp ý.");
+  if (!actor.contributor) throw contributionForbidden("Crew: chỉ thành viên Phòng Marketing hoặc Phòng QC được gửi góp ý.");
 }
 
 export function requireOwnerOrContributor(actor: ContributionActor): void {
@@ -192,10 +211,12 @@ export function requireOwnerOrContributor(actor: ContributionActor): void {
 // Bảng plugin
 // ---------------------------------------------------------------------------------------------------------------
 
+/** Hai bảng góp ý đã có và bảng thành viên đã có cột `department` (migration 0018). */
 export async function contributionTablesReady(db: Sql): Promise<boolean> {
   const rows = rowsOf(
     await db.execute(sql`SELECT (to_regclass(${crewContributionsTable()}) IS NOT NULL
-      AND to_regclass(${crewContributorsTable()}) IS NOT NULL) AS ok`),
+      AND EXISTS (SELECT 1 FROM pg_attribute
+        WHERE attrelid = to_regclass(${crewContributorsTable()}) AND attname = 'department' AND NOT attisdropped)) AS ok`),
   );
   return rows[0]?.ok === true;
 }
@@ -205,16 +226,26 @@ export async function contributionTablesReady(db: Sql): Promise<boolean> {
  * lần lõi đổi role hay status (gỡ, lưu trữ, mời lại, nâng rồi hạ) đều ghi `updated_at`, nên dấu cũ không tự sống lại khi
  * người đó quay lại làm viewer: owner phải bật lại.
  */
-const effectiveFlag = sql.raw(`EXISTS (SELECT 1 FROM "company_memberships" m
+const EFFECTIVE_FLAG = `EXISTS (SELECT 1 FROM "company_memberships" m
   WHERE m.company_id = c.company_id AND m.principal_type = 'user' AND m.principal_id = c.user_id
-    AND m.status = 'active' AND m.membership_role = 'viewer' AND c.granted_at >= m.updated_at)`);
+    AND m.status = 'active' AND m.membership_role = 'viewer' AND c.granted_at >= m.updated_at)`;
+const effectiveFlag = sql.raw(EFFECTIVE_FLAG);
 
-export async function isContributorFlagged(db: Sql, companyId: string, userId: string): Promise<boolean> {
+const isDepartment = (value: unknown): value is ContributorDepartment =>
+  (CONTRIBUTOR_DEPARTMENTS as readonly unknown[]).includes(value);
+const departmentOf = (value: unknown): ContributorDepartment | null => (isDepartment(value) ? value : null);
+
+/** Phòng của dấu góp ý còn hiệu lực, `null` khi user không có dấu như thế. */
+export async function contributorDepartment(db: Sql, companyId: string, userId: string): Promise<ContributorDepartment | null> {
   const rows = rowsOf(
-    await db.execute(sql`SELECT 1 AS ok FROM ${contributorsTable()} c
+    await db.execute(sql`SELECT c.department FROM ${contributorsTable()} c
       WHERE c.company_id = ${companyId} AND c.user_id = ${userId} AND ${effectiveFlag} LIMIT 1`),
   );
-  return rows.length > 0;
+  return departmentOf(rows[0]?.department);
+}
+
+export async function isContributorFlagged(db: Sql, companyId: string, userId: string): Promise<boolean> {
+  return (await contributorDepartment(db, companyId, userId)) !== null;
 }
 
 const text = (value: unknown): string | null => (value == null ? null : String(value));
@@ -231,6 +262,7 @@ function toRecord(row: Row): ContributionRecord {
     kind: row.kind as ContributionKind,
     status: row.status as ContributionStatus,
     authorUserId: String(row.author_user_id),
+    authorDepartment: departmentOf(row.author_department),
     projectId: text(row.project_id),
     targetIssueId: text(row.target_issue_id),
     title: text(row.title),
@@ -250,10 +282,17 @@ export function toContribution(record: ContributionRecord): Contribution {
   return contribution;
 }
 
+/**
+ * Cột đọc ra của một mục góp ý. Phòng người gửi đọc từ dấu còn hiệu lực của họ (subquery tham chiếu bảng góp ý bằng
+ * tên bảng, nên câu dùng `COLUMNS` không được đặt alias cho bảng góp ý).
+ */
 const COLUMNS = sql.raw(`id::text AS id, company_id::text AS company_id, kind, status, author_user_id,
   project_id::text AS project_id, target_issue_id::text AS target_issue_id, title, body, decided_by_user_id,
   approving_at, decided_at, result_issue_id::text AS result_issue_id, result_comment_id::text AS result_comment_id,
-  created_at`);
+  created_at,
+  (SELECT c.department FROM ${crewContributorsTable()} c
+    WHERE c.company_id = crew_contributions.company_id AND c.user_id = crew_contributions.author_user_id
+      AND ${EFFECTIVE_FLAG}) AS author_department`);
 
 async function selectOne(db: Sql, companyId: string, id: string, lock: boolean): Promise<ContributionRecord | null> {
   if (!isUuid(id)) return null;
@@ -685,20 +724,27 @@ export async function rejectContribution(
 
 export interface ContributorGrant {
   userId: string;
+  department: ContributorDepartment;
   grantedAt: string;
   grantedByUserId: string;
 }
 
 export const contributorUserIdSchema = z.string().trim().min(1).max(255);
 
+/** Body của `PUT /contributors/:userId`; body rỗng (client cũ) là Phòng Marketing. */
+export const grantContributorBodySchema = z
+  .object({ department: z.enum(CONTRIBUTOR_DEPARTMENTS).default(DEFAULT_CONTRIBUTOR_DEPARTMENT) })
+  .strict();
+
 /** Chỉ liệt kê dấu còn hiệu lực; dấu cũ của người đã đổi membership coi như đã gỡ. */
 export async function listContributors(db: Sql, companyId: string): Promise<ContributorGrant[]> {
   const rows = rowsOf(
-    await db.execute(sql`SELECT c.user_id, c.granted_at, c.granted_by_user_id FROM ${contributorsTable()} c
+    await db.execute(sql`SELECT c.user_id, c.department, c.granted_at, c.granted_by_user_id FROM ${contributorsTable()} c
       WHERE c.company_id = ${companyId} AND ${effectiveFlag} ORDER BY c.granted_at ASC, c.user_id ASC`),
   );
   return rows.map((row) => ({
     userId: String(row.user_id),
+    department: departmentOf(row.department) ?? DEFAULT_CONTRIBUTOR_DEPARTMENT,
     grantedAt: iso(row.granted_at) ?? "",
     grantedByUserId: String(row.granted_by_user_id),
   }));
@@ -706,21 +752,22 @@ export async function listContributors(db: Sql, companyId: string): Promise<Cont
 
 /**
  * Bật dấu cho user là viewer `active` của company; trả `false` khi user không phải viewer như thế. Bật lại dấu cũ thì
- * làm mới `granted_at`. `granted_at` không nhỏ hơn `updated_at` của membership, để dấu có hiệu lực ngay cả khi đồng hồ
+ * làm mới `granted_at` và đặt lại phòng theo `department`. `granted_at` không nhỏ hơn `updated_at` của membership, để dấu có hiệu lực ngay cả khi đồng hồ
  * app (ghi `updated_at`) chạy trước đồng hồ DB.
  */
 export async function grantContributor(
   db: Sql,
-  input: { companyId: string; userId: string; grantedByUserId: string },
+  input: { companyId: string; userId: string; grantedByUserId: string; department: ContributorDepartment },
 ): Promise<boolean> {
   const rows = rowsOf(
-    await db.execute(sql`INSERT INTO ${contributorsTable()} (company_id, user_id, granted_by_user_id, granted_at)
-      SELECT m.company_id, m.principal_id, ${input.grantedByUserId}, GREATEST(now(), m.updated_at)
+    await db.execute(sql`INSERT INTO ${contributorsTable()} (company_id, user_id, granted_by_user_id, granted_at, department)
+      SELECT m.company_id, m.principal_id, ${input.grantedByUserId}, GREATEST(now(), m.updated_at), ${input.department}
       FROM "company_memberships" m
       WHERE m.company_id = ${input.companyId} AND m.principal_type = 'user' AND m.principal_id = ${input.userId}
         AND m.status = 'active' AND m.membership_role = 'viewer'
       ON CONFLICT (company_id, user_id)
-        DO UPDATE SET granted_at = EXCLUDED.granted_at, granted_by_user_id = EXCLUDED.granted_by_user_id
+        DO UPDATE SET granted_at = EXCLUDED.granted_at, granted_by_user_id = EXCLUDED.granted_by_user_id,
+          department = EXCLUDED.department
       RETURNING 1 AS ok`),
   );
   return rows.length > 0;

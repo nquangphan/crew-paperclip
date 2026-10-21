@@ -122,7 +122,7 @@ suite("Crew: quyền xem project theo thành viên", () => {
 
     const namespace = crewProjectAccessTable().split(".")[0]!;
     await db.execute(sql.raw(`CREATE SCHEMA IF NOT EXISTS ${namespace}`));
-    for (const statement of [...statements("0013_contributions.sql"), ...statements("0016_project_access.sql")]) {
+    for (const statement of [...statements("0013_contributions.sql"), ...statements("0016_project_access.sql"), ...statements("0018_contributor_department.sql")]) {
       await db.execute(sql.raw(statement));
     }
     expect((await request(await as(users.owner)).put(url(`/contributors/${users.guest}`))).status).toBe(204);
