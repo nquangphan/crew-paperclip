@@ -11,10 +11,15 @@ vi.mock("../services/environments.ts", async (importOriginal) => ({
   environmentService: () => ({ releaseLease }),
 }));
 
-const { gateCalls } = vi.hoisted(() => ({ gateCalls: [] as unknown[] }));
+const { gateCalls, qcCalls } = vi.hoisted(() => ({ gateCalls: [] as unknown[], qcCalls: [] as unknown[] }));
 vi.mock("../crew/issue-gate.ts", () => ({
   crewBeforeIssueWrite: async (input: unknown) => {
     gateCalls.push(input);
+  },
+}));
+vi.mock("../crew/qc-verification.ts", () => ({
+  crewQcBeforeIssueWrite: async (input: unknown) => {
+    qcCalls.push(input);
   },
 }));
 
@@ -64,7 +69,7 @@ describe("crewCoreHooks mặc định", () => {
 });
 
 describe("H2 registry", () => {
-  it("chuyển nguyên input cho crewBeforeIssueWrite", async () => {
+  it("chuyển nguyên input cho crewBeforeIssueWrite rồi phần ghi vòng QC", async () => {
     const input = {
       tx: {} as Db,
       issueId: "issue-1",
@@ -75,6 +80,7 @@ describe("H2 registry", () => {
     };
     await crewCoreHooks.beforeIssueWrite(input);
     expect(gateCalls).toEqual([input]);
+    expect(qcCalls).toEqual([input]);
   });
 });
 

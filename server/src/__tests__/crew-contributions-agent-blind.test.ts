@@ -43,7 +43,7 @@ vi.mock("../services/heartbeat.js", async (importOriginal) => {
 });
 
 // Bảng quyền xem project (0016) đi cùng: khách góp ý chỉ gửi được vào project owner đã cấp. Cột phòng (0018) bắt buộc.
-const migration = ["0013_contributions.sql", "0016_project_access.sql", "0018_contributor_department.sql"]
+const migration = ["0013_contributions.sql", "0016_project_access.sql", "0018_contributor_department.sql", "0019_qc_verification.sql"]
   .map((file) => readFileSync(fileURLToPath(new URL(`../../../packages/crew-plugin/migrations/${file}`, import.meta.url)), "utf8"))
   .join(";")
   .split(";")

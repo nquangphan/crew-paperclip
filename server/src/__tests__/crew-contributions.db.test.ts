@@ -36,7 +36,9 @@ const statementsOf = (files: string[]) => files
   .split(";")
   .map((statement) => statement.trim())
   .filter(Boolean);
-const migration = statementsOf(["0013_contributions.sql", "0016_project_access.sql", "0018_contributor_department.sql"]);
+const migration = statementsOf([
+  "0013_contributions.sql", "0016_project_access.sql", "0018_contributor_department.sql", "0019_qc_verification.sql",
+]);
 
 const support = await getEmbeddedPostgresTestSupport();
 const suite = support.supported ? describe.sequential : describe.skip;
@@ -221,7 +223,7 @@ suite("Crew: router góp ý chờ duyệt", () => {
       });
     });
 
-    it("bảng góp ý chưa có cột phòng (plugin chưa áp 0018) coi như chưa sẵn sàng", async () => {
+    it("bảng góp ý chưa có cột phòng (0018) hay cột phòng lúc gửi (0019) coi như chưa sẵn sàng", async () => {
       const rollback = new Error("rollback");
       await expect(db.transaction(async (tx) => {
         const namespace = crewContributionsTable().split(".")[0]!;
@@ -229,6 +231,9 @@ suite("Crew: router góp ý chờ duyệt", () => {
         for (const statement of statementsOf(["0013_contributions.sql", "0016_project_access.sql"])) await tx.execute(sql.raw(statement));
         expect(await contributionTablesReady(tx)).toBe(false);
         for (const statement of statementsOf(["0018_contributor_department.sql"])) await tx.execute(sql.raw(statement));
+        // Thiếu cột `submitted_department` (plugin chưa áp 0019) vẫn chưa sẵn sàng.
+        expect(await contributionTablesReady(tx)).toBe(false);
+        for (const statement of statementsOf(["0019_qc_verification.sql"])) await tx.execute(sql.raw(statement));
         expect(await contributionTablesReady(tx)).toBe(true);
         throw rollback;
       })).rejects.toBe(rollback);

@@ -1,6 +1,6 @@
 import { Router, type Response } from "express";
 import type { Db } from "@paperclipai/db";
-import { badRequest } from "../errors.js";
+import { badRequest, notFound } from "../errors.js";
 import { logger } from "../middleware/logger.js";
 import {
   approveContribution,
@@ -8,12 +8,14 @@ import {
   completeContribution,
   type Contribution,
   CONTRIBUTION_ERRORS,
+  contributionForbidden,
   contributorUserIdSchema,
   countPending,
   createContribution,
   getContribution,
   grantContributor,
   grantContributorBodySchema,
+  isUuid,
   listContributions,
   listContributors,
   listQuerySchema,
@@ -28,6 +30,7 @@ import {
   toContribution,
 } from "./contributions.js";
 import { crewPluginStartupWait } from "./plugin-startup-wait.js";
+import { listQcStates, QC_ERRORS, verifyQcRound } from "./qc-verification.js";
 import { crewProjectAccessRoutes } from "./project-access-routes.js";
 
 const BASE = "/crew/companies/:companyId";
@@ -115,7 +118,12 @@ export function crewContributionRoutes(db: Db): Router {
     const actor = await resolveContributionActor(db, req, req.params.companyId, { requireTables: true });
     requireContributor(actor);
     const data = parseCreateBody(takeBody(res));
-    const contribution = await createContribution(db, { companyId: actor.companyId, authorUserId: actor.userId, data });
+    const contribution = await createContribution(db, {
+      companyId: actor.companyId,
+      authorUserId: actor.userId,
+      department: actor.department,
+      data,
+    });
     logger.info({ companyId: actor.companyId, contributionId: contribution.id, kind: contribution.kind }, "crew contribution created");
     res.status(201).json(contribution);
   });
@@ -190,6 +198,25 @@ export function crewContributionRoutes(db: Db): Router {
       return;
     }
     res.json(result.contribution);
+  });
+
+  // Vòng duyệt của Phòng QC (xem `qc-verification.ts`). Mọi thành viên người đọc được trạng thái của issue trong project
+  // mình thấy; không trả lý do "Chưa đạt" (lý do đọc qua `/contributions`).
+  router.get(`${BASE}/qc`, async (req, res) => {
+    const actor = await resolveContributionActor(db, req, req.params.companyId, { requireTables: true });
+    if (actor.membershipRole === null) throw contributionForbidden();
+    res.json({ items: await listQcStates(db, { companyId: actor.companyId, userId: actor.userId }) });
+  });
+
+  // QC "Xác nhận đạt": chỉ đổi vòng QC sang `verified`; không ghi issue lõi, không bình luận, không đánh thức ai.
+  router.post(`${BASE}/qc/issues/:issueId/verify`, async (req, res) => {
+    const actor = await resolveContributionActor(db, req, req.params.companyId, { requireTables: true });
+    requireOwnerOrContributor(actor);
+    const issueId = req.params.issueId;
+    if (!isUuid(issueId)) throw notFound("Issue này không chờ QC duyệt.", { code: QC_ERRORS.notAwaiting });
+    const state = await verifyQcRound(db, actor, issueId);
+    logger.info({ companyId: actor.companyId, issueId, roundId: state.roundId }, "crew qc verified");
+    res.json(state);
   });
 
   router.get(`${BASE}/contributors`, async (req, res) => {

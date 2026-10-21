@@ -6,6 +6,7 @@ import { crewBeforeIssueCreate } from "./issue-create-policy.js";
 import { crewBeforeIssueWrite } from "./issue-gate.js";
 import { applyBundleResumeSafely } from "./bundle-resume.js";
 import { crewBeforeClaim } from "./load-gate.js";
+import { crewQcBeforeIssueWrite } from "./qc-verification.js";
 import { startRemoteStopOnRelease } from "./remote-stop.js";
 
 /** H1: gọi ở dòng đầu `claimQueuedRun` trong `heartbeatService(db)`. */
@@ -93,7 +94,11 @@ const implementations: CrewCoreHooks = {
     await applyBundleResumeSafely(input);
     return false;
   },
-  beforeIssueWrite: crewBeforeIssueWrite,
+  beforeIssueWrite: async (input) => {
+    await crewBeforeIssueWrite(input);
+    // Vòng duyệt của Phòng QC: chỉ ghi bảng plugin, không sửa `patch`.
+    await crewQcBeforeIssueWrite(input);
+  },
   beforeIssueCreate: crewBeforeIssueCreate,
   onRunLeaseReleased: async (input) => {
     await startRemoteStopOnRelease(input);

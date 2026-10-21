@@ -10,14 +10,19 @@ import { derivePluginDatabaseNamespace } from "../services/plugin-database.js";
 import { loadCrewCompanyConfig } from "./issue-policy.js";
 import { assertProjectVisible, canSeeProject, issueProjectId, PROJECT_ACCESS_ERRORS } from "./project-access.js";
 import { CREW_PLUGIN_KEY, rowsOf } from "./project-roles.js";
+import { assertCanRequestReopen, QC_ERRORS, reopenCommentBody } from "./qc-verification.js";
 
 /**
  * Góp ý chờ owner duyệt của thành viên góp ý (khóa `contributor`), thuộc "Phòng Marketing" hoặc "Phòng QC". Hai phòng có
  * cùng quyền; phòng chỉ để owner phân biệt người gửi.
  *
  * Nội dung chờ nằm ở hai bảng plugin `crew_contributions`/`crew_contributors` (migration `0013_contributions.sql` của
- * `crew.core`, cột `department` từ `0018_contributor_department.sql`), không bao giờ ở bảng lõi, nên mọi đường đọc của
- * agent không thấy. Chỉ server (router Crew) đọc/ghi hai
+ * `crew.core`, cột `department` từ `0018_contributor_department.sql`, kind `reopen` và cột `submitted_department` từ
+ * `0019_qc_verification.sql`), không bao giờ ở bảng lõi, nên mọi đường đọc của agent không thấy.
+ *
+ * Ba loại góp ý: `issue` (yêu cầu mới), `comment` (bình luận vào issue) và `reopen` ("Chưa đạt" của Phòng QC trên issue
+ * đang chờ QC duyệt, xem `qc-verification.ts`). Duyệt `reopen` là owner đăng bình luận lý do kèm `reopen: true` qua route
+ * bình luận stock, nên issue mở lại và đánh thức người làm như khi owner tự bình luận mở lại. Chỉ server (router Crew) đọc/ghi hai
  * bảng này. Không ghi activity, không phát event: dấu vết nằm ngay trong dòng góp ý.
  */
 
@@ -25,7 +30,7 @@ import { CREW_PLUGIN_KEY, rowsOf } from "./project-roles.js";
 type Sql = Pick<Db, "execute">;
 type Row = Record<string, unknown>;
 
-export const CONTRIBUTION_KINDS = ["issue", "comment"] as const;
+export const CONTRIBUTION_KINDS = ["issue", "comment", "reopen"] as const;
 export const CONTRIBUTION_STATUSES = ["pending", "approving", "approved", "rejected"] as const;
 export type ContributionKind = (typeof CONTRIBUTION_KINDS)[number];
 export type ContributionStatus = (typeof CONTRIBUTION_STATUSES)[number];
@@ -86,7 +91,9 @@ export type Materialize =
       description: string | null;
       idempotencyKey: string;
     }
-  | { kind: "comment"; issueId: string; body: string; clientRequestId: string };
+  | { kind: "comment"; issueId: string; body: string; clientRequestId: string }
+  /** Đăng `body` lên issue bằng route bình luận stock với `reopen: true` (issue rời `done`, người làm được đánh thức). */
+  | { kind: "reopen"; issueId: string; body: string; clientRequestId: string };
 
 // ---------------------------------------------------------------------------------------------------------------
 // Lỗi
@@ -211,12 +218,18 @@ export function requireOwnerOrContributor(actor: ContributionActor): void {
 // Bảng plugin
 // ---------------------------------------------------------------------------------------------------------------
 
-/** Hai bảng góp ý đã có và bảng thành viên đã có cột `department` (migration 0018). */
+/**
+ * Hai bảng góp ý đã có, bảng thành viên đã có cột `department` (migration 0018) và bảng góp ý đã có cột
+ * `submitted_department` (migration 0019, cùng kind `reopen` và bảng vòng QC).
+ */
 export async function contributionTablesReady(db: Sql): Promise<boolean> {
   const rows = rowsOf(
     await db.execute(sql`SELECT (to_regclass(${crewContributionsTable()}) IS NOT NULL
       AND EXISTS (SELECT 1 FROM pg_attribute
-        WHERE attrelid = to_regclass(${crewContributorsTable()}) AND attname = 'department' AND NOT attisdropped)) AS ok`),
+        WHERE attrelid = to_regclass(${crewContributorsTable()}) AND attname = 'department' AND NOT attisdropped)
+      AND EXISTS (SELECT 1 FROM pg_attribute
+        WHERE attrelid = to_regclass(${crewContributionsTable()}) AND attname = 'submitted_department'
+          AND NOT attisdropped)) AS ok`),
   );
   return rows[0]?.ok === true;
 }
@@ -342,7 +355,8 @@ export async function listContributions(
   if (authorUserId) filters.push(sql`author_user_id = ${authorUserId}`);
   if (statuses) filters.push(sql`status IN (${sql.join(statuses.map((status) => sql`${status}`), sql`, `)})`);
   if (query.kind) filters.push(sql`kind = ${query.kind}`);
-  if (query.issueId) filters.push(sql`kind = 'comment' AND target_issue_id = ${query.issueId}`);
+  // Theo issue: bình luận chờ, hoặc yêu cầu mở lại khi lọc `kind = reopen`.
+  if (query.issueId) filters.push(sql`kind = ${query.kind === "reopen" ? "reopen" : "comment"} AND target_issue_id = ${query.issueId}`);
   if (query.before) {
     // Mục con trỏ phải thuộc cùng phạm vi đọc (company, và tác giả khi không phải owner); không có thì trang rỗng.
     filters.push(sql`(created_at, id) < (SELECT p.created_at, p.id FROM ${contributionsTable()} p
@@ -405,6 +419,14 @@ export const createContributionSchema = z.discriminatedUnion("kind", [
       body: safeMultilineText.pipe(z.string().min(1)),
     })
     .strict(),
+  z
+    .object({
+      kind: z.literal("reopen"),
+      issueId: z.string().uuid(),
+      // Lý do "Chưa đạt" của QC, bắt buộc (không chỉ khoảng trắng).
+      body: safeMultilineText.pipe(z.string().trim().min(1)),
+    })
+    .strict(),
 ]);
 export type CreateContributionInput = z.infer<typeof createContributionSchema>;
 
@@ -420,37 +442,46 @@ function invalidTarget(message: string): HttpError {
   return unprocessable(message, { code: CONTRIBUTION_ERRORS.invalidTarget });
 }
 
+/** SQLSTATE vi phạm unique: hai yêu cầu mở lại cùng lúc cho một issue (chỉ mục `crew_contributions_reopen_open_uq`). */
+const UNIQUE_VIOLATION = "23505";
+
+function sqlStateOf(error: unknown): string | null {
+  const cause = error instanceof Error ? (error as Error & { cause?: unknown }).cause : undefined;
+  const code = (cause as { code?: unknown } | undefined)?.code ?? (error as { code?: unknown } | null)?.code;
+  return typeof code === "string" ? code : null;
+}
+
 /**
  * Lỗi DB khi lưu góp ý: lỗi của drizzle chép cả tham số câu lệnh (tiêu đề, nội dung) vào `message`, và message đó đi vào
  * log lẫn Sentry. Thay bằng lỗi `500` cố định, không kèm `cause`; log chỉ ghi id company và mã SQLSTATE.
  */
 function contributionStoreFailed(companyId: string, error: unknown): HttpError {
-  const cause = error instanceof Error ? (error as Error & { cause?: unknown }).cause : undefined;
-  const code = (cause as { code?: unknown } | undefined)?.code ?? (error as { code?: unknown } | null)?.code;
-  logger.error(
-    { companyId, sqlState: typeof code === "string" ? code : null },
-    "crew contribution store failed",
-  );
+  logger.error({ companyId, sqlState: sqlStateOf(error) }, "crew contribution store failed");
   return new HttpError(500, "Crew: không lưu được góp ý, hãy thử lại sau.", { code: CONTRIBUTION_ERRORS.storeFailed });
 }
 
-export async function createContribution(
-  db: Sql,
-  input: { companyId: string; authorUserId: string; data: CreateContributionInput },
-): Promise<Contribution> {
+export interface CreateContributionArgs {
+  companyId: string;
+  authorUserId: string;
+  /** Phòng của người gửi lúc gửi; lưu vào `submitted_department` (issue của Phòng QC được QC duyệt lại). */
+  department: ContributorDepartment | null;
+  data: CreateContributionInput;
+}
+
+export async function createContribution(db: Sql, input: CreateContributionArgs): Promise<Contribution> {
   try {
     return await insertContribution(db, input);
   } catch (error) {
     if (error instanceof HttpError) throw error;
+    if (input.data.kind === "reopen" && sqlStateOf(error) === UNIQUE_VIOLATION) {
+      throw new HttpError(409, "Đang có yêu cầu mở lại chờ owner duyệt.", { code: QC_ERRORS.reopenPending });
+    }
     throw contributionStoreFailed(input.companyId, error);
   }
 }
 
-async function insertContribution(
-  db: Sql,
-  input: { companyId: string; authorUserId: string; data: CreateContributionInput },
-): Promise<Contribution> {
-  const { companyId, authorUserId, data } = input;
+async function insertContribution(db: Sql, input: CreateContributionArgs): Promise<Contribution> {
+  const { companyId, authorUserId, department, data } = input;
   if (data.kind === "issue") {
     const project = rowsOf(
       await db.execute(sql`SELECT 1 AS ok FROM "projects"
@@ -459,8 +490,9 @@ async function insertContribution(
     if (project.length === 0) throw invalidTarget("Project không có trong company hoặc đã lưu trữ.");
     await assertProjectVisible(db, companyId, authorUserId, data.projectId);
     const rows = rowsOf(
-      await db.execute(sql`INSERT INTO ${contributionsTable()} (company_id, kind, author_user_id, project_id, title, body)
-        VALUES (${companyId}, 'issue', ${authorUserId}, ${data.projectId}, ${data.title}, ${data.description})
+      await db.execute(sql`INSERT INTO ${contributionsTable()}
+          (company_id, kind, author_user_id, project_id, title, body, submitted_department)
+        VALUES (${companyId}, 'issue', ${authorUserId}, ${data.projectId}, ${data.title}, ${data.description}, ${department})
         RETURNING ${COLUMNS}`),
     );
     return toContribution(toRecord(rows[0]!));
@@ -473,9 +505,12 @@ async function insertContribution(
   // Issue không thuộc project nào chỉ owner thấy, nên khách góp ý không bình luận được.
   const issueProject = issue[0]?.project_id;
   await assertProjectVisible(db, companyId, authorUserId, typeof issueProject === "string" ? issueProject : null);
+  // "Chưa đạt" chỉ cho người QC của vòng đang chờ duyệt trên issue này.
+  if (data.kind === "reopen") await assertCanRequestReopen(db, { companyId, userId: authorUserId, issueId: data.issueId });
   const rows = rowsOf(
-    await db.execute(sql`INSERT INTO ${contributionsTable()} (company_id, kind, author_user_id, target_issue_id, body)
-      VALUES (${companyId}, 'comment', ${authorUserId}, ${data.issueId}, ${data.body})
+    await db.execute(sql`INSERT INTO ${contributionsTable()}
+        (company_id, kind, author_user_id, target_issue_id, body, submitted_department)
+      VALUES (${companyId}, ${data.kind}, ${authorUserId}, ${data.issueId}, ${data.body}, ${department})
       RETURNING ${COLUMNS}`),
   );
   return toContribution(toRecord(rows[0]!));
@@ -490,8 +525,9 @@ export type MaterializedResult = { resultIssueId: string } | { resultCommentId: 
 /**
  * Tìm bản ghi lõi mà bước đăng của trình duyệt owner đã tạo (spec §5.3). Không tin id do client gửi:
  * - issue: dòng `issue_create_idempotency_keys` với khóa `crew-contribution:<id>`, issue cùng company;
- * - bình luận: `issue_comments` của issue đích có `client_request_id = <id>`, mọi tác giả (bắt cả trường hợp owner
- *   khác đã đăng trước khi giành lại khóa).
+ * - bình luận và yêu cầu mở lại: `issue_comments` của issue đích có `client_request_id = <id>`, mọi tác giả (bắt cả
+ *   trường hợp owner khác đã đăng trước khi giành lại khóa). Route bình luận stock mở lại issue trước khi lưu bình luận
+ *   trong cùng request, nên có bình luận là bước mở lại đã chạy.
  *
  * Không lọc bình luận đã xóa hay issue đã ẩn, và đó là chủ ý: bản ghi đã từng lên lõi thì agent đã đọc và đã được đánh
  * thức, nên `approved` mới là trạng thái thật. Route bình luận stock cũng trả lại đúng bình luận đã xóa khi đăng lại
@@ -597,6 +633,14 @@ export function materializeOf(record: ContributionRecord): Materialize {
       title: record.title!,
       description: record.body,
       idempotencyKey: contributionIdempotencyKey(record.id),
+    };
+  }
+  if (record.kind === "reopen") {
+    return {
+      kind: "reopen",
+      issueId: record.targetIssueId!,
+      body: reopenCommentBody(record.body!),
+      clientRequestId: record.id,
     };
   }
   return { kind: "comment", issueId: record.targetIssueId!, body: record.body!, clientRequestId: record.id };
