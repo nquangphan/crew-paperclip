@@ -615,13 +615,13 @@ function LiveBadge({ label }: { label: string }) {
   return (
     <span
       data-slot="live-badge"
-      className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-blue-500/10 px-2 py-0.5"
+      className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-violet-500/10 px-2 py-0.5"
     >
       <span aria-hidden className="relative flex size-2">
-        <span className="absolute inline-flex size-full animate-pulse rounded-full bg-blue-400 opacity-75" />
-        <span className="relative inline-flex size-2 rounded-full bg-blue-500" />
+        <span className="absolute inline-flex size-full animate-pulse rounded-full bg-violet-400 opacity-75" />
+        <span className="relative inline-flex size-2 rounded-full bg-violet-500" />
       </span>
-      <span className="text-(length:--text-micro) font-medium text-blue-600 dark:text-blue-400">{label}</span>
+      <span className="text-(length:--text-micro) font-medium text-violet-600 dark:text-violet-400">{label}</span>
     </span>
   );
 }

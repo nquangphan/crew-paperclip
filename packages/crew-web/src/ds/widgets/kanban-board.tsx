@@ -76,12 +76,12 @@ const COLUMN_TONES: Record<string, ColumnTone> = {
     card: '',
   },
   in_progress: {
-    rail: 'border-blue-500/25 bg-blue-50/60 dark:bg-blue-950/20',
-    railOver: 'bg-blue-100/70 ring-1 ring-blue-500/25 dark:bg-blue-950/35',
-    header: 'text-blue-700 dark:text-blue-300',
-    count: 'text-blue-700/65 dark:text-blue-300/65',
-    body: 'bg-blue-50/45 ring-1 ring-inset ring-blue-500/15 dark:bg-blue-950/15',
-    bodyOver: 'bg-blue-100/70 ring-1 ring-inset ring-blue-500/25 dark:bg-blue-950/30',
+    rail: 'border-violet-500/25 bg-violet-50/60 dark:bg-violet-950/20',
+    railOver: 'bg-violet-100/70 ring-1 ring-violet-500/25 dark:bg-violet-950/35',
+    header: 'text-violet-700 dark:text-violet-300',
+    count: 'text-violet-700/65 dark:text-violet-300/65',
+    body: 'bg-violet-50/45 ring-1 ring-inset ring-violet-500/15 dark:bg-violet-950/15',
+    bodyOver: 'bg-violet-100/70 ring-1 ring-inset ring-violet-500/25 dark:bg-violet-950/30',
     card: '',
   },
   blocked: {
@@ -94,12 +94,12 @@ const COLUMN_TONES: Record<string, ColumnTone> = {
     card: '',
   },
   in_review: {
-    rail: 'border-violet-500/25 bg-violet-50/60 dark:bg-violet-950/20',
-    railOver: 'bg-violet-100/70 ring-1 ring-violet-500/25 dark:bg-violet-950/35',
-    header: 'text-violet-700 dark:text-violet-300',
-    count: 'text-violet-700/65 dark:text-violet-300/65',
-    body: 'bg-violet-50/45 ring-1 ring-inset ring-violet-500/15 dark:bg-violet-950/15',
-    bodyOver: 'bg-violet-100/70 ring-1 ring-inset ring-violet-500/25 dark:bg-violet-950/30',
+    rail: 'border-cyan-500/25 bg-cyan-50/60 dark:bg-cyan-950/20',
+    railOver: 'bg-cyan-100/70 ring-1 ring-cyan-500/25 dark:bg-cyan-950/35',
+    header: 'text-cyan-700 dark:text-cyan-300',
+    count: 'text-cyan-700/65 dark:text-cyan-300/65',
+    body: 'bg-cyan-50/45 ring-1 ring-inset ring-cyan-500/15 dark:bg-cyan-950/15',
+    bodyOver: 'bg-cyan-100/70 ring-1 ring-inset ring-cyan-500/25 dark:bg-cyan-950/30',
     card: '',
   },
   done: {
@@ -226,11 +226,11 @@ function KanbanCardView({
             <span
               data-slot="kanban-live"
               title={labels.live}
-              className="inline-flex shrink-0 items-center gap-1 text-(length:--text-nano) font-medium text-blue-600 dark:text-blue-400"
+              className="inline-flex shrink-0 items-center gap-1 text-(length:--text-nano) font-medium text-violet-600 dark:text-violet-400"
             >
               <span aria-hidden className="relative flex size-2">
-                <span className="absolute inline-flex size-full animate-pulse rounded-full bg-blue-400 opacity-75" />
-                <span className="relative inline-flex size-2 rounded-full bg-blue-500" />
+                <span className="absolute inline-flex size-full animate-pulse rounded-full bg-violet-400 opacity-75" />
+                <span className="relative inline-flex size-2 rounded-full bg-violet-500" />
               </span>
               {compact ? labels.live : <span className="sr-only">{labels.live}</span>}
             </span>

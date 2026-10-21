@@ -217,8 +217,8 @@
   --dashboard-activity-list-columns: var(--dashboard-list-leading-width) minmax(0, 1fr) var(--dashboard-list-id-width) var(--dashboard-list-time-width);
   --status-task-backlog: #a8aeb2;
   --status-task-todo: #f59e0b;
-  --status-task-in_progress: #2563eb;
-  --status-task-in_review: #7c3aed;
+  --status-task-in_progress: #7c3aed;
+  --status-task-in_review: #0891b2;
   --status-task-done: #22c55e;
   --status-task-blocked: #dc2626;
   --status-task-cancelled: #a8aeb2;
@@ -227,20 +227,20 @@
      its surface, WCAG 2.1 AA, both modes). Distinct from the
      `--status-task-*` chip base hues: a status chip carries its own bg/text
      tint, but a bare glyph sitting next to text on the page needs a stronger
-     hue to clear 3:1. Where the chip base already passes (blue liveness, red
-     blocked, light violet review) the icon var simply re-points at it; the
+     hue to clear 3:1. Where the chip base already passes (violet liveness, red
+     blocked, light cyan review) the icon var simply re-points at it; the
      gray / amber / green statuses are pinned to the board-approved AA hexes.
-     `in_queue` is the BLOCKED shape recoloured to the in_progress blue
+     `in_queue` is the BLOCKED shape recoloured to the in_progress violet
      (replaces the bespoke teal "covered" state). Light values here; the
      `.dark` block below overrides the hues that need a mode-specific value. */
   --status-task-icon-backlog: #52585d;   /* gray darkened — 7.21:1 on paper */
   --status-task-icon-todo: #cc7a00;       /* amber darkened — clears 3:1 */
-  --status-task-icon-in_progress: var(--color-blue-600); /* matches nav dots and live labels */
-  --status-task-icon-in_review: var(--status-task-in_review);     /* #7c3aed (light) */
+  --status-task-icon-in_progress: var(--status-task-in_progress); /* #7c3aed (light), same hue as the roadmap */
+  --status-task-icon-in_review: var(--status-task-in_review);     /* #0891b2 (light) */
   --status-task-icon-done: #16a34a;       /* green darkened — clears 3:1 */
   --status-task-icon-blocked: var(--status-task-blocked);         /* #dc2626 both modes */
   --status-task-icon-cancelled: #52585d;
-  --status-task-icon-in_queue: var(--status-task-icon-in_progress); /* blocked shape, same mode-aware blue */
+  --status-task-icon-in_queue: var(--status-task-icon-in_progress); /* blocked shape, same mode-aware violet */
 
   --folder-color-indigo: #6366f1;
   --folder-color-violet: #8b5cf6;
@@ -447,13 +447,13 @@
   --chip-match-identifier-bg: var(--muted);
   --chip-match-identifier-fg: var(--muted-foreground);
   --chip-match-identifier-border: var(--border);
-  /* Dark-mode status-icon hues. The lighter progress blue gives bare glyphs
+  /* Dark-mode status-icon hues. The lighter progress violet gives bare glyphs
      contrast comparable to the neighboring gray, purple, and green icons.
-     Blocked retains its base red; in_queue follows the progress icon blue. */
+     Blocked retains its base red; in_queue follows the progress icon violet. */
   --status-task-icon-backlog: #9a958a;
   --status-task-icon-todo: #fbbf24;
-  --status-task-icon-in_progress: var(--color-blue-400); /* matches nav dots and live labels */
-  --status-task-icon-in_review: #9474f0;  /* deeper than violet-400, reads purple */
+  --status-task-icon-in_progress: #a78bfa; /* violet-400, same hue as the roadmap */
+  --status-task-icon-in_review: #22d3ee;  /* cyan-400, same hue as the roadmap */
   --status-task-icon-done: #34d06f;
   --status-task-icon-cancelled: #9a958a;
 }
@@ -1111,13 +1111,13 @@
   --roadmap-console-fg: oklch(0.4 0.03 275);
   --roadmap-edge: oklch(0.45 0.03 275 / 38%);
   --roadmap-spark: oklch(1 0 0);
-  --roadmap-tone-backlog: #868b96;
-  --roadmap-tone-todo: #64748b;
-  --roadmap-tone-in_progress: #7c3aed;
-  --roadmap-tone-in_review: #0891b2;
-  --roadmap-tone-done: #059669;
-  --roadmap-tone-blocked: #dc2626;
-  --roadmap-tone-cancelled: #9ca3af;
+  --roadmap-tone-backlog: var(--status-task-icon-backlog);
+  --roadmap-tone-todo: var(--status-task-icon-todo);
+  --roadmap-tone-in_progress: var(--status-task-icon-in_progress);
+  --roadmap-tone-in_review: var(--status-task-icon-in_review);
+  --roadmap-tone-done: var(--status-task-icon-done);
+  --roadmap-tone-blocked: var(--status-task-icon-blocked);
+  --roadmap-tone-cancelled: var(--status-task-icon-cancelled);
   --roadmap-edge-blocks: #d97706;
 }
 
@@ -1132,13 +1132,6 @@
   --roadmap-console-fg: oklch(0.84 0.06 165);
   --roadmap-edge: oklch(1 0 0 / 22%);
   --roadmap-spark: oklch(0.97 0.03 300);
-  --roadmap-tone-backlog: #6b7280;
-  --roadmap-tone-todo: #94a3b8;
-  --roadmap-tone-in_progress: #a78bfa;
-  --roadmap-tone-in_review: #22d3ee;
-  --roadmap-tone-done: #34d399;
-  --roadmap-tone-blocked: #f87171;
-  --roadmap-tone-cancelled: #6b7280;
   --roadmap-edge-blocks: #fbbf24;
 }
 
