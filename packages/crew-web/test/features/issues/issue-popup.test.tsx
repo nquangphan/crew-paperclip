@@ -82,6 +82,15 @@ function mountAt(path: string) {
 }
 
 const popup = () => screen.findByTestId('issue-popup');
+/** Link mã cha trên thanh trên cùng (chuỗi tổ tiên); cột Thuộc tính cũng có link cùng tên. */
+const parentLink = async (scope: HTMLElement) => {
+  const bar = await waitFor(() => {
+    const el = scope.querySelector('[data-slot="issue-top-bar"]');
+    if (!el) throw new Error('chưa có thanh trên cùng');
+    return el as HTMLElement;
+  });
+  return within(bar).findByRole('link', { name: 'TPS-1' });
+};
 const issueParam = (router: ReturnType<typeof mountAt>) =>
   new URLSearchParams(router.state.location.search).get('issue');
 
@@ -171,7 +180,7 @@ describe('popup chi tiết yêu cầu `?issue=`', () => {
     const router = mountAt('/TPS/inbox');
     fireEvent.click(screen.getByRole('link', { name: 'Mở TPS-2' }));
     const dialog = await popup();
-    fireEvent.click(await within(dialog).findByRole('link', { name: 'TPS-1' }));
+    fireEvent.click(await parentLink(dialog));
     await waitFor(() => expect(issueParam(router)).toBe('TPS-1'));
     expect(await within(await popup()).findByText('Yêu cầu gốc', { selector: 'h1' })).toBeTruthy();
     fireEvent.click(within(await popup()).getByRole('button', { name: 'Đóng' }));
@@ -180,13 +189,55 @@ describe('popup chi tiết yêu cầu `?issue=`', () => {
     expect(issueParam(router)).toBeNull();
   });
 
+  it('mở yêu cầu khác trong popup đẩy history: Back và nút Quay lại về yêu cầu trước, Đóng về thẳng trang dưới', async () => {
+    server();
+    const router = mountAt('/TPS/inbox');
+    fireEvent.click(screen.getByRole('link', { name: 'Mở TPS-2' }));
+    let dialog = await popup();
+    // yêu cầu đầu tiên của popup: chưa có gì để quay lại
+    await within(dialog).findByText('Sửa trang đăng nhập', { selector: 'h1' });
+    expect(within(dialog).queryByRole('button', { name: 'Quay lại' })).toBeNull();
+    fireEvent.click(await parentLink(dialog));
+    await waitFor(() => expect(issueParam(router)).toBe('TPS-1'));
+    expect(router.state.historyAction).toBe('PUSH');
+    dialog = await popup();
+    await within(dialog).findByText('Yêu cầu gốc', { selector: 'h1' });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Quay lại' }));
+    await waitFor(() => expect(issueParam(router)).toBe('TPS-2'));
+    // Back của trình duyệt cũng quay về yêu cầu trước
+    fireEvent.click(await parentLink(await popup()));
+    await waitFor(() => expect(issueParam(router)).toBe('TPS-1'));
+    await router.navigate(-1);
+    await waitFor(() => expect(issueParam(router)).toBe('TPS-2'));
+    // sang cha rồi Đóng: lùi hết các mục popup, về thẳng trang dưới
+    fireEvent.click(await parentLink(await popup()));
+    await waitFor(() => expect(issueParam(router)).toBe('TPS-1'));
+    await within(await popup()).findByText('Yêu cầu gốc', { selector: 'h1' });
+    fireEvent.click(within(await popup()).getByRole('button', { name: 'Đóng' }));
+    await waitFor(() => expect(screen.queryByTestId('issue-popup')).toBeNull());
+    expect(router.state.location.pathname).toBe('/TPS/inbox');
+    expect(issueParam(router)).toBeNull();
+    await router.navigate(-1);
+    expect(router.state.location.pathname).not.toContain('TPS-1');
+  });
+
+  it('thanh trên cùng có chuỗi tổ tiên: bấm mã cha mở cha', async () => {
+    server();
+    const router = mountAt('/TPS/inbox');
+    fireEvent.click(screen.getByRole('link', { name: 'Mở TPS-2' }));
+    const dialog = await popup();
+    await within(dialog).findByText('Sửa trang đăng nhập', { selector: 'h1' });
+    fireEvent.click(await parentLink(dialog));
+    await waitFor(() => expect(issueParam(router)).toBe('TPS-1'));
+  });
+
   it('trang đầy đủ (link trực tiếp) không có nút Đóng, bấm yêu cầu cha sang trang đầy đủ của cha', async () => {
     server();
     const router = mountAt('/TPS/issues/TPS-2');
     expect(await screen.findByTestId('properties-panel')).toBeTruthy();
     expect(screen.queryByTestId('issue-popup')).toBeNull();
     expect(screen.queryByRole('button', { name: 'Đóng' })).toBeNull();
-    fireEvent.click(screen.getByRole('link', { name: 'TPS-1' }));
+    fireEvent.click(await parentLink(document.body));
     await waitFor(() => expect(router.state.location.pathname).toBe('/TPS/issues/TPS-1'));
     expect(issueParam(router)).toBeNull();
   });

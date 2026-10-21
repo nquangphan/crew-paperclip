@@ -233,6 +233,7 @@
       "unknownAgent": "unknown agent"
     },
     "root": "Requests",
+    "back": "Back",
     "openFull": "Open full page",
     "close": "Close",
     "popupDescription": "Request {{code}} details"

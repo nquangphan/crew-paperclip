@@ -7,13 +7,30 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useCompany } from '@/app/hooks';
 import { closeIssueHref, isNewTabClick, issueHref, issueNavMode, issuePageHref } from './issue-href';
 
-/** Trạng thái history của mục do popup đẩy vào: đóng popup thì lùi một bước thay vì ghi đè. */
+/**
+ * Trạng thái history của mục do popup đẩy vào. Mở yêu cầu khác trong popup (cha → con) đẩy thêm một mục, nên Back
+ * quay về yêu cầu trước. `depth`: số mục popup đã đẩy liên tiếp tính tới mục này; `rootPushed`: mục đầu tiên cũng do
+ * popup đẩy (mở từ trang), khi đó đóng popup lùi hết `depth` bước về trang dưới.
+ */
 export interface IssuePopupState {
   issuePopup: true;
+  depth: number;
+  rootPushed: boolean;
 }
 
-const pushedByPopup = (state: unknown): boolean =>
-  typeof state === 'object' && state !== null && (state as Partial<IssuePopupState>).issuePopup === true;
+const popupState = (state: unknown): IssuePopupState | null => {
+  if (typeof state !== 'object' || state === null) return null;
+  const s = state as Partial<IssuePopupState>;
+  if (s.issuePopup !== true) return null;
+  // Mục do bản cũ đẩy (chỉ có `issuePopup`): một mục, mở từ trang.
+  return { issuePopup: true, depth: s.depth ?? 1, rootPushed: s.rootPushed ?? true };
+};
+
+/** Popup đang mở có yêu cầu trước đó trong cùng popup để lùi về (đã mở cha rồi mới sang con). */
+export function useIssuePopupCanGoBack(): boolean {
+  const state = popupState(useLocation().state);
+  return state !== null && (state.rootPushed ? state.depth > 1 : state.depth > 0);
+}
 
 /** `href` (trang đầy đủ, cho tab mới) và `open` (theo chế độ đang đứng) của một yêu cầu. */
 export function useIssueOpener() {
@@ -27,25 +44,32 @@ export function useIssueOpener() {
       if (mode === 'page') {
         navigate(issuePageHref(company.issuePrefix, identifier, hash));
       } else if (mode === 'popup') {
-        navigate(issueHref(identifier, location, hash), {
-          replace: true,
-          state: location.state,
-          preventScrollReset: true,
-        });
+        // Đẩy mục mới (không ghi đè) để Back quay về yêu cầu đang xem.
+        const previous = popupState(location.state);
+        const state: IssuePopupState = {
+          issuePopup: true,
+          depth: (previous?.depth ?? 0) + 1,
+          rootPushed: previous?.rootPushed ?? false,
+        };
+        navigate(issueHref(identifier, location, hash), { state, preventScrollReset: true });
       } else {
-        const state: IssuePopupState = { issuePopup: true };
+        const state: IssuePopupState = { issuePopup: true, depth: 1, rootPushed: true };
         navigate(issueHref(identifier, location, hash), { state, preventScrollReset: true });
       }
     },
   };
 }
 
-/** Đóng popup: lùi history nếu popup tự đẩy mục vào (Back cũng đóng được), còn link trực tiếp thì bỏ tham số. */
+/**
+ * Đóng popup: mở từ trang thì lùi hết các mục popup đã đẩy (Back cũng đóng được), còn popup mở bằng link trực tiếp thì
+ * bỏ tham số.
+ */
 export function useCloseIssuePopup() {
   const location = useLocation();
   const navigate = useNavigate();
   return () => {
-    if (pushedByPopup(location.state)) navigate(-1);
+    const state = popupState(location.state);
+    if (state?.rootPushed) navigate(-state.depth);
     else navigate(closeIssueHref(location), { replace: true, preventScrollReset: true });
   };
 }

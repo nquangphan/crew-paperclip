@@ -233,6 +233,7 @@
       "unknownAgent": "agent không rõ"
     },
     "root": "Yêu cầu",
+    "back": "Quay lại",
     "openFull": "Mở toàn trang",
     "close": "Đóng",
     "popupDescription": "Chi tiết yêu cầu {{code}}"

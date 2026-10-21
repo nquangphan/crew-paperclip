@@ -104,13 +104,15 @@ function PropertyEmpty({ children }: { children: React.ReactNode }) {
 interface IssueTopBarProps {
   /** Link về danh sách (chữ viết hoa như "TASKS" của Paperclip). */
   root: React.ReactNode;
+  /** Các yêu cầu tổ tiên, từ gốc xuống cha trực tiếp (mỗi mục một link), nằm giữa `root` và yêu cầu đang xem. */
+  trail?: readonly React.ReactNode[];
   status: string;
   title: string;
   identifier: string;
   actions?: React.ReactNode;
 }
 
-function IssueTopBar({ root, status, title, identifier, actions }: IssueTopBarProps) {
+function IssueTopBar({ root, trail = [], status, title, identifier, actions }: IssueTopBarProps) {
   return (
     <div
       data-slot="issue-top-bar"
@@ -122,6 +124,13 @@ function IssueTopBar({ root, status, title, identifier, actions }: IssueTopBarPr
           {root}
         </span>
         <ChevronRight aria-hidden className="size-3.5 shrink-0" />
+        {trail.map((item, i) => (
+          // biome-ignore lint/suspicious/noArrayIndexKey: chuỗi tổ tiên cố định theo thứ tự gốc → cha.
+          <span key={i} className="contents">
+            <span className="shrink-0 font-mono text-xs [&_a]:hover:text-foreground [&_a]:hover:underline">{item}</span>
+            <ChevronRight aria-hidden className="size-3.5 shrink-0" />
+          </span>
+        ))}
         <StatusGlyph status={status} size="sm" />
         <span className="min-w-0 truncate text-foreground">{title}</span>
         <span className="shrink-0 font-mono text-xs">{identifier}</span>

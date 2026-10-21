@@ -1,7 +1,7 @@
 // crew: tự dựng
 import { useQueryClient } from '@tanstack/react-query';
 import { type ReactNode, useEffect, useState } from 'react';
-import { Link, Navigate, useLocation } from 'react-router-dom';
+import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { queryKeys } from '@/api';
 import { useCompany, useMe } from '@/app/hooks';
 import { NotFoundPage } from '@/app/not-found-page';
@@ -20,11 +20,12 @@ import {
   SidePanelTitle,
   Skeleton,
 } from '@/ds';
-import { Check, Copy, ExternalLink, X } from '@/ds/icons';
+import { ArrowLeft, Check, Copy, ExternalLink, X } from '@/ds/icons';
 import { useCompanyAccess, useVisibleProjects } from '@/features/access';
 import { useT } from '@/i18n';
 import { AddChildAction } from '../new/add-child-dialog';
 import { issuePageHref } from '../popup/issue-href';
+import { IssueLink, useIssuePopupCanGoBack } from '../popup/issue-nav';
 import { AttachmentViewerProvider } from './attachment-viewer-provider';
 import { Attachments } from './attachments';
 import { Comments } from './comments';
@@ -115,6 +116,8 @@ export function IssueDetail({ issueRef, variant, onClose }: IssueDetailProps) {
   // Viewer không đánh dấu đã đọc được (server trả 403), nên bỏ lời gọi.
   useMarkReadOnce(company.id, readOnly ? undefined : issue?.id);
   useScrollToHash(Boolean(issue));
+  const navigate = useNavigate();
+  const canGoBack = useIssuePopupCanGoBack();
 
   // Chưa có tiêu đề để làm tên hộp thoại thì popup tạm lấy mã yêu cầu; khi có, h1 của TitleEditor là DialogTitle.
   const untitled = (node: ReactNode): ReactNode =>
@@ -162,6 +165,12 @@ export function IssueDetail({ issueRef, variant, onClose }: IssueDetailProps) {
       <CopyButton text={`${window.location.origin}${fullPage}`} label={t('detail.copyLink')} />
       {variant === 'popup' ? (
         <>
+          {canGoBack ? (
+            <Button variant="ghost" size="sm" onClick={() => navigate(-1)}>
+              <ArrowLeft aria-hidden />
+              {t('detail.back')}
+            </Button>
+          ) : null}
           <Button variant="ghost" size="sm" asChild>
             <Link to={fullPage}>
               <ExternalLink aria-hidden />
@@ -183,6 +192,11 @@ export function IssueDetail({ issueRef, variant, onClose }: IssueDetailProps) {
         topBar={
           <IssueTopBar
             root={<Link to={`/${company.issuePrefix}/issues`}>{t('detail.root')}</Link>}
+            trail={[...(issue.ancestors ?? [])].reverse().map((ancestor) => (
+              <span title={ancestor.title}>
+                <IssueLink identifier={ancestor.identifier ?? ancestor.id}>{ancestor.identifier ?? ancestor.title}</IssueLink>
+              </span>
+            ))}
             status={issue.status}
             title={issue.title}
             identifier={code}
