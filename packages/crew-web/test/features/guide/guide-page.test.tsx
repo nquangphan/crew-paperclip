@@ -95,10 +95,10 @@ describe('GuidePage', () => {
     for (const id of ['new-request', 'members', 'pair-machine', 'inbox', 'send-request']) expect(ids).not.toContain(id);
   });
 
-  it('Phòng Marketing: gửi yêu cầu, bình luận, Góp ý của tôi; không có Yêu cầu mới của board', async () => {
+  it('Phòng Marketing / Phòng QC: gửi yêu cầu, bình luận, Góp ý của tôi; không có Yêu cầu mới của board', async () => {
     mount('/TPS/guide', asRole('viewer', true));
     await ready();
-    expect(screen.getByText('Hướng dẫn cho: Phòng Marketing')).toBeTruthy();
+    expect(screen.getByText('Hướng dẫn cho: Phòng Marketing / Phòng QC')).toBeTruthy();
     const ids = sectionIds();
     expect(ids).toEqual(expect.arrayContaining(['send-request', 'send-comment', 'my-contributions']));
     for (const id of ['new-request', 'review-contributions', 'members', 'machines']) expect(ids).not.toContain(id);

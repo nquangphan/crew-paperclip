@@ -267,7 +267,9 @@ export interface RuntimeDecision {
   decidedAt: string;
 }
 
-// Góp ý chờ duyệt (Phòng Marketing). Hợp đồng ở router Crew của server: /api/crew/companies/:companyId/…
+// Góp ý chờ duyệt (Phòng Marketing, Phòng QC). Hợp đồng ở router Crew của server: /api/crew/companies/:companyId/…
+/** Phòng của khách góp ý; hai phòng cùng quyền, chỉ để owner phân biệt người gửi. */
+export type ContributorDepartment = 'marketing' | 'qc';
 export type ContributionKind = 'issue' | 'comment';
 /** `approving` = owner đã khóa để duyệt, chưa tìm thấy bản ghi đã đăng ở lõi. */
 export type ContributionStatus = 'pending' | 'approving' | 'approved' | 'rejected';
@@ -277,6 +279,8 @@ export interface Contribution {
   kind: ContributionKind;
   status: ContributionStatus;
   authorUserId: string;
+  /** Phòng hiện tại của người gửi; null khi người đó không còn dấu khách góp ý. */
+  authorDepartment: ContributorDepartment | null;
   /** Có khi kind = issue. */
   projectId: string | null;
   /** Có khi kind = comment. */
@@ -297,6 +301,8 @@ export interface CompanyAccess {
   membershipRole: string | null;
   /** Viewer đang có dấu khách góp ý. */
   contributor: boolean;
+  /** Phòng của dấu khách góp ý; null khi không phải khách góp ý. */
+  department: ContributorDepartment | null;
   canApprove: boolean;
 }
 
@@ -337,6 +343,7 @@ export interface ContributionApproval {
 
 export interface Contributor {
   userId: string;
+  department: ContributorDepartment;
   grantedAt: string;
   grantedByUserId: string;
 }

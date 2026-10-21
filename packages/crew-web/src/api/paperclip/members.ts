@@ -1,4 +1,5 @@
 // Thành viên, lời mời, yêu cầu tham gia của company (route stock Paperclip, chỉ owner gọi được).
+import type { ContributorDepartment } from '../crew/types';
 import { call } from '../endpoints';
 
 export interface MemberUser {
@@ -24,7 +25,10 @@ export interface CompanyInvite {
   allowedJoinTypes: string;
   expiresAt: string;
   createdAt: string;
-  /** Giữ nguyên bản ghi tự do của lời mời; khách góp ý có `crew.role = 'contributor'`. */
+  /**
+   * Giữ nguyên bản ghi tự do của lời mời; khách góp ý có `crew.role = 'contributor'` và `crew.department`
+   * (`marketing` | `qc`; lời mời cũ không có khóa này là Phòng Marketing).
+   */
   defaultsPayload: Record<string, unknown> | null;
 }
 
@@ -62,10 +66,14 @@ export const membersApi = {
 
 export const invitesApi = {
   /**
-   * Lời mời khách góp ý: viewer kèm `defaultsPayload.crew.role = 'contributor'`. `projectIds` (bỏ trùng) là project
-   * người được mời sẽ xem, cấp ngay khi owner duyệt; rỗng thì không ghi khóa này.
+   * Lời mời khách góp ý: viewer kèm `defaultsPayload.crew = { role: 'contributor', department }`. `projectIds` (bỏ trùng)
+   * là project người được mời sẽ xem, cấp ngay khi owner duyệt; rỗng thì không ghi khóa này.
    */
-  createContributor: (companyId: string, projectIds: readonly string[] = []): Promise<CreatedInvite> => {
+  createContributor: (
+    companyId: string,
+    department: ContributorDepartment,
+    projectIds: readonly string[] = [],
+  ): Promise<CreatedInvite> => {
     const unique = [...new Set(projectIds)];
     return call(
       'invites.create',
@@ -75,7 +83,10 @@ export const invitesApi = {
           allowedJoinTypes: 'human',
           humanRole: 'viewer',
           defaultsPayload: {
-            crew: unique.length > 0 ? { role: 'contributor', projectIds: unique } : { role: 'contributor' },
+            crew:
+              unique.length > 0
+                ? { role: 'contributor', department, projectIds: unique }
+                : { role: 'contributor', department },
           },
         },
       },

@@ -44,7 +44,7 @@ import { useCompanyAccess, useVisibleProjects } from '@/features/access';
 import { ContributionActions } from '@/features/contributions/contribution-actions';
 import { ContributionBadge } from '@/features/contributions/contribution-badge';
 import { contributionHref } from '@/features/contributions/contribution-popup-host';
-import { useAuthorNames, useContributions } from '@/features/contributions/use-contributions';
+import { useAuthorLabel, useContributions } from '@/features/contributions/use-contributions';
 import { useSelectableAgents } from '@/features/wizards';
 import { formatDateTime, formatRelative, useT } from '@/i18n';
 import { StartWorkButton } from '../detail/start-work';
@@ -94,7 +94,7 @@ interface PendingGroupProps {
 function PendingGroup({ items, showAuthor, projectName, collapsed, onToggle }: PendingGroupProps) {
   const { t } = useT('contributions');
   const location = useLocation();
-  const authorName = useAuthorNames();
+  const authorLabel = useAuthorLabel();
   return (
     <IssueGroup label={t('issuesGroup.title')} collapsed={collapsed} onToggle={onToggle}>
       <ul aria-label={t('issuesGroup.label')} className="flex flex-col">
@@ -109,7 +109,7 @@ function PendingGroup({ items, showAuthor, projectName, collapsed, onToggle }: P
             <div className="flex flex-wrap items-center gap-4">
               {showAuthor ? (
                 <MutedText>
-                  {t('page.row.author')}: {authorName(c.authorUserId) ?? c.authorUserId}
+                  {t('page.row.author')}: {authorLabel(c)}
                 </MutedText>
               ) : null}
               {c.projectId && projectName.get(c.projectId) ? (

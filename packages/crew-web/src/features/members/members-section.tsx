@@ -1,4 +1,6 @@
 // crew: tự dựng
+
+import type { ContributorDepartment } from '@/api';
 import {
   Badge,
   Button,
@@ -15,18 +17,21 @@ import {
   TableRow,
 } from '@/ds';
 import { useT } from '@/i18n';
-import { displayRole, memberErrorKey, personName } from './members-model';
+import { CONTRIBUTOR_DEPARTMENTS, displayRole, memberErrorKey, personName } from './members-model';
 import { ProjectAccessCell } from './project-access-cell';
-import { useContributorIds, useMemberActions, useMembers, useProjectAccess } from './use-members';
+import { useContributorDepartments, useMemberActions, useMembers, useProjectAccess } from './use-members';
+
+const NO_MARKS: ReadonlyMap<string, ContributorDepartment> = new Map();
 
 /**
- * Danh sách thành viên với role; viewer thuần có nút Đặt Phòng Marketing, Phòng Marketing có nút Gỡ Phòng Marketing.
+ * Danh sách thành viên với role; viewer thuần có nút Đặt Phòng Marketing và Đặt Phòng QC, người đang ở một phòng có nút
+ * Gỡ phòng đó (đổi phòng: gỡ rồi đặt phòng kia).
  * Cột "Project được xem": owner thấy tất cả, người khác chỉ thấy project được chọn ở đây (mặc định không có project nào).
  */
 export function MembersSection() {
   const { t } = useT('members');
   const members = useMembers();
-  const marks = useContributorIds();
+  const marks = useContributorDepartments();
   const { enable, disable } = useMemberActions();
   const projectAccess = useProjectAccess();
   const { save } = projectAccess;
@@ -61,9 +66,10 @@ export function MembersSection() {
           </TableHeader>
           <TableBody>
             {items.map((m) => {
-              const role = displayRole(m, marks.data ?? new Set());
+              const role = displayRole(m, marks.data ?? NO_MARKS);
+              const department = role === 'marketing' || role === 'qc' ? role : null;
               const busy =
-                (enable.isPending && enable.variables === m.principalId) ||
+                (enable.isPending && enable.variables?.userId === m.principalId) ||
                 (disable.isPending && disable.variables === m.principalId);
               return (
                 <TableRow key={m.id} data-testid="member-row" data-role={role}>
@@ -72,7 +78,7 @@ export function MembersSection() {
                     {m.user?.email ? <MutedText>{m.user.email}</MutedText> : null}
                   </TableCell>
                   <TableCell>
-                    <Badge variant={role === 'contributor' ? 'secondary' : 'outline'}>{t(`role.${role}`)}</Badge>
+                    <Badge variant={department ? 'secondary' : 'outline'}>{t(`role.${role}`)}</Badge>
                   </TableCell>
                   <TableCell data-testid="member-projects">
                     {m.membershipRole === 'owner' ? (
@@ -94,16 +100,21 @@ export function MembersSection() {
                   </TableCell>
                   <TableCell>
                     {role === 'viewer' ? (
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="outline"
-                        disabled={busy}
-                        onClick={() => enable.mutate(m.principalId)}
-                      >
-                        {t('list.enable')}
-                      </Button>
-                    ) : role === 'contributor' ? (
+                      <div className="flex flex-wrap justify-end gap-2">
+                        {CONTRIBUTOR_DEPARTMENTS.map((d) => (
+                          <Button
+                            key={d}
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            disabled={busy}
+                            onClick={() => enable.mutate({ userId: m.principalId, department: d })}
+                          >
+                            {t('list.enable', { department: t(`role.${d}`) })}
+                          </Button>
+                        ))}
+                      </div>
+                    ) : department ? (
                       <Button
                         type="button"
                         size="sm"
@@ -111,7 +122,7 @@ export function MembersSection() {
                         disabled={busy}
                         onClick={() => disable.mutate(m.principalId)}
                       >
-                        {t('list.disable')}
+                        {t('list.disable', { department: t(`role.${department}`) })}
                       </Button>
                     ) : null}
                   </TableCell>

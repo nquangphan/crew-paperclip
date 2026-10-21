@@ -1,6 +1,12 @@
 import type { Contribution } from '@/api';
 
-export const GUEST_ACCESS = { userId: 'u2', membershipRole: 'viewer', contributor: true, canApprove: false };
+export const GUEST_ACCESS = {
+  userId: 'u2',
+  membershipRole: 'viewer',
+  contributor: true,
+  department: 'marketing',
+  canApprove: false,
+};
 
 /** Dựng một mục góp ý đủ trường theo hợp đồng router Crew. */
 export const contribution = (over: Partial<Contribution>): Contribution => ({
@@ -8,6 +14,7 @@ export const contribution = (over: Partial<Contribution>): Contribution => ({
   kind: 'comment',
   status: 'pending',
   authorUserId: 'u2',
+  authorDepartment: 'marketing',
   projectId: null,
   targetIssueId: 'i1',
   title: null,

@@ -1,6 +1,6 @@
 // Người đọc của trang Hướng dẫn: mỗi vai trò chỉ thấy phần của mình. Admin và Operator dùng chung một bản (việc hằng
-// ngày, không có phần chỉ owner làm). Phòng Marketing là viewer có dấu khách góp ý. File không import gì để script chụp
-// ảnh (e2e) dùng chung được.
+// ngày, không có phần chỉ owner làm). Phòng Marketing và Phòng QC (cùng quyền, chung một bản) là viewer có dấu khách góp
+// ý. File không import gì để script chụp ảnh (e2e) dùng chung được.
 
 export const GUIDE_ROLES = ['owner', 'operator', 'viewer', 'contributor'] as const;
 export type GuideRole = (typeof GUIDE_ROLES)[number];

@@ -12,11 +12,13 @@ import {
   type Contribution,
   type ContributionFilters,
   type ContributionPage,
+  type ContributorDepartment,
   type NewContribution,
   queryKeys,
 } from '@/api';
 import { useCompany } from '@/app/hooks';
 import { useCompanyAccess } from '@/features/access';
+import { useT } from '@/i18n';
 import { approveContribution, contributionFromError, type IssueApprovalChoices } from './approve-flow';
 import { useShowContributionNotice } from './contribution-notice';
 
@@ -189,4 +191,25 @@ export function useAuthorNames(): (userId: string) => string | null {
     [dir.data],
   );
   return useCallback((userId: string) => names.get(userId) ?? null, [names]);
+}
+
+/** Gắn phòng vào tên người gửi ("Lan · Phòng QC") để owner phân biệt hai phòng; không có phòng thì giữ nguyên tên. */
+export function useDepartmentLabel(): (name: string, department: ContributorDepartment | null | undefined) => string {
+  const { t } = useT('contributions');
+  return useCallback(
+    (name: string, department: ContributorDepartment | null | undefined) =>
+      department ? t('authorWithDepartment', { name, department: t(`department.${department}`) }) : name,
+    [t],
+  );
+}
+
+/** Nhãn người gửi của một mục góp ý: tên (hoặc user id khi không tìm thấy tên) kèm phòng. */
+export function useAuthorLabel(): (c: Pick<Contribution, 'authorUserId' | 'authorDepartment'>) => string {
+  const authorName = useAuthorNames();
+  const withDepartment = useDepartmentLabel();
+  return useCallback(
+    (c: Pick<Contribution, 'authorUserId' | 'authorDepartment'>) =>
+      withDepartment(authorName(c.authorUserId) ?? c.authorUserId, c.authorDepartment),
+    [authorName, withDepartment],
+  );
 }

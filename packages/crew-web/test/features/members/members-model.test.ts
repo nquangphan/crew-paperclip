@@ -3,6 +3,7 @@ import type { CompanyInvite, CompanyMember, JoinRequest } from '@/api';
 import {
   approveJoin,
   displayRole,
+  inviteDepartment,
   inviteLink,
   inviteProjectIds,
   isContributorInvite,
@@ -21,6 +22,7 @@ const invite = (over: Partial<CompanyInvite>): CompanyInvite => ({
   ...over,
 });
 const CONTRIBUTOR = { crew: { role: 'contributor' } };
+const QC = { crew: { role: 'contributor', department: 'qc' } };
 const request = (over: Partial<JoinRequest>): JoinRequest => ({
   id: 'jr1',
   inviteId: 'inv1',
@@ -48,6 +50,25 @@ describe('isContributorInvite', () => {
     expect(isContributorInvite(invite({ defaultsPayload: { crew: 'contributor' } }))).toBe(false);
     expect(isContributorInvite(invite({ defaultsPayload: null }))).toBe(false);
     expect(isContributorInvite(undefined)).toBe(false);
+    expect(isContributorInvite(invite({ defaultsPayload: QC }))).toBe(true);
+  });
+});
+
+describe('inviteDepartment', () => {
+  it('lời mời khách có department qc là Phòng QC; marketing, thiếu hay lạ là Phòng Marketing', () => {
+    expect(inviteDepartment(invite({ defaultsPayload: QC }))).toBe('qc');
+    expect(
+      inviteDepartment(invite({ defaultsPayload: { crew: { role: 'contributor', department: 'marketing' } } })),
+    ).toBe('marketing');
+    expect(inviteDepartment(invite({ defaultsPayload: CONTRIBUTOR }))).toBe('marketing');
+    expect(inviteDepartment(invite({ defaultsPayload: { crew: { role: 'contributor', department: 'sales' } } }))).toBe(
+      'marketing',
+    );
+  });
+  it('không phải lời mời khách góp ý thì null, kể cả khi có department', () => {
+    expect(inviteDepartment(invite({ defaultsPayload: { crew: { department: 'qc' } } }))).toBeNull();
+    expect(inviteDepartment(invite({ defaultsPayload: null }))).toBeNull();
+    expect(inviteDepartment(undefined)).toBeNull();
   });
 });
 
@@ -67,21 +88,27 @@ describe('inviteProjectIds', () => {
 
 describe('pendingJoins', () => {
   it('nối yêu cầu với lời mời bằng inviteId và chỉ giữ yêu cầu của người đang chờ', () => {
-    const invites = [invite({ id: 'inv1', defaultsPayload: CONTRIBUTOR }), invite({ id: 'inv2' })];
+    const invites = [
+      invite({ id: 'inv1', defaultsPayload: CONTRIBUTOR }),
+      invite({ id: 'inv2' }),
+      invite({ id: 'inv3', defaultsPayload: QC }),
+    ];
     const joins = pendingJoins(
       [
         request({ id: 'a', inviteId: 'inv1' }),
         request({ id: 'b', inviteId: 'inv2' }),
+        request({ id: 'q', inviteId: 'inv3' }),
         request({ id: 'c', inviteId: 'missing' }),
         request({ id: 'd', status: 'approved' }),
         request({ id: 'e', requestType: 'agent' }),
       ],
       invites,
     );
-    expect(joins.map((j) => [j.request.id, j.contributor, j.inviteFound])).toEqual([
-      ['a', true, true],
-      ['b', false, true],
-      ['c', false, false],
+    expect(joins.map((j) => [j.request.id, j.department, j.inviteFound])).toEqual([
+      ['a', 'marketing', true],
+      ['b', null, true],
+      ['q', 'qc', true],
+      ['c', null, false],
     ]);
   });
 
@@ -100,25 +127,26 @@ describe('displayRole', () => {
     status: 'active',
     user: null,
   });
-  it('viewer có dấu thành contributor, viewer thuần giữ nguyên', () => {
-    expect(displayRole(member('viewer'), new Set(['u2']))).toBe('contributor');
-    expect(displayRole(member('viewer'), new Set())).toBe('viewer');
+  it('viewer có dấu thành phòng của dấu, viewer thuần giữ nguyên', () => {
+    expect(displayRole(member('viewer'), new Map([['u2', 'marketing']]))).toBe('marketing');
+    expect(displayRole(member('viewer'), new Map([['u2', 'qc']]))).toBe('qc');
+    expect(displayRole(member('viewer'), new Map())).toBe('viewer');
   });
   it('dấu không đổi role khác viewer', () => {
-    expect(displayRole(member('operator'), new Set(['u2']))).toBe('operator');
-    expect(displayRole(member('owner'), new Set())).toBe('owner');
-    expect(displayRole(member(null), new Set())).toBe('other');
+    expect(displayRole(member('operator'), new Map([['u2', 'qc']]))).toBe('operator');
+    expect(displayRole(member('owner'), new Map())).toBe('owner');
+    expect(displayRole(member(null), new Map())).toBe('other');
   });
 });
 
 describe('approveJoin', () => {
   const join = (
-    contributor: boolean,
+    contributor: boolean | 'qc',
     requestingUserId: string | null = 'u2',
     projectIds: string[] = [],
   ): PendingJoin => ({
     request: request({ requestingUserId }),
-    contributor,
+    department: contributor === 'qc' ? 'qc' : contributor ? 'marketing' : null,
     inviteFound: true,
     projectIds,
   });
@@ -132,12 +160,19 @@ describe('approveJoin', () => {
     const order: string[] = [];
     const deps = {
       approve: vi.fn(async (id: string) => void order.push(`approve:${id}`)),
-      enableContributor: vi.fn(async (id: string) => void order.push(`enable:${id}`)),
+      enableContributor: vi.fn(async (id: string, department: string) => void order.push(`enable:${id}:${department}`)),
       setProjectAccess: vi.fn(async () => {}),
     };
     expect(await approveJoin(join(true), deps)).toEqual({});
-    expect(order).toEqual(['approve:jr1', 'enable:u2']);
+    expect(order).toEqual(['approve:jr1', 'enable:u2:marketing']);
     expect(deps.setProjectAccess).not.toHaveBeenCalled();
+  });
+
+  it('lời mời Phòng QC: bật dấu với đúng phòng qc', async () => {
+    const deps = okDeps();
+    expect(await approveJoin(join('qc', 'u2', ['p1']), deps)).toEqual({});
+    expect(deps.enableContributor).toHaveBeenCalledWith('u2', 'qc');
+    expect(deps.setProjectAccess).toHaveBeenCalledWith('u2', ['p1']);
   });
 
   it('lời mời có project chọn sẵn: duyệt, bật dấu rồi cấp đúng các project', async () => {
@@ -161,7 +196,7 @@ describe('approveJoin', () => {
     const out = await approveJoin(join(true, 'u2', ['p1']), deps);
     expect(out.accessError?.message).toBe('crew_project_access_invalid');
     expect(out.markError).toBeUndefined();
-    expect(deps.enableContributor).toHaveBeenCalledWith('u2');
+    expect(deps.enableContributor).toHaveBeenCalledWith('u2', 'marketing');
   });
 
   it('bật dấu lỗi vẫn thử cấp project, trả cả hai lỗi riêng', async () => {

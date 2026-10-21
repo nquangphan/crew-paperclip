@@ -92,16 +92,16 @@ describe('bình luận chờ trong luồng bình luận', () => {
     server();
     mount(<IssuePage />);
     const chip = await screen.findByTestId('contribution-chip');
-    expect(chip.textContent).toBe('Góp ý của Lan Marketing');
+    expect(chip.textContent).toBe('Góp ý của Lan Marketing · Phòng Marketing');
     const late = (await screen.findAllByTestId('comment'))[0];
     expect(within(late).getByTestId('contribution-chip')).toBeTruthy();
   });
 
-  it('owner thấy bình luận chờ của khách với tên tác giả', async () => {
-    server(undefined, [CONTRIBUTIONS[0]]);
+  it('owner thấy bình luận chờ của khách với tên tác giả kèm phòng', async () => {
+    server(undefined, [{ ...CONTRIBUTIONS[0], authorDepartment: 'qc' }]);
     mount(<IssuePage />);
     const [item] = await screen.findAllByTestId('pending-comment');
-    expect(item.textContent).toContain('Lan Marketing');
+    expect(item.textContent).toContain('Lan Marketing · Phòng QC');
     expect(item.textContent).toContain('Chờ duyệt');
     // Bình luận của khách là của người, không hiện kiểu tin agent.
     expect(item.getAttribute('data-kind')).toBe('human');

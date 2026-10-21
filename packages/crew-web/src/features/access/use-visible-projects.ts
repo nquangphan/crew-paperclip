@@ -5,7 +5,7 @@ import { useCompany } from '@/app/hooks';
 
 /**
  * Project người đang đăng nhập được xem. Owner thấy mọi project; thành viên khác (admin, operator, viewer, Phòng
- * Marketing) chỉ thấy project owner đã cấp ở trang Thành viên, và không thấy yêu cầu không thuộc project nào.
+ * Marketing, Phòng QC) chỉ thấy project owner đã cấp ở trang Thành viên, và không thấy yêu cầu không thuộc project nào.
  *
  * Chỉ là lớp ẩn của UI Crew: API lõi của Paperclip vẫn trả đủ. Route góp ý của server mới là cổng thật cho việc gửi.
  */

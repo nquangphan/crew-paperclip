@@ -15,13 +15,13 @@ import {
   TableRow,
 } from '@/ds';
 import { formatDateTime, useT } from '@/i18n';
-import { personName } from './members-model';
+import { CONTRIBUTOR_DEPARTMENTS, personName } from './members-model';
 import { ProjectNames } from './project-access-cell';
 import { useInvites, useMemberActions, usePendingJoins, useProjectAccess } from './use-members';
 
 /**
- * Yêu cầu tham gia chờ duyệt. Lời mời khách góp ý được gắn nhãn; duyệt xong thì bật dấu và cấp project chọn sẵn trên
- * lời mời ngay.
+ * Yêu cầu tham gia chờ duyệt. Lời mời khách góp ý được gắn nhãn theo phòng (Marketing, QC); duyệt xong thì bật dấu đúng
+ * phòng và cấp project chọn sẵn trên lời mời ngay.
  */
 export function JoinRequestsSection() {
   const { t, lang } = useT('members');
@@ -30,6 +30,7 @@ export function JoinRequestsSection() {
   const { choices } = useProjectAccess();
   const { approve, reject } = useMemberActions();
   const markError = approve.data?.markError;
+  const markDepartment = t(`role.${approve.variables?.department ?? 'marketing'}`);
   const accessError = approve.data?.accessError;
   const loading = requests.isLoading || invites.isLoading;
 
@@ -42,8 +43,8 @@ export function JoinRequestsSection() {
       {approve.error ? <ErrorState title={t('requests.approveFailed')} message={approve.error.message} /> : null}
       {reject.error ? <ErrorState title={t('requests.rejectFailed')} message={reject.error.message} /> : null}
       {markError ? (
-        <Alert variant="warning" title={t('requests.markFailed')}>
-          {t('requests.markFailedHint')}
+        <Alert variant="warning" title={t('requests.markFailed', { department: markDepartment })}>
+          {t('requests.markFailedHint', { department: markDepartment })}
         </Alert>
       ) : null}
       {accessError ? (
@@ -86,8 +87,10 @@ export function JoinRequestsSection() {
                     ) : null}
                   </TableCell>
                   <TableCell>
-                    {join.contributor ? (
-                      <Badge variant="outline">{t('requests.contributorInvite')}</Badge>
+                    {join.department ? (
+                      <Badge variant="outline" data-testid="join-invite-department" data-department={join.department}>
+                        {t('requests.contributorInvite', { department: t(`role.${join.department}`) })}
+                      </Badge>
                     ) : join.inviteFound ? (
                       t('requests.plainInvite')
                     ) : (
@@ -105,17 +108,20 @@ export function JoinRequestsSection() {
                   <TableCell>{formatDateTime(join.request.createdAt, lang)}</TableCell>
                   <TableCell>
                     <div className="flex justify-end gap-2">
-                      {!join.contributor && !join.inviteFound ? (
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="outline"
-                          disabled={busy}
-                          onClick={() => approve.mutate({ ...join, contributor: true })}
-                        >
-                          {t('requests.approveAsContributor')}
-                        </Button>
-                      ) : null}
+                      {!join.department && !join.inviteFound
+                        ? CONTRIBUTOR_DEPARTMENTS.map((d) => (
+                            <Button
+                              key={d}
+                              type="button"
+                              size="sm"
+                              variant="outline"
+                              disabled={busy}
+                              onClick={() => approve.mutate({ ...join, department: d })}
+                            >
+                              {t('requests.approveAsContributor', { department: t(`role.${d}`) })}
+                            </Button>
+                          ))
+                        : null}
                       <Button type="button" size="sm" disabled={busy} onClick={() => approve.mutate(join)}>
                         {t('requests.approve')}
                       </Button>

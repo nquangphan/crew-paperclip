@@ -22,7 +22,7 @@ import { ContributionActions } from './contribution-actions';
 import { ContributionBadge } from './contribution-badge';
 import { ContributionNotice } from './contribution-notice';
 import { CONTRIBUTION_PARAM } from './contribution-popup-host';
-import { useAuthorNames, useContribution } from './use-contributions';
+import { useAuthorLabel, useContribution } from './use-contributions';
 
 /** Popup một mục góp ý (`?contribution=<id>`): nội dung, project, người gửi, giờ gửi, trạng thái và nút của owner. */
 export function ContributionPopup({ id, onClose }: { id: string; onClose: () => void }) {
@@ -30,7 +30,7 @@ export function ContributionPopup({ id, onClose }: { id: string; onClose: () => 
   const { company } = useCompany();
   const location = useLocation();
   const item = useContribution(id);
-  const authorName = useAuthorNames();
+  const authorLabel = useAuthorLabel();
   const visible = useVisibleProjects();
   // Tên project chỉ hiện khi người xem được cấp project đó.
   const projects = useQuery({
@@ -79,7 +79,7 @@ export function ContributionPopup({ id, onClose }: { id: string; onClose: () => 
                 <SidePanelTitle>{t(`page.kind.${c.kind}`)}</SidePanelTitle>
                 <PropertyList
                   items={[
-                    { label: t('page.row.author'), value: authorName(c.authorUserId) ?? c.authorUserId },
+                    { label: t('page.row.author'), value: authorLabel(c) },
                     { label: t('page.row.sentAt'), value: formatDateTime(c.createdAt, lang) },
                     ...(project ? [{ label: t('page.row.project'), value: project.name }] : []),
                   ]}

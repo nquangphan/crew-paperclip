@@ -24,7 +24,7 @@ import { formatDateTime, useT } from '@/i18n';
 import { ContributionActions } from './contribution-actions';
 import { ContributionBadge } from './contribution-badge';
 import { contributionHref } from './contribution-popup-host';
-import { useAuthorNames, useContributionPages, useContributionsSummary } from './use-contributions';
+import { useAuthorLabel, useContributionPages, useContributionsSummary } from './use-contributions';
 
 type Tab = 'pending' | 'rejected' | 'approved';
 const TABS: Tab[] = ['pending', 'rejected', 'approved'];
@@ -46,7 +46,7 @@ export function ContributionsPage() {
     approved: useContributionPages({ status: 'approved' }),
   };
   const pendingTotal = useContributionsSummary(company.id, true);
-  const authorName = useAuthorNames();
+  const authorLabel = useAuthorLabel();
   const visible = useVisibleProjects();
   const projects = useQuery({
     queryKey: queryKeys.projects(company.id),
@@ -105,7 +105,7 @@ export function ContributionsPage() {
                   <li key={c.id}>
                     <ContributionRow
                       contribution={c}
-                      authorName={isOwner ? authorName : null}
+                      authorLabel={isOwner ? authorLabel : null}
                       projectName={c.projectId ? (projectName.get(c.projectId) ?? null) : null}
                     />
                   </li>
@@ -136,12 +136,12 @@ export function ContributionsPage() {
 
 function ContributionRow({
   contribution: c,
-  authorName,
+  authorLabel,
   projectName,
 }: {
   contribution: Contribution;
   /** null: không hiện người gửi (khách xem mục của mình). */
-  authorName: ((userId: string) => string | null) | null;
+  authorLabel: ((c: Contribution) => string) | null;
   projectName: string | null;
 }) {
   const { t, lang } = useT('contributions');
@@ -174,9 +174,9 @@ function ContributionRow({
         ) : null}
         {c.body ? <MarkdownView markdown={c.body} /> : null}
         <div className="flex flex-wrap items-center gap-4">
-          {authorName ? (
+          {authorLabel ? (
             <MutedText>
-              {t('page.row.author')}: {authorName(c.authorUserId) ?? c.authorUserId}
+              {t('page.row.author')}: {authorLabel(c)}
             </MutedText>
           ) : null}
           {projectName ? (

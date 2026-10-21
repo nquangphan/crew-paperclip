@@ -2,9 +2,9 @@
   "page": {
     "owner": {
       "title": "Pending approval",
-      "description": "Requests and comments sent by Marketing, waiting for your approval.",
+      "description": "Requests and comments sent by Marketing or QC, waiting for your approval.",
       "empty": "No contributions yet",
-      "emptyHint": "When Marketing sends a request or a comment, it shows up here for you to approve."
+      "emptyHint": "When Marketing or QC sends a request or a comment, it shows up here for you to approve."
     },
     "mine": {
       "title": "My contributions",
@@ -159,5 +159,10 @@
       "body": "Could not reject: this item was already approved and posted. It now shows as Approved."
     },
     "dismiss": "Dismiss"
-  }
+  },
+  "department": {
+    "marketing": "Marketing",
+    "qc": "QC"
+  },
+  "authorWithDepartment": "{{name}} · {{department}}"
 }

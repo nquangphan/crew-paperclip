@@ -16,7 +16,7 @@ import {
 } from '@/ds';
 import { ContributionActions } from '@/features/contributions/contribution-actions';
 import { ContributionChip, isPendingComment, PendingComment } from '@/features/contributions/pending-comments';
-import { useAuthorNames, useIssueContributions } from '@/features/contributions/use-contributions';
+import { useAuthorLabel, useAuthorNames, useIssueContributions } from '@/features/contributions/use-contributions';
 import { formatDateTime, useT } from '@/i18n';
 import { newestFirstThread } from './comment-thread';
 
@@ -76,6 +76,7 @@ export function Comments({ issueId, agentNames }: CommentsProps) {
 
   const contributions = useIssueContributions(issueId);
   const authorName = useAuthorNames();
+  const authorLabel = useAuthorLabel();
   const pending = contributions.filter(isPendingComment);
   const contributionByComment = new Map(
     contributions.flatMap((c) => (c.resultCommentId ? [[c.resultCommentId, c]] : [])),
@@ -118,7 +119,7 @@ export function Comments({ issueId, agentNames }: CommentsProps) {
         const c = entry.item;
         const human = !c.authorAgentId && !!c.authorUserId;
         const source = contributionByComment.get(c.id);
-        const sourceName = source ? (authorName(source.authorUserId) ?? source.authorUserId) : null;
+        const sourceName = source ? authorLabel(source) : null;
         const time = <time dateTime={String(c.createdAt)}>{formatDateTime(c.createdAt, lang)}</time>;
         return (
           <ChatMessage

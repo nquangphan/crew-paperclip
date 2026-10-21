@@ -95,7 +95,7 @@ describe('dialog duyệt yêu cầu góp ý', () => {
     server();
     const dialog = await open();
     expect(within(dialog).getByText('Cần banner mới')).toBeTruthy();
-    expect(await screen.findByText(/Lan Marketing/)).toBeTruthy();
+    expect(await screen.findByText(/Lan Marketing · Phòng Marketing/)).toBeTruthy();
     const assignee = await screen.findByRole('combobox', { name: 'Agent nhận việc' });
     await waitFor(() => expect(assignee.textContent).toContain('Trợ Lý Alpha'));
     expect(screen.getByRole('combobox', { name: 'Project' }).textContent).toContain('Alpha');

@@ -13,7 +13,7 @@ export function ProfileForm() {
   const { t } = useT('settings');
   const { company } = useCompany();
   const me = useMe();
-  // Upload ảnh đi qua route asset của company, mà viewer (kể cả Phòng Marketing) bị chặn ghi ở đó: chỉ cho đổi tên.
+  // Upload ảnh đi qua route asset của company, mà viewer (kể cả Phòng Marketing, Phòng QC) bị chặn ghi ở đó: chỉ cho đổi tên.
   const { readOnly } = useCompanyAccess();
   const queryClient = useQueryClient();
   const [name, setName] = useState(me.name ?? '');

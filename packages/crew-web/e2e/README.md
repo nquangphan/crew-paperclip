@@ -66,13 +66,14 @@ Chạy từ thư mục `packages/crew-web`. `retries: 1`, `workers: 1`.
 ## Tài khoản khách góp ý
 
 Ca S20 (`specs/s20-contributions.spec.ts`) cần một tài khoản Phòng Marketing: thành viên `viewer` `active` của company
-e2e, có dấu khách góp ý (bảng `crew_contributors`).
+e2e, có dấu khách góp ý (bảng `crew_contributors`). Phòng QC có đúng cùng quyền (cột `department = 'qc'`), nên các ca
+S20 dùng tài khoản Phòng Marketing là đủ.
 
 - T1: thêm hai dòng `CREW_E2E_CONTRIBUTOR_EMAIL` và `CREW_E2E_CONTRIBUTOR_PASSWORD` vào `~/crew-r3-t1/board.env`
   (quyền 600, mật khẩu tạm của stack cục bộ). Dựng tài khoản bằng đúng luồng của owner: tạo invite
   (`humanRole: viewer`, `defaultsPayload.crew.role: contributor`), đăng ký và nhận invite bằng tài khoản mới, duyệt yêu
-  cầu tham gia, rồi `PUT /api/crew/companies/<cid>/contributors/<userId>` (hoặc bấm Đặt Phòng Marketing ở trang Thành
-  viên).
+  cầu tham gia, rồi `PUT /api/crew/companies/<cid>/contributors/<userId>` (body tùy chọn `{"department":"qc"}`, bỏ
+  trống là Phòng Marketing; hoặc bấm Đặt Phòng Marketing ở trang Thành viên).
 - T2/T3: owner tạo tài khoản qua trang Thành viên của Crew E2E rồi lưu hai biến trên vào `/opt/crew-v3-spike/.env`.
   `run-e2e.sh` đọc hai biến qua `ssh` như mật khẩu board (không echo), và bỏ qua nếu chưa có.
 - `global-setup.ts` đăng nhập khách bằng form ở context riêng và lưu `storageState` thứ hai

@@ -111,11 +111,20 @@ describe('trang Góp ý của tôi', () => {
     await waitFor(() => expect(screen.queryByRole('button', { name: 'Tải thêm' })).toBeNull());
   });
 
-  it('owner thấy tên tác giả', async () => {
-    mockServer(base);
+  it('owner thấy tên tác giả kèm phòng (Phòng Marketing, Phòng QC)', async () => {
+    const qc = contribution({ id: 'k5', body: 'Lỗi giao diện', authorDepartment: 'qc' });
+    mockServer({ ...base, ...byStatus([...ITEMS, qc], 3) });
     mount();
     expect(await screen.findByRole('heading', { name: 'Chờ duyệt' })).toBeTruthy();
-    expect((await screen.findAllByText(/Lan Marketing/)).length).toBeGreaterThan(0);
+    expect((await screen.findAllByText(/Lan Marketing · Phòng Marketing/)).length).toBeGreaterThan(0);
+    expect(await screen.findByText(/Lan Marketing · Phòng QC/)).toBeTruthy();
+  });
+
+  it('người gửi đã bị gỡ phòng thì chỉ hiện tên', async () => {
+    mockServer({ ...base, ...byStatus([contribution({ id: 'k6', body: 'Cũ', authorDepartment: null })], 1) });
+    mount();
+    expect(await screen.findByText('Cũ')).toBeTruthy();
+    expect(await screen.findByText(/Người gửi: Lan Marketing$/)).toBeTruthy();
   });
 
   it('báo lỗi khi không tải được', async () => {

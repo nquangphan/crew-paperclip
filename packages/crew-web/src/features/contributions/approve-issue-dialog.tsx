@@ -35,7 +35,7 @@ import { projectRolesOrNull, useKindLabelIds } from '@/features/issues/new/use-c
 import { useSelectableAgents } from '@/features/wizards';
 import { useT } from '@/i18n';
 import { contributionErrorKey } from './approve-flow';
-import { type useApproveContribution, useAuthorNames } from './use-contributions';
+import { type useApproveContribution, useAuthorLabel } from './use-contributions';
 
 type ApproveMutation = ReturnType<typeof useApproveContribution>;
 
@@ -97,7 +97,7 @@ function ApproveIssueForm({
   const { t } = useT('contributions');
   const { t: ti } = useT('issues');
   const { company } = useCompany();
-  const authorName = useAuthorNames();
+  const authorLabel = useAuthorLabel();
   const [projectId, setProjectId] = useState(c.projectId ?? '');
   const [kind, setKind] = useState<RequestKind>('code');
   // null: theo Trợ Lý của project đang chọn; đổi project thì về lại mặc định.
@@ -152,7 +152,7 @@ function ApproveIssueForm({
         <strong>{c.title}</strong>
         {c.body ? <MarkdownView markdown={c.body} /> : null}
         <MutedText>
-          {t('approveDialog.author')}: {authorName(c.authorUserId) ?? c.authorUserId}
+          {t('approveDialog.author')}: {authorLabel(c)}
         </MutedText>
       </Field>
 

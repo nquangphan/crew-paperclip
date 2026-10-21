@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { api, type CompanyInvite, queryKeys } from '@/api';
+import { api, type CompanyInvite, type ContributorDepartment, queryKeys } from '@/api';
 import { useCompany } from '@/app/hooks';
 import { type ApproveOutcome, approveJoin, type PendingJoin, pendingJoins } from './members-model';
 
@@ -12,12 +12,15 @@ export function useMembers() {
   });
 }
 
-/** Người đang mang dấu Phòng Marketing. */
-export function useContributorIds() {
+/** Người đang mang dấu khách góp ý, kèm phòng (Phòng Marketing hoặc Phòng QC). */
+export function useContributorDepartments() {
   const { company } = useCompany();
   return useQuery({
     queryKey: queryKeys.contributors(company.id),
-    queryFn: async () => new Set((await api.contributions.contributors(company.id)).map((c) => c.userId)),
+    queryFn: async () =>
+      new Map<string, ContributorDepartment>(
+        (await api.contributions.contributors(company.id)).map((c) => [c.userId, c.department]),
+      ),
   });
 }
 
@@ -72,7 +75,8 @@ export function useMemberActions() {
     Promise.all(keys.map((k) => qc.invalidateQueries({ queryKey: k })));
 
   const createInvite = useMutation({
-    mutationFn: (projectIds: string[]) => api.invites.createContributor(company.id, projectIds),
+    mutationFn: ({ department, projectIds }: { department: ContributorDepartment; projectIds: string[] }) =>
+      api.invites.createContributor(company.id, department, projectIds),
     onSuccess: () => refresh(queryKeys.invites(company.id)),
   });
   const revokeInvite = useMutation({
@@ -83,7 +87,7 @@ export function useMemberActions() {
     mutationFn: (join) =>
       approveJoin(join, {
         approve: (id) => api.joinRequests.approve(company.id, id),
-        enableContributor: (userId) => api.contributions.enableContributor(company.id, userId),
+        enableContributor: (userId, department) => api.contributions.enableContributor(company.id, userId, department),
         setProjectAccess: (userId, projectIds) => api.projectAccess.set(company.id, userId, projectIds),
       }),
     onSettled: () =>
@@ -100,7 +104,8 @@ export function useMemberActions() {
     onSuccess: () => refresh(queryKeys.joinRequests(company.id), queryKeys.invites(company.id)),
   });
   const enable = useMutation({
-    mutationFn: (userId: string) => api.contributions.enableContributor(company.id, userId),
+    mutationFn: ({ userId, department }: { userId: string; department: ContributorDepartment }) =>
+      api.contributions.enableContributor(company.id, userId, department),
     onSuccess: () => refresh(queryKeys.contributors(company.id)),
   });
   const disable = useMutation({

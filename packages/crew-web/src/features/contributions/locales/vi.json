@@ -2,9 +2,9 @@
   "page": {
     "owner": {
       "title": "Chờ duyệt",
-      "description": "Yêu cầu và bình luận do Phòng Marketing gửi, đang chờ bạn duyệt.",
+      "description": "Yêu cầu và bình luận do Phòng Marketing hoặc Phòng QC gửi, đang chờ bạn duyệt.",
       "empty": "Chưa có góp ý nào",
-      "emptyHint": "Khi Phòng Marketing gửi yêu cầu hoặc bình luận, mục đó hiện ở đây để bạn duyệt."
+      "emptyHint": "Khi Phòng Marketing hoặc Phòng QC gửi yêu cầu hay bình luận, mục đó hiện ở đây để bạn duyệt."
     },
     "mine": {
       "title": "Góp ý của tôi",
@@ -159,5 +159,10 @@
       "body": "Không từ chối được vì mục này đã được duyệt và đăng trước đó. Mục đã chuyển sang Đã duyệt."
     },
     "dismiss": "Đóng thông báo"
-  }
+  },
+  "department": {
+    "marketing": "Phòng Marketing",
+    "qc": "Phòng QC"
+  },
+  "authorWithDepartment": "{{name}} · {{department}}"
 }

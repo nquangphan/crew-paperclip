@@ -110,12 +110,20 @@ describe('api.contributions', () => {
   });
 
   it('contributors: GET danh sách, PUT bật, DELETE gỡ (204)', async () => {
-    const f = stub({ items: [{ userId: 'u2', grantedAt: 't', grantedByUserId: 'u1' }] });
-    expect(await api.contributions.contributors('c1')).toHaveLength(1);
+    const f = stub({ items: [{ userId: 'u2', department: 'qc', grantedAt: 't', grantedByUserId: 'u1' }] });
+    expect(await api.contributions.contributors('c1')).toEqual([
+      { userId: 'u2', department: 'qc', grantedAt: 't', grantedByUserId: 'u1' },
+    ]);
     expect(lastCall(f)).toMatchObject({ url: `${BASE}/contributors`, method: 'GET' });
     const g = stub();
-    await api.contributions.enableContributor('c1', 'u 2');
-    expect(lastCall(g)).toMatchObject({ url: `${BASE}/contributors/u%202`, method: 'PUT' });
+    await api.contributions.enableContributor('c1', 'u 2', 'marketing');
+    expect(lastCall(g)).toMatchObject({
+      url: `${BASE}/contributors/u%202`,
+      method: 'PUT',
+      body: { department: 'marketing' },
+    });
+    await api.contributions.enableContributor('c1', 'u2', 'qc');
+    expect(lastCall(g)).toMatchObject({ url: `${BASE}/contributors/u2`, method: 'PUT', body: { department: 'qc' } });
     await api.contributions.disableContributor('c1', 'u2');
     expect(lastCall(g)).toMatchObject({ url: `${BASE}/contributors/u2`, method: 'DELETE' });
   });
@@ -142,15 +150,25 @@ describe('api members, invites, joinRequests', () => {
     expect(await api.members.userDirectory('c1')).toEqual([{ principalId: 'u2' }]);
   });
 
-  it('mời khách góp ý: POST invites với viewer và dấu crew.role = contributor', async () => {
+  it('mời khách góp ý: POST invites với viewer, dấu crew.role = contributor và phòng', async () => {
     const f = stub({ id: 'inv1', token: 'tok' }, 201);
-    const res = await api.invites.createContributor('c1');
+    const res = await api.invites.createContributor('c1', 'marketing');
     expect(lastCall(f)).toMatchObject({
       url: '/api/companies/c1/invites',
       method: 'POST',
-      body: { allowedJoinTypes: 'human', humanRole: 'viewer', defaultsPayload: { crew: { role: 'contributor' } } },
+      body: {
+        allowedJoinTypes: 'human',
+        humanRole: 'viewer',
+        defaultsPayload: { crew: { role: 'contributor', department: 'marketing' } },
+      },
     });
     expect(res.token).toBe('tok');
+    await api.invites.createContributor('c1', 'qc', ['p1', 'p1']);
+    expect(lastCall(f).body).toEqual({
+      allowedJoinTypes: 'human',
+      humanRole: 'viewer',
+      defaultsPayload: { crew: { role: 'contributor', department: 'qc', projectIds: ['p1'] } },
+    });
   });
 
   it('listAll đọc hết các trang lời mời theo nextOffset; thu hồi POST /invites/:id/revoke', async () => {

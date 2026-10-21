@@ -5,6 +5,7 @@ import { useMe } from '@/app/hooks';
 import { ChatMessage, MarkdownView } from '@/ds';
 import { formatDateTime, useT } from '@/i18n';
 import { ContributionBadge } from './contribution-badge';
+import { useDepartmentLabel } from './use-contributions';
 
 /** Bình luận góp ý còn nằm ở bảng chờ (chưa thành bình luận thật): chờ duyệt, đang duyệt dở hoặc bị từ chối. */
 export const isPendingComment = (c: Contribution): boolean =>
@@ -12,7 +13,7 @@ export const isPendingComment = (c: Contribution): boolean =>
 
 interface PendingCommentProps {
   contribution: Contribution;
-  /** Tên hiển thị của tác giả; null thì dùng nhãn chung. */
+  /** Tên hiển thị của tác giả; null thì dùng nhãn chung. Phòng của người gửi được gắn thêm ở đây. */
   authorName: string | null;
   /** Chỗ gắn nút của owner (Duyệt, Từ chối). Khách không bao giờ có. */
   actions?: ReactNode;
@@ -22,8 +23,9 @@ interface PendingCommentProps {
 export function PendingComment({ contribution, authorName, actions }: PendingCommentProps) {
   const { t, lang } = useT('contributions');
   const me = useMe();
+  const withDepartment = useDepartmentLabel();
   const mine = contribution.authorUserId === me.id;
-  const name = mine ? t('pending.you') : (authorName ?? t('pending.user'));
+  const name = mine ? t('pending.you') : withDepartment(authorName ?? t('pending.user'), contribution.authorDepartment);
   return (
     <ChatMessage
       id={`contribution-${contribution.id}`}

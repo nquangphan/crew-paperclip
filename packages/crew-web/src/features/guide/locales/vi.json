@@ -7,7 +7,7 @@
     "owner": "Owner",
     "operator": "Admin / Vận hành",
     "viewer": "Chỉ xem",
-    "contributor": "Phòng Marketing"
+    "contributor": "Phòng Marketing / Phòng QC"
   },
   "toc": "Mục lục",
   "shot": {
@@ -60,11 +60,11 @@
     "force-done": "Hộp thoại Ép Done",
     "new-request": "Hộp thoại Yêu cầu mới",
     "inbox": "Hộp thư",
-    "contribution-new": "Phòng Marketing gửi yêu cầu chờ owner duyệt",
-    "contribution-comment": "Phòng Marketing bình luận: bình luận chờ duyệt hiện ngay trong luồng",
+    "contribution-new": "Phòng Marketing hoặc Phòng QC gửi yêu cầu chờ owner duyệt",
+    "contribution-comment": "Phòng Marketing hoặc Phòng QC bình luận: bình luận chờ duyệt hiện ngay trong luồng",
     "contributions-mine": "Trang Góp ý của tôi",
     "contributions-owner": "Trang Chờ duyệt của owner",
-    "contribution-approve": "Hộp thoại Duyệt yêu cầu của Phòng Marketing",
+    "contribution-approve": "Hộp thoại Duyệt yêu cầu của Phòng Marketing hoặc Phòng QC",
     "projects": "Trang Project",
     "project-roles": "Tab Vai trò của một project",
     "add-project": "Wizard Thêm project",

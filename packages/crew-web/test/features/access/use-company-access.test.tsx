@@ -89,6 +89,18 @@ describe('useCompanyAccess', () => {
 
   it('dấu khách của người đã nâng role không có tác dụng', () => {
     expect(deriveAccess({ membershipRole: 'operator', contributor: true }, false).isContributor).toBe(false);
+    expect(
+      deriveAccess({ membershipRole: 'operator', contributor: true, department: 'qc' }, false).department,
+    ).toBeNull();
+  });
+
+  it('phòng của khách góp ý: qc, marketing; server cũ chưa trả phòng thì là marketing; không phải khách thì null', () => {
+    const viewer = (contributor: boolean, department?: 'marketing' | 'qc' | null) =>
+      deriveAccess({ membershipRole: 'viewer', contributor, department }, false);
+    expect(viewer(true, 'qc')).toMatchObject({ isContributor: true, department: 'qc' });
+    expect(viewer(true, 'marketing')).toMatchObject({ isContributor: true, department: 'marketing' });
+    expect(viewer(true)).toMatchObject({ isContributor: true, department: 'marketing' });
+    expect(viewer(false, null)).toMatchObject({ isContributor: false, department: null });
   });
 
   it('lỗi tải vai trò thì không khóa UI (server vẫn là cổng thật) và trả lỗi để route cần vai trò báo', async () => {

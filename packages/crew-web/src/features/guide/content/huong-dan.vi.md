@@ -10,7 +10,7 @@ Bạn đang xem bản cho **Admin / Vận hành**: các việc hằng ngày như
 Bạn đang xem bản cho **Chỉ xem**: bạn xem được tổng quan, yêu cầu, project và tài liệu, nhưng không tạo hay sửa được gì.
 {{/roles}}
 {{roles:contributor}}
-Bạn đang xem bản cho **Phòng Marketing**: cách gửi yêu cầu, viết bình luận và theo dõi trang **Góp ý của tôi**. Mọi thứ bạn gửi đều chờ owner duyệt trước khi đội agent thấy.
+Bạn đang xem bản cho **Phòng Marketing / Phòng QC**: cách gửi yêu cầu, viết bình luận và theo dõi trang **Góp ý của tôi**. Mọi thứ bạn gửi đều chờ owner duyệt trước khi đội agent thấy.
 {{/roles}}
 
 Mỗi mục trả lời một việc: **là gì**, **làm từng bước thế nào**, rồi **mẹo**. Bấm tên mục ở cột trái để nhảy tới; chép địa chỉ trên thanh trình duyệt để gửi đúng mục đó cho người khác. Số đỏ trên ảnh khớp với số **(1)**, **(2)** trong bài.
@@ -36,7 +36,7 @@ Mỗi người đăng nhập với một **vai trò** trong company; thanh bên 
 | **Owner** | Mọi việc: giao yêu cầu, duyệt cuối, mời người, ghép và gỡ máy, thêm project và agent, bật runtime |
 | **Admin / Vận hành** | Việc hằng ngày: giao yêu cầu, theo dõi, bình luận, xem project, agent, máy |
 | **Chỉ xem** | Xem tổng quan, yêu cầu, project và tài liệu. Không tạo hay sửa gì |
-| **Phòng Marketing** | Xem như Chỉ xem, cộng thêm gửi yêu cầu và bình luận để owner duyệt |
+| **Phòng Marketing**, **Phòng QC** | Xem như Chỉ xem, cộng thêm gửi yêu cầu và bình luận để owner duyệt. Hai phòng cùng quyền, chỉ khác tên để owner biết ai gửi |
 
 {{roles:owner}}
 Đổi vai trò của một người, và chọn project mỗi người được xem, ở mục [Thành viên](/members).
@@ -80,7 +80,7 @@ Thanh bên trái chia nhóm giống Paperclip gốc. Trên ảnh:
 
 Các nhóm còn lại:
 {{roles:owner}}
-- **Công việc**: Yêu cầu, Roadmap, **Chờ duyệt** (góp ý của Phòng Marketing, con số là số mục đang chờ), Project, Docs.
+- **Công việc**: Yêu cầu, Roadmap, **Chờ duyệt** (góp ý của Phòng Marketing và Phòng QC, con số là số mục đang chờ), Project, Docs.
 - **Tổ chức**: Agent, Skills, Máy.
 - **Hệ thống**: **Thành viên**, Cài đặt, Hướng dẫn, **Mở giao diện Paperclip gốc**.
 {{/roles}}
@@ -129,7 +129,7 @@ Trang **Tổng quan** cho bức tranh chung của company ngay khi đăng nhập
 - Bốn thẻ số: **Agent đang bật** (1), **Yêu cầu đang làm**, **Yêu cầu bị kẹt**, **Chờ bạn duyệt** (2). Bấm thẻ để mở danh sách tương ứng.
 {{/roles}}
 {{roles:owner}}
-- Thẻ **Góp ý chờ duyệt** (3): số yêu cầu và bình luận của Phòng Marketing đang chờ bạn.
+- Thẻ **Góp ý chờ duyệt** (3): số yêu cầu và bình luận của Phòng Marketing và Phòng QC đang chờ bạn.
 {{/roles}}
 {{roles:viewer,contributor}}
 - Các thẻ số (1), (2) cho biết số agent, số yêu cầu đang làm, bị kẹt và đang chờ duyệt. Bạn chỉ xem, không có việc nào ở đây chờ bạn.
@@ -161,7 +161,7 @@ Thanh công cụ trên ảnh:
 {{/roles}}
 2. **Tìm yêu cầu**: lọc theo chữ trong tiêu đề hoặc mã.
 {{roles:owner,contributor}}
-3. **Chờ duyệt (n)**: chỉ hiện nhóm góp ý của Phòng Marketing đang chờ ở đầu danh sách. Bấm lại để hiện tất cả.
+3. **Chờ duyệt (n)**: chỉ hiện nhóm góp ý của Phòng Marketing và Phòng QC đang chờ ở đầu danh sách. Bấm lại để hiện tất cả.
 {{/roles}}
 4. **Cột**: chọn cột hiện trên mỗi dòng.
 5. **Lọc**: lọc theo trạng thái, người làm, project, loại.
@@ -394,9 +394,9 @@ Thuộc tính của yêu cầu có nhóm **Runtime** liệt kê quyết định,
 
 > **Mẹo:** model **kimi-k3** (OpenCode) hiện **chưa nhận ảnh**. Việc có ảnh đính kèm nên để Claude hoặc Codex làm.
 
-## Phòng Marketing {#marketing}
+## Phòng Marketing và Phòng QC {#marketing}
 
-### Phòng Marketing là gì {#marketing-overview roles=owner,contributor}
+### Phòng Marketing và Phòng QC là gì {#marketing-overview roles=owner,contributor}
 
 {{roles:contributor}}
 {{shot:contributions-mine}}
@@ -405,7 +405,7 @@ Thuộc tính của yêu cầu có nhóm **Runtime** liệt kê quyết định,
 {{shot:contributions-owner}}
 {{/roles}}
 
-**Phòng Marketing** là thành viên chỉ xem mọi project, yêu cầu và bình luận, cộng thêm quyền gửi **yêu cầu** và **bình luận** để owner duyệt. Trong lúc chờ, **agent không thấy gì**: nội dung chờ không nằm trong danh sách, bình luận hay ngữ cảnh của agent, nên không agent nào bị đánh thức. Chỉ owner duyệt hay từ chối được.
+**Phòng Marketing** và **Phòng QC** là thành viên chỉ xem mọi project, yêu cầu và bình luận, cộng thêm quyền gửi **yêu cầu** và **bình luận** để owner duyệt. Trong lúc chờ, **agent không thấy gì**: nội dung chờ không nằm trong danh sách, bình luận hay ngữ cảnh của agent, nên không agent nào bị đánh thức. Chỉ owner duyệt hay từ chối được. Hai phòng có đúng cùng quyền; owner thấy tên phòng cạnh người gửi (ví dụ **Lan · Phòng QC**) để biết góp ý đến từ đâu.
 
 | Trạng thái | Nghĩa |
 |---|---|
@@ -414,7 +414,7 @@ Thuộc tính của yêu cầu có nhóm **Runtime** liệt kê quyết định,
 | **Bị từ chối** | Owner không đăng. Mục vẫn còn, chỉ người gửi và owner thấy; agent không bao giờ thấy |
 
 {{roles:contributor}}
-Phòng Marketing không sửa, không đổi trạng thái, không giao việc và không xóa được gì.
+Phòng Marketing và Phòng QC không sửa, không đổi trạng thái, không giao việc và không xóa được gì.
 {{/roles}}
 
 ### Gửi yêu cầu để owner duyệt {#send-request roles=contributor}
@@ -462,7 +462,7 @@ Trang [Góp ý của tôi](/contributions) liệt kê mọi thứ bạn đã g�
 
 {{shot:contributions-owner}}
 
-Mục **Chờ duyệt** ở thanh bên trái có số mục đang chờ; Tổng quan có thẻ **Góp ý chờ duyệt**. Bạn duyệt ở trang [Chờ duyệt](/contributions) (tab (1)), ở nhóm **Chờ duyệt** đầu trang [Yêu cầu](/issues), hoặc ngay trong luồng bình luận.
+Mục **Chờ duyệt** ở thanh bên trái có số mục đang chờ; Tổng quan có thẻ **Góp ý chờ duyệt**. Bạn duyệt ở trang [Chờ duyệt](/contributions) (tab (1)), ở nhóm **Chờ duyệt** đầu trang [Yêu cầu](/issues), hoặc ngay trong luồng bình luận. Cạnh tên người gửi có tên phòng (**Phòng Marketing** hoặc **Phòng QC**).
 
 {{shot:contribution-approve}}
 
@@ -696,29 +696,29 @@ Gỡ một máy để nó thôi nhận run mới. Máy khác không ảnh hưở
 
 {{shot:members}}
 
-Trang [Thành viên](/members) chỉ owner thấy: danh sách thành viên và vai trò, lời mời Phòng Marketing và yêu cầu tham gia.
+Trang [Thành viên](/members) chỉ owner thấy: danh sách thành viên và vai trò, lời mời Phòng Marketing, Phòng QC và yêu cầu tham gia.
 
-#### Mời Phòng Marketing
+#### Mời Phòng Marketing hoặc Phòng QC
 
-1. Bấm **Mời Phòng Marketing** (1). Đánh dấu các project người được mời sẽ xem (chọn được nhiều, hoặc bỏ trống để chọn sau), rồi bấm **Tạo link**. Chép link (dạng `…/paperclip/invite/…`) gửi cho người được mời. Link chỉ hiện một lần.
+1. Bấm **Mời Phòng Marketing** hoặc **Mời Phòng QC** (1), tùy người đó thuộc phòng nào. Đánh dấu các project người được mời sẽ xem (chọn được nhiều, hoặc bỏ trống để chọn sau), rồi bấm **Tạo link**. Chép link (dạng `…/paperclip/invite/…`) gửi cho người được mời. Link chỉ hiện một lần.
 2. Người đó mở link, đăng ký hoặc đăng nhập rồi gửi yêu cầu tham gia.
-3. Ở mục **Yêu cầu tham gia chờ duyệt**, dòng có nhãn **Lời mời Phòng Marketing** kèm cột **Project sẽ cấp**: bấm **Duyệt**. Người đó hiện vai trò **Phòng Marketing** và thấy ngay các project đã chọn lúc mời, không phải chọn lại ở cột **Project được xem**. Nếu trang báo **Đã duyệt nhưng chưa cấp được project**, chọn project cho người đó ở cột **Project được xem**.
+3. Ở mục **Yêu cầu tham gia chờ duyệt**, dòng có nhãn **Lời mời Phòng Marketing** (hoặc **Lời mời Phòng QC**) kèm cột **Project sẽ cấp**: bấm **Duyệt**. Người đó hiện vai trò đúng phòng trên lời mời và thấy ngay các project đã chọn lúc mời, không phải chọn lại ở cột **Project được xem**. Nếu trang báo **Đã duyệt nhưng chưa cấp được project**, chọn project cho người đó ở cột **Project được xem**.
 
-#### Đặt hoặc gỡ Phòng Marketing
+#### Đặt hoặc gỡ Phòng Marketing, Phòng QC
 
-Thành viên Chỉ xem có nút **Đặt Phòng Marketing**; người đang là Phòng Marketing có nút **Gỡ Phòng Marketing** (2), sau khi gỡ chỉ còn xem.
+Thành viên Chỉ xem có nút **Đặt Phòng Marketing** và **Đặt Phòng QC**; người đang ở một phòng có nút **Gỡ Phòng Marketing** hoặc **Gỡ Phòng QC** (2), sau khi gỡ chỉ còn xem. Muốn đổi phòng thì gỡ rồi đặt phòng kia.
 
 #### Chọn project mỗi người được xem
 
 {{shot:project-access}}
 
-Mọi thành viên trừ owner (Quản trị, Vận hành, Chỉ xem, Phòng Marketing) chỉ thấy project bạn cấp. Người mới vào chưa thấy project nào. Owner luôn thấy tất cả, cột hiện **Tất cả**.
+Mọi thành viên trừ owner (Quản trị, Vận hành, Chỉ xem, Phòng Marketing, Phòng QC) chỉ thấy project bạn cấp. Người mới vào chưa thấy project nào. Owner luôn thấy tất cả, cột hiện **Tất cả**.
 
 1. Ở cột **Project được xem**, bấm nút của người đó (1). Nút ghi tên project đã cấp, hoặc **Chưa có project**.
 2. Đánh dấu hoặc bỏ dấu từng project (2), rồi bấm **Lưu** (3).
 3. Người đó tải lại trang là thấy đúng các project đã chọn, kèm yêu cầu, số liệu Tổng quan và kết quả tìm kiếm của các project đó. Yêu cầu không thuộc project nào chỉ owner thấy.
 
-> **Lưu ý:** đây là lớp ẩn của UI Crew. Ai mở thẳng giao diện Paperclip gốc hay API lõi vẫn đọc được. Riêng góp ý của Phòng Marketing bị chặn ở server: không gửi được vào project chưa cấp, và owner không duyệt được góp ý của người đã bị gỡ quyền project đó.
+> **Lưu ý:** đây là lớp ẩn của UI Crew. Ai mở thẳng giao diện Paperclip gốc hay API lõi vẫn đọc được. Riêng góp ý của Phòng Marketing và Phòng QC bị chặn ở server: không gửi được vào project chưa cấp, và owner không duyệt được góp ý của người đã bị gỡ quyền project đó.
 
 > **Mẹo:** lời mời còn hiệu lực hiện ở bảng dưới kèm project đã chọn và giờ hết hạn; bấm **Thu hồi** để link hết dùng được.
 
@@ -825,4 +825,4 @@ Bình luận của agent có các dòng bắt đầu bằng `crew-`: bằng ch�
 | Sẵn sàng | Project hoặc agent đủ điều kiện nhận việc |
 | Ghép máy | Gắn một Mac vào company bằng app 2P Crew; máy nhận key riêng |
 | Superpowers | Bộ quy trình làm việc (brainstorm, lập kế hoạch, test trước) agent dùng |
-| Phòng Marketing | Thành viên chỉ xem, gửi yêu cầu và bình luận để owner duyệt |
+| Phòng Marketing, Phòng QC | Thành viên chỉ xem, gửi yêu cầu và bình luận để owner duyệt; hai phòng cùng quyền |

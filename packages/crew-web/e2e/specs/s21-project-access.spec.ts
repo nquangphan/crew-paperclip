@@ -103,7 +103,7 @@ test('PW-S21-2 mời Phòng Marketing kèm project chọn sẵn: lời mời lư
     await expect.poll(async () => (await findInvite())?.id ?? null).not.toBeNull();
     const invite = await findInvite();
     inviteId = invite?.id ?? null;
-    expect(invite?.defaultsPayload?.crew).toEqual({ role: 'contributor', projectIds: [a.id] });
+    expect(invite?.defaultsPayload?.crew).toEqual({ role: 'contributor', department: 'marketing', projectIds: [a.id] });
     expect(invite?.defaultsPayload?.crew?.projectIds).not.toContain(b.id);
     await expect(page.getByTestId('invite-projects').filter({ hasText: a.name })).toHaveCount(1);
   } finally {

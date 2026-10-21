@@ -10,7 +10,7 @@ You are reading the **Admin / Operator** guide: daily work such as creating requ
 You are reading the **Viewer** guide: you can browse the overview, requests, projects and docs, but you cannot create or change anything.
 {{/roles}}
 {{roles:contributor}}
-You are reading the **Marketing** guide: how to send a request, write a comment and follow **My contributions**. Everything you send waits for the owner's approval before the agent team sees it.
+You are reading the **Marketing / QC** guide: how to send a request, write a comment and follow **My contributions**. Everything you send waits for the owner's approval before the agent team sees it.
 {{/roles}}
 
 Each section answers one task: **what it is**, **how to do it step by step**, then **tips**. Click a section name in the left column to jump to it; copy the address bar to send someone that exact section. Red numbers on the screenshots match **(1)**, **(2)** in the text.
@@ -36,7 +36,7 @@ Everyone signs in with a **role** in the company; the sidebar and buttons you se
 | **Owner** | Everything: create requests, final approval, invite people, pair and unpair machines, add projects and agents, turn on runtimes |
 | **Admin / Operator** | Daily work: create requests, follow progress, comment, view projects, agents, machines |
 | **Viewer** | Browse the overview, requests, projects and docs. Cannot create or change anything |
-| **Marketing** | Same as Viewer, plus sending requests and comments for the owner to approve |
+| **Marketing**, **QC** | Same as Viewer, plus sending requests and comments for the owner to approve. Both teams have the same rights; the name only tells the owner who sent it |
 
 {{roles:owner}}
 Change someone's role, and choose which projects each person can see, on the [Members](/members) page.
@@ -80,7 +80,7 @@ The left sidebar is grouped like the original Paperclip. On the screenshot:
 
 The other groups:
 {{roles:owner}}
-- **Work**: Requests, Roadmap, **Pending approval** (Marketing contributions, the number is how many are waiting), Projects, Docs.
+- **Work**: Requests, Roadmap, **Pending approval** (Marketing and QC contributions, the number is how many are waiting), Projects, Docs.
 - **Org**: Agents, Skills, Machines.
 - **System**: **Members**, Settings, Guide, **Open original Paperclip UI**.
 {{/roles}}
@@ -129,7 +129,7 @@ The **Overview** page gives the big picture of the company right after you sign 
 - Four number cards: **Agents enabled** (1), **Requests in progress**, **Blocked requests**, **Awaiting your approval** (2). Click a card to open the matching list.
 {{/roles}}
 {{roles:owner}}
-- The **Contributions to approve** card (3): Marketing requests and comments waiting for you.
+- The **Contributions to approve** card (3): Marketing and QC requests and comments waiting for you.
 {{/roles}}
 {{roles:viewer,contributor}}
 - The number cards (1), (2) show how many agents there are and how many requests are in progress, stuck or awaiting approval. You only view them; nothing here waits for you.
@@ -161,7 +161,7 @@ The toolbar on the screenshot:
 {{/roles}}
 2. **Search requests**: filter by words in the title or the id.
 {{roles:owner,contributor}}
-3. **Pending approval (n)**: show only the group of Marketing contributions waiting at the top of the list. Click again to show everything.
+3. **Pending approval (n)**: show only the group of Marketing and QC contributions waiting at the top of the list. Click again to show everything.
 {{/roles}}
 4. **Columns**: pick the columns shown on each row.
 5. **Filter**: filter by status, assignee, project, kind.
@@ -394,9 +394,9 @@ The **Codex Reviewer** only reviews **code sub-requests**. If it fails (includin
 
 > **Tip:** the **kimi-k3** model (OpenCode) currently **does not accept images**. Leave tasks with image attachments to Claude or Codex.
 
-## Marketing {#marketing}
+## Marketing and QC {#marketing}
 
-### What Marketing is {#marketing-overview roles=owner,contributor}
+### What Marketing and QC are {#marketing-overview roles=owner,contributor}
 
 {{roles:contributor}}
 {{shot:contributions-mine}}
@@ -405,7 +405,7 @@ The **Codex Reviewer** only reviews **code sub-requests**. If it fails (includin
 {{shot:contributions-owner}}
 {{/roles}}
 
-**Marketing** members can view every project, request and comment, and can send **requests** and **comments** for the owner to approve. While waiting, **agents see nothing**: pending content is not in any list, comment thread or agent context, so no agent is woken up. Only the owner can approve or reject.
+**Marketing** and **QC** members can view every project, request and comment, and can send **requests** and **comments** for the owner to approve. While waiting, **agents see nothing**: pending content is not in any list, comment thread or agent context, so no agent is woken up. Only the owner can approve or reject. Both teams have exactly the same rights; the owner sees the team next to the sender (for example **Lan · QC**) to know where a contribution came from.
 
 | Status | Meaning |
 |---|---|
@@ -414,7 +414,7 @@ The **Codex Reviewer** only reviews **code sub-requests**. If it fails (includin
 | **Rejected** | The owner did not post it. The item stays, visible only to the sender and the owner; agents never see it |
 
 {{roles:contributor}}
-Marketing members cannot edit, change status, assign work or delete anything.
+Marketing and QC members cannot edit, change status, assign work or delete anything.
 {{/roles}}
 
 ### Send a request for approval {#send-request roles=contributor}
@@ -462,7 +462,7 @@ The [My contributions](/contributions) page lists everything you have sent.
 
 {{shot:contributions-owner}}
 
-The **Pending approval** item in the left sidebar shows how many items wait; Overview has a **Contributions to approve** card. Approve on the [Pending approval](/contributions) page (tabs (1)), in the **Pending approval** group at the top of [Requests](/issues), or right in a comment thread.
+The **Pending approval** item in the left sidebar shows how many items wait; Overview has a **Contributions to approve** card. Approve on the [Pending approval](/contributions) page (tabs (1)), in the **Pending approval** group at the top of [Requests](/issues), or right in a comment thread. The sender's name shows their team (**Marketing** or **QC**).
 
 {{shot:contribution-approve}}
 
@@ -696,29 +696,29 @@ Unpair a machine so it stops getting new runs. Other machines are not affected a
 
 {{shot:members}}
 
-The [Members](/members) page is owner-only: members and their roles, Marketing invitations and join requests.
+The [Members](/members) page is owner-only: members and their roles, Marketing and QC invitations and join requests.
 
-#### Invite Marketing
+#### Invite Marketing or QC
 
-1. Click **Invite Marketing** (1). Tick the projects the invited person will see (several are allowed, or leave it empty to choose later), then click **Create link**. Copy the link (like `…/paperclip/invite/…`) and send it. The link is shown only once.
+1. Click **Invite Marketing** or **Invite QC** (1), depending on the person's team. Tick the projects the invited person will see (several are allowed, or leave it empty to choose later), then click **Create link**. Copy the link (like `…/paperclip/invite/…`) and send it. The link is shown only once.
 2. The person opens the link, signs up or signs in, and sends a join request.
-3. Under **Pending join requests**, the row labelled **Marketing invite** shows **Projects to grant**: click **Approve**. The person now has the **Marketing** role and sees the projects chosen on the invite right away, with no need to pick them again in **Visible projects**. If the page says **Approved, but projects were not granted**, choose them in the **Visible projects** column.
+3. Under **Pending join requests**, the row labelled **Marketing invite** (or **QC invite**) shows **Projects to grant**: click **Approve**. The person now has the team role from the invite and sees the projects chosen on the invite right away, with no need to pick them again in **Visible projects**. If the page says **Approved, but projects were not granted**, choose them in the **Visible projects** column.
 
-#### Set or remove Marketing
+#### Set or remove Marketing or QC
 
-Viewer members have **Set Marketing**; Marketing members have **Remove Marketing** (2), after which they can only view.
+Viewer members have **Set Marketing** and **Set QC**; members of a team have **Remove Marketing** or **Remove QC** (2), after which they can only view. To switch team, remove it and set the other one.
 
 #### Choose which projects each person can see
 
 {{shot:project-access}}
 
-Every member except owners (Admin, Operator, Viewer, Marketing) only sees the projects you give them. A new member sees no project at all. Owners always see everything; their column shows **All**.
+Every member except owners (Admin, Operator, Viewer, Marketing, QC) only sees the projects you give them. A new member sees no project at all. Owners always see everything; their column shows **All**.
 
 1. In the **Visible projects** column, click the person's button (1). It shows the projects already given, or **No project yet**.
 2. Tick or untick each project (2), then click **Save** (3).
 3. When the person reloads the page they see exactly those projects, with their requests, Overview numbers and search results. Requests without a project are only visible to owners.
 
-> **Note:** this hides projects in the Crew UI only. Anyone who opens the original Paperclip UI or the core API can still read them. Marketing contributions are enforced on the server: they cannot be sent to a project that was not given, and you cannot approve a contribution from someone who lost access to that project.
+> **Note:** this hides projects in the Crew UI only. Anyone who opens the original Paperclip UI or the core API can still read them. Marketing and QC contributions are enforced on the server: they cannot be sent to a project that was not given, and you cannot approve a contribution from someone who lost access to that project.
 
 > **Tip:** active invitations are listed below with their chosen projects and expiry; click **Revoke** to disable a link.
 
@@ -825,4 +825,4 @@ Agent comments contain lines starting with `crew-`: machine-readable evidence.
 | Ready | A project or agent meets every condition to take work |
 | Machine pairing | Joining a Mac to the company through the 2P Crew app; the machine gets its own key |
 | Superpowers | The working method (brainstorm, plan, test first) agents use |
-| Marketing | A member who views and sends requests and comments for the owner to approve |
+| Marketing, QC | A member who views and sends requests and comments for the owner to approve; both teams have the same rights |

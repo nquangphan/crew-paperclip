@@ -1,4 +1,4 @@
-// Góp ý chờ duyệt của Phòng Marketing: router Crew của server (hợp đồng ở spec góp ý chờ duyệt, mục API).
+// Góp ý chờ duyệt của Phòng Marketing và Phòng QC: router Crew của server (hợp đồng ở spec góp ý chờ duyệt, mục API).
 // Duyệt gồm ba bước: `approve` (khóa, trả nội dung cần đăng) → trình duyệt owner đăng qua route stock của board →
 // `complete` (server tự tìm bản ghi đã đăng). Server trả 409 khi chưa tìm thấy bản ghi hoặc mục đã chốt.
 import { call } from '../endpoints';
@@ -9,6 +9,7 @@ import type {
   ContributionFilters,
   ContributionPage,
   Contributor,
+  ContributorDepartment,
   NewContribution,
 } from './types';
 
@@ -37,9 +38,12 @@ export const contributionsApi = {
     const res: { items: Contributor[] } = await call('contributors.list', { companyId });
     return res.items;
   },
-  /** Bật dấu cho viewer đang hoạt động; 409 `crew_contributor_requires_viewer` nếu người đó không phải viewer. */
-  enableContributor: (companyId: string, userId: string): Promise<void> =>
-    call('contributors.set', { companyId, userId }),
+  /**
+   * Bật dấu (hoặc đổi phòng) cho viewer đang hoạt động; 409 `crew_contributor_requires_viewer` nếu người đó không phải
+   * viewer.
+   */
+  enableContributor: (companyId: string, userId: string, department: ContributorDepartment): Promise<void> =>
+    call('contributors.set', { companyId, userId }, { body: { department } }),
   disableContributor: (companyId: string, userId: string): Promise<void> =>
     call('contributors.remove', { companyId, userId }),
 };

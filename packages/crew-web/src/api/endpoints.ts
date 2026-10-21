@@ -221,7 +221,7 @@ export const ENDPOINTS = {
   // BA không có mã riêng cho nút "Bỏ lần dở" nên gắn S9 (wizard Thêm project).
   'setup.abandon': { ids: ['S9'], method: 'POST', path: `${PLUGIN}/api/setup-runs/:id/abandon` },
 
-  // Phòng Marketing: góp ý chờ duyệt (S20). Chỉ owner duyệt/từ chối; khách chỉ thấy mục của mình.
+  // Phòng Marketing, Phòng QC: góp ý chờ duyệt (S20). Chỉ owner duyệt/từ chối; khách chỉ thấy mục của mình.
   'access.get': { ids: ['S20.1', 'S20.3', 'S20.7', 'S20.8'], method: 'GET', path: `${CREW}/access` },
   'contributions.list': { ids: ['S20.2', 'S20.3', 'S20.4'], method: 'GET', path: `${CREW}/contributions` },
   'contributions.summary': { ids: ['S20.7'], method: 'GET', path: `${CREW}/contributions/summary` },

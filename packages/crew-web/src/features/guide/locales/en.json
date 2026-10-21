@@ -7,7 +7,7 @@
     "owner": "Owner",
     "operator": "Admin / Operator",
     "viewer": "Viewer",
-    "contributor": "Marketing"
+    "contributor": "Marketing / QC"
   },
   "toc": "Contents",
   "shot": {
@@ -60,11 +60,11 @@
     "force-done": "The Force Done dialog",
     "new-request": "The New request dialog",
     "inbox": "The Inbox",
-    "contribution-new": "Marketing sends a request for the owner to approve",
-    "contribution-comment": "Marketing comments: the pending comment shows in the thread",
+    "contribution-new": "Marketing or QC sends a request for the owner to approve",
+    "contribution-comment": "Marketing or QC comments: the pending comment shows in the thread",
     "contributions-mine": "The My contributions page",
     "contributions-owner": "The owner's Pending approval page",
-    "contribution-approve": "The dialog for approving a Marketing request",
+    "contribution-approve": "The dialog for approving a Marketing or QC request",
     "projects": "The Projects page",
     "project-roles": "The Roles tab of a project",
     "add-project": "The Add project wizard",

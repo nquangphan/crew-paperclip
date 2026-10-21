@@ -103,7 +103,7 @@ describe('nhóm Chờ duyệt ở danh sách yêu cầu (S20.3)', () => {
     expect(rows).toHaveLength(2);
     expect(within(rows[0]).getByText('Cần banner')).toBeTruthy();
     expect(within(rows[0]).getByText('Chờ duyệt')).toBeTruthy();
-    expect(await within(rows[0]).findByText(/Lan Marketing/)).toBeTruthy();
+    expect(await within(rows[0]).findByText(/Lan Marketing · Phòng Marketing/)).toBeTruthy();
     expect(within(rows[0]).getByText(/Alpha/)).toBeTruthy();
     expect(within(rows[0]).getByRole('button', { name: /^Duyệt: / })).toBeTruthy();
     expect(within(rows[0]).getByRole('button', { name: /^Từ chối: / })).toBeTruthy();

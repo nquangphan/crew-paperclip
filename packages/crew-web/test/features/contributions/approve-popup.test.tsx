@@ -88,7 +88,7 @@ describe('popup mục góp ý (?contribution=)', () => {
     const popup = await screen.findByTestId('contribution-popup');
     expect(await within(popup).findByText('Banner tháng 11')).toBeTruthy();
     expect(within(popup).getByRole('heading', { name: 'Cần banner' })).toBeTruthy();
-    expect(await within(popup).findByText('Lan Marketing')).toBeTruthy();
+    expect(await within(popup).findByText('Lan Marketing · Phòng Marketing')).toBeTruthy();
     expect(await within(popup).findByText('Alpha')).toBeTruthy();
     expect(within(popup).getByText('Chờ duyệt')).toBeTruthy();
     expect(await within(popup).findByRole('button', { name: 'Duyệt: Cần banner' })).toBeTruthy();
