@@ -107,6 +107,15 @@ const FEW_R0 = { round: 230, card: 280 } as const;
 /** Vị trí tâm mỗi nút của một tầng (tâm tầng ở gốc). Nút "+N khác" ở tầng cây nằm ngay dưới tâm. */
 export function layoutLevel(level: RoadmapLevel): Record<string, RoadmapPoint> {
   const out: Record<string, RoadmapPoint> = { [level.center.id]: { x: 0, y: 0 } };
+  if (level.layout === 'top-down') {
+    Object.assign(out, topDownTree(level));
+    // Nút "+N khác" đứng cạnh phải gốc, cùng hàng: hàng con bên dưới đã kín.
+    const root = roadmapNodeSize(level.center, true);
+    for (const node of level.nodes) {
+      if (node.kind === 'more') out[node.id] = { x: root.w / 2 + TOP_DOWN.gapX + NODE_SIZE.more.w / 2, y: 0 };
+    }
+    return out;
+  }
   if (level.layout === 'spread-tree') {
     Object.assign(out, compactTree(level));
     for (const node of level.nodes) if (node.kind === 'more') out[node.id] = { x: 0, y: 150 };
@@ -129,26 +138,29 @@ export function layoutLevel(level: RoadmapLevel): Record<string, RoadmapPoint> {
 
 const round = (v: number) => Math.round(v * 10) / 10;
 
-/** Kích thước gần đúng (đơn vị bản đồ) của mặt nút theo loại, khớp class trong roadmap-node.tsx. */
+/**
+ * Kích thước (đơn vị bản đồ) của mặt nút theo loại. Thẻ yêu cầu/việc con/docs có kích thước cố định (`w-[…] h-[…]` trong
+ * roadmap-node.tsx), nút tròn theo `size-*`; giữ hai nơi khớp nhau để bố cục không chồng thẻ.
+ */
 const NODE_SIZE: Record<RoadmapLevel['center']['kind'], { w: number; h: number }> = {
   company: { w: 160, h: 160 },
   project: { w: 136, h: 136 },
-  request: { w: 200, h: 80 },
-  ticket: { w: 180, h: 72 },
-  docs: { w: 180, h: 60 },
-  folder: { w: 180, h: 60 },
-  page: { w: 180, h: 60 },
+  request: { w: 236, h: 92 },
+  ticket: { w: 216, h: 82 },
+  docs: { w: 200, h: 64 },
+  folder: { w: 200, h: 64 },
+  page: { w: 200, h: 64 },
   more: { w: 120, h: 40 },
 };
 const CENTER_SIZE: Partial<Record<RoadmapLevel['center']['kind'], { w: number; h: number }>> = {
   project: { w: 160, h: 160 },
-  request: { w: 232, h: 120 },
-  folder: { w: 200, h: 64 },
-  docs: { w: 200, h: 64 },
+  request: { w: 268, h: 112 },
+  folder: { w: 220, h: 68 },
+  docs: { w: 220, h: 68 },
 };
 
-/** Chiều cao thêm của một dòng chi tiết (`detail`) trên thẻ. */
-const DETAIL_LINE = 18;
+/** Chiều cao thêm của ô chi tiết (`detail`, dạng dòng lệnh) trên thẻ. */
+const DETAIL_LINE = 30;
 
 /** Kích thước gần đúng của một nút trên bản đồ (nút tâm to hơn, thẻ có dòng chi tiết cao hơn). */
 export function roadmapNodeSize(node: RoadmapNode, center: boolean): { w: number; h: number } {
@@ -294,4 +306,151 @@ export function pairFocus(
   const availH = viewport.height - padding.top - padding.bottom;
   const fits = (maxX - minX) * READABLE_ZOOM <= availW && (maxY - minY) * READABLE_ZOOM <= availH;
   return fits ? { x: round((minX + maxX) / 2), y: round((minY + maxY) / 2) } : p;
+}
+
+/**
+ * Khe của cây trên xuống: ngang giữa hai thẻ anh em (`gapX`), dọc giữa cha và hàng con (`gapY`, đủ cho dây cong), dọc
+ * giữa hai hàng khi gói con lá thành lưới (`gapRow`). Cha có hơn `wrapAbove` con mà con nào cũng là lá thì con xếp
+ * thành nhiều hàng, để cây rộng không kéo dài vô tận theo chiều ngang.
+ */
+const TOP_DOWN = { gapX: 28, gapY: 72, gapRow: 40, wrapAbove: 4, maxCols: 6 } as const;
+
+interface TreeBlock {
+  w: number;
+  h: number;
+  /** Đặt cả khối với góc trên trái ở (left, top). */
+  place: (left: number, top: number) => void;
+}
+
+/**
+ * Cây phân tầng trên xuống (tầng yêu cầu của Roadmap, bản đồ Crew): gốc ở (0,0), mỗi cây con là một khối chữ nhật rộng
+ * bằng max(thẻ, tổng các khối con); cha nằm giữa phía trên khối con, con canh đỉnh thẳng hàng. Khối không giao nhau nên
+ * thẻ không bao giờ chồng. Nút không nối được về gốc (cha thiếu, vòng cha-con) treo thẳng dưới gốc để không mất.
+ * Thứ tự anh em giữ theo thứ tự trong `nodes`.
+ */
+export function topDownTree(level: RoadmapLevel): Record<string, RoadmapPoint> {
+  const rootId = level.center.id;
+  const nodes = level.nodes.filter((n) => n.kind !== 'more' && n.id !== rootId);
+  const byId = new Map<string, RoadmapNode>([[rootId, level.center], ...nodes.map((n) => [n.id, n] as const)]);
+  const kids = new Map<string, string[]>();
+  for (const node of nodes) {
+    const parent = node.parentId && byId.has(node.parentId) ? node.parentId : rootId;
+    kids.set(parent, [...(kids.get(parent) ?? []), node.id]);
+  }
+  // Cây thật đi từ gốc (mỗi nút một lần); nút còn sót (vòng cha-con) gắn dưới gốc.
+  const tree = new Map<string, string[]>();
+  const seen = new Set([rootId]);
+  const walk = (id: string) => {
+    const children = (kids.get(id) ?? []).filter((c) => !seen.has(c));
+    for (const c of children) seen.add(c);
+    tree.set(id, children);
+    for (const c of children) walk(c);
+  };
+  walk(rootId);
+  const orphans = nodes.filter((n) => !seen.has(n.id)).map((n) => n.id);
+  for (const id of orphans) seen.add(id);
+  tree.set(rootId, [...(tree.get(rootId) ?? []), ...orphans]);
+  for (const id of orphans) walk(id);
+
+  const out: Record<string, RoadmapPoint> = {};
+  const size = (id: string) => roadmapNodeSize(byId.get(id) as RoadmapNode, id === rootId);
+  const isLeaf = (id: string) => !tree.get(id)?.length;
+
+  const leafGrid = (children: string[]): TreeBlock => {
+    const cols = Math.min(TOP_DOWN.maxCols, Math.max(TOP_DOWN.wrapAbove, Math.ceil(Math.sqrt(children.length * 2))));
+    const rows = Math.ceil(children.length / cols);
+    const cw = Math.max(...children.map((c) => size(c).w));
+    const ch = Math.max(...children.map((c) => size(c).h));
+    const w = cols * cw + (cols - 1) * TOP_DOWN.gapX;
+    return {
+      w,
+      h: rows * ch + (rows - 1) * TOP_DOWN.gapRow,
+      place: (left, top) => {
+        children.forEach((c, i) => {
+          const row = Math.floor(i / cols);
+          const inRow = row === rows - 1 ? children.length - row * cols : cols;
+          // Hàng cuối thiếu thẻ thì canh giữa.
+          const shift = ((cols - inRow) * (cw + TOP_DOWN.gapX)) / 2;
+          out[c] = {
+            x: round(left + shift + (i % cols) * (cw + TOP_DOWN.gapX) + cw / 2),
+            y: round(top + row * (ch + TOP_DOWN.gapRow) + size(c).h / 2),
+          };
+        });
+      },
+    };
+  };
+
+  const block = (id: string): TreeBlock => {
+    const s = size(id);
+    const children = tree.get(id) ?? [];
+    if (!children.length) {
+      return {
+        w: s.w,
+        h: s.h,
+        place: (left, top) => (out[id] = { x: round(left + s.w / 2), y: round(top + s.h / 2) }),
+      };
+    }
+    let row: TreeBlock;
+    if (children.length > TOP_DOWN.wrapAbove && children.every(isLeaf)) row = leafGrid(children);
+    else {
+      const blocks = children.map(block);
+      row = {
+        w: blocks.reduce((sum, b) => sum + b.w, 0) + (blocks.length - 1) * TOP_DOWN.gapX,
+        h: Math.max(...blocks.map((b) => b.h)),
+        place: (left, top) => {
+          let x = left;
+          for (const b of blocks) {
+            b.place(x, top);
+            x += b.w + TOP_DOWN.gapX;
+          }
+        },
+      };
+    }
+    const w = Math.max(s.w, row.w);
+    return {
+      w,
+      h: s.h + TOP_DOWN.gapY + row.h,
+      place: (left, top) => {
+        out[id] = { x: round(left + w / 2), y: round(top + s.h / 2) };
+        row.place(left + (w - row.w) / 2, top + s.h + TOP_DOWN.gapY);
+      },
+    };
+  };
+
+  const root = block(rootId);
+  const s = size(rootId);
+  root.place(-root.w / 2, -s.h / 2);
+  delete out[rootId];
+  return out;
+}
+
+/**
+ * Cạnh "đang chạy" (có hiệu ứng dòng chảy): cạnh cha-con mà nhánh đích có việc đang làm (`in_progress`) — tức đường
+ * từ gốc xuống tới mọi việc đang làm — và cạnh chặn/vòng sửa có một đầu đang làm. Cha đang làm không tự làm mọi dây
+ * xuống con chạy theo, vì yêu cầu gốc luôn "đang làm" khi có việc con chạy.
+ */
+export function runningEdgeIds(level: RoadmapLevel): Set<string> {
+  const active = new Set([level.center, ...level.nodes].filter((n) => n.status === 'in_progress').map((n) => n.id));
+  const out = new Set<string>();
+  if (!active.size) return out;
+  const children = new Map<string, string[]>();
+  for (const e of level.edges) {
+    if (e.kind === 'parent') children.set(e.source, [...(children.get(e.source) ?? []), e.target]);
+  }
+  const memo = new Map<string, boolean>();
+  const hasActive = (id: string, path: Set<string>): boolean => {
+    const known = memo.get(id);
+    if (known !== undefined) return known;
+    if (path.has(id)) return false;
+    path.add(id);
+    const value = active.has(id) || (children.get(id) ?? []).some((c) => hasActive(c, path));
+    path.delete(id);
+    memo.set(id, value);
+    return value;
+  };
+  for (const e of level.edges) {
+    const running = e.kind === 'parent' ? hasActive(e.target, new Set()) : active.has(e.source) || active.has(e.target);
+    if (running) out.add(e.id);
+  }
+  return out;
 }

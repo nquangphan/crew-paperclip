@@ -52,10 +52,12 @@ interface StatusGlyphProps {
   className?: string;
   /** Nhãn truy cập; có thì SVG là `img`, không thì chỉ để trang trí. */
   title?: string;
+  /** Màu thay cho màu trạng thái chung (bản đồ Roadmap dùng bảng màu riêng). */
+  color?: string;
 }
 
 /** Biểu tượng trạng thái yêu cầu: mỗi trạng thái một hình riêng, màu theo token `--status-task-icon-*`. */
-function StatusGlyph({ status, size = 'md', className, title }: StatusGlyphProps) {
+function StatusGlyph({ status, size = 'md', className, title, color }: StatusGlyphProps) {
   const Icon = STATUS_ICON[status] ?? CircleDashed;
   const a11y = title ? ({ role: 'img', 'aria-label': title } as const) : ({ 'aria-hidden': true } as const);
   return (
@@ -68,7 +70,7 @@ function StatusGlyph({ status, size = 'md', className, title }: StatusGlyphProps
         status === 'in_progress' && 'motion-safe:animate-spin',
         className,
       )}
-      style={{ color: statusColorVar(status) }}
+      style={{ color: color ?? statusColorVar(status) }}
       {...a11y}
     />
   );

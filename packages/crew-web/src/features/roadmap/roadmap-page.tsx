@@ -71,9 +71,9 @@ type Resolved =
   | { kind: 'notFound' }
   | { kind: 'ready'; level: RoadmapLevel; list: RoadmapListItem[]; truncated: boolean };
 
-/** Cây danh sách: tầng cây lồng theo `parentId`, các tầng khác phẳng. */
+/** Cây danh sách: tầng cây (mọi bố cục trừ vòng) lồng theo `parentId`, tầng vòng phẳng. */
 function listItems(level: RoadmapLevel): RoadmapListItem[] {
-  if (level.layout !== 'tree') return level.nodes.map((node) => ({ node, children: [] }));
+  if (level.layout === 'rings') return level.nodes.map((node) => ({ node, children: [] }));
   const byParent = new Map<string, RoadmapNode[]>();
   for (const node of level.nodes) {
     const list = byParent.get(node.parentId ?? '') ?? [];

@@ -95,7 +95,7 @@ describe('RoadmapCanvas', () => {
     expect(onOpen).toHaveBeenLastCalledWith(expect.objectContaining({ id: 'more', extra: 7 }));
   });
 
-  it('chú giải có 7 trạng thái và hai loại cạnh; nút tắt không gọi onOpen', async () => {
+  it('chú giải có 7 trạng thái, hai loại cạnh và dây đang chạy; nút tắt không gọi onOpen', async () => {
     const onOpen = vi.fn();
     const level: RoadmapLevel = {
       center: { id: 'p', kind: 'project', title: 'Crew', total: 0, open: 0 },
@@ -108,7 +108,8 @@ describe('RoadmapCanvas', () => {
       <RoadmapCanvas level={level} levelKey="p" direction="in" onOpen={onOpen} labels={{ canvas: 'Bản đồ' }} />,
     );
     const legend = await screen.findByRole('region', { name: 'Chú thích' });
-    expect(legend.querySelectorAll('li')).toHaveLength(9);
+    expect(legend.querySelectorAll('li')).toHaveLength(10);
+    expect(legend.textContent).toContain('Đang chạy (có việc đang làm)');
     const docs = container.querySelector<HTMLButtonElement>('[data-roadmap-id="docs:p"]');
     expect(docs?.getAttribute('aria-disabled')).toBe('true');
     expect(docs?.textContent).toContain('Chưa có docs');

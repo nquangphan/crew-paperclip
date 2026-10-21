@@ -1,6 +1,6 @@
 // crew: tự dựng
 // Bản đồ yêu cầu Crew ở trang chi tiết ticket, vẽ bằng canvas Roadmap (cùng thẻ, cạnh, chú giải, chuyển động): yêu
-// cầu gốc ở tâm, việc con tỏa quanh, camera thu ra quanh việc đang xem. Canvas nạp lười nên @xyflow/react không vào
+// cầu gốc ở đỉnh, việc con xếp tầng bên dưới, camera thu ra quanh việc đang xem. Canvas nạp lười nên @xyflow/react không vào
 // chunk đầu.
 import type { CrewMap as CrewMapData } from '@crew/paperclip-plugin/shared/map';
 import { useMemo } from 'react';

@@ -1093,13 +1093,61 @@
 :root {
   --roadmap-zoom-in: 450ms;
   --roadmap-zoom-out: 650ms;
+  /* Một vòng dòng chảy trên dây "đang chạy" (hạt sáng đi hết dây). */
+  --roadmap-flow-duration: 2.4s;
+}
+
+/* Bảng màu riêng của bản đồ: nền canvas kiểu bàn điều khiển (lưới chấm, quầng sáng giữa), thẻ tô màu theo trạng thái.
+   Tím = đang làm (màu dòng chảy), xanh lam ngọc = đang duyệt, xanh lá = xong, đỏ = bị chặn, xám = chưa làm. Theme
+   sáng dùng sắc đậm hơn để chữ trên nền trắng vẫn đủ tương phản. */
+:root {
+  --roadmap-canvas: color-mix(in oklab, var(--background) 93%, oklch(0.6 0.06 275));
+  --roadmap-dot: oklch(0.45 0.03 275 / 22%);
+  --roadmap-halo: oklch(1 0 0 / 75%);
+  --roadmap-shade: oklch(0.35 0.04 275 / 10%);
+  --roadmap-card: var(--card);
+  --roadmap-card-shadow: 0 1px 2px oklch(0.3 0.03 275 / 8%), 0 12px 28px -16px oklch(0.3 0.05 275 / 35%);
+  --roadmap-console: oklch(0.965 0.006 275);
+  --roadmap-console-fg: oklch(0.4 0.03 275);
+  --roadmap-edge: oklch(0.45 0.03 275 / 38%);
+  --roadmap-spark: oklch(1 0 0);
+  --roadmap-tone-backlog: #868b96;
+  --roadmap-tone-todo: #64748b;
+  --roadmap-tone-in_progress: #7c3aed;
+  --roadmap-tone-in_review: #0891b2;
+  --roadmap-tone-done: #059669;
+  --roadmap-tone-blocked: #dc2626;
+  --roadmap-tone-cancelled: #9ca3af;
+  --roadmap-edge-blocks: #d97706;
+}
+
+.dark {
+  --roadmap-canvas: oklch(0.16 0.014 275);
+  --roadmap-dot: oklch(1 0 0 / 10%);
+  --roadmap-halo: oklch(0.42 0.12 290 / 22%);
+  --roadmap-shade: oklch(0 0 0 / 45%);
+  --roadmap-card: oklch(0.2 0.014 275 / 94%);
+  --roadmap-card-shadow: inset 0 1px 0 oklch(1 0 0 / 6%), 0 14px 32px -16px oklch(0 0 0 / 80%);
+  --roadmap-console: oklch(0.12 0.01 275);
+  --roadmap-console-fg: oklch(0.84 0.06 165);
+  --roadmap-edge: oklch(1 0 0 / 22%);
+  --roadmap-spark: oklch(0.97 0.03 300);
+  --roadmap-tone-backlog: #6b7280;
+  --roadmap-tone-todo: #94a3b8;
+  --roadmap-tone-in_progress: #a78bfa;
+  --roadmap-tone-in_review: #22d3ee;
+  --roadmap-tone-done: #34d399;
+  --roadmap-tone-blocked: #f87171;
+  --roadmap-tone-cancelled: #6b7280;
+  --roadmap-edge-blocks: #fbbf24;
 }
 
 /* Cạnh vòng sửa của bản đồ Crew: vòng sửa sinh ra khi review trả về, nên dùng màu "đang duyệt". Khai lại ở .dark để
    biến tham chiếu lấy giá trị của theme tối. */
 :root,
 .dark {
-  --roadmap-edge-repair: var(--status-task-icon-in_review);
+  --roadmap-edge-repair: var(--roadmap-tone-in_review);
+  --roadmap-edge-running: var(--roadmap-tone-in_progress);
 }
 
 @keyframes roadmap-node-enter {
@@ -1122,6 +1170,22 @@
   }
 }
 
+/* Vạch đứt chạy dọc dây (một chu kỳ = một cặp vạch + khe 14 đơn vị) và hạt sáng đi hết dây (pathLength = 100). */
+@keyframes roadmap-edge-dash {
+  to {
+    stroke-dashoffset: -14;
+  }
+}
+
+@keyframes roadmap-edge-spark {
+  from {
+    stroke-dashoffset: 106;
+  }
+  to {
+    stroke-dashoffset: -6;
+  }
+}
+
 .roadmap-node-enter {
   animation: roadmap-node-enter var(--roadmap-zoom-out) var(--motion-ease-out-expo) both;
   animation-delay: var(--enter-delay, 0ms);
@@ -1132,15 +1196,151 @@
   animation-delay: var(--enter-delay, 250ms);
 }
 
+/* Lớp components: class tiện ích (ring, nền, viền của trạng thái tắt) vẫn đè được. */
+@layer components {
+  /* Canvas: nền lưới chấm (Background của xyflow, trôi theo camera) trên quầng sáng giữa, tối dần ra mép. */
+  .roadmap-canvas {
+    background-color: var(--roadmap-canvas);
+    background-image: radial-gradient(ellipse 75% 65% at 50% 38%, var(--roadmap-halo), transparent 72%);
+  }
+
+  .roadmap-canvas::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    border-radius: inherit;
+    box-shadow: inset 0 0 90px 12px var(--roadmap-shade);
+  }
+
+  /* Thẻ: nền thẻ pha màu trạng thái (--tone do widget gán), viền mảnh cùng sắc, vạch sáng trên đỉnh. */
+  .roadmap-card {
+    --tone: var(--roadmap-tone-backlog);
+    position: relative;
+    background-color: color-mix(in oklab, var(--tone) 9%, var(--roadmap-card));
+    border: 1px solid color-mix(in oklab, var(--tone) 34%, transparent);
+    box-shadow: var(--roadmap-card-shadow);
+  }
+
+  .roadmap-card::before {
+    content: "";
+    position: absolute;
+    inset: 0 0 auto;
+    height: 2px;
+    background: linear-gradient(90deg, transparent, var(--tone) 22%, var(--tone) 78%, transparent);
+    opacity: 0.85;
+    pointer-events: none;
+  }
+
+  .roadmap-card[data-status="in_progress"] {
+    background-color: color-mix(in oklab, var(--tone) 15%, var(--roadmap-card));
+    border-color: color-mix(in oklab, var(--tone) 70%, transparent);
+    box-shadow:
+      var(--roadmap-card-shadow),
+      0 0 0 1px color-mix(in oklab, var(--tone) 30%, transparent),
+      0 0 26px -4px color-mix(in oklab, var(--tone) 60%, transparent);
+  }
+
+  .roadmap-card[data-status="done"] {
+    background-color: color-mix(in oklab, var(--tone) 12%, var(--roadmap-card));
+  }
+
+  .roadmap-card[data-status="blocked"] {
+    border-color: color-mix(in oklab, var(--tone) 60%, transparent);
+  }
+
+  .roadmap-card:hover {
+    border-color: color-mix(in oklab, var(--tone) 80%, transparent);
+  }
+
+  /* Nút tròn (công ty, project): vòng màu (project: màu project) kèm quầng cùng sắc. */
+  .roadmap-orb {
+    background:
+      radial-gradient(circle at 50% 30%, color-mix(in oklab, var(--tone) 16%, transparent), transparent 70%),
+      var(--roadmap-card);
+    border-color: var(--tone);
+    box-shadow:
+      var(--roadmap-card-shadow),
+      0 0 0 4px color-mix(in oklab, var(--tone) 12%, transparent),
+      0 0 36px -6px color-mix(in oklab, var(--tone) 55%, transparent);
+  }
+
+  .roadmap-pill {
+    color: var(--tone);
+    background-color: color-mix(in oklab, var(--tone) 16%, transparent);
+    box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--tone) 30%, transparent);
+  }
+
+  .roadmap-console {
+    background-color: var(--roadmap-console);
+    color: var(--roadmap-console-fg);
+    box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--tone) 18%, transparent);
+  }
+
+  /* Cạnh: nét nền theo loại; cạnh đang chạy tô màu dòng chảy, phát sáng, thêm vạch chạy và hạt sáng chạy theo dây. */
+  .roadmap-edge {
+    fill: none;
+    stroke-linecap: round;
+    stroke-width: 1.6;
+  }
+
+  .roadmap-edge[data-edge-kind="parent"] {
+    stroke: var(--roadmap-edge);
+  }
+
+  .roadmap-edge[data-edge-kind="blocks"] {
+    stroke: var(--roadmap-edge-blocks);
+    stroke-dasharray: 6 5;
+  }
+
+  .roadmap-edge[data-edge-kind="repair"] {
+    stroke: var(--roadmap-edge-repair);
+    stroke-dasharray: 1 5;
+    stroke-width: 2.2;
+  }
+
+  .roadmap-edge[data-running] {
+    stroke: color-mix(in oklab, var(--roadmap-edge-running) 75%, transparent);
+    stroke-width: 2.2;
+    filter: drop-shadow(0 0 4px color-mix(in oklab, var(--roadmap-edge-running) 70%, transparent));
+  }
+
+  .roadmap-edge-flow {
+    fill: none;
+    stroke: var(--roadmap-edge-running);
+    stroke-width: 2.2;
+    stroke-linecap: round;
+    stroke-dasharray: 5 9;
+    animation: roadmap-edge-dash 0.7s linear infinite;
+  }
+
+  .roadmap-edge-spark {
+    fill: none;
+    stroke: var(--roadmap-spark);
+    stroke-width: 3.2;
+    stroke-linecap: round;
+    stroke-dasharray: 6 100;
+    filter: drop-shadow(0 0 3px var(--roadmap-edge-running)) drop-shadow(0 0 8px var(--roadmap-edge-running));
+    animation: roadmap-edge-spark var(--roadmap-flow-duration) cubic-bezier(0.45, 0, 0.55, 1) infinite;
+    animation-delay: var(--spark-delay, 0s);
+  }
+}
+
 /* Nút điều khiển của xyflow theo token của theme (sáng/tối). */
 .roadmap-flow {
   --xy-background-color: transparent;
-  --xy-controls-button-background-color: var(--card);
+  --xy-controls-button-background-color: var(--roadmap-card);
   --xy-controls-button-background-color-hover: var(--accent);
   --xy-controls-button-color: var(--foreground);
   --xy-controls-button-color-hover: var(--foreground);
   --xy-controls-button-border-color: var(--border);
-  --xy-controls-box-shadow: none;
+  --xy-controls-box-shadow: var(--roadmap-card-shadow);
+}
+
+.roadmap-flow .react-flow__controls {
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md, 8px);
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -1149,7 +1349,11 @@
     --roadmap-zoom-out: 0ms;
   }
   .roadmap-node-enter,
-  .roadmap-edge-enter {
+  .roadmap-edge-enter,
+  .roadmap-edge-flow {
     animation: none;
+  }
+  .roadmap-edge-spark {
+    display: none;
   }
 }

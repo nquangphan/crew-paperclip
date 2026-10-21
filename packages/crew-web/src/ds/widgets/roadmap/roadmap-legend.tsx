@@ -1,11 +1,13 @@
 // crew: tự dựng
-// Chú giải của bản đồ Roadmap: bảy trạng thái (cùng biểu tượng và màu với danh sách yêu cầu) và các loại cạnh. Nằm dưới
-// khung bản đồ (không che nút); thu gọn được bằng nút "Chú thích", mặc định thu gọn trên màn hẹp.
+// Chú giải của bản đồ Roadmap: bảy trạng thái (cùng biểu tượng với danh sách yêu cầu, màu theo bảng màu của bản đồ), các
+// loại cạnh và dây "đang chạy" (mẫu nét vẽ bằng đúng class của dây trên bản đồ). Nằm dưới khung bản đồ (không che nút);
+// thu gọn được bằng nút "Chú thích", mặc định thu gọn trên màn hẹp.
 import { ChevronDown } from 'lucide-react';
 import { useId, useState } from 'react';
 import { useT } from '@/i18n';
 import { cn } from '../../cn';
 import { StatusGlyph } from '../status-glyph';
+import { roadmapToneVar } from './roadmap-node';
 import type { RoadmapEdgeKind } from './roadmap-types';
 
 export const ROADMAP_STATUSES = [
@@ -22,12 +24,17 @@ export const ROADMAP_STATUSES = [
 const NARROW = '(max-width: 639px)';
 const startsOpen = () => typeof window === 'undefined' || !window.matchMedia?.(NARROW).matches;
 
-/** Mẫu nét của từng loại cạnh, khớp nét vẽ trong roadmap-flow.tsx. */
-const EDGE_SWATCH: Record<RoadmapEdgeKind, string> = {
-  parent: 'border-muted-foreground/50',
-  blocks: 'border-dashed border-primary',
-  repair: 'border-dotted border-(--roadmap-edge-repair)',
-};
+const SWATCH_PATH = 'M 1,6 C 9,1 15,11 23,6';
+
+/** Mẫu nét của một loại cạnh: cùng class `.roadmap-edge` với dây trên bản đồ nên luôn khớp màu và kiểu nét. */
+function EdgeSwatch({ kind, running = false }: { kind: RoadmapEdgeKind; running?: boolean }) {
+  return (
+    <svg aria-hidden width="24" height="12" viewBox="0 0 24 12" className="shrink-0 overflow-visible">
+      <path d={SWATCH_PATH} data-edge-kind={kind} data-running={running || undefined} className="roadmap-edge" />
+      {running ? <path d={SWATCH_PATH} className="roadmap-edge-flow" /> : null}
+    </svg>
+  );
+}
 
 export interface RoadmapLegendProps {
   className?: string;
@@ -54,7 +61,7 @@ export function RoadmapLegend({ className, edges = DEFAULT_EDGES, current = fals
         aria-expanded={open}
         aria-controls={listId}
         onClick={() => setOpen((v) => !v)}
-        className="inline-flex cursor-pointer items-center gap-1 rounded-md border bg-card px-2 py-1 font-medium text-card-foreground hover:bg-accent focus-visible:outline-2 focus-visible:outline-ring"
+        className="inline-flex cursor-pointer items-center gap-1 rounded-full border bg-card px-2.5 py-1 font-medium text-card-foreground hover:bg-accent focus-visible:outline-2 focus-visible:outline-ring"
       >
         {t('roadmap.legend.label')}
         <ChevronDown aria-hidden className={cn('size-3.5 transition-transform', !open && '-rotate-90')} />
@@ -62,19 +69,26 @@ export function RoadmapLegend({ className, edges = DEFAULT_EDGES, current = fals
       <ul id={listId} hidden={!open} className="flex flex-wrap items-center gap-x-3 gap-y-1">
         {ROADMAP_STATUSES.map((status) => (
           <li key={status} className="flex items-center gap-1.5">
-            <StatusGlyph status={status} size="sm" />
+            <StatusGlyph status={status} size="sm" color={roadmapToneVar(status)} />
             <span>{t(`status.${status}`)}</span>
           </li>
         ))}
         {edges.map((kind) => (
           <li key={kind} className="flex items-center gap-1.5">
-            <span aria-hidden className={cn('w-5 border-t-2', EDGE_SWATCH[kind])} />
+            <EdgeSwatch kind={kind} />
             <span>{t(`roadmap.legend.${kind}`)}</span>
           </li>
         ))}
+        <li className="flex items-center gap-1.5">
+          <EdgeSwatch kind="parent" running />
+          <span>{t('roadmap.legend.running')}</span>
+        </li>
         {current ? (
           <li className="flex items-center gap-1.5">
-            <span aria-hidden className="size-3 rounded-sm bg-card ring-2 ring-primary" />
+            <span
+              aria-hidden
+              className="size-3 rounded-sm bg-card ring-2 ring-primary ring-offset-1 ring-offset-background"
+            />
             <span>{t('roadmap.legend.current')}</span>
           </li>
         ) : null}

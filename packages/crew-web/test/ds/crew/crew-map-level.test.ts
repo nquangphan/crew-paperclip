@@ -1,6 +1,6 @@
 import { beforeAll, describe, expect, it } from 'vitest';
 import type { CrewMap as CrewMapData, CrewMapNode } from '@/api/crew/types';
-import { layoutLevel, type RoadmapLevel, radialTree, roadmapNodeSize } from '@/ds';
+import { layoutLevel, type RoadmapLevel, roadmapNodeSize } from '@/ds';
 import { crewMapLevel } from '@/ds/widgets/crew/crew-map-level';
 import { getI18n, initI18n } from '@/i18n';
 import fixture from './__fixtures__/map.json';
@@ -54,9 +54,9 @@ function overlapping(level: RoadmapLevel) {
 }
 
 describe('crewMapLevel', () => {
-  it('gốc ở tâm (thẻ yêu cầu, đếm việc con xong), việc con là thẻ việc, thứ tự theo mã', () => {
+  it('gốc ở đỉnh (thẻ yêu cầu, đếm việc con xong), việc con là thẻ việc, thứ tự theo mã', () => {
     const { level } = crewMapLevel(map, 'i-b', t);
-    expect(level.layout).toBe('spread-tree');
+    expect(level.layout).toBe('top-down');
     expect(level.center).toMatchObject({ id: 'i-root', kind: 'request', identifier: 'CRE-36', total: 4, done: 1 });
     expect(level.nodes.map((n) => [n.id, n.kind, n.parentId])).toEqual([
       ['i-a', 'ticket', 'i-root'],
@@ -136,26 +136,23 @@ describe('crewMapLevel', () => {
   });
 });
 
-describe('bố cục spread-tree của bản đồ Crew', () => {
-  it('cùng hướng tỏa với cây Roadmap, nhưng gọn: gia đình 4 việc con vừa khung 672×468 ở độ phóng 1', () => {
+describe('bố cục cây trên xuống của bản đồ Crew', () => {
+  it('gốc ở trên cùng, mỗi việc con nằm dưới cha, cha canh giữa hàng con, các con cùng hàng thẳng đỉnh', () => {
     const { level } = crewMapLevel(map, undefined, t);
     const pos = layoutLevel(level);
-    const tree = radialTree(level.center.id, level.nodes);
-    // Cùng góc (theo phần tư) với radialTree: elip chỉ co giãn hai trục.
+    const top = (id: string, center: boolean) =>
+      pos[id].y -
+      roadmapNodeSize(center ? level.center : (level.nodes.find((n) => n.id === id) as never), center).h / 2;
     for (const node of level.nodes) {
-      expect(Math.sign(Math.round(pos[node.id].x))).toBe(Math.sign(Math.round(tree[node.id].x)));
-      expect(Math.sign(Math.round(pos[node.id].y))).toBe(Math.sign(Math.round(tree[node.id].y)));
+      const parent = node.parentId as string;
+      const parentNode = parent === level.center.id ? level.center : level.nodes.find((n) => n.id === parent);
+      const parentBottom = pos[parent].y + roadmapNodeSize(parentNode as never, parent === level.center.id).h / 2;
+      expect(top(node.id, false)).toBeGreaterThan(parentBottom);
     }
-    let [minX, maxX, minY, maxY] = [0, 0, 0, 0];
-    for (const [i, node] of [level.center, ...level.nodes].entries()) {
-      const s = roadmapNodeSize(node, i === 0);
-      minX = Math.min(minX, pos[node.id].x - s.w / 2);
-      maxX = Math.max(maxX, pos[node.id].x + s.w / 2);
-      minY = Math.min(minY, pos[node.id].y - s.h / 2);
-      maxY = Math.max(maxY, pos[node.id].y + s.h / 2);
-    }
-    expect(maxX - minX).toBeLessThanOrEqual(672);
-    expect(maxY - minY).toBeLessThanOrEqual(468);
+    const kids = level.nodes.filter((n) => n.parentId === level.center.id);
+    const xs = kids.map((n) => pos[n.id].x);
+    expect(pos[level.center.id].x).toBeCloseTo((Math.min(...xs) + Math.max(...xs)) / 2);
+    expect(new Set(kids.map((n) => top(n.id, false))).size).toBe(1);
     expect(overlapping(level)).toEqual([]);
   });
 

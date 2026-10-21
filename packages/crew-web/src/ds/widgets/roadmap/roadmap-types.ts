@@ -60,9 +60,10 @@ export interface RoadmapLevel {
   overflow: number;
   /**
    * `rings`: vòng đồng tâm quanh tâm; `tree`: cây tỏa tròn theo `parentId`; `spread-tree`: cây tỏa tròn gọn trên các
-   * elip dẹt ngang, nới dần tới khi không thẻ nào chồng lên nhau (khung nhỏ, cây rộng hoặc sâu).
+   * elip dẹt ngang, nới dần tới khi không thẻ nào chồng lên nhau (khung nhỏ, cây rộng hoặc sâu); `top-down`: cây phân
+   * tầng trên xuống theo `parentId` (gốc ở trên, con xếp hàng ngang dưới cha, dây nối từ đáy cha tới đỉnh con).
    */
-  layout: 'rings' | 'tree' | 'spread-tree';
+  layout: 'rings' | 'tree' | 'spread-tree' | 'top-down';
 }
 
 export interface RoadmapPoint {

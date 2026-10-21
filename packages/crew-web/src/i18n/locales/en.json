@@ -365,7 +365,8 @@
       "parent": "Parent → child",
       "blocks": "Blocks (must finish first)",
       "repair": "Fix round",
-      "current": "Task you are viewing"
+      "current": "Task you are viewing",
+      "running": "Running (work in progress)"
     },
     "controls": {
       "label": "Map controls",

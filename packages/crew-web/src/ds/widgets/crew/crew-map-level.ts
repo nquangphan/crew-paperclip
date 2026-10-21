@@ -1,5 +1,5 @@
 // crew: tự dựng
-// Dựng một tầng Roadmap từ bản đồ yêu cầu Crew: yêu cầu gốc ở tâm, mọi việc con (cả cháu chắt) tỏa quanh theo cây
+// Dựng một tầng Roadmap từ bản đồ yêu cầu Crew: yêu cầu gốc ở đỉnh, mọi việc con (cả cháu chắt) xếp tầng trên xuống theo cây
 // cha-con, cạnh phụ thuộc thành cạnh "chặn", cạnh vòng sửa giữ nguyên. Hàm thuần, không phụ thuộc thư viện vẽ.
 import type { CrewMap, CrewMapNode } from '@crew/paperclip-plugin/shared/map';
 import type { useT } from '@/i18n';
@@ -130,5 +130,5 @@ export function crewMapLevel(
     seen.add(id);
     edges.push({ id, source: edge.from, target: edge.to, kind });
   }
-  return { level: { center, nodes, edges, overflow: 0, layout: 'spread-tree' }, diagnostics };
+  return { level: { center, nodes, edges, overflow: 0, layout: 'top-down' }, diagnostics };
 }

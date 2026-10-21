@@ -165,7 +165,7 @@ describe('buildRequestLevel', () => {
       descendants,
       agentName: (id) => (id === 'ag1' ? 'Dev Agent' : undefined),
     });
-    expect(level.layout).toBe('tree');
+    expect(level.layout).toBe('top-down');
     expect(level.center).toMatchObject({ id: 'r', kind: 'request', total: 3, done: 1 });
     expect(level.nodes.map((n) => n.id)).toEqual(['a', 'b', 'a1']);
     expect(level.nodes[0]).toMatchObject({ assignee: 'Dev Agent', children: 1, parentId: 'r' });

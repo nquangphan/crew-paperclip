@@ -215,7 +215,7 @@ export interface RequestLevelInput {
 }
 
 /**
- * Tầng yêu cầu: yêu cầu ở tâm, mọi hậu duệ thành cây (con, cháu…). Vượt trần thì giữ theo độ sâu tăng dần rồi thứ tự
+ * Tầng yêu cầu: yêu cầu ở đỉnh, mọi hậu duệ thành cây trên xuống (con, cháu…). Vượt trần thì giữ theo độ sâu tăng dần rồi thứ tự
  * ổn định, nên cha của một nút luôn được vẽ. Cạnh cha-con, và cạnh "chặn" khi cả hai đầu cùng nằm trên bản đồ.
  */
 export function buildRequestLevel(input: RequestLevelInput): RoadmapLevel {
@@ -260,7 +260,7 @@ export function buildRequestLevel(input: RequestLevelInput): RoadmapLevel {
     total: all.length,
     done: all.filter((d) => d.status === 'done').length,
   };
-  return { center, nodes, edges, overflow, layout: 'tree' };
+  return { center, nodes, edges, overflow, layout: 'top-down' };
 }
 
 /** Số trang trong một nhánh cây docs. */

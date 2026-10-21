@@ -65,7 +65,9 @@ describe('CrewMap (vẽ bằng canvas Roadmap)', () => {
     const { container } = render(<CrewMap map={map} onOpenIssue={() => {}} />);
     await screen.findByText('Thêm bản đồ yêu cầu');
     const b = card(container, 'i-b') as HTMLButtonElement;
-    expect(b.textContent).toContain('CRE-38 · Đang duyệt');
+    // Đầu thẻ: mã và nhãn trạng thái là hai phần tử riêng.
+    expect(b.textContent).toContain('CRE-38');
+    expect(b.textContent).toContain('Đang duyệt');
     expect(b.textContent).toContain('executor');
     expect(b.textContent).toContain('Reviewer');
     expect(b.textContent).not.toContain('Vòng sửa');
@@ -78,12 +80,20 @@ describe('CrewMap (vẽ bằng canvas Roadmap)', () => {
     expect(card(container, 'i-fix')?.title).toContain('Sửa');
   });
 
-  it('chú giải có cạnh cha-con, chặn, vòng sửa và việc đang xem', async () => {
+  it('chú giải có cạnh cha-con, chặn, vòng sửa, dây đang chạy và việc đang xem', async () => {
     render(<CrewMap map={map} onOpenIssue={() => {}} />);
     const legend = await screen.findByRole('region', { name: 'Chú thích' });
     const items = [...legend.querySelectorAll('li')].map((li) => li.textContent);
-    expect(items).toEqual(expect.arrayContaining(['Cha → con', 'Chặn (phải xong trước)', 'Vòng sửa', 'Việc đang xem']));
-    expect(items).toHaveLength(11);
+    expect(items).toEqual(
+      expect.arrayContaining([
+        'Cha → con',
+        'Chặn (phải xong trước)',
+        'Vòng sửa',
+        'Đang chạy (có việc đang làm)',
+        'Việc đang xem',
+      ]),
+    );
+    expect(items).toHaveLength(12);
   });
 
   it('nhãn theo ngôn ngữ đang chọn (en)', async () => {

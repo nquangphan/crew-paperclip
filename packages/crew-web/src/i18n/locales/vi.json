@@ -365,7 +365,8 @@
       "parent": "Cha → con",
       "blocks": "Chặn (phải xong trước)",
       "repair": "Vòng sửa",
-      "current": "Việc đang xem"
+      "current": "Việc đang xem",
+      "running": "Đang chạy (có việc đang làm)"
     },
     "controls": {
       "label": "Điều khiển bản đồ",
