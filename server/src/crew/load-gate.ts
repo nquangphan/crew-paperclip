@@ -80,6 +80,34 @@ export function createProbeCache(ttlMs: number, now: () => number = Date.now) {
   };
 }
 
+function hostAllowsClaim(settings: LoadGateSettings, probe: HostProbe): boolean {
+  return probe.ok && probe.load1 <= settings.maxLoad1;
+}
+
+/**
+ * Head of line per claim pass: probe result object -> agent id -> id of the first run the host held.
+ * The claim loop asks this hook for every queued run of an agent in priority order, so without it a
+ * run that only waits for its turn (agent concurrency) would get a waiting marker, a comment and an
+ * expiring deadline as soon as the host is busy. Only the first run held by the host in a pass waits
+ * on the clock; the runs behind it are held silently and start their own clock once they are first.
+ * Within one probe result the head keeps its place, since every later pass evaluates it first again.
+ */
+const headOfLine = new WeakMap<HostProbe, Map<string, string>>();
+
+function isHeadOfLine(probe: HostProbe, run: BeforeClaimInput["run"]): boolean {
+  let heads = headOfLine.get(probe);
+  if (!heads) {
+    heads = new Map();
+    headOfLine.set(probe, heads);
+  }
+  const head = heads.get(run.agentId);
+  if (head === undefined) {
+    heads.set(run.agentId, run.id);
+    return true;
+  }
+  return head === run.id;
+}
+
 export type GateDecision =
   | { action: "claim" }
   | { action: "wait"; reason: "overloaded" | "unreachable"; detail: string; deadline: Date }
@@ -93,7 +121,7 @@ export function decideGate(input: {
   now: Date;
 }): GateDecision {
   const { settings, probe } = input;
-  if (probe.ok && probe.load1 <= settings.maxLoad1) return { action: "claim" };
+  if (hostAllowsClaim(settings, probe)) return { action: "claim" };
   const reason = probe.ok ? "overloaded" : "unreachable";
   const detail = probe.ok
     ? `tải 1 phút ${probe.load1} vượt ngưỡng ${settings.maxLoad1}`
@@ -129,6 +157,10 @@ export interface BeforeClaimDeps {
     environmentName: string;
     settings: LoadGateSettings;
   } | null>;
+  /**
+   * Load of the environment's host. Calls answered by the same probe return the same object: it marks
+   * one claim pass of the environment, in which only the first held run of each agent waits on the clock.
+   */
   probeHost(environmentId: string, run: BeforeClaimInput["run"]): Promise<HostProbe>;
   /**
    * Marks a run the gate holds as never started (`resultJson.executionRecovery`, see NEVER_STARTED),
@@ -359,6 +391,9 @@ async function decideBeforeClaim(input: BeforeClaimInput, deps: BeforeClaimDeps)
   }
 
   const probe = await deps.probeHost(target.environmentId, run);
+  // A run behind the head of line only waits for its turn: hold it without marker, comment or expiry,
+  // even when an older version of the gate already gave it a waiting marker.
+  if (!hostAllowsClaim(target.settings, probe) && !isHeadOfLine(probe, run)) return true;
   const now = deps.now();
   const waitingSince = (await deps.firstNoticeAt(run.id, "waiting")) ?? null;
   let decision = decideGate({ settings: target.settings, probe, waitingSince: waitingSince ?? now, now });

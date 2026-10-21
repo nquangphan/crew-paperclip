@@ -323,6 +323,134 @@ describe("evaluateBeforeClaim", () => {
   });
 });
 
+/** Several queued runs evaluated one claim pass at a time, like the claim loop does in priority order. */
+function queueHarness() {
+  const events: string[] = [];
+  const notices = new Map<string, Notices>();
+  const noticesOf = (runId: string) => {
+    let n = notices.get(runId);
+    if (!n) {
+      n = {};
+      notices.set(runId, n);
+    }
+    return n;
+  };
+  let now = T0;
+  let probes: Record<string, HostProbe> = {};
+  const deps: BeforeClaimDeps = {
+    ...harness({ ok: true, load1: 1 }, T0).deps,
+    loadTarget: async (r) => {
+      const environmentId = r.agentId === "agent-2" ? "env-2" : "env-1";
+      return { environmentId, environmentName: environmentId, settings: SETTINGS };
+    },
+    probeHost: async (environmentId) => probes[environmentId]!,
+    firstNoticeAt: async (runId, kind) => noticesOf(runId)[kind] ?? null,
+    recordNotice: async (n) => {
+      events.push(`mark:${n.kind}:${n.run.id}`);
+      noticesOf(n.run.id)[n.kind] = now;
+    },
+    postComment: async (n) => {
+      events.push(`${n.kind}_comment:${n.run.id}`);
+      noticesOf(n.run.id)[`${n.kind}_comment`] = now;
+    },
+    scheduleCancel: (runId) => {
+      events.push(`cancel:${runId}`);
+    },
+    blockIssue: async (issueId) => {
+      events.push(`blocked:${issueId}`);
+    },
+    now: () => now,
+  };
+  /** One claim pass on a fresh probe result per environment; returns the ids of the runs it lets through. */
+  async function pass(at: Date, hostProbes: Record<string, HostProbe>, runs: BeforeClaimInput["run"][]) {
+    now = at;
+    probes = { ...hostProbes };
+    events.length = 0;
+    const claimed: string[] = [];
+    for (const r of runs) {
+      if (!(await evaluateBeforeClaim({ db: {} as Db, run: r }, deps))) claimed.push(r.id);
+    }
+    return claimed;
+  }
+  return { deps, events, notices, noticesOf, pass };
+}
+
+const queued = (id: string, agentId = "agent-1") => run({ id, agentId, contextSnapshot: { issueId: `issue-${id}` } });
+
+describe("evaluateBeforeClaim head of line", () => {
+  const busy = (): HostProbe => ({ ok: true, load1: 9.7 });
+  const idle = (): HostProbe => ({ ok: true, load1: 1 });
+
+  it("starts the clock and comments only for the first run held in a pass; the runs behind it wait silently", async () => {
+    const q = queueHarness();
+    const runs = [queued("a"), queued("b"), queued("c")];
+    expect(await q.pass(T0, { "env-1": busy() }, runs)).toEqual([]);
+    expect(q.events).toEqual(["mark:waiting:a", "waiting_comment:a"]);
+    expect(q.notices.get("b") ?? {}).toEqual({});
+    expect(q.notices.get("c") ?? {}).toEqual({});
+  });
+
+  it("keeps the head within the same probe result across passes", async () => {
+    const q = queueHarness();
+    const probe = busy();
+    const runs = [queued("a"), queued("b")];
+    await q.pass(T0, { "env-1": probe }, runs);
+    expect(await q.pass(new Date(T0.getTime() + 10_000), { "env-1": probe }, runs)).toEqual([]);
+    expect(q.events).toEqual([]);
+  });
+
+  it("expires only the head; the next run becomes head on the following pass with its own clock", async () => {
+    const q = queueHarness();
+    const runs = [queued("a"), queued("b"), queued("c")];
+    await q.pass(T0, { "env-1": busy() }, runs);
+
+    const deadline = new Date(T0.getTime() + 61 * 60_000);
+    expect(await q.pass(deadline, { "env-1": busy() }, runs)).toEqual([]);
+    expect(q.events).toEqual(["cancel:a", "mark:expired:a", "blocked:issue-a", "expired_comment:a"]);
+
+    const next = new Date(deadline.getTime() + 30_000);
+    expect(await q.pass(next, { "env-1": busy() }, runs)).toEqual([]);
+    expect(q.events).toEqual(["cancel:a", "mark:waiting:b", "waiting_comment:b"]);
+    expect(q.noticesOf("b").waiting).toEqual(next);
+    expect(q.noticesOf("c")).toEqual({});
+
+    // b's own 60 minutes, not a's, decide when it gives up.
+    expect(await q.pass(new Date(next.getTime() + 59 * 60_000), { "env-1": busy() }, runs.slice(1))).toEqual([]);
+    expect(q.events).toEqual([]);
+  });
+
+  it("does not expire a run behind the head that still carries an older waiting marker", async () => {
+    const q = queueHarness();
+    q.noticesOf("a").waiting = new Date(T0.getTime() + 30 * 60_000);
+    q.noticesOf("a").waiting_comment = q.noticesOf("a").waiting;
+    q.noticesOf("b").waiting = T0;
+    q.noticesOf("b").waiting_comment = T0;
+    expect(await q.pass(new Date(T0.getTime() + 61 * 60_000), { "env-1": busy() }, [queued("a"), queued("b")])).toEqual([]);
+    expect(q.events).toEqual([]);
+  });
+
+  it("lets the head claim once the load is back under the threshold", async () => {
+    const q = queueHarness();
+    const runs = [queued("a"), queued("b")];
+    await q.pass(T0, { "env-1": busy() }, runs);
+    // The claim loop stops at the agent's concurrency; the hook itself lets every run through on a healthy host.
+    expect(await q.pass(new Date(T0.getTime() + 60_000), { "env-1": idle() }, runs)).toEqual(["a", "b"]);
+    expect(q.events).toEqual([]);
+  });
+
+  it("keeps one head per environment", async () => {
+    const q = queueHarness();
+    const runs = [queued("a"), queued("b"), queued("x", "agent-2"), queued("y", "agent-2")];
+    expect(await q.pass(T0, { "env-1": busy(), "env-2": { ok: false, error: "timeout" } }, runs)).toEqual([]);
+    expect(q.events).toEqual(["mark:waiting:a", "waiting_comment:a", "mark:waiting:x", "waiting_comment:x"]);
+
+    const later = new Date(T0.getTime() + 61 * 60_000);
+    q.noticesOf("x").waiting = later; // env-2 got its head later: only env-1's head expires.
+    expect(await q.pass(later, { "env-1": busy(), "env-2": idle() }, runs)).toEqual(["x", "y"]);
+    expect(q.events).toEqual(["cancel:a", "mark:expired:a", "blocked:issue-a", "expired_comment:a"]);
+  });
+});
+
 describe("evaluateBeforeClaim on a retried run", () => {
   it("records the previous run's commits, posts the comment, then lets the retry claim", async () => {
     const h = retryHarness(WITH_COMMIT);
