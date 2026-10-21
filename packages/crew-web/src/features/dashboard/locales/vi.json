@@ -11,7 +11,9 @@
     "awaiting": "Chờ bạn duyệt",
     "awaitingHint": "Đang đợi bạn xem xét",
     "contributions": "Góp ý chờ duyệt",
-    "contributionsHint": "Phòng Marketing hoặc Phòng QC gửi, chờ bạn duyệt"
+    "contributionsHint": "Phòng Marketing hoặc Phòng QC gửi, chờ bạn duyệt",
+    "qcReview": "Cần tôi duyệt (QC)",
+    "qcReviewHint": "Yêu cầu bạn gửi đã xong, chờ bạn kiểm tra"
   },
   "loadFailed": "Không tải được số liệu",
   "banner": {

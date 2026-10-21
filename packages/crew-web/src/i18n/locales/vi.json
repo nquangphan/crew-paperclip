@@ -19,7 +19,10 @@
     "succeeded": "Thành công",
     "interrupted": "Bị ngắt",
     "failed": "Lỗi",
-    "timed_out": "Quá giờ"
+    "timed_out": "Quá giờ",
+    "qc_awaiting": "Chờ QC duyệt",
+    "qc_reopen": "Chờ owner duyệt mở lại",
+    "qc_verified": "QC verified"
   },
   "stage": {
     "none": "Chưa có giai đoạn",

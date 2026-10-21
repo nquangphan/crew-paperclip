@@ -270,7 +270,8 @@ export interface RuntimeDecision {
 // Góp ý chờ duyệt (Phòng Marketing, Phòng QC). Hợp đồng ở router Crew của server: /api/crew/companies/:companyId/…
 /** Phòng của khách góp ý; hai phòng cùng quyền, chỉ để owner phân biệt người gửi. */
 export type ContributorDepartment = 'marketing' | 'qc';
-export type ContributionKind = 'issue' | 'comment';
+/** `reopen`: "Chưa đạt" của Phòng QC trên yêu cầu đang chờ QC duyệt (lý do ở `body`, issue ở `targetIssueId`). */
+export type ContributionKind = 'issue' | 'comment' | 'reopen';
 /** `approving` = owner đã khóa để duyệt, chưa tìm thấy bản ghi đã đăng ở lõi. */
 export type ContributionStatus = 'pending' | 'approving' | 'approved' | 'rejected';
 
@@ -283,7 +284,7 @@ export interface Contribution {
   authorDepartment: ContributorDepartment | null;
   /** Có khi kind = issue. */
   projectId: string | null;
-  /** Có khi kind = comment. */
+  /** Có khi kind = comment hoặc reopen. */
   targetIssueId: string | null;
   title: string | null;
   /** Issue: mô tả (có thể null); comment: nội dung. */
@@ -308,13 +309,14 @@ export interface CompanyAccess {
 
 export type NewContribution =
   | { kind: 'issue'; projectId: string; title: string; description?: string }
-  | { kind: 'comment'; issueId: string; body: string };
+  | { kind: 'comment'; issueId: string; body: string }
+  | { kind: 'reopen'; issueId: string; body: string };
 
 export type ContributionFilters = {
   /** `pending` gồm cả `approving`. */
   status?: ContributionStatus;
   kind?: ContributionKind;
-  /** Chỉ bình luận chờ của một issue. */
+  /** Theo một issue: bình luận chờ, hoặc yêu cầu mở lại khi `kind = reopen`. */
   issueId?: string;
 };
 
@@ -334,7 +336,9 @@ export type ContributionMaterialize =
       description: string | null;
       idempotencyKey: string;
     }
-  | { kind: 'comment'; issueId: string; body: string; clientRequestId: string };
+  | { kind: 'comment'; issueId: string; body: string; clientRequestId: string }
+  /** Đăng bình luận với `reopen: true`: issue rời Xong, người làm được đánh thức. */
+  | { kind: 'reopen'; issueId: string; body: string; clientRequestId: string };
 
 export interface ContributionApproval {
   contribution: Contribution;
@@ -357,4 +361,23 @@ export interface ProjectAccess {
 /** Quyền xem project của một thành viên (trang Thành viên, chỉ owner). */
 export interface MemberProjectAccess extends ProjectAccess {
   userId: string;
+}
+
+// Phòng QC duyệt lại yêu cầu do mình gửi (router Crew, `/api/crew/companies/:companyId/qc`).
+/** Vòng QC đang mở của một yêu cầu đã Xong: `awaiting` chờ QC duyệt, `verified` QC đã xác nhận đạt. */
+export type QcState = 'awaiting' | 'verified';
+
+export interface QcIssueState {
+  issueId: string;
+  identifier: string | null;
+  title: string;
+  roundId: string;
+  state: QcState;
+  /** Người QC được giao duyệt (người đã gửi yêu cầu). */
+  qcUserId: string;
+  startedAt: string;
+  verifiedAt: string | null;
+  verifiedByUserId: string | null;
+  /** "Chưa đạt" đang chờ owner duyệt (không kèm lý do). */
+  reopenRequest: { id: string; status: 'pending' | 'approving' } | null;
 }

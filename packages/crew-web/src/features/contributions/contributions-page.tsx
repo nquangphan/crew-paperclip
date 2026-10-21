@@ -20,6 +20,7 @@ import {
 } from '@/ds';
 import { useCompanyAccess, useVisibleProjects } from '@/features/access';
 import { IssueLink } from '@/features/issues/popup/issue-nav';
+import { QcReviewList } from '@/features/qc';
 import { formatDateTime, useT } from '@/i18n';
 import { ContributionActions } from './contribution-actions';
 import { ContributionBadge } from './contribution-badge';
@@ -76,6 +77,8 @@ export function ContributionsPage() {
   return (
     <>
       <PageHeader title={t(`page.${mode}.title`)} description={t(`page.${mode}.description`)} />
+      {/* Thành viên Phòng QC: yêu cầu của mình đã Xong, chờ mình kiểm tra (không hiện với người khác). */}
+      <QcReviewList />
       {nothingAtAll ? (
         <EmptyState title={t(`page.${mode}.empty`)} description={t(`page.${mode}.emptyHint`)} />
       ) : (
@@ -153,7 +156,7 @@ function ContributionRow({
       : c.kind === 'issue'
         ? t('page.row.openResultIssue')
         : t('page.row.openResultComment');
-  const hash = c.kind === 'comment' && c.resultCommentId ? `#comment-${c.resultCommentId}` : '';
+  const hash = c.kind !== 'issue' && c.resultCommentId ? `#comment-${c.resultCommentId}` : '';
 
   return (
     <Card data-testid="contribution-row" data-status={c.status}>
@@ -184,7 +187,7 @@ function ContributionRow({
               {t('page.row.project')}: {projectName}
             </MutedText>
           ) : null}
-          {issueRef && (c.kind === 'comment' || c.status === 'approved') ? (
+          {issueRef && (c.kind !== 'issue' || c.status === 'approved') ? (
             <IssueLink identifier={issueRef} hash={hash}>
               {linkLabel}
             </IssueLink>

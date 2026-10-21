@@ -6,8 +6,17 @@ export const commentsApi = {
     issueId: string,
     opts: { after?: string; order?: 'asc' | 'desc'; limit?: number } = {},
   ): Promise<IssueComment[]> => call('comments.list', { id: issueId }, { query: opts }),
-  /** `clientRequestId` (uuid) làm lời gọi lặp lại an toàn: server trả lại bình luận cũ thay vì tạo bản trùng. */
-  add: (issueId: string, body: string, attachmentIds?: string[], clientRequestId?: string): Promise<IssueComment> =>
+  /**
+   * `clientRequestId` (uuid) làm lời gọi lặp lại an toàn: server trả lại bình luận cũ thay vì tạo bản trùng.
+   * `reopen`: issue đã đóng thì mở lại (về Cần làm) và đánh thức người làm.
+   */
+  add: (
+    issueId: string,
+    body: string,
+    attachmentIds?: string[],
+    clientRequestId?: string,
+    options: { reopen?: boolean } = {},
+  ): Promise<IssueComment> =>
     call(
       'comments.add',
       { id: issueId },
@@ -16,6 +25,7 @@ export const commentsApi = {
           body,
           ...(attachmentIds?.length ? { attachmentIds } : {}),
           ...(clientRequestId ? { clientRequestId } : {}),
+          ...(options.reopen ? { reopen: true } : {}),
         },
       },
     ),

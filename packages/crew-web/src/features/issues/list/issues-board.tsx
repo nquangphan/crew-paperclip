@@ -3,10 +3,12 @@
 // trạng thái một cột. Thẻ giữ phần Crew của dòng: chip giai đoạn và x/y con xong. Kéo thẻ sang cột khác gửi
 // PATCH đổi trạng thái; thẻ sang cột mới ngay, server từ chối (vd. 422 vì cổng Crew chặn) thì thẻ về cột cũ và hiện
 // nguyên văn câu lỗi, không tự thử lại. Người chỉ đọc không kéo được.
+// Yêu cầu của Phòng QC đã Xong vẫn nằm ở cột Hoàn thành (trạng thái lõi là done, kéo thẻ vẫn đổi trạng thái lõi), kèm
+// nhãn QC (Chờ QC duyệt, Chờ owner duyệt mở lại, QC verified) trên thẻ thay vì thêm cột không kéo vào được.
 import type { CompactIssue } from '@paperclipai/shared';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useMemo, useState } from 'react';
-import { api, type CrewRoot, queryKeys } from '@/api';
+import { api, type CrewRoot, type QcIssueState, queryKeys } from '@/api';
 import {
   ErrorState,
   KANBAN_BOARD_HIGH_VOLUME_THRESHOLD,
@@ -18,6 +20,7 @@ import {
   resolveStageKey,
   StageBadge,
 } from '@/ds';
+import { QcBadge, qcDisplayStatus } from '@/features/qc';
 import { useT } from '@/i18n';
 import type { useIssueOpener } from '../popup/issue-nav';
 import { needsNextStep, subtreeLiveCounts } from './list-view';
@@ -33,6 +36,8 @@ export function boardLayout(state: Pick<ListState, 'density' | 'lanes' | 'pageSi
   return { compact, collapsedStatuses, customized };
 }
 
+const NO_QC: ReadonlyMap<string, QcIssueState> = new Map();
+
 interface MoveError {
   identifier: string;
   message: string;
@@ -46,6 +51,8 @@ interface IssuesBoardProps {
   rootsById: ReadonlyMap<string, CrewRoot>;
   agentName: ReadonlyMap<string, string>;
   live: ReadonlySet<string>;
+  /** Vòng QC đang mở theo id issue (yêu cầu của Phòng QC đã Xong). */
+  qcStates?: ReadonlyMap<string, QcIssueState>;
   opener: ReturnType<typeof useIssueOpener>;
   readOnly: boolean;
 }
@@ -57,6 +64,7 @@ export function IssuesBoard({
   rootsById,
   agentName,
   live,
+  qcStates = NO_QC,
   opener,
   readOnly,
 }: IssuesBoardProps) {
@@ -99,6 +107,7 @@ export function IssuesBoard({
   const cards = issues.map((issue): KanbanCardData => {
     const identifier = issue.identifier ?? issue.id;
     const root = rootsById.get(issue.id);
+    const qc = qcDisplayStatus(issue, qcStates);
     return {
       id: issue.id,
       status: moved.get(issue.id) ?? issue.status,
@@ -111,14 +120,16 @@ export function IssuesBoard({
       live: live.has(issue.id),
       liveBelow: liveBelow.get(issue.id) ?? 0,
       needsNextStep: needsNextStep(issue),
-      meta: root ? (
-        <>
-          <StageBadge stage={resolveStageKey(root.stage, root.kind)} />
-          {root.totalChildren > 0 ? (
-            <RowNote>{t('list.progress', { done: root.doneChildren, total: root.totalChildren })}</RowNote>
-          ) : null}
-        </>
-      ) : null,
+      meta:
+        root || qc ? (
+          <>
+            {qc ? <QcBadge status={qc} /> : null}
+            {root ? <StageBadge stage={resolveStageKey(root.stage, root.kind)} /> : null}
+            {root && root.totalChildren > 0 ? (
+              <RowNote>{t('list.progress', { done: root.doneChildren, total: root.totalChildren })}</RowNote>
+            ) : null}
+          </>
+        ) : null,
     };
   });
 

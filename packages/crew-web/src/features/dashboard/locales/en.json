@@ -11,7 +11,9 @@
     "awaiting": "Awaiting your approval",
     "awaitingHint": "Waiting for your review",
     "contributions": "Contributions to approve",
-    "contributionsHint": "Sent by Marketing or QC, waiting for you"
+    "contributionsHint": "Sent by Marketing or QC, waiting for you",
+    "qcReview": "Waiting for my QC review",
+    "qcReviewHint": "Requests you sent are done and waiting for you to check"
   },
   "loadFailed": "Could not load the numbers",
   "banner": {

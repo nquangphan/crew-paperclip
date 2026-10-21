@@ -180,7 +180,8 @@
         "relations": "Relationships",
         "execution": "Execution",
         "about": "About"
-      }
+      },
+      "qcUser": "QC reviewer"
     },
     "comments": {
       "showMore": "Show more",

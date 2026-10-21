@@ -1,7 +1,7 @@
 // Điều phối duyệt góp ý ở trình duyệt owner, ba bước:
 //   1. `approve`: server khóa mục (pending → approving) và trả nội dung cần đăng kèm khóa idempotent;
-//   2. đăng qua route stock của board (issue: `idempotencyKey`; bình luận: `clientRequestId`), nên wake và policy
-//      chạy y như board tự đăng;
+//   2. đăng qua route stock của board (issue: `idempotencyKey`; bình luận: `clientRequestId`; "Chưa đạt" của Phòng QC:
+//      bình luận lý do kèm `reopen: true` để mở lại issue cho người làm), nên wake và policy chạy y như board tự đăng;
 //   3. `complete`: server tự tìm bản ghi đã đăng ở bảng lõi rồi chuyển `approved`.
 // Bước 2 lỗi thì không gọi bước 3: mục giữ `approving` ("Đang duyệt dở"), owner bấm Duyệt lại thì server trả cùng khóa,
 // route stock trả lại bản ghi cũ thay vì tạo bản trùng.
@@ -23,15 +23,17 @@ export interface IssueApprovalChoices {
 export interface ApproveDeps {
   approve: (companyId: string, id: string) => Promise<ContributionApproval>;
   createIssue: (companyId: string, body: Record<string, unknown>) => Promise<unknown>;
-  addComment: (issueId: string, body: string, clientRequestId: string) => Promise<unknown>;
+  /** `reopen`: issue đã Xong thì mở lại cho người làm ("Chưa đạt" của Phòng QC). */
+  addComment: (issueId: string, body: string, clientRequestId: string, reopen: boolean) => Promise<unknown>;
   complete: (companyId: string, id: string) => Promise<Contribution>;
 }
 
 export const defaultApproveDeps: ApproveDeps = {
   approve: (companyId, id) => api.contributions.approve(companyId, id),
   createIssue: (companyId, body) => api.issues.create(companyId, body),
-  // Cờ giống composer của owner: chỉ nội dung, không reopen/resume/interrupt, không đính kèm.
-  addComment: (issueId, body, clientRequestId) => api.comments.add(issueId, body, undefined, clientRequestId),
+  // Cờ giống composer của owner: chỉ nội dung, không resume/interrupt, không đính kèm; reopen chỉ cho "Chưa đạt".
+  addComment: (issueId, body, clientRequestId, reopen) =>
+    api.comments.add(issueId, body, undefined, clientRequestId, { reopen }),
   complete: (companyId, id) => api.contributions.complete(companyId, id),
 };
 
@@ -114,7 +116,12 @@ export async function approveContribution(
       });
       await deps.createIssue(materialize.companyId, body);
     } else {
-      await deps.addComment(materialize.issueId, materialize.body, materialize.clientRequestId);
+      await deps.addComment(
+        materialize.issueId,
+        materialize.body,
+        materialize.clientRequestId,
+        materialize.kind === 'reopen',
+      );
     }
   });
 
@@ -135,6 +142,9 @@ const KNOWN_CODES = new Set([
   'crew_contributions_unavailable',
   'crew_contribution_store_failed',
   'crew_project_not_visible',
+  'crew_qc_not_awaiting',
+  'crew_qc_reopen_pending',
+  'crew_qc_forbidden',
 ]);
 
 /**

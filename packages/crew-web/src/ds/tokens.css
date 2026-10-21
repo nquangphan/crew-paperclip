@@ -222,6 +222,10 @@
   --status-task-done: #22c55e;
   --status-task-blocked: #dc2626;
   --status-task-cancelled: #a8aeb2;
+  /* crew: trạng thái QC của yêu cầu Phòng QC đã Xong (lõi vẫn là done). Chờ QC duyệt: cam, tách khỏi vàng của Cần làm;
+     QC verified: xanh mòng két, đậm và ngả lục hơn xanh lam ngọc của Đang duyệt, tách khỏi xanh lá của Xong. */
+  --status-task-qc_awaiting: #ea580c;
+  --status-task-qc_verified: #0d9488;
 
   /* Task status ICON hues (PAP-238 3b) — AA-tuned (every glyph ≥ 3:1 against
      its surface, WCAG 2.1 AA, both modes). Distinct from the
@@ -241,6 +245,8 @@
   --status-task-icon-blocked: var(--status-task-blocked);         /* #dc2626 both modes */
   --status-task-icon-cancelled: #52585d;
   --status-task-icon-in_queue: var(--status-task-icon-in_progress); /* blocked shape, same mode-aware violet */
+  --status-task-icon-qc_awaiting: #c2410c; /* crew: orange-700, clears 3:1 on paper */
+  --status-task-icon-qc_verified: #0f766e; /* crew: teal-700, clears 3:1 on paper */
 
   --folder-color-indigo: #6366f1;
   --folder-color-violet: #8b5cf6;
@@ -456,6 +462,8 @@
   --status-task-icon-in_review: #22d3ee;  /* cyan-400, same hue as the roadmap */
   --status-task-icon-done: #34d06f;
   --status-task-icon-cancelled: #9a958a;
+  --status-task-icon-qc_awaiting: #fb923c; /* crew: orange-400 */
+  --status-task-icon-qc_verified: #2dd4bf; /* crew: teal-400 */
 }
 
 /* Dark mode scrollbars */
@@ -1118,6 +1126,9 @@
   --roadmap-tone-done: var(--status-task-icon-done);
   --roadmap-tone-blocked: var(--status-task-icon-blocked);
   --roadmap-tone-cancelled: var(--status-task-icon-cancelled);
+  --roadmap-tone-qc_awaiting: var(--status-task-icon-qc_awaiting);
+  --roadmap-tone-qc_reopen: var(--status-task-icon-qc_awaiting);
+  --roadmap-tone-qc_verified: var(--status-task-icon-qc_verified);
   --roadmap-edge-blocks: #d97706;
 }
 

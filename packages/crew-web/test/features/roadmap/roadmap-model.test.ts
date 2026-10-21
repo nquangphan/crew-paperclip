@@ -287,3 +287,19 @@ describe('stableOrder', () => {
     expect([...list].sort(stableOrder).map((i) => i.identifier)).toEqual(['TPS-2', 'TPS-9', 'TPS-10']);
   });
 });
+
+describe('trạng thái QC trên thẻ yêu cầu', () => {
+  it('statusOf đổi nhãn thẻ (Chờ QC duyệt), số đếm đang mở và đã xong vẫn theo trạng thái lõi', () => {
+    const root = issue({ id: 'r1', status: 'done', projectId: 'p1' });
+    const open = issue({ id: 'r2', status: 'todo', projectId: 'p1' });
+    const kid = issue({ id: 'k1', status: 'done', parentId: 'r1', projectId: 'p1', createdByUserId: null });
+    const statusOf = (i: RoadmapIssue) => (i.id === 'r1' ? 'qc_awaiting' : i.status);
+    const project = buildProjectLevel({ project: { id: 'p1', title: 'Crew' }, issues: [root, open, kid], statusOf });
+    expect(project.nodes.find((n) => n.id === 'r1')?.status).toBe('qc_awaiting');
+    expect(project.nodes.find((n) => n.id === 'r2')?.status).toBe('todo');
+    expect(project.center.open).toBe(1);
+    const request = buildRequestLevel({ request: root, descendants: [kid], statusOf });
+    expect(request.center).toMatchObject({ status: 'qc_awaiting', done: 1, total: 1 });
+    expect(request.nodes[0]?.status).toBe('done');
+  });
+});

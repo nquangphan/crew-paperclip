@@ -2,7 +2,7 @@
   "page": {
     "owner": {
       "title": "Chờ duyệt",
-      "description": "Yêu cầu và bình luận do Phòng Marketing hoặc Phòng QC gửi, đang chờ bạn duyệt.",
+      "description": "Yêu cầu, bình luận do Phòng Marketing hoặc Phòng QC gửi và yêu cầu mở lại của QC, đang chờ bạn duyệt.",
       "empty": "Chưa có góp ý nào",
       "emptyHint": "Khi Phòng Marketing hoặc Phòng QC gửi yêu cầu hay bình luận, mục đó hiện ở đây để bạn duyệt."
     },
@@ -26,7 +26,8 @@
     },
     "kind": {
       "issue": "Yêu cầu",
-      "comment": "Bình luận"
+      "comment": "Bình luận",
+      "reopen": "QC yêu cầu mở lại"
     },
     "row": {
       "author": "Người gửi",
@@ -96,7 +97,8 @@
     "title": "Từ chối mục góp ý?",
     "bodyIssue": "Yêu cầu \"{{title}}\" sẽ mang nhãn Bị từ chối. Agent không bao giờ thấy nội dung này.",
     "bodyComment": "Bình luận sẽ mang nhãn Bị từ chối. Agent không bao giờ thấy nội dung này.",
-    "confirm": "Từ chối"
+    "confirm": "Từ chối",
+    "bodyReopen": "Yêu cầu mở lại của QC sẽ mang nhãn Bị từ chối. Yêu cầu vẫn ở trạng thái Chờ QC duyệt; agent không bao giờ thấy lý do này."
   },
   "approveDialog": {
     "title": "Duyệt yêu cầu",
@@ -130,7 +132,10 @@
     "crew_contributions_unavailable": "Tính năng góp ý tạm thời chưa dùng được. Thử lại sau.",
     "crew_contribution_store_failed": "Máy chủ không lưu được góp ý. Thử lại sau.",
     "alreadyRejected": "Mục này đã bị từ chối nên không duyệt được nữa.",
-    "crew_project_not_visible": "Người gửi không có quyền xem project này (owner chưa cấp hoặc đã gỡ). Owner cấp lại ở trang Thành viên, hoặc từ chối mục này."
+    "crew_project_not_visible": "Người gửi không có quyền xem project này (owner chưa cấp hoặc đã gỡ). Owner cấp lại ở trang Thành viên, hoặc từ chối mục này.",
+    "crew_qc_not_awaiting": "Yêu cầu này không còn chờ QC duyệt (có thể đã mở lại).",
+    "crew_qc_reopen_pending": "Đang có yêu cầu mở lại chờ owner duyệt.",
+    "crew_qc_forbidden": "Chỉ người QC đã gửi yêu cầu này mới báo chưa đạt được."
   },
   "popup": {
     "title": "Mục góp ý",
@@ -139,7 +144,8 @@
     "loadFailed": "Không tải được mục góp ý",
     "openTarget": "Mở yêu cầu được bình luận",
     "openResult": "Mở yêu cầu đã tạo",
-    "close": "Đóng"
+    "close": "Đóng",
+    "reopenTitle": "QC yêu cầu mở lại"
   },
   "issuesGroup": {
     "title": "Chờ duyệt",

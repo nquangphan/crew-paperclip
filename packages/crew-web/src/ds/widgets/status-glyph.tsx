@@ -8,6 +8,9 @@ import {
   CircleMinus,
   createLucideIcon,
   type LucideIcon,
+  ShieldAlert,
+  ShieldCheck,
+  ShieldEllipsis,
 } from 'lucide-react';
 import { cn } from '../cn';
 
@@ -28,6 +31,10 @@ const STATUS_ICON: Record<string, LucideIcon> = {
   done: CircleCheck,
   blocked: CircleMinus,
   cancelled: Ban,
+  // crew: trạng thái QC của yêu cầu Phòng QC đã Xong (Chờ QC duyệt, chờ owner mở lại, QC verified).
+  qc_awaiting: ShieldEllipsis,
+  qc_reopen: ShieldAlert,
+  qc_verified: ShieldCheck,
 };
 
 const COLOR_VAR: Record<string, string> = {
@@ -39,6 +46,9 @@ const COLOR_VAR: Record<string, string> = {
   done: '--status-task-icon-done',
   blocked: '--status-task-icon-blocked',
   cancelled: '--status-task-icon-cancelled',
+  qc_awaiting: '--status-task-icon-qc_awaiting',
+  qc_reopen: '--status-task-icon-qc_awaiting',
+  qc_verified: '--status-task-icon-qc_verified',
 };
 
 /** Màu trạng thái dùng chung (cùng bảng với biểu tượng ở danh sách và bảng Kanban), dạng `var(--status-task-icon-*)`. */

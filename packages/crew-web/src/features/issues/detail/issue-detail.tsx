@@ -22,6 +22,7 @@ import {
 } from '@/ds';
 import { ArrowLeft, Check, Copy, ExternalLink, X } from '@/ds/icons';
 import { useCompanyAccess, useVisibleProjects } from '@/features/access';
+import { displayStatus, QcPanel, useQcStates } from '@/features/qc';
 import { useT } from '@/i18n';
 import { AddChildAction } from '../new/add-child-dialog';
 import { issuePageHref } from '../popup/issue-href';
@@ -118,6 +119,7 @@ export function IssueDetail({ issueRef, variant, onClose }: IssueDetailProps) {
   useScrollToHash(Boolean(issue));
   const navigate = useNavigate();
   const canGoBack = useIssuePopupCanGoBack();
+  const qcStates = useQcStates().byIssue;
 
   // Chưa có tiêu đề để làm tên hộp thoại thì popup tạm lấy mã yêu cầu; khi có, h1 của TitleEditor là DialogTitle.
   const untitled = (node: ReactNode): ReactNode =>
@@ -150,7 +152,9 @@ export function IssueDetail({ issueRef, variant, onClose }: IssueDetailProps) {
 
   const code = issue.identifier ?? issue.id;
   const fullPage = issuePageHref(company.issuePrefix, code);
-  const statusLabel = t(`status.${issue.status}`, { ns: 'common', defaultValue: issue.status });
+  // Yêu cầu của Phòng QC đã Xong: trạng thái QC (Chờ QC duyệt, QC verified) thay cho Hoàn thành.
+  const shownStatus = displayStatus(issue, qcStates);
+  const statusLabel = t(`status.${shownStatus}`, { ns: 'common', defaultValue: shownStatus });
   const nameOf = (agentId: string | null, userId: string | null): string | null => {
     if (agentId) return agentNames[agentId] ?? t('detail.comments.agent');
     if (userId) return userId === me.id ? t('detail.comments.you') : t('detail.props.owner');
@@ -194,10 +198,12 @@ export function IssueDetail({ issueRef, variant, onClose }: IssueDetailProps) {
             root={<Link to={`/${company.issuePrefix}/issues`}>{t('detail.root')}</Link>}
             trail={[...(issue.ancestors ?? [])].reverse().map((ancestor) => (
               <span title={ancestor.title}>
-                <IssueLink identifier={ancestor.identifier ?? ancestor.id}>{ancestor.identifier ?? ancestor.title}</IssueLink>
+                <IssueLink identifier={ancestor.identifier ?? ancestor.id}>
+                  {ancestor.identifier ?? ancestor.title}
+                </IssueLink>
               </span>
             ))}
-            status={issue.status}
+            status={shownStatus}
             title={issue.title}
             identifier={code}
             actions={topActions}
@@ -212,13 +218,14 @@ export function IssueDetail({ issueRef, variant, onClose }: IssueDetailProps) {
               projectName={projectName}
               childIssues={childIssues}
               forcedDone={forcedDoneActive(activity.data ?? [], issue.status)}
+              qc={qcStates.get(issue.id) ?? null}
             />
             <History issue={issue} agentNames={agentNames} />
           </>
         }
       >
         <IssueHeader
-          status={issue.status}
+          status={shownStatus}
           statusLabel={statusLabel}
           title={<TitleEditor issue={issue} popup={variant === 'popup'} />}
           identifier={code}
@@ -242,6 +249,7 @@ export function IssueDetail({ issueRef, variant, onClose }: IssueDetailProps) {
           }
         />
         {variant === 'popup' ? <StartWorkNotice /> : null}
+        <QcPanel issue={issue} />
         {issue.status === DRAFT_STATUS ? (
           <Alert title={t('startWork.draftTitle')}>
             {t(readOnly ? 'startWork.draftBodyReadOnly' : 'startWork.draftBody')}

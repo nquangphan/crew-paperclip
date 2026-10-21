@@ -405,7 +405,14 @@ Thuộc tính của yêu cầu có nhóm **Runtime** liệt kê quyết định,
 {{shot:contributions-owner}}
 {{/roles}}
 
-**Phòng Marketing** và **Phòng QC** là thành viên chỉ xem mọi project, yêu cầu và bình luận, cộng thêm quyền gửi **yêu cầu** và **bình luận** để owner duyệt. Trong lúc chờ, **agent không thấy gì**: nội dung chờ không nằm trong danh sách, bình luận hay ngữ cảnh của agent, nên không agent nào bị đánh thức. Chỉ owner duyệt hay từ chối được. Hai phòng có đúng cùng quyền; owner thấy tên phòng cạnh người gửi (ví dụ **Lan · Phòng QC**) để biết góp ý đến từ đâu.
+**Phòng Marketing** và **Phòng QC** là thành viên chỉ xem mọi project, yêu cầu và bình luận, cộng thêm quyền gửi **yêu cầu** và **bình luận** để owner duyệt. Trong lúc chờ, **agent không thấy gì**: nội dung chờ không nằm trong danh sách, bình luận hay ngữ cảnh của agent, nên không agent nào bị đánh thức. Chỉ owner duyệt hay từ chối được. Hai phòng gửi góp ý như nhau; owner thấy tên phòng cạnh người gửi (ví dụ **Lan · Phòng QC**) để biết góp ý đến từ đâu.
+
+**Phòng QC duyệt lại yêu cầu của mình.** Yêu cầu do Phòng QC gửi (tính theo phòng lúc gửi), khi xong, mang trạng thái **Chờ QC duyệt** thay cho Hoàn thành và được giao lại cho người QC đã gửi. Agent vẫn coi yêu cầu là xong, không ai bị đánh thức. Người QC kiểm tra rồi:
+
+- **Xác nhận đạt**: yêu cầu thành **QC verified**. Chỉ đổi trạng thái QC, không có bình luận hay việc gì thêm.
+- **Chưa đạt**: viết lý do (bắt buộc). Lý do chờ owner duyệt như mọi góp ý, yêu cầu hiện **Chờ owner duyệt mở lại**. Owner duyệt thì yêu cầu mở lại cho người làm và lý do thành bình luận; owner từ chối thì yêu cầu quay về **Chờ QC duyệt**.
+
+Owner cũng bấm **Xác nhận đạt** được. Yêu cầu mở lại rồi xong lần nữa thì lại **Chờ QC duyệt** từ đầu. Yêu cầu của owner và của Phòng Marketing không có bước này.
 
 | Trạng thái | Nghĩa |
 |---|---|
@@ -458,6 +465,14 @@ Trang [Góp ý của tôi](/contributions) liệt kê mọi thứ bạn đã g�
 
 > **Mẹo:** mục **Bị từ chối** vẫn được giữ để bạn xem lại. Muốn gửi lại thì sửa nội dung và gửi một yêu cầu mới.
 
+#### Cần tôi duyệt (Phòng QC)
+
+Thành viên Phòng QC thấy mục **Cần tôi duyệt** ở đầu trang [Góp ý của tôi](/contributions) và thẻ cùng tên ở Tổng quan: các yêu cầu bạn đã gửi, nay đã xong và chờ bạn kiểm tra.
+
+1. Bấm vào một yêu cầu trong **Cần tôi duyệt**. Khối **Phòng QC duyệt lại** nằm dưới tiêu đề.
+2. Kiểm tra kết quả. Đạt thì bấm **Xác nhận đạt**: yêu cầu thành **QC verified**.
+3. Chưa đạt thì bấm **Chưa đạt**, viết chỗ nào chưa đạt và cách tái hiện, bấm **Gửi để owner duyệt**. Yêu cầu hiện **Chờ owner duyệt mở lại** cho tới khi owner quyết định; agent chưa thấy lý do của bạn.
+
 ### Duyệt hoặc từ chối góp ý {#review-contributions roles=owner}
 
 {{shot:contributions-owner}}
@@ -479,6 +494,13 @@ Bấm **Duyệt** một lần: bình luận được đăng dưới tên bạn, 
 #### Từ chối
 
 Bấm **Từ chối** (3), xác nhận. Mục mang nhãn **Bị từ chối**, chỉ người gửi và bạn thấy.
+
+#### Duyệt yêu cầu mở lại của Phòng QC
+
+Khi người QC báo **Chưa đạt** một yêu cầu đã xong, trang Chờ duyệt có mục **QC yêu cầu mở lại** kèm lý do; khối **Phòng QC duyệt lại** trong yêu cầu cũng hiện lý do và hai nút.
+
+- **Duyệt**: lý do được đăng thành bình luận dưới tên bạn, yêu cầu mở lại (về Cần làm) cho người làm trước đó và agent được đánh thức, như khi bạn tự bình luận mở lại. Lần xong sau lại chờ QC duyệt.
+- **Từ chối**: yêu cầu giữ nguyên Hoàn thành và quay về **Chờ QC duyệt**; agent không bao giờ thấy lý do.
 
 > **Mẹo:** lần duyệt bị đứt giữa chừng (mất mạng, đóng tab) thì mục mang nhãn **Đang duyệt dở** kèm nút **Duyệt lại**; bấm lại không tạo bản trùng. Hai owner cùng duyệt một mục thì người đến sau được báo đang có người duyệt.
 

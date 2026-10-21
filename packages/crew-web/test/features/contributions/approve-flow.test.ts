@@ -158,7 +158,24 @@ describe('approveContribution', () => {
     const { deps, order } = fakeDeps();
     await approveContribution('c1', COMMENT, null, deps);
     expect(order).toEqual(['approve', 'addComment', 'complete']);
-    expect(deps.addComment).toHaveBeenCalledWith('i1', 'Thêm ảnh', 'k2');
+    expect(deps.addComment).toHaveBeenCalledWith('i1', 'Thêm ảnh', 'k2', false);
+    expect(deps.createIssue).not.toHaveBeenCalled();
+  });
+
+  it('Chưa đạt của Phòng QC: đăng bình luận lý do server soạn, kèm cờ reopen, rồi complete', async () => {
+    const REOPEN = contribution({ id: 'k9', kind: 'reopen', targetIssueId: 'i7', body: 'Nút lưu không chạy' });
+    const { deps, order } = fakeDeps({
+      approve: vi.fn(async () => {
+        order.push('approve');
+        return {
+          contribution: { ...REOPEN, status: 'approving' as const },
+          materialize: { kind: 'reopen' as const, issueId: 'i7', body: 'QC báo chưa đạt…', clientRequestId: 'k9' },
+        };
+      }),
+    });
+    await approveContribution('c1', REOPEN, null, deps);
+    expect(order).toEqual(['approve', 'addComment', 'complete']);
+    expect(deps.addComment).toHaveBeenCalledWith('i7', 'QC báo chưa đạt…', 'k9', true);
     expect(deps.createIssue).not.toHaveBeenCalled();
   });
 

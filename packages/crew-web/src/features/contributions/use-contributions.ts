@@ -96,6 +96,8 @@ function useRefreshAfterDecision() {
     void qc.invalidateQueries({ queryKey: queryKeys.contributions(company.id) });
     void qc.invalidateQueries({ queryKey: queryKeys.issues(company.id) });
     void qc.invalidateQueries({ queryKey: queryKeys.sidebarBadges(company.id) });
+    // Quyết định về "Chưa đạt" của Phòng QC đổi trạng thái QC của yêu cầu.
+    void qc.invalidateQueries({ queryKey: queryKeys.qc(company.id) });
     if (contribution.targetIssueId)
       void qc.invalidateQueries({ queryKey: queryKeys.comments(contribution.targetIssueId) });
   };

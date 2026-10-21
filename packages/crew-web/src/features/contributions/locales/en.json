@@ -2,7 +2,7 @@
   "page": {
     "owner": {
       "title": "Pending approval",
-      "description": "Requests and comments sent by Marketing or QC, waiting for your approval.",
+      "description": "Requests and comments sent by Marketing or QC, and QC reopen requests, waiting for your approval.",
       "empty": "No contributions yet",
       "emptyHint": "When Marketing or QC sends a request or a comment, it shows up here for you to approve."
     },
@@ -26,7 +26,8 @@
     },
     "kind": {
       "issue": "Request",
-      "comment": "Comment"
+      "comment": "Comment",
+      "reopen": "QC reopen request"
     },
     "row": {
       "author": "Sent by",
@@ -96,7 +97,8 @@
     "title": "Reject this contribution?",
     "bodyIssue": "The request \"{{title}}\" will be labelled Rejected. Agents never see it.",
     "bodyComment": "The comment will be labelled Rejected. Agents never see it.",
-    "confirm": "Reject"
+    "confirm": "Reject",
+    "bodyReopen": "QC's reopen request will be marked Rejected. The request stays Awaiting QC; agents never see this reason."
   },
   "approveDialog": {
     "title": "Approve request",
@@ -130,7 +132,10 @@
     "crew_contributions_unavailable": "Contributions are temporarily unavailable. Try again later.",
     "crew_contribution_store_failed": "The server could not save the contribution. Try again later.",
     "alreadyRejected": "This item was already rejected, so it can no longer be approved.",
-    "crew_project_not_visible": "The sender cannot see this project (the owner has not granted it or removed it). Grant it again on the Members page, or reject this item."
+    "crew_project_not_visible": "The sender cannot see this project (the owner has not granted it or removed it). Grant it again on the Members page, or reject this item.",
+    "crew_qc_not_awaiting": "This request is no longer waiting for QC (it may have been reopened).",
+    "crew_qc_reopen_pending": "A reopen request is already waiting for the owner.",
+    "crew_qc_forbidden": "Only the QC member who sent this request can report it as not passing."
   },
   "popup": {
     "title": "Contribution",
@@ -139,7 +144,8 @@
     "loadFailed": "Could not load the contribution",
     "openTarget": "Open the commented request",
     "openResult": "Open the created request",
-    "close": "Close"
+    "close": "Close",
+    "reopenTitle": "QC reopen request"
   },
   "issuesGroup": {
     "title": "Pending approval",

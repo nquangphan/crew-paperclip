@@ -86,7 +86,18 @@ export function roadmapNodeMeta(t: TFn, node: RoadmapNode): string {
   }
 }
 
-const TONED = new Set(['backlog', 'todo', 'in_progress', 'in_review', 'blocked', 'done', 'cancelled']);
+const TONED = new Set([
+  'backlog',
+  'todo',
+  'in_progress',
+  'in_review',
+  'blocked',
+  'done',
+  'cancelled',
+  'qc_awaiting',
+  'qc_reopen',
+  'qc_verified',
+]);
 
 /** Màu trạng thái của bản đồ (`var(--roadmap-tone-*)`); trạng thái lạ dùng màu "chưa lên kế hoạch". */
 export function roadmapToneVar(status: string | null | undefined): string {

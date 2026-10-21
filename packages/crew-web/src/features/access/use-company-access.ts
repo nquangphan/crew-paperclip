@@ -3,6 +3,8 @@ import { api, type ContributorDepartment, queryKeys } from '@/api';
 import { useCompany } from '@/app/hooks';
 
 export interface CompanyAccessState {
+  /** Id người đang đăng nhập theo `GET /access`; null khi đang tải hoặc lỗi. */
+  userId: string | null;
   /** Có membership `owner`: duyệt góp ý, mời khách, xem trang Thành viên. */
   isOwner: boolean;
   /** Viewer có dấu khách góp ý (Phòng Marketing hoặc Phòng QC); hai phòng cùng quyền. */
@@ -25,12 +27,20 @@ export interface CompanyAccessState {
 
 /** Suy trạng thái từ câu trả lời `GET /access`; tách riêng để test không cần React. */
 export function deriveAccess(
-  data: { membershipRole: string | null; contributor: boolean; department?: ContributorDepartment | null } | undefined,
+  data:
+    | {
+        userId?: string;
+        membershipRole: string | null;
+        contributor: boolean;
+        department?: ContributorDepartment | null;
+      }
+    | undefined,
   loading: boolean,
 ): Omit<CompanyAccessState, 'error' | 'retry'> {
   const viewer = data?.membershipRole === 'viewer';
   const isContributor = viewer && data?.contributor === true;
   return {
+    userId: data?.userId ?? null,
     isOwner: data?.membershipRole === 'owner',
     isContributor,
     // Server cũ chưa trả phòng: khách góp ý khi đó là Phòng Marketing.

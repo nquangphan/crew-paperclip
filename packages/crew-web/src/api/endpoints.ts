@@ -238,6 +238,11 @@ export const ENDPOINTS = {
   'contributors.set': { ids: ['S20.8'], method: 'PUT', path: `${CREW}/contributors/:userId` },
   'contributors.remove': { ids: ['S20.8'], method: 'DELETE', path: `${CREW}/contributors/:userId` },
 
+  // Phòng QC duyệt lại yêu cầu của mình (S23): S23.1 Xác nhận đạt, S23.3 trạng thái QC và danh sách Cần tôi duyệt.
+  // "Chưa đạt" (S23.2) gửi qua `contributions.create` với kind `reopen`.
+  'qc.list': { ids: ['S23.3'], method: 'GET', path: `${CREW}/qc` },
+  'qc.verify': { ids: ['S23.1'], method: 'POST', path: `${CREW}/qc/issues/:issueId/verify` },
+
   // Quyền xem project theo thành viên (S21): owner đặt ở trang Thành viên, mọi trang lọc theo `projectAccess.me`.
   'projectAccess.me': { ids: ['S21.2'], method: 'GET', path: `${CREW}/project-access/me` },
   'projectAccess.list': { ids: ['S21.1'], method: 'GET', path: `${CREW}/project-access` },

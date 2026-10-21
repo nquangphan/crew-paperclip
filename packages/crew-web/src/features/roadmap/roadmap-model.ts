@@ -151,12 +151,17 @@ export function buildCompanyLevel(input: CompanyLevelInput): RoadmapLevel {
  */
 export type ProjectDocs = { pages: number } | 'loading' | null | undefined;
 
+/** Trạng thái vẽ trên thẻ; số đếm (đang mở, đã xong) vẫn theo trạng thái lõi. */
+export type StatusOf = (issue: RoadmapIssue) => string;
+
 export interface ProjectLevelInput {
   /** Nút project ở tầng công ty (tên, màu). */
   project: Pick<RoadmapNode, 'id' | 'title' | 'color'>;
   /** Issue của project (đã lọc theo quyền xem); với "Chưa gắn project" là các issue không có project. */
   issues: readonly RoadmapIssue[];
   docs?: ProjectDocs;
+  /** Trạng thái để vẽ trên thẻ (vd. trạng thái QC của yêu cầu Phòng QC đã Xong); không truyền thì là trạng thái lõi. */
+  statusOf?: StatusOf;
   cap?: number;
 }
 
@@ -177,7 +182,7 @@ export function buildProjectLevel(input: ProjectLevelInput): RoadmapLevel {
       kind: 'request',
       title: r.title,
       identifier: r.identifier,
-      status: r.status,
+      status: input.statusOf?.(r) ?? r.status,
       total: all.length,
       done: all.filter((d) => d.status === 'done').length,
     };
@@ -214,6 +219,7 @@ export interface RequestLevelInput {
   agentName?: (agentId: string) => string | undefined;
   /** Run tóm tắt của cây yêu cầu (chưa tải thì thẻ không có khối run). */
   runs?: MapRuns;
+  statusOf?: StatusOf;
   cap?: number;
 }
 
@@ -261,7 +267,7 @@ export function buildRequestLevel(input: RequestLevelInput): RoadmapLevel {
     kind: 'request',
     title: request.title,
     identifier: request.identifier,
-    status: request.status,
+    status: input.statusOf?.(request) ?? request.status,
     total: all.length,
     done: all.filter((d) => d.status === 'done').length,
     runs: input.runs ? roadmapRuns(runsOf(request.id), input.runs.tree) : undefined,

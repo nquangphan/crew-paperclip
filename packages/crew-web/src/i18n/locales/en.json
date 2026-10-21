@@ -19,7 +19,10 @@
     "succeeded": "Succeeded",
     "interrupted": "Interrupted",
     "failed": "Failed",
-    "timed_out": "Timed out"
+    "timed_out": "Timed out",
+    "qc_awaiting": "Awaiting QC",
+    "qc_reopen": "Reopen awaiting owner",
+    "qc_verified": "QC verified"
   },
   "stage": {
     "none": "No stage",

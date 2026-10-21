@@ -29,6 +29,7 @@ import {
 import { ArrowLeft } from '@/ds/icons';
 import { popupIssueRef } from '@/features/issues/popup/issue-href';
 import { useIssueOpener } from '@/features/issues/popup/issue-nav';
+import { displayStatus, useQcStates } from '@/features/qc';
 import { useT } from '@/i18n';
 import { RoadmapDocReader } from './roadmap-doc-reader';
 import {
@@ -44,6 +45,7 @@ import {
   folderTrail,
   NO_PROJECT,
   type ProjectDocs,
+  type RoadmapIssue,
   resolveDocsFolder,
 } from './roadmap-model';
 import {
@@ -106,6 +108,9 @@ export function RoadmapPage() {
   });
   const { request } = data;
   const { visible, projects } = data;
+  // Yêu cầu của Phòng QC đã Xong: thẻ hiện trạng thái QC (Chờ QC duyệt, QC verified) thay cho Hoàn thành.
+  const qcStates = useQcStates().byIssue;
+  const statusOf = (issue: RoadmapIssue) => displayStatus(issue, qcStates);
 
   const go = useCallback((target: RoadmapTarget) => navigate(roadmapHref(location, target)), [navigate, location]);
   // Nhánh docs: tầng chỉ có một thư mục (không trang) tự đi xuống; khóa tầng, breadcrumb và nút lùi theo thư mục hiện ra.
@@ -210,11 +215,12 @@ export function RoadmapPage() {
         descendants: data.subtree.data.items,
         agentName: (id) => names.get(id),
         runs: data.runs.data,
+        statusOf,
         cap,
       });
       return { kind: 'ready', level, list: listItems(level), truncated: data.subtree.data.truncated };
     }
-    const level = buildProjectLevel({ project: projectNode, issues: ofProject.data.items, docs, cap });
+    const level = buildProjectLevel({ project: projectNode, issues: ofProject.data.items, docs, statusOf, cap });
     return { kind: 'ready', level, list: listItems(level), truncated: projectTruncated };
   };
   const current = resolve(params.view === 'list');

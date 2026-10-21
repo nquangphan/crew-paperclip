@@ -43,12 +43,14 @@ export function ContributionPopup({ id, onClose }: { id: string; onClose: () => 
   const heading =
     c?.kind === 'comment'
       ? t('popup.commentTitle')
-      : c?.kind === 'issue'
-        ? (c.title ?? t('popup.issueTitle'))
-        : t('popup.title');
+      : c?.kind === 'reopen'
+        ? t('popup.reopenTitle')
+        : c?.kind === 'issue'
+          ? (c.title ?? t('popup.issueTitle'))
+          : t('popup.title');
 
   // Link sang issue thay popup góp ý bằng popup issue tại chỗ, không chồng hai popup.
-  const issueRef = c ? (c.kind === 'comment' ? c.targetIssueId : c.resultIssueId) : null;
+  const issueRef = c ? (c.kind === 'issue' ? c.resultIssueId : c.targetIssueId) : null;
   const rest = new URLSearchParams(location.search);
   rest.delete(CONTRIBUTION_PARAM);
   const toIssue = issueRef ? issueHref(issueRef, { pathname: location.pathname, search: rest.toString() }) : null;
@@ -104,7 +106,7 @@ export function ContributionPopup({ id, onClose }: { id: string; onClose: () => 
               {c.body ? <MarkdownView markdown={c.body} /> : <MutedText>—</MutedText>}
               {toIssue ? (
                 <Link to={toIssue} replace>
-                  {c.kind === 'comment' ? t('popup.openTarget') : t('popup.openResult')}
+                  {c.kind === 'issue' ? t('popup.openResult') : t('popup.openTarget')}
                 </Link>
               ) : null}
               <ContributionActions contribution={c} />

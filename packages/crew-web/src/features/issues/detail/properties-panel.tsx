@@ -1,6 +1,7 @@
 // crew: tự dựng
 import type { Issue } from '@paperclipai/shared';
 import type * as React from 'react';
+import type { QcIssueState } from '@/api';
 import { useMe } from '@/app/hooks';
 import {
   Badge,
@@ -12,6 +13,8 @@ import {
   StatusGlyph,
   StatusLabel,
 } from '@/ds';
+import { useAuthorNames } from '@/features/contributions/use-contributions';
+import { displayStatus } from '@/features/qc/qc-status';
 import { formatDateTime, useT } from '@/i18n';
 import { labelledKindOf } from '../new/kinds';
 import { IssueLink } from '../popup/issue-nav';
@@ -35,6 +38,8 @@ interface PropertiesPanelProps {
   childIssues: ChildSummary[];
   /** Lần Ép Done mới nhất còn hiệu lực (sau lần mở lại gần nhất): hiện badge "Đã ép Done" cạnh trạng thái. */
   forcedDone?: boolean;
+  /** Vòng QC đang mở (yêu cầu của Phòng QC đã Xong): trạng thái QC thay cho Hoàn thành, kèm người QC duyệt. */
+  qc?: QcIssueState | null;
 }
 
 interface IssueRef {
@@ -55,9 +60,12 @@ export function PropertiesPanel({
   projectName,
   childIssues,
   forcedDone = false,
+  qc = null,
 }: PropertiesPanelProps) {
   const { t, lang } = useT('issues');
   const me = useMe();
+  const authorName = useAuthorNames();
+  const shownStatus = qc ? displayStatus(issue, new Map([[issue.id, qc]])) : issue.status;
   const none = <PropertyEmpty>{t('detail.props.none')}</PropertyEmpty>;
   const issueChip = (i: IssueRef) => (
     <PropertyChip key={i.id}>
@@ -94,8 +102,8 @@ export function PropertiesPanel({
         <PropertyRow label={t('detail.props.status')}>
           <span className="flex flex-wrap items-center gap-2">
             <StatusLabel
-              status={issue.status}
-              label={t(`status.${issue.status}`, { ns: 'common', defaultValue: issue.status })}
+              status={shownStatus}
+              label={t(`status.${shownStatus}`, { ns: 'common', defaultValue: shownStatus })}
             />
             {forcedDone ? <Badge variant="destructive">{t('history.forcedBadge')}</Badge> : null}
           </span>
@@ -103,6 +111,11 @@ export function PropertiesPanel({
         <PropertyRow label={t('detail.props.assignee')}>
           {assignee ?? <PropertyEmpty>{t('detail.props.unassigned')}</PropertyEmpty>}
         </PropertyRow>
+        {qc && issue.status === 'done' ? (
+          <PropertyRow label={t('detail.props.qcUser')}>
+            {qc.qcUserId === me.id ? t('detail.comments.you') : (authorName(qc.qcUserId) ?? qc.qcUserId)}
+          </PropertyRow>
+        ) : null}
         <PropertyRow label={t('detail.props.project')}>
           {projectName ? <ProjectTag name={projectName} /> : none}
         </PropertyRow>

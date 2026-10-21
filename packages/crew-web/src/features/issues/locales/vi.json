@@ -180,7 +180,8 @@
         "relations": "Liên kết",
         "execution": "Thực thi",
         "about": "Thông tin"
-      }
+      },
+      "qcUser": "QC duyệt"
     },
     "comments": {
       "showMore": "Hiện đủ",

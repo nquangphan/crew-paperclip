@@ -21,7 +21,9 @@ export function RejectConfirm({ contribution, open, onOpenChange, onConfirm }: R
       body={
         contribution.kind === 'issue'
           ? t('reject.bodyIssue', { title: contribution.title ?? '' })
-          : t('reject.bodyComment')
+          : contribution.kind === 'reopen'
+            ? t('reject.bodyReopen')
+            : t('reject.bodyComment')
       }
       confirmLabel={t('reject.confirm')}
       destructive

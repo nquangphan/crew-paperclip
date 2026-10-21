@@ -405,7 +405,14 @@ The **Codex Reviewer** only reviews **code sub-requests**. If it fails (includin
 {{shot:contributions-owner}}
 {{/roles}}
 
-**Marketing** and **QC** members can view every project, request and comment, and can send **requests** and **comments** for the owner to approve. While waiting, **agents see nothing**: pending content is not in any list, comment thread or agent context, so no agent is woken up. Only the owner can approve or reject. Both teams have exactly the same rights; the owner sees the team next to the sender (for example **Lan · QC**) to know where a contribution came from.
+**Marketing** and **QC** members can view every project, request and comment, and can send **requests** and **comments** for the owner to approve. While waiting, **agents see nothing**: pending content is not in any list, comment thread or agent context, so no agent is woken up. Only the owner can approve or reject. Both teams send contributions the same way; the owner sees the team next to the sender (for example **Lan · QC**) to know where a contribution came from.
+
+**QC re-checks its own requests.** A request sent by QC (by the team at the time it was sent), once done, shows **Awaiting QC** instead of Done and is handed back to the QC member who sent it. Agents still treat it as finished and nobody is woken up. The QC member checks it, then:
+
+- **Confirm pass**: the request becomes **QC verified**. Only the QC status changes; no comment, nothing else.
+- **Not passing**: write a reason (required). The reason waits for the owner like any contribution, and the request shows **Reopen awaiting owner**. If the owner approves, the request reopens for the worker and the reason becomes a comment; if the owner rejects, the request goes back to **Awaiting QC**.
+
+The owner can also click **Confirm pass**. A request that is reopened and finished again goes back to **Awaiting QC**. Requests from the owner and from Marketing do not have this step.
 
 | Status | Meaning |
 |---|---|
@@ -458,6 +465,14 @@ The [My contributions](/contributions) page lists everything you have sent.
 
 > **Tip:** **Rejected** items are kept so you can look back. To try again, rework the content and send a new request.
 
+#### Waiting for my review (QC)
+
+QC members see a **Waiting for my review** section at the top of [My contributions](/contributions) and a matching card on Overview: requests you sent that are now done and waiting for you to check.
+
+1. Click a request under **Waiting for my review**. The **QC re-check** box sits under the title.
+2. Check the result. If it passes, click **Confirm pass**: the request becomes **QC verified**.
+3. If it does not, click **Not passing**, describe what fails and how to reproduce it, then click **Send for owner approval**. The request shows **Reopen awaiting owner** until the owner decides; agents do not see your reason yet.
+
 ### Approve or reject contributions {#review-contributions roles=owner}
 
 {{shot:contributions-owner}}
@@ -479,6 +494,13 @@ Click **Approve** once: the comment is posted under your name with a **Contribut
 #### Reject
 
 Click **Reject** (3) and confirm. The item gets the **Rejected** label, visible only to the sender and you.
+
+#### Approve a QC reopen request
+
+When a QC member reports a finished request as **Not passing**, the Pending approval page shows a **QC reopen request** item with the reason; the **QC re-check** box inside the request also shows the reason and both buttons.
+
+- **Approve**: the reason is posted as a comment under your name, the request reopens (back to To do) for its previous worker and agents are woken up, as if you had commented to reopen it. The next time it is done it waits for QC again.
+- **Reject**: the request stays Done and goes back to **Awaiting QC**; agents never see the reason.
 
 > **Tip:** if an approval is cut off midway (network loss, closed tab), the item shows **Partly approved** with an **Approve again** button; clicking it never creates a duplicate. If two owners approve the same item, the second one is told someone else is approving.
 

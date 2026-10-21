@@ -45,6 +45,7 @@ import { ContributionActions } from '@/features/contributions/contribution-actio
 import { ContributionBadge } from '@/features/contributions/contribution-badge';
 import { contributionHref } from '@/features/contributions/contribution-popup-host';
 import { useAuthorLabel, useContributions } from '@/features/contributions/use-contributions';
+import { displayStatus, QcBadge, qcDisplayStatus, useQcStates } from '@/features/qc';
 import { useSelectableAgents } from '@/features/wizards';
 import { formatDateTime, formatRelative, useT } from '@/i18n';
 import { StartWorkButton } from '../detail/start-work';
@@ -175,6 +176,8 @@ export function IssuesPage() {
     { enabled: access.isOwner || access.isContributor },
   );
   const projectAccess = useVisibleProjects();
+  // Yêu cầu của Phòng QC đã Xong hiện trạng thái QC (Chờ QC duyệt, QC verified) thay cho Hoàn thành.
+  const qcStates = useQcStates().byIssue;
   const pending = ((access.isOwner || access.isContributor ? pendingQuery.data : undefined) ?? []).filter((c) =>
     projectAccess.canSeeProject(c.projectId),
   );
@@ -250,8 +253,10 @@ export function IssuesPage() {
     const assignee = issue.assigneeAgentId ? agentName.get(issue.assigneeAgentId) : undefined;
     const project = issue.projectId ? projectName.get(issue.projectId) : undefined;
     const labels = issue.labels ?? [];
+    const qc = qcDisplayStatus(issue, qcStates);
     return (
       <>
+        {qc ? <QcBadge status={qc} /> : null}
         <StartWorkButton issue={issue} size="xs" />
         {live.has(issue.id) ? <LiveBadge label={t('list.live')} /> : null}
         {show('stage') ? (
@@ -290,6 +295,7 @@ export function IssuesPage() {
     const hasChildren = node.children.length > 0;
     const expanded = !collapsedParents.has(issue.id);
     const at = activityAt(issue);
+    const shownStatus = displayStatus(issue, qcStates);
     return (
       <IssueListRow
         key={issue.id}
@@ -299,8 +305,8 @@ export function IssuesPage() {
         title={issue.title}
         href={opener.href(identifier)}
         onOpen={() => opener.open(identifier)}
-        status={issue.status}
-        statusLabel={tc(`status.${issue.status}`, { defaultValue: issue.status })}
+        status={shownStatus}
+        statusLabel={tc(`status.${shownStatus}`, { defaultValue: shownStatus })}
         depth={node.depth}
         chevronInGuide={node.depth > 0 && hasChildren}
         leading={
@@ -358,6 +364,7 @@ export function IssuesPage() {
           rootsById={rootsById}
           agentName={agentName}
           live={live}
+          qcStates={qcStates}
           opener={opener}
           readOnly={access.readOnly}
         />

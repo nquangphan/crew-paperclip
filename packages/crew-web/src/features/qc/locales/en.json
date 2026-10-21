@@ -1,0 +1,41 @@
+{
+  "panel": {
+    "title": "QC re-check",
+    "qcUser": "QC reviewer: {{name}}",
+    "awaitingHint": "The request is done and has been handed back to the QC member who sent it. Agents treat it as finished; QC confirms it passes or reports it does not.",
+    "verifiedBy": "Confirmed by {{name}} at {{at}}",
+    "reopenHint": "QC reported it does not pass; waiting for the owner to approve reopening.",
+    "reopenReason": "QC's reason",
+    "you": "You",
+    "owner": "Owner",
+    "unknown": "User"
+  },
+  "actions": {
+    "verify": "Confirm pass",
+    "verifying": "Confirming",
+    "reopen": "Not passing",
+    "verifyFailed": "Could not confirm"
+  },
+  "reopenDialog": {
+    "title": "Report not passing",
+    "description": "Your reason goes to the owner for approval. Once approved, the request reopens for the worker and the reason is posted as a comment; agents do not see it before the owner approves.",
+    "reason": "Reason",
+    "reasonPlaceholder": "What does not pass, how to reproduce (markdown)",
+    "submit": "Send for owner approval",
+    "submitting": "Sending",
+    "cancel": "Cancel",
+    "failed": "Could not send"
+  },
+  "review": {
+    "title": "Waiting for my review",
+    "description": "Requests you sent that are now done and waiting for you to check.",
+    "empty": "No requests are waiting for your review.",
+    "open": "Open request",
+    "reopenPending": "Reported not passing, waiting for owner"
+  },
+  "errors": {
+    "crew_qc_not_awaiting": "This request is no longer waiting for QC (it may have been reopened). Reload to see the latest state.",
+    "crew_qc_reopen_pending": "A reopen request is already waiting for the owner.",
+    "crew_qc_forbidden": "Only the QC member who sent this request or the owner can review it."
+  }
+}

@@ -1,0 +1,41 @@
+{
+  "panel": {
+    "title": "Phòng QC duyệt lại",
+    "qcUser": "Người QC duyệt: {{name}}",
+    "awaitingHint": "Yêu cầu đã xong và được giao lại cho người QC đã gửi. Agent coi yêu cầu là xong; QC xác nhận đạt hoặc báo chưa đạt.",
+    "verifiedBy": "Xác nhận đạt bởi {{name}} lúc {{at}}",
+    "reopenHint": "QC đã báo chưa đạt, đang chờ owner duyệt mở lại.",
+    "reopenReason": "Lý do của QC",
+    "you": "Bạn",
+    "owner": "Owner",
+    "unknown": "Người dùng"
+  },
+  "actions": {
+    "verify": "Xác nhận đạt",
+    "verifying": "Đang xác nhận",
+    "reopen": "Chưa đạt",
+    "verifyFailed": "Không xác nhận được"
+  },
+  "reopenDialog": {
+    "title": "Báo chưa đạt",
+    "description": "Lý do được gửi cho owner duyệt. Owner duyệt thì yêu cầu mở lại cho người làm và lý do hiện thành bình luận; agent không thấy lý do trước khi owner duyệt.",
+    "reason": "Lý do",
+    "reasonPlaceholder": "Chỗ nào chưa đạt, cách tái hiện (markdown)",
+    "submit": "Gửi để owner duyệt",
+    "submitting": "Đang gửi",
+    "cancel": "Hủy",
+    "failed": "Không gửi được"
+  },
+  "review": {
+    "title": "Cần tôi duyệt",
+    "description": "Yêu cầu bạn đã gửi, nay đã xong và chờ bạn kiểm tra.",
+    "empty": "Không có yêu cầu nào chờ bạn duyệt.",
+    "open": "Mở yêu cầu",
+    "reopenPending": "Đã báo chưa đạt, chờ owner"
+  },
+  "errors": {
+    "crew_qc_not_awaiting": "Yêu cầu này không còn chờ QC duyệt (có thể đã mở lại). Tải lại trang để xem trạng thái mới.",
+    "crew_qc_reopen_pending": "Đang có yêu cầu mở lại chờ owner duyệt.",
+    "crew_qc_forbidden": "Chỉ người QC đã gửi yêu cầu này hoặc owner được duyệt."
+  }
+}

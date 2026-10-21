@@ -27,6 +27,7 @@ import { AlertTriangle, Bot, CircleDot, ShieldCheck, Users } from '@/ds/icons';
 import { useCompanyAccess } from '@/features/access';
 import { useContributionsSummary } from '@/features/contributions/use-contributions';
 import { useIssueOpener } from '@/features/issues';
+import { awaitingMe, useQcStates } from '@/features/qc';
 import { formatRelative, useT } from '@/i18n';
 import {
   activityTarget,
@@ -48,9 +49,12 @@ export function DashboardPage() {
   const me = useMe();
   const navigate = useNavigate();
   const d = useDashboard(company.id);
-  const { isOwner } = useCompanyAccess();
+  const { isOwner, department, userId } = useCompanyAccess();
   // Chỉ owner duyệt góp ý, nên chỉ owner có thẻ này (và chỉ owner gọi số đếm).
   const contributionsPending = useContributionsSummary(company.id, isOwner);
+  // Thành viên Phòng QC: số yêu cầu của mình đã Xong, đang chờ mình kiểm tra.
+  const qcItems = useQcStates().items;
+  const qcAwaitingMe = department === 'qc' && userId ? awaitingMe(qcItems, userId).length : null;
   const base = `/${company.issuePrefix}`;
   const s = d.summary.data;
   const now = Date.now();
@@ -233,6 +237,16 @@ export function DashboardPage() {
             value={contributionsPending ?? '–'}
             label={t('cards.contributions')}
             description={t('cards.contributionsHint')}
+            href={`${base}/contributions`}
+            onOpen={() => navigate(`${base}/contributions`)}
+          />
+        ) : null}
+        {qcAwaitingMe !== null ? (
+          <MetricCard
+            icon={ShieldCheck}
+            value={qcAwaitingMe}
+            label={t('cards.qcReview')}
+            description={t('cards.qcReviewHint')}
             href={`${base}/contributions`}
             onOpen={() => navigate(`${base}/contributions`)}
           />
