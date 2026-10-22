@@ -106,6 +106,7 @@ File nào thuộc flow nào. Dùng `crew-docs where <file>` để tra từ dòng
 | `packages/crew-plugin/migrations/0018_contributor_department.sql` | [crew-plugin](flows/crew-plugin.md) (file) |
 | `packages/crew-plugin/migrations/0019_qc_verification.sql` | [crew-plugin](flows/crew-plugin.md) (file) |
 | `packages/crew-plugin/migrations/0020_jev.sql` | [crew-plugin](flows/crew-plugin.md) (file) |
+| `packages/crew-plugin/migrations/0021_jev_features.sql` | [crew-plugin](flows/crew-plugin.md) (file) |
 | `packages/crew-plugin/src/__tests__/attachments-audit.db.test.ts` | [attachments](flows/attachments.md) (test) |
 | `packages/crew-plugin/src/__tests__/attachments-rules.test.ts` | [attachments](flows/attachments.md) (test) |
 | `packages/crew-plugin/src/__tests__/companies.db.test.ts` | [crew-plugin](flows/crew-plugin.md) (test) |
@@ -803,6 +804,7 @@ File nào thuộc flow nào. Dùng `crew-docs where <file>` để tra từ dòng
 | `server/src/__tests__/crew-issue-gate.db.test.ts` | [issue-gate](flows/issue-gate.md) (test) |
 | `server/src/__tests__/crew-issue-gate.test.ts` | [issue-gate](flows/issue-gate.md) (test) |
 | `server/src/__tests__/crew-jev-client.test.ts` | [jev](flows/jev.md) (test) |
+| `server/src/__tests__/crew-jev-features.db.test.ts` | [jev](flows/jev.md) (test) |
 | `server/src/__tests__/crew-jev-machine-auth.test.ts` | [jev](flows/jev.md) (test) |
 | `server/src/__tests__/crew-jev-routes.db.test.ts` | [jev](flows/jev.md) (test) |
 | `server/src/__tests__/crew-jev-shadow.db.test.ts` | [jev](flows/jev.md) (test) |
@@ -843,6 +845,8 @@ File nào thuộc flow nào. Dùng `crew-docs where <file>` để tra từ dòng
 | `server/src/crew/issue-gate.ts` | [issue-gate](flows/issue-gate.md) (điểm vào) |
 | `server/src/crew/issue-policy.ts` | [issue-gate](flows/issue-gate.md) (file) |
 | `server/src/crew/jev-client.ts` | [jev](flows/jev.md) (file) |
+| `server/src/crew/jev-features.ts` | [jev](flows/jev.md) (file) |
+| `server/src/crew/jev-judgments.ts` | [jev](flows/jev.md) (file) |
 | `server/src/crew/jev-machine-auth.ts` | [jev](flows/jev.md) (file) |
 | `server/src/crew/jev-routes.ts` | [jev](flows/jev.md) (điểm vào) |
 | `server/src/crew/jev-shadow.ts` | [jev](flows/jev.md) (file) |

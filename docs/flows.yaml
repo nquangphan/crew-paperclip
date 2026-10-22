@@ -297,6 +297,8 @@ flows:
       - packages/crew-web/src/features/jev/stats-panel.tsx
       - packages/crew-web/src/features/jev/use-jev.ts
       - server/src/crew/jev-client.ts
+      - server/src/crew/jev-features.ts
+      - server/src/crew/jev-judgments.ts
       - server/src/crew/jev-machine-auth.ts
       - server/src/crew/jev-shadow.ts
       - server/src/crew/jev-store.ts
@@ -306,6 +308,7 @@ flows:
       - packages/crew-web/test/features/jev/jev-page.test.tsx
       - packages/crew-web/test/features/jev/settings-form.test.ts
       - server/src/__tests__/crew-jev-client.test.ts
+      - server/src/__tests__/crew-jev-features.db.test.ts
       - server/src/__tests__/crew-jev-machine-auth.test.ts
       - server/src/__tests__/crew-jev-routes.db.test.ts
       - server/src/__tests__/crew-jev-shadow.db.test.ts
@@ -337,6 +340,7 @@ flows:
       - packages/crew-plugin/migrations/0018_contributor_department.sql
       - packages/crew-plugin/migrations/0019_qc_verification.sql
       - packages/crew-plugin/migrations/0020_jev.sql
+      - packages/crew-plugin/migrations/0021_jev_features.sql
       - packages/crew-plugin/src/companies/data.ts
       - packages/crew-plugin/src/features.ts
       - packages/crew-plugin/src/shared/css.d.ts

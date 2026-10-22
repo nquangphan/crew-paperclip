@@ -73,7 +73,7 @@ Luật chính:
 | `packages/crew-plugin/src/ui/page.tsx` | Trang Crew | `CrewPage` |
 | `packages/crew-plugin/src/ui/tab.tsx` | Tab Crew trên issue | `CrewIssueTab` |
 | `packages/crew-plugin/src/ui/summary.tsx` | Tóm tắt Crew trên issue | `CrewIssueSummary`, `crewSummaryLine` |
-| `packages/crew-plugin/migrations/` | Chuỗi migration bảng plugin (`0001_docs.sql` … `0020_jev.sql`) | |
+| `packages/crew-plugin/migrations/` | Chuỗi migration bảng plugin (`0001_docs.sql` … `0021_jev_features.sql`) | |
 | `server/src/crew/plugin-startup-wait.ts` | Chờ plugin nạp xong lúc khởi động | `crewPluginStartupWait` |
 | `server/src/crew/plugin-data-scope.ts` | Viewer đọc data `crew.core` | `crewViewerPluginDataScope`, `CREW_VIEWER_DATA_KEYS` |
 
@@ -96,7 +96,7 @@ sự kiện plugin dạng call để xóa invocation scope khi handler xong).
     (`0017`);
   - góp ý và QC: `crew_contributors`, `crew_contributions` (`0013`, `0018`, `0019`), `crew_qc_rounds` (`0019`);
   - `crew_project_access` (`0016`);
-  - Jev: `crew_jev_settings`, `crew_jev_machines`, `crew_jev_gate_events`, `crew_jev_shadow` (`0020`).
+  - Jev: `crew_jev_settings`, `crew_jev_machines`, `crew_jev_gate_events`, `crew_jev_shadow` (`0020`); `0021` thêm cột `features` cho `crew_jev_settings` và bảng đo `crew_jev_judgments`.
 - Bảng lõi plugin được đọc: `database.coreReadTables` trong manifest.
 - Cấu hình instance: `companies[].webhookSecretRef`, `paperclipSshPublicKey`, `opencodeInPlacePatch`.
 - Job định kỳ: `attachments-audit`, `runtime-fallback` (mỗi phút). Webhook: `machine-status`, `docs-snapshot`.

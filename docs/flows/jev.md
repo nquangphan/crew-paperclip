@@ -17,6 +17,13 @@ OpenRouter). Phần chặn chạy trên Mac (repo crew, flow `mac-jev`). Phần 
 - So sánh Jev với regex (chỉ ghi, không quyết định): worker nền hỏi Jev cùng câu hỏi mà regex của lõi (nhãn liveness)
   và của plugin (phân loại lỗi runtime) đã trả lời, để owner thấy chỗ hai bên lệch. Quyết định thật vẫn theo regex.
 
+Đợt 2 thêm bốn tính năng dùng Jev ngoài cổng Mac, mỗi tính năng có chế độ `off | shadow | on` (cột `features`, thiếu khóa là
+`shadow`) và chung một công tắc `enabled`: tắt thì không tính năng nào gọi Jev hay ghi dòng đo. Jev lỗi, chậm, thiếu key hay
+tắt thì mọi thứ chạy y như cũ; route judge luôn trả 200 `{ ok: false, reason }`. Bốn tính năng: `complexity` (Jev xét việc con
+có chạm bảo mật/migration/API công khai nhưng khai nhỏ hơn `large`, cộng luật xác định "có ảnh mà model không đọc được ảnh"),
+`approval_note` (lời nhắn khi owner duyệt/yêu cầu sửa có lệch hành động), `request_type` (gợi ý loại yêu cầu),
+`inbox_attention` (huy hiệu "Cần Đại Ca để ý" trong hộp duyệt). Chế độ `shadow` chỉ đo; `on` mới hiện cho owner.
+
 Mọi route owner chỉ dành cho owner đăng nhập bằng phiên trình duyệt; board key, agent và role khác nhận 403. Body bị dời
 khỏi `req.body` trước mọi bước có thể lỗi, nên log HTTP không bao giờ chứa key hay lệnh. Server không có dependency npm
 `jev-use`: overlay prod chỉ chép file `.ts`, nên dùng bản bundle vendored nạp lười (hỏng thì chỉ Jev báo lỗi).
@@ -28,6 +35,10 @@ khỏi `req.body` trước mọi bước có thể lỗi, nên log HTTP không b
 - Route owner dưới `/api/crew/companies/:companyId/jev`: `GET`/`PUT /settings`, `PUT`/`DELETE /key`, `GET /stats`,
   `GET /gate-events`, `POST /gate-events/:id/label`, `GET /shadow`, `GET /issues/:issueId/summary`,
   `GET /requests/:requestId/map`.
+- Route judge (mọi thành viên company đăng nhập bằng phiên, dùng key của company): `POST /judge/approval-note`,
+  `POST /judge/request-type`, `POST /judgments/:id/outcome`. Route owner thêm: `GET /judgments/stats`, `GET /judgments`,
+  `GET /inbox-attention?issueIds=`; `GET /issues/:issueId/summary` có thêm `complexityFlag`, `GET /requests/:requestId/map` có
+  thêm `complexityFlags` (chỉ khi `complexity` là `on`).
 - Route máy (ký HMAC): `POST /machine/pull`, `POST /machine/events` cùng tiền tố. Mac gọi trong mỗi lượt
   `crew-mac status send`.
 - Router được gắn bên trong router góp ý (`crewContributionRoutes`, vá lõi C7), nên không cần vá lõi mới. Tạo router
@@ -53,7 +64,15 @@ khỏi `req.body` trước mọi bước có thể lỗi, nên log HTTP không b
    sánh và có key: lấy run `succeeded` có nhãn liveness (dựng text từ comment và `result_json`, che secret, cắt
    `JEV_SHADOW_TEXT_MAX_BYTES`) và dòng `pending` plugin ghi lúc run hỏng; hỏi Jev rồi ghi kết quả. Lỗi lặp
    `JEV_SHADOW_MAX_ATTEMPTS` lần thì bỏ. Mỗi giờ xóa dữ liệu cũ hơn `JEV_RETENTION_DAYS`.
-6. `server/src/crew/vendor/jev-use.ts` → `loadJevUse`: kiểu public và bộ nạp lười cho bundle `jev-use-<version>.ts`
+6. `server/src/crew/jev-features.ts`: lõi bốn tính năng. `approvalNoteJudgment`/`requestTypeJudgment` kiểm cổng (công tắc
+   chung, chế độ, migration 0021, key, trần 60 lần/phút/company) rồi hỏi Jev với hạn 1200 ms; `shadow` trả ngay và hỏi ở nền,
+   `on` chờ. Text luôn bỏ khối code/diff, che secret, cắt 4 KB. `startJevFeatureWorker`/`runJevFeatureSweep` (mỗi 60 s, bỏ
+   qua khi `NODE_ENV=test`): quét việc con do agent tạo có dòng `crew-model` (không nằm trên đường tạo issue, nên tạo issue
+   không thêm bước hay lỗi nào) và gốc `in_review` có mục `### Đã tự quyết định`; mỗi mục hỏi Jev một lần (khóa theo băm).
+   `complexityFlagForIssue`/`complexityFlagsForTree`, `inboxAttention`: dựng cờ và huy hiệu (luật xác định tính lúc đọc).
+7. `server/src/crew/jev-judgments.ts`: bảng đo chung `crew_jev_judgments` (ghi, kết quả owner chọn, số liệu theo tính năng
+   × chế độ, danh sách, dọn quá 30 ngày cùng giờ dọn có sẵn).
+8. `server/src/crew/vendor/jev-use.ts` → `loadJevUse`: kiểu public và bộ nạp lười cho bundle `jev-use-<version>.ts`
    (file sinh, không sửa tay).
 7. `packages/crew-web/src/features/jev/jev-page.tsx` → `JevPage`: `KeyForm` (ô password, xóa trắng sau khi gửi, chỉ hiện
    vân tay), `SettingsForm` (`parseSettingsForm`, `THRESHOLD_RANGE`, `TIMEOUT_RANGE`), `MachinesTable` (máy đã nhận bản
@@ -66,6 +85,8 @@ khỏi `req.body` trước mọi bước có thể lỗi, nên log HTTP không b
 |-----------|---------|--------------|
 | `server/src/crew/jev-routes.ts` | Router owner và route máy | `crewJevRoutes`, `JEV_ERRORS`, `JEV_EVENTS_MAX_ROWS` |
 | `server/src/crew/jev-store.ts` | Bảng `crew_jev_*`, secret key, số liệu | `getJevSettings`, `saveJevSettings`, `storeJevKey`, `clearJevKey`, `resolveJevApiKey`, `insertGateEvents`, `jevStats`, `JEV_DEFAULTS`, `JEV_SECRET_NAME` |
+| `server/src/crew/jev-features.ts` | Bốn tính năng đợt 2: route judge, worker, cờ, huy hiệu | `approvalNoteJudgment`, `requestTypeJudgment`, `runJevFeatureSweep`, `complexityFlagsForTree`, `inboxAttention`, `featureMode` |
+| `server/src/crew/jev-judgments.ts` | Bảng đo `crew_jev_judgments` | `recordJudgment`, `judgmentStats`, `listJudgments`, `setJudgmentOutcome`, `purgeJudgments` |
 | `server/src/crew/jev-machine-auth.ts` | Xác thực request của Mac | `verifyMachineRequest`, `deriveMachineKey`, `verifyCrewSignature` |
 | `server/src/crew/jev-client.ts` | Gọi Jev từ server | `jevJudge` |
 | `server/src/crew/jev-shadow.ts` | Worker so sánh Jev với regex | `startJevShadowWorker`, `runJevShadowSweep`, `LIVENESS_SHADOW_LABEL` |
@@ -82,7 +103,10 @@ khỏi `req.body` trước mọi bước có thể lỗi, nên log HTTP không b
 - Bảng plugin (migration `packages/crew-plugin/migrations/0020_jev.sql`, chỉ server đọc/ghi): `crew_jev_settings`,
   `crew_jev_machines`, `crew_jev_gate_events`, `crew_jev_shadow` (plugin chỉ chèn dòng `pending`). Đọc thêm
   `machine_pairings` (hostname) và cấu hình plugin `crew.core` (secret webhook).
-- Bảng lõi: company secret (tên `crew-jev-openrouter`) và access event của nó; đọc `heartbeat_runs`, `issue_comments`.
+- Migration `0021_jev_features.sql`: cột `crew_jev_settings.features` (jsonb) và bảng `crew_jev_judgments` (mỗi lần gọi một
+  dòng: tính năng, chế độ, nhãn Jev, độ tin, escalate, lỗi, độ trễ, `baseline`, `mismatch`, `shown`, `owner_outcome`). Thiếu
+  bảng này thì Jev cũ vẫn chạy, chỉ bốn tính năng dừng (judge trả `unavailable`, `PUT features` trả 503).
+- Bảng lõi: company secret (tên `crew-jev-openrouter`) và access event của nó; đọc `heartbeat_runs`, `issue_comments`, `issues` (mô tả, tiêu đề), `issue_attachments` + `assets` (luật ảnh).
 - Gọi ngoài: OpenRouter (Jev), chỉ khi thử key và trong worker so sánh. `CREW_JEV_BASE_URL` chỉ để test trỏ vào stub.
 - Lỗi: 400 `crew_jev_invalid`, 404 `crew_jev_not_found`, 413 `too_many_events`, 503 `crew_jev_unavailable`.
 
@@ -100,6 +124,10 @@ khỏi `req.body` trước mọi bước có thể lỗi, nên log HTTP không b
   chỉ trả vân tay; kiểm schema và tăng version; pull kiểm chữ ký, máy bị gỡ, company không cấu hình, chỉ gửi key khi
   cần; giới hạn lô events, đếm trùng, che secret; số liệu theo giờ Việt Nam; đánh dấu ca; xóa key; log HTTP không có key
   hay lệnh.
+- `server/src/__tests__/crew-jev-features.db.test.ts`: công tắc chung tắt thì không gọi Jev và không ghi dòng; `PUT features`
+  gộp khóa; lệch lời nhắn, redact và bỏ code; cách ly company; tính năng `off`; `shadow` trả ngay; timeout/lỗi là
+  `{ ok: false }` 200 trong hạn; thiếu key; cờ độ phức tạp (Jev và luật ảnh); huy hiệu hộp duyệt có cache theo băm; số liệu và
+  danh sách; bảng 0021 vắng; EXPLAIN truy vấn mới dùng index.
 - `server/src/__tests__/crew-jev-machine-auth.test.ts`: khóa máy và chữ ký khớp bản plugin; mã lỗi; từ chối trước khi đọc
   secret.
 - `server/src/__tests__/crew-jev-client.test.ts`: trả lời qua bản vendored; phân loại 401/403, 5xx, body sai; bundle hỏng
