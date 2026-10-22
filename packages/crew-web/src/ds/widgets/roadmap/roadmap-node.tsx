@@ -9,6 +9,7 @@ import type { CSSProperties, ReactNode } from 'react';
 import { useT } from '@/i18n';
 import { cn } from '../../cn';
 import { StatusGlyph } from '../status-glyph';
+import { jevSummaryText, RoadmapJevBadge } from './roadmap-jev-badge';
 import { runsHeight } from './roadmap-layout';
 import { RoadmapRunList, roadmapRunsLabel, useRunClock } from './roadmap-run-list';
 import { isRunActive } from './roadmap-runs';
@@ -22,7 +23,8 @@ const statusText = (t: TFn, status: string | null | undefined) =>
 /** Nhãn đọc màn hình của một nút, kèm các ghi chú không vừa thẻ (`notes`). */
 export function roadmapNodeLabel(t: TFn, node: RoadmapNode): string {
   const base = baseLabel(t, node);
-  return node.notes?.length ? `${base}. ${node.notes.join('. ')}` : base;
+  const withNotes = node.notes?.length ? `${base}. ${node.notes.join('. ')}` : base;
+  return node.jev ? `${withNotes}. ${jevSummaryText(t, node.jev)}` : withNotes;
 }
 
 function baseLabel(t: TFn, node: RoadmapNode): string {
@@ -116,7 +118,17 @@ function IssueHead({ node }: { node: RoadmapNode }) {
     <span className="flex h-4 min-w-0 items-center gap-1.5">
       <StatusGlyph status={status} size="sm" color="var(--tone)" />
       <span className="truncate font-mono text-[11px] leading-4 text-muted-foreground">{node.identifier}</span>
-      <span className="roadmap-pill ml-auto shrink-0 rounded-full px-1.5 text-[10px] leading-4 font-medium">
+      {node.jev ? (
+        <span className="ml-auto shrink-0">
+          <RoadmapJevBadge jev={node.jev} />
+        </span>
+      ) : null}
+      <span
+        className={cn(
+          'roadmap-pill shrink-0 rounded-full px-1.5 text-[10px] leading-4 font-medium',
+          !node.jev && 'ml-auto',
+        )}
+      >
         {statusText(t, node.status)}
       </span>
     </span>

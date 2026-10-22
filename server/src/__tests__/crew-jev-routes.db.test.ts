@@ -9,7 +9,7 @@ import express from "express";
 import request from "supertest";
 import { eq, sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { agents, companies, companyMemberships, companySecrets, createDb, heartbeatRuns, pluginConfig, plugins, secretAccessEvents } from "@paperclipai/db";
+import { agents, companies, companyMemberships, companySecrets, createDb, heartbeatRuns, issues, pluginConfig, plugins, secretAccessEvents } from "@paperclipai/db";
 import pino from "pino";
 import { CREW_POLICY_CONFIG_ENV } from "../crew/issue-policy.js";
 import { deriveMachineKey } from "../crew/jev-machine-auth.js";
@@ -649,6 +649,76 @@ suite("Crew Jev: route owner và route máy", () => {
     const plan = ((await db.execute(sql`EXPLAIN ${issueGateCountsSql(companyId, issueA)}`)) as unknown as Array<{ "QUERY PLAN": string }>)
       .map((row) => row["QUERY PLAN"]).join("\n");
     if (process.env.CREW_JEV_EXPLAIN_OUT) writeFileSync(process.env.CREW_JEV_EXPLAIN_OUT, `${plan}\n`);
+    expect(plan).toContain("crew_jev_gate_events_run_idx");
+    expect(plan).toContain("heartbeat_runs_company_ctx_issue_created_idx");
+    expect(plan).not.toMatch(/Seq Scan on (crew_jev_gate_events|heartbeat_runs)/);
+  });
+
+  it("bản đồ yêu cầu: số theo issue của cả cây, cây khác không lẫn, một truy vấn dùng index run", async () => {
+    const [agent] = await db.insert(agents).values({ companyId, name: "jev-map-agent" }).returning();
+    const makeIssue = async (title: string, parentId: string | null) =>
+      (await db.insert(issues).values({ companyId, title, status: "todo", priority: "medium", parentId }).returning())[0]!.id;
+    const root = await makeIssue("root", null);
+    const child = await makeIssue("child", root);
+    const grandchild = await makeIssue("grandchild", child);
+    const idle = await makeIssue("idle child", root);
+    const otherRoot = await makeIssue("other root", null);
+    const makeRun = async (issueId: string) =>
+      (await db.insert(heartbeatRuns).values({
+        companyId, agentId: agent!.id, status: "succeeded", contextSnapshot: { issueId },
+      }).returning())[0]!.id;
+    const [runRoot, runChild, runGrand, runOther] = [
+      await makeRun(root), await makeRun(child), await makeRun(grandchild), await makeRun(otherRoot),
+    ];
+    const ev = (runId: string, overrides: Record<string, unknown>) => event({ runId, ...overrides });
+    const batch = [
+      ev(runRoot, {}),
+      ev(runChild, { verdict: "deny", applied: "deny", mode: "enforce", category: "force_push", blocking: true, command: "git push --force c1" }),
+      ev(runChild, { verdict: "deny", applied: "deny", mode: "enforce", category: "force_push", blocking: true, command: "git push --force c2" }),
+      ev(runGrand, { verdict: "escalate", applied: "allow", confidence: 0.4, command: "rm -rf x" }),
+      ev(runGrand, { verdict: "error", errorCode: "skipped_bg", confidence: null, command: "pwd" }),
+      ev(runOther, { verdict: "deny", applied: "deny", category: "force_push", command: "git push --force other" }),
+    ];
+    expect((await signed("/machine/events", eventsBody(batch), WEBHOOK_SECRET)).body).toMatchObject({ accepted: 6 });
+    await db.execute(sql`INSERT INTO ${sql.raw(crewJevTable("crew_jev_shadow"))}
+      (company_id, kind, run_id, regex_label, jev_label, status, escalated)
+      VALUES (${companyId}, 'liveness', ${runGrand}, 'blocked', 'progress', 'done', false),
+             (${companyId}, 'liveness', ${runOther}, 'blocked', 'progress', 'done', false)`);
+
+    const res = record(await (await owner()).get(url(`/requests/${root}/map`)));
+    expect(res.status).toBe(200);
+    expect(res.body.byIssue).toEqual({
+      [root]: { calls: 1, deny: 0, appliedDeny: 0, escalate: 0, error: 0 },
+      [child]: { calls: 2, deny: 2, appliedDeny: 2, escalate: 0, error: 0 },
+      [grandchild]: { calls: 1, deny: 0, appliedDeny: 0, escalate: 1, error: 0 },
+    });
+    expect(res.body.byIssue[idle]).toBeUndefined();
+    expect(res.body.shadowMismatch).toEqual({ [grandchild]: 1 });
+    expect(typeof res.body.enabled).toBe("boolean");
+
+    const other = record(await (await owner()).get(url(`/requests/${otherRoot}/map`)));
+    expect(Object.keys(other.body.byIssue)).toEqual([otherRoot]);
+    expect(record(await (await owner()).get(url(`/requests/${randomUUID()}/map`))).body).toMatchObject({ byIssue: {}, shadowMismatch: {} });
+    expect(record(await (await owner()).get(url("/requests/abc/map"))).status).toBe(400);
+    for (const who of [users.viewer, users.admin]) {
+      expect(record(await request(await as(who)).get(url(`/requests/${root}/map`))).status).toBe(403);
+    }
+
+    // Dữ liệu mẫu cỡ company đã chạy lâu (run và sự kiện của nhiều issue khác) rồi kiểm kế hoạch.
+    await db.execute(sql`INSERT INTO heartbeat_runs (company_id, agent_id, status, context_snapshot, created_at)
+      SELECT ${companyId}, ${agent!.id}, 'succeeded', jsonb_build_object('issueId', gen_random_uuid()::text),
+        now() - (g || ' minutes')::interval FROM generate_series(1, 5000) g`);
+    await db.execute(sql`INSERT INTO ${sql.raw(crewJevTable("crew_jev_gate_events"))}
+      (company_id, machine_id, event_id, occurred_at, run_id, mode, verdict, applied, blocking, command)
+      SELECT ${companyId}, ${machines.legacy}, gen_random_uuid(), now() - (g || ' seconds')::interval, r.id, 'shadow', 'allow',
+        'allow', false, 'ls' FROM generate_series(1, 6) g, (SELECT id FROM heartbeat_runs LIMIT 5000) r`);
+    await db.execute(sql`ANALYZE heartbeat_runs`);
+    await db.execute(sql.raw(`ANALYZE ${crewJevTable("crew_jev_gate_events")}`));
+    await db.execute(sql`ANALYZE issues`);
+    const { requestMapGateSql } = await import("../crew/jev-store.js");
+    const plan = ((await db.execute(sql`EXPLAIN ${requestMapGateSql(companyId, root)}`)) as unknown as Array<{ "QUERY PLAN": string }>)
+      .map((row) => row["QUERY PLAN"]).join("\n");
+    if (process.env.CREW_JEV_EXPLAIN_MAP_OUT) writeFileSync(process.env.CREW_JEV_EXPLAIN_MAP_OUT, `${plan}\n`);
     expect(plan).toContain("crew_jev_gate_events_run_idx");
     expect(plan).toContain("heartbeat_runs_company_ctx_issue_created_idx");
     expect(plan).not.toMatch(/Seq Scan on (crew_jev_gate_events|heartbeat_runs)/);

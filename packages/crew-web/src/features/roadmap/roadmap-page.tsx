@@ -215,6 +215,7 @@ export function RoadmapPage() {
         descendants: data.subtree.data.items,
         agentName: (id) => names.get(id),
         runs: data.runs.data,
+        jev: data.jev.data,
         statusOf,
         cap,
       });

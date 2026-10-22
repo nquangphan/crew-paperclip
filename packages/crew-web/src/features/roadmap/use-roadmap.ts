@@ -5,7 +5,8 @@ import type { CompactIssue } from '@paperclipai/shared';
 import { useQuery } from '@tanstack/react-query';
 import { useCallback, useMemo } from 'react';
 import { api, type IssueListFilters, queryKeys } from '@/api';
-import { useVisibleProjects } from '@/features/access';
+import { useCompanyAccess, useVisibleProjects } from '@/features/access';
+import { useJevSettings } from '@/features/jev/use-jev';
 import { childrenIndex, descendantsOf, LIST_LIMIT, NO_PROJECT, projectRoots } from './roadmap-model';
 
 /** Danh sách đã lọc quyền, kèm cờ "server có thể đã cắt" (đủ trần dòng). */
@@ -23,6 +24,9 @@ export interface RoadmapDataParams {
   /** Trang docs đang mở popup. */
   doc: string | null;
 }
+
+/** Chu kỳ làm tươi số liệu Jev trên bản đồ. */
+const JEV_MAP_REFRESH_MS = 30_000;
 
 export const companyFilters = (): IssueListFilters => ({ view: 'compact', limit: LIST_LIMIT });
 
@@ -99,6 +103,18 @@ export function useRoadmapData(companyId: string, p: RoadmapDataParams) {
     enabled: visible.ready && requestId !== null,
   });
 
+  // Huy hiệu Jev: chỉ owner và khi Jev bật, tải sau bản đồ (không chặn vẽ); lỗi thì bỏ qua lặng lẽ, bản đồ vẫn như cũ.
+  const { isOwner } = useCompanyAccess();
+  const jevSettings = useJevSettings(companyId, isOwner && requestId !== null);
+  const jevOn = jevSettings.data?.enabled === true;
+  const jev = useQuery({
+    queryKey: queryKeys.jev(companyId, 'map', requestId),
+    queryFn: () => api.jev.requestMap(companyId, requestId as string),
+    enabled: jevOn && requestId !== null && subtree.data !== undefined,
+    retry: false,
+    refetchInterval: JEV_MAP_REFRESH_MS,
+  });
+
   const docsProjects = useQuery({
     queryKey: queryKeys.crew('crew.docs.projects', { companyId }),
     queryFn: () => api.crew.docsProjects(companyId),
@@ -127,6 +143,7 @@ export function useRoadmapData(companyId: string, p: RoadmapDataParams) {
     subtree,
     agents,
     runs,
+    jev,
     docsProjects,
     hasDocs,
     tree,

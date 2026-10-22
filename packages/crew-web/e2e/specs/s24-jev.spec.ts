@@ -7,7 +7,7 @@ import { createHmac, randomUUID } from 'node:crypto';
 import { request } from '@playwright/test';
 import type { Api } from '../support/api';
 import { trackIssue } from '../support/cleanup';
-import { uniqueToken } from '../support/data';
+import { archiveProject, createIssue, createProject, uniqueToken, waitInCompactList } from '../support/data';
 import { baseUrl } from '../support/env';
 import { expect, test } from '../support/fixtures';
 
@@ -392,5 +392,116 @@ test('PW-S24-4 Trang issue: dòng tóm tắt Jev đúng số, mở ra thấy ca 
     expect(list.items.find((e) => e.command === command)?.ownerLabel).toBe('wrong');
   } finally {
     await api.raw('DELETE', `/api/agents/${agent.id}`);
+  }
+});
+
+test('PW-S24-5 Bản đồ Roadmap: thẻ có lệnh Jev hiện huy hiệu đúng màu và số, người không phải owner không thấy @t1 @t1-only', async ({
+  page,
+  api,
+  company,
+}) => {
+  await api.put(jevPath(company.id, '/settings'), {
+    enabled: true,
+    gateMode: 'enforce',
+    model: 'typesafe/jev-1.14',
+    threshold: 0.5,
+    timeoutMs: 2500,
+    serverShadow: false,
+  });
+  const token = uniqueToken('s24');
+  const project = await createProject(api, company.id, `PW-S24 ${token}`);
+  const agent = await api.post<{ id: string }>(`/api/companies/${company.id}/agents`, {
+    name: `e2e-jev-map-${uniqueToken('')}`,
+    role: 'general',
+    adapterType: 'process',
+    adapterConfig: { command: 'true', args: [] },
+    runtimeConfig: { heartbeat: { enabled: false, wakeOnDemand: true } },
+  });
+  try {
+    const root = await createIssue(api, company.id, { title: `PW-S24 yêu cầu ${token}`, projectId: project.id });
+    const child = await createIssue(api, company.id, {
+      title: `PW-S24 việc con ${token}`,
+      projectId: project.id,
+      parentId: root.id,
+    });
+    await waitInCompactList(api, company.id, [root.id, child.id]);
+    const wake = (issueId: string) =>
+      api.post<{ id: string }>(`/api/agents/${agent.id}/wakeup`, {
+        source: 'on_demand',
+        reason: 'e2e-jev-map',
+        payload: { issueId },
+        contextSnapshot: { issueId },
+      });
+    const [rootRun, childRun] = [await wake(root.id), await wake(child.id)];
+
+    const row = (runId: string, verdict: 'allow' | 'deny', applied: 'allow' | 'deny') => ({
+      v: 1,
+      eventId: randomUUID(),
+      ts: new Date().toISOString(),
+      companyId: company.id,
+      runId,
+      agentId: agent.id,
+      cwd: null,
+      mode: 'enforce',
+      category: verdict === 'deny' ? 'force_push' : null,
+      blocking: true,
+      verdict,
+      applied,
+      confidence: 0.9,
+      reason: null,
+      errorCode: null,
+      latencyMs: 120,
+      model: 'typesafe/jev-1.14',
+      command: verdict === 'deny' ? 'git push --force origin e2e-map' : 'git status',
+    });
+    const sent = await signedPost(
+      company.id,
+      '/machine/events',
+      {
+        machineId: randomUUID(),
+        events: [
+          row(rootRun.id, 'deny', 'deny'),
+          row(rootRun.id, 'allow', 'allow'),
+          row(childRun.id, 'allow', 'allow'),
+          row(childRun.id, 'allow', 'allow'),
+          row(childRun.id, 'allow', 'allow'),
+        ],
+      },
+      webhookSecret,
+    );
+    expect(sent.status, JSON.stringify(sent.body)).toBe(200);
+
+    const map = await api.get<{ byIssue: Record<string, { calls: number; appliedDeny: number }> }>(
+      jevPath(company.id, `/requests/${root.id}/map`),
+    );
+    expect(map.byIssue[root.id]).toMatchObject({ calls: 2, appliedDeny: 1 });
+    expect(map.byIssue[child.id]).toMatchObject({ calls: 3, appliedDeny: 0 });
+
+    await page.goto(`${company.path('roadmap')}?project=${project.id}&request=${root.identifier}`);
+    const badge = (id: string) => page.locator(`button[data-roadmap-id="${id}"] [data-slot="roadmap-jev"]`);
+    await expect(badge(root.id)).toHaveAttribute('data-tone', 'blocked');
+    await expect(badge(root.id)).toHaveText('1 chặn');
+    await expect(badge(root.id)).toHaveAttribute('title', /Jev: 2 lệnh · 1 chặn thật/);
+    await expect(badge(child.id)).toHaveAttribute('data-tone', 'quiet');
+    await expect(badge(child.id)).toHaveText('3 lệnh');
+    await expect(page.locator('[data-slot="roadmap-legend-jev"]')).toHaveCount(4);
+
+    // Người không phải owner: UI không gọi API Jev và không vẽ huy hiệu (server cũng trả 403 cho họ).
+    const jevRequests: string[] = [];
+    page.on('request', (r) => {
+      if (r.url().includes('/api/crew/companies/') && r.url().includes('/jev/')) jevRequests.push(r.url());
+    });
+    await page.route(`**/api/crew/companies/${company.id}/access`, (route) =>
+      route.fulfill({
+        json: { userId: 'e2e-operator', membershipRole: 'operator', contributor: false, canApprove: false },
+      }),
+    );
+    await page.reload();
+    await expect(page.locator(`button[data-roadmap-id="${child.id}"]`)).toBeVisible();
+    await expect(page.locator('[data-slot="roadmap-jev"]')).toHaveCount(0);
+    expect(jevRequests).toEqual([]);
+  } finally {
+    await api.raw('DELETE', `/api/agents/${agent.id}`);
+    await archiveProject(api, project.id);
   }
 });

@@ -141,7 +141,16 @@ export interface JevIssueSummary {
   shadow: { mismatch: number; items: JevShadowItem[] };
 }
 
+/** Số lệnh Jev theo từng issue của một cây yêu cầu (bản đồ Roadmap); chỉ issue có dữ liệu mới có khóa. */
+export interface JevRequestMap {
+  enabled: boolean;
+  byIssue: Record<string, { calls: number; deny: number; appliedDeny: number; escalate: number; error: number }>;
+  shadowMismatch: Record<string, number>;
+}
+
 export const jevApi = {
+  requestMap: (companyId: string, requestId: string): Promise<JevRequestMap> =>
+    call('jev.requestMap', { companyId, requestId }),
   issueSummary: (companyId: string, issueId: string): Promise<JevIssueSummary> =>
     call('jev.issueSummary', { companyId, issueId }),
   settings: (companyId: string): Promise<JevSettings> => call('jev.settings', { companyId }),
@@ -164,6 +173,7 @@ export const jevApi = {
 };
 
 export const __endpoints = [
+  'jev.requestMap',
   'jev.issueSummary',
   'jev.deleteKey',
   'jev.events',

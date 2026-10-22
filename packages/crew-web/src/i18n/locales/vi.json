@@ -370,7 +370,13 @@
       "blocks": "Chặn (phải xong trước)",
       "repair": "Vòng sửa",
       "current": "Việc đang xem",
-      "running": "Đang chạy (có việc đang làm)"
+      "running": "Đang chạy (có việc đang làm)",
+      "jev": {
+        "blocked": "Jev: có lệnh bị chặn thật",
+        "attention": "Jev: có deny chỉ ghi log hoặc ca không chắc",
+        "quiet": "Jev: chỉ lệnh cho qua (số lệnh)",
+        "mismatch": "Jev: có ca lệch C3 (chấm nhỏ)"
+      }
     },
     "controls": {
       "label": "Điều khiển bản đồ",
@@ -396,6 +402,20 @@
       "latest": "Run mới nhất: {{runs}}",
       "noteSubscription": "Giá quy đổi API, gói thuê bao không bị trừ tiền",
       "noteApi": "Giá quy đổi API theo số liệu của run"
+    },
+    "jev": {
+      "name": "Jev",
+      "blocked": "{{count}} chặn",
+      "attention": "{{count}} cảnh báo",
+      "calls": "{{count}} lệnh",
+      "tip": {
+        "calls": "{{count}} lệnh",
+        "blocked": "{{count}} chặn thật",
+        "logOnly": "{{count}} deny chỉ ghi log",
+        "escalate": "{{count}} không chắc",
+        "error": "{{count}} lỗi",
+        "mismatch": "{{count}} ca lệch C3"
+      }
     }
   }
 }

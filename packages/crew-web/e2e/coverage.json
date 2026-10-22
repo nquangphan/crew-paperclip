@@ -328,5 +328,10 @@
     "spec": "e2e/specs/s24-jev.spec.ts",
     "tests": ["PW-S24-4 "],
     "tier": "T1"
+  },
+  "S24.5": {
+    "spec": "e2e/specs/s24-jev.spec.ts",
+    "tests": ["PW-S24-5 "],
+    "tier": "T1"
   }
 }

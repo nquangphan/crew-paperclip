@@ -40,8 +40,20 @@ export interface RoadmapNode {
   notes?: readonly string[];
   /** Việc đang xem (bản đồ Crew ở trang chi tiết): viền nổi bật. */
   current?: boolean;
+  /** Số lệnh Jev đã xét trong các run của việc (chỉ owner, khi có dữ liệu): huy hiệu "Jev" trên thẻ. */
+  jev?: RoadmapJev;
   /** Run của việc (yêu cầu/việc con): vài dòng mới nhất trong thẻ, chân thẻ là tổng tiền và số run. */
   runs?: RoadmapRuns;
+}
+
+/** Số liệu Jev của một việc; `mismatch` là số ca lệch giữa nhãn Jev và regex (C3). */
+export interface RoadmapJev {
+  calls: number;
+  deny: number;
+  appliedDeny: number;
+  escalate: number;
+  error: number;
+  mismatch: number;
 }
 
 /** Một run của việc, đủ để vẽ một dòng: trạng thái, agent, model, thời lượng, tiền. */

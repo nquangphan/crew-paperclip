@@ -597,6 +597,9 @@ export interface JevStats {
 
 /** Dòng thật sự là một lần hỏi Jev: loại `skipped_bg` (không gọi Jev) và `dropped` (một dòng thay cho N dòng đã mất). */
 const CALLED = sql.raw("coalesce(error_code, '') NOT IN ('skipped_bg', 'dropped')");
+const MISMATCH_S = sql.raw(
+  "(s.status = 'done' AND NOT coalesce(s.escalated, false) AND s.jev_label IS NOT NULL AND s.jev_label <> s.regex_label)",
+);
 const CALLED_E = sql.raw("coalesce(e.error_code, '') NOT IN ('skipped_bg', 'dropped')");
 
 const roundMs = (value: unknown): number | null => (value === null || value === undefined ? null : Math.round(Number(value)));
@@ -755,4 +758,68 @@ export async function jevIssueSummary(
     items: itemRows.map(toGateEvent),
     shadow: { mismatch: int(mismatchCount?.n), items: shadowRows.map((row) => toShadowRow(row, redact)) },
   };
+}
+
+// ---------------------------------------------------------------------------------------------------------------
+// Bản đồ yêu cầu: số lệnh Jev theo từng issue của cây
+// ---------------------------------------------------------------------------------------------------------------
+
+const MAP_MAX_DEPTH = 20;
+
+export interface JevMapIssue {
+  calls: number;
+  deny: number;
+  appliedDeny: number;
+  escalate: number;
+  error: number;
+}
+
+export interface JevRequestMap {
+  byIssue: Record<string, JevMapIssue>;
+  shadowMismatch: Record<string, number>;
+}
+
+/** Cây yêu cầu (gốc và mọi hậu duệ, như handler `crew.runs` của plugin) nối với run của từng issue. */
+const treeRunsSql = (companyId: string, requestId: string) => sql`WITH RECURSIVE tree(id, depth) AS (
+      SELECT id, 0 FROM public.issues WHERE id = ${requestId} AND company_id = ${companyId}
+      UNION ALL
+      SELECT i.id, t.depth + 1 FROM public.issues i JOIN tree t ON i.parent_id = t.id
+      WHERE i.company_id = ${companyId} AND t.depth < ${MAP_MAX_DEPTH}),
+    tree_runs AS (
+      SELECT r.id AS run_id, tree.id::text AS issue_id FROM tree
+      JOIN "heartbeat_runs" r ON r.company_id = ${companyId} AND (r.context_snapshot ->> 'issueId') = tree.id::text)`;
+
+/** Một truy vấn gom nhóm cho cả cây; export để test kiểm kế hoạch (dùng `crew_jev_gate_events_run_idx`). */
+export function requestMapGateSql(companyId: string, requestId: string): SQL {
+  return sql`${treeRunsSql(companyId, requestId)}
+    SELECT tr.issue_id,
+      count(*) FILTER (WHERE ${CALLED_E})::int AS calls,
+      count(*) FILTER (WHERE ${CALLED_E} AND e.verdict = 'deny')::int AS deny,
+      count(*) FILTER (WHERE ${CALLED_E} AND e.applied = 'deny')::int AS applied_deny,
+      count(*) FILTER (WHERE ${CALLED_E} AND e.verdict = 'escalate')::int AS escalate,
+      count(*) FILTER (WHERE ${CALLED_E} AND e.verdict = 'error')::int AS error
+    FROM tree_runs tr JOIN ${table("crew_jev_gate_events")} e ON e.company_id = ${companyId} AND e.run_id = tr.run_id
+    GROUP BY tr.issue_id`;
+}
+
+/** Số lệnh Jev và ca lệch C3 theo issue của một cây yêu cầu; chỉ issue có dữ liệu mới có khóa (id chữ thường). */
+export async function jevRequestMap(db: Sql, companyId: string, requestId: string): Promise<JevRequestMap> {
+  const gate = rowsOf(await db.execute(requestMapGateSql(companyId, requestId)));
+  const mismatch = rowsOf(
+    await db.execute(sql`${treeRunsSql(companyId, requestId)}
+      SELECT tr.issue_id, count(*)::int AS n
+      FROM tree_runs tr JOIN ${table("crew_jev_shadow")} s ON s.company_id = ${companyId} AND s.run_id = tr.run_id
+      WHERE ${MISMATCH_S} GROUP BY tr.issue_id`),
+  );
+  const byIssue: Record<string, JevMapIssue> = {};
+  for (const row of gate) {
+    const calls = int(row.calls);
+    if (calls === 0) continue;
+    byIssue[String(row.issue_id).toLowerCase()] = {
+      calls, deny: int(row.deny), appliedDeny: int(row.applied_deny), escalate: int(row.escalate), error: int(row.error),
+    };
+  }
+  const shadowMismatch: Record<string, number> = {};
+  for (const row of mismatch) shadowMismatch[String(row.issue_id).toLowerCase()] = int(row.n);
+  return { byIssue, shadowMismatch };
 }

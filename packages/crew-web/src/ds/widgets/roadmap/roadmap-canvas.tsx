@@ -8,6 +8,7 @@ import type { RoadmapEdgeKind, RoadmapLevel, RoadmapNode } from './roadmap-types
 export type {
   RoadmapEdge,
   RoadmapEdgeKind,
+  RoadmapJev,
   RoadmapLevel,
   RoadmapNode,
   RoadmapNodeKind,

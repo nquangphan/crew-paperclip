@@ -6,7 +6,7 @@ import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { CompanyContext } from '@/app/hooks';
 import { RoadmapPage } from '@/features/roadmap/roadmap-page';
 import { initI18n, setLanguage } from '@/i18n';
-import { mockServer, projectAccessRoute } from '../../app/fetch-mock';
+import { accessRoute, mockServer, projectAccessRoute } from '../../app/fetch-mock';
 
 beforeAll(async () => {
   class ResizeObserverStub {
@@ -179,6 +179,76 @@ describe('RoadmapPage', () => {
     await waitFor(() => expect(node('c2')).toBeTruthy());
     fireEvent.keyDown(document, { key: 'Escape' });
     await waitFor(() => expect(loc()).toBe('/TPS/roadmap?project=p1'));
+  });
+
+  describe('huy hiệu Jev', () => {
+    const settings = (enabled: boolean) => ({ body: { enabled, machines: [] } });
+    const jevMap = {
+      body: {
+        enabled: true,
+        byIssue: {
+          r1: { calls: 5, deny: 2, appliedDeny: 2, escalate: 0, error: 0 },
+          c1: { calls: 9, deny: 0, appliedDeny: 0, escalate: 0, error: 0 },
+        },
+        shadowMismatch: { c1: 1 },
+      },
+    };
+    const jevCalls = (s: ReturnType<typeof server>) => s.calls.filter((c) => c.url.includes('/jev/'));
+
+    it('owner và Jev bật: thẻ có dữ liệu có huy hiệu theo màu, thẻ không có dữ liệu thì không; có chú thích Jev', async () => {
+      const s = server({
+        'GET /api/crew/companies/c1/jev/settings': settings(true),
+        'GET /api/crew/companies/c1/jev/requests/r1/map': jevMap,
+      });
+      mount('/TPS/roadmap?project=p1&request=TPS-1');
+      await waitFor(() => expect(node('c1')?.querySelector('[data-slot="roadmap-jev"]')).toBeTruthy());
+      expect(node('r1')?.querySelector<HTMLElement>('[data-slot="roadmap-jev"]')?.dataset.tone).toBe('blocked');
+      expect(node('r1')?.textContent).toContain('2 chặn');
+      expect(node('c1')?.querySelector<HTMLElement>('[data-slot="roadmap-jev"]')?.dataset.tone).toBe('quiet');
+      expect(node('c1')?.querySelector('[data-slot="roadmap-jev-mismatch"]')).toBeTruthy();
+      expect(node('c2')?.querySelector('[data-slot="roadmap-jev"]')).toBeNull();
+      expect(node('c1')?.getAttribute('aria-label')).toContain('Jev: 9 lệnh');
+      expect(document.querySelectorAll('[data-slot="roadmap-legend-jev"]').length).toBe(4);
+      expect(jevCalls(s).length).toBeGreaterThan(0);
+    });
+
+    it('Jev tắt: không gọi bản đồ Jev và không có huy hiệu', async () => {
+      const s = server({
+        'GET /api/crew/companies/c1/jev/settings': settings(false),
+        'GET /api/crew/companies/c1/jev/requests/r1/map': jevMap,
+      });
+      mount('/TPS/roadmap?project=p1&request=TPS-1');
+      await waitFor(() => expect(node('c2')).toBeTruthy());
+      await waitFor(() => expect(s.calls.some((c) => c.url.endsWith('/jev/settings'))).toBe(true));
+      await new Promise((r) => setTimeout(r, 50));
+      expect(s.calls.some((c) => c.url.includes('/requests/'))).toBe(false);
+      expect(document.querySelector('[data-slot="roadmap-jev"]')).toBeNull();
+    });
+
+    it('không phải owner: không gọi API Jev nào và không có huy hiệu', async () => {
+      const s = server({
+        ...accessRoute('c1', { userId: 'u2', membershipRole: 'operator', contributor: false, canApprove: false }),
+        'GET /api/crew/companies/c1/jev/settings': settings(true),
+        'GET /api/crew/companies/c1/jev/requests/r1/map': jevMap,
+      });
+      mount('/TPS/roadmap?project=p1&request=TPS-1');
+      await waitFor(() => expect(node('c2')).toBeTruthy());
+      await new Promise((r) => setTimeout(r, 100));
+      expect(jevCalls(s)).toEqual([]);
+      expect(document.querySelector('[data-slot="roadmap-jev"]')).toBeNull();
+    });
+
+    it('lỗi tải bản đồ Jev: bỏ qua lặng lẽ, bản đồ vẫn vẽ như cũ', async () => {
+      server({
+        'GET /api/crew/companies/c1/jev/settings': settings(true),
+        'GET /api/crew/companies/c1/jev/requests/r1/map': { status: 500, body: { error: 'boom' } },
+      });
+      mount('/TPS/roadmap?project=p1&request=TPS-1');
+      await waitFor(() => expect(nodeIds()).toEqual(['r1', 'c2', 'c1']));
+      await new Promise((r) => setTimeout(r, 100));
+      expect(document.querySelector('[data-slot="roadmap-jev"]')).toBeNull();
+      expect(screen.queryByRole('alert')).toBeNull();
+    });
   });
 
   it('dạng danh sách cho cùng nội dung tầng', async () => {

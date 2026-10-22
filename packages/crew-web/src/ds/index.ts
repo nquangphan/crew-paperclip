@@ -66,6 +66,7 @@ export * from './widgets/page-header';
 export * from './widgets/property-list';
 export * from './widgets/roadmap/roadmap-canvas';
 export * from './widgets/roadmap/roadmap-doc-popup';
+export * from './widgets/roadmap/roadmap-jev-badge';
 export * from './widgets/roadmap/roadmap-layout';
 export * from './widgets/roadmap/roadmap-legend';
 export * from './widgets/roadmap/roadmap-list';
