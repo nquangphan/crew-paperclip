@@ -602,6 +602,11 @@ describe("so sánh Jev với regex (crew_jev_shadow)", () => {
     await handleRunFailed(ctx, failed(run, codexExec, issue, null, message));
     const rows = await shadowRows();
     expect(rows).toEqual([{ kind: "runtime", run_id: run, regex_label: "quota", status: "pending", input_excerpt: message.slice(0, 2000) }]);
+    const leaky = await addRun(46, codexExec);
+    await handleRunFailed(ctx, failed(leaky, codexExec, addIssue(46, {}), "timeout", "401 key sk-or-test-abcdefghijklmnopqrstuv bị từ chối"));
+    const leakyRow = (await shadowRows()).find((row) => row.run_id === leaky);
+    expect(leakyRow?.input_excerpt).toBe("401 key sk-[redacted] bị từ chối");
+    await host.sql.unsafe(`DELETE FROM ${host.ns}.crew_jev_shadow WHERE run_id = $1`, [leaky]);
     const other = await addRun(44, codexExec);
     expect(await handleRunFailed(ctx, failed(other, codexExec, addIssue(44, {}), "timeout"))).toBe("skipped");
     expect((await shadowRows()).map((row) => [row.run_id, row.regex_label, row.input_excerpt])).toEqual([

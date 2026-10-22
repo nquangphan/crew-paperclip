@@ -76,4 +76,19 @@ describe("Crew Jev: client gọi bản jev-use vendored", () => {
     expect(await jevJudge({ apiKey: KEY, model: "typesafe/jev-1.14", timeoutMs: 1000, state: "s", questions: question }))
       .toMatchObject({ ok: true });
   });
+
+  it("hàm che của plugin cho cùng kết quả với redactSecrets của bản vendored", async () => {
+    const { loadJevUse } = await import("../crew/vendor/jev-use.js");
+    const { redactSecrets: pluginRedact } = await import("../../../packages/crew-plugin/src/shared/redact.ts");
+    const { redactSecrets } = await loadJevUse();
+    const samples = [
+      `curl -H "Authorization: Bearer ${KEY}" https://x`,
+      "psql postgres://app:hunter2secret@db.internal:5432/orders",
+      "export GITHUB_TOKEN=ghp_abcdefghijklmnopqrstuvwxyz0123",
+      "--password=s3cr3t --api-key $API_KEY",
+      "AKIAABCDEFGHIJKLMNOP xoxb-1234567890-abc eyJhbGciOiJI.eyJzdWIiOiIx.sig",
+      "lỗi bình thường không có secret",
+    ];
+    for (const sample of samples) expect(pluginRedact(sample), sample).toBe(redactSecrets(sample));
+  });
 });

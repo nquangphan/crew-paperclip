@@ -230,7 +230,13 @@ export function crewJevRoutes(db: Db): Router {
     if (!query.success) {
       throw badRequest("Tham số lọc không hợp lệ.", { code: JEV_ERRORS.invalid, issues: query.error.issues });
     }
-    res.json(await listShadow(db, actor.companyId, query.data));
+    let redact: ((text: string) => string) | null = null;
+    try {
+      redact = (await loadJevUse()).redactSecrets;
+    } catch {
+      // Không nạp được hàm che thì không trả đoạn trích.
+    }
+    res.json(await listShadow(db, actor.companyId, query.data, redact));
   });
 
   const machineRequest = (req: Request, maxBytes: number) =>

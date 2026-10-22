@@ -506,7 +506,16 @@ export const shadowQuerySchema = z
   .strict();
 export type ShadowQuery = z.infer<typeof shadowQuerySchema>;
 
-export async function listShadow(db: Sql, companyId: string, query: ShadowQuery): Promise<JevPage<JevShadowRow>> {
+/**
+ * Dòng so sánh, mới nhất trước. `inputExcerpt` luôn đi qua `redact` lúc đọc (kể cả dòng `pending` chưa được worker xử
+ * lý); `redact = null` (không nạp được hàm che) thì trả `inputExcerpt: null`.
+ */
+export async function listShadow(
+  db: Sql,
+  companyId: string,
+  query: ShadowQuery,
+  redact: ((text: string) => string) | null,
+): Promise<JevPage<JevShadowRow>> {
   const conditions: SQL[] = [sql`company_id = ${companyId}`];
   if (query.kind) conditions.push(sql`kind = ${query.kind}`);
   if (query.mismatch) conditions.push(MISMATCH);
@@ -527,7 +536,7 @@ export async function listShadow(db: Sql, companyId: string, query: ShadowQuery)
       status: String(row.status),
       errorCode: str(row.error_code),
       latencyMs: num(row.latency_ms),
-      inputExcerpt: str(row.input_excerpt),
+      inputExcerpt: row.input_excerpt === null || row.input_excerpt === undefined || !redact ? null : redact(String(row.input_excerpt)),
       mismatch: row.mismatch === true,
       createdAt: iso(row.created_at),
       evaluatedAt: iso(row.evaluated_at),

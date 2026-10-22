@@ -2,6 +2,7 @@ import type { Issue, PluginContext, PluginEvent } from "@paperclipai/plugin-sdk"
 import { storedVerifiedCrewCompanies } from "../companies/data.js";
 import { type ProjectRoles, readProjectRoles } from "../roles/data.js";
 import { checkedId, jsonObject, pluginNamespace, UUID } from "../shared/db.js";
+import { redactSecrets } from "../shared/redact.js";
 import { CREW_RUNTIME_CATALOG, CREW_RUNTIMES, type CrewRuntime, isCrewRuntime } from "./catalog.js";
 import { CLAUDE_RETRY_MAX, runClaudeRetryJob, scheduleClaudeRetry } from "./claude-retry.js";
 import { classifyRuntimeFailure, type FailureClass } from "./classify.js";
@@ -372,8 +373,8 @@ const JEV_SHADOW_EXCERPT_MAX = 2000;
 /**
  * Ghi nhãn regex của run hỏng vào `crew_jev_shadow` (`pending`) để worker Jev ở server so sánh sau. Chỉ ghi khi company
  * bật Jev, bật so sánh ở server và có key. Plugin không gọi Jev, không cần key. Lỗi ở đây chỉ ghi log, không bao giờ đổi
- * quyết định fallback. Message giữ nguyên như `heartbeat_runs` đã lưu, cắt 2000 ký tự; server che secret trước khi gửi Jev
- * và ghi đè `input_excerpt` bằng bản đã che.
+ * quyết định fallback. Message được che secret (`shared/redact.ts`, cùng luật với jev-use) rồi cắt 2000 ký tự (không cắt
+ * đôi ký tự); server che lại lần nữa trước khi gửi Jev.
  */
 async function recordJevShadow(
   ctx: Ctx, input: { companyId: string; runId: string; failure: FailureClass; message: string | null },
@@ -385,7 +386,10 @@ async function recordJevShadow(
        SELECT s.company_id, 'runtime', $2, $3, $4 FROM ${ns}.crew_jev_settings s
        WHERE s.company_id = $1 AND s.enabled AND s.server_shadow AND s.key_secret_id IS NOT NULL
        ON CONFLICT (run_id, kind) DO NOTHING`,
-      [input.companyId, input.runId, input.failure, input.message ? input.message.slice(0, JEV_SHADOW_EXCERPT_MAX) : null],
+      [
+        input.companyId, input.runId, input.failure,
+        input.message ? Array.from(redactSecrets(input.message)).slice(0, JEV_SHADOW_EXCERPT_MAX).join("") : null,
+      ],
     );
   } catch (error) {
     ctx.logger.warn("crew jev shadow insert failed", { companyId: input.companyId, runId: input.runId, err: errorText(error) });

@@ -478,6 +478,15 @@ suite("Crew Jev: route owner và route máy", () => {
       expect.objectContaining({ kind: "liveness", regexLabel: "blocked", jevLabel: "progress", mismatch: true }),
     ]);
     expect((await (await owner()).get(url("/shadow?kind=runtime"))).body.items).toHaveLength(1);
+
+    // Dòng `pending` (worker chưa xử lý) vẫn được che khi route đọc ra.
+    await db.execute(sql`UPDATE ${sql.raw(crewJevTable("crew_jev_shadow"))}
+      SET input_excerpt = ${`provider 401 token=${TEST_KEY_2} url https://u:${TEST_KEY_2}@x.example`}
+      WHERE company_id = ${companyId} AND kind = 'runtime'`);
+    const pending = record(await (await owner()).get(url("/shadow?kind=runtime")));
+    expect(pending.body.items[0]).toMatchObject({ status: "pending" });
+    expect(pending.body.items[0].inputExcerpt).toContain("[redacted]");
+    expect(pending.text).not.toContain(TEST_KEY_2);
   });
 
   it("DELETE /key bỏ liên kết, vô hiệu secret; Mac được báo hasKey:false", async () => {

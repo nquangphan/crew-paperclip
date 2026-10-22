@@ -1,5 +1,5 @@
 import { randomBytes, randomUUID } from "node:crypto";
-import { readFileSync } from "node:fs";
+import { readFileSync, writeFileSync } from "node:fs";
 import { createServer, type IncomingMessage, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
 import { fileURLToPath } from "node:url";
@@ -102,6 +102,7 @@ suite("Crew Jev: worker so sánh Jev với regex", () => {
 
   async function addRun(input: {
     company?: string; status?: string; liveness: string | null; comment?: string; result?: Record<string, unknown>; minutesAgo?: number;
+    withIssue?: boolean;
   }): Promise<string> {
     const company = input.company ?? companyId;
     const [run] = await db.insert(heartbeatRuns).values({
@@ -111,6 +112,7 @@ suite("Crew Jev: worker so sánh Jev với regex", () => {
       livenessState: input.liveness,
       livenessReason: input.liveness ? `regex ${input.liveness}` : null,
       resultJson: input.result ?? null,
+      contextSnapshot: input.withIssue === false || company !== companyId ? {} : { issueId },
       finishedAt: new Date(Date.now() - (input.minutesAgo ?? 5) * 60_000),
     }).returning();
     if (input.comment && company === companyId) {
@@ -215,10 +217,100 @@ suite("Crew Jev: worker so sánh Jev với regex", () => {
     await db.execute(sql`INSERT INTO ${gateTable} (company_id, machine_id, event_id, occurred_at, mode, verdict, applied, blocking, command)
       VALUES (${companyId}, ${randomUUID()}, ${oldEvent}, now() - interval '31 days', 'shadow', 'allow', 'allow', false, 'ls'),
              (${companyId}, ${randomUUID()}, ${newEvent}, now() - interval '29 days', 'shadow', 'allow', 'allow', false, 'ls')`);
-    const result = await runJevShadowSweep(db, new Date());
+    const result = await runJevShadowSweep(db, new Date(), { forcePurge: true });
     expect(result.purged).toBeGreaterThanOrEqual(2);
     expect(await runOf(oldRun)).toBeUndefined();
     const events = (await db.execute(sql`SELECT event_id::text AS event_id FROM ${gateTable}`)) as unknown as Array<{ event_id: string }>;
     expect(events.map((row) => row.event_id)).toEqual([newEvent]);
+  });
+
+  const settingsTable = () => sql.raw(crewJevTable("crew_jev_settings"));
+  const setCursor = (at: Date | null) =>
+    db.execute(sql`UPDATE ${settingsTable()} SET shadow_cursor = ${at ? at.toISOString() : null}::timestamptz WHERE company_id = ${companyId}`);
+  const cursorOf = async () =>
+    ((await db.execute(sql`SELECT shadow_cursor FROM ${settingsTable()} WHERE company_id = ${companyId}`)) as unknown as
+      Array<{ shadow_cursor: Date | string | null }>)[0]?.shadow_cursor ?? null;
+
+  it("con trỏ không vượt qua run đã xong mà chưa có nhãn liveness; nhãn tới muộn vẫn được xét", async () => {
+    await setCursor(null);
+    const late = await addRun({ liveness: null, comment: "RUN-LATE", minutesAgo: 6 });
+    const early = await addRun({ liveness: "blocked", comment: "RUN-EARLY", minutesAgo: 3 });
+    await runJevShadowSweep(db, new Date());
+    expect(await runOf(early)).toMatchObject({ status: "done" });
+    const [lateRun] = await db.select().from(heartbeatRuns).where(sql`id = ${late}`);
+    expect(new Date((await cursorOf())!).getTime()).toBeLessThanOrEqual(lateRun!.finishedAt!.getTime());
+
+    await db.update(heartbeatRuns).set({ livenessState: "completed", livenessReason: "regex completed" }).where(sql`id = ${late}`);
+    received.length = 0;
+    await runJevShadowSweep(db, new Date());
+    expect(await runOf(late)).toMatchObject({ regex_label: "progress", status: "done" });
+    expect(received.some((body) => body.includes("RUN-LATE"))).toBe(true);
+  });
+
+  it("bật lại sau thời gian dài: chỉ xét run của một giờ gần nhất", async () => {
+    await setCursor(new Date(Date.now() - 14 * 86_400_000));
+    const old = await addRun({ liveness: "blocked", comment: "RUN-OLD", minutesAgo: 180 });
+    const recent = await addRun({ liveness: "blocked", comment: "RUN-RECENT", minutesAgo: 20 });
+    received.length = 0;
+    await runJevShadowSweep(db, new Date());
+    expect(await runOf(recent)).toMatchObject({ status: "done" });
+    expect(await runOf(old)).toBeUndefined();
+    expect(received.some((body) => body.includes("RUN-OLD"))).toBe(false);
+  });
+
+  it("ghi kết quả lỗi lặp: sau 3 lần thì ghi error/internal và không gọi Jev nữa", async () => {
+    const dialect = (db as unknown as { dialect: { sqlToQuery(query: unknown): { sql: string; params: unknown[] } } }).dialect;
+    const poisoned = new Proxy(db, {
+      get(target, prop, receiver) {
+        if (prop !== "execute") return Reflect.get(target, prop, receiver);
+        return (query: unknown) => {
+          const compiled = dialect.sqlToQuery(query);
+          if (compiled.sql.includes("INSERT INTO") && compiled.sql.includes("crew_jev_shadow") && compiled.params.includes("done")) {
+            throw Object.assign(new Error("boom with run text RUN-POISON"), { code: "23514" });
+          }
+          return target.execute(query as never);
+        };
+      },
+    });
+    const poison = await addRun({ liveness: "blocked", comment: "RUN-POISON", minutesAgo: 2 });
+    const calls = () => received.filter((body) => body.includes("RUN-POISON")).length;
+    received.length = 0;
+    for (let i = 0; i < 3; i += 1) await runJevShadowSweep(poisoned, new Date());
+    expect(calls()).toBe(3);
+    expect(await runOf(poison)).toMatchObject({ status: "error", error_code: "internal", input_excerpt: null });
+    await runJevShadowSweep(poisoned, new Date());
+    expect(calls()).toBe(3);
+  });
+
+  it("truy vấn mỗi lượt dùng index sẵn có (kế hoạch EXPLAIN với dữ liệu mẫu)", async () => {
+    const agentId = agentIds[companyId]!;
+    // Khoảng 21 600 run cũ trải 60 ngày, 20 000 comment trên 200 issue, như company đã chạy lâu.
+    await db.execute(sql`INSERT INTO heartbeat_runs (company_id, agent_id, status, liveness_state, created_at, finished_at)
+      SELECT ${companyId}, ${agentId}, 'succeeded', 'completed', now() - (g || ' minutes')::interval,
+        now() - (g || ' minutes')::interval + interval '1 minute'
+      FROM generate_series(120, 86520, 4) g`);
+    const extraIssues = (await db.execute(sql`INSERT INTO issues (company_id, title, status, priority)
+      SELECT ${companyId}, 'I' || g, 'todo', 'medium' FROM generate_series(1, 200) g RETURNING id`)) as unknown as Array<{ id: string }>;
+    await db.execute(sql`INSERT INTO issue_comments (company_id, issue_id, body, created_at)
+      SELECT ${companyId}, (${sql.raw(`ARRAY[${extraIssues.map((row) => `'${row.id}'::uuid`).join(",")}]`)})[1 + g % 200],
+        'comment ' || g, now() - (g || ' minutes')::interval FROM generate_series(1, 20000) g`);
+    await db.execute(sql`ANALYZE heartbeat_runs`);
+    await db.execute(sql`ANALYZE issue_comments`);
+    const { livenessCandidatesSql, runCommentsSql, livenessWindowStart } = await import("../crew/jev-shadow.js");
+    const since = livenessWindowStart(null, new Date());
+    const plan = async (query: ReturnType<typeof livenessCandidatesSql>) =>
+      ((await db.execute(sql`EXPLAIN ${query}`)) as unknown as Array<{ "QUERY PLAN": string }>).map((row) => row["QUERY PLAN"]).join("\n");
+    const runsPlan = await plan(livenessCandidatesSql(companyId, since));
+    const commentsPlan = await plan(runCommentsSql(companyId, issueId, randomUUID()));
+    // Đặt CREW_JEV_EXPLAIN_OUT=<file> để lưu kế hoạch truy vấn ra file.
+    if (process.env.CREW_JEV_EXPLAIN_OUT) {
+      writeFileSync(process.env.CREW_JEV_EXPLAIN_OUT, `EXPLAIN heartbeat_runs:\n${runsPlan}\n\nEXPLAIN issue_comments:\n${commentsPlan}\n`);
+    }
+    // Quét theo khoảng `created_at` trên một index `(company_id, …, created_at)` sẵn có, không quét cả lịch sử.
+    expect(runsPlan).toMatch(/Index Scan using heartbeat_runs_company_(liveness|created_at_desc)_idx/);
+    expect(runsPlan).toMatch(/Index Cond: .*created_at >=/);
+    expect(runsPlan).not.toMatch(/Seq Scan on heartbeat_runs/);
+    expect(commentsPlan).toMatch(/Index Scan( Backward)? using (issue_comments_company_issue_created_at_idx|issue_comments_issue_idx)/);
+    expect(commentsPlan).not.toMatch(/Seq Scan on issue_comments/);
   });
 });
