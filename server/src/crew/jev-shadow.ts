@@ -3,7 +3,8 @@ import type { Db } from "@paperclipai/db";
 import { logger } from "../middleware/logger.js";
 import { rowsOf } from "./project-roles.js";
 import { jevJudge, type JevJudgeResult } from "./jev-client.js";
-import { crewJevTable, type JevSettingsRecord, listEnabledJevSettings, resolveJevApiKey } from "./jev-store.js";
+import { purgeJudgments } from "./jev-judgments.js";
+import { crewJevTable, jevFeaturesReady, type JevSettingsRecord, listEnabledJevSettings, resolveJevApiKey } from "./jev-store.js";
 import { loadJevUse, type Question } from "./vendor/jev-use.js";
 
 /**
@@ -327,7 +328,14 @@ async function purgeOld(db: Db, now: Date): Promise<number> {
   const shadow = rowsOf(
     await db.execute(sql`DELETE FROM ${shadowTable()} WHERE created_at < ${before}::timestamptz RETURNING id`),
   );
-  return gate.length + shadow.length;
+  // Bảng đo của bốn tính năng đợt 2 (migration 0021) có thể chưa có: không để nó chặn việc dọn của hai bảng trên.
+  let judgments = 0;
+  try {
+    if (await jevFeaturesReady(db)) judgments = await purgeJudgments(db, before);
+  } catch (error) {
+    logger.warn(errorInfo(error), "crew jev: không dọn được bảng đo");
+  }
+  return gate.length + shadow.length + judgments;
 }
 
 /** Thông tin lỗi an toàn để log: tên, mã SQLSTATE, tên ràng buộc; không có message (có thể chứa text run). */

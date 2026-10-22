@@ -17,7 +17,8 @@ import { CREW_PLUGIN_KEY, rowsOf } from "./project-roles.js";
 type Sql = Pick<Db, "execute">;
 
 export const JEV_TABLES = ["crew_jev_settings", "crew_jev_machines", "crew_jev_gate_events", "crew_jev_shadow"] as const;
-export type JevTable = (typeof JEV_TABLES)[number];
+/** Bảng `crew_jev_judgments` (migration 0021) không nằm trong `JEV_TABLES`: thiếu nó thì Jev cũ vẫn chạy, chỉ bốn tính năng mới dừng. */
+export type JevTable = (typeof JEV_TABLES)[number] | "crew_jev_judgments";
 
 export function crewJevTable(name: JevTable): string {
   return `${derivePluginDatabaseNamespace(CREW_PLUGIN_KEY)}.${name}`;
@@ -49,8 +50,39 @@ export const JEV_DEFAULTS = {
   serverShadow: false,
 };
 
+export const JEV_FEATURES = ["complexity", "approval_note", "request_type", "inbox_attention"] as const;
+export type JevFeature = (typeof JEV_FEATURES)[number];
+export const JEV_FEATURE_MODES = ["off", "shadow", "on"] as const;
+export type JevFeatureMode = (typeof JEV_FEATURE_MODES)[number];
+export type JevFeatures = Record<JevFeature, JevFeatureMode>;
+/** Thiếu khóa nghĩa là `shadow`: gọi Jev và ghi log nhưng owner không thấy gì. */
+export const JEV_FEATURE_DEFAULT_MODE: JevFeatureMode = "shadow";
+
+const featureModeSchema = z.enum(JEV_FEATURE_MODES);
+const featuresInputSchema = z
+  .object({
+    complexity: featureModeSchema,
+    approval_note: featureModeSchema,
+    request_type: featureModeSchema,
+    inbox_attention: featureModeSchema,
+  })
+  .partial()
+  .strict();
+
+/** Đọc cột `features` (jsonb, có thể thiếu khóa hoặc giá trị lạ) thành bản đủ bốn khóa. */
+export function normalizeFeatures(raw: unknown): JevFeatures {
+  const record = typeof raw === "object" && raw !== null && !Array.isArray(raw) ? (raw as Record<string, unknown>) : {};
+  const out = {} as JevFeatures;
+  for (const feature of JEV_FEATURES) {
+    const parsed = featureModeSchema.safeParse(record[feature]);
+    out[feature] = parsed.success ? parsed.data : JEV_FEATURE_DEFAULT_MODE;
+  }
+  return out;
+}
+
 export const jevSettingsInputSchema = z
   .object({
+    features: featuresInputSchema.optional(),
     enabled: z.boolean(),
     gateMode: z.enum(JEV_GATE_MODES),
     model: z.string().regex(/^typesafe\/jev-[A-Za-z0-9._-]{1,60}$/),
@@ -61,8 +93,10 @@ export const jevSettingsInputSchema = z
   .strict();
 export type JevSettingsInput = z.infer<typeof jevSettingsInputSchema>;
 
-export interface JevSettingsRecord extends JevSettingsInput {
+export interface JevSettingsRecord extends Omit<JevSettingsInput, "features"> {
   companyId: string;
+  /** Chế độ từng tính năng (đủ bốn khóa). Công tắc chung là `enabled`, không nằm ở đây. */
+  features: JevFeatures;
   /** Id company secret giữ key; chỉ dùng trong server, không trả client. */
   keySecretId: string | null;
   keyFingerprint: string | null;
@@ -80,7 +114,7 @@ const str = (value: unknown): string | null => (value === null || value === unde
 function toSettings(companyId: string, row: Record<string, unknown> | undefined): JevSettingsRecord {
   if (!row) {
     return {
-      companyId, ...JEV_DEFAULTS, keySecretId: null, keyFingerprint: null, version: 1, shadowCursor: null,
+      companyId, ...JEV_DEFAULTS, features: normalizeFeatures(null), keySecretId: null, keyFingerprint: null, version: 1, shadowCursor: null,
       updatedByUserId: null, updatedAt: null,
     };
   }
@@ -93,6 +127,7 @@ function toSettings(companyId: string, row: Record<string, unknown> | undefined)
     threshold: Math.round(Number(row.threshold) * 100) / 100,
     timeoutMs: Number(row.timeout_ms),
     serverShadow: row.server_shadow === true,
+    features: normalizeFeatures(row.features),
     keySecretId: str(row.key_secret_id),
     keyFingerprint: str(row.key_fingerprint),
     version: Number(row.version),
@@ -114,25 +149,37 @@ export async function listEnabledJevSettings(db: Sql): Promise<JevSettingsRecord
   return rows.map((row) => toSettings(String(row.company_id), row));
 }
 
-/** Ghi cấu hình và tăng `version` (Mac thấy version mới thì áp lại). */
+/**
+ * Ghi cấu hình và tăng `version` (Mac thấy version mới thì áp lại). `input.features` (nếu có) được gộp vào cột `features`
+ * (khóa không gửi giữ nguyên); chỉ dùng khi cột đã có (migration 0021), bên gọi kiểm trước bằng `jevFeaturesReady`.
+ */
 export async function saveJevSettings(
   db: Sql,
   companyId: string,
   input: JevSettingsInput,
   userId: string,
 ): Promise<JevSettingsRecord> {
+  const withFeatures = input.features !== undefined;
   const rows = rowsOf(
     await db.execute(sql`INSERT INTO ${table("crew_jev_settings")} AS s
-      (company_id, enabled, gate_mode, model, threshold, timeout_ms, server_shadow, version, updated_by_user_id, updated_at)
+      (company_id, enabled, gate_mode, model, threshold, timeout_ms, server_shadow, version, updated_by_user_id, updated_at
+        ${withFeatures ? sql`, features` : sql``})
       VALUES (${companyId}, ${input.enabled}, ${input.gateMode}, ${input.model}, ${input.threshold}, ${input.timeoutMs},
-        ${input.serverShadow}, 2, ${userId}, now())
+        ${input.serverShadow}, 2, ${userId}, now() ${withFeatures ? sql`, ${JSON.stringify(input.features)}::jsonb` : sql``})
       ON CONFLICT (company_id) DO UPDATE SET enabled = EXCLUDED.enabled, gate_mode = EXCLUDED.gate_mode,
         model = EXCLUDED.model, threshold = EXCLUDED.threshold, timeout_ms = EXCLUDED.timeout_ms,
         server_shadow = EXCLUDED.server_shadow, version = s.version + 1,
+        ${withFeatures ? sql`features = s.features || EXCLUDED.features,` : sql``}
         updated_by_user_id = EXCLUDED.updated_by_user_id, updated_at = now()
       RETURNING *`),
   );
   return toSettings(companyId, rows[0]);
+}
+
+/** Migration 0021 đã áp (cột `features` và bảng `crew_jev_judgments`). */
+export async function jevFeaturesReady(db: Sql): Promise<boolean> {
+  const rows = rowsOf(await db.execute(sql`SELECT to_regclass(${crewJevTable("crew_jev_judgments")}) IS NOT NULL AS ok`));
+  return rows[0]?.ok === true;
 }
 
 async function writeKeyColumns(
@@ -780,13 +827,16 @@ export interface JevRequestMap {
   shadowMismatch: Record<string, number>;
 }
 
-/** Cây yêu cầu (gốc và mọi hậu duệ, như handler `crew.runs` của plugin) nối với run của từng issue. */
-const treeRunsSql = (companyId: string, requestId: string) => sql`WITH RECURSIVE tree(id, depth) AS (
+/** Cây yêu cầu (gốc và mọi hậu duệ, như handler `crew.runs` của plugin): CTE `tree` và `tree_ids`. */
+export const treeIdsSql = (companyId: string, requestId: string) => sql`WITH RECURSIVE tree(id, depth) AS (
       SELECT id, 0 FROM public.issues WHERE id = ${requestId} AND company_id = ${companyId}
       UNION ALL
       SELECT i.id, t.depth + 1 FROM public.issues i JOIN tree t ON i.parent_id = t.id
       WHERE i.company_id = ${companyId} AND t.depth < ${MAP_MAX_DEPTH}),
-    tree_ids AS (SELECT DISTINCT id FROM tree),
+    tree_ids AS (SELECT DISTINCT id FROM tree)`;
+
+/** Cây yêu cầu nối với run của từng issue. */
+const treeRunsSql = (companyId: string, requestId: string) => sql`${treeIdsSql(companyId, requestId)},
     tree_runs AS (
       SELECT r.id AS run_id, tree_ids.id::text AS issue_id FROM tree_ids
       JOIN "heartbeat_runs" r ON r.company_id = ${companyId} AND (r.context_snapshot ->> 'issueId') = tree_ids.id::text)`;

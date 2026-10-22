@@ -248,6 +248,7 @@ suite("Crew Jev: route owner và route máy", () => {
     expect(res.body).toEqual({
       enabled: false, gateMode: "shadow", model: "typesafe/jev-1.14", threshold: 0.5, timeoutMs: 2500,
       serverShadow: false, hasKey: false, keyFingerprint: null, version: 1, updatedAt: null, machines: [],
+      features: { complexity: "shadow", approval_note: "shadow", request_type: "shadow", inbox_attention: "shadow" },
     });
   });
 

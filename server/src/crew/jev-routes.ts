@@ -3,8 +3,27 @@ import { z } from "zod";
 import type { Db } from "@paperclipai/db";
 import { badRequest, HttpError, notFound, payloadTooLarge } from "../errors.js";
 import { logger } from "../middleware/logger.js";
-import { requireOwner, resolveContributionActor, type ContributionActor } from "./contributions.js";
+import { contributionForbidden, requireOwner, resolveContributionActor, type ContributionActor } from "./contributions.js";
 import { jevJudge } from "./jev-client.js";
+import {
+  approvalNoteBodySchema,
+  approvalNoteJudgment,
+  complexityFlagForIssue,
+  complexityFlagsForTree,
+  inboxAttention,
+  inboxAttentionQuerySchema,
+  requestTypeBodySchema,
+  requestTypeJudgment,
+  startJevFeatureWorker,
+} from "./jev-features.js";
+import {
+  judgmentIdSchema,
+  judgmentsQuerySchema,
+  judgmentStats,
+  listJudgments,
+  outcomeBodySchema,
+  setJudgmentOutcome,
+} from "./jev-judgments.js";
 import { machineSecret, resolveCrewCompanySecret, verifyMachineRequest } from "./jev-machine-auth.js";
 import { startJevShadowWorker } from "./jev-shadow.js";
 import {
@@ -13,6 +32,7 @@ import {
   getJevSettings,
   insertGateEvents,
   jevApiKeySchema,
+  jevFeaturesReady,
   jevGateEventSchema,
   type JevGateEvent,
   jevSettingsInputSchema,
@@ -71,6 +91,13 @@ async function ownerOf(db: Db, req: Request): Promise<ContributionActor> {
   return actor;
 }
 
+/** Người dùng đăng nhập bằng phiên và là thành viên company (không cần owner): chỗ tạo yêu cầu và duyệt cho nhiều vai trò. */
+async function memberOf(db: Db, req: Request): Promise<ContributionActor> {
+  const actor = await resolveContributionActor(db, req, req.params.companyId, { requireTables: false });
+  if (actor.membershipRole === null) throw contributionForbidden();
+  return actor;
+}
+
 async function settingsView(db: Db, settings: JevSettingsRecord) {
   const machines = await listJevMachines(db, settings.companyId);
   return {
@@ -80,6 +107,7 @@ async function settingsView(db: Db, settings: JevSettingsRecord) {
     threshold: settings.threshold,
     timeoutMs: settings.timeoutMs,
     serverShadow: settings.serverShadow,
+    features: settings.features,
     hasKey: settings.keySecretId !== null,
     keyFingerprint: settings.keyFingerprint,
     version: settings.version,
@@ -130,7 +158,9 @@ const KEY_TEST_STATE = "Crew is checking that its Jev API key works. This reques
  * Router Jev của Crew (`/api/crew/companies/:companyId/jev/...`), gắn bên trong router góp ý (vá lõi C7) nên không cần vá
  * lõi mới.
  *
- * - Route owner (`/settings`, `/key`, `/stats`, `/gate-events`, `/shadow`, `/issues/:issueId/summary`, `/requests/:requestId/map`): chỉ owner đăng nhập bằng phiên trình duyệt
+ * - Route judge (`/judge/approval-note`, `/judge/request-type`, `/judgments/:id/outcome`): mọi thành viên company đăng nhập
+ *   bằng phiên; luôn 200, tắt/lỗi/timeout trả `{ ok: false, reason }`.
+ * - Route owner (`/settings`, `/key`, `/stats`, `/gate-events`, `/shadow`, `/judgments`, `/judgments/stats`, `/inbox-attention`, `/issues/:issueId/summary`, `/requests/:requestId/map`): chỉ owner đăng nhập bằng phiên trình duyệt
  *   (`resolveContributionActor` + `requireOwner`); board key trên Mac, agent và mọi role khác nhận 403.
  * - Route máy (`/machine/pull`, `/machine/events`): Mac ký HMAC bằng khóa máy, cùng luật webhook máy của plugin.
  * - Body bị dời khỏi `req.body` trước mọi bước có thể lỗi, nên log HTTP và báo lỗi không bao giờ chứa key hay lệnh.
@@ -141,6 +171,7 @@ export function crewJevRoutes(db: Db): Router {
   const router = Router();
   // Worker so sánh Jev với regex: một timer cho cả process, không chạy khi test.
   startJevShadowWorker(db);
+  startJevFeatureWorker(db);
 
   router.use(BASE, (req, res, next) => {
     res.locals[BODY_LOCAL] = req.body;
@@ -159,6 +190,7 @@ export function crewJevRoutes(db: Db): Router {
     if (!body.success) {
       throw badRequest("Cấu hình Jev không hợp lệ.", { code: JEV_ERRORS.invalid, issues: body.error.issues });
     }
+    if (body.data.features !== undefined && !(await jevFeaturesReady(db))) throw jevUnavailable();
     const settings = await saveJevSettings(db, actor.companyId, body.data, actor.userId);
     logger.info(
       { companyId: actor.companyId, version: settings.version, enabled: settings.enabled, gateMode: settings.gateMode },
@@ -254,7 +286,10 @@ export function crewJevRoutes(db: Db): Router {
     } catch {
       // Không nạp được hàm che thì không trả đoạn trích.
     }
-    res.json({ enabled: settings.enabled, ...(await jevIssueSummary(db, actor.companyId, issueId.data, redact)) });
+    const summary = await jevIssueSummary(db, actor.companyId, issueId.data, redact);
+    // Cờ độ phức tạp chỉ là phần thêm: lỗi ở đây không được làm hỏng tóm tắt cũ.
+    const complexityFlag = await complexityFlagForIssue(db, settings, issueId.data).catch(() => null);
+    res.json({ enabled: settings.enabled, ...summary, complexityFlag });
   });
 
   router.get(`${BASE}/requests/:requestId/map`, async (req, res) => {
@@ -262,7 +297,84 @@ export function crewJevRoutes(db: Db): Router {
     const requestId = z.string().uuid().safeParse(req.params.requestId);
     if (!requestId.success) throw badRequest("Mã yêu cầu không hợp lệ.", { code: JEV_ERRORS.invalid });
     const settings = await getJevSettings(db, actor.companyId);
-    res.json({ enabled: settings.enabled, ...(await jevRequestMap(db, actor.companyId, requestId.data)) });
+    const map = await jevRequestMap(db, actor.companyId, requestId.data);
+    const complexityFlags = await complexityFlagsForTree(db, settings, requestId.data).catch(() => ({}));
+    res.json({ enabled: settings.enabled, ...map, complexityFlags });
+  });
+
+  // --- Bốn tính năng đợt 2. Route judge: mọi thành viên company; luôn 200, lỗi/tắt/timeout là `{ ok: false, reason }`. ---
+
+  router.post(`${BASE}/judge/approval-note`, async (req, res) => {
+    const actor = await memberOf(db, req);
+    const body = approvalNoteBodySchema.safeParse(takeBody(res) ?? {});
+    if (!body.success) {
+      res.json({ ok: false, reason: "invalid" });
+      return;
+    }
+    res.json(await approvalNoteJudgment(db, actor.companyId, body.data));
+  });
+
+  router.post(`${BASE}/judge/request-type`, async (req, res) => {
+    const actor = await memberOf(db, req);
+    const body = requestTypeBodySchema.safeParse(takeBody(res) ?? {});
+    if (!body.success) {
+      res.json({ ok: false, reason: "invalid" });
+      return;
+    }
+    res.json(await requestTypeJudgment(db, actor.companyId, body.data));
+  });
+
+  router.post(`${BASE}/judgments/:id/outcome`, async (req, res) => {
+    const actor = await memberOf(db, req);
+    const id = judgmentIdSchema.safeParse(req.params.id);
+    const body = outcomeBodySchema.safeParse(takeBody(res) ?? {});
+    if (!id.success || !body.success) {
+      res.json({ ok: false, reason: "invalid" });
+      return;
+    }
+    try {
+      res.json((await setJudgmentOutcome(db, actor.companyId, id.data, body.data.outcome)) ? { ok: true } : { ok: false, reason: "not_found" });
+    } catch (error) {
+      logger.warn({ err: error instanceof Error ? error.name : typeof error }, "crew jev outcome failed");
+      res.json({ ok: false, reason: "internal" });
+    }
+  });
+
+  router.get(`${BASE}/judgments/stats`, async (req, res) => {
+    const actor = await ownerOf(db, req);
+    const query = statsQuerySchema.safeParse(req.query);
+    if (!query.success) throw invalid("Số ngày phải từ 1 đến 30.");
+    if (!(await jevFeaturesReady(db))) throw jevUnavailable();
+    res.json(await judgmentStats(db, actor.companyId, query.data.days));
+  });
+
+  router.get(`${BASE}/judgments`, async (req, res) => {
+    const actor = await ownerOf(db, req);
+    const query = judgmentsQuerySchema.safeParse(req.query);
+    if (!query.success) {
+      throw badRequest("Tham số lọc không hợp lệ.", { code: JEV_ERRORS.invalid, issues: query.error.issues });
+    }
+    if (!(await jevFeaturesReady(db))) throw jevUnavailable();
+    let redact: ((text: string) => string) | null = null;
+    try {
+      redact = (await loadJevUse()).redactSecrets;
+    } catch {
+      // Không nạp được hàm che thì không trả đoạn trích.
+    }
+    res.json(await listJudgments(db, actor.companyId, query.data, redact));
+  });
+
+  router.get(`${BASE}/inbox-attention`, async (req, res) => {
+    const actor = await ownerOf(db, req);
+    const query = inboxAttentionQuerySchema.safeParse(req.query);
+    if (!query.success) throw invalid("issueIds phải là tối đa 200 mã issue cách nhau bằng dấu phẩy.");
+    try {
+      res.json(await inboxAttention(db, await getJevSettings(db, actor.companyId), query.data.issueIds));
+    } catch (error) {
+      // Huy hiệu chỉ là phần thêm: lỗi thì hộp duyệt chạy y như cũ.
+      logger.warn({ err: error instanceof Error ? error.name : typeof error }, "crew jev inbox attention failed");
+      res.json({ enabled: false, mode: "off", items: [] });
+    }
   });
 
   const machineRequest = (req: Request, maxBytes: number) =>
