@@ -2,6 +2,7 @@
 import { contributionsApi } from './crew/contributions';
 import { crewDataApi } from './crew/data';
 import { forceDoneApi } from './crew/force-done';
+import { jevApi } from './crew/jev';
 import { jobsApi } from './crew/jobs';
 import { machinesApi } from './crew/machines';
 import { projectAccessApi } from './crew/project-access';
@@ -61,6 +62,7 @@ export const api = {
   roles: rolesApi,
   machines: machinesApi,
   runtimes: runtimesApi,
+  jev: jevApi,
   jobs: jobsApi,
   setup: setupApi,
   contributions: contributionsApi,
@@ -73,6 +75,7 @@ export const api = {
 
 export type Api = typeof api;
 export { CREW_DATA_KEYS, type CrewDataKey } from './crew/data';
+export type * from './crew/jev';
 export type * from './crew/types';
 export { ENDPOINTS, type EndpointKey } from './endpoints';
 export { ApiError } from './http';

@@ -308,5 +308,20 @@
     "spec": "e2e/specs/s22-roadmap.spec.ts",
     "tests": ["PW-S22-2 "],
     "tier": "T1"
+  },
+  "S24.1": {
+    "spec": "e2e/specs/s24-jev.spec.ts",
+    "tests": ["PW-S24-1 "],
+    "tier": "T1"
+  },
+  "S24.2": {
+    "spec": "e2e/specs/s24-jev.spec.ts",
+    "tests": ["PW-S24-2 "],
+    "tier": "T1"
+  },
+  "S24.3": {
+    "spec": "e2e/specs/s24-jev.spec.ts",
+    "tests": ["PW-S24-3 "],
+    "tier": "T1"
   }
 }

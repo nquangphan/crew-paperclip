@@ -1,0 +1,181 @@
+{
+  "title": "Jev",
+  "description": "Dangerous-command gate on agent machines and the C3 label comparison against regex. Owners only.",
+  "ownerOnly": "Only owners can view this page",
+  "ownerOnlyHint": "Ask a company owner to open the Jev page.",
+  "loadFailed": "Could not load the Jev settings",
+  "more": "Load more",
+  "section": {
+    "settings": "Settings",
+    "key": "OpenRouter key",
+    "machines": "Machines",
+    "stats": "Stats",
+    "events": "Blocked or escalated cases",
+    "shadow": "Jev vs regex mismatches (C3)"
+  },
+  "settings": {
+    "enabled": "Enable Jev",
+    "enabledHint": "When off, machines do not call Jev and block nothing.",
+    "serverShadow": "Server-side C3",
+    "serverShadowHint": "The server compares Jev's label with regex for finished runs and runtime failures. Logging only, never changes outcomes.",
+    "gateMode": "Gate mode",
+    "gateModeHint": {
+      "shadow": "Jev scores and logs, blocks nothing.",
+      "enforce": "Commands Jev denies are really blocked on the machine."
+    },
+    "mode": {
+      "shadow": "Log only",
+      "enforce": "Enforce"
+    },
+    "model": "Model",
+    "modelHint": "Form typesafe/jev-…, e.g. typesafe/jev-1.14.",
+    "threshold": "Threshold",
+    "thresholdHint": "From {{min}} to {{max}}. Lower confidence is escalated to a human.",
+    "timeout": "Timeout (ms)",
+    "timeoutHint": "From {{min}} to {{max}} ms. On timeout the command falls back to the old rules.",
+    "error": {
+      "model": "Model must look like typesafe/jev-… (letters, digits, dot, dash, underscore).",
+      "threshold": "Threshold must be a number from {{min}} to {{max}}.",
+      "timeout": "Timeout must be an integer from {{min}} to {{max}} ms."
+    },
+    "save": "Save settings",
+    "saving": "Saving…",
+    "saved": "Settings saved, version {{version}}. Machines pick it up on their next pull.",
+    "saveFailed": "Could not save the settings",
+    "enforceConfirm": {
+      "title": "Switch to Enforce?",
+      "body": "Once saved, commands Jev denies are really blocked on every machine with Jev on. Watching Log only for a while first is wise.",
+      "confirm": "Enforce"
+    }
+  },
+  "key": {
+    "has": "Key saved · fingerprint {{fingerprint}}",
+    "none": "No key yet.",
+    "label": "New key",
+    "hint": "The key is sent to the server once and stored as a secret; it is never shown again, only its fingerprint.",
+    "placeholder": "Paste the key, then Save",
+    "save": "Save key",
+    "saveAndTest": "Save and test",
+    "delete": "Delete key",
+    "working": "Working…",
+    "failed": "Could not process the key",
+    "result": {
+      "saved": "Key saved.",
+      "tested": "Key saved and Jev answered.",
+      "deleted": "Key deleted. Machines remove it from Keychain on their next pull.",
+      "testFailed": "Key saved but the test failed"
+    },
+    "errorCode": {
+      "auth": "Key is wrong or revoked",
+      "timeout": "Jev answered too slowly",
+      "unreachable": "Could not reach Jev",
+      "bad_response": "Jev returned a malformed reply",
+      "internal": "Internal error calling Jev"
+    },
+    "deleteConfirm": {
+      "title": "Delete the OpenRouter key?",
+      "body": "Jev stops on every machine until a new key is saved.",
+      "confirm": "Delete key"
+    },
+    "needKey": "Paste the key into the field above first."
+  },
+  "machines": {
+    "empty": "No machine has pulled the settings yet",
+    "emptyHint": "Machines show up here after their first pull.",
+    "col": {
+      "machine": "Machine",
+      "config": "Settings",
+      "key": "Key",
+      "lastPull": "Last pull",
+      "lastEvents": "Last events"
+    },
+    "applied": "Has version {{version}}",
+    "notApplied": "Not applied",
+    "behind": "On version {{version}} (latest {{current}})",
+    "keyOk": "Key matches",
+    "keyMissing": "No key yet"
+  },
+  "stats": {
+    "range": "Time range",
+    "days": "{{count}} days",
+    "loadFailed": "Could not load the stats",
+    "empty": "No calls yet",
+    "emptyHint": "Stats appear once machines send gate events.",
+    "totals": "Totals for the range",
+    "byCategory": "By command category",
+    "col": {
+      "calls": "Calls",
+      "allow": "Allow",
+      "deny": "Deny",
+      "escalate": "Escalate",
+      "error": "Errors",
+      "appliedDeny": "Deny applied",
+      "p50": "p50",
+      "p95": "p95",
+      "category": "Category"
+    },
+    "shadow": {
+      "title": "C3 comparison",
+      "kind": "Kind",
+      "done": "Compared",
+      "mismatch": "Mismatch",
+      "escalated": "Jev unsure",
+      "error": "Errors",
+      "pending": "Pending"
+    }
+  },
+  "events": {
+    "verdict": "Verdict",
+    "deny": "Deny",
+    "escalate": "Escalate",
+    "loadFailed": "Could not load the cases",
+    "labelFailed": "Could not set the label",
+    "empty": "No cases yet",
+    "emptyHint": "Deny or escalate cases sent by machines show up here.",
+    "col": {
+      "time": "Time",
+      "machine": "Machine",
+      "category": "Category",
+      "command": "Command (redacted)",
+      "confidence": "Confidence",
+      "applied": "Applied",
+      "label": "Owner label"
+    },
+    "applied": "Blocked",
+    "notApplied": "Not applied",
+    "label": {
+      "correct": "Right",
+      "wrong": "Wrong"
+    },
+    "errorCode": {
+      "no_key": "No key",
+      "timeout": "Timed out",
+      "unreachable": "Unreachable",
+      "bad_response": "Malformed Jev reply",
+      "bad_event": "Bad log line",
+      "internal": "Internal error",
+      "skipped_bg": "Jev skipped (enough background processes)",
+      "dropped": "Old log dropped",
+      "other": "Other error"
+    },
+    "dropped": "Mac dropped {{count}} unsent log lines"
+  },
+  "shadow": {
+    "kindLabel": "Comparison kind",
+    "kind": {
+      "liveness": "Run liveness",
+      "runtime": "Runtime failure"
+    },
+    "loadFailed": "Could not load the mismatches",
+    "empty": "No mismatches yet",
+    "emptyHint": "Cases where Jev and regex disagree show up here.",
+    "col": {
+      "time": "Time",
+      "kind": "Kind",
+      "run": "Run",
+      "regex": "Regex label",
+      "jev": "Jev label",
+      "confidence": "Confidence"
+    }
+  }
+}

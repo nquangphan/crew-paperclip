@@ -41,6 +41,7 @@ export type NavId =
   | 'docs'
   | 'guide'
   | 'members'
+  | 'jev'
   | 'settings';
 
 /** Nhóm sidebar, chia theo Paperclip: nhóm đầu không tên, Công việc (Work), Tổ chức (Org); thêm Hệ thống cho mục còn lại. */
@@ -70,6 +71,7 @@ export const NAV_ITEMS: readonly NavItem[] = [
   { id: 'skills', group: 'org', segment: 'skills', to: 'skills' },
   { id: 'machines', group: 'org', segment: 'machines', to: 'machines' },
   { id: 'members', group: 'system', segment: 'members', to: 'members' },
+  { id: 'jev', group: 'system', segment: 'jev', to: 'jev' },
   { id: 'settings', group: 'system', segment: 'settings', to: 'settings' },
   { id: 'guide', group: 'system', segment: 'guide', to: 'guide' },
 ];

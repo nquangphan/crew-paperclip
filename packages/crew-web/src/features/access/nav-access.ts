@@ -25,7 +25,7 @@ const VIEWER_HIDDEN_SEGMENTS: ReadonlySet<string> = new Set([
 const VIEWER_HIDDEN_PROJECT_SUBPATHS: ReadonlySet<string> = new Set(['new', 'remove']);
 
 export function navItemVisible(id: NavId, a: Access): boolean {
-  if (id === 'members') return a.isOwner;
+  if (id === 'members' || id === 'jev') return a.isOwner;
   if (id === 'contributions') return a.isOwner || a.isContributor;
   if (id === 'newIssue') return !isViewer(a) || a.isContributor;
   if (isViewer(a) && VIEWER_HIDDEN_NAV.has(id)) return false;

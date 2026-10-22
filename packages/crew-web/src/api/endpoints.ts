@@ -243,6 +243,16 @@ export const ENDPOINTS = {
   'qc.list': { ids: ['S23.3'], method: 'GET', path: `${CREW}/qc` },
   'qc.verify': { ids: ['S23.1'], method: 'POST', path: `${CREW}/qc/issues/:issueId/verify` },
 
+  // Jev (S24): cổng chặn lệnh nguy hiểm và so sánh nhãn C3 với regex. Chỉ owner; route máy (HMAC) không qua UI.
+  'jev.settings': { ids: ['S24.1', 'S24.2', 'S24.3'], method: 'GET', path: `${CREW}/jev/settings` },
+  'jev.setSettings': { ids: ['S24.2'], method: 'PUT', path: `${CREW}/jev/settings` },
+  'jev.setKey': { ids: ['S24.1'], method: 'PUT', path: `${CREW}/jev/key` },
+  'jev.deleteKey': { ids: ['S24.1'], method: 'DELETE', path: `${CREW}/jev/key` },
+  'jev.stats': { ids: ['S24.3'], method: 'GET', path: `${CREW}/jev/stats` },
+  'jev.events': { ids: ['S24.3'], method: 'GET', path: `${CREW}/jev/gate-events` },
+  'jev.label': { ids: ['S24.3'], method: 'POST', path: `${CREW}/jev/gate-events/:id/label` },
+  'jev.shadow': { ids: ['S24.3'], method: 'GET', path: `${CREW}/jev/shadow` },
+
   // Quyền xem project theo thành viên (S21): owner đặt ở trang Thành viên, mọi trang lọc theo `projectAccess.me`.
   'projectAccess.me': { ids: ['S21.2'], method: 'GET', path: `${CREW}/project-access/me` },
   'projectAccess.list': { ids: ['S21.1'], method: 'GET', path: `${CREW}/project-access` },

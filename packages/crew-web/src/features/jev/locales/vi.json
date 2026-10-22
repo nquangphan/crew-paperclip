@@ -1,0 +1,181 @@
+{
+  "title": "Jev",
+  "description": "Cổng chặn lệnh nguy hiểm trên máy chạy agent và phép so sánh nhãn C3 với regex. Chỉ owner xem và sửa được.",
+  "ownerOnly": "Trang này chỉ owner xem được",
+  "ownerOnlyHint": "Nhờ owner của company mở trang Jev.",
+  "loadFailed": "Không tải được cấu hình Jev",
+  "more": "Xem thêm",
+  "section": {
+    "settings": "Cấu hình",
+    "key": "Key OpenRouter",
+    "machines": "Máy",
+    "stats": "Số liệu",
+    "events": "Ca bị chặn hoặc chuyển người duyệt",
+    "shadow": "Ca lệch giữa Jev và regex (C3)"
+  },
+  "settings": {
+    "enabled": "Bật Jev",
+    "enabledHint": "Tắt thì máy không gọi Jev và không chặn gì.",
+    "serverShadow": "C3 phía server",
+    "serverShadowHint": "Server tự so nhãn của Jev với regex cho run xong và lỗi runtime. Chỉ ghi lại, không đổi kết quả.",
+    "gateMode": "Chế độ gate",
+    "gateModeHint": {
+      "shadow": "Jev chấm điểm và ghi log, không chặn lệnh nào.",
+      "enforce": "Lệnh bị Jev đánh deny sẽ bị chặn thật trên máy."
+    },
+    "mode": {
+      "shadow": "Chỉ ghi log",
+      "enforce": "Chặn thật"
+    },
+    "model": "Model",
+    "modelHint": "Dạng typesafe/jev-…, ví dụ typesafe/jev-1.14.",
+    "threshold": "Ngưỡng",
+    "thresholdHint": "Từ {{min}} đến {{max}}. Confidence thấp hơn ngưỡng thì chuyển người duyệt.",
+    "timeout": "Timeout (ms)",
+    "timeoutHint": "Từ {{min}} đến {{max}} ms. Quá hạn thì cho qua theo luật cũ.",
+    "error": {
+      "model": "Model phải có dạng typesafe/jev-… (chữ, số, dấu chấm, gạch ngang, gạch dưới).",
+      "threshold": "Ngưỡng phải là số từ {{min}} đến {{max}}.",
+      "timeout": "Timeout phải là số nguyên từ {{min}} đến {{max}} ms."
+    },
+    "save": "Lưu cấu hình",
+    "saving": "Đang lưu…",
+    "saved": "Đã lưu cấu hình, phiên bản {{version}}. Máy sẽ kéo bản mới ở lượt kế tiếp.",
+    "saveFailed": "Không lưu được cấu hình",
+    "enforceConfirm": {
+      "title": "Chuyển sang Chặn thật?",
+      "body": "Từ lúc lưu, lệnh bị Jev đánh deny sẽ bị chặn thật trên mọi máy đã bật Jev. Nên theo dõi chế độ Chỉ ghi log một thời gian trước.",
+      "confirm": "Chặn thật"
+    }
+  },
+  "key": {
+    "has": "Đã có key · vân tay {{fingerprint}}",
+    "none": "Chưa có key.",
+    "label": "Key mới",
+    "hint": "Key chỉ gửi lên server để lưu vào secret, không hiện lại. Sau khi lưu chỉ còn vân tay.",
+    "placeholder": "Dán key rồi bấm Lưu",
+    "save": "Lưu key",
+    "saveAndTest": "Lưu và kiểm thử",
+    "delete": "Xóa key",
+    "working": "Đang xử lý…",
+    "failed": "Không xử lý được key",
+    "result": {
+      "saved": "Đã lưu key.",
+      "tested": "Đã lưu key và Jev trả lời được.",
+      "deleted": "Đã xóa key. Máy sẽ xóa key khỏi Keychain ở lượt kế tiếp.",
+      "testFailed": "Đã lưu key nhưng kiểm thử lỗi"
+    },
+    "errorCode": {
+      "auth": "Key sai hoặc bị thu hồi",
+      "timeout": "Jev trả lời quá chậm",
+      "unreachable": "Không kết nối được Jev",
+      "bad_response": "Jev trả lời sai định dạng",
+      "internal": "Lỗi nội bộ khi gọi Jev"
+    },
+    "deleteConfirm": {
+      "title": "Xóa key OpenRouter?",
+      "body": "Jev ngừng chạy trên mọi máy cho đến khi có key mới.",
+      "confirm": "Xóa key"
+    },
+    "needKey": "Dán key vào ô trên trước."
+  },
+  "machines": {
+    "empty": "Chưa có máy nào kéo cấu hình",
+    "emptyHint": "Máy hiện ở đây sau lần kéo cấu hình đầu tiên.",
+    "col": {
+      "machine": "Máy",
+      "config": "Cấu hình",
+      "key": "Key",
+      "lastPull": "Lần kéo cuối",
+      "lastEvents": "Lần gửi sự kiện cuối"
+    },
+    "applied": "Đã nhận bản {{version}}",
+    "notApplied": "Chưa nhận",
+    "behind": "Đang ở bản {{version}} (mới nhất {{current}})",
+    "keyOk": "Key khớp",
+    "keyMissing": "Chưa có key"
+  },
+  "stats": {
+    "range": "Khoảng thời gian",
+    "days": "{{count}} ngày",
+    "loadFailed": "Không tải được số liệu",
+    "empty": "Chưa có lượt gọi nào",
+    "emptyHint": "Khi máy gửi sự kiện của cổng chặn lệnh, số liệu hiện ở đây.",
+    "totals": "Tổng theo khoảng thời gian",
+    "byCategory": "Theo nhóm lệnh",
+    "col": {
+      "calls": "Số lần gọi",
+      "allow": "Allow",
+      "deny": "Deny",
+      "escalate": "Escalate",
+      "error": "Lỗi",
+      "appliedDeny": "Deny đã áp",
+      "p50": "p50",
+      "p95": "p95",
+      "category": "Nhóm"
+    },
+    "shadow": {
+      "title": "So sánh C3",
+      "kind": "Loại",
+      "done": "Đã so",
+      "mismatch": "Lệch",
+      "escalated": "Jev không chắc",
+      "error": "Lỗi",
+      "pending": "Đang chờ"
+    }
+  },
+  "events": {
+    "verdict": "Kết luận",
+    "deny": "Deny",
+    "escalate": "Escalate",
+    "loadFailed": "Không tải được danh sách ca",
+    "labelFailed": "Không gắn được nhãn",
+    "empty": "Chưa có ca nào",
+    "emptyHint": "Ca deny hoặc escalate do máy gửi lên sẽ hiện ở đây.",
+    "col": {
+      "time": "Giờ",
+      "machine": "Máy",
+      "category": "Nhóm",
+      "command": "Lệnh (đã che)",
+      "confidence": "Confidence",
+      "applied": "Đã áp",
+      "label": "Nhãn của owner"
+    },
+    "applied": "Đã chặn",
+    "notApplied": "Chưa áp",
+    "label": {
+      "correct": "Đúng",
+      "wrong": "Nhầm"
+    },
+    "errorCode": {
+      "no_key": "Chưa có key",
+      "timeout": "Quá hạn",
+      "unreachable": "Không kết nối được",
+      "bad_response": "Jev trả sai định dạng",
+      "bad_event": "Dòng log hỏng",
+      "internal": "Lỗi nội bộ",
+      "skipped_bg": "Bỏ qua Jev (đủ tiến trình nền)",
+      "dropped": "Bỏ log cũ",
+      "other": "Lỗi khác"
+    },
+    "dropped": "Mac bỏ {{count}} dòng log chưa gửi"
+  },
+  "shadow": {
+    "kindLabel": "Loại so sánh",
+    "kind": {
+      "liveness": "Liveness của run",
+      "runtime": "Lỗi runtime"
+    },
+    "loadFailed": "Không tải được ca lệch",
+    "empty": "Chưa có ca lệch nào",
+    "emptyHint": "Ca Jev và regex cho nhãn khác nhau sẽ hiện ở đây.",
+    "col": {
+      "time": "Giờ",
+      "kind": "Loại",
+      "run": "Run",
+      "regex": "Nhãn regex",
+      "jev": "Nhãn Jev",
+      "confidence": "Confidence"
+    }
+  }
+}

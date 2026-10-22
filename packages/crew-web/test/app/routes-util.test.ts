@@ -35,7 +35,7 @@ describe('groupNavItems', () => {
     expect(ids('main')).toEqual(['newIssue', 'search', 'dashboard', 'inbox']);
     expect(ids('work')).toEqual(['issues', 'roadmap', 'contributions', 'projects', 'docs']);
     expect(ids('org')).toEqual(['agents', 'skills', 'machines']);
-    expect(ids('system')).toEqual(['members', 'settings', 'guide']);
+    expect(ids('system')).toEqual(['members', 'jev', 'settings', 'guide']);
   });
   it('mọi mục thuộc đúng một nhóm', () => {
     const all = groupNavItems(NAV_ITEMS).flatMap((g) => g.items.map((i) => i.id));
