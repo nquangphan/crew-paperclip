@@ -30,7 +30,15 @@ const settings = (over: Record<string, unknown> = {}) => ({
   version: 3,
   updatedAt: null,
   machines: [
-    { machineId: M1, appliedVersion: 3, keyOk: true, lastPullAt: '2026-10-22T03:30:00.000Z', lastEventsAt: null },
+    {
+      machineId: M1,
+      hostname: 'mac-mini',
+      revoked: false,
+      appliedVersion: 3,
+      keyOk: true,
+      lastPullAt: '2026-10-22T03:30:00.000Z',
+      lastEventsAt: null,
+    },
   ],
   ...over,
 });
@@ -58,13 +66,14 @@ const gateEvent = (over: Record<string, unknown> = {}) => ({
   id: '41',
   eventId: 'e-1',
   machineId: M1,
+  hostname: 'mac-mini',
   occurredAt: '2026-10-22T03:30:00.000Z',
   runId: null,
   agentId: null,
   mode: 'shadow',
   category: 'git_destructive',
   verdict: 'deny',
-  applied: false,
+  applied: 'allow',
   blocking: false,
   confidence: 0.91,
   reason: null,
@@ -208,6 +217,8 @@ describe('JevPage', () => {
             machines: [
               {
                 machineId: M1,
+                hostname: 'mac-mini',
+                revoked: false,
                 appliedVersion: 3,
                 keyOk: true,
                 lastPullAt: '2026-10-22T03:30:00.000Z',
@@ -215,7 +226,18 @@ describe('JevPage', () => {
               },
               {
                 machineId: '22222222-2222-4222-8222-222222222222',
+                hostname: 'mac-cu',
+                revoked: true,
                 appliedVersion: 2,
+                keyOk: false,
+                lastPullAt: null,
+                lastEventsAt: null,
+              },
+              {
+                machineId: '33333333-3333-4333-8333-333333333333',
+                hostname: null,
+                revoked: false,
+                appliedVersion: 0,
                 keyOk: false,
                 lastPullAt: null,
                 lastEventsAt: null,
@@ -229,6 +251,11 @@ describe('JevPage', () => {
     expect(await screen.findByText('Đã nhận bản 3')).toBeTruthy();
     expect(screen.getByText('Đang ở bản 2 (mới nhất 3)')).toBeTruthy();
     expect(screen.getByText('Key khớp')).toBeTruthy();
+    expect(screen.getAllByText('Key chưa khớp')).toHaveLength(2);
+    expect(screen.getByText('mac-cu')).toBeTruthy();
+    expect(screen.getByText('Đã gỡ')).toBeTruthy();
+    expect(screen.getByText('Chưa nhận cấu hình')).toBeTruthy();
+    expect(screen.getByText('33333333')).toBeTruthy();
     // 03:30Z là 10:30 giờ Việt Nam.
     expect(screen.getByText('22/10/2026 10:30')).toBeTruthy();
   });
@@ -252,20 +279,36 @@ describe('JevPage', () => {
     mount();
     const row = await screen.findByTestId('jev-gate-event');
     expect(within(row).getByText('git push --force origin main')).toBeTruthy();
-    expect(within(row).getByText('Chưa áp')).toBeTruthy();
+    expect(within(row).getByText('mac-mini')).toBeTruthy();
+    // Jev deny ở chế độ chỉ ghi log: Mac vẫn cho chạy, nên không được hiện là đã chặn.
+    expect(within(row).getByText('Chỉ ghi log')).toBeTruthy();
+    expect(within(row).queryByText('Đã chặn')).toBeNull();
     fireEvent.click(within(row).getByRole('button', { name: 'Nhầm' }));
     await waitFor(() => expect(s.calls.some((c) => c.method === 'POST' && c.url.endsWith('/41/label'))).toBe(true));
     expect(s.calls.find((c) => c.url.endsWith('/41/label'))?.body).toEqual({ label: 'wrong' });
   });
 
-  it('dòng log bị Mac bỏ hiện rõ số dòng, mã skipped_bg có nhãn tiếng Việt', async () => {
+  it('ca deny đã áp (applied=deny) hiện Đã chặn', async () => {
     mockServer(
       baseRoutes({
         [`GET ${BASE}/gate-events`]: {
+          body: { items: [gateEvent({ mode: 'enforce', applied: 'deny', blocking: true })], nextBefore: null },
+        },
+      }),
+    );
+    mount();
+    const row = await screen.findByTestId('jev-gate-event');
+    expect(within(row).getByText('Đã chặn')).toBeTruthy();
+  });
+
+  it('tab Lỗi: dòng log bị Mac bỏ hiện rõ số dòng, mã skipped_bg có nhãn tiếng Việt', async () => {
+    const s = mockServer(
+      baseRoutes({
+        [`GET ${BASE}/gate-events?verdict=error`]: {
           body: {
             items: [
-              gateEvent({ id: '2', verdict: 'escalate', errorCode: 'dropped', reason: 'dropped:7', command: '' }),
-              gateEvent({ id: '3', errorCode: 'skipped_bg' }),
+              gateEvent({ id: '2', verdict: 'error', errorCode: 'dropped', reason: 'dropped:7', command: '' }),
+              gateEvent({ id: '3', verdict: 'error', errorCode: 'skipped_bg' }),
             ],
             nextBefore: null,
           },
@@ -273,8 +316,25 @@ describe('JevPage', () => {
       }),
     );
     mount();
+    fireEvent.mouseDown(await screen.findByRole('tab', { name: 'Lỗi' }), { button: 0 });
     expect(await screen.findByText('Mac bỏ 7 dòng log chưa gửi')).toBeTruthy();
     expect(screen.getByText('Bỏ qua Jev (đủ tiến trình nền)')).toBeTruthy();
+    expect(s.calls.some((c) => c.url.endsWith('/gate-events?verdict=error'))).toBe(true);
+  });
+
+  it('nhãn đã chọn có dấu tích và aria-pressed, không dùng kiểu nút chính', async () => {
+    mockServer(
+      baseRoutes({
+        [`GET ${BASE}/gate-events`]: { body: { items: [gateEvent({ ownerLabel: 'wrong' })], nextBefore: null } },
+      }),
+    );
+    mount();
+    const row = await screen.findByTestId('jev-gate-event');
+    const wrong = within(row).getByRole('button', { name: 'Nhầm' });
+    expect(wrong.getAttribute('aria-pressed')).toBe('true');
+    expect(wrong.getAttribute('data-variant')).not.toBe('default');
+    expect(wrong.querySelector('svg')).not.toBeNull();
+    expect(within(row).getByRole('button', { name: 'Đúng' }).getAttribute('aria-pressed')).toBe('false');
   });
 
   it('ca lệch C3: hiện nhãn regex và nhãn Jev, link tới run', async () => {

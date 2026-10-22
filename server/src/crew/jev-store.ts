@@ -253,12 +253,21 @@ export interface JevMachine {
   keyFingerprint: string | null;
   lastPullAt: string | null;
   lastEventsAt: string | null;
+  /** Tên máy từ `machine_pairings` (giữ cả khi máy đã gỡ); `null` khi máy chưa từng ghép. */
+  hostname: string | null;
+  /** Máy đã bị gỡ (bản tin và pull của nó bị từ chối). */
+  revoked: boolean;
 }
+
+const pairingsTable = () => sql.raw(`${derivePluginDatabaseNamespace(CREW_PLUGIN_KEY)}.machine_pairings`);
 
 export async function listJevMachines(db: Sql, companyId: string): Promise<JevMachine[]> {
   const rows = rowsOf(
-    await db.execute(sql`SELECT * FROM ${table("crew_jev_machines")} WHERE company_id = ${companyId}
-      ORDER BY last_pull_at DESC NULLS LAST, machine_id`),
+    await db.execute(sql`SELECT m.*, p.hostname AS hostname, (p.revoked_at IS NOT NULL) AS revoked
+      FROM ${table("crew_jev_machines")} m
+      LEFT JOIN ${pairingsTable()} p ON p.company_id = m.company_id AND p.machine_id = m.machine_id
+      WHERE m.company_id = ${companyId}
+      ORDER BY m.last_pull_at DESC NULLS LAST, m.machine_id`),
   );
   return rows.map((row) => ({
     machineId: String(row.machine_id),
@@ -266,6 +275,8 @@ export async function listJevMachines(db: Sql, companyId: string): Promise<JevMa
     keyFingerprint: str(row.key_fingerprint),
     lastPullAt: iso(row.last_pull_at),
     lastEventsAt: iso(row.last_events_at),
+    hostname: str(row.hostname),
+    revoked: row.revoked === true,
   }));
 }
 
@@ -364,6 +375,8 @@ export interface JevGateEventRow {
   id: string;
   eventId: string;
   machineId: string;
+  /** Tên máy từ `machine_pairings`; `null` khi máy chưa từng ghép (hoặc dòng vừa trả từ lệnh gắn nhãn). */
+  hostname: string | null;
   occurredAt: string | null;
   runId: string | null;
   agentId: string | null;
@@ -390,6 +403,7 @@ function toGateEvent(row: Record<string, unknown>): JevGateEventRow {
     id: String(row.id),
     eventId: String(row.event_id),
     machineId: String(row.machine_id),
+    hostname: str(row.hostname),
     occurredAt: iso(row.occurred_at),
     runId: str(row.run_id),
     agentId: str(row.agent_id),
@@ -436,15 +450,17 @@ function page<T extends { id: string }>(items: T[]): JevPage<T> {
 
 /** 50 dòng mới nhất (theo `id` giảm dần), lọc theo verdict, nhóm, nhãn; `before` là `id` của dòng cuối trang trước. */
 export async function listGateEvents(db: Sql, companyId: string, query: GateEventsQuery): Promise<JevPage<JevGateEventRow>> {
-  const conditions: SQL[] = [sql`company_id = ${companyId}`];
-  if (query.verdict) conditions.push(sql`verdict = ${query.verdict}`);
-  if (query.category) conditions.push(sql`category = ${query.category}`);
-  if (query.label === "unlabeled") conditions.push(sql`owner_label IS NULL`);
-  else if (query.label) conditions.push(sql`owner_label = ${query.label}`);
-  if (query.before) conditions.push(sql`id < ${query.before}`);
+  const conditions: SQL[] = [sql`e.company_id = ${companyId}`];
+  if (query.verdict) conditions.push(sql`e.verdict = ${query.verdict}`);
+  if (query.category) conditions.push(sql`e.category = ${query.category}`);
+  if (query.label === "unlabeled") conditions.push(sql`e.owner_label IS NULL`);
+  else if (query.label) conditions.push(sql`e.owner_label = ${query.label}`);
+  if (query.before) conditions.push(sql`e.id < ${query.before}`);
   const rows = rowsOf(
-    await db.execute(sql`SELECT * FROM ${table("crew_jev_gate_events")} WHERE ${sql.join(conditions, sql` AND `)}
-      ORDER BY id DESC LIMIT ${JEV_PAGE_SIZE}`),
+    await db.execute(sql`SELECT e.*, p.hostname AS hostname FROM ${table("crew_jev_gate_events")} e
+      LEFT JOIN ${pairingsTable()} p ON p.company_id = e.company_id AND p.machine_id = e.machine_id
+      WHERE ${sql.join(conditions, sql` AND `)}
+      ORDER BY e.id DESC LIMIT ${JEV_PAGE_SIZE}`),
   );
   return page(rows.map(toGateEvent));
 }
@@ -565,6 +581,10 @@ export interface JevStats {
     escalate: number;
     error: number;
     appliedDeny: number;
+    /** Lần Mac bỏ qua Jev vì đủ tiến trình nền (không tính vào `calls`). */
+    skipped: number;
+    /** Số dòng log Mac báo đã bỏ chưa gửi (tổng `dropped:<n>`, không tính vào `calls`). */
+    droppedLines: number;
     p50Ms: number | null;
     p95Ms: number | null;
     byCategory: Array<{ category: string; calls: number; deny: number; appliedDeny: number }>;
@@ -572,6 +592,9 @@ export interface JevStats {
   };
   shadow: Record<JevShadowKind, JevShadowStats>;
 }
+
+/** Dòng thật sự là một lần hỏi Jev: loại `skipped_bg` (không gọi Jev) và `dropped` (một dòng thay cho N dòng đã mất). */
+const CALLED = sql.raw("coalesce(error_code, '') NOT IN ('skipped_bg', 'dropped')");
 
 const roundMs = (value: unknown): number | null => (value === null || value === undefined ? null : Math.round(Number(value)));
 const int = (value: unknown): number => Number(value ?? 0);
@@ -595,16 +618,23 @@ export async function jevStats(db: Sql, companyId: string, days: number): Promis
     await db.execute(sql`SELECT ${verdictCounts},
       percentile_cont(0.5) WITHIN GROUP (ORDER BY latency_ms) AS p50,
       percentile_cont(0.95) WITHIN GROUP (ORDER BY latency_ms) AS p95
+      FROM ${events} WHERE company_id = ${companyId} AND occurred_at >= ${since} AND ${CALLED}`),
+  );
+  const [skips] = rowsOf(
+    await db.execute(sql`SELECT
+      count(*) FILTER (WHERE error_code = 'skipped_bg')::int AS skipped,
+      coalesce(sum(coalesce(substring(reason from '^dropped:([0-9]+)$')::int, 0))
+        FILTER (WHERE error_code = 'dropped'), 0)::int AS dropped_lines
       FROM ${events} WHERE company_id = ${companyId} AND occurred_at >= ${since}`),
   );
   const byCategory = rowsOf(
     await db.execute(sql`SELECT category, ${verdictCounts} FROM ${events}
-      WHERE company_id = ${companyId} AND occurred_at >= ${since} AND category IS NOT NULL
+      WHERE company_id = ${companyId} AND occurred_at >= ${since} AND category IS NOT NULL AND ${CALLED}
       GROUP BY category ORDER BY category`),
   );
   const byDay = rowsOf(
     await db.execute(sql`SELECT to_char(occurred_at AT TIME ZONE 'Asia/Ho_Chi_Minh', 'YYYY-MM-DD') AS day, ${verdictCounts}
-      FROM ${events} WHERE company_id = ${companyId} AND occurred_at >= ${since}
+      FROM ${events} WHERE company_id = ${companyId} AND occurred_at >= ${since} AND ${CALLED}
       GROUP BY 1 ORDER BY 1`),
   );
   const shadowRows = rowsOf(
@@ -633,6 +663,8 @@ export async function jevStats(db: Sql, companyId: string, days: number): Promis
       escalate: int(totals?.escalate),
       error: int(totals?.error),
       appliedDeny: int(totals?.applied_deny),
+      skipped: int(skips?.skipped),
+      droppedLines: int(skips?.dropped_lines),
       p50Ms: roundMs(totals?.p50),
       p95Ms: roundMs(totals?.p95),
       byCategory: byCategory.map((row) => ({

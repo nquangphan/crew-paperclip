@@ -5,6 +5,7 @@ import type { JevShadowCounts } from '@/api';
 import {
   EmptyState,
   ErrorState,
+  MutedText,
   Spinner,
   Table,
   TableBody,
@@ -80,6 +81,9 @@ export function StatsPanel({ companyId }: { companyId: string }) {
                   </TableRow>
                 </TableBody>
               </Table>
+              {g.skipped > 0 || g.droppedLines > 0 ? (
+                <MutedText>{t('stats.notCalled', { skipped: g.skipped, dropped: g.droppedLines })}</MutedText>
+              ) : null}
               <Table aria-label={t('stats.byCategory')}>
                 <TableHeader>
                   <TableRow>

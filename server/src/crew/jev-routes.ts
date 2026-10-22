@@ -84,6 +84,8 @@ async function settingsView(db: Db, settings: JevSettingsRecord) {
     updatedAt: settings.updatedAt,
     machines: machines.map((machine) => ({
       machineId: machine.machineId,
+      hostname: machine.hostname,
+      revoked: machine.revoked,
       appliedVersion: machine.appliedVersion,
       // Máy đang giữ đúng key hiện tại (cả hai cùng không có key cũng tính là khớp).
       keyOk: machine.keyFingerprint === settings.keyFingerprint,

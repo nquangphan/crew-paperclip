@@ -19,10 +19,12 @@ import {
   TabsList,
   TabsTrigger,
 } from '@/ds';
+import { Check } from '@/ds/icons';
 import { formatDateTime, useT } from '@/i18n';
+import { MachineName } from './machine-name';
 import { useGateEvents, useLabelEvent } from './use-jev';
 
-type Verdict = 'deny' | 'escalate';
+type Verdict = 'deny' | 'escalate' | 'error';
 
 /** Số dòng log Mac bỏ chưa gửi, đọc từ `reason` dạng `dropped:<n>`; không đọc được thì null. */
 export function droppedCount(reason: string | null): number | null {
@@ -43,13 +45,7 @@ const KNOWN_ERROR_CODES = [
 
 export const confidenceText = (c: number | null) => (c === null ? '—' : c.toFixed(2));
 
-export function GateEventsTable({
-  companyId,
-  hostnames,
-}: {
-  companyId: string;
-  hostnames: ReadonlyMap<string, string>;
-}) {
+export function GateEventsTable({ companyId }: { companyId: string }) {
   const { t, lang } = useT('jev');
   const [verdict, setVerdict] = useState<Verdict>('deny');
   const events = useGateEvents(companyId, verdict, true);
@@ -62,6 +58,7 @@ export function GateEventsTable({
         <TabsList aria-label={t('events.verdict')}>
           <TabsTrigger value="deny">{t('events.deny')}</TabsTrigger>
           <TabsTrigger value="escalate">{t('events.escalate')}</TabsTrigger>
+          <TabsTrigger value="error">{t('events.error')}</TabsTrigger>
         </TabsList>
       </Tabs>
       {events.isLoading ? <Spinner /> : null}
@@ -94,7 +91,9 @@ export function GateEventsTable({
             {items.map((e) => (
               <TableRow key={e.id} data-testid="jev-gate-event">
                 <TableCell>{formatDateTime(e.occurredAt, lang)}</TableCell>
-                <TableCell>{hostnames.get(e.machineId) ?? e.machineId}</TableCell>
+                <TableCell>
+                  <MachineName machineId={e.machineId} hostname={e.hostname} />
+                </TableCell>
                 <TableCell>
                   {e.category ?? '—'}
                   {e.errorCode ? (
@@ -112,8 +111,8 @@ export function GateEventsTable({
                 </TableCell>
                 <TableCell>{confidenceText(e.confidence)}</TableCell>
                 <TableCell>
-                  <Badge variant={e.applied ? 'destructive' : 'secondary'}>
-                    {e.applied ? t('events.applied') : t('events.notApplied')}
+                  <Badge variant={e.applied === 'deny' ? 'destructive' : 'secondary'}>
+                    {e.applied === 'deny' ? t('events.applied') : t('events.notApplied')}
                   </Badge>
                 </TableCell>
                 <TableCell>
@@ -122,11 +121,12 @@ export function GateEventsTable({
                       <Button
                         key={l}
                         size="sm"
-                        variant={e.ownerLabel === l ? 'default' : 'outline'}
+                        variant={e.ownerLabel === l ? 'secondary' : 'outline'}
                         aria-pressed={e.ownerLabel === l}
                         disabled={label.isPending}
                         onClick={() => label.mutate({ event: e, label: l })}
                       >
+                        {e.ownerLabel === l ? <Check aria-hidden /> : null}
                         {t(`events.label.${l}`)}
                       </Button>
                     ))}

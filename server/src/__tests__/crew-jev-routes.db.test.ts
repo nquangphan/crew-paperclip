@@ -430,7 +430,7 @@ suite("Crew Jev: route owner và route máy", () => {
     expect(res.body).toEqual({
       days: 7,
       gate: {
-        calls: 3, allow: 1, deny: 1, escalate: 0, error: 1, appliedDeny: 1, p50Ms: 200, p95Ms: 290,
+        calls: 3, allow: 1, deny: 1, escalate: 0, error: 1, appliedDeny: 1, skipped: 0, droppedLines: 0, p50Ms: 200, p95Ms: 290,
         byCategory: [{ category: "force_push", calls: 1, deny: 1, appliedDeny: 1 }],
         byDay: [{ day: today, calls: 3, allow: 1, deny: 1, escalate: 0, error: 1 }],
       },
@@ -549,6 +549,38 @@ suite("Crew Jev: route owner và route máy", () => {
     expect(log).not.toContain(TEST_KEY);
     expect(log).not.toContain("crew/log-check");
     expect(log).not.toContain(WEBHOOK_SECRET);
+  });
+
+  it("ca shadow deny giữ applied=allow; hostname lấy từ machine_pairings; skipped_bg và dropped không tính vào calls", async () => {
+    const before = record(await (await owner()).get(url("/stats?days=7"))).body.gate;
+    const batch = [
+      event({ verdict: "deny", applied: "allow", mode: "shadow", category: "force_push", confidence: 0.9, command: "git push --force origin shadow-only" }),
+      event({ verdict: "error", applied: "allow", errorCode: "skipped_bg", confidence: null, latencyMs: 2, command: "ls" }),
+      event({ verdict: "error", applied: "allow", errorCode: "dropped", reason: "dropped:7", confidence: null, latencyMs: null, command: "" }),
+    ];
+    const sent = await signed("/machine/events", eventsBody(batch, machines.paired), pairedKey());
+    expect(sent.body).toEqual({ accepted: 3, duplicates: 0, rejected: 0 });
+
+    const denies = record(await (await owner()).get(url("/gate-events?verdict=deny"))).body.items as Array<Record<string, unknown>>;
+    const shadowDeny = denies.find((item) => item.command === "git push --force origin shadow-only");
+    expect(shadowDeny).toMatchObject({ verdict: "deny", applied: "allow", mode: "shadow", hostname: "mac" });
+    const legacyDeny = denies.find((item) => item.machineId === machines.legacy);
+    expect(legacyDeny?.hostname).toBeNull();
+
+    const errors = record(await (await owner()).get(url("/gate-events?verdict=error"))).body.items as Array<Record<string, unknown>>;
+    expect(errors.map((item) => item.errorCode)).toEqual(expect.arrayContaining(["skipped_bg", "dropped"]));
+
+    const settingsMachines = (await (await owner()).get(url("/settings"))).body.machines as Array<Record<string, unknown>>;
+    expect(settingsMachines.find((item) => item.machineId === machines.paired)).toMatchObject({ hostname: "mac", revoked: false });
+    expect(settingsMachines.find((item) => item.machineId === machines.legacy)).toMatchObject({ hostname: null, revoked: false });
+
+    const after = record(await (await owner()).get(url("/stats?days=7"))).body.gate;
+    expect(after.calls - before.calls).toBe(1);
+    expect(after.deny - before.deny).toBe(1);
+    expect(after.error - before.error).toBe(0);
+    expect(after.appliedDeny - before.appliedDeny).toBe(0);
+    expect(after.skipped - before.skipped).toBe(1);
+    expect(after.droppedLines - before.droppedLines).toBe(7);
   });
 
   it("không response nào chứa key thử hay secret webhook", () => {

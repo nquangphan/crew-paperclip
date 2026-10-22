@@ -23,7 +23,7 @@ export function useJevStats(companyId: string, days: number, enabled: boolean) {
   });
 }
 
-export function useGateEvents(companyId: string, verdict: 'deny' | 'escalate', enabled: boolean) {
+export function useGateEvents(companyId: string, verdict: 'deny' | 'escalate' | 'error', enabled: boolean) {
   return useInfiniteQuery({
     queryKey: queryKeys.jev(companyId, 'events', verdict),
     queryFn: ({ pageParam }) => api.jev.events(companyId, verdict, pageParam),

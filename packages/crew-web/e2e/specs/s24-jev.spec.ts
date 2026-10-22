@@ -289,7 +289,7 @@ test('PW-S24-3 Máy giả kéo cấu hình và đẩy sự kiện ký HMAC: tran
 
   // Bảng máy: máy giả đã nhận đúng version hiện tại.
   const settings = await api.get<JevSettings>(jevPath(company.id, '/settings'));
-  const machineRow = page.getByRole('row').filter({ hasText: machineId });
+  const machineRow = page.getByRole('row').filter({ hasText: hostname });
   await expect(machineRow.getByText(`Đã nhận bản ${settings.version}`)).toBeVisible();
 
   const eventRow = page.getByTestId('jev-gate-event').filter({ hasText: command });

@@ -2,14 +2,9 @@
 import type { JevSettings } from '@/api';
 import { Badge, EmptyState, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/ds';
 import { formatDateTime, useT } from '@/i18n';
+import { MachineName } from './machine-name';
 
-interface MachinesTableProps {
-  settings: JevSettings;
-  /** Tên máy theo machineId (từ bản tin máy); máy không có tên thì hiện mã. */
-  hostnames: ReadonlyMap<string, string>;
-}
-
-export function MachinesTable({ settings, hostnames }: MachinesTableProps) {
+export function MachinesTable({ settings }: { settings: JevSettings }) {
   const { t, lang } = useT('jev');
   if (settings.machines.length === 0) {
     return <EmptyState title={t('machines.empty')} description={t('machines.emptyHint')} />;
@@ -27,17 +22,22 @@ export function MachinesTable({ settings, hostnames }: MachinesTableProps) {
       </TableHeader>
       <TableBody>
         {settings.machines.map((m) => {
-          const current = m.appliedVersion === settings.version;
+          // Mac chưa nhận lần nào báo bản 0 (hoặc null).
+          const applied = m.appliedVersion === null || m.appliedVersion === 0 ? null : m.appliedVersion;
+          const current = applied === settings.version;
           return (
             <TableRow key={m.machineId}>
-              <TableCell>{hostnames.get(m.machineId) ?? m.machineId}</TableCell>
+              <TableCell>
+                <MachineName machineId={m.machineId} hostname={m.hostname} />
+                {m.revoked ? <Badge variant="secondary">{t('machines.revoked')}</Badge> : null}
+              </TableCell>
               <TableCell>
                 <Badge variant={current ? 'default' : 'secondary'}>
                   {current
                     ? t('machines.applied', { version: settings.version })
-                    : m.appliedVersion === null
+                    : applied === null
                       ? t('machines.notApplied')
-                      : t('machines.behind', { version: m.appliedVersion, current: settings.version })}
+                      : t('machines.behind', { version: applied, current: settings.version })}
                 </Badge>
               </TableCell>
               <TableCell>

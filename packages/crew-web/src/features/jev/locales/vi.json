@@ -90,10 +90,12 @@
       "lastEvents": "Lần gửi sự kiện cuối"
     },
     "applied": "Đã nhận bản {{version}}",
-    "notApplied": "Chưa nhận",
+    "notApplied": "Chưa nhận cấu hình",
     "behind": "Đang ở bản {{version}} (mới nhất {{current}})",
     "keyOk": "Key khớp",
-    "keyMissing": "Chưa có key"
+    "keyMissing": "Key chưa khớp",
+    "revoked": "Đã gỡ",
+    "hint": "Máy báo bản cấu hình đang dùng ở lượt kéo kế tiếp nên có thể trễ tới một phút sau khi bạn lưu."
   },
   "stats": {
     "range": "Khoảng thời gian",
@@ -122,7 +124,8 @@
       "escalated": "Jev không chắc",
       "error": "Lỗi",
       "pending": "Đang chờ"
-    }
+    },
+    "notCalled": "Không tính vào số lần gọi: {{skipped}} lần bỏ qua Jev (đủ tiến trình nền), Mac bỏ {{dropped}} dòng log chưa gửi."
   },
   "events": {
     "verdict": "Kết luận",
@@ -142,7 +145,7 @@
       "label": "Nhãn của owner"
     },
     "applied": "Đã chặn",
-    "notApplied": "Chưa áp",
+    "notApplied": "Chỉ ghi log",
     "label": {
       "correct": "Đúng",
       "wrong": "Nhầm"
@@ -158,7 +161,8 @@
       "dropped": "Bỏ log cũ",
       "other": "Lỗi khác"
     },
-    "dropped": "Mac bỏ {{count}} dòng log chưa gửi"
+    "dropped": "Mac bỏ {{count}} dòng log chưa gửi",
+    "error": "Lỗi"
   },
   "shadow": {
     "kindLabel": "Loại so sánh",

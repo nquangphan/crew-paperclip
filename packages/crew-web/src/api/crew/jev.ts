@@ -3,12 +3,15 @@
 import { call } from '../endpoints';
 
 export type JevGateMode = 'shadow' | 'enforce';
-export type JevVerdict = 'allow' | 'deny' | 'escalate';
+export type JevVerdict = 'allow' | 'deny' | 'escalate' | 'error';
 export type JevLabel = 'correct' | 'wrong';
 export type JevErrorCode = 'auth' | 'timeout' | 'unreachable' | 'bad_response' | 'internal';
 
 export interface JevMachineState {
   machineId: string;
+  /** Tên máy từ bảng ghép máy (còn cả khi máy đã gỡ); null khi máy chưa từng ghép. */
+  hostname: string | null;
+  revoked: boolean;
   appliedVersion: number | null;
   keyOk: boolean;
   lastPullAt: string | null;
@@ -64,6 +67,8 @@ export interface JevStats {
     escalate: number;
     error: number;
     appliedDeny: number;
+    skipped: number;
+    droppedLines: number;
     p50Ms: number | null;
     p95Ms: number | null;
     byCategory: JevCategoryStat[];
@@ -76,13 +81,15 @@ export interface JevGateEvent {
   id: string;
   eventId: string;
   machineId: string;
+  hostname: string | null;
   occurredAt: string;
   runId: string | null;
   agentId: string | null;
   mode: string;
   category: string | null;
-  verdict: JevVerdict | null;
-  applied: boolean;
+  verdict: JevVerdict;
+  /** Quyết định Mac đã áp: 'deny' là lệnh bị chặn thật, 'allow' là cho chạy (kể cả ca Jev deny ở chế độ chỉ ghi log). */
+  applied: 'allow' | 'deny';
   blocking: boolean;
   confidence: number | null;
   reason: string | null;
@@ -128,8 +135,11 @@ export const jevApi = {
     call('jev.setKey', { companyId }, { body: { apiKey, ...(test ? { test: true } : {}) } }),
   deleteKey: (companyId: string): Promise<{ hasKey: false }> => call('jev.deleteKey', { companyId }),
   stats: (companyId: string, days: number): Promise<JevStats> => call('jev.stats', { companyId }, { query: { days } }),
-  events: (companyId: string, verdict: 'deny' | 'escalate', before: string | null): Promise<JevPage<JevGateEvent>> =>
-    call('jev.events', { companyId }, { query: { verdict, before } }),
+  events: (
+    companyId: string,
+    verdict: 'deny' | 'escalate' | 'error',
+    before: string | null,
+  ): Promise<JevPage<JevGateEvent>> => call('jev.events', { companyId }, { query: { verdict, before } }),
   label: (companyId: string, id: string, label: JevLabel | null): Promise<JevGateEvent> =>
     call('jev.label', { companyId, id }, { body: { label } }),
   shadow: (companyId: string, kind: 'liveness' | 'runtime', before: string | null): Promise<JevPage<JevShadowItem>> =>
