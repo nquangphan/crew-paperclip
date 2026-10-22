@@ -117,4 +117,30 @@ describe("Crew Jev: khóa máy và chữ ký giống plugin", () => {
     const tampered = body.replace(machineId, machineId.toUpperCase());
     expect(await check(tampered, signed)).toEqual({ status: 401, code: "bad_signature" });
   });
+
+  it("dạng header sai hoặc lệch giờ bị từ chối trước khi đọc secret", async () => {
+    const now = Math.floor(Date.now() / 1000);
+    let reads = 0;
+    const resolveSecret = async () => {
+      reads += 1;
+      return "machine-key";
+    };
+    const body = JSON.stringify({ version: 1, companyId, machineId });
+    const cases: Array<[Record<string, string>, string]> = [
+      [signLikeE2e(body, "machine-key", now - 301), "stale_signature"],
+      [signLikeE2e(body, "machine-key", now + 301), "stale_signature"],
+      [{ "x-crew-timestamp": "01", "x-crew-signature": `sha256=${"0".repeat(64)}` }, "bad_signature"],
+      [{ "x-crew-timestamp": "abc", "x-crew-signature": `sha256=${"0".repeat(64)}` }, "bad_signature"],
+      [{ "x-crew-timestamp": String(now), "x-crew-signature": "sha256=zz" }, "bad_signature"],
+      [{ "x-crew-timestamp": String(now), "x-crew-signature": "0".repeat(64) }, "bad_signature"],
+      [{ "x-crew-timestamp": String(now) }, "missing_signature"],
+    ];
+    for (const [headers, code] of cases) {
+      const result = await statusOf(verifyMachineRequest(fakeRequest(body, headers), {
+        companyId, maxBytes: 4096, resolveSecret, nowSec: now,
+      }));
+      expect(result.code, JSON.stringify(headers)).toBe(code);
+    }
+    expect(reads).toBe(0);
+  });
 });

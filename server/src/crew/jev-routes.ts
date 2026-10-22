@@ -1,6 +1,4 @@
 import { type Request, type Response, Router } from "express";
-import { redactSecrets } from "jev-use/dist/redact.js";
-import { check } from "jev-use/dist/protocol.js";
 import { z } from "zod";
 import type { Db } from "@paperclipai/db";
 import { badRequest, HttpError, notFound, payloadTooLarge } from "../errors.js";
@@ -31,6 +29,7 @@ import {
   shadowQuerySchema,
   storeJevKey,
 } from "./jev-store.js";
+import { loadJevUse } from "./vendor/jev-use.js";
 
 const BASE = "/crew/companies/:companyId/jev";
 const BODY_LOCAL = "crewJevBody";
@@ -96,7 +95,11 @@ async function settingsView(db: Db, settings: JevSettingsRecord) {
 const putKeySchema = z.object({ apiKey: jevApiKeySchema, test: z.boolean().optional() }).strict();
 const statsQuerySchema = z.object({ days: z.coerce.number().int().min(1).max(30).default(7) }).strict();
 const labelBodySchema = z.object({ label: z.enum(["correct", "wrong"]).nullable() }).strict();
-const gateEventIdSchema = z.string().regex(/^[1-9][0-9]{0,15}$/).transform(Number);
+const gateEventIdSchema = z
+  .string()
+  .regex(/^[1-9][0-9]{0,15}$/)
+  .transform(Number)
+  .refine((value) => Number.isSafeInteger(value));
 
 const fingerprintSchema = z.string().regex(/^[0-9a-f]{12}$/).nullable();
 const pullSchema = z.object({
@@ -170,7 +173,7 @@ export function crewJevRoutes(db: Db): Router {
         model: settings.model,
         timeoutMs: settings.timeoutMs,
         state: KEY_TEST_STATE,
-        questions: { ok: check("Is this a connectivity check?") },
+        questions: { ok: { type: "noul", question: "Is this a connectivity check?" } },
       });
       if (judged.ok) result.test = "ok";
       else {
@@ -281,6 +284,13 @@ export function crewJevRoutes(db: Db): Router {
       throw payloadTooLarge(`Một lô tối đa ${JEV_EVENTS_MAX_ROWS} dòng.`, { code: JEV_ERRORS.tooManyEvents });
     }
     if (!(await jevTablesReady(db))) throw jevUnavailable();
+    let redactSecrets: (text: string) => string;
+    try {
+      ({ redactSecrets } = await loadJevUse());
+    } catch {
+      // Không che được thì không ghi lệnh; Mac giữ con trỏ và gửi lại lượt sau.
+      throw new HttpError(503, "Crew: chưa nạp được Jev, hãy thử lại sau.", { code: JEV_ERRORS.unavailable });
+    }
     // Dòng hỏng hoặc của company khác bị bỏ (đếm `rejected`) để Mac vẫn tiến được con trỏ.
     const valid: JevGateEvent[] = [];
     for (const raw of body.data.events) {

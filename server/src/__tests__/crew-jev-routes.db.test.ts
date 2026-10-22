@@ -9,7 +9,8 @@ import express from "express";
 import request from "supertest";
 import { eq, sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { companies, companyMemberships, companySecrets, createDb, pluginConfig, plugins } from "@paperclipai/db";
+import { companies, companyMemberships, companySecrets, createDb, pluginConfig, plugins, secretAccessEvents } from "@paperclipai/db";
+import pino from "pino";
 import { CREW_POLICY_CONFIG_ENV } from "../crew/issue-policy.js";
 import { deriveMachineKey } from "../crew/jev-machine-auth.js";
 import { crewJevTable } from "../crew/jev-store.js";
@@ -130,10 +131,13 @@ suite("Crew Jev: route owner và route máy", () => {
     rmSync(dir, { recursive: true, force: true });
   });
 
-  async function app(actor: Record<string, unknown>) {
-    const [{ crewContributionRoutes }, { errorHandler }] = await Promise.all([
+  /** `logLines`: gắn thêm log HTTP thật (ghi vào mảng) và `boardMutationGuard` như `createApp`. */
+  async function app(actor: Record<string, unknown>, logLines?: string[]) {
+    const [{ crewContributionRoutes }, { errorHandler }, { createHttpLogger }, { boardMutationGuard }] = await Promise.all([
       import("../crew/contribution-routes.js"),
       import("../middleware/index.js"),
+      import("../middleware/logger.js"),
+      import("../middleware/board-mutation-guard.js"),
     ]);
     const server = express();
     server.use(express.json({
@@ -146,6 +150,10 @@ suite("Crew Jev: route owner và route máy", () => {
       req.actor = actor as typeof req.actor;
       next();
     });
+    if (logLines) {
+      server.use(createHttpLogger(pino({ level: "info" }, { write: (line: string) => void logLines.push(line) })));
+      server.use("/api", boardMutationGuard());
+    }
     server.use("/api", crewContributionRoutes(db));
     server.use(errorHandler);
     return server;
@@ -486,6 +494,52 @@ suite("Crew Jev: route owner và route máy", () => {
     expect(restored.body).toEqual({ hasKey: true, keyFingerprint: fingerprint(TEST_KEY_2) });
     const rows = await db.select().from(companySecrets).where(eq(companySecrets.key, "crew-jev-openrouter"));
     expect(rows.map((row) => row.status)).toEqual(["active"]);
+  });
+
+  it("route máy: request giả hay cũ không đọc secret; secret company được cache", async () => {
+    const accessEvents = async () => (await db.select().from(secretAccessEvents)).length;
+    // Mac đã giữ đúng key hiện tại, nên pull không đọc key Jev; chỉ còn secret webhook có thể bị đọc.
+    const synced = () => pullBody(machines.legacy, { keyFingerprint: fingerprint(TEST_KEY_2) });
+    await signed("/machine/pull", synced(), WEBHOOK_SECRET);
+    const before = await accessEvents();
+    const body = JSON.stringify(pullBody(machines.legacy));
+    const post = async (headers: Record<string, string>) =>
+      record(await request(await anonymous()).post(url("/machine/pull")).set("content-type", "application/json").set(headers).send(body));
+    const now = Math.floor(Date.now() / 1000);
+    expect((await post({ "x-crew-timestamp": String(now - 3600), "x-crew-signature": `sha256=${"0".repeat(64)}` })).status).toBe(401);
+    expect((await post({ "x-crew-timestamp": String(now), "x-crew-signature": "sha256=nothex" })).status).toBe(401);
+    expect((await post({ "x-crew-timestamp": "x", "x-crew-signature": `sha256=${"0".repeat(64)}` })).status).toBe(401);
+    for (let i = 0; i < 3; i += 1) {
+      expect((await signed("/machine/pull", synced(), WEBHOOK_SECRET)).status).toBe(200);
+    }
+    expect(await accessEvents()).toBe(before);
+  });
+
+  it("qua log HTTP thật và boardMutationGuard: route máy chạy được, log không có key hay lệnh", async () => {
+    const lines: string[] = [];
+    const ownerApp = await app({
+      type: "board", userId: users.owner, source: "session", isInstanceAdmin: false, companyIds: [companyId],
+      memberships: [{ companyId, membershipRole: "owner", status: "active" }],
+    }, lines);
+    const machineApp = await app({ type: "none", source: "none" }, lines);
+    // Body sai (400) vẫn mang key: log không được chép body.
+    record(await request(ownerApp).put(url("/key")).set("origin", "http://127.0.0.1").send({ apiKey: `${TEST_KEY} bad` }));
+    const command = `git push --force origin crew/log-check # ${TEST_KEY}`;
+    const body = JSON.stringify(eventsBody([event({ command })]));
+    const timestamp = String(Math.floor(Date.now() / 1000));
+    const signature = `sha256=${createHmac("sha256", WEBHOOK_SECRET).update(`${timestamp}.${body}`).digest("hex")}`;
+    const ok = record(await request(machineApp).post(url("/machine/events")).set("content-type", "application/json")
+      .set("x-crew-timestamp", timestamp).set("x-crew-signature", signature).send(body));
+    expect(ok.status).toBe(200);
+    expect(ok.body.accepted).toBe(1);
+    const bad = record(await request(machineApp).post(url("/machine/events")).set("content-type", "application/json")
+      .set("x-crew-timestamp", timestamp).set("x-crew-signature", `sha256=${"0".repeat(64)}`).send(body));
+    expect(bad.status).toBe(401);
+    expect(lines.length).toBeGreaterThanOrEqual(3);
+    const log = lines.join("\n");
+    expect(log).not.toContain(TEST_KEY);
+    expect(log).not.toContain("crew/log-check");
+    expect(log).not.toContain(WEBHOOK_SECRET);
   });
 
   it("không response nào chứa key thử hay secret webhook", () => {

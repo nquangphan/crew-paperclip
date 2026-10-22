@@ -111,11 +111,17 @@ function secretRefOf(value: unknown): SecretRef | null {
   return null;
 }
 
+/** Secret company đã đọc, giữ trong process {@link SECRET_CACHE_MS} để mỗi bản tin máy không ghi một access event. */
+const SECRET_CACHE_MS = 60_000;
+const secretCache = new Map<string, { value: string; expiresAt: number }>();
+
 /**
  * Secret webhook của company, đọc như plugin: `plugin_config` của `crew.core` cho company đó →
  * `companies[].webhookSecretRef` → giá trị secret. Không có cấu hình → `404 unknown_company`; không đọc được → `503`.
+ * Giá trị được cache theo `(companyId, secretId, version)` trong 60 s; secret webhook vừa đổi thì chữ ký mới có thể bị
+ * từ chối tối đa 60 s.
  */
-export async function resolveCrewCompanySecret(db: Db, companyId: string): Promise<string> {
+export async function resolveCrewCompanySecret(db: Db, companyId: string, now: number = Date.now()): Promise<string> {
   let config: unknown;
   try {
     const rows = rowsOf(
@@ -141,6 +147,10 @@ export async function resolveCrewCompanySecret(db: Db, companyId: string): Promi
   ) as Record<string, unknown> | undefined;
   const ref = secretRefOf(item?.webhookSecretRef);
   if (!ref) throw machineAuthError("unknown_company");
+
+  const cacheKey = `${companyId.toLowerCase()}:${ref.secretId}:${ref.version}`;
+  const cached = secretCache.get(cacheKey);
+  if (cached && cached.expiresAt > now) return cached.value;
   let secret: string;
   try {
     secret = await secretService(db).resolveSecretValue(companyId, ref.secretId, ref.version, {
@@ -155,6 +165,8 @@ export async function resolveCrewCompanySecret(db: Db, companyId: string): Promi
     throw machineAuthError("secret_unavailable");
   }
   if (!secret) throw machineAuthError("secret_unavailable");
+  for (const [key, entry] of secretCache) if (entry.expiresAt <= now) secretCache.delete(key);
+  secretCache.set(cacheKey, { value: secret, expiresAt: now + SECRET_CACHE_MS });
   return secret;
 }
 
@@ -162,6 +174,9 @@ export async function resolveCrewCompanySecret(db: Db, companyId: string): Promi
  * Secret phải ký bản tin của máy này, đúng luật `verificationSecret` của plugin: có dòng `machine_pairings` thì dùng khóa
  * máy suy ra, bị thu hồi thì `403 machine_revoked`; không có dòng (máy ghép trước khi có ghép tự động) thì dùng secret
  * company.
+ *
+ * Hai chỗ chặt hơn plugin, có chủ ý: `machineId` không phải uuid bị {@link verifyMachineRequest} trả 400 (plugin dùng
+ * secret company rồi để HMAC quyết), và `companyId` được so không phân biệt hoa thường rồi chuyển về chữ thường.
  */
 export async function machineSecret(db: Sql, companyId: string, machineId: string, companySecret: string): Promise<string> {
   let rows: Array<Record<string, unknown>>;
@@ -187,8 +202,10 @@ export interface VerifiedMachineRequest {
 }
 
 /**
- * Kiểm một request do Mac ký: kích thước → JSON → `companyId` khớp đường dẫn → `machineId` là uuid → secret của máy →
- * HMAC trên `req.rawBody` (lệch ±300 s, `timingSafeEqual`) → `version === 1`. Body chỉ được trả về sau khi chữ ký đúng.
+ * Kiểm một request do Mac ký, theo thứ tự của `authenticateCrewWebhook` ở plugin: kích thước → dạng header và lệch
+ * ±300 s → JSON → `companyId` khớp đường dẫn → `machineId` là uuid → secret của máy → HMAC trên `req.rawBody`
+ * (`timingSafeEqual`) → `version === 1`. Mọi bước rẻ chạy trước khi đọc secret, nên request giả hay cũ không chạm bảng
+ * secret. Body chỉ được trả về sau khi chữ ký đúng.
  */
 export async function verifyMachineRequest(
   req: Request,
@@ -205,6 +222,12 @@ export async function verifyMachineRequest(
   const timestamp = crewHeader(req.headers, "x-crew-timestamp");
   const signature = crewHeader(req.headers, "x-crew-signature");
   if (!timestamp || !signature) throw machineAuthError("missing_signature");
+  if (!/^(0|[1-9][0-9]*)$/.test(timestamp) || !Number.isSafeInteger(Number(timestamp))) {
+    throw machineAuthError("bad_signature");
+  }
+  const nowSec = opts.nowSec ?? Math.floor(Date.now() / 1000);
+  if (Math.abs(nowSec - Number(timestamp)) > 300) throw machineAuthError("stale_signature");
+  if (!/^sha256=[0-9a-fA-F]{64}$/.test(signature)) throw machineAuthError("bad_signature");
   const rawBody = raw.toString("utf8");
 
   let parsed: unknown;
@@ -222,7 +245,7 @@ export async function verifyMachineRequest(
   const machineId = body.machineId.toLowerCase();
 
   const secret = await opts.resolveSecret(companyId, machineId);
-  const result = verifyCrewSignature(rawBody, req.headers, secret, opts.nowSec ?? Math.floor(Date.now() / 1000));
+  const result = verifyCrewSignature(rawBody, req.headers, secret, nowSec);
   if (result !== "ok") {
     throw machineAuthError(result === "stale" ? "stale_signature" : result === "missing" ? "missing_signature" : "bad_signature");
   }

@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { type SQL, sql } from "drizzle-orm";
 import { z } from "zod";
 import type { Db } from "@paperclipai/db";
+import { conflict } from "../errors.js";
 import { getConfiguredSecretProvider } from "../secrets/configured-provider.js";
 import { derivePluginDatabaseNamespace } from "../services/plugin-database.js";
 import { secretService } from "../services/secrets.js";
@@ -160,49 +161,66 @@ export function jevKeyFingerprint(apiKey: string): string {
 /** Key hợp lệ: một dòng, 20–200 ký tự in được, không khoảng trắng. */
 export const jevApiKeySchema = z.string().regex(/^[\x21-\x7e]{20,200}$/);
 
+export const JEV_SECRET_DESCRIPTION = "Key OpenRouter cho Jev của Crew (chỉ server Crew đọc).";
+
+/** Khóa theo company cho mọi lần đổi key, để hai lần lưu đồng thời không cùng tạo secret. */
+async function lockJevKey(tx: Sql, companyId: string): Promise<void> {
+  await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${`crew-jev-key:${companyId}`}))`);
+}
+
 /**
  * Lưu key thành company secret `crew-jev-openrouter`: lần đầu `create`, các lần sau `rotate` (secret bị vô hiệu bởi lần
- * xóa trước thì bật lại rồi `rotate`). Ghi id secret và vân tay vào `crew_jev_settings`, tăng `version`.
+ * xóa trước thì bật lại rồi `rotate`). Ghi id secret và vân tay vào `crew_jev_settings`, tăng `version`. Cả đoạn chạy trong
+ * một transaction có khóa theo company. Secret trùng tên mà không do Crew tạo (khác mô tả) thì không đè: `409`.
  */
 export async function storeJevKey(db: Db, companyId: string, apiKey: string, userId: string): Promise<JevSettingsRecord> {
-  const secrets = secretService(db);
-  const current = await getJevSettings(db, companyId);
-  let existing = current.keySecretId ? await secrets.getById(current.keySecretId) : null;
-  if (existing && (existing.companyId !== companyId || existing.status === "deleted")) existing = null;
-  existing ??= await secrets.getByKey(companyId, JEV_SECRET_NAME);
+  return db.transaction(async (tx) => {
+    await lockJevKey(tx, companyId);
+    const secrets = secretService(tx);
+    const current = await getJevSettings(tx, companyId);
+    let existing = current.keySecretId ? await secrets.getById(current.keySecretId) : null;
+    if (existing && (existing.companyId !== companyId || existing.status === "deleted")) existing = null;
+    if (!existing) {
+      const byName = await secrets.getByKey(companyId, JEV_SECRET_NAME);
+      if (byName && byName.description !== JEV_SECRET_DESCRIPTION) {
+        throw conflict(`Company đã có secret "${JEV_SECRET_NAME}" không do Crew tạo; đổi tên secret đó rồi lưu lại.`, {
+          code: "crew_jev_secret_taken",
+        });
+      }
+      existing = byName;
+    }
 
-  let secretId: string;
-  if (existing) {
-    if (existing.status !== "active") await secrets.update(existing.id, { status: "active" });
-    await secrets.rotate(existing.id, { value: apiKey }, { userId });
-    secretId = existing.id;
-  } else {
-    const created = await secrets.create(
-      companyId,
-      {
-        name: JEV_SECRET_NAME,
-        provider: getConfiguredSecretProvider(),
-        value: apiKey,
-        description: "Key OpenRouter cho Jev của Crew (chỉ server Crew đọc).",
-      },
-      { userId },
-    );
-    secretId = created.id;
-  }
-  return writeKeyColumns(db, companyId, { secretId, fingerprint: jevKeyFingerprint(apiKey) }, userId);
+    let secretId: string;
+    if (existing) {
+      if (existing.status !== "active") await secrets.update(existing.id, { status: "active" });
+      await secrets.rotate(existing.id, { value: apiKey }, { userId });
+      secretId = existing.id;
+    } else {
+      const created = await secrets.create(
+        companyId,
+        { name: JEV_SECRET_NAME, provider: getConfiguredSecretProvider(), value: apiKey, description: JEV_SECRET_DESCRIPTION },
+        { userId },
+      );
+      secretId = created.id;
+    }
+    return writeKeyColumns(tx, companyId, { secretId, fingerprint: jevKeyFingerprint(apiKey) }, userId);
+  });
 }
 
 /** Bỏ liên kết key và vô hiệu secret (không `rotate` thành rỗng). */
 export async function clearJevKey(db: Db, companyId: string, userId: string): Promise<JevSettingsRecord> {
-  const current = await getJevSettings(db, companyId);
-  if (current.keySecretId) {
-    const secrets = secretService(db);
-    const secret = await secrets.getById(current.keySecretId);
-    if (secret && secret.companyId === companyId && secret.status === "active") {
-      await secrets.update(secret.id, { status: "disabled" });
+  return db.transaction(async (tx) => {
+    await lockJevKey(tx, companyId);
+    const current = await getJevSettings(tx, companyId);
+    if (current.keySecretId) {
+      const secrets = secretService(tx);
+      const secret = await secrets.getById(current.keySecretId);
+      if (secret && secret.companyId === companyId && secret.status === "active") {
+        await secrets.update(secret.id, { status: "disabled" });
+      }
     }
-  }
-  return writeKeyColumns(db, companyId, null, userId);
+    return writeKeyColumns(tx, companyId, null, userId);
+  });
 }
 
 /**
@@ -539,9 +557,13 @@ export interface JevStats {
 const roundMs = (value: unknown): number | null => (value === null || value === undefined ? null : Math.round(Number(value)));
 const int = (value: unknown): number => Number(value ?? 0);
 
-/** Số liệu `days` ngày gần nhất. Ngày nhóm theo giờ Việt Nam; p50/p95 chỉ tính trên dòng có `latency_ms`. */
+/**
+ * Số liệu `days` ngày lịch gần nhất theo giờ Việt Nam, tính từ 00:00 (giờ Việt Nam) của ngày đầu tới hiện tại, nên ngày
+ * đầu của `byDay` luôn đủ ngày. p50/p95 chỉ tính trên dòng có `latency_ms`.
+ */
 export async function jevStats(db: Sql, companyId: string, days: number): Promise<JevStats> {
-  const since = sql`now() - make_interval(days => ${days})`;
+  const since = sql`((date_trunc('day', now() AT TIME ZONE 'Asia/Ho_Chi_Minh') - make_interval(days => ${days - 1}))
+    AT TIME ZONE 'Asia/Ho_Chi_Minh')`;
   const events = table("crew_jev_gate_events");
   const verdictCounts = sql.raw(`count(*)::int AS calls,
     count(*) FILTER (WHERE verdict = 'allow')::int AS allow,
