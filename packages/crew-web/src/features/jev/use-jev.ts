@@ -2,11 +2,7 @@
 import { keepPreviousData, useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   api,
-  featureMode,
-  JEV_FEATURE_IDS,
   type JevFeatureId,
-  type JevFeatureMode,
-  type JevFeatures,
   type JevGateEvent,
   type JevLabel,
   type JevSettings,
@@ -89,15 +85,11 @@ export function useLabelEvent(companyId: string) {
   });
 }
 
-/** Chế độ đủ cả 4 tính năng (thiếu khóa = shadow), để mọi lần lưu gửi bản đầy đủ. */
-export function resolvedFeatures(features: JevFeatures | undefined): Record<JevFeatureId, JevFeatureMode> {
-  return Object.fromEntries(JEV_FEATURE_IDS.map((id) => [id, featureMode(features, id)])) as Record<
-    JevFeatureId,
-    JevFeatureMode
-  >;
-}
-
-/** Cấu hình đang lưu thành body PUT, rồi áp phần đổi. Mọi nơi lưu cấu hình đi qua đây để không làm rơi trường nào. */
+/**
+ * Cấu hình đang lưu thành body PUT, rồi áp phần đổi. Mọi nơi lưu cấu hình đi qua đây để không làm rơi trường nào.
+ * `features` chỉ có khi `patch` đổi chế độ: server gộp theo khóa (khóa không gửi giữ nguyên), nên lưu cấu hình gate hay
+ * công tắc chung không đụng tới chế độ tính năng, kể cả khi tab khác vừa đổi chúng.
+ */
 export function settingsInput(s: JevSettings, patch: Partial<JevSettingsInput> = {}): JevSettingsInput {
   return {
     enabled: s.enabled,
@@ -106,7 +98,6 @@ export function settingsInput(s: JevSettings, patch: Partial<JevSettingsInput> =
     threshold: s.threshold,
     timeoutMs: s.timeoutMs,
     serverShadow: s.serverShadow,
-    features: resolvedFeatures(s.features),
     ...patch,
   };
 }

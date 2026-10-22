@@ -46,10 +46,10 @@ export function FeaturesSection({ companyId, settings }: { companyId: string; se
   const { t } = useT('jev');
   const save = useSaveJevSettings(companyId);
   const stats = useJudgmentStats(companyId, true);
-  const features = settingsInput(settings).features ?? {};
 
+  // Chỉ gửi khóa vừa đổi; server gộp theo khóa nên không đè chế độ mà tab khác vừa đặt.
   const change = (id: JevFeatureId, mode: JevFeatureMode) =>
-    save.mutate(settingsInput(settings, { features: { ...features, [id]: mode } }));
+    save.mutate(settingsInput(settings, { features: { [id]: mode } }));
 
   return (
     <div className="flex flex-col gap-4">
@@ -61,7 +61,7 @@ export function FeaturesSection({ companyId, settings }: { companyId: string; se
           <FeatureCard
             key={id}
             id={id}
-            mode={featureMode(features, id)}
+            mode={featureMode(settings.features, id)}
             disabled={save.isPending}
             stat={stats.data ? sumFeatureStats(stats.data, id) : null}
             statsReady={stats.isSuccess}

@@ -17,7 +17,6 @@ import {
   ToggleSwitch,
 } from '@/ds';
 import { useT } from '@/i18n';
-import { resolvedFeatures } from './use-jev';
 
 export const THRESHOLD_RANGE = { min: 0.3, max: 0.95 } as const;
 export const TIMEOUT_RANGE = { min: 500, max: 3000 } as const;
@@ -123,8 +122,7 @@ function SettingsFormBody({ companyId, settings, saved, onSaved }: BodyProps) {
       return;
     }
     setErrors({});
-    // Công tắc chung và chế độ từng tính năng có chỗ lưu riêng; gửi lại nguyên bản đang lưu để lần lưu này không làm rơi chúng.
-    save.mutate({ ...parsed.value, features: resolvedFeatures(settings.features) });
+    save.mutate(parsed.value);
   };
 
   return (

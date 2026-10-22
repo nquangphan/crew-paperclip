@@ -120,7 +120,7 @@ const puts = (s: ReturnType<typeof mockServer>) =>
   s.calls.filter((c) => c.method === 'PUT' && c.url.endsWith('/settings'));
 
 describe('công tắc chung', () => {
-  it('nút "Tắt toàn bộ Jev" nổi bật, phải xác nhận, rồi lưu enabled=false giữ nguyên các trường khác', async () => {
+  it('nút "Tắt toàn bộ Jev" nổi bật, phải xác nhận, rồi lưu enabled=false giữ nguyên các trường khác, không đụng features', async () => {
     const s = mockServer(routes({ [`PUT ${BASE}/settings`]: { body: settings({ enabled: false, version: 4 }) } }));
     mount();
     const off = await screen.findByRole('button', { name: 'Tắt toàn bộ Jev' });
@@ -138,7 +138,6 @@ describe('công tắc chung', () => {
       threshold: 0.5,
       timeoutMs: 2500,
       serverShadow: false,
-      features: { complexity: 'shadow', approval_note: 'on', request_type: 'shadow', inbox_attention: 'off' },
     });
     expect(await screen.findByText('Jev đang tắt toàn bộ')).toBeTruthy();
     expect(screen.getByText(/Công tắc chung đang tắt nên chưa tính năng nào chạy/)).toBeTruthy();
@@ -200,19 +199,14 @@ describe('bốn tính năng', () => {
     }
   });
 
-  it('đổi chế độ lưu ngay, chỉ đổi đúng tính năng đó', async () => {
+  it('đổi chế độ lưu ngay, chỉ gửi đúng khóa vừa đổi', async () => {
     const s = mockServer(routes({ [`PUT ${BASE}/settings`]: { body: settings({ version: 4 }) } }));
     mount();
     const trigger = await screen.findByRole('combobox', { name: 'Chế độ của Gợi ý loại yêu cầu' });
     fireEvent.keyDown(trigger, { key: 'Enter' });
     fireEvent.click(within(screen.getByRole('listbox')).getByRole('option', { name: 'Bật' }));
     await waitFor(() => expect(puts(s)).toHaveLength(1));
-    expect((puts(s)[0].body as { features: unknown; enabled: boolean }).features).toEqual({
-      complexity: 'shadow',
-      approval_note: 'on',
-      request_type: 'on',
-      inbox_attention: 'off',
-    });
+    expect((puts(s)[0].body as { features: unknown }).features).toEqual({ request_type: 'on' });
     expect((puts(s)[0].body as { enabled: boolean }).enabled).toBe(true);
   });
 

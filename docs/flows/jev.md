@@ -94,8 +94,9 @@ owner; mọi lỗi, quá hạn, response sai dạng hay chế độ khác đều
 
 - Trang `jev`: `MasterSwitch` (nút "Tắt toàn bộ Jev" có xác nhận, hoặc "Bật lại Jev") và `FeaturesSection` (chọn chế độ
   từng tính năng, lưu ngay; thống kê 7 ngày `GET /judgments/stats`; ca lệch `GET /judgments?feature=&mismatch=true`).
-  Mọi lần lưu cấu hình đi qua `settingsInput`, luôn gửi đủ `features`, nên lưu một ô không làm rơi ô khác. Bản đã lưu
-  của `SettingsForm` không còn công tắc bật (đã chuyển lên công tắc chung).
+  Mọi lần lưu cấu hình đi qua `settingsInput`: đổi chế độ chỉ gửi khóa vừa đổi trong `features` (server gộp theo khóa),
+  còn công tắc chung và `SettingsForm` không gửi `features`, nên không đụng chế độ tính năng. `SettingsForm` không còn
+  công tắc bật (đã chuyển lên công tắc chung).
 - `judge-adapter.ts`: bộ chuyển duy nhất đọc response các route đợt 2 (`unknown` vào, kiểu của web hoặc `null` ra).
   `judge-client.ts`: `withHardTimeout` (AbortController và đồng hồ, không bao giờ ném), `judgeApprovalNote` (1500 ms),
   `judgeRequestType`, `recordOutcome` (bắn rồi quên).
