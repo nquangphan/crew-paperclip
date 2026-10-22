@@ -37,13 +37,15 @@ Luật chính:
    (`issues-board.tsx`) kéo thẻ gửi PATCH trạng thái, server từ chối thì thẻ về cột cũ và hiện lỗi nguyên văn.
 2. `packages/crew-web/src/features/issues/new/new-request-dialog.tsx` → `NewRequestDialog`: chỉ liệt kê project sẵn
    sàng, người nhận cố định là Trợ Lý của project; `use-create-request.ts` → `createRequest` POST issue rồi upload đính
-   kèm lần lượt.
+   kèm lần lượt. Có chip "Jev gợi ý: <loại>" dưới ô Loại (flow `jev`): bấm mới chọn, lỗi thì không hiện gì.
 3. `packages/crew-web/src/features/issues/detail/issue-detail.tsx` → `IssueDetail`: dùng chung cho trang và popup; đọc
    dữ liệu qua `use-issue.ts` và gắn các khối: tóm tắt Crew (`SummarySlot`), thao tác cổng (`ActionsSlot`), câu hỏi
    của Trợ Lý (`InteractionsSlot`), thuộc tính và runtime (`PropertiesPanel`, `RuntimeSlot`), bình luận, đính kèm,
    tài liệu, run, lịch sử.
 4. `packages/crew-web/src/features/issues/detail/crew/gate-actions.ts` → `gateActionsFor`, `awaitingMyApproval`: tính
-   nút Duyệt, Yêu cầu sửa, Hủy theo stage đang chờ; `actions-slot.tsx` gửi PATCH và làm mới mọi dữ liệu bị đổi.
+   nút Duyệt, Yêu cầu sửa, Hủy theo stage đang chờ; `actions-slot.tsx` gửi PATCH và làm mới mọi dữ liệu bị đổi. Trước khi gửi
+   Duyệt / Yêu cầu sửa kèm lời nhắn, Jev đọc lời nhắn với hạn cứng 1500 ms và chỉ hỏi lại một lần khi lệch ý (flow
+   `jev`); lỗi hay quá hạn thì gửi như cũ.
 5. `packages/crew-web/src/features/issues/detail/crew/force-done-dialog.tsx` → `ForceDoneAction` và `force-done.ts`:
    hộp Ép Done (lý do, chọn việc con cần hủy), thứ tự hủy run, gọi route, rồi hủy con.
 6. `packages/crew-plugin/src/issues/force-done.ts` → `handleIssuesApi`: kiểm board, body, lý do; `ctx.issues.update`

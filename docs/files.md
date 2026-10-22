@@ -500,18 +500,26 @@ File nào thuộc flow nào. Dùng `crew-docs where <file>` để tra từ dòng
 | `packages/crew-web/src/features/issues/popup/issue-popup-host.tsx` | [issues-web](flows/issues-web.md) (file) |
 | `packages/crew-web/src/features/issues/popup/issue-popup.tsx` | [issues-web](flows/issues-web.md) (file) |
 | `packages/crew-web/src/features/issues/routes.tsx` | [issues-web](flows/issues-web.md) (điểm vào) |
+| `packages/crew-web/src/features/jev/approval-note-check.tsx` | [jev](flows/jev.md) (file) |
+| `packages/crew-web/src/features/jev/features-section.tsx` | [jev](flows/jev.md) (file) |
 | `packages/crew-web/src/features/jev/gate-events-table.tsx` | [jev](flows/jev.md) (file) |
+| `packages/crew-web/src/features/jev/inbox-attention-badge.tsx` | [jev](flows/jev.md) (file) |
 | `packages/crew-web/src/features/jev/index.ts` | [jev](flows/jev.md) (file) |
 | `packages/crew-web/src/features/jev/issue-jev-block.tsx` | [jev](flows/jev.md) (file) |
 | `packages/crew-web/src/features/jev/jev-page.tsx` | [jev](flows/jev.md) (file) |
+| `packages/crew-web/src/features/jev/judge-adapter.ts` | [jev](flows/jev.md) (file) |
+| `packages/crew-web/src/features/jev/judge-client.ts` | [jev](flows/jev.md) (file) |
 | `packages/crew-web/src/features/jev/key-form.tsx` | [jev](flows/jev.md) (file) |
 | `packages/crew-web/src/features/jev/machine-name.tsx` | [jev](flows/jev.md) (file) |
 | `packages/crew-web/src/features/jev/machines-table.tsx` | [jev](flows/jev.md) (file) |
+| `packages/crew-web/src/features/jev/master-switch.tsx` | [jev](flows/jev.md) (file) |
+| `packages/crew-web/src/features/jev/request-type-chip.tsx` | [jev](flows/jev.md) (file) |
 | `packages/crew-web/src/features/jev/routes.tsx` | [jev](flows/jev.md) (điểm vào) |
 | `packages/crew-web/src/features/jev/settings-form.tsx` | [jev](flows/jev.md) (file) |
 | `packages/crew-web/src/features/jev/shadow-table.tsx` | [jev](flows/jev.md) (file) |
 | `packages/crew-web/src/features/jev/stats-panel.tsx` | [jev](flows/jev.md) (file) |
 | `packages/crew-web/src/features/jev/use-jev.ts` | [jev](flows/jev.md) (file) |
+| `packages/crew-web/src/features/jev/use-request-type-suggestion.ts` | [jev](flows/jev.md) (file) |
 | `packages/crew-web/src/features/machines/index.ts` | [machine-status](flows/machine-status.md) (file) |
 | `packages/crew-web/src/features/machines/jobs-queue.tsx` | [machine-jobs](flows/machine-jobs.md) (file) |
 | `packages/crew-web/src/features/machines/machines-page.tsx` | [machine-status](flows/machine-status.md) (file) |
@@ -726,8 +734,14 @@ File nào thuộc flow nào. Dùng `crew-docs where <file>` để tra từ dòng
 | `packages/crew-web/test/features/issues/title-editor.test.tsx` | [issues-web](flows/issues-web.md) (test) |
 | `packages/crew-web/test/features/issues/tree.test.ts` | [issues-web](flows/issues-web.md) (test) |
 | `packages/crew-web/test/features/issues/use-create-request.test.ts` | [issues-web](flows/issues-web.md) (test) |
+| `packages/crew-web/test/features/jev/approval-note.test.tsx` | [jev](flows/jev.md) (test) |
+| `packages/crew-web/test/features/jev/approve-request-type.test.tsx` | [jev](flows/jev.md) (test) |
+| `packages/crew-web/test/features/jev/features-page.test.tsx` | [jev](flows/jev.md) (test) |
 | `packages/crew-web/test/features/jev/issue-jev-block.test.tsx` | [jev](flows/jev.md) (test) |
 | `packages/crew-web/test/features/jev/jev-page.test.tsx` | [jev](flows/jev.md) (test) |
+| `packages/crew-web/test/features/jev/judge-adapter.test.ts` | [jev](flows/jev.md) (test) |
+| `packages/crew-web/test/features/jev/judge-client.test.ts` | [jev](flows/jev.md) (test) |
+| `packages/crew-web/test/features/jev/request-type.test.tsx` | [jev](flows/jev.md) (test) |
 | `packages/crew-web/test/features/jev/settings-form.test.ts` | [jev](flows/jev.md) (test) |
 | `packages/crew-web/test/features/machines/machines-page.test.tsx` | [machine-status](flows/machine-status.md) (test) |
 | `packages/crew-web/test/features/machines/pairing-block.test.tsx` | [machine-status](flows/machine-status.md) (test) |
