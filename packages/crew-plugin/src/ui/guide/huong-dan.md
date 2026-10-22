@@ -257,7 +257,49 @@ Danh sách dự án:
 
 ---
 
-## 10. Thuật ngữ
+## 10. Jev: chặn lệnh nguy hiểm của agent
+
+Jev là một model nhỏ (qua OpenRouter) chấm từng lệnh `Bash` mà agent Claude chạy trên Mac. Chỉ lệnh thuộc sáu nhóm nguy hiểm
+mới có thể bị chặn: xóa đệ quy (`rm_recursive`), bỏ qua hook (`no_verify`), đẩy đè (`force_push`), đẩy thẳng lên nhánh
+chính (`push_default`), gộp pull request (`pr_merge`) và đọc khóa/mật khẩu (`credential`). Các lệnh khác chỉ được ghi log.
+Chỉ owner thấy mục **Jev** ở nhóm *Hệ thống* trên thanh bên trái của giao diện Crew.
+
+**Nhập key.** Ở khối *Key OpenRouter*, dán key vào ô **Key mới** rồi bấm **Lưu và kiểm thử** (hoặc **Lưu key** nếu chỉ
+muốn lưu). Key được lưu thành secret của công ty. Sau khi lưu, trang và mọi API chỉ còn hiện **vân tay** (12 ký tự), không
+bao giờ hiện lại key. Mỗi Mac tự kéo key về Keychain trong vòng một phút. **Xóa key** thì Jev ngừng chạy trên mọi máy, và
+Mac xóa key khỏi Keychain ở lượt kéo kế tiếp.
+
+**Bật và chọn chế độ.** Ở khối *Cấu hình*:
+- **Bật Jev**: tắt thì Mac không gọi Jev và không chặn gì.
+- **Chế độ gate**: luôn bắt đầu bằng **Chỉ ghi log** (shadow). Jev chấm điểm mọi lệnh nhưng không chặn lệnh nào.
+- Theo dõi vài ngày. Khi các ca deny gần như đều được đánh dấu **Đúng**, chuyển sang **Chặn thật** (enforce). Trang hỏi
+  xác nhận trước khi lưu. Từ lúc đó, lệnh thuộc nhóm nguy hiểm mà Jev trả *deny* sẽ bị chặn, và agent thấy lý do
+  "Crew Jev chặn: …".
+- **Ngưỡng** và **Timeout** giữ mặc định (0.5 và 2500 ms) nếu không có lý do đổi. Mỗi lần lưu, số *phiên bản* tăng một.
+  Khối *Máy* cho biết từng Mac đã nhận bản nào, và key trên máy có khớp không.
+
+**Đọc bảng số.** Khối *Số liệu* (1, 7 hoặc 30 ngày, giờ Việt Nam):
+- **Số lần gọi**, **Allow**, **Deny**, **Escalate** (Jev không chắc), **Lỗi**: Jev đã trả lời thế nào.
+- **Deny đã áp**: số lệnh bị chặn thật. Ở chế độ Chỉ ghi log, số này luôn là 0.
+- **p50 / p95**: thời gian chờ Jev. Bảng theo nhóm cho biết nhóm nào hay bị deny.
+- Bảng *C3* chỉ để đo: server so nhãn của Jev với luật cũ (regex) cho run đã xong và lỗi runtime, không đổi kết quả nào.
+  Có ca "lệch" là chuyện bình thường, vì chữ đưa cho Jev không giống hệt chữ luật cũ đọc.
+
+**Đánh dấu Đúng / Nhầm.** Khối *Ca bị chặn hoặc chuyển người duyệt* có ba tab **Deny**, **Escalate** và **Lỗi**. Cột *Đã
+áp* ghi **Đã chặn** (lệnh bị chặn thật) hoặc **Chỉ ghi log**. Với mỗi ca, bấm **Đúng** nếu lệnh đó đáng chặn, hoặc **Nhầm**
+nếu Jev chặn oan (ví dụ agent dọn thư mục tạm của chính nó). Nút đã chọn có dấu tích, bấm lại để đổi. Tỉ lệ *Nhầm* là căn
+cứ để quyết định có bật **Chặn thật** hay giữ chế độ ghi log.
+
+**Lỗi thì luôn cho chạy (fail-open).** Key sai, hết hạn mức, mất mạng hay Jev trả lời chậm quá timeout: lệnh của agent
+**vẫn chạy bình thường**, không bao giờ bị chặn vì lỗi. Mac ghi một dòng kèm mã lỗi (ví dụ "Không kết nối được", "Quá
+hạn"), dòng đó hiện ở tab **Lỗi** và cột *Lỗi* của bảng số. Key sai hiện là "Không kết nối được", nên khi số *Lỗi* tăng vọt
+thì kiểm lại key bằng **Lưu và kiểm thử**. Mac mất liên lạc với web quá 30 phút thì tự coi Jev là tắt: không gọi Jev, không
+chặn, không ghi log cho tới khi kéo được cấu hình mới. Cần tắt gấp thì gạt **Bật Jev** sang tắt rồi lưu: trong vòng một
+phút, mọi Mac ngừng gọi Jev.
+
+---
+
+## 11. Thuật ngữ
 
 | Từ | Nghĩa |
 |---|---|
@@ -270,3 +312,4 @@ Danh sách dự án:
 | Session | Trí nhớ làm việc của agent. Việc cùng gói dùng lại session |
 | Environment | Cấu hình cho agent biết chạy trên máy nào, thư mục nào |
 | Cổng tải | Luật chờ máy rảnh rồi mới cho agent chạy |
+| Jev | Model chấm lệnh Bash của agent trên Mac; chế độ *Chỉ ghi log* hoặc *Chặn thật* (mục 10) |
