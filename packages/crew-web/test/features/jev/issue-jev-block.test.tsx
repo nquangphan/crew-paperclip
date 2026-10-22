@@ -139,4 +139,64 @@ describe('IssueJevBlock', () => {
     expect(s.calls.some((c) => c.url.endsWith('/summary'))).toBe(false);
     expect(document.querySelector('[data-slot="issue-jev"]')).toBeNull();
   });
+
+  describe('cờ complexity', () => {
+    const flag = {
+      kind: 'jev',
+      jevSaysLarge: true,
+      declared: 'small',
+      reason: 'Jev thấy việc này chạm bảo mật/phân quyền.',
+    };
+    const empty = { calls: 0, deny: 0, escalate: 0, items: [] };
+
+    it('chỉ có cờ (chưa có lệnh nào): vẫn hiện khối với cờ "Jev: nên là large", mức đã khai và lý do', async () => {
+      mockServer({ [`GET ${URL_SUMMARY}`]: { body: summary({ ...empty, complexityFlag: flag }) } });
+      mount();
+      const el = await screen.findByTestId('jev-complexity-flag');
+      expect(within(el).getByText('Jev: nên là large')).toBeTruthy();
+      expect(within(el).getByText(/Trợ Lý xếp: small\. Jev thấy việc này chạm bảo mật\/phân quyền\./)).toBeTruthy();
+      expect(el.getAttribute('title')).toBe(flag.reason);
+      expect(screen.queryByRole('button', { name: /^Jev: \d+ lệnh/ })).toBeNull();
+    });
+
+    it('có cả cờ và lệnh: hiện cả hai', async () => {
+      mockServer({ [`GET ${URL_SUMMARY}`]: { body: summary({ complexityFlag: flag }) } });
+      mount();
+      expect(await screen.findByTestId('jev-complexity-flag')).toBeTruthy();
+      expect(screen.getByRole('button', { name: /^Jev: 184 lệnh/ })).toBeTruthy();
+    });
+
+    it('cờ từ luật ảnh (vision) có tiêu đề riêng', async () => {
+      mockServer({
+        [`GET ${URL_SUMMARY}`]: {
+          body: summary({
+            ...empty,
+            complexityFlag: {
+              kind: 'vision',
+              jevSaysLarge: false,
+              declared: 'small',
+              reason: 'Việc có ảnh nhưng model không đọc được ảnh.',
+            },
+          }),
+        },
+      });
+      mount();
+      const el = await screen.findByTestId('jev-complexity-flag');
+      expect(within(el).getByText('Jev: model không xem được ảnh')).toBeTruthy();
+    });
+
+    it.each([
+      ['không có cờ', { complexityFlag: null }],
+      ['cờ sai dạng', { complexityFlag: 'large' }],
+      ['kind lạ', { complexityFlag: { kind: 'khác', reason: 'x' } }],
+      ['Jev tắt chung', { enabled: false, complexityFlag: flag }],
+    ])('%s: không hiện cờ, khối chạy như cũ', async (_n, over) => {
+      const s = mockServer({ [`GET ${URL_SUMMARY}`]: { body: summary({ ...empty, ...over }) } });
+      mount();
+      await waitFor(() => expect(s.calls.some((c) => c.url.endsWith('/summary'))).toBe(true));
+      await new Promise((r) => setTimeout(r, 50));
+      expect(screen.queryByTestId('jev-complexity-flag')).toBeNull();
+      expect(document.querySelector('[data-slot="issue-jev"]')).toBeNull();
+    });
+  });
 });

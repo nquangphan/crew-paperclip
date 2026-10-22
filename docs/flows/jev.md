@@ -110,6 +110,31 @@ khỏi `req.body` trước mọi bước có thể lỗi, nên log HTTP không b
 - Gọi ngoài: OpenRouter (Jev), chỉ khi thử key và trong worker so sánh. `CREW_JEV_BASE_URL` chỉ để test trỏ vào stub.
 - Lỗi: 400 `crew_jev_invalid`, 404 `crew_jev_not_found`, 413 `too_many_events`, 503 `crew_jev_unavailable`.
 
+## Giao diện đợt 2 (crew-web)
+
+Công tắc chung là cột `enabled` của cấu hình; bốn tính năng (`complexity`, `approval_note`, `request_type`,
+`inbox_attention`) có chế độ `off | shadow | on` trong `features` (thiếu khóa là `shadow`). Chỉ `on` mới hiện gì đó cho
+owner; mọi lỗi, quá hạn, response sai dạng hay chế độ khác đều để màn hình chạy y như khi chưa có Jev.
+
+- Trang `jev`: `MasterSwitch` (nút "Tắt toàn bộ Jev" có xác nhận, hoặc "Bật lại Jev") và `FeaturesSection` (chọn chế độ
+  từng tính năng, lưu ngay; thống kê 7 ngày `GET /judgments/stats`; ca lệch `GET /judgments?feature=&mismatch=true`).
+  Mọi lần lưu cấu hình đi qua `settingsInput`: đổi chế độ chỉ gửi khóa vừa đổi trong `features` (server gộp theo khóa),
+  còn công tắc chung và `SettingsForm` không gửi `features`, nên không đụng chế độ tính năng. `SettingsForm` không còn
+  công tắc bật (đã chuyển lên công tắc chung).
+- `judge-adapter.ts`: bộ chuyển duy nhất đọc response các route đợt 2 (`unknown` vào, kiểu của web hoặc `null` ra).
+  `judge-client.ts`: `withHardTimeout` (AbortController và đồng hồ, không bao giờ ném), `judgeApprovalNote` (1500 ms),
+  `judgeRequestType`, `recordOutcome` (bắn rồi quên).
+- Duyệt / Yêu cầu sửa (`approval-note-check.tsx`, nối ở `actions-slot.tsx`): lời nhắn không rỗng và khác câu duyệt mặc
+  định thì gọi `POST /judge/approval-note`. Chỉ khi `ok && mode === 'on' && mismatch` mới hiện hộp "Vẫn gửi / Sửa lại"
+  (một lần), rồi ghi `sent` hoặc `changed`. Đóng hộp lời nhắn trong lúc chờ thì bỏ lượt kiểm; bấm hai lần chỉ gọi một lần.
+- Loại yêu cầu (`use-request-type-suggestion.ts`, `request-type-chip.tsx`, nối ở `new-request-dialog.tsx` và
+  `approve-issue-dialog.tsx`): chờ 800 ms và đủ 20 ký tự rồi hỏi một lần cho mỗi nội dung. Chế độ `on` hiện chip bấm để
+  chọn, không tự đổi loại; khi gửi ghi loại cuối làm `outcome`.
+- Cờ complexity: `complexityFlag` ở tóm tắt issue (khối `IssueJevBlock`) và `complexityFlags` ở bản đồ yêu cầu (thẻ
+  `RoadmapComplexityFlag`). `kind: 'jev'` là "Jev: nên là large", `kind: 'vision'` là luật ảnh/model.
+- Hộp thư (`inbox-attention-badge.tsx`, nối ở `inbox-page.tsx`): chỉ owner hỏi `GET /inbox-attention?issueIds=` cho các
+  mục của tab đang xem; huy hiệu "Cần Đại Ca để ý" có tooltip liệt kê lý do.
+
 ## Flow liên quan
 
 - `mac-jev` (repo crew): phía Mac kéo cấu hình, giữ key trong Keychain, chặn lệnh và đẩy log.
@@ -139,3 +164,10 @@ khỏi `req.body` trước mọi bước có thể lỗi, nên log HTTP không b
 - `packages/crew-web/test/features/jev/issue-jev-block.test.tsx`: dòng tóm tắt và bảng ca; ẩn khi không có dữ liệu, lỗi
   tải hay người không phải owner.
 - `packages/crew-web/test/features/jev/settings-form.test.ts`: `parseSettingsForm` và biên ngưỡng, timeout.
+- `packages/crew-web/test/features/jev/features-page.test.tsx`: công tắc chung (xác nhận, bật lại, lỗi), chế độ từng tính
+  năng và lưu đủ `features`, thống kê gộp, ca lệch, thống kê lỗi hay sai dạng.
+- `packages/crew-web/test/features/jev/approval-note.test.tsx`: hộp hỏi lại, Vẫn gửi / Sửa lại và outcome; shadow,
+  `ok:false`, 404/500, sai dạng, quá 1500 ms thì gửi như cũ; không gọi Jev với câu mặc định; không gửi hai lần.
+- `packages/crew-web/test/features/jev/request-type.test.tsx`, `approve-request-type.test.tsx`: chip, debounce, ngưỡng 20
+  ký tự, không tự đổi loại, outcome; mọi lỗi thì không hiện gì.
+- `packages/crew-web/test/features/jev/judge-adapter.test.ts`, `judge-client.test.ts`: đọc response đúng/sai dạng; hạn cứng.

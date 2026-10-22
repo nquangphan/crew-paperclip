@@ -333,5 +333,25 @@
     "spec": "e2e/specs/s24-jev.spec.ts",
     "tests": ["PW-S24-5 "],
     "tier": "T1"
+  },
+  "S24.6": {
+    "spec": "e2e/specs/s24-jev.spec.ts",
+    "tests": ["PW-S24-6 "],
+    "tier": "T1"
+  },
+  "S24.7": {
+    "spec": "e2e/specs/s24-jev.spec.ts",
+    "tests": ["PW-S24-7 ", "PW-S24-8 "],
+    "tier": "T1"
+  },
+  "S24.8": {
+    "spec": "e2e/specs/s24-jev.spec.ts",
+    "tests": ["PW-S24-9 "],
+    "tier": "T1"
+  },
+  "S24.9": {
+    "spec": "e2e/specs/s24-jev.spec.ts",
+    "tests": ["PW-S24-10 ", "PW-S24-11 "],
+    "tier": "T1"
   }
 }

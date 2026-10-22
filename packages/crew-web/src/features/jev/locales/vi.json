@@ -11,11 +11,11 @@
     "machines": "Máy",
     "stats": "Số liệu",
     "events": "Ca bị chặn hoặc chuyển người duyệt",
-    "shadow": "Ca lệch giữa Jev và regex (C3)"
+    "shadow": "Ca lệch giữa Jev và regex (C3)",
+    "master": "Công tắc chung",
+    "features": "Bốn tính năng Jev ngoài cổng chặn lệnh"
   },
   "settings": {
-    "enabled": "Bật Jev",
-    "enabledHint": "Tắt thì máy không gọi Jev và không chặn gì.",
     "serverShadow": "C3 phía server",
     "serverShadowHint": "Server tự so nhãn của Jev với regex cho run xong và lỗi runtime. Chỉ ghi lại, không đổi kết quả.",
     "gateMode": "Chế độ gate",
@@ -190,5 +190,106 @@
     "mismatch": "{{count}} ca Jev và regex cho nhãn khác nhau trong các run của issue này.",
     "mismatchCaption": "Ca lệch C3 của issue này",
     "viewAll": "Xem tất cả ở trang Jev"
+  },
+  "master": {
+    "onTitle": "Jev đang bật",
+    "offTitle": "Jev đang tắt toàn bộ",
+    "onBody": "Jev đang chạy: cổng chặn lệnh trên máy, so sánh C3 phía server và các tính năng bên dưới theo chế độ từng cái.",
+    "offBody": "Cổng chặn lệnh trên máy, so sánh C3 phía server và cả bốn tính năng đều đang dừng. Mọi thứ chạy như khi chưa có Jev.",
+    "turnOff": "Tắt toàn bộ Jev",
+    "turnOn": "Bật lại Jev",
+    "failed": "Không đổi được công tắc chung",
+    "confirm": {
+      "title": "Tắt toàn bộ Jev?",
+      "body": "Từ lúc này Jev ngừng ở mọi chỗ: cổng chặn lệnh trên máy (máy sẽ biết ở lượt kéo cấu hình kế tiếp), so sánh C3 phía server và cả bốn tính năng bên dưới (cờ complexity, hỏi lại lời nhắn duyệt, gợi ý loại yêu cầu, huy hiệu hộp duyệt). Không có gì bị xóa; bật lại là chạy tiếp."
+    }
+  },
+  "features": {
+    "modes": "Mỗi tính năng có ba chế độ. Tắt: không gọi Jev. Chỉ ghi log: gọi Jev và đo, owner không thấy gì. Bật: hiện cho owner. Không chế độ nào tự đổi dữ liệu.",
+    "masterOff": "Công tắc chung đang tắt nên chưa tính năng nào chạy, dù chế độ bên dưới là gì.",
+    "modeOf": "Chế độ của {{name}}",
+    "mode": {
+      "off": "Tắt",
+      "shadow": "Chỉ ghi log",
+      "on": "Bật"
+    },
+    "saveFailed": "Không lưu được chế độ",
+    "stat": {
+      "total": "{{count}} lượt",
+      "mismatch": "{{count}} lệch",
+      "escalated": "{{count}} không chắc",
+      "errors": "{{count}} lỗi",
+      "latency": "p50 {{p50}} · p95 {{p95}}",
+      "none": "Chưa có lượt nào.",
+      "unavailable": "Chưa có số liệu."
+    },
+    "statsDays": "Số liệu tính trong 7 ngày gần nhất."
+  },
+  "feature": {
+    "complexity": {
+      "name": "Kiểm mức complexity",
+      "hint": "Việc con chạm bảo mật, phân quyền, migration hoặc API công khai mà Trợ Lý không xếp large thì gắn cờ trên trang issue và bản đồ. Không đổi model, không comment."
+    },
+    "approval_note": {
+      "name": "Hỏi lại lời nhắn Duyệt",
+      "hint": "Đọc lời nhắn khi Duyệt hoặc Yêu cầu sửa; nếu ý lời nhắn ngược với nút bấm thì hỏi lại một lần. Quá 1,5 giây hay lỗi thì gửi luôn."
+    },
+    "request_type": {
+      "name": "Gợi ý loại yêu cầu",
+      "hint": "Đọc tiêu đề và mô tả để gợi ý Code, Bug, Nghiên cứu hay Tài liệu bằng một chip bấm để chọn. Không tự đổi lựa chọn."
+    },
+    "inbox_attention": {
+      "name": "Cần Đại Ca để ý",
+      "hint": "Gắn huy hiệu trong hộp duyệt khi có câu hỏi chờ quyết định, đổi file nhạy cảm hoặc điểm Trợ Lý tự chốt mà là quyết định sản phẩm."
+    }
+  },
+  "mismatch": {
+    "title": "Ca lệch của từng tính năng",
+    "featureLabel": "Tính năng",
+    "unavailable": "Chưa tải được danh sách ca lệch.",
+    "empty": "Chưa có ca lệch nào",
+    "emptyHint": "Ca Jev khác với cách làm hiện tại sẽ hiện ở đây.",
+    "col": {
+      "time": "Giờ",
+      "mode": "Chế độ",
+      "baseline": "Cách hiện tại",
+      "jev": "Nhãn Jev",
+      "confidence": "Confidence",
+      "outcome": "Owner chọn",
+      "excerpt": "Nội dung (đã che)"
+    }
+  },
+  "approval": {
+    "title": "Lời nhắn có vẻ lệch với nút bạn bấm",
+    "body": "Lời nhắn có vẻ là: {{label}}. Vẫn {{action}}?",
+    "label": {
+      "approve": "đồng ý duyệt",
+      "request_changes": "yêu cầu sửa",
+      "unclear": "chưa rõ ý"
+    },
+    "action": {
+      "approve": "duyệt",
+      "request_changes": "yêu cầu sửa"
+    },
+    "send": "Vẫn gửi",
+    "edit": "Sửa lại"
+  },
+  "requestType": {
+    "chip": "Jev gợi ý: {{kind}}"
+  },
+  "complexity": {
+    "flag": "Jev: nên là large",
+    "flagTitle": "Jev: nên là large",
+    "declared": "Trợ Lý xếp: {{level}}.",
+    "noReason": "Jev thấy việc này chạm vùng nhạy cảm.",
+    "vision": "Jev: model không xem được ảnh"
+  },
+  "attention": {
+    "badge": "Cần Đại Ca để ý",
+    "kind": {
+      "owner_decision": "Có câu hỏi chờ owner quyết định",
+      "risky_paths": "Đổi file nhạy cảm",
+      "jev_product_decision": "Trợ Lý tự chốt một quyết định sản phẩm"
+    }
   }
 }

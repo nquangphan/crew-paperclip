@@ -4,9 +4,11 @@ import { useCompany } from '@/app/hooks';
 import { ErrorState, MutedText, PageHeader, Section, Spinner } from '@/ds';
 import { useCompanyAccess } from '@/features/access';
 import { useT } from '@/i18n';
+import { FeaturesSection } from './features-section';
 import { GateEventsTable } from './gate-events-table';
 import { KeyForm } from './key-form';
 import { MachinesTable } from './machines-table';
+import { MasterSwitch } from './master-switch';
 import { SettingsForm } from './settings-form';
 import { ShadowTable } from './shadow-table';
 import { StatsPanel } from './stats-panel';
@@ -66,6 +68,12 @@ function OwnerView({ companyId, header }: { companyId: string; header: React.Rea
     <>
       {header}
       <div className="flex flex-col gap-6">
+        <Section title={t('section.master')}>
+          <MasterSwitch companyId={companyId} settings={settings.data} />
+        </Section>
+        <Section title={t('section.features')}>
+          <FeaturesSection companyId={companyId} settings={settings.data} />
+        </Section>
         <Section title={t('section.settings')}>
           <SettingsForm companyId={companyId} settings={settings.data} />
         </Section>

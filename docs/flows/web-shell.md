@@ -42,7 +42,7 @@ Luật chính:
    (`starred-projects.ts`); `company-switcher.tsx`, `command-palette.tsx` (Cmd/Ctrl+K, gõ mã mở issue),
    `account-menu.tsx`, `language-switch.tsx`, `mobile-menu.ts`.
 6. `packages/crew-web/src/api/http.ts` → `http`, `ApiError`: fetch cùng origin kèm cookie phiên; lỗi giữ nguyên câu
-   server. `api/endpoints.ts` → `ENDPOINTS`, `call`; `api/index.ts` → `api` (cổng duy nhất feature import).
+   server. `api/endpoints.ts` → `ENDPOINTS`, `call`; `api/index.ts` → `api` (cổng duy nhất feature import). Route Jev đợt 2 trả `unknown`, feature đọc qua bộ chuyển của flow `jev`.
 7. `packages/crew-web/src/app/live/live-events.ts`: WebSocket `/api/companies/:companyId/events/ws`, invalidate theo
    sự kiện, nối lại với độ trễ tăng dần (`reconnectDelay`).
 8. `packages/crew-web/src/i18n/index.ts` → `initI18n`, `useT`, `setLanguage`; `i18n/format.ts` → `formatDateTime`,

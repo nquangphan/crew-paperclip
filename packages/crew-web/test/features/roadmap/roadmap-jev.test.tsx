@@ -2,8 +2,8 @@
 import { cleanup, render, screen } from '@testing-library/react';
 import { afterEach, beforeAll, describe, expect, it } from 'vitest';
 import type { JevRequestMap } from '@/api';
-import { jevBadgeTone, RoadmapJevBadge, RoadmapLegend } from '@/ds';
-import { buildRequestLevel, roadmapJev } from '@/features/roadmap/roadmap-model';
+import { jevBadgeTone, RoadmapComplexityFlag, RoadmapJevBadge, RoadmapLegend } from '@/ds';
+import { buildRequestLevel, roadmapJev, roadmapJevComplexity } from '@/features/roadmap/roadmap-model';
 import { initI18n, setLanguage } from '@/i18n';
 
 beforeAll(async () => {
@@ -132,5 +132,64 @@ describe('chú thích bản đồ', () => {
     expect(screen.getByText('Jev: có lệnh bị chặn thật')).toBeTruthy();
     rerender(<RoadmapLegend />);
     expect(document.querySelectorAll('[data-slot="roadmap-legend-jev"]')).toHaveLength(0);
+  });
+});
+
+describe('cờ complexity "Jev: nên là large"', () => {
+  const flagMap = {
+    ...map,
+    complexityFlags: {
+      [CHILD]: { kind: 'jev', jevSaysLarge: true, declared: 'small', reason: 'Chạm migration CSDL.' },
+      [QUIET]: { kind: 'vision', jevSaysLarge: false, declared: 'small', reason: 'Việc có ảnh.' },
+    },
+  } as unknown as JevRequestMap;
+
+  it('roadmapJevComplexity lấy cờ theo issue, thiếu hay sai dạng thì không có', () => {
+    expect(roadmapJevComplexity(flagMap, CHILD.toUpperCase())).toEqual({
+      kind: 'jev',
+      declared: 'small',
+      reason: 'Chạm migration CSDL.',
+    });
+    expect(roadmapJevComplexity(flagMap, ROOT)).toBeUndefined();
+    expect(roadmapJevComplexity(undefined, CHILD)).toBeUndefined();
+    expect(roadmapJevComplexity(map, CHILD)).toBeUndefined();
+    expect(roadmapJevComplexity({ ...map, complexityFlags: 'x' } as never, CHILD)).toBeUndefined();
+  });
+
+  it('buildRequestLevel gắn cờ cho đúng thẻ', () => {
+    const level = buildRequestLevel({
+      request: issue(ROOT, null, 'root'),
+      descendants: [issue(CHILD, ROOT, 'c1'), issue(QUIET, ROOT, 'c2')],
+      jev: flagMap,
+    });
+    const byId = new Map(level.nodes.map((n) => [n.id, n]));
+    expect(byId.get(CHILD)?.jevComplexity?.kind).toBe('jev');
+    expect(byId.get(QUIET)?.jevComplexity?.kind).toBe('vision');
+    expect(level.center.jevComplexity).toBeUndefined();
+  });
+
+  it('thẻ hiện chữ cảnh báo, tooltip có mức đã khai và lý do, màu cảnh báo (không tím/xanh ngọc)', () => {
+    const { container } = render(
+      <RoadmapComplexityFlag flag={{ kind: 'jev', declared: 'small', reason: 'Chạm migration CSDL.' }} />,
+    );
+    const el = document.querySelector('[data-slot="roadmap-jev-complexity"]') as HTMLElement;
+    expect(el.textContent).toBe('Jev: nên là large');
+    expect(el.title).toBe('Jev: nên là large. Trợ Lý xếp: small. Chạm migration CSDL.');
+    expect(container.innerHTML).not.toMatch(/in_progress|in_review|qc_verified/);
+    expect(el.style.color).toBe('var(--roadmap-tone-todo)');
+  });
+
+  it('không có lý do thì dùng câu mặc định; vision có tiêu đề riêng', () => {
+    render(<RoadmapComplexityFlag flag={{ kind: 'vision', declared: null, reason: null }} />);
+    const el = document.querySelector('[data-slot="roadmap-jev-complexity"]') as HTMLElement;
+    expect(el.textContent).toBe('Jev: model không xem được ảnh');
+    expect(el.title).toBe('Jev: model không xem được ảnh. Jev thấy việc này chạm vùng nhạy cảm.');
+  });
+
+  it('chú thích có mục cờ chỉ khi bản đồ có thẻ mang cờ', () => {
+    const { rerender } = render(<RoadmapLegend jevComplexity />);
+    expect(document.querySelectorAll('[data-slot="roadmap-legend-complexity"]')).toHaveLength(1);
+    rerender(<RoadmapLegend />);
+    expect(document.querySelector('[data-slot="roadmap-legend-complexity"]')).toBeNull();
   });
 });

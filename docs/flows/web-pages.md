@@ -35,7 +35,7 @@ Luật chính:
    (`dashboard-logic.ts` → `last14Days`, `runActivityBars`), hoạt động gần đây, thẻ góp ý chờ duyệt cho owner; dữ liệu
    qua `use-dashboard.ts`.
 2. `packages/crew-web/src/features/inbox/inbox-page.tsx` → `InboxPage`: chia tab bằng `inbox/tabs.ts`
-   (`INBOX_TAB_IDS`, `isMyExecutionStage`, `hasPendingUserInteraction`); số trên sidebar qua `useInboxBadge`.
+   (`INBOX_TAB_IDS`, `isMyExecutionStage`, `hasPendingUserInteraction`); số trên sidebar qua `useInboxBadge`. Owner còn thấy huy hiệu "Cần Đại Ca để ý" trên mục có lý do (flow `jev`).
 3. `packages/crew-web/src/features/search/search-page.tsx` → `SearchPage`: tìm theo `q` trên URL, lọc bằng
    `resultVisible`, bấm kết quả mở popup issue.
 4. `packages/crew-web/src/features/runs/run-page.tsx` → `RunPage`: agent, trạng thái, nội dung chạy, log, yêu cầu liên

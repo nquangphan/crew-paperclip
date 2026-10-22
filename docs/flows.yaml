@@ -285,17 +285,25 @@ flows:
     files:
       - crew/release/vendor-jev-use.mjs
       - packages/crew-web/src/api/crew/jev.ts
+      - packages/crew-web/src/features/jev/approval-note-check.tsx
+      - packages/crew-web/src/features/jev/features-section.tsx
       - packages/crew-web/src/features/jev/gate-events-table.tsx
+      - packages/crew-web/src/features/jev/inbox-attention-badge.tsx
       - packages/crew-web/src/features/jev/index.ts
       - packages/crew-web/src/features/jev/issue-jev-block.tsx
       - packages/crew-web/src/features/jev/jev-page.tsx
+      - packages/crew-web/src/features/jev/judge-adapter.ts
+      - packages/crew-web/src/features/jev/judge-client.ts
       - packages/crew-web/src/features/jev/key-form.tsx
       - packages/crew-web/src/features/jev/machine-name.tsx
       - packages/crew-web/src/features/jev/machines-table.tsx
+      - packages/crew-web/src/features/jev/master-switch.tsx
+      - packages/crew-web/src/features/jev/request-type-chip.tsx
       - packages/crew-web/src/features/jev/settings-form.tsx
       - packages/crew-web/src/features/jev/shadow-table.tsx
       - packages/crew-web/src/features/jev/stats-panel.tsx
       - packages/crew-web/src/features/jev/use-jev.ts
+      - packages/crew-web/src/features/jev/use-request-type-suggestion.ts
       - server/src/crew/jev-client.ts
       - server/src/crew/jev-features.ts
       - server/src/crew/jev-judgments.ts
@@ -304,8 +312,14 @@ flows:
       - server/src/crew/jev-store.ts
       - server/src/crew/vendor/jev-use.ts
     tests:
+      - packages/crew-web/test/features/jev/approval-note.test.tsx
+      - packages/crew-web/test/features/jev/approve-request-type.test.tsx
+      - packages/crew-web/test/features/jev/features-page.test.tsx
       - packages/crew-web/test/features/jev/issue-jev-block.test.tsx
       - packages/crew-web/test/features/jev/jev-page.test.tsx
+      - packages/crew-web/test/features/jev/judge-adapter.test.ts
+      - packages/crew-web/test/features/jev/judge-client.test.ts
+      - packages/crew-web/test/features/jev/request-type.test.tsx
       - packages/crew-web/test/features/jev/settings-form.test.ts
       - server/src/__tests__/crew-jev-client.test.ts
       - server/src/__tests__/crew-jev-features.db.test.ts

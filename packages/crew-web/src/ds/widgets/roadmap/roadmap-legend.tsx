@@ -2,7 +2,7 @@
 // Chú giải của bản đồ Roadmap: bảy trạng thái (cùng biểu tượng với danh sách yêu cầu, màu theo bảng màu của bản đồ), các
 // loại cạnh và dây "đang chạy" (mẫu nét vẽ bằng đúng class của dây trên bản đồ). Nằm dưới khung bản đồ (không che nút);
 // thu gọn được bằng nút "Chú thích", mặc định thu gọn trên màn hẹp.
-import { ChevronDown, ShieldCheck } from 'lucide-react';
+import { ChevronDown, ShieldCheck, TriangleAlert } from 'lucide-react';
 import { useId, useState } from 'react';
 import { useT } from '@/i18n';
 import { cn } from '../../cn';
@@ -52,11 +52,19 @@ export interface RoadmapLegendProps {
   current?: boolean;
   /** Thêm mục Jev (huy hiệu khiên): chỉ khi bản đồ có thẻ mang huy hiệu. */
   jev?: boolean;
+  /** Thêm mục cờ "Jev: nên là large": chỉ khi bản đồ có thẻ mang cờ complexity. */
+  jevComplexity?: boolean;
 }
 
 const DEFAULT_EDGES: readonly RoadmapEdgeKind[] = ['parent', 'blocks'];
 
-export function RoadmapLegend({ className, edges = DEFAULT_EDGES, current = false, jev = false }: RoadmapLegendProps) {
+export function RoadmapLegend({
+  className,
+  edges = DEFAULT_EDGES,
+  current = false,
+  jev = false,
+  jevComplexity = false,
+}: RoadmapLegendProps) {
   const { t } = useT();
   const [open, setOpen] = useState(startsOpen);
   const listId = useId();
@@ -110,6 +118,12 @@ export function RoadmapLegend({ className, edges = DEFAULT_EDGES, current = fals
               </li>
             ))
           : null}
+        {jevComplexity ? (
+          <li className="flex items-center gap-1.5" data-slot="roadmap-legend-complexity">
+            <TriangleAlert aria-hidden className="size-3.5" style={{ color: 'var(--roadmap-tone-todo)' }} />
+            <span>{t('roadmap.legend.jev.complexity')}</span>
+          </li>
+        ) : null}
       </ul>
     </section>
   );

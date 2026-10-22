@@ -48,7 +48,8 @@ Luật chính:
 8. `packages/crew-web/src/features/roadmap/roadmap-page.tsx` → `RoadmapPage`: điều hướng tầng, popup chi tiết yêu cầu
    (`?issue=`), popup đọc docs (`?doc=`, `RoadmapDocReader`), dạng danh sách (`?view=list`).
 9. `packages/crew-web/src/ds/widgets/roadmap/`: canvas (`RoadmapCanvas`, phần nặng `roadmap-flow.tsx` nạp lười), bố cục
-   tỏa tròn và cây (`roadmap-layout.ts`), thẻ nút, khối run, chú giải, huy hiệu Jev.
+   tỏa tròn và cây (`roadmap-layout.ts`), thẻ nút, khối run, chú giải, huy hiệu Jev và dòng cờ "Jev: nên là large" (`RoadmapComplexityFlag`, từ `complexityFlags` của
+   bản đồ Jev; thẻ cao thêm `COMPLEXITY_LINE`).
 
 ## Files
 

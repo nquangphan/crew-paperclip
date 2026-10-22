@@ -4,10 +4,21 @@
 // Cần secret webhook biết giá trị để ghép máy, nên ca tạo secret mới và trỏ config company sang nó (trả lại cuối ca).
 // Chỉ chạy ở T1: server cục bộ gọi được route máy và ca không được chạm secret webhook của prod.
 import { createHmac, randomUUID } from 'node:crypto';
-import { request } from '@playwright/test';
+import { mkdirSync } from 'node:fs';
+import path from 'node:path';
+import { type Page, type Route, request } from '@playwright/test';
 import type { Api } from '../support/api';
 import { trackIssue } from '../support/cleanup';
-import { archiveProject, createIssue, createProject, uniqueToken, waitInCompactList } from '../support/data';
+import {
+  archiveProject,
+  createIssue,
+  createOwnerStageIssue,
+  createProject,
+  ensureLabel,
+  type IssueLite,
+  uniqueToken,
+  waitInCompactList,
+} from '../support/data';
 import { baseUrl } from '../support/env';
 import { expect, test } from '../support/fixtures';
 
@@ -502,6 +513,387 @@ test('PW-S24-5 Bản đồ Roadmap: thẻ có lệnh Jev hiện huy hiệu đún
     expect(jevRequests).toEqual([]);
   } finally {
     await api.raw('DELETE', `/api/agents/${agent.id}`);
+    await archiveProject(api, project.id);
+  }
+});
+
+// ---------------------------------------------------------------------------------------------------------------
+// Jev đợt 2: công tắc chung, bốn tính năng và cờ. Các route mới của server (judge, thống kê, ca lệch, hộp thư) được giả
+// bằng page.route để ca không phụ thuộc server có đủ migration 0021 và key Jev thật; route cũ (settings, tóm tắt issue,
+// bản đồ) chạy thật rồi được ghép thêm trường mới. Đặt CREW_E2E_SHOT_DIR để lưu ảnh chụp.
+// ---------------------------------------------------------------------------------------------------------------
+
+const SHOT_DIR = process.env.CREW_E2E_SHOT_DIR;
+
+async function shot(page: Page, name: string, target?: { screenshot: Page['screenshot'] }) {
+  if (!SHOT_DIR) return;
+  mkdirSync(SHOT_DIR, { recursive: true });
+  const file = path.join(SHOT_DIR, `${name}.png`);
+  if (target) await target.screenshot({ path: file });
+  else await page.screenshot({ path: file, fullPage: true });
+}
+
+const jevGlob = (companyId: string, to: string) => `**/api/crew/companies/${companyId}/jev${to}`;
+const bodyOf = (route: Route) => JSON.parse(route.request().postData() ?? '{}') as Record<string, unknown>;
+const NO_FEATURES = {
+  complexity: 'shadow',
+  approval_note: 'shadow',
+  request_type: 'shadow',
+  inbox_attention: 'shadow',
+};
+
+/** Giả settings: GET trả cấu hình thật ghép `enabled`/`features` đang giữ; PUT ghi nhận body và đổi trạng thái giả. */
+async function mockSettings(page: Page, companyId: string, features: Record<string, string>) {
+  const state = { enabled: true, features, puts: [] as Record<string, unknown>[] };
+  await page.route(jevGlob(companyId, '/settings'), async (route) => {
+    if (route.request().method() === 'PUT') {
+      const body = bodyOf(route);
+      state.puts.push(body);
+      if (typeof body.enabled === 'boolean') state.enabled = body.enabled;
+      if (body.features) state.features = { ...state.features, ...(body.features as Record<string, string>) };
+    }
+    const real = (await (await route.fetch({ method: 'GET' })).json()) as Record<string, unknown>;
+    await route.fulfill({
+      json: {
+        ...real,
+        enabled: state.enabled,
+        features: state.features,
+        version: Number(real.version) + state.puts.length,
+      },
+    });
+  });
+  return state;
+}
+
+const judged = (feature: string, over: Record<string, unknown>) => ({
+  id: String(Math.floor(Math.random() * 1e6)),
+  feature,
+  issueId: null,
+  mode: 'on',
+  jevLabel: null,
+  confidence: 0.86,
+  escalated: false,
+  errorCode: null,
+  latencyMs: 420,
+  baseline: null,
+  mismatch: true,
+  shown: true,
+  ownerOutcome: null,
+  inputExcerpt: null,
+  createdAt: new Date().toISOString(),
+  ...over,
+});
+
+test('PW-S24-6 Trang Jev: công tắc chung có xác nhận, đổi chế độ chỉ gửi khóa vừa đổi, thống kê và ca lệch @t1 @t1-only', async ({
+  page,
+  company,
+}) => {
+  const state = await mockSettings(page, company.id, { ...NO_FEATURES, approval_note: 'on', inbox_attention: 'off' });
+  await page.route(jevGlob(company.id, '/judgments/stats*'), (route) =>
+    route.fulfill({
+      json: {
+        days: 7,
+        rows: [
+          {
+            feature: 'approval_note',
+            mode: 'on',
+            total: 12,
+            mismatch: 3,
+            escalated: 1,
+            error: 2,
+            shown: 3,
+            p50Ms: 410,
+            p95Ms: 980,
+            outcomes: { sent: 2, changed: 1 },
+          },
+          {
+            feature: 'complexity',
+            mode: 'shadow',
+            total: 31,
+            mismatch: 4,
+            escalated: 2,
+            error: 0,
+            shown: 0,
+            p50Ms: 520,
+            p95Ms: 1100,
+            outcomes: {},
+          },
+        ],
+      },
+    }),
+  );
+  await page.route(jevGlob(company.id, '/judgments?*'), (route) =>
+    route.fulfill({
+      json: {
+        items: [
+          judged('complexity', {
+            baseline: 'small',
+            jevLabel: 'yes',
+            inputExcerpt: 'Sửa bảng users, thêm cột role và migration',
+          }),
+          judged('complexity', {
+            baseline: 'medium',
+            jevLabel: 'yes',
+            confidence: 0.74,
+            inputExcerpt: 'Đổi hợp đồng API công khai /v1/orders',
+          }),
+        ],
+        nextBefore: null,
+      },
+    }),
+  );
+  await page.goto(company.path('jev'));
+
+  await expect(page.getByTestId('jev-master')).toHaveAttribute('data-enabled', 'true');
+  await expect(page.getByRole('button', { name: 'Tắt toàn bộ Jev' })).toBeVisible();
+  for (const id of ['complexity', 'approval_note', 'request_type', 'inbox_attention']) {
+    await expect(page.getByTestId(`jev-feature-${id}`)).toBeVisible();
+  }
+  await expect(page.getByRole('combobox', { name: 'Chế độ của Hỏi lại lời nhắn Duyệt' })).toHaveText('Bật');
+  await expect(page.getByRole('combobox', { name: 'Chế độ của Cần Đại Ca để ý' })).toHaveText('Tắt');
+  await expect(page.getByTestId('jev-feature-stats-approval_note')).toContainText('12 lượt');
+  await expect(page.getByTestId('jev-feature-stats-complexity')).toContainText('4 lệch');
+  await expect(page.getByTestId('jev-mismatch-row')).toHaveCount(2);
+  await shot(page, 'jev-page-desktop');
+
+  // Đổi chế độ một tính năng: PUT mang đủ bốn khóa, chỉ khóa đó đổi.
+  await page.getByRole('combobox', { name: 'Chế độ của Gợi ý loại yêu cầu' }).click();
+  await page.getByRole('option', { name: 'Bật', exact: true }).click();
+  await expect.poll(() => state.puts.length).toBe(1);
+  expect(state.puts[0].features).toEqual({ request_type: 'on' });
+  expect(state.puts[0].enabled).toBe(true);
+
+  // Công tắc chung: hỏi xác nhận, rồi tắt toàn bộ.
+  await page.getByRole('button', { name: 'Tắt toàn bộ Jev' }).click();
+  const confirm = page.getByRole('alertdialog');
+  await expect(confirm).toContainText('cổng chặn lệnh trên máy');
+  await expect(confirm).toContainText('cả bốn tính năng');
+  await shot(page, 'jev-master-confirm', confirm);
+  expect(state.puts).toHaveLength(1);
+  await confirm.getByRole('button', { name: 'Tắt toàn bộ Jev' }).click();
+  await expect.poll(() => state.puts.length).toBe(2);
+  expect(state.puts[1].enabled).toBe(false);
+  expect(state.puts[1]).not.toHaveProperty('features');
+  await expect(page.getByTestId('jev-master')).toHaveAttribute('data-enabled', 'false');
+  await expect(page.getByRole('button', { name: 'Bật lại Jev' })).toBeVisible();
+
+  // Màn hẹp.
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.reload();
+  await expect(page.getByTestId('jev-master')).toBeVisible();
+  await shot(page, 'jev-page-mobile');
+});
+
+test('PW-S24-7 Duyệt kèm lời nhắn lệch ý: Jev (chế độ on) hỏi lại một lần; Sửa lại giữ nguyên, Vẫn gửi mới duyệt @t1 @t1-only', async ({
+  page,
+  api,
+  company,
+}) => {
+  const issue = await createOwnerStageIssue(api, company.id, `PW-S24-7 ${uniqueToken()}`);
+  test.skip(issue === null, 'Company không có project theo dõi để dựng issue ở stage owner');
+  if (!issue) return;
+  const judgeBodies: Record<string, unknown>[] = [];
+  const outcomes: Record<string, unknown>[] = [];
+  await page.route(jevGlob(company.id, '/judge/approval-note'), (route) => {
+    judgeBodies.push(bodyOf(route));
+    return route.fulfill({
+      json: { ok: true, mode: 'on', label: 'request_changes', confidence: 0.91, mismatch: true, judgmentId: '41' },
+    });
+  });
+  await page.route(jevGlob(company.id, '/judgments/41/outcome'), (route) => {
+    outcomes.push(bodyOf(route));
+    return route.fulfill({ json: { ok: true } });
+  });
+
+  await page.goto(company.path(`issues/${issue.identifier}`));
+  await page.getByRole('button', { name: 'Duyệt', exact: true }).click();
+  const dialog = page.getByRole('dialog');
+  await dialog.getByRole('textbox').fill('Còn sai ở màn đăng nhập, cần sửa lại trước khi duyệt');
+  await dialog.getByRole('button', { name: 'Duyệt', exact: true }).click();
+
+  const confirm = page.getByTestId('jev-approval-confirm');
+  await expect(confirm).toContainText('Lời nhắn có vẻ là: yêu cầu sửa. Vẫn duyệt?');
+  expect(judgeBodies).toHaveLength(1);
+  expect(judgeBodies[0]).toMatchObject({ issueId: issue.id, action: 'approve' });
+  await shot(page, 'approval-confirm', confirm);
+  // Chưa gửi gì: issue còn chờ duyệt.
+  expect((await api.get<IssueLite>(`/api/issues/${issue.id}`)).status).toBe('in_review');
+
+  await confirm.getByRole('button', { name: 'Sửa lại' }).click();
+  await expect.poll(() => outcomes.length).toBe(1);
+  expect(outcomes[0]).toEqual({ outcome: 'changed' });
+  await expect(confirm).toBeHidden();
+  await expect(dialog.getByRole('textbox')).toHaveValue('Còn sai ở màn đăng nhập, cần sửa lại trước khi duyệt');
+  expect((await api.get<IssueLite>(`/api/issues/${issue.id}`)).status).toBe('in_review');
+
+  await dialog.getByRole('button', { name: 'Duyệt', exact: true }).click();
+  await confirm.getByRole('button', { name: 'Vẫn gửi' }).click();
+  await expect.poll(async () => (await api.get<IssueLite>(`/api/issues/${issue.id}`)).status).toBe('done');
+  expect(outcomes.at(-1)).toEqual({ outcome: 'sent' });
+});
+
+test('PW-S24-8 Jev chậm quá 1500 ms: duyệt đi thẳng như cũ, không hộp hỏi lại, không chờ Jev @t1 @t1-only', async ({
+  page,
+  api,
+  company,
+}) => {
+  const issue = await createOwnerStageIssue(api, company.id, `PW-S24-8 ${uniqueToken()}`);
+  test.skip(issue === null, 'Company không có project theo dõi để dựng issue ở stage owner');
+  if (!issue) return;
+  await page.route(jevGlob(company.id, '/judge/approval-note'), async (route) => {
+    await new Promise((r) => setTimeout(r, 4000));
+    await route
+      .fulfill({
+        json: { ok: true, mode: 'on', label: 'request_changes', confidence: 0.9, mismatch: true, judgmentId: '42' },
+      })
+      .catch(() => undefined);
+  });
+
+  await page.goto(company.path(`issues/${issue.identifier}`));
+  await page.getByRole('button', { name: 'Duyệt', exact: true }).click();
+  const dialog = page.getByRole('dialog');
+  await dialog.getByRole('textbox').fill('Ổn, cho push');
+  const started = Date.now();
+  await dialog.getByRole('button', { name: 'Duyệt', exact: true }).click();
+  await expect
+    .poll(async () => (await api.get<IssueLite>(`/api/issues/${issue.id}`)).status, { timeout: 3500 })
+    .toBe('done');
+  expect(Date.now() - started).toBeLessThan(3500);
+  await expect(page.getByTestId('jev-approval-confirm')).toHaveCount(0);
+});
+
+test('PW-S24-9 Form Yêu cầu mới: chip "Jev gợi ý" hiện sau khi ngừng gõ, không tự đổi loại, bấm mới chọn; lỗi thì không hiện gì @t1 @t1-only', async ({
+  page,
+  api,
+  company,
+}) => {
+  await ensureLabel(api, company.id, 'research', '#6366f1');
+  const bodies: Record<string, unknown>[] = [];
+  let reply: { status: number; json: unknown } = {
+    status: 200,
+    json: { ok: true, mode: 'on', label: 'research', confidence: 0.88, judgmentId: '51' },
+  };
+  await page.route(jevGlob(company.id, '/judge/request-type'), (route) => {
+    bodies.push(bodyOf(route));
+    return route.fulfill(reply);
+  });
+  const outcomes: Record<string, unknown>[] = [];
+  await page.route(jevGlob(company.id, '/judgments/51/outcome'), (route) => {
+    outcomes.push(bodyOf(route));
+    return route.fulfill({ json: { ok: true } });
+  });
+
+  await page.goto(`${company.path('issues')}?new=1`);
+  const dialog = page.getByRole('dialog', { name: 'Yêu cầu mới' });
+  await expect(dialog).toBeVisible();
+  await dialog.getByLabel('Tiêu đề').fill('So sánh hai thư viện biểu đồ cho trang báo cáo');
+  // Chưa đủ 800 ms ổn định thì chưa gọi.
+  expect(bodies).toHaveLength(0);
+  const chip = dialog.getByTestId('jev-kind-chip');
+  await expect(chip).toHaveText('Jev gợi ý: Nghiên cứu');
+  expect(bodies).toHaveLength(1);
+  expect(bodies[0]).toMatchObject({ title: 'So sánh hai thư viện biểu đồ cho trang báo cáo', current: 'code' });
+  await expect(dialog.getByRole('combobox', { name: 'Loại' })).toHaveText('Code');
+  await shot(page, 'request-type-chip', dialog);
+  await chip.click();
+  await expect(dialog.getByRole('combobox', { name: 'Loại' })).toHaveText('Nghiên cứu');
+  await expect(chip).toHaveCount(0);
+
+  // Jev lỗi (500): ô nhập đổi nội dung, không có chip, không có thông báo lỗi.
+  reply = { status: 500, json: { error: 'Jev hỏng' } };
+  await dialog.getByRole('combobox', { name: 'Loại' }).click();
+  await page.getByRole('option', { name: 'Code', exact: true }).click();
+  await dialog.getByLabel('Tiêu đề').fill('Thêm nút xuất báo cáo vào trang tổng quan của owner');
+  await expect.poll(() => bodies.length).toBe(2);
+  await page.waitForTimeout(300);
+  await expect(dialog.getByTestId('jev-kind-chip')).toHaveCount(0);
+  await expect(dialog.getByRole('alert')).toHaveCount(0);
+  await expect(dialog.getByRole('combobox', { name: 'Loại' })).toHaveText('Code');
+});
+
+test('PW-S24-10 Hộp thư: mục có lý do hiện huy hiệu "Cần Đại Ca để ý" với tooltip lý do @t1 @t1-only', async ({
+  page,
+  api,
+  company,
+}) => {
+  const issue = await createOwnerStageIssue(api, company.id, `PW-S24-10 ${uniqueToken()}`);
+  test.skip(issue === null, 'Company không có project theo dõi để dựng issue ở stage owner');
+  if (!issue) return;
+  const queries: string[] = [];
+  await page.route(jevGlob(company.id, '/inbox-attention*'), (route) => {
+    queries.push(route.request().url());
+    return route.fulfill({
+      json: {
+        enabled: true,
+        mode: 'on',
+        items: [
+          {
+            issueId: issue.id,
+            reasons: [
+              { kind: 'owner_decision', text: 'Tổng kết có điểm cần owner quyết định.' },
+              { kind: 'risky_paths', text: 'Tổng kết nhắc tới file nhạy cảm: migrations/0021_jev_features.sql.' },
+            ],
+          },
+        ],
+      },
+    });
+  });
+  await page.goto(company.path('inbox'));
+  const row = page.getByTestId('inbox-row').filter({ hasText: issue.title });
+  await expect(row).toBeVisible();
+  const badge = row.getByTestId('jev-attention');
+  await expect(badge).toHaveText('Cần Đại Ca để ý');
+  await expect(badge).toHaveAttribute('title', /điểm cần owner quyết định[\s\S]*migrations\/0021/);
+  expect(queries.some((q) => q.includes(issue.id))).toBe(true);
+  await shot(page, 'inbox-attention', row);
+  await shot(page, 'inbox-attention-page');
+});
+
+test('PW-S24-11 Cờ complexity: trang issue và thẻ bản đồ hiện "Jev: nên là large" kèm lý do @t1 @t1-only', async ({
+  page,
+  api,
+  company,
+}) => {
+  const token = uniqueToken('s24');
+  const project = await createProject(api, company.id, `PW-S24 ${token}`);
+  try {
+    const root = await createIssue(api, company.id, { title: `PW-S24 yêu cầu ${token}`, projectId: project.id });
+    const child = await createIssue(api, company.id, {
+      title: `PW-S24 việc con ${token}`,
+      projectId: project.id,
+      parentId: root.id,
+    });
+    await waitInCompactList(api, company.id, [root.id, child.id]);
+    const flag = {
+      kind: 'jev',
+      jevSaysLarge: true,
+      declared: 'small',
+      reason: 'Jev thấy việc này chạm bảo mật/phân quyền, migration CSDL hoặc hợp đồng API công khai.',
+    };
+    await page.route(jevGlob(company.id, `/requests/${root.id}/map`), async (route) => {
+      const real = (await (await route.fetch()).json()) as Record<string, unknown>;
+      await route.fulfill({ json: { ...real, enabled: true, complexityFlags: { [child.id]: flag } } });
+    });
+    await page.route(jevGlob(company.id, `/issues/${child.id}/summary`), async (route) => {
+      const real = (await (await route.fetch()).json()) as Record<string, unknown>;
+      await route.fulfill({ json: { ...real, enabled: true, complexityFlag: flag } });
+    });
+
+    await page.goto(`${company.path('roadmap')}?project=${project.id}&request=${root.identifier}`);
+    const card = (id: string) => page.locator(`button[data-roadmap-id="${id}"]`);
+    const mark = card(child.id).locator('[data-slot="roadmap-jev-complexity"]');
+    await expect(mark).toHaveText('Jev: nên là large');
+    await expect(mark).toHaveAttribute('title', /Trợ Lý xếp: small\. Jev thấy việc này chạm bảo mật/);
+    await expect(card(root.id).locator('[data-slot="roadmap-jev-complexity"]')).toHaveCount(0);
+    await expect(page.locator('[data-slot="roadmap-legend-complexity"]')).toHaveCount(1);
+    await shot(page, 'roadmap-complexity-flag');
+
+    await page.goto(company.path(`issues/${child.identifier}`));
+    const block = page.getByTestId('jev-complexity-flag');
+    await expect(block).toContainText('Jev: nên là large');
+    await expect(block).toContainText('Trợ Lý xếp: small');
+    await shot(page, 'issue-complexity-flag', block);
+  } finally {
     await archiveProject(api, project.id);
   }
 });

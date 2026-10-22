@@ -4,7 +4,15 @@
 import { buildDocsTree, type DocsNode } from '@crew/paperclip-plugin/shared/docs-tree';
 import type { MapRuns } from '@crew/paperclip-plugin/shared/map';
 import type { JevRequestMap } from '@/api';
-import { type RoadmapEdge, type RoadmapJev, type RoadmapLevel, type RoadmapNode, roadmapRuns } from '@/ds';
+import {
+  type RoadmapEdge,
+  type RoadmapJev,
+  type RoadmapJevComplexity,
+  type RoadmapLevel,
+  type RoadmapNode,
+  roadmapRuns,
+} from '@/ds';
+import { complexityFlagFor } from '@/features/jev/judge-adapter';
 
 /** Trần số nút vẽ mỗi tầng; vượt thì có nút "+N khác" mở dạng danh sách. */
 export const CAPS = { projects: 40, requests: 60, tickets: 150, docs: 60 } as const;
@@ -236,6 +244,15 @@ export function roadmapJev(map: JevRequestMap | undefined, issueId: string): Roa
   return { ...(gate ?? { calls: 0, deny: 0, appliedDeny: 0, escalate: 0, error: 0 }), mismatch };
 }
 
+/** Cờ "Jev: nên là large" của một issue (chỉ có khi tính năng complexity bật `on`); thiếu hay sai dạng thì không có cờ. */
+export function roadmapJevComplexity(
+  map: JevRequestMap | undefined,
+  issueId: string,
+): RoadmapJevComplexity | undefined {
+  const flag = complexityFlagFor(map, issueId);
+  return flag ? { kind: flag.kind, declared: flag.declared, reason: flag.reason } : undefined;
+}
+
 /**
  * Tầng yêu cầu: yêu cầu ở đỉnh, mọi hậu duệ thành cây trên xuống (con, cháu…). Vượt trần thì giữ theo độ sâu tăng dần rồi thứ tự
  * ổn định, nên cha của một nút luôn được vẽ. Cạnh cha-con, và cạnh "chặn" khi cả hai đầu cùng nằm trên bản đồ.
@@ -260,6 +277,7 @@ export function buildRequestLevel(input: RequestLevelInput): RoadmapLevel {
     assignee: t.assigneeAgentId ? (input.agentName?.(t.assigneeAgentId) ?? null) : null,
     runs: roadmapRuns(runsOf(t.id)),
     jev: roadmapJev(input.jev, t.id),
+    jevComplexity: roadmapJevComplexity(input.jev, t.id),
   }));
   const edges: RoadmapEdge[] = kept.map((t) => ({
     id: `${t.parentId}->${t.id}`,
@@ -286,6 +304,7 @@ export function buildRequestLevel(input: RequestLevelInput): RoadmapLevel {
     done: all.filter((d) => d.status === 'done').length,
     runs: input.runs ? roadmapRuns(runsOf(request.id), input.runs.tree) : undefined,
     jev: roadmapJev(input.jev, request.id),
+    jevComplexity: roadmapJevComplexity(input.jev, request.id),
   };
   return { center, nodes, edges, overflow, layout: 'top-down' };
 }

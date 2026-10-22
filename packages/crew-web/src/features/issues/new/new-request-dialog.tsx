@@ -23,6 +23,8 @@ import {
 } from '@/ds';
 import { useCompanyAccess, useVisibleProjects } from '@/features/access';
 import { NewContributionDialog } from '@/features/contributions/new-contribution-dialog';
+import { RequestTypeChip } from '@/features/jev/request-type-chip';
+import { useRequestTypeSuggestion } from '@/features/jev/use-request-type-suggestion';
 import { useProjectReadiness } from '@/features/readiness';
 import { useT } from '@/i18n';
 import { availableKinds, isRequestKind, missingKindLabels, NO_KIND_LABELS, type RequestKind } from './kinds';
@@ -94,6 +96,7 @@ function RequestForm({
   });
   const kindLabels = useKindLabelIds(companyId);
   const create = useCreateRequest(companyId);
+  const jevKind = useRequestTypeSuggestion(companyId, title, description, kind);
 
   const loadingProjects = readiness.isLoading || projects.isLoading;
   const readyIds = new Set((readiness.data ?? []).filter((r) => r.state === 'ready').map((r) => r.projectId));
@@ -124,6 +127,7 @@ function RequestForm({
       },
       {
         onSuccess: ({ issue, failedUploads }) => {
+          jevKind.recordFinal(kind);
           onCreated?.(issue, { draft, failedUploads });
           onClose();
         },
@@ -174,6 +178,12 @@ function RequestForm({
             ))}
           </SelectContent>
         </Select>
+        <RequestTypeChip
+          suggestion={jevKind.suggestion}
+          current={kind}
+          allowed={kinds}
+          onPick={(k) => isRequestKind(k) && setKind(k)}
+        />
       </Field>
 
       <Field label={t('new.titleLabel')} htmlFor="new-request-title">

@@ -91,7 +91,6 @@ interface BodyProps {
 function SettingsFormBody({ companyId, settings, saved, onSaved }: BodyProps) {
   const { t } = useT('jev');
   const queryClient = useQueryClient();
-  const [enabled, setEnabled] = useState(settings.enabled);
   const [gateMode, setGateMode] = useState<JevGateMode>(settings.gateMode);
   const [model, setModel] = useState(settings.model);
   const [threshold, setThreshold] = useState(String(settings.threshold));
@@ -110,7 +109,14 @@ function SettingsFormBody({ companyId, settings, saved, onSaved }: BodyProps) {
 
   const submit = () => {
     onSaved(null);
-    const parsed = parseSettingsForm({ enabled, gateMode, model, threshold, timeoutMs, serverShadow });
+    const parsed = parseSettingsForm({
+      enabled: settings.enabled,
+      gateMode,
+      model,
+      threshold,
+      timeoutMs,
+      serverShadow,
+    });
     if ('errors' in parsed) {
       setErrors(parsed.errors);
       return;
@@ -129,9 +135,6 @@ function SettingsFormBody({ companyId, settings, saved, onSaved }: BodyProps) {
       }}
     >
       <div className="grid gap-4 md:grid-cols-2">
-        <Field label={t('settings.enabled')} hint={t('settings.enabledHint')} htmlFor="jev-enabled">
-          <ToggleSwitch id="jev-enabled" checked={enabled} onCheckedChange={setEnabled} />
-        </Field>
         <Field label={t('settings.serverShadow')} hint={t('settings.serverShadowHint')} htmlFor="jev-server-shadow">
           <ToggleSwitch id="jev-server-shadow" checked={serverShadow} onCheckedChange={setServerShadow} />
         </Field>

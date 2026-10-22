@@ -42,8 +42,18 @@ export interface RoadmapNode {
   current?: boolean;
   /** Số lệnh Jev đã xét trong các run của việc (chỉ owner, khi có dữ liệu): huy hiệu "Jev" trên thẻ. */
   jev?: RoadmapJev;
+  /** Cờ "Jev: nên là large" (chỉ owner, khi tính năng complexity bật `on`): dòng cảnh báo nhỏ trên thẻ. */
+  jevComplexity?: RoadmapJevComplexity;
   /** Run của việc (yêu cầu/việc con): vài dòng mới nhất trong thẻ, chân thẻ là tổng tiền và số run. */
   runs?: RoadmapRuns;
+}
+
+/** Lý do Jev cho rằng việc nên là large; `declared` là mức Trợ Lý đã khai. */
+export interface RoadmapJevComplexity {
+  /** `jev`: Jev cho rằng nên là large; `vision`: việc có ảnh mà model đã chọn không đọc được ảnh. */
+  kind: 'jev' | 'vision';
+  declared: string | null;
+  reason: string | null;
 }
 
 /** Số liệu Jev của một việc; `mismatch` là số ca lệch giữa nhãn Jev và regex (C3). */

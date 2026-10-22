@@ -6,7 +6,7 @@ import { afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { CompanyContext, MeContext } from '@/app/hooks';
 import { routes } from '@/features/inbox/routes';
 import { initI18n, setLanguage } from '@/i18n';
-import { mockServer } from '../../app/fetch-mock';
+import { accessRoute, mockServer } from '../../app/fetch-mock';
 
 beforeAll(async () => {
   await initI18n();
@@ -263,5 +263,66 @@ describe('InboxPage đọc và lưu trữ (S3.3, S3.4)', () => {
     fireEvent.click(row);
     await waitFor(() => expect(new URLSearchParams(router.state.location.search).get('issue')).toBe('TPS-1'));
     expect(router.state.location.pathname).toBe(before);
+  });
+});
+
+describe('InboxPage huy hiệu Cần Đại Ca để ý (S24.9)', () => {
+  const ATTENTION = '/api/crew/companies/c1/jev/inbox-attention';
+  const attention = (body: unknown, status = 200) => ({ [`GET ${ATTENTION}`]: { status, body } });
+  const calls = (s: ReturnType<typeof server>) => s.calls.filter((c) => c.url.includes('/jev/inbox-attention'));
+
+  it('owner: mục có lý do hiện huy hiệu với tooltip liệt kê lý do; mục khác không; hỏi đúng các mục của tab', async () => {
+    const s = server(
+      attention({
+        enabled: true,
+        mode: 'on',
+        items: [
+          {
+            issueId: 'i1',
+            reasons: [
+              { kind: 'owner_decision', text: 'Tổng kết có điểm cần owner quyết định.' },
+              { kind: 'risky_paths', text: 'Tổng kết nhắc tới file nhạy cảm: migrations/0021.sql.' },
+            ],
+          },
+        ],
+      }),
+    );
+    mount();
+    const badge = await screen.findByTestId('jev-attention');
+    expect(badge.textContent).toBe('Cần Đại Ca để ý');
+    expect(badge.getAttribute('title')).toBe(
+      'Tổng kết có điểm cần owner quyết định.\nTổng kết nhắc tới file nhạy cảm: migrations/0021.sql.',
+    );
+    expect(screen.getAllByTestId('jev-attention')).toHaveLength(1);
+    expect(within(screen.getAllByTestId('inbox-row')[0]).getByTestId('jev-attention')).toBeTruthy();
+    expect(calls(s)[0].url).toContain('issueIds=i1%2Ci2');
+  });
+
+  it.each([
+    ['tính năng chưa bật (items rỗng)', attention({ enabled: true, mode: 'shadow', items: [] })],
+    ['HTTP 500', attention({ error: 'x' }, 500)],
+    ['HTTP 404', attention({ error: 'x' }, 404)],
+    ['sai dạng', attention('hỏng')],
+    ['lý do sai dạng', attention({ items: [{ issueId: 'i1', reasons: [{ kind: 'lạ', text: 'x' }] }] })],
+  ])('%s: hộp duyệt giữ nguyên, không huy hiệu', async (_n, route) => {
+    const s = server(route as never);
+    mount();
+    await screen.findByText('Chờ owner duyệt');
+    await waitFor(() => expect(calls(s).length).toBeGreaterThan(0));
+    await new Promise((r) => setTimeout(r, 50));
+    expect(screen.queryByTestId('jev-attention')).toBeNull();
+    expect(rowTitles()).toHaveLength(2);
+  });
+
+  it('không phải owner: không gọi route Jev và không có huy hiệu', async () => {
+    const s = server({
+      ...accessRoute('c1', { userId: 'u1', membershipRole: 'operator', contributor: false, canApprove: false }),
+      ...attention({ items: [{ issueId: 'i1', reasons: [{ kind: 'owner_decision', text: 'x' }] }] }),
+    } as never);
+    mount();
+    await screen.findByText('Chờ owner duyệt');
+    await new Promise((r) => setTimeout(r, 80));
+    expect(calls(s)).toHaveLength(0);
+    expect(screen.queryByTestId('jev-attention')).toBeNull();
   });
 });

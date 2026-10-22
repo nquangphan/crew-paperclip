@@ -9,8 +9,8 @@ import type { CSSProperties, ReactNode } from 'react';
 import { useT } from '@/i18n';
 import { cn } from '../../cn';
 import { StatusGlyph } from '../status-glyph';
-import { jevSummaryText, RoadmapJevBadge } from './roadmap-jev-badge';
-import { runsHeight } from './roadmap-layout';
+import { jevComplexityText, jevSummaryText, RoadmapComplexityFlag, RoadmapJevBadge } from './roadmap-jev-badge';
+import { COMPLEXITY_LINE, runsHeight } from './roadmap-layout';
 import { RoadmapRunList, roadmapRunsLabel, useRunClock } from './roadmap-run-list';
 import { isRunActive } from './roadmap-runs';
 import type { RoadmapNode } from './roadmap-types';
@@ -24,7 +24,8 @@ const statusText = (t: TFn, status: string | null | undefined) =>
 export function roadmapNodeLabel(t: TFn, node: RoadmapNode): string {
   const base = baseLabel(t, node);
   const withNotes = node.notes?.length ? `${base}. ${node.notes.join('. ')}` : base;
-  return node.jev ? `${withNotes}. ${jevSummaryText(t, node.jev)}` : withNotes;
+  const withJev = node.jev ? `${withNotes}. ${jevSummaryText(t, node.jev)}` : withNotes;
+  return node.jevComplexity ? `${withJev}. ${jevComplexityText(t, node.jevComplexity)}` : withJev;
 }
 
 function baseLabel(t: TFn, node: RoadmapNode): string {
@@ -208,6 +209,7 @@ function Face({ node, center, now }: { node: RoadmapNode; center: boolean; now: 
         <>
           <IssueHead node={node} />
           <Title clamp={center}>{node.title}</Title>
+          {node.jevComplexity ? <RoadmapComplexityFlag flag={node.jevComplexity} /> : null}
           <Progress done={node.done ?? 0} total={node.total ?? 0} />
           {node.detail ? <Console text={node.detail} /> : null}
           {node.runs ? <RoadmapRunList runs={node.runs} now={now} /> : null}
@@ -218,6 +220,7 @@ function Face({ node, center, now }: { node: RoadmapNode; center: boolean; now: 
         <>
           <IssueHead node={node} />
           <Title>{node.title}</Title>
+          {node.jevComplexity ? <RoadmapComplexityFlag flag={node.jevComplexity} /> : null}
           <span className="flex h-4 min-w-0 items-center gap-1 text-[11px] leading-4 text-muted-foreground">
             <Bot aria-hidden className="size-3 shrink-0 opacity-70" />
             <span className={cn('truncate', !node.assignee && 'italic')}>
@@ -300,7 +303,12 @@ const ISSUE_HEIGHT: Record<'request' | 'ticket', { normal: number; center: numbe
 function issueHeight(node: RoadmapNode, center: boolean): number | undefined {
   if (node.kind !== 'request' && node.kind !== 'ticket') return undefined;
   const h = ISSUE_HEIGHT[node.kind];
-  return (center ? h.center : h.normal) + (node.detail ? h.detail : 0) + runsHeight(node);
+  return (
+    (center ? h.center : h.normal) +
+    (node.detail ? h.detail : 0) +
+    runsHeight(node) +
+    (node.jevComplexity ? COMPLEXITY_LINE : 0)
+  );
 }
 
 /** Màu chủ đạo của nút (`--tone`): trạng thái với việc, màu project với project, màu chính với công ty/docs. */

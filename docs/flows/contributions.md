@@ -50,7 +50,7 @@ Luật chính:
 5. `packages/crew-web/src/features/contributions/approve-flow.ts` → `approveContribution`: điều phối ba bước ở trình duyệt;
    bước đăng lỗi thì giữ câu lỗi và không gọi `complete`; `contributionErrorKey` đổi mã lỗi thành câu tiếng Việt.
 6. `packages/crew-web/src/features/contributions/approve-issue-dialog.tsx` → `ApproveIssueDialog`: owner chọn project,
-   agent nhận (mặc định Trợ Lý của project), lưu nháp (`backlog`) hay `todo`, loại Nghiên cứu (nhãn `research`).
+   agent nhận (mặc định Trợ Lý của project), lưu nháp (`backlog`) hay `todo`, loại Nghiên cứu (nhãn `research`). Chip "Jev gợi ý: <loại>" đọc tiêu đề và nội dung góp ý (flow `jev`).
 7. Các component còn lại: `ContributionsPage` (ba tab theo trạng thái, phân trang bằng `before`), `NewContributionDialog`,
    `ContributionComposer` (người góp ý gửi bình luận chờ thay cho ô soạn stock), `PendingComment` (xen bình luận chờ
    vào luồng), `ContributionPopupHost`/`ContributionPopup`, `ContributionActions`, `RejectConfirm`, `ContributionNotice`.
