@@ -764,6 +764,7 @@ export async function jevIssueSummary(
 // Bản đồ yêu cầu: số lệnh Jev theo từng issue của cây
 // ---------------------------------------------------------------------------------------------------------------
 
+/** Trần độ sâu cây, bằng trần của handler `crew.runs` (plugin) để mọi thẻ trên bản đồ đều có thể có huy hiệu. */
 const MAP_MAX_DEPTH = 20;
 
 export interface JevMapIssue {
@@ -785,9 +786,10 @@ const treeRunsSql = (companyId: string, requestId: string) => sql`WITH RECURSIVE
       UNION ALL
       SELECT i.id, t.depth + 1 FROM public.issues i JOIN tree t ON i.parent_id = t.id
       WHERE i.company_id = ${companyId} AND t.depth < ${MAP_MAX_DEPTH}),
+    tree_ids AS (SELECT DISTINCT id FROM tree),
     tree_runs AS (
-      SELECT r.id AS run_id, tree.id::text AS issue_id FROM tree
-      JOIN "heartbeat_runs" r ON r.company_id = ${companyId} AND (r.context_snapshot ->> 'issueId') = tree.id::text)`;
+      SELECT r.id AS run_id, tree_ids.id::text AS issue_id FROM tree_ids
+      JOIN "heartbeat_runs" r ON r.company_id = ${companyId} AND (r.context_snapshot ->> 'issueId') = tree_ids.id::text)`;
 
 /** Một truy vấn gom nhóm cho cả cây; export để test kiểm kế hoạch (dùng `crew_jev_gate_events_run_idx`). */
 export function requestMapGateSql(companyId: string, requestId: string): SQL {

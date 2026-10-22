@@ -696,6 +696,13 @@ suite("Crew Jev: route owner và route máy", () => {
     expect(res.body.shadowMismatch).toEqual({ [grandchild]: 1 });
     expect(typeof res.body.enabled).toBe("boolean");
 
+    // Cây có vòng (gốc là con của cháu): mỗi issue vẫn chỉ đếm một lần.
+    await db.update(issues).set({ parentId: grandchild }).where(eq(issues.id, root));
+    const cyclic = record(await (await owner()).get(url(`/requests/${root}/map`)));
+    await db.update(issues).set({ parentId: null }).where(eq(issues.id, root));
+    expect(cyclic.body.byIssue).toEqual(res.body.byIssue);
+    expect(cyclic.body.shadowMismatch).toEqual(res.body.shadowMismatch);
+
     const other = record(await (await owner()).get(url(`/requests/${otherRoot}/map`)));
     expect(Object.keys(other.body.byIssue)).toEqual([otherRoot]);
     expect(record(await (await owner()).get(url(`/requests/${randomUUID()}/map`))).body).toMatchObject({ byIssue: {}, shadowMismatch: {} });
@@ -722,6 +729,34 @@ suite("Crew Jev: route owner và route máy", () => {
     expect(plan).toContain("crew_jev_gate_events_run_idx");
     expect(plan).toContain("heartbeat_runs_company_ctx_issue_created_idx");
     expect(plan).not.toMatch(/Seq Scan on (crew_jev_gate_events|heartbeat_runs)/);
+  });
+
+  it("owner company này hỏi issue hay yêu cầu của company khác thì nhận toàn số 0, không lộ dữ liệu", async () => {
+    const [agent] = await db.insert(agents).values({ companyId: strangerCompanyId, name: "jev-stranger-agent" }).returning();
+    const [root] = await db.insert(issues).values({
+      companyId: strangerCompanyId, title: "stranger root", status: "todo", priority: "medium",
+    }).returning();
+    const [child] = await db.insert(issues).values({
+      companyId: strangerCompanyId, title: "stranger child", status: "todo", priority: "medium", parentId: root!.id,
+    }).returning();
+    const [run] = await db.insert(heartbeatRuns).values({
+      companyId: strangerCompanyId, agentId: agent!.id, status: "succeeded", contextSnapshot: { issueId: child!.id },
+    }).returning();
+    await db.execute(sql`INSERT INTO ${sql.raw(crewJevTable("crew_jev_gate_events"))}
+      (company_id, machine_id, event_id, occurred_at, run_id, mode, verdict, applied, blocking, command)
+      VALUES (${strangerCompanyId}, ${machines.legacy}, gen_random_uuid(), now(), ${run!.id}, 'enforce', 'deny', 'deny', true,
+        'git push --force secret-stranger')`);
+    await db.execute(sql`INSERT INTO ${sql.raw(crewJevTable("crew_jev_shadow"))}
+      (company_id, kind, run_id, regex_label, jev_label, status, escalated)
+      VALUES (${strangerCompanyId}, 'liveness', ${run!.id}, 'blocked', 'progress', 'done', false)`);
+
+    const summary = record(await (await owner()).get(url(`/issues/${child!.id}/summary`)));
+    expect(summary.status).toBe(200);
+    expect(summary.body).toMatchObject({ calls: 0, deny: 0, runs: 0, lastAt: null, items: [], shadow: { mismatch: 0, items: [] } });
+    const map = record(await (await owner()).get(url(`/requests/${root!.id}/map`)));
+    expect(map.status).toBe(200);
+    expect(map.body).toMatchObject({ byIssue: {}, shadowMismatch: {} });
+    expect(JSON.stringify([summary.body, map.body])).not.toContain("secret-stranger");
   });
 
   it("không response nào chứa key thử hay secret webhook", () => {
