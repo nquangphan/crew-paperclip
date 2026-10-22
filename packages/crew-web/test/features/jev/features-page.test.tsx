@@ -1,7 +1,9 @@
 // @vitest-environment jsdom
 import { cleanup, fireEvent, screen, waitFor, within } from '@testing-library/react';
-import { afterEach, beforeAll, describe, expect, it } from 'vitest';
+import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
+import { api } from '@/api';
 import { JevPage } from '@/features/jev/jev-page';
+import { pollUnlessFailed } from '@/features/jev/use-jev';
 import { initI18n, setLanguage } from '@/i18n';
 import { mockServer } from '../../app/fetch-mock';
 import { data, renderPage } from '../agents/helpers';
@@ -13,7 +15,10 @@ beforeAll(async () => {
   await initI18n();
   await setLanguage('vi');
 });
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  vi.restoreAllMocks();
+});
 
 const BASE = '/api/crew/companies/c-tps/jev';
 
@@ -121,7 +126,17 @@ const puts = (s: ReturnType<typeof mockServer>) =>
 
 describe('công tắc chung', () => {
   it('nút "Tắt toàn bộ Jev" nổi bật, phải xác nhận, rồi lưu enabled=false giữ nguyên các trường khác, không đụng features', async () => {
-    const s = mockServer(routes({ [`PUT ${BASE}/settings`]: { body: settings({ enabled: false, version: 4 }) } }));
+    // Sau khi lưu, trang tải lại cấu hình: GET trả bản đã đổi như server thật.
+    let saved = false;
+    const s = mockServer(
+      routes({
+        [`GET ${BASE}/settings`]: () => ({ body: saved ? settings({ enabled: false, version: 4 }) : settings() }),
+        [`PUT ${BASE}/settings`]: () => {
+          saved = true;
+          return { body: settings({ enabled: false, version: 4 }) };
+        },
+      }),
+    );
     mount();
     const off = await screen.findByRole('button', { name: 'Tắt toàn bộ Jev' });
     expect(screen.getByText('Jev đang bật')).toBeTruthy();
@@ -131,14 +146,8 @@ describe('công tắc chung', () => {
     expect(puts(s)).toHaveLength(0);
     fireEvent.click(within(dialog).getByRole('button', { name: 'Tắt toàn bộ Jev' }));
     await waitFor(() => expect(puts(s)).toHaveLength(1));
-    expect(puts(s)[0].body).toEqual({
-      enabled: false,
-      gateMode: 'shadow',
-      model: 'typesafe/jev-1.14',
-      threshold: 0.5,
-      timeoutMs: 2500,
-      serverShadow: false,
-    });
+    // Chỉ `enabled`: không gửi lại bản cache của các trường khác.
+    expect(puts(s)[0].body).toEqual({ enabled: false });
     expect(await screen.findByText('Jev đang tắt toàn bộ')).toBeTruthy();
     expect(screen.getByText(/Công tắc chung đang tắt nên chưa tính năng nào chạy/)).toBeTruthy();
   });
@@ -164,7 +173,7 @@ describe('công tắc chung', () => {
     expect(screen.queryByRole('button', { name: 'Tắt toàn bộ Jev' })).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: 'Bật lại Jev' }));
     await waitFor(() => expect(puts(s)).toHaveLength(1));
-    expect((puts(s)[0].body as { enabled: boolean }).enabled).toBe(true);
+    expect(puts(s)[0].body).toEqual({ enabled: true });
   });
 
   it('server từ chối thì hiện lỗi và công tắc giữ nguyên', async () => {
@@ -206,8 +215,8 @@ describe('bốn tính năng', () => {
     fireEvent.keyDown(trigger, { key: 'Enter' });
     fireEvent.click(within(screen.getByRole('listbox')).getByRole('option', { name: 'Bật' }));
     await waitFor(() => expect(puts(s)).toHaveLength(1));
-    expect((puts(s)[0].body as { features: unknown }).features).toEqual({ request_type: 'on' });
-    expect((puts(s)[0].body as { enabled: boolean }).enabled).toBe(true);
+    // Chỉ khóa vừa đổi; không có `enabled` hay trường gate nào.
+    expect(puts(s)[0].body).toEqual({ features: { request_type: 'on' } });
   });
 
   it('thống kê gộp shadow + on: tổng, lệch, không chắc, lỗi, p50/p95', async () => {
@@ -218,7 +227,7 @@ describe('bốn tính năng', () => {
     expect(within(stats).getByText('4 lệch')).toBeTruthy();
     expect(within(stats).getByText('1 không chắc')).toBeTruthy();
     expect(within(stats).getByText('2 lỗi')).toBeTruthy();
-    expect(within(stats).getByText('p50 410 ms · p95 980 ms')).toBeTruthy();
+    expect(within(stats).getByText('p50 410 ms · p95 980 ms (chế độ Bật)')).toBeTruthy();
     expect(within(screen.getByTestId('jev-feature-complexity')).getByText('Chưa có lượt nào.')).toBeTruthy();
   });
 
@@ -265,5 +274,52 @@ describe('ca lệch của từng tính năng', () => {
     mockServer(routes({ [`GET ${BASE}/judgments`]: { status: 503, body: { error: 'x' } } }));
     mount();
     expect(await screen.findByText('Chưa tải được danh sách ca lệch.')).toBeTruthy();
+  });
+});
+
+describe('lưu cấu hình không lẫn nhau', () => {
+  it('đang có một lần lưu thì công tắc chung và mọi ô chế độ bị khóa; lưu xong tải lại cấu hình', async () => {
+    let release: (v: unknown) => void = () => {};
+    vi.spyOn(api.jev, 'setSettings').mockImplementation(() => new Promise((resolve) => (release = resolve)) as never);
+    const s = mockServer(routes());
+    mount();
+    const trigger = await screen.findByRole('combobox', { name: 'Chế độ của Gợi ý loại yêu cầu' });
+    fireEvent.keyDown(trigger, { key: 'Enter' });
+    fireEvent.click(within(screen.getByRole('listbox')).getByRole('option', { name: 'Bật' }));
+    await waitFor(() =>
+      expect((screen.getByRole('button', { name: 'Tắt toàn bộ Jev' }) as HTMLButtonElement).disabled).toBe(true),
+    );
+    expect(
+      (screen.getByRole('combobox', { name: 'Chế độ của Kiểm mức complexity' }) as HTMLButtonElement).disabled,
+    ).toBe(true);
+    const before = s.calls.filter((c) => c.method === 'GET' && c.url.endsWith('/settings')).length;
+    release(settings({ version: 4 }));
+    await waitFor(() =>
+      expect(s.calls.filter((c) => c.method === 'GET' && c.url.endsWith('/settings')).length).toBeGreaterThan(before),
+    );
+    await waitFor(() =>
+      expect((screen.getByRole('button', { name: 'Tắt toàn bộ Jev' }) as HTMLButtonElement).disabled).toBe(false),
+    );
+  });
+});
+
+describe('ca lệch: phân trang và dừng hỏi khi lỗi', () => {
+  it('còn trang sau thì có "Xem thêm", bấm gửi before = nextBefore', async () => {
+    const s = mockServer(
+      routes({
+        [`GET ${BASE}/judgments`]: (init: RequestInit | undefined) => ({
+          body: { ...MISMATCH, nextBefore: init ? '31' : '31' },
+        }),
+      }),
+    );
+    mount();
+    await screen.findByTestId('jev-mismatch-row');
+    fireEvent.click(screen.getByRole('button', { name: 'Xem thêm' }));
+    await waitFor(() => expect(s.calls.some((c) => c.url.includes('before=31'))).toBe(true));
+  });
+
+  it('pollUnlessFailed dừng khi query đã lỗi (ví dụ 503), còn lại làm tươi 30 giây', () => {
+    expect(pollUnlessFailed({ state: { status: 'error' } })).toBe(false);
+    expect(pollUnlessFailed({ state: { status: 'success' } })).toBe(30_000);
   });
 });

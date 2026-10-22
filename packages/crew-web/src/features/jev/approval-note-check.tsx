@@ -47,8 +47,9 @@ export function useApprovalNoteCheck({ companyId, issueId, send }: Options) {
       const mine = ++ticket.current;
       setChecking(true);
       const verdict = await judgeApprovalNote(companyId, { issueId, action, note: text });
-      busy.current = false;
+      // Lượt cũ (đã hủy hay bị lượt mới thay) không được đụng cờ của lượt mới.
       if (mine !== ticket.current) return;
+      busy.current = false;
       setChecking(false);
       if (verdict && verdict.mode === 'on' && verdict.mismatch && verdict.label) {
         setPrompt({ action, note, label: verdict.label, judgmentId: verdict.judgmentId });

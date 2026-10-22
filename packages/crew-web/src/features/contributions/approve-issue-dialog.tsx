@@ -102,6 +102,13 @@ function ApproveIssueForm({
   const authorLabel = useAuthorLabel();
   const [projectId, setProjectId] = useState(c.projectId ?? '');
   const [kind, setKind] = useState<RequestKind>('code');
+  // Chỉ khi owner đã chọn loại thì mới gửi `current` cho Jev; mặc định `code` chưa phải lựa chọn của họ.
+  const [kindPicked, setKindPicked] = useState(false);
+  const pickKind = (v: string) => {
+    if (!isRequestKind(v)) return;
+    setKind(v);
+    setKindPicked(true);
+  };
   // null: theo Trợ Lý của project đang chọn; đổi project thì về lại mặc định.
   const [assigneeChoice, setAssigneeChoice] = useState<string | null>(null);
   const [draft, setDraft] = useState(false);
@@ -115,7 +122,7 @@ function ApproveIssueForm({
     enabled: projectId !== '',
   });
   const kindLabels = useKindLabelIds(company.id);
-  const jevKind = useRequestTypeSuggestion(company.id, c.title ?? '', c.body ?? '', kind);
+  const jevKind = useRequestTypeSuggestion(company.id, c.title ?? '', c.body ?? '', kindPicked ? kind : undefined);
 
   const projectChoices = (projects.data ?? []).filter((p) => !p.archivedAt || p.id === c.projectId);
   const kindLabelIds = kindLabels.data ?? NO_KIND_LABELS;
@@ -190,24 +197,23 @@ function ApproveIssueForm({
       </Field>
 
       <Field label={t('approveDialog.kind')} hint={kindHint || undefined}>
-        <Select value={kind} onValueChange={(v) => isRequestKind(v) && setKind(v)}>
-          <SelectTrigger aria-label={t('approveDialog.kind')} className="w-full">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {kinds.map((k) => (
-              <SelectItem key={k} value={k}>
-                {ti(`new.kinds.${k}`)}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <RequestTypeChip
-          suggestion={jevKind.suggestion}
-          current={kind}
-          allowed={kinds}
-          onPick={(k) => isRequestKind(k) && setKind(k)}
-        />
+        <div className="flex items-center gap-2">
+          <div className="min-w-0 flex-1">
+            <Select value={kind} onValueChange={pickKind}>
+              <SelectTrigger aria-label={t('approveDialog.kind')} className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {kinds.map((k) => (
+                  <SelectItem key={k} value={k}>
+                    {ti(`new.kinds.${k}`)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <RequestTypeChip suggestion={jevKind.suggestion} current={kind} allowed={kinds} onPick={pickKind} />
+        </div>
       </Field>
 
       <Field

@@ -198,7 +198,6 @@ describe('JevPage', () => {
     expect(await screen.findByText(/Đã lưu cấu hình, phiên bản 4/)).toBeTruthy();
     const put = s.calls.find((c) => c.method === 'PUT' && c.url.endsWith('/settings'));
     expect(put?.body).toEqual({
-      enabled: true,
       gateMode: 'shadow',
       model: 'typesafe/jev-1.14',
       threshold: 0.7,

@@ -18,7 +18,14 @@ export function RequestTypeChip({
   const { t: ti } = useT('issues');
   if (!suggestion || suggestion === current || !allowed.includes(suggestion)) return null;
   return (
-    <Button type="button" size="xs" variant="outline" data-testid="jev-kind-chip" onClick={() => onPick(suggestion)}>
+    <Button
+      type="button"
+      size="xs"
+      variant="outline"
+      className="shrink-0"
+      data-testid="jev-kind-chip"
+      onClick={() => onPick(suggestion)}
+    >
       {t('requestType.chip', { kind: ti(`new.kinds.${suggestion}`) })}
     </Button>
   );

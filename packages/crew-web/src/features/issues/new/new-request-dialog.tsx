@@ -77,6 +77,13 @@ function RequestForm({
   const { t } = useT('issues');
   const [projectId, setProjectId] = useState('');
   const [kind, setKind] = useState<RequestKind>('code');
+  // Chỉ khi owner đã chọn loại thì mới gửi `current` cho Jev; mặc định `code` chưa phải lựa chọn của họ.
+  const [kindPicked, setKindPicked] = useState(false);
+  const pickKind = (v: string) => {
+    if (!isRequestKind(v)) return;
+    setKind(v);
+    setKindPicked(true);
+  };
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [files, setFiles] = useState<File[]>([]);
@@ -96,7 +103,7 @@ function RequestForm({
   });
   const kindLabels = useKindLabelIds(companyId);
   const create = useCreateRequest(companyId);
-  const jevKind = useRequestTypeSuggestion(companyId, title, description, kind);
+  const jevKind = useRequestTypeSuggestion(companyId, title, description, kindPicked ? kind : undefined);
 
   const loadingProjects = readiness.isLoading || projects.isLoading;
   const readyIds = new Set((readiness.data ?? []).filter((r) => r.state === 'ready').map((r) => r.projectId));
@@ -166,24 +173,23 @@ function RequestForm({
       </Field>
 
       <Field label={t('new.kind')} hint={kindHint || undefined}>
-        <Select value={kind} onValueChange={(v) => isRequestKind(v) && setKind(v)}>
-          <SelectTrigger aria-label={t('new.kind')} className="w-full">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {kinds.map((k) => (
-              <SelectItem key={k} value={k}>
-                {t(`new.kinds.${k}`)}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <RequestTypeChip
-          suggestion={jevKind.suggestion}
-          current={kind}
-          allowed={kinds}
-          onPick={(k) => isRequestKind(k) && setKind(k)}
-        />
+        <div className="flex items-center gap-2">
+          <div className="min-w-0 flex-1">
+            <Select value={kind} onValueChange={pickKind}>
+              <SelectTrigger aria-label={t('new.kind')} className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {kinds.map((k) => (
+                  <SelectItem key={k} value={k}>
+                    {t(`new.kinds.${k}`)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <RequestTypeChip suggestion={jevKind.suggestion} current={kind} allowed={kinds} onPick={pickKind} />
+        </div>
       </Field>
 
       <Field label={t('new.titleLabel')} htmlFor="new-request-title">

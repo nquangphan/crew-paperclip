@@ -14,6 +14,7 @@ import {
 import {
   Alert,
   Badge,
+  Button,
   Card,
   CardContent,
   CodeBlock,
@@ -38,18 +39,18 @@ import {
 import { formatDateTime, useT } from '@/i18n';
 import { confidenceText } from './gate-events-table';
 import { sumFeatureStats } from './judge-adapter';
-import { settingsInput, useJudgmentStats, useMismatchJudgments, useSaveJevSettings } from './use-jev';
+import { useJevSaving, useJudgmentStats, useMismatchJudgments, useSaveJevSettings } from './use-jev';
 
 const ms = (v: number | null) => (v === null ? '—' : `${Math.round(v)} ms`);
 
 export function FeaturesSection({ companyId, settings }: { companyId: string; settings: JevSettings }) {
   const { t } = useT('jev');
   const save = useSaveJevSettings(companyId);
+  const saving = useJevSaving(companyId);
   const stats = useJudgmentStats(companyId, true);
 
   // Chỉ gửi khóa vừa đổi; server gộp theo khóa nên không đè chế độ mà tab khác vừa đặt.
-  const change = (id: JevFeatureId, mode: JevFeatureMode) =>
-    save.mutate(settingsInput(settings, { features: { [id]: mode } }));
+  const change = (id: JevFeatureId, mode: JevFeatureMode) => save.mutate({ features: { [id]: mode } });
 
   return (
     <div className="flex flex-col gap-4">
@@ -62,7 +63,7 @@ export function FeaturesSection({ companyId, settings }: { companyId: string; se
             key={id}
             id={id}
             mode={featureMode(settings.features, id)}
-            disabled={save.isPending}
+            disabled={saving}
             stat={stats.data ? sumFeatureStats(stats.data, id) : null}
             statsReady={stats.isSuccess}
             onChange={(m) => change(id, m)}
@@ -122,7 +123,11 @@ function FeatureCard({
               <Badge variant="secondary">{t('features.stat.escalated', { count: stat.escalated })}</Badge>
               <Badge variant="secondary">{t('features.stat.errors', { count: stat.errors })}</Badge>
               <Badge variant="outline">
-                {t('features.stat.latency', { p50: ms(stat.p50Ms), p95: ms(stat.p95Ms) })}
+                {t('features.stat.latency', {
+                  p50: ms(stat.p50Ms),
+                  p95: ms(stat.p95Ms),
+                  mode: t(`features.mode.${stat.mode}`),
+                })}
               </Badge>
             </div>
           ) : (
@@ -152,11 +157,23 @@ function MismatchList({ companyId }: { companyId: string }) {
       </Tabs>
       {rows.isLoading ? <Spinner /> : null}
       {rows.isError ? <MutedText>{t('mismatch.unavailable')}</MutedText> : null}
-      {rows.data && rows.data.length === 0 ? (
+      {rows.data && rows.data.pages.every((p) => p.items.length === 0) ? (
         <EmptyState title={t('mismatch.empty')} description={t('mismatch.emptyHint')} />
       ) : null}
-      {rows.data && rows.data.length > 0 ? (
-        <MismatchRows rows={rows.data} caption={t(`feature.${feature}.name`)} />
+      {rows.data && rows.data.pages.some((p) => p.items.length > 0) ? (
+        <MismatchRows rows={rows.data.pages.flatMap((p) => p.items)} caption={t(`feature.${feature}.name`)} />
+      ) : null}
+      {rows.hasNextPage ? (
+        <div>
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={rows.isFetchingNextPage}
+            onClick={() => void rows.fetchNextPage()}
+          >
+            {t('more')}
+          </Button>
+        </div>
       ) : null}
     </div>
   );

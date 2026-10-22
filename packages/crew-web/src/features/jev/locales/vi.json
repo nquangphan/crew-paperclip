@@ -219,7 +219,7 @@
       "mismatch": "{{count}} lệch",
       "escalated": "{{count}} không chắc",
       "errors": "{{count}} lỗi",
-      "latency": "p50 {{p50}} · p95 {{p95}}",
+      "latency": "p50 {{p50}} · p95 {{p95}} (chế độ {{mode}})",
       "none": "Chưa có lượt nào.",
       "unavailable": "Chưa có số liệu."
     },
