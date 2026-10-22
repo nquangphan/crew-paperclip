@@ -182,7 +182,6 @@ describe('RoadmapPage', () => {
   });
 
   describe('huy hiệu Jev', () => {
-    const settings = (enabled: boolean) => ({ body: { enabled, machines: [] } });
     const jevMap = {
       body: {
         enabled: true,
@@ -197,7 +196,6 @@ describe('RoadmapPage', () => {
 
     it('owner và Jev bật: thẻ có dữ liệu có huy hiệu theo màu, thẻ không có dữ liệu thì không; có chú thích Jev', async () => {
       const s = server({
-        'GET /api/crew/companies/c1/jev/settings': settings(true),
         'GET /api/crew/companies/c1/jev/requests/r1/map': jevMap,
       });
       mount('/TPS/roadmap?project=p1&request=TPS-1');
@@ -212,23 +210,32 @@ describe('RoadmapPage', () => {
       expect(jevCalls(s).length).toBeGreaterThan(0);
     });
 
-    it('Jev tắt: không gọi bản đồ Jev và không có huy hiệu', async () => {
+    it('Jev tắt: bản đồ Jev báo tắt thì không có huy hiệu và không gọi lại', async () => {
       const s = server({
-        'GET /api/crew/companies/c1/jev/settings': settings(false),
-        'GET /api/crew/companies/c1/jev/requests/r1/map': jevMap,
+        'GET /api/crew/companies/c1/jev/requests/r1/map': { body: { ...jevMap.body, enabled: false } },
       });
       mount('/TPS/roadmap?project=p1&request=TPS-1');
       await waitFor(() => expect(node('c2')).toBeTruthy());
-      await waitFor(() => expect(s.calls.some((c) => c.url.endsWith('/jev/settings'))).toBe(true));
+      await waitFor(() => expect(s.calls.some((c) => c.url.includes('/requests/'))).toBe(true));
       await new Promise((r) => setTimeout(r, 50));
-      expect(s.calls.some((c) => c.url.includes('/requests/'))).toBe(false);
+      expect(s.calls.some((c) => c.url.endsWith('/jev/settings'))).toBe(false);
       expect(document.querySelector('[data-slot="roadmap-jev"]')).toBeNull();
+    });
+
+    it('response bản đồ Jev sai dạng: không huy hiệu, bản đồ vẫn vẽ', async () => {
+      server({
+        'GET /api/crew/companies/c1/jev/requests/r1/map': { body: { enabled: true, byIssue: 'x' } },
+      });
+      mount('/TPS/roadmap?project=p1&request=TPS-1');
+      await waitFor(() => expect(nodeIds()).toEqual(['r1', 'c2', 'c1']));
+      await new Promise((r) => setTimeout(r, 100));
+      expect(document.querySelector('[data-slot="roadmap-jev"]')).toBeNull();
+      expect(screen.queryByRole('alert')).toBeNull();
     });
 
     it('không phải owner: không gọi API Jev nào và không có huy hiệu', async () => {
       const s = server({
         ...accessRoute('c1', { userId: 'u2', membershipRole: 'operator', contributor: false, canApprove: false }),
-        'GET /api/crew/companies/c1/jev/settings': settings(true),
         'GET /api/crew/companies/c1/jev/requests/r1/map': jevMap,
       });
       mount('/TPS/roadmap?project=p1&request=TPS-1');
@@ -240,7 +247,6 @@ describe('RoadmapPage', () => {
 
     it('lỗi tải bản đồ Jev: bỏ qua lặng lẽ, bản đồ vẫn vẽ như cũ', async () => {
       server({
-        'GET /api/crew/companies/c1/jev/settings': settings(true),
         'GET /api/crew/companies/c1/jev/requests/r1/map': { status: 500, body: { error: 'boom' } },
       });
       mount('/TPS/roadmap?project=p1&request=TPS-1');

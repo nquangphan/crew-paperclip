@@ -230,8 +230,8 @@ export interface RequestLevelInput {
 export function roadmapJev(map: JevRequestMap | undefined, issueId: string): RoadmapJev | undefined {
   if (!map) return undefined;
   const id = issueId.toLowerCase();
-  const gate = map.byIssue[id];
-  const mismatch = map.shadowMismatch[id] ?? 0;
+  const gate = map.byIssue?.[id];
+  const mismatch = map.shadowMismatch?.[id] ?? 0;
   if (!gate && mismatch === 0) return undefined;
   return { ...(gate ?? { calls: 0, deny: 0, appliedDeny: 0, escalate: 0, error: 0 }), mismatch };
 }

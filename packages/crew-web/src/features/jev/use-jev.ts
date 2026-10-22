@@ -14,14 +14,20 @@ export function useJevSettings(companyId: string, enabled: boolean) {
   });
 }
 
-/** Tóm tắt Jev của một issue; chỉ chạy khi `enabled` (owner). Lỗi hay chưa tải thì khối tự ẩn, không chặn trang. */
+/**
+ * Tóm tắt Jev của một issue; chỉ chạy khi `enabled` (owner). Lỗi hay chưa tải thì khối tự ẩn, không chặn trang.
+ * Chỉ làm tươi định kỳ khi issue đã có dữ liệu Jev (khối đang hiện); Jev tắt hay chưa có lệnh thì không poll.
+ */
 export function useJevIssueSummary(companyId: string, issueId: string, enabled: boolean) {
   return useQuery({
     queryKey: queryKeys.jev(companyId, 'issue', issueId),
     queryFn: () => api.jev.issueSummary(companyId, issueId),
     enabled,
     retry: false,
-    refetchInterval: JEV_REFRESH_MS,
+    refetchInterval: (query) => {
+      const data = query.state.data;
+      return data?.enabled && (data.calls > 0 || data.shadow.mismatch > 0) ? JEV_REFRESH_MS : false;
+    },
   });
 }
 
@@ -65,6 +71,7 @@ export function useLabelEvent(companyId: string) {
     onSettled: () => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.jev(companyId, 'events') });
       void queryClient.invalidateQueries({ queryKey: queryKeys.jev(companyId, 'issue') });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.jev(companyId, 'map') });
     },
   });
 }

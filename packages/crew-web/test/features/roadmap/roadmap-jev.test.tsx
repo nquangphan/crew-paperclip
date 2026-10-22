@@ -80,6 +80,9 @@ describe('dữ liệu Jev của tầng yêu cầu', () => {
   it('roadmapJev: không có lệnh và không có ca lệch thì không có huy hiệu; không phân biệt hoa thường', () => {
     expect(roadmapJev(undefined, ROOT)).toBeUndefined();
     expect(roadmapJev(map, 'aaaaaaaa-0000-4000-8000-0000000000ff')).toBeUndefined();
+    // Response sai dạng (proxy trả JSON lạ): không ném lỗi, không huy hiệu.
+    expect(roadmapJev({} as JevRequestMap, ROOT)).toBeUndefined();
+    expect(roadmapJev({ byIssue: null } as unknown as JevRequestMap, ROOT)).toBeUndefined();
     expect(roadmapJev(map, ROOT.toUpperCase())).toEqual({
       calls: 5,
       deny: 2,
