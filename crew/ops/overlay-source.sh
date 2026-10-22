@@ -18,6 +18,7 @@ cd "$FORK"
 [ -z "$(git status --porcelain)" ] || { echo "overlay: worktree has uncommitted changes" >&2; exit 3; }
 
 CHANGED=$(git diff --name-only --diff-filter=ACMR "$BASE" "$COMMIT")
+# docs/flows.yaml and .githooks/ (crew-docs manifest and git hooks) never ship: the SHIP list below leaves them out.
 # ui/ (the stock Paperclip UI at /paperclip/) is allowed as a whole: it is built and served by stock-ui.sh, and the
 # SHIP list below never includes it, so its changes cannot reach the image.
 # Adapter files beyond claude-local/src/ ship only when core-hooks.json lists them as adapter-patch (the file and its tests).
@@ -30,7 +31,7 @@ ADAPTER_PATHS=$(node -e '
   }
   process.stdout.write([...out].join("\n"));
 ' "$FORK/crew/release/core-hooks.json")
-UNKNOWN=$(printf '%s\n' "$CHANGED" | grep -v -E '^(ui/|server/src/|packages/adapters/claude-local/src/|packages/crew-plugin/|packages/crew-web/|crew/|pnpm-lock\.yaml$|.*\.md$)' | { [ -n "$ADAPTER_PATHS" ] && grep -v -F -x -e "$ADAPTER_PATHS" || cat; } || true)
+UNKNOWN=$(printf '%s\n' "$CHANGED" | grep -v -E '^(ui/|server/src/|packages/adapters/claude-local/src/|packages/crew-plugin/|packages/crew-web/|crew/|\.githooks/|docs/flows\.yaml$|pnpm-lock\.yaml$|.*\.md$)' | { [ -n "$ADAPTER_PATHS" ] && grep -v -F -x -e "$ADAPTER_PATHS" || cat; } || true)
 if [ -n "$UNKNOWN" ]; then
   echo "overlay: v3 changes files the overlay cannot ship:" >&2
   printf '%s\n' "$UNKNOWN" >&2

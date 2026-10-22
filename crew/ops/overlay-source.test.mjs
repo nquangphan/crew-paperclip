@@ -57,6 +57,17 @@ test("accepts the stock UI files: ui/ is served by stock-ui.sh and never ships i
   assert.doesNotMatch(r.stderr, /cannot ship/);
 });
 
+test("accepts the crew-docs manifest, flow pages and git hooks: they never ship", () => {
+  const r = run(["docs/flows.yaml", "docs/index.md", "docs/flows/jev.md", ".githooks/pre-commit", ".githooks/pre-push"]);
+  assert.doesNotMatch(r.stderr, /cannot ship/);
+});
+
+test("refuses other files under docs/ that are not markdown", () => {
+  const r = run(["docs/docs.json"]);
+  assert.equal(r.status, 2);
+  assert.match(r.stderr, /docs\/docs\.json/);
+});
+
 const ADAPTER_ENTRIES = [
   { id: "P5", kind: "adapter-patch", file: "packages/adapters/codex-local/src/server/index.ts", tests: ["packages/adapters/codex-local/src/server/session-codec.crew.test.ts"] },
   { id: "P6", kind: "adapter-patch", file: "packages/adapters/opencode-local/src/server/execute.ts", tests: ["packages/adapters/opencode-local/src/server/execute.in-place.crew.test.ts"] },
