@@ -9,7 +9,7 @@ usage() {
 }
 
 REF=""
-BASE="v3"
+BASE="main"
 WT=""
 CLEANUP=0
 while [ $# -gt 0 ]; do

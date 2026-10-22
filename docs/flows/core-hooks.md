@@ -36,7 +36,7 @@ import cuối file để merge upstream ít conflict), mô tả lý do và `upst
    - `onRunLeaseReleased` → `startRemoteStopOnRelease` (flow `ssh-run-lifecycle`). Wrapper nuốt lỗi và bỏ chờ sau
      `CREW_RUN_LEASE_RELEASE_HOOK_TIMEOUT_MS` (15 giây) để lease SSH vẫn được trả khi Mac ngủ hay mạng treo.
    `overrideCrewCoreHooksForTests` cho test thay implementation rồi khôi phục.
-2. `crew/release/upgrade.sh`: fetch `upstream`, tạo worktree và nhánh sync từ base (mặc định `v3`), merge `--no-ff`.
+2. `crew/release/upgrade.sh`: fetch `upstream`, tạo worktree và nhánh sync từ base (mặc định `main`), merge `--no-ff`.
    Chỉ `pnpm-lock.yaml` conflict thì lấy bản upstream (verify sẽ cài lại importer Crew và commit lại lockfile); conflict
    file khác thì in số hunk từng file và thoát 2 để người giải tay. Mã thoát: 64 sai cách dùng, 65 thiếu ref/base hoặc
    base không có `verify.sh`, 66 worktree hay nhánh đã có, 67 merge lỗi không có conflict, 70 sai worktree.
