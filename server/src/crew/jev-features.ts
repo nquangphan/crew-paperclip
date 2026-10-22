@@ -5,7 +5,14 @@ import type { Db } from "@paperclipai/db";
 import { logger } from "../middleware/logger.js";
 import { rowsOf } from "./project-roles.js";
 import { jevJudge, type JevJudgeResult } from "./jev-client.js";
-import { issueJudgments, judgmentExists, recordJudgment, type JudgmentInput } from "./jev-judgments.js";
+import {
+  isSettled,
+  issueJudgments,
+  JUDGMENT_MAX_ATTEMPTS,
+  JUDGMENT_RETRY_AFTER_MS,
+  recordJudgment,
+  type JudgmentInput,
+} from "./jev-judgments.js";
 import { truncateUtf8 } from "./jev-shadow.js";
 import {
   crewJevTable,
@@ -43,18 +50,53 @@ export function featureMode(settings: Pick<JevSettingsRecord, "enabled" | "featu
 
 const hashOf = (text: string) => createHash("sha256").update(text, "utf8").digest("hex").slice(0, 16);
 
-/** Bỏ khối code rào ``` và dòng diff; không bao giờ gửi code hay diff cho Jev. */
+const DIFF_LINE_RE = /^(diff --git |index [0-9a-f]+\.\.|@@ .* @@|\+\+\+ |--- [ab/])/;
+const LIST_ITEM_RE = /^\s*([-*+]|\d+[.)])\s/;
+
+/**
+ * Bỏ khối code rào ``` hoặc ~~~, khối thụt lề (4 dấu cách hoặc tab, trừ mục danh sách), code inline và dòng diff; không bao
+ * giờ gửi code hay diff cho Jev.
+ */
 export function stripCode(text: string): string {
   return text
     .replace(/```[\s\S]*?(```|$)/g, "[code omitted]")
+    .replace(/~~~[\s\S]*?(~~~|$)/g, "[code omitted]")
     .split("\n")
-    .filter((line) => !/^(diff --git |index [0-9a-f]+\.\.|@@ .* @@|\+\+\+ |--- [ab/])/.test(line))
-    .join("\n");
+    .filter((line) => !DIFF_LINE_RE.test(line))
+    .map((line) => (/^( {4}|\t)/.test(line) && !LIST_ITEM_RE.test(line) && line.trim() !== "" ? "[code omitted]" : line))
+    .filter((line, index, lines) => !(line === "[code omitted]" && lines[index - 1] === "[code omitted]"))
+    .join("\n")
+    .replace(/`[^`\n]+`/g, "[code]");
 }
 
 /** Bỏ code, che secret rồi cắt theo byte. */
 export function prepareText(redact: (text: string) => string, raw: string, maxBytes = JEV_TEXT_MAX_BYTES): string {
   return truncateUtf8(redact(stripCode(raw)), maxBytes);
+}
+
+/** Key giải mã giữ trong bộ nhớ process tối đa 5 phút, khóa theo (company, secret, vân tay): đổi key là đổi vân tay. */
+export const JEV_KEY_CACHE_MS = 5 * 60_000;
+const keyCache = new Map<string, { id: string; value: string; expires: number }>();
+
+/** Gọi khi lưu hoặc xóa key để lần gọi sau đọc key mới ngay. */
+export function clearJevKeyCache(companyId?: string): void {
+  if (companyId) keyCache.delete(companyId);
+  else keyCache.clear();
+}
+
+/**
+ * Key của company cho tính năng đợt 2. Mỗi lần đọc secret ghi một access event và cập nhật hàng secret, nên chỉ đọc lại sau
+ * khi cache hết hạn hoặc key đổi.
+ */
+async function getApiKey(db: Db, settings: JevSettingsRecord, consumerId: string, now = Date.now()): Promise<string | null> {
+  if (!settings.keySecretId) return null;
+  const id = `${settings.keySecretId}:${settings.keyFingerprint ?? ""}`;
+  const hit = keyCache.get(settings.companyId);
+  if (hit && hit.id === id && hit.expires > now) return hit.value;
+  keyCache.delete(settings.companyId);
+  const value = await resolveJevApiKey(db, settings, consumerId);
+  if (value) keyCache.set(settings.companyId, { id, value, expires: now + JEV_KEY_CACHE_MS });
+  return value;
 }
 
 const windows = new Map<string, { start: number; count: number }>();
@@ -148,12 +190,15 @@ async function redactor(): Promise<((text: string) => string) | null> {
 
 export type JudgeFailure = { ok: false; reason: string };
 
-/** Kiểm cổng chung của route judge; trả lý do khi không được gọi Jev. */
+/**
+ * Kiểm cổng chung của route judge; trả lý do khi không được gọi Jev. Chỉ đọc DB nhẹ: key và hàm che được lấy sau, trong
+ * {@link prepare}, để chế độ `shadow` trả lời trước khi động tới secret.
+ */
 async function gate(
   db: Db,
   companyId: string,
   feature: JevFeature,
-): Promise<{ settings: JevSettingsRecord; mode: "shadow" | "on"; apiKey: string; redact: (text: string) => string } | JudgeFailure> {
+): Promise<{ settings: JevSettingsRecord; mode: "shadow" | "on" } | JudgeFailure> {
   const settings = await getJevSettings(db, companyId);
   if (!settings.enabled) return { ok: false, reason: "disabled" };
   const mode = featureMode(settings, feature);
@@ -161,11 +206,35 @@ async function gate(
   if (!(await jevFeaturesReady(db))) return { ok: false, reason: "unavailable" };
   if (!settings.keySecretId) return { ok: false, reason: "no_key" };
   if (!allowCall(companyId)) return { ok: false, reason: "rate_limited" };
+  return { settings, mode };
+}
+
+interface Prepared {
+  settings: JevSettingsRecord;
+  mode: "shadow" | "on";
+  apiKey: string;
+  redact: (text: string) => string;
+  userId: string;
+}
+
+async function prepare(
+  db: Db, g: { settings: JevSettingsRecord; mode: "shadow" | "on" }, userId: string,
+): Promise<Prepared | JudgeFailure> {
   const redact = await redactor();
   if (!redact) return { ok: false, reason: "internal" };
-  const apiKey = await resolveJevApiKey(db, settings, "crew-jev-feature");
+  const apiKey = await getApiKey(db, g.settings, "crew-jev-feature");
   if (!apiKey) return { ok: false, reason: "no_key" };
-  return { settings, mode, apiKey, redact };
+  return { ...g, apiKey, redact, userId };
+}
+
+/** Tổng hạn cho cả route khi chờ Jev (DB + Jev); quá hạn thì trả `timeout`, việc nền vẫn ghi dòng đo. */
+function withDeadline<T>(work: Promise<T | JudgeFailure>): Promise<T | JudgeFailure> {
+  work.catch(() => undefined);
+  let timer: NodeJS.Timeout | undefined;
+  const late = new Promise<JudgeFailure>((resolve) => {
+    timer = setTimeout(() => resolve({ ok: false, reason: "timeout" }), JEV_JUDGE_DEADLINE_MS + 50);
+  });
+  return Promise.race([work, late]).finally(() => clearTimeout(timer));
 }
 
 const runBackground = (work: Promise<unknown>, feature: JevFeature) => {
@@ -211,9 +280,11 @@ export function approvalMismatch(action: ApprovalAction, asked: Pick<Asked, "lab
 }
 
 async function judgeApproval(
-  db: Db, g: { settings: JevSettingsRecord; mode: "shadow" | "on"; apiKey: string; redact: (t: string) => string },
-  companyId: string, title: string, body: ApprovalNoteBody,
+  db: Db, gate0: { settings: JevSettingsRecord; mode: "shadow" | "on" },
+  companyId: string, title: string, body: ApprovalNoteBody, userId: string,
 ): Promise<ApprovalNoteReply | JudgeFailure> {
+  const g = await prepare(db, gate0, userId);
+  if ("ok" in g) return g;
   const note = prepareText(g.redact, body.note.trim());
   const heading = prepareText(g.redact, title, 300);
   const verb = body.action === "approve" ? "approve" : "request changes on";
@@ -225,6 +296,7 @@ async function judgeApproval(
     companyId, feature: "approval_note", issueId: body.issueId, mode: g.mode, questionHash: hashOf(`${body.action}\n${note}`),
     inputExcerpt: note, jevLabel: asked.label, confidence: asked.confidence, escalated: asked.escalated,
     errorCode: asked.errorCode, latencyMs: asked.latencyMs, baseline: body.action, mismatch: asked.errorCode ? null : mismatch, shown,
+    createdByUserId: g.userId,
   });
   if (asked.errorCode) return { ok: false, reason: asked.errorCode };
   return {
@@ -237,7 +309,9 @@ async function judgeApproval(
  * `shadow`: trả ngay (không chờ Jev) và hỏi Jev ở nền chỉ để ghi log. `on`: chờ tối đa {@link JEV_JUDGE_DEADLINE_MS}.
  * Mọi lỗi trả `{ ok: false, reason }`.
  */
-export async function approvalNoteJudgment(db: Db, companyId: string, body: ApprovalNoteBody): Promise<ApprovalNoteReply | JudgeFailure> {
+export async function approvalNoteJudgment(
+  db: Db, companyId: string, body: ApprovalNoteBody, userId: string,
+): Promise<ApprovalNoteReply | JudgeFailure> {
   try {
     if (body.note.trim() === "") return { ok: false, reason: "empty" };
     const g = await gate(db, companyId, "approval_note");
@@ -246,12 +320,12 @@ export async function approvalNoteJudgment(db: Db, companyId: string, body: Appr
       await db.execute(sql`SELECT title FROM "issues" WHERE id = ${body.issueId} AND company_id = ${companyId} LIMIT 1`),
     );
     if (!issue) return { ok: false, reason: "not_found" };
-    const work = judgeApproval(db, g, companyId, String(issue.title), body);
+    const work = judgeApproval(db, g, companyId, String(issue.title), body, userId);
     if (g.mode === "shadow") {
       runBackground(work, "approval_note");
       return { ok: true, mode: "shadow", label: null, confidence: null, mismatch: false, judgmentId: null };
     }
-    return await work;
+    return await withDeadline(work);
   } catch (error) {
     logger.warn({ feature: "approval_note", err: error instanceof Error ? error.name : typeof error }, "crew jev: judge lỗi");
     return { ok: false, reason: "internal" };
@@ -290,9 +364,11 @@ export interface RequestTypeReply {
 }
 
 async function judgeRequestType(
-  db: Db, g: { settings: JevSettingsRecord; mode: "shadow" | "on"; apiKey: string; redact: (t: string) => string },
-  companyId: string, body: RequestTypeBody,
+  db: Db, gate0: { settings: JevSettingsRecord; mode: "shadow" | "on" },
+  companyId: string, body: RequestTypeBody, userId: string,
 ): Promise<RequestTypeReply | JudgeFailure> {
+  const g = await prepare(db, gate0, userId);
+  if ("ok" in g) return g;
   const text = prepareText(g.redact, `Title: ${body.title.trim()}\n\n${body.description.trim()}`);
   const asked = await ask(g.settings, g.apiKey, `A new work request (secrets redacted, code removed):\n\n${text}`, REQUEST_TYPE_QUESTION, choiceLabel(REQUEST_TYPES), JEV_JUDGE_DEADLINE_MS);
   const mismatch = body.current && !asked.errorCode ? !asked.escalated && asked.label !== body.current : null;
@@ -301,23 +377,26 @@ async function judgeRequestType(
     companyId, feature: "request_type", issueId: null, mode: g.mode, questionHash: hashOf(text), inputExcerpt: text,
     jevLabel: asked.label, confidence: asked.confidence, escalated: asked.escalated, errorCode: asked.errorCode,
     latencyMs: asked.latencyMs, baseline: body.current ?? null, mismatch, shown: g.mode === "on" && sure,
+    createdByUserId: g.userId,
   });
   if (asked.errorCode) return { ok: false, reason: asked.errorCode };
   if (asked.escalated) return { ok: false, reason: "unsure" };
   return { ok: true, mode: g.mode, label: asked.label as RequestType, confidence: asked.confidence, judgmentId };
 }
 
-export async function requestTypeJudgment(db: Db, companyId: string, body: RequestTypeBody): Promise<RequestTypeReply | JudgeFailure> {
+export async function requestTypeJudgment(
+  db: Db, companyId: string, body: RequestTypeBody, userId: string,
+): Promise<RequestTypeReply | JudgeFailure> {
   try {
     if (body.title.trim().length + body.description.trim().length < 20) return { ok: false, reason: "too_short" };
     const g = await gate(db, companyId, "request_type");
     if ("ok" in g) return g;
-    const work = judgeRequestType(db, g, companyId, body);
+    const work = judgeRequestType(db, g, companyId, body, userId);
     if (g.mode === "shadow") {
       runBackground(work, "request_type");
       return { ok: true, mode: "shadow", label: null, confidence: null, judgmentId: null };
     }
-    return await work;
+    return await withDeadline(work);
   } catch (error) {
     logger.warn({ feature: "request_type", err: error instanceof Error ? error.name : typeof error }, "crew jev: judge lỗi");
     return { ok: false, reason: "internal" };
@@ -367,11 +446,10 @@ export function visionFlag(declared: DeclaredModel | null, hasImage: boolean): C
 
 const JEV_LARGE_REASON = "Jev thấy việc này chạm bảo mật/phân quyền, migration CSDL hoặc hợp đồng API công khai.";
 
-function jevFlag(declared: CrewComplexity | null, row: { baseline: string | null; mismatch: boolean } | undefined): ComplexityFlag | null {
-  if (!row?.mismatch) return null;
-  const level = (declared ?? row.baseline) as CrewComplexity | null;
-  if (!level) return null;
-  return { jevSaysLarge: true, declared: level, reason: JEV_LARGE_REASON, kind: "jev" };
+/** Cờ Jev: dòng đo nói "chạm bảo mật/migration/API" mà mức khai hiện tại (dòng `crew-model` mới nhất) chưa phải `large`. */
+function jevFlag(declared: CrewComplexity, row: { mismatch: boolean } | undefined): ComplexityFlag | null {
+  if (!row?.mismatch || declared === "large") return null;
+  return { jevSaysLarge: true, declared, reason: JEV_LARGE_REASON, kind: "jev" };
 }
 
 const imageIssueIdsSql = (companyId: string, issueIds: SQL): SQL => sql`SELECT DISTINCT a.issue_id::text AS issue_id
@@ -387,7 +465,7 @@ export async function complexityFlagForIssue(db: Db, settings: JevSettingsRecord
   const declared = declaredModel(issue ? (issue.description as string | null) : null);
   if (!declared) return null;
   const rows = await issueJudgments(db, settings.companyId, "complexity", [issueId]);
-  const jev = jevFlag(declared.complexity, rows[0]);
+  const jev = jevFlag(declared.complexity, rows.find((row) => row.errorCode === null));
   if (jev) return jev;
   const images = rowsOf(await db.execute(imageIssueIdsSql(settings.companyId, sql`${issueId}`)));
   return visionFlag(declared, images.length > 0);
@@ -411,9 +489,9 @@ export async function complexityFlagsForTree(
   }
   if (declared.size === 0) return {};
   const ids = [...declared.keys()];
-  const judged = new Map<string, { baseline: string | null; mismatch: boolean }>();
+  const judged = new Map<string, { mismatch: boolean }>();
   for (const row of await issueJudgments(db, companyId, "complexity", ids)) {
-    if (!judged.has(row.issueId)) judged.set(row.issueId, row);
+    if (row.errorCode === null && !judged.has(row.issueId)) judged.set(row.issueId, row);
   }
   const images = new Set(
     rowsOf(await db.execute(imageIssueIdsSql(companyId, sql.join(ids.map((id) => sql`${id}`), sql`, `)))).map((row) =>
@@ -428,15 +506,22 @@ export async function complexityFlagsForTree(
 }
 
 /** Issue con do agent tạo gần đây, có dòng `crew-model`, chưa có dòng đo. Dùng `issues_company_created_idx`. */
-export function complexityCandidatesSql(companyId: string, since: Date): SQL {
+export function complexityCandidatesSql(companyId: string, since: Date, retryBefore: Date): SQL {
   return sql`SELECT i.id::text AS id, i.title, i.description FROM "issues" i
     WHERE i.company_id = ${companyId} AND i.created_at >= ${since.toISOString()}::timestamptz
-      AND i.created_by_agent_id IS NOT NULL AND i.parent_id IS NOT NULL
-      AND i.description ~ '(^|\n)crew-model complexity='
+      AND i.parent_id IS NOT NULL
+      AND i.description ~ ${CREW_MODEL_LINE_SQL_RE}
       AND NOT EXISTS (SELECT 1 FROM ${judgmentsTable()} j
-        WHERE j.company_id = i.company_id AND j.issue_id = i.id AND j.feature = 'complexity')
+        WHERE j.company_id = i.company_id AND j.issue_id = i.id AND j.feature = 'complexity'
+          AND (j.error_code IS NULL OR j.created_at >= ${retryBefore.toISOString()}::timestamptz))
+      AND (SELECT count(*) FROM ${judgmentsTable()} j
+        WHERE j.company_id = i.company_id AND j.issue_id = i.id AND j.feature = 'complexity') < ${JUDGMENT_MAX_ATTEMPTS}
     ORDER BY i.created_at LIMIT ${SWEEP_BATCH}`;
 }
+
+/** Cùng dạng với `CREW_MODEL_LINE_RE` (dòng sai dạng không vào hàng đợi). */
+const CREW_MODEL_LINE_SQL_RE =
+  "(^|\n)crew-model complexity=(trivial|small|medium|large) model=[^[:space:]]+ effort=(low|medium|high|default)( runtime=(claude_local|codex_local|opencode_local))? reason=[^\n]+";
 
 const judgmentsTable = () => sql.raw(crewJevTable("crew_jev_judgments"));
 
@@ -447,14 +532,28 @@ export const COMPLEXITY_LOOKBACK_MS = 2 * 60 * 60_000;
 async function sweepComplexity(db: Db, settings: JevSettingsRecord, redact: (t: string) => string, now: Date): Promise<number> {
   const mode = featureMode(settings, "complexity");
   if (mode === "off" || !settings.keySecretId) return 0;
-  const rows = rowsOf(await db.execute(complexityCandidatesSql(settings.companyId, new Date(now.getTime() - COMPLEXITY_LOOKBACK_MS))));
+  const rows = rowsOf(
+    await db.execute(
+      complexityCandidatesSql(
+        settings.companyId, new Date(now.getTime() - COMPLEXITY_LOOKBACK_MS), new Date(now.getTime() - JUDGMENT_RETRY_AFTER_MS),
+      ),
+    ),
+  );
   if (rows.length === 0) return 0;
-  const apiKey = await resolveJevApiKey(db, settings, "crew-jev-complexity");
+  const apiKey = await getApiKey(db, settings, "crew-jev-complexity");
   if (!apiKey) return 0;
   let done = 0;
   for (const row of rows) {
     const declared = declaredModel(row.description as string | null);
-    if (!declared) continue;
+    if (!declared) {
+      // Dòng `crew-model` sai dạng: ghi một dòng lỗi để không nằm mãi ở đầu hàng đợi.
+      await safeRecord(db, {
+        companyId: settings.companyId, feature: "complexity", issueId: String(row.id), mode, questionHash: hashOf(String(row.id)),
+        inputExcerpt: null, jevLabel: null, confidence: null, escalated: false, errorCode: "unparsed", latencyMs: null,
+        baseline: null, mismatch: null, shown: false,
+      });
+      continue;
+    }
     const text = prepareText(redact, `Title: ${String(row.title)}\n\n${String(row.description ?? "")}`);
     const asked = await ask(settings, apiKey, `A work item for an AI coding agent (secrets redacted, code removed):\n\n${text}`, COMPLEXITY_QUESTION, yesNoLabel, settings.timeoutMs);
     const label = asked.errorCode ? null : asked.escalated ? "unsure" : asked.label;
@@ -614,6 +713,14 @@ async function sweepInbox(db: Db, settings: JevSettingsRecord, redact: (t: strin
   const mode = featureMode(settings, "inbox_attention");
   if (mode === "off" || !settings.keySecretId) return 0;
   const issues = rowsOf(await db.execute(inboxCandidatesSql(settings.companyId, new Date(now.getTime() - INBOX_LOOKBACK_MS))));
+  if (issues.length === 0) return 0;
+  // Một truy vấn cho cả lô: dòng đã đo (theo issue + băm) tra trong bộ nhớ, không hỏi DB từng dòng.
+  const attempts = new Map<string, Array<{ errorCode: string | null; createdAt: string | null }>>();
+  const ids = issues.map((issue) => String(issue.id).toLowerCase());
+  for (const row of await issueJudgments(db, settings.companyId, "inbox_attention", ids)) {
+    const key = `${row.issueId}:${row.questionHash}`;
+    attempts.set(key, [...(attempts.get(key) ?? []), row]);
+  }
   let apiKey: string | null | undefined;
   let calls = 0;
   for (const issue of issues) {
@@ -623,8 +730,8 @@ async function sweepInbox(db: Db, settings: JevSettingsRecord, redact: (t: strin
     for (const line of decidedLines(description)) {
       if (calls >= INBOX_CALLS_PER_SWEEP) return calls;
       const hash = lineHash(id, line);
-      if (await judgmentExists(db, settings.companyId, "inbox_attention", id, hash)) continue;
-      apiKey ??= await resolveJevApiKey(db, settings, "crew-jev-inbox");
+      if (isSettled(attempts.get(`${id}:${hash}`) ?? [], now)) continue;
+      apiKey ??= await getApiKey(db, settings, "crew-jev-inbox");
       if (!apiKey) return calls;
       const text = prepareText(redact, line, 1024);
       calls += 1;
@@ -673,7 +780,11 @@ export async function runJevFeatureSweep(db: Db, now: Date = new Date()): Promis
 export const JEV_FEATURE_INTERVAL_MS = 60_000;
 let worker: { timer: NodeJS.Timeout; running: boolean } | null = null;
 
-/** Bật worker một lần cho process (bỏ qua khi `NODE_ENV=test`); lượt mới không chạy khi lượt trước chưa xong. */
+/**
+ * Bật worker một lần cho process (bỏ qua khi `NODE_ENV=test`); lượt mới không chạy khi lượt trước chưa xong. Giả định prod
+ * chạy đúng một instance server (đã xác nhận): bảng đo không có ràng buộc duy nhất và worker không khóa advisory, nên nhiều
+ * instance có thể cùng hỏi Jev và ghi trùng một mục. Khi scale ngang cần thêm `pg_try_advisory_lock` cho mỗi lượt.
+ */
 export function startJevFeatureWorker(db: Db): void {
   if (worker || process.env.NODE_ENV === "test") return;
   const state = { running: false, timer: undefined as unknown as NodeJS.Timeout };

@@ -9,10 +9,12 @@ import express from "express";
 import request from "supertest";
 import { sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { agents, assets, companies, companyMemberships, createDb, issueAttachments, issues } from "@paperclipai/db";
+import { agents, assets, companies, companyMemberships, createDb, issueAttachments, issues, secretAccessEvents } from "@paperclipai/db";
 import { CREW_POLICY_CONFIG_ENV } from "../crew/issue-policy.js";
 import {
   approvalMismatch,
+  approvalNoteJudgment,
+  clearJevKeyCache,
   complexityCandidatesSql,
   decidedLines,
   deterministicReasons,
@@ -22,7 +24,7 @@ import {
   runJevFeatureSweep,
   stripCode,
 } from "../crew/jev-features.js";
-import { issueJudgmentsSql, judgmentStatsSql, judgmentsListSql } from "../crew/jev-judgments.js";
+import { isSettled, issueJudgmentsSql, judgmentStatsSql, judgmentsListSql } from "../crew/jev-judgments.js";
 import { runJevShadowSweep } from "../crew/jev-shadow.js";
 import { crewJevTable } from "../crew/jev-store.js";
 import { validatePluginMigrationStatement } from "../services/plugin-database.js";
@@ -40,7 +42,7 @@ const suite = support.supported ? describe.sequential : describe.skip;
 const TEST_KEY = `sk-or-test-${"d4".repeat(16)}`;
 const LEAKED = `sk-or-test-${"9a".repeat(16)}`;
 
-type Reply = { status?: number; delayMs?: number; choice?: string; noul?: number; confidence?: number };
+type Reply = { status?: number; delayMs?: number; choice?: string; noul?: number; confidence?: number; raw?: string };
 
 describe("Crew Jev: luật thuần của bốn tính năng", () => {
   it("bỏ khối code và diff trước khi gửi", () => {
@@ -49,6 +51,27 @@ describe("Crew Jev: luật thuần của bốn tính năng", () => {
     expect(out).not.toContain("const secret");
     expect(out).not.toContain("diff --git");
     expect(out).toContain("xong");
+  });
+
+  it("bỏ rào ~~~, khối thụt lề và code inline nhưng giữ mục danh sách", () => {
+    const out = stripCode("Mở đầu\n~~~\nsecretA()\n~~~\nGiữa\n    indentedCode()\n    more()\n- mục `inlineCode` ở đây\n  - mục con\nKết");
+    expect(out).not.toContain("secretA");
+    expect(out).not.toContain("indentedCode");
+    expect(out).not.toContain("inlineCode");
+    expect(out).toContain("- mục [code] ở đây");
+    expect(out).toContain("  - mục con");
+    expect(out).toContain("Kết");
+  });
+
+  it("isSettled: có dòng không lỗi, đủ 3 lần, hoặc lỗi còn mới thì xong; lỗi cũ thì hỏi lại", () => {
+    const now = new Date("2026-10-23T10:00:00Z");
+    const at = (minutesAgo: number, errorCode: string | null = "timeout") => ({ errorCode, createdAt: new Date(now.getTime() - minutesAgo * 60_000).toISOString() });
+    expect(isSettled([], now)).toBe(false);
+    expect(isSettled([at(60, null)], now)).toBe(true);
+    expect(isSettled([at(60), at(120, null)], now)).toBe(true);
+    expect(isSettled([at(5)], now)).toBe(true);
+    expect(isSettled([at(20)], now)).toBe(false);
+    expect(isSettled([at(20), at(40), at(60)], now)).toBe(true);
   });
 
   it("lệch lời nhắn: chỉ khi Jev chắc và khác hành động; unclear không phải lệch", () => {
@@ -108,6 +131,11 @@ suite("Crew Jev: bốn tính năng đợt 2", () => {
         const hit = replies.find(([marker]) => body.includes(marker));
         const reply: Reply = hit?.[1] ?? { choice: "code", noul: 0.1, confidence: 0.9 };
         setTimeout(() => {
+          if (reply.raw !== undefined) {
+            res.writeHead(200, { "content-type": "application/json" });
+            res.end(reply.raw);
+            return;
+          }
           if (reply.status && reply.status !== 200) {
             res.writeHead(reply.status, { "content-type": "application/json" });
             res.end(JSON.stringify({ error: { message: "down" } }));
@@ -204,7 +232,7 @@ suite("Crew Jev: bốn tính năng đợt 2", () => {
   const rows = async (feature?: string) =>
     (await db.execute(sql.raw(`SELECT id::text AS id, company_id::text AS company_id, feature, issue_id::text AS issue_id, mode,
       jev_label, confidence, escalated, error_code, baseline, mismatch, shown, owner_outcome, input_excerpt
-      FROM ${crewJevTable("crew_jev_judgments")} ${feature ? `WHERE feature = '${feature}'` : ""} ORDER BY id`))) as unknown as Array<Record<string, unknown>>;
+      FROM ${crewJevTable("crew_jev_judgments")} ${feature ? `WHERE feature = '${feature}'` : ""} ORDER BY crew_jev_judgments.id`))) as unknown as Array<Record<string, unknown>>;
   const waitFor = async (predicate: () => Promise<boolean>) => {
     for (let i = 0; i < 60; i += 1) {
       if (await predicate()) return;
@@ -389,7 +417,7 @@ suite("Crew Jev: bốn tính năng đợt 2", () => {
       companyId, title: title!, status: "todo", priority: "medium", parentId: rootId, createdByAgentId: agentId,
       description: `${line(complexity!)}${title}\n\`\`\`sql\nDROP TABLE x;\n\`\`\``,
     }).returning())[0]!));
-    // Issue do người tạo hoặc không có dòng crew-model không bị xét.
+    // Issue con không có dòng crew-model không bị xét; issue con do người tạo vẫn được xét.
     await db.insert(issues).values({ companyId, title: "Người tạo", status: "todo", priority: "medium", parentId: rootId, createdByUserId: "u", description: line("small") });
     await db.insert(issues).values({ companyId, title: "Không dòng", status: "todo", priority: "medium", parentId: rootId, createdByAgentId: agentId, description: "không có" });
     expect(received).toHaveLength(0);
@@ -405,7 +433,7 @@ suite("Crew Jev: bốn tính năng đợt 2", () => {
     await db.insert(issueAttachments).values({ companyId, issueId: vision!.id, assetId: asset!.id });
 
     const sweep = await runJevFeatureSweep(db);
-    expect(sweep.complexity).toBe(4);
+    expect(sweep.complexity).toBe(5);
     const logged = await rows("complexity");
     const byIssue = (id: string) => logged.find((row) => row.issue_id === id)!;
     expect(byIssue(secure.id)).toMatchObject({ mismatch: true, jev_label: "yes", baseline: "small", mode: "shadow", shown: false });
@@ -527,6 +555,146 @@ suite("Crew Jev: bốn tính năng đợt 2", () => {
     expect((await (await owner()).get(url("/judgments?days=1"))).status).toBe(400);
   });
 
+  it("cache key: không đọc secret mỗi lần gọi; đổi key thì đọc lại", async () => {
+    await putSettings({ features: { approval_note: "on" } });
+    reset();
+    clearJevKeyCache();
+    replies.push(["LGTM", { choice: "approve", confidence: 0.9 }]);
+    const count = async () => (await db.select().from(secretAccessEvents)).length;
+    const n0 = await count();
+    for (let i = 0; i < 3; i += 1) expect((await judgeNote({ note: "LGTM" })).body).toMatchObject({ ok: true });
+    expect(await count()).toBe(n0 + 1);
+    expect((await (await owner()).put(url("/key")).send({ apiKey: TEST_KEY })).status).toBe(200);
+    const n1 = await count();
+    expect((await judgeNote({ note: "LGTM" })).body.ok).toBe(true);
+    expect(await count()).toBe(n1 + 1);
+  });
+
+  it("lỗi tạm thời được hỏi lại sau 15 phút, tối đa 3 lần", async () => {
+    await putSettings({ features: { complexity: "on" } });
+    reset();
+    const age = (id: string) => db.execute(sql.raw(`UPDATE ${crewJevTable("crew_jev_judgments")} SET created_at = created_at - interval '20 minutes' WHERE issue_id = '${id}'`));
+    const make = async (title: string) => (await db.insert(issues).values({
+      companyId, title, status: "todo", priority: "medium", parentId: rootId, createdByAgentId: agentId,
+      description: `crew-model complexity=small model=claude-sonnet-5-5 effort=medium reason=x\n${title}`,
+    }).returning())[0]!;
+    const recovering = await make("TAMLOI");
+    replies.push(["TAMLOI", { status: 503 }]);
+    expect((await runJevFeatureSweep(db)).complexity).toBe(1);
+    expect((await runJevFeatureSweep(db)).complexity).toBe(0);
+    await age(recovering.id);
+    replies.length = 0;
+    expect((await runJevFeatureSweep(db)).complexity).toBe(1);
+    expect((await runJevFeatureSweep(db)).complexity).toBe(0);
+    await age(recovering.id);
+    expect((await runJevFeatureSweep(db)).complexity).toBe(0);
+    const recovered = (await rows("complexity")).filter((row) => row.issue_id === recovering.id);
+    expect(recovered.map((row) => row.error_code)).toEqual(["unreachable", null]);
+
+    const hopeless = await make("MAIMOI");
+    replies.push(["MAIMOI", { status: 503 }]);
+    for (let i = 0; i < 3; i += 1) {
+      expect((await runJevFeatureSweep(db)).complexity).toBe(1);
+      await age(hopeless.id);
+    }
+    expect((await runJevFeatureSweep(db)).complexity).toBe(0);
+    expect((await rows("complexity")).filter((row) => row.issue_id === hopeless.id)).toHaveLength(3);
+  });
+
+  it("cờ biến mất khi dòng crew-model mới nhất đã là large", async () => {
+    await putSettings({ features: { complexity: "on" } });
+    reset();
+    replies.push(["NANGCAP", { noul: 0.95, confidence: 0.9 }]);
+    const [issue] = await db.insert(issues).values({
+      companyId, title: "NANGCAP", status: "todo", priority: "medium", parentId: rootId, createdByAgentId: agentId,
+      description: "crew-model complexity=small model=claude-sonnet-5-5 effort=medium reason=x\nNANGCAP",
+    }).returning();
+    await runJevFeatureSweep(db);
+    const flagOf = async () => (await (await owner()).get(url(`/issues/${issue!.id}/summary`))).body.complexityFlag;
+    const mapOf = async () => (await (await owner()).get(url(`/requests/${rootId}/map`))).body.complexityFlags[issue!.id];
+    expect(await flagOf()).toMatchObject({ jevSaysLarge: true, declared: "small" });
+    expect(await mapOf()).toMatchObject({ kind: "jev" });
+    await db.execute(sql`UPDATE "issues" SET description = ${"crew-model complexity=large model=claude-opus-5-5 effort=high reason=x\nNANGCAP"} WHERE id = ${issue!.id}`);
+    expect(await flagOf()).toBeNull();
+    expect(await mapOf()).toBeUndefined();
+  });
+
+  it("dòng crew-model sai dạng không chặn hàng đợi", async () => {
+    reset();
+    for (let i = 0; i < 12; i += 1) {
+      await db.insert(issues).values({
+        companyId, title: `HONG${i}`, status: "todo", priority: "medium", parentId: rootId, createdByAgentId: agentId,
+        description: "crew-model complexity=small model=claude-sonnet-5-5 reason=thiếu effort",
+        createdAt: new Date(Date.now() - 60_000),
+      });
+    }
+    const [good] = await db.insert(issues).values({
+      companyId, title: "TOT", status: "todo", priority: "medium", parentId: rootId, createdByAgentId: agentId,
+      description: "crew-model complexity=medium model=claude-sonnet-5-5 effort=high reason=x\nTOT",
+    }).returning();
+    expect((await runJevFeatureSweep(db)).complexity).toBe(1);
+    expect((await rows("complexity")).filter((row) => row.issue_id === good!.id)).toHaveLength(1);
+    expect(received.join("")).not.toContain("HONG0");
+  });
+
+  it("kết quả owner chọn: chỉ người đã gọi hoặc owner, chỉ giá trị hợp lệ của tính năng", async () => {
+    await putSettings({ features: { approval_note: "on" } });
+    reset();
+    replies.push(["LGTM", { choice: "approve", confidence: 0.9 }]);
+    const ownerRow = (await judgeNote({ note: "LGTM" })).body.judgmentId as string;
+    const viewerRow = (await judgeNote({ note: "LGTM" }, await viewer())).body.judgmentId as string;
+    const set = async (caller: Awaited<ReturnType<typeof owner>>, id: string, outcome: string) =>
+      (await caller.post(url(`/judgments/${id}/outcome`)).send({ outcome })).body;
+    expect(await set(await viewer(), ownerRow, "sent")).toEqual({ ok: false, reason: "not_found" });
+    expect(await set(await viewer(), viewerRow, "sent")).toEqual({ ok: true });
+    expect(await set(await owner(), viewerRow, "changed")).toEqual({ ok: true });
+    expect(await set(await owner(), ownerRow, "code")).toEqual({ ok: false, reason: "not_found" });
+    expect(await set(await owner(), ownerRow, "tuy_y")).toEqual({ ok: false, reason: "invalid" });
+  });
+
+  it("phân trang /judgments theo id giảm dần, không sót không trùng", async () => {
+    await db.execute(sql.raw(`INSERT INTO ${crewJevTable("crew_jev_judgments")} (company_id, feature, mode, question_hash, escalated, shown, created_at)
+      SELECT '${companyId}', 'inbox_attention', 'shadow', 'p' || g, false, false, now() - ((g % 7) || ' minutes')::interval
+      FROM generate_series(1, 120) g`));
+    const seen: string[] = [];
+    let before: string | null = null;
+    for (let page = 0; page < 5; page += 1) {
+      const res = await (await owner()).get(url(`/judgments?feature=inbox_attention${before ? `&before=${before}` : ""}`));
+      expect(res.status).toBe(200);
+      seen.push(...res.body.items.map((item: { id: string }) => item.id));
+      before = res.body.nextBefore;
+      if (!before) break;
+    }
+    const all = (await rows("inbox_attention")).map((row) => row.id as string).reverse();
+    expect(seen).toEqual(all);
+  });
+
+  it("Jev trả sai dạng hoặc ném lỗi: ok:false, không 5xx, worker ghi lỗi", async () => {
+    await putSettings({ features: { approval_note: "on", complexity: "on" } });
+    reset();
+    replies.push(["VOJSON", { raw: '{"nothing":true}' }], ["HTMLNE", { raw: "<html>oops</html>" }], ["NHANLA", { choice: "nonsense", confidence: 0.9 }]);
+    for (const note of ["VOJSON", "HTMLNE", "NHANLA"]) {
+      const res = await judgeNote({ note });
+      expect(res.status).toBe(200);
+      expect(res.body).toEqual({ ok: false, reason: "bad_response" });
+    }
+    const logged = (await rows("approval_note")).slice(-3);
+    expect(logged.map((row) => row.error_code)).toEqual(["bad_response", "bad_response", "bad_response"]);
+    expect(logged.every((row) => row.mismatch === null && row.shown === false)).toBe(true);
+
+    replies.push(["WORKERLA", { raw: "<html>" }]);
+    const [broken] = await db.insert(issues).values({
+      companyId, title: "WORKERLA", status: "todo", priority: "medium", parentId: rootId, createdByAgentId: agentId,
+      description: "crew-model complexity=small model=claude-sonnet-5-5 effort=medium reason=x\nWORKERLA",
+    }).returning();
+    await expect(runJevFeatureSweep(db)).resolves.toBeDefined();
+    expect((await rows("complexity")).find((row) => row.issue_id === broken!.id)).toMatchObject({ error_code: "bad_response", mismatch: null });
+
+    // DB ném lỗi giữa chừng: trả internal, không ném ra ngoài.
+    const exploding = { execute: () => { throw new Error("boom"); } } as unknown as typeof db;
+    await expect(approvalNoteJudgment(exploding, companyId, { issueId: rootId, action: "approve", note: "LGTM" }, users.owner)).resolves.toEqual({ ok: false, reason: "internal" });
+  });
+
   it("route judge không bao giờ 5xx khi bảng chưa có", async () => {
     // Bảng đo biến mất (plugin chưa nâng cấp): judge và PUT features xử lý êm.
     const table = crewJevTable("crew_jev_judgments");
@@ -546,16 +714,13 @@ suite("Crew Jev: bốn tính năng đợt 2", () => {
 
   it("truy vấn mới dùng index (EXPLAIN với dữ liệu mẫu)", async () => {
     const table = crewJevTable("crew_jev_judgments");
-    // Company này giữ ~4000 dòng trong 28 ngày; các company khác 40 000 dòng (một phần quá hạn 30 ngày).
+    // Company này giữ ~1% trong 44 000 dòng (xen kẽ với 44 company khác, một phần quá hạn 30 ngày).
     await db.execute(sql.raw(`INSERT INTO ${table} (company_id, feature, issue_id, mode, question_hash, escalated, shown, created_at)
-      SELECT '${companyId}', (ARRAY['complexity','approval_note','request_type','inbox_attention'])[1 + g % 4],
-        CASE WHEN g % 4 IN (0, 3) THEN gen_random_uuid() ELSE NULL END, 'shadow', 'h' || g, false, false,
-        now() - ((g * 10) || ' minutes')::interval
-      FROM generate_series(1, 4000) g`));
-    await db.execute(sql.raw(`INSERT INTO ${table} (company_id, feature, issue_id, mode, question_hash, escalated, shown, created_at)
-      SELECT gen_random_uuid(), 'complexity', gen_random_uuid(), 'shadow', 'z', false, false,
-        CASE WHEN g % 400 = 0 THEN now() - interval '60 days' ELSE now() - ((g % 20000) || ' minutes')::interval END
-      FROM generate_series(1, 40000) g`));
+      SELECT CASE WHEN g % 100 = 0 THEN '${companyId}'::uuid ELSE gen_random_uuid() END,
+        (ARRAY['complexity','approval_note','request_type','inbox_attention'])[1 + (g / 100) % 4],
+        gen_random_uuid(), 'shadow', 'h' || g, false, false,
+        CASE WHEN g % 397 = 0 THEN now() - interval '60 days' ELSE now() - ((g % 20000) || ' minutes')::interval END
+      FROM generate_series(1, 44000) g`));
     await db.execute(sql.raw(`ANALYZE ${table}`));
     await db.execute(sql`INSERT INTO issues (company_id, title, status, priority, parent_id, created_by_agent_id, description, created_at)
       SELECT ${companyId}, 'E' || g, CASE WHEN g % 100 = 0 THEN 'in_review' ELSE 'todo' END, 'medium', NULL, NULL, 'x',
@@ -565,17 +730,18 @@ suite("Crew Jev: bốn tính năng đợt 2", () => {
       ((await db.execute(sql`EXPLAIN ${query}`)) as unknown as Array<{ "QUERY PLAN": string }>).map((row) => row["QUERY PLAN"]).join("\n");
 
     const stats = await explain(judgmentStatsSql(companyId, 7));
-    expect(stats).toMatch(/crew_jev_judgments_feature_idx/);
+    expect(stats).toMatch(/crew_jev_judgments_(feature|company)_idx/);
     expect(stats).not.toMatch(/Seq Scan on crew_jev_judgments/);
     const list = await explain(judgmentsListSql(companyId, { feature: "complexity", mismatch: false }));
     expect(list).toMatch(/crew_jev_judgments_feature_idx/);
+    expect(await explain(judgmentsListSql(companyId, { mismatch: false }))).toMatch(/crew_jev_judgments_company_idx/);
     const issueIds = [randomUUID(), randomUUID()];
     const forIssues = await explain(issueJudgmentsSql(companyId, "complexity", issueIds));
     expect(forIssues).toMatch(/crew_jev_judgments_issue_idx/);
     expect(forIssues).not.toMatch(/Seq Scan on crew_jev_judgments/);
     const purge = await explain(sql`DELETE FROM ${sql.raw(table)} WHERE created_at < now() - interval '30 days'`);
     expect(purge).toMatch(/crew_jev_judgments_created_idx/);
-    const complexity = await explain(complexityCandidatesSql(companyId, new Date(Date.now() - 7_200_000)));
+    const complexity = await explain(complexityCandidatesSql(companyId, new Date(Date.now() - 7_200_000), new Date(Date.now() - 900_000)));
     expect(complexity).toMatch(/issues_company_created_idx/);
     const inbox = await explain(inboxCandidatesSql(companyId, new Date(Date.now() - 7 * 86_400_000)));
     expect(inbox).toMatch(/issues_company_(status|updated)_idx/);

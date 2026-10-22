@@ -16,8 +16,10 @@ CREATE TABLE plugin_crew_core_0433ea20b6.crew_jev_judgments (
   mismatch boolean,
   shown boolean NOT NULL DEFAULT false,
   owner_outcome text,
+  created_by_user_id text,
   created_at timestamptz NOT NULL DEFAULT now()
 );
-CREATE INDEX crew_jev_judgments_feature_idx ON plugin_crew_core_0433ea20b6.crew_jev_judgments (company_id, feature, created_at DESC);
+CREATE INDEX crew_jev_judgments_feature_idx ON plugin_crew_core_0433ea20b6.crew_jev_judgments (company_id, feature, id DESC);
+CREATE INDEX crew_jev_judgments_company_idx ON plugin_crew_core_0433ea20b6.crew_jev_judgments (company_id, id DESC);
 CREATE INDEX crew_jev_judgments_issue_idx ON plugin_crew_core_0433ea20b6.crew_jev_judgments (company_id, issue_id, feature) WHERE issue_id IS NOT NULL;
 CREATE INDEX crew_jev_judgments_created_idx ON plugin_crew_core_0433ea20b6.crew_jev_judgments (created_at);

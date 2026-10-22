@@ -36,7 +36,7 @@ khỏi `req.body` trước mọi bước có thể lỗi, nên log HTTP không b
   `GET /gate-events`, `POST /gate-events/:id/label`, `GET /shadow`, `GET /issues/:issueId/summary`,
   `GET /requests/:requestId/map`.
 - Route judge (mọi thành viên company đăng nhập bằng phiên, dùng key của company): `POST /judge/approval-note`,
-  `POST /judge/request-type`, `POST /judgments/:id/outcome`. Route owner thêm: `GET /judgments/stats`, `GET /judgments`,
+  `POST /judge/request-type`, `POST /judgments/:id/outcome` (chỉ người đã gọi judge hoặc owner, giá trị `sent|changed` hoặc loại yêu cầu). Route owner thêm: `GET /judgments/stats`, `GET /judgments`,
   `GET /inbox-attention?issueIds=`; `GET /issues/:issueId/summary` có thêm `complexityFlag`, `GET /requests/:requestId/map` có
   thêm `complexityFlags` (chỉ khi `complexity` là `on`).
 - Route máy (ký HMAC): `POST /machine/pull`, `POST /machine/events` cùng tiền tố. Mac gọi trong mỗi lượt
@@ -66,9 +66,9 @@ khỏi `req.body` trước mọi bước có thể lỗi, nên log HTTP không b
    `JEV_SHADOW_MAX_ATTEMPTS` lần thì bỏ. Mỗi giờ xóa dữ liệu cũ hơn `JEV_RETENTION_DAYS`.
 6. `server/src/crew/jev-features.ts`: lõi bốn tính năng. `approvalNoteJudgment`/`requestTypeJudgment` kiểm cổng (công tắc
    chung, chế độ, migration 0021, key, trần 60 lần/phút/company) rồi hỏi Jev với hạn 1200 ms; `shadow` trả ngay và hỏi ở nền,
-   `on` chờ. Text luôn bỏ khối code/diff, che secret, cắt 4 KB. `startJevFeatureWorker`/`runJevFeatureSweep` (mỗi 60 s, bỏ
+   `on` chờ. Key giải mã được giữ trong bộ nhớ process tối đa 5 phút (khóa theo secret + vân tay, xóa khi lưu/xóa key), `shadow` lấy key sau khi đã trả lời. Text luôn bỏ khối code (rào ``` và ~~~, thụt lề, inline) và diff, che secret, cắt 4 KB. `startJevFeatureWorker`/`runJevFeatureSweep` (mỗi 60 s, bỏ
    qua khi `NODE_ENV=test`): quét việc con do agent tạo có dòng `crew-model` (không nằm trên đường tạo issue, nên tạo issue
-   không thêm bước hay lỗi nào) và gốc `in_review` có mục `### Đã tự quyết định`; mỗi mục hỏi Jev một lần (khóa theo băm).
+   không thêm bước hay lỗi nào) và gốc `in_review` có mục `### Đã tự quyết định`; mỗi mục hỏi Jev một lần (khóa theo băm); dòng lỗi được hỏi lại sau 15 phút, tối đa 3 lần. Complexity xét mọi việc con có dòng `crew-model` đúng dạng, bất kể ai tạo. Worker giả định prod chạy một instance server.
    `complexityFlagForIssue`/`complexityFlagsForTree`, `inboxAttention`: dựng cờ và huy hiệu (luật xác định tính lúc đọc).
 7. `server/src/crew/jev-judgments.ts`: bảng đo chung `crew_jev_judgments` (ghi, kết quả owner chọn, số liệu theo tính năng
    × chế độ, danh sách, dọn quá 30 ngày cùng giờ dọn có sẵn).

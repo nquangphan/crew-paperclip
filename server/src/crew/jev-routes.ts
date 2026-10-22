@@ -8,6 +8,7 @@ import { jevJudge } from "./jev-client.js";
 import {
   approvalNoteBodySchema,
   approvalNoteJudgment,
+  clearJevKeyCache,
   complexityFlagForIssue,
   complexityFlagsForTree,
   inboxAttention,
@@ -205,6 +206,7 @@ export function crewJevRoutes(db: Db): Router {
     const body = putKeySchema.safeParse(takeBody(res) ?? {});
     if (!body.success) throw invalid("Key OpenRouter phải là một dòng 20–200 ký tự, không có khoảng trắng.");
     const settings = await storeJevKey(db, actor.companyId, body.data.apiKey, actor.userId);
+    clearJevKeyCache(actor.companyId);
     logger.info({ companyId: actor.companyId, version: settings.version }, "crew jev key stored");
     const result: Record<string, unknown> = { hasKey: true, keyFingerprint: settings.keyFingerprint };
     if (body.data.test) {
@@ -228,6 +230,7 @@ export function crewJevRoutes(db: Db): Router {
   router.delete(`${BASE}/key`, async (req, res) => {
     const actor = await ownerOf(db, req);
     const settings = await clearJevKey(db, actor.companyId, actor.userId);
+    clearJevKeyCache(actor.companyId);
     logger.info({ companyId: actor.companyId, version: settings.version }, "crew jev key cleared");
     res.json({ hasKey: false });
   });
@@ -311,7 +314,7 @@ export function crewJevRoutes(db: Db): Router {
       res.json({ ok: false, reason: "invalid" });
       return;
     }
-    res.json(await approvalNoteJudgment(db, actor.companyId, body.data));
+    res.json(await approvalNoteJudgment(db, actor.companyId, body.data, actor.userId));
   });
 
   router.post(`${BASE}/judge/request-type`, async (req, res) => {
@@ -321,7 +324,7 @@ export function crewJevRoutes(db: Db): Router {
       res.json({ ok: false, reason: "invalid" });
       return;
     }
-    res.json(await requestTypeJudgment(db, actor.companyId, body.data));
+    res.json(await requestTypeJudgment(db, actor.companyId, body.data, actor.userId));
   });
 
   router.post(`${BASE}/judgments/:id/outcome`, async (req, res) => {
@@ -333,7 +336,7 @@ export function crewJevRoutes(db: Db): Router {
       return;
     }
     try {
-      res.json((await setJudgmentOutcome(db, actor.companyId, id.data, body.data.outcome)) ? { ok: true } : { ok: false, reason: "not_found" });
+      res.json((await setJudgmentOutcome(db, actor.companyId, id.data, body.data.outcome, { userId: actor.userId, isOwner: actor.isOwner })) ? { ok: true } : { ok: false, reason: "not_found" });
     } catch (error) {
       logger.warn({ err: error instanceof Error ? error.name : typeof error }, "crew jev outcome failed");
       res.json({ ok: false, reason: "internal" });
