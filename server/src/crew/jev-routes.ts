@@ -6,6 +6,7 @@ import { logger } from "../middleware/logger.js";
 import { requireOwner, resolveContributionActor, type ContributionActor } from "./contributions.js";
 import { jevJudge } from "./jev-client.js";
 import { machineSecret, resolveCrewCompanySecret, verifyMachineRequest } from "./jev-machine-auth.js";
+import { startJevShadowWorker } from "./jev-shadow.js";
 import {
   clearJevKey,
   gateEventsQuerySchema,
@@ -130,9 +131,12 @@ const KEY_TEST_STATE = "Crew is checking that its Jev API key works. This reques
  * - Route máy (`/machine/pull`, `/machine/events`): Mac ký HMAC bằng khóa máy, cùng luật webhook máy của plugin.
  * - Body bị dời khỏi `req.body` trước mọi bước có thể lỗi, nên log HTTP và báo lỗi không bao giờ chứa key hay lệnh.
  * - Key không bao giờ có trong response, trừ response pull cho Mac đã ký đúng khi vân tay key trên Mac khác server.
+ * - Tạo router cũng bật worker so sánh Jev với regex (`jev-shadow.ts`).
  */
 export function crewJevRoutes(db: Db): Router {
   const router = Router();
+  // Worker so sánh Jev với regex: một timer cho cả process, không chạy khi test.
+  startJevShadowWorker(db);
 
   router.use(BASE, (req, res, next) => {
     res.locals[BODY_LOCAL] = req.body;
