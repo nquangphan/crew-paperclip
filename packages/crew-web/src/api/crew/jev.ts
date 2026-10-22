@@ -126,7 +126,24 @@ export interface JevPage<T> {
   nextBefore: string | null;
 }
 
+export interface JevIssueSummary {
+  enabled: boolean;
+  calls: number;
+  allow: number;
+  deny: number;
+  appliedDeny: number;
+  escalate: number;
+  error: number;
+  runs: number;
+  lastAt: string | null;
+  /** Tối đa 50 ca deny/escalate/lỗi của các run thuộc issue (lệnh đã che). */
+  items: JevGateEvent[];
+  shadow: { mismatch: number; items: JevShadowItem[] };
+}
+
 export const jevApi = {
+  issueSummary: (companyId: string, issueId: string): Promise<JevIssueSummary> =>
+    call('jev.issueSummary', { companyId, issueId }),
   settings: (companyId: string): Promise<JevSettings> => call('jev.settings', { companyId }),
   setSettings: (companyId: string, body: JevSettingsInput): Promise<JevSettings> =>
     call('jev.setSettings', { companyId }, { body }),
@@ -147,6 +164,7 @@ export const jevApi = {
 };
 
 export const __endpoints = [
+  'jev.issueSummary',
   'jev.deleteKey',
   'jev.events',
   'jev.label',

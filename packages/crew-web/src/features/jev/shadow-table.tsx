@@ -28,9 +28,7 @@ import { useShadowItems } from './use-jev';
 type Kind = 'liveness' | 'runtime';
 
 export function ShadowTable({ companyId }: { companyId: string }) {
-  const { t, lang } = useT('jev');
-  const { company } = useCompany();
-  const navigate = useNavigate();
+  const { t } = useT('jev');
   const [kind, setKind] = useState<Kind>('liveness');
   const shadow = useShadowItems(companyId, kind, true);
   const items: JevShadowItem[] = shadow.data?.pages.flatMap((p) => p.items) ?? [];
@@ -55,43 +53,7 @@ export function ShadowTable({ companyId }: { companyId: string }) {
       {shadow.data && items.length === 0 ? (
         <EmptyState title={t('shadow.empty')} description={t('shadow.emptyHint')} />
       ) : null}
-      {items.length > 0 ? (
-        <Table aria-label={t(`shadow.kind.${kind}`)}>
-          <TableHeader>
-            <TableRow>
-              <TableHead>{t('shadow.col.time')}</TableHead>
-              <TableHead>{t('shadow.col.kind')}</TableHead>
-              <TableHead>{t('shadow.col.run')}</TableHead>
-              <TableHead>{t('shadow.col.regex')}</TableHead>
-              <TableHead>{t('shadow.col.jev')}</TableHead>
-              <TableHead>{t('shadow.col.confidence')}</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {items.map((s) => {
-              const href = s.runId ? companyPath(company.issuePrefix, `runs/${s.runId}`) : null;
-              return (
-                <TableRow key={s.id} data-testid="jev-shadow-item">
-                  <TableCell>{formatDateTime(s.evaluatedAt ?? s.createdAt, lang)}</TableCell>
-                  <TableCell>{t(`shadow.kind.${s.kind}`)}</TableCell>
-                  <TableCell>
-                    {href && s.runId ? (
-                      <NavAnchor href={href} onOpen={() => navigate(href)}>
-                        {s.runId.slice(0, 8)}
-                      </NavAnchor>
-                    ) : (
-                      '—'
-                    )}
-                  </TableCell>
-                  <TableCell>{s.regexLabel ?? '—'}</TableCell>
-                  <TableCell>{s.jevLabel ?? '—'}</TableCell>
-                  <TableCell>{confidenceText(s.confidence)}</TableCell>
-                </TableRow>
-              );
-            })}
-          </TableBody>
-        </Table>
-      ) : null}
+      {items.length > 0 ? <ShadowRows items={items} caption={t(`shadow.kind.${kind}`)} /> : null}
       {shadow.hasNextPage ? (
         <div>
           <Button
@@ -105,5 +67,49 @@ export function ShadowTable({ companyId }: { companyId: string }) {
         </div>
       ) : null}
     </div>
+  );
+}
+
+/** Bảng ca lệch C3; dùng chung cho trang Jev và khối Jev trên trang issue. */
+export function ShadowRows({ items, caption }: { items: readonly JevShadowItem[]; caption: string }) {
+  const { t, lang } = useT('jev');
+  const { company } = useCompany();
+  const navigate = useNavigate();
+  return (
+    <Table aria-label={caption}>
+      <TableHeader>
+        <TableRow>
+          <TableHead>{t('shadow.col.time')}</TableHead>
+          <TableHead>{t('shadow.col.kind')}</TableHead>
+          <TableHead>{t('shadow.col.run')}</TableHead>
+          <TableHead>{t('shadow.col.regex')}</TableHead>
+          <TableHead>{t('shadow.col.jev')}</TableHead>
+          <TableHead>{t('shadow.col.confidence')}</TableHead>
+        </TableRow>
+      </TableHeader>
+      <TableBody>
+        {items.map((s) => {
+          const href = s.runId ? companyPath(company.issuePrefix, `runs/${s.runId}`) : null;
+          return (
+            <TableRow key={s.id} data-testid="jev-shadow-item">
+              <TableCell>{formatDateTime(s.evaluatedAt ?? s.createdAt, lang)}</TableCell>
+              <TableCell>{t(`shadow.kind.${s.kind}`)}</TableCell>
+              <TableCell>
+                {href && s.runId ? (
+                  <NavAnchor href={href} onOpen={() => navigate(href)}>
+                    {s.runId.slice(0, 8)}
+                  </NavAnchor>
+                ) : (
+                  '—'
+                )}
+              </TableCell>
+              <TableCell>{s.regexLabel ?? '—'}</TableCell>
+              <TableCell>{s.jevLabel ?? '—'}</TableCell>
+              <TableCell>{confidenceText(s.confidence)}</TableCell>
+            </TableRow>
+          );
+        })}
+      </TableBody>
+    </Table>
   );
 }

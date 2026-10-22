@@ -181,5 +181,14 @@
       "jev": "Nhãn Jev",
       "confidence": "Confidence"
     }
+  },
+  "issue": {
+    "title": "Jev",
+    "summary": "Jev: {{calls}} lệnh · {{deny}} chặn · {{escalate}} không chắc · {{error}} lỗi",
+    "eventsCaption": "Ca deny, escalate và lỗi của issue này",
+    "noEvents": "Không có ca deny, escalate hay lỗi nào.",
+    "mismatch": "{{count}} ca Jev và regex cho nhãn khác nhau trong các run của issue này.",
+    "mismatchCaption": "Ca lệch C3 của issue này",
+    "viewAll": "Xem tất cả ở trang Jev"
   }
 }

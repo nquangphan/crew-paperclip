@@ -251,6 +251,7 @@ export const ENDPOINTS = {
   'jev.stats': { ids: ['S24.3'], method: 'GET', path: `${CREW}/jev/stats` },
   'jev.events': { ids: ['S24.3'], method: 'GET', path: `${CREW}/jev/gate-events` },
   'jev.label': { ids: ['S24.3'], method: 'POST', path: `${CREW}/jev/gate-events/:id/label` },
+  'jev.issueSummary': { ids: ['S24.4'], method: 'GET', path: `${CREW}/jev/issues/:issueId/summary` },
   'jev.shadow': { ids: ['S24.3'], method: 'GET', path: `${CREW}/jev/shadow` },
 
   // Quyền xem project theo thành viên (S21): owner đặt ở trang Thành viên, mọi trang lọc theo `projectAccess.me`.

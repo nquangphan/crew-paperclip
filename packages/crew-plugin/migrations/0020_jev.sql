@@ -50,6 +50,7 @@ CREATE TABLE plugin_crew_core_0433ea20b6.crew_jev_gate_events (
 );
 CREATE INDEX crew_jev_gate_events_time_idx ON plugin_crew_core_0433ea20b6.crew_jev_gate_events (company_id, occurred_at);
 CREATE INDEX crew_jev_gate_events_verdict_idx ON plugin_crew_core_0433ea20b6.crew_jev_gate_events (company_id, verdict, occurred_at);
+CREATE INDEX crew_jev_gate_events_run_idx ON plugin_crew_core_0433ea20b6.crew_jev_gate_events (company_id, run_id, occurred_at);
 CREATE TABLE plugin_crew_core_0433ea20b6.crew_jev_shadow (
   id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
   company_id uuid NOT NULL,

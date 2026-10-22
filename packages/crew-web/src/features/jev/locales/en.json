@@ -181,5 +181,14 @@
       "jev": "Jev label",
       "confidence": "Confidence"
     }
+  },
+  "issue": {
+    "title": "Jev",
+    "summary": "Jev: {{calls}} commands · {{deny}} blocked · {{escalate}} unsure · {{error}} errors",
+    "eventsCaption": "Deny, escalate and error cases of this issue",
+    "noEvents": "No deny, escalate or error cases.",
+    "mismatch": "{{count}} cases where Jev and regex disagree in this issue's runs.",
+    "mismatchCaption": "C3 mismatches of this issue",
+    "viewAll": "See all on the Jev page"
   }
 }

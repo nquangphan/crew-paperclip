@@ -6,6 +6,7 @@
 import { createHmac, randomUUID } from 'node:crypto';
 import { request } from '@playwright/test';
 import type { Api } from '../support/api';
+import { trackIssue } from '../support/cleanup';
 import { uniqueToken } from '../support/data';
 import { baseUrl } from '../support/env';
 import { expect, test } from '../support/fixtures';
@@ -47,6 +48,7 @@ interface PullResult {
 }
 
 let previousConfig: PluginConfig | null = null;
+let webhookSecret = '';
 let webhookSecretId = '';
 let keySecretId = '';
 let previousSettings: JevSettings | null = null;
@@ -87,7 +89,7 @@ test.beforeAll(async ({ api, company }) => {
     .get<{ configJson: PluginConfig } | null>(`${PLUGIN}/config?companyId=${company.id}`)
     .catch(() => null);
   previousConfig = config?.configJson ?? null;
-  const webhookSecret = randomUUID() + randomUUID();
+  webhookSecret = randomUUID() + randomUUID();
   webhookSecretId = await createSecret(api, company.id, `e2e-jev-webhook-${uniqueToken('')}`, webhookSecret);
   const ref = { type: 'secret_ref', secretId: webhookSecretId, version: 'latest' };
   const others = (previousConfig?.companies ?? []).filter((c) => c.companyId !== company.id);
@@ -303,4 +305,92 @@ test('PW-S24-3 Máy giả kéo cấu hình và đẩy sự kiện ký HMAC: tran
   // Dọn máy giả để lượt sau không thấy thẻ mồ côi: gỡ environment (archive); dòng sự kiện tự hết hạn sau 30 ngày.
   await api.raw('POST', `${PLUGIN}/api/machines/${machineId}/unpair`, { companyId: company.id });
   await api.raw('PATCH', `/api/environments/${env.id}`, { status: 'archived' });
+});
+
+test('PW-S24-4 Trang issue: dòng tóm tắt Jev đúng số, mở ra thấy ca deny, bấm Nhầm ghi nhãn @t1 @t1-only', async ({
+  page,
+  api,
+  company,
+}) => {
+  // Run giả: agent process chạy `true`, đánh thức theo issue nên run mang `issueId` trong context.
+  const agent = await api.post<{ id: string }>(`/api/companies/${company.id}/agents`, {
+    name: `e2e-jev-runner-${uniqueToken('')}`,
+    role: 'general',
+    adapterType: 'process',
+    adapterConfig: { command: 'true', args: [] },
+    runtimeConfig: { heartbeat: { enabled: false, wakeOnDemand: true } },
+  });
+  try {
+    const issue = await api.post<{ id: string; identifier: string }>(`/api/companies/${company.id}/issues`, {
+      title: `E2E Jev issue ${uniqueToken('')}`,
+    });
+    trackIssue(issue.id);
+    const run = await api.post<{ id: string }>(`/api/agents/${agent.id}/wakeup`, {
+      source: 'on_demand',
+      reason: 'e2e-jev',
+      payload: { issueId: issue.id },
+      contextSnapshot: { issueId: issue.id },
+    });
+
+    const machineId = randomUUID();
+    const command = `git push --force origin e2e-${uniqueToken('')}`;
+    const row = (verdict: 'allow' | 'deny' | 'escalate', text: string) => ({
+      v: 1,
+      eventId: randomUUID(),
+      ts: new Date().toISOString(),
+      companyId: company.id,
+      runId: run.id,
+      agentId: agent.id,
+      cwd: null,
+      mode: 'shadow',
+      category: verdict === 'deny' ? 'force_push' : null,
+      blocking: false,
+      verdict,
+      applied: 'allow',
+      confidence: verdict === 'allow' ? 0.1 : 0.9,
+      reason: verdict === 'escalate' ? 'unsure' : null,
+      errorCode: null,
+      latencyMs: 150,
+      model: 'typesafe/jev-1.14',
+      command: text,
+    });
+    const sent = await signedPost(
+      company.id,
+      '/machine/events',
+      {
+        machineId,
+        events: [
+          row('allow', 'git status'),
+          row('allow', 'ls -la'),
+          row('allow', 'pnpm test'),
+          row('deny', command),
+          row('escalate', 'rm -rf build'),
+        ],
+      },
+      webhookSecret,
+    );
+    expect(sent.status, JSON.stringify(sent.body)).toBe(200);
+    expect(sent.body).toMatchObject({ accepted: 5 });
+
+    const summary = await api.get<{ calls: number; deny: number; escalate: number; runs: number }>(
+      jevPath(company.id, `/issues/${issue.id}/summary`),
+    );
+    expect(summary).toMatchObject({ calls: 5, deny: 1, escalate: 1, runs: 1 });
+
+    await page.goto(company.path(`issues/${issue.identifier}`));
+    const toggle = page.getByRole('button', { name: 'Jev: 5 lệnh · 1 chặn · 1 không chắc · 0 lỗi' });
+    await expect(toggle).toBeVisible();
+    await toggle.click();
+    const eventRow = page.getByTestId('jev-gate-event').filter({ hasText: command });
+    await expect(eventRow).toBeVisible();
+    await expect(eventRow.getByText('Chỉ ghi log')).toBeVisible();
+    await expect(page.getByRole('link', { name: 'Xem tất cả ở trang Jev' })).toBeVisible();
+    await eventRow.getByRole('button', { name: 'Nhầm' }).click();
+    await expect(eventRow.getByRole('button', { name: 'Nhầm' })).toHaveAttribute('aria-pressed', 'true');
+
+    const list = await api.get<GateEventPage>(jevPath(company.id, '/gate-events?verdict=deny'));
+    expect(list.items.find((e) => e.command === command)?.ownerLabel).toBe('wrong');
+  } finally {
+    await api.raw('DELETE', `/api/agents/${agent.id}`);
+  }
 });

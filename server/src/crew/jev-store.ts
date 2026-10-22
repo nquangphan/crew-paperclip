@@ -522,6 +522,25 @@ export const shadowQuerySchema = z
   .strict();
 export type ShadowQuery = z.infer<typeof shadowQuerySchema>;
 
+function toShadowRow(row: Record<string, unknown>, redact: ((text: string) => string) | null): JevShadowRow {
+  return {
+    id: String(row.id),
+    kind: row.kind === "runtime" ? "runtime" : "liveness",
+    runId: String(row.run_id),
+    regexLabel: String(row.regex_label),
+    jevLabel: str(row.jev_label),
+    confidence: num(row.confidence),
+    escalated: row.escalated === null || row.escalated === undefined ? null : row.escalated === true,
+    status: String(row.status),
+    errorCode: str(row.error_code),
+    latencyMs: num(row.latency_ms),
+    inputExcerpt: row.input_excerpt === null || row.input_excerpt === undefined || !redact ? null : redact(String(row.input_excerpt)),
+    mismatch: row.mismatch === true,
+    createdAt: iso(row.created_at),
+    evaluatedAt: iso(row.evaluated_at),
+  };
+}
+
 /**
  * Dòng so sánh, mới nhất trước. `inputExcerpt` luôn đi qua `redact` lúc đọc (kể cả dòng `pending` chưa được worker xử
  * lý); `redact = null` (không nạp được hàm che) thì trả `inputExcerpt: null`.
@@ -540,24 +559,7 @@ export async function listShadow(
     await db.execute(sql`SELECT *, ${MISMATCH} AS mismatch FROM ${table("crew_jev_shadow")}
       WHERE ${sql.join(conditions, sql` AND `)} ORDER BY id DESC LIMIT ${JEV_PAGE_SIZE}`),
   );
-  return page(
-    rows.map((row) => ({
-      id: String(row.id),
-      kind: row.kind === "runtime" ? "runtime" : "liveness",
-      runId: String(row.run_id),
-      regexLabel: String(row.regex_label),
-      jevLabel: str(row.jev_label),
-      confidence: num(row.confidence),
-      escalated: row.escalated === null || row.escalated === undefined ? null : row.escalated === true,
-      status: String(row.status),
-      errorCode: str(row.error_code),
-      latencyMs: num(row.latency_ms),
-      inputExcerpt: row.input_excerpt === null || row.input_excerpt === undefined || !redact ? null : redact(String(row.input_excerpt)),
-      mismatch: row.mismatch === true,
-      createdAt: iso(row.created_at),
-      evaluatedAt: iso(row.evaluated_at),
-    })),
-  );
+  return page(rows.map((row) => toShadowRow(row, redact)));
 }
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -595,6 +597,7 @@ export interface JevStats {
 
 /** Dòng thật sự là một lần hỏi Jev: loại `skipped_bg` (không gọi Jev) và `dropped` (một dòng thay cho N dòng đã mất). */
 const CALLED = sql.raw("coalesce(error_code, '') NOT IN ('skipped_bg', 'dropped')");
+const CALLED_E = sql.raw("coalesce(e.error_code, '') NOT IN ('skipped_bg', 'dropped')");
 
 const roundMs = (value: unknown): number | null => (value === null || value === undefined ? null : Math.round(Number(value)));
 const int = (value: unknown): number => Number(value ?? 0);
@@ -676,5 +679,80 @@ export async function jevStats(db: Sql, companyId: string, days: number): Promis
       })),
     },
     shadow: { liveness: shadowOf("liveness"), runtime: shadowOf("runtime") },
+  };
+}
+
+// ---------------------------------------------------------------------------------------------------------------
+// Tóm tắt theo issue
+// ---------------------------------------------------------------------------------------------------------------
+
+export const JEV_ISSUE_LIST_MAX = 50;
+
+/** Các run của issue (index `heartbeat_runs_company_ctx_issue_created_idx`). */
+const issueRunsSql = (companyId: string, issueId: string) =>
+  sql`SELECT id FROM "heartbeat_runs" WHERE company_id = ${companyId} AND (context_snapshot ->> 'issueId') = ${issueId}`;
+
+/** Truy vấn đếm theo run của issue; export để test kiểm kế hoạch (dùng `crew_jev_gate_events_run_idx`). */
+export function issueGateCountsSql(companyId: string, issueId: string): SQL {
+  return sql`SELECT count(*) FILTER (WHERE ${CALLED})::int AS calls,
+      count(*) FILTER (WHERE ${CALLED} AND e.verdict = 'allow')::int AS allow,
+      count(*) FILTER (WHERE ${CALLED} AND e.verdict = 'deny')::int AS deny,
+      count(*) FILTER (WHERE ${CALLED} AND e.verdict = 'escalate')::int AS escalate,
+      count(*) FILTER (WHERE ${CALLED} AND e.verdict = 'error')::int AS error,
+      count(*) FILTER (WHERE ${CALLED} AND e.applied = 'deny')::int AS applied_deny,
+      max(e.occurred_at) AS last_at
+    FROM ${table("crew_jev_gate_events")} e
+    WHERE e.company_id = ${companyId} AND e.run_id IN (${issueRunsSql(companyId, issueId)})`;
+}
+
+export interface JevIssueSummary {
+  calls: number;
+  allow: number;
+  deny: number;
+  appliedDeny: number;
+  escalate: number;
+  error: number;
+  runs: number;
+  lastAt: string | null;
+  items: JevGateEventRow[];
+  shadow: { mismatch: number; items: JevShadowRow[] };
+}
+
+/** Số lệnh Jev đã xét trong các run của một issue, kèm tối đa 50 ca deny/escalate/lỗi và ca lệch C3 của các run đó. */
+export async function jevIssueSummary(
+  db: Sql,
+  companyId: string,
+  issueId: string,
+  redact: ((text: string) => string) | null,
+): Promise<JevIssueSummary> {
+  const [runCount] = rowsOf(await db.execute(sql`SELECT count(*)::int AS n FROM (${issueRunsSql(companyId, issueId)}) r`));
+  const runs = int(runCount?.n);
+  const empty: JevIssueSummary = {
+    calls: 0, allow: 0, deny: 0, appliedDeny: 0, escalate: 0, error: 0, runs, lastAt: null,
+    items: [], shadow: { mismatch: 0, items: [] },
+  };
+  if (runs === 0) return empty;
+  const [totals] = rowsOf(await db.execute(issueGateCountsSql(companyId, issueId)));
+  const itemRows = rowsOf(
+    await db.execute(sql`SELECT e.*, p.hostname AS hostname FROM ${table("crew_jev_gate_events")} e
+      LEFT JOIN ${pairingsTable()} p ON p.company_id = e.company_id AND p.machine_id = e.machine_id
+      WHERE e.company_id = ${companyId} AND e.run_id IN (${issueRunsSql(companyId, issueId)})
+        AND e.verdict IN ('deny', 'escalate', 'error') AND ${CALLED_E}
+      ORDER BY e.id DESC LIMIT ${JEV_ISSUE_LIST_MAX}`),
+  );
+  const shadowRows = rowsOf(
+    await db.execute(sql`SELECT *, ${MISMATCH} AS mismatch FROM ${table("crew_jev_shadow")}
+      WHERE company_id = ${companyId} AND run_id IN (${issueRunsSql(companyId, issueId)}) AND ${MISMATCH}
+      ORDER BY id DESC LIMIT ${JEV_ISSUE_LIST_MAX}`),
+  );
+  const [mismatchCount] = rowsOf(
+    await db.execute(sql`SELECT count(*)::int AS n FROM ${table("crew_jev_shadow")}
+      WHERE company_id = ${companyId} AND run_id IN (${issueRunsSql(companyId, issueId)}) AND ${MISMATCH}`),
+  );
+  return {
+    calls: int(totals?.calls), allow: int(totals?.allow), deny: int(totals?.deny), appliedDeny: int(totals?.applied_deny),
+    escalate: int(totals?.escalate), error: int(totals?.error), runs, lastAt: iso(totals?.last_at),
+    items: itemRows.map(toGateEvent),
+    shadow: { mismatch: int(mismatchCount?.n), items: shadowRows.map((row) => toShadowRow(row, redact)) },
   };
 }

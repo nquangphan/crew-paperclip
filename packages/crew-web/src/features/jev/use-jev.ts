@@ -14,6 +14,17 @@ export function useJevSettings(companyId: string, enabled: boolean) {
   });
 }
 
+/** Tóm tắt Jev của một issue; chỉ chạy khi `enabled` (owner). Lỗi hay chưa tải thì khối tự ẩn, không chặn trang. */
+export function useJevIssueSummary(companyId: string, issueId: string, enabled: boolean) {
+  return useQuery({
+    queryKey: queryKeys.jev(companyId, 'issue', issueId),
+    queryFn: () => api.jev.issueSummary(companyId, issueId),
+    enabled,
+    retry: false,
+    refetchInterval: JEV_REFRESH_MS,
+  });
+}
+
 export function useJevStats(companyId: string, days: number, enabled: boolean) {
   return useQuery({
     queryKey: queryKeys.jev(companyId, 'stats', days),
@@ -51,6 +62,9 @@ export function useLabelEvent(companyId: string) {
   return useMutation({
     mutationFn: (v: { event: JevGateEvent; label: JevLabel }) =>
       api.jev.label(companyId, v.event.id, v.event.ownerLabel === v.label ? null : v.label),
-    onSettled: () => void queryClient.invalidateQueries({ queryKey: queryKeys.jev(companyId, 'events') }),
+    onSettled: () => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.jev(companyId, 'events') });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.jev(companyId, 'issue') });
+    },
   });
 }

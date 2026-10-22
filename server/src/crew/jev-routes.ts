@@ -17,6 +17,7 @@ import {
   type JevGateEvent,
   jevSettingsInputSchema,
   type JevSettingsRecord,
+  jevIssueSummary,
   jevStats,
   jevTablesReady,
   labelGateEvent,
@@ -128,7 +129,7 @@ const KEY_TEST_STATE = "Crew is checking that its Jev API key works. This reques
  * Router Jev của Crew (`/api/crew/companies/:companyId/jev/...`), gắn bên trong router góp ý (vá lõi C7) nên không cần vá
  * lõi mới.
  *
- * - Route owner (`/settings`, `/key`, `/stats`, `/gate-events`, `/shadow`): chỉ owner đăng nhập bằng phiên trình duyệt
+ * - Route owner (`/settings`, `/key`, `/stats`, `/gate-events`, `/shadow`, `/issues/:issueId/summary`): chỉ owner đăng nhập bằng phiên trình duyệt
  *   (`resolveContributionActor` + `requireOwner`); board key trên Mac, agent và mọi role khác nhận 403.
  * - Route máy (`/machine/pull`, `/machine/events`): Mac ký HMAC bằng khóa máy, cùng luật webhook máy của plugin.
  * - Body bị dời khỏi `req.body` trước mọi bước có thể lỗi, nên log HTTP và báo lỗi không bao giờ chứa key hay lệnh.
@@ -239,6 +240,20 @@ export function crewJevRoutes(db: Db): Router {
       // Không nạp được hàm che thì không trả đoạn trích.
     }
     res.json(await listShadow(db, actor.companyId, query.data, redact));
+  });
+
+  router.get(`${BASE}/issues/:issueId/summary`, async (req, res) => {
+    const actor = await ownerOf(db, req);
+    const issueId = z.string().uuid().safeParse(req.params.issueId);
+    if (!issueId.success) throw badRequest("Mã issue không hợp lệ.", { code: JEV_ERRORS.invalid });
+    const settings = await getJevSettings(db, actor.companyId);
+    let redact: ((text: string) => string) | null = null;
+    try {
+      redact = (await loadJevUse()).redactSecrets;
+    } catch {
+      // Không nạp được hàm che thì không trả đoạn trích.
+    }
+    res.json({ enabled: settings.enabled, ...(await jevIssueSummary(db, actor.companyId, issueId.data, redact)) });
   });
 
   const machineRequest = (req: Request, maxBytes: number) =>

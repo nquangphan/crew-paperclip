@@ -9,7 +9,7 @@ import express from "express";
 import request from "supertest";
 import { eq, sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { companies, companyMemberships, companySecrets, createDb, pluginConfig, plugins, secretAccessEvents } from "@paperclipai/db";
+import { agents, companies, companyMemberships, companySecrets, createDb, heartbeatRuns, pluginConfig, plugins, secretAccessEvents } from "@paperclipai/db";
 import pino from "pino";
 import { CREW_POLICY_CONFIG_ENV } from "../crew/issue-policy.js";
 import { deriveMachineKey } from "../crew/jev-machine-auth.js";
@@ -581,6 +581,77 @@ suite("Crew Jev: route owner và route máy", () => {
     expect(after.appliedDeny - before.appliedDeny).toBe(0);
     expect(after.skipped - before.skipped).toBe(1);
     expect(after.droppedLines - before.droppedLines).toBe(7);
+  });
+
+  it("tóm tắt theo issue: số khớp, issue khác không lẫn, chỉ owner, kế hoạch dùng index mới", async () => {
+    const [agent] = await db.insert(agents).values({ companyId, name: "jev-issue-agent" }).returning();
+    const issueA = randomUUID();
+    const issueB = randomUUID();
+    const makeRun = async (issueId: string) =>
+      (await db.insert(heartbeatRuns).values({
+        companyId, agentId: agent!.id, status: "succeeded", contextSnapshot: { issueId },
+      }).returning())[0]!.id;
+    const [runA1, runA2, runB] = [await makeRun(issueA), await makeRun(issueA), await makeRun(issueB)];
+    const ev = (runId: string, overrides: Record<string, unknown>) => event({ runId, ...overrides });
+    const batch = [
+      ev(runA1, {}),
+      ev(runA1, { command: "ls" }),
+      ev(runA1, { verdict: "deny", applied: "allow", mode: "shadow", category: "force_push", command: "git push --force a1" }),
+      ev(runA2, { verdict: "deny", applied: "deny", mode: "enforce", category: "force_push", blocking: true, command: "git push --force a2" }),
+      ev(runA2, { verdict: "escalate", applied: "allow", confidence: 0.4, reason: "unsure", command: "rm -rf build" }),
+      ev(runA2, { verdict: "error", errorCode: "skipped_bg", confidence: null, command: "pwd" }),
+      ev(runB, { verdict: "deny", applied: "deny", category: "force_push", command: "git push --force b" }),
+    ];
+    expect((await signed("/machine/events", eventsBody(batch), WEBHOOK_SECRET)).body).toMatchObject({ accepted: 7, rejected: 0 });
+    const shadowTable = sql.raw(crewJevTable("crew_jev_shadow"));
+    const shadowRow = (runId: string, regex: string, jev: string) =>
+      db.execute(sql`INSERT INTO ${shadowTable} (company_id, kind, run_id, regex_label, jev_label, status, escalated)
+        VALUES (${companyId}, 'liveness', ${runId}, ${regex}, ${jev}, 'done', false)`);
+    await shadowRow(runA1, "blocked", "progress");
+    await shadowRow(runA2, "progress", "progress");
+    await shadowRow(runB, "blocked", "progress");
+
+    const a = record(await (await owner()).get(url(`/issues/${issueA}/summary`)));
+    expect(a.status).toBe(200);
+    expect(a.body).toMatchObject({ calls: 5, allow: 2, deny: 2, escalate: 1, error: 0, appliedDeny: 1, runs: 2 });
+    expect(a.body.lastAt).toEqual(expect.any(String));
+    const commands = (a.body.items as Array<{ command: string; runId: string }>).map((item) => item.command).sort();
+    expect(commands).toEqual(["git push --force a1", "git push --force a2", "rm -rf build"]);
+    expect(a.body.shadow.mismatch).toBe(1);
+    expect(a.body.shadow.items).toHaveLength(1);
+    expect(a.body.shadow.items[0]).toMatchObject({ runId: runA1, regexLabel: "blocked", jevLabel: "progress" });
+
+    const b = record(await (await owner()).get(url(`/issues/${issueB}/summary`)));
+    expect(b.body).toMatchObject({ calls: 1, deny: 1, appliedDeny: 1, runs: 1 });
+    expect(b.body.items).toHaveLength(1);
+    expect(b.body.shadow.mismatch).toBe(1);
+
+    const none = record(await (await owner()).get(url(`/issues/${randomUUID()}/summary`)));
+    expect(none.body).toMatchObject({ calls: 0, runs: 0, lastAt: null, items: [], shadow: { mismatch: 0, items: [] } });
+    expect(typeof none.body.enabled).toBe("boolean");
+    expect(record(await (await owner()).get(url("/issues/abc/summary"))).status).toBe(400);
+    for (const who of [users.viewer, users.admin]) {
+      expect(record(await request(await as(who)).get(url(`/issues/${issueA}/summary`))).status).toBe(403);
+    }
+    expect(record(await request(await anonymous()).get(url(`/issues/${issueA}/summary`))).status).toBeGreaterThanOrEqual(401);
+
+    // Kế hoạch truy vấn đếm với dữ liệu mẫu cỡ company đã chạy lâu: dùng index run mới, không quét cả bảng.
+    await db.execute(sql`INSERT INTO heartbeat_runs (company_id, agent_id, status, context_snapshot, created_at)
+      SELECT ${companyId}, ${agent!.id}, 'succeeded', jsonb_build_object('issueId', gen_random_uuid()::text),
+        now() - (g || ' minutes')::interval FROM generate_series(1, 5000) g`);
+    await db.execute(sql`INSERT INTO ${sql.raw(crewJevTable("crew_jev_gate_events"))}
+      (company_id, machine_id, event_id, occurred_at, run_id, mode, verdict, applied, blocking, command)
+      SELECT ${companyId}, ${machines.legacy}, gen_random_uuid(), now() - (g || ' seconds')::interval, r.id, 'shadow', 'allow',
+        'allow', false, 'ls' FROM generate_series(1, 6) g, (SELECT id FROM heartbeat_runs LIMIT 5000) r`);
+    await db.execute(sql`ANALYZE heartbeat_runs`);
+    await db.execute(sql.raw(`ANALYZE ${crewJevTable("crew_jev_gate_events")}`));
+    const { issueGateCountsSql } = await import("../crew/jev-store.js");
+    const plan = ((await db.execute(sql`EXPLAIN ${issueGateCountsSql(companyId, issueA)}`)) as unknown as Array<{ "QUERY PLAN": string }>)
+      .map((row) => row["QUERY PLAN"]).join("\n");
+    if (process.env.CREW_JEV_EXPLAIN_OUT) writeFileSync(process.env.CREW_JEV_EXPLAIN_OUT, `${plan}\n`);
+    expect(plan).toContain("crew_jev_gate_events_run_idx");
+    expect(plan).toContain("heartbeat_runs_company_ctx_issue_created_idx");
+    expect(plan).not.toMatch(/Seq Scan on (crew_jev_gate_events|heartbeat_runs)/);
   });
 
   it("không response nào chứa key thử hay secret webhook", () => {

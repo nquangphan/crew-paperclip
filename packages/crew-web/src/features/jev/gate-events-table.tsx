@@ -46,10 +46,9 @@ const KNOWN_ERROR_CODES = [
 export const confidenceText = (c: number | null) => (c === null ? '—' : c.toFixed(2));
 
 export function GateEventsTable({ companyId }: { companyId: string }) {
-  const { t, lang } = useT('jev');
+  const { t } = useT('jev');
   const [verdict, setVerdict] = useState<Verdict>('deny');
   const events = useGateEvents(companyId, verdict, true);
-  const label = useLabelEvent(companyId);
   const items: JevGateEvent[] = events.data?.pages.flatMap((p) => p.items) ?? [];
 
   return (
@@ -70,73 +69,10 @@ export function GateEventsTable({ companyId }: { companyId: string }) {
           onRetry={() => void events.refetch()}
         />
       ) : null}
-      {label.error ? <ErrorState title={t('events.labelFailed')} message={label.error.message} /> : null}
       {events.data && items.length === 0 ? (
         <EmptyState title={t('events.empty')} description={t('events.emptyHint')} />
       ) : null}
-      {items.length > 0 ? (
-        <Table aria-label={t(`events.${verdict}`)}>
-          <TableHeader>
-            <TableRow>
-              <TableHead>{t('events.col.time')}</TableHead>
-              <TableHead>{t('events.col.machine')}</TableHead>
-              <TableHead>{t('events.col.category')}</TableHead>
-              <TableHead>{t('events.col.command')}</TableHead>
-              <TableHead>{t('events.col.confidence')}</TableHead>
-              <TableHead>{t('events.col.applied')}</TableHead>
-              <TableHead>{t('events.col.label')}</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {items.map((e) => (
-              <TableRow key={e.id} data-testid="jev-gate-event">
-                <TableCell>{formatDateTime(e.occurredAt, lang)}</TableCell>
-                <TableCell>
-                  <MachineName machineId={e.machineId} hostname={e.hostname} />
-                </TableCell>
-                <TableCell>
-                  {e.category ?? '—'}
-                  {e.errorCode ? (
-                    <Badge variant="secondary">
-                      {t(`events.errorCode.${KNOWN_ERROR_CODES.includes(e.errorCode) ? e.errorCode : 'other'}`)}
-                    </Badge>
-                  ) : null}
-                </TableCell>
-                <TableCell>
-                  {e.errorCode === 'dropped' ? (
-                    t('events.dropped', { count: droppedCount(e.reason) ?? 0 })
-                  ) : (
-                    <CodeBlock code={e.command ?? ''} label={t('events.col.command')} />
-                  )}
-                </TableCell>
-                <TableCell>{confidenceText(e.confidence)}</TableCell>
-                <TableCell>
-                  <Badge variant={e.applied === 'deny' ? 'destructive' : 'secondary'}>
-                    {e.applied === 'deny' ? t('events.applied') : t('events.notApplied')}
-                  </Badge>
-                </TableCell>
-                <TableCell>
-                  <div className="flex gap-2">
-                    {(['correct', 'wrong'] as const).map((l) => (
-                      <Button
-                        key={l}
-                        size="sm"
-                        variant={e.ownerLabel === l ? 'secondary' : 'outline'}
-                        aria-pressed={e.ownerLabel === l}
-                        disabled={label.isPending}
-                        onClick={() => label.mutate({ event: e, label: l })}
-                      >
-                        {e.ownerLabel === l ? <Check aria-hidden /> : null}
-                        {t(`events.label.${l}`)}
-                      </Button>
-                    ))}
-                  </div>
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      ) : null}
+      {items.length > 0 ? <GateEventRows companyId={companyId} items={items} caption={t(`events.${verdict}`)} /> : null}
       {events.hasNextPage ? (
         <div>
           <Button
@@ -150,5 +86,85 @@ export function GateEventsTable({ companyId }: { companyId: string }) {
         </div>
       ) : null}
     </div>
+  );
+}
+
+/** Bảng ca của cổng chặn lệnh kèm nút Đúng/Nhầm; dùng chung cho trang Jev và khối Jev trên trang issue. */
+export function GateEventRows({
+  companyId,
+  items,
+  caption,
+}: {
+  companyId: string;
+  items: readonly JevGateEvent[];
+  caption: string;
+}) {
+  const { t, lang } = useT('jev');
+  const label = useLabelEvent(companyId);
+  return (
+    <>
+      {label.error ? <ErrorState title={t('events.labelFailed')} message={label.error.message} /> : null}
+      <Table aria-label={caption}>
+        <TableHeader>
+          <TableRow>
+            <TableHead>{t('events.col.time')}</TableHead>
+            <TableHead>{t('events.col.machine')}</TableHead>
+            <TableHead>{t('events.col.category')}</TableHead>
+            <TableHead>{t('events.col.command')}</TableHead>
+            <TableHead>{t('events.col.confidence')}</TableHead>
+            <TableHead>{t('events.col.applied')}</TableHead>
+            <TableHead>{t('events.col.label')}</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {items.map((e) => (
+            <TableRow key={e.id} data-testid="jev-gate-event">
+              <TableCell>{formatDateTime(e.occurredAt, lang)}</TableCell>
+              <TableCell>
+                <MachineName machineId={e.machineId} hostname={e.hostname} />
+              </TableCell>
+              <TableCell>
+                {e.category ?? '—'}
+                {e.errorCode ? (
+                  <Badge variant="secondary">
+                    {t(`events.errorCode.${KNOWN_ERROR_CODES.includes(e.errorCode) ? e.errorCode : 'other'}`)}
+                  </Badge>
+                ) : null}
+              </TableCell>
+              <TableCell>
+                {e.errorCode === 'dropped' ? (
+                  t('events.dropped', { count: droppedCount(e.reason) ?? 0 })
+                ) : (
+                  <CodeBlock code={e.command ?? ''} label={t('events.col.command')} />
+                )}
+              </TableCell>
+              <TableCell>{confidenceText(e.confidence)}</TableCell>
+              <TableCell>
+                <Badge variant={e.applied === 'deny' ? 'destructive' : 'secondary'}>
+                  {e.applied === 'deny' ? t('events.applied') : t('events.notApplied')}
+                </Badge>
+              </TableCell>
+              <TableCell>
+                <div className="flex gap-2">
+                  {(['correct', 'wrong'] as const).map((l) => (
+                    <Button
+                      key={l}
+                      size="sm"
+                      variant={e.ownerLabel === l ? 'secondary' : 'outline'}
+                      aria-pressed={e.ownerLabel === l}
+                      disabled={label.isPending}
+                      onClick={() => label.mutate({ event: e, label: l })}
+                    >
+                      {e.ownerLabel === l ? <Check aria-hidden /> : null}
+                      {t(`events.label.${l}`)}
+                    </Button>
+                  ))}
+                </div>
+              </TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    </>
   );
 }
