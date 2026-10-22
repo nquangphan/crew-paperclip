@@ -210,6 +210,36 @@ describe('RoadmapPage', () => {
       expect(jevCalls(s).length).toBeGreaterThan(0);
     });
 
+    it('cờ complexity: thẻ bị cờ hiện cảnh báo nhỏ có lý do ở tooltip, thẻ khác không; chú thích có mục cờ', async () => {
+      server({
+        'GET /api/crew/companies/c1/jev/requests/r1/map': {
+          body: {
+            ...jevMap.body,
+            complexityFlags: {
+              c2: { kind: 'jev', jevSaysLarge: true, declared: 'small', reason: 'Chạm migration CSDL.' },
+            },
+          },
+        },
+      });
+      mount('/TPS/roadmap?project=p1&request=TPS-1');
+      await waitFor(() => expect(node('c2')?.querySelector('[data-slot="roadmap-jev-complexity"]')).toBeTruthy());
+      const flag = node('c2')?.querySelector<HTMLElement>('[data-slot="roadmap-jev-complexity"]');
+      expect(flag?.textContent).toBe('Jev: nên là large');
+      expect(flag?.title).toContain('Chạm migration CSDL.');
+      expect(node('c2')?.getAttribute('aria-label')).toContain('Jev: nên là large');
+      expect(node('c1')?.querySelector('[data-slot="roadmap-jev-complexity"]')).toBeNull();
+      expect(document.querySelectorAll('[data-slot="roadmap-legend-complexity"]').length).toBe(1);
+    });
+
+    it('cờ complexity sai dạng: bản đồ vẽ như cũ, không cờ', async () => {
+      server({
+        'GET /api/crew/companies/c1/jev/requests/r1/map': { body: { ...jevMap.body, complexityFlags: 'hỏng' } },
+      });
+      mount('/TPS/roadmap?project=p1&request=TPS-1');
+      await waitFor(() => expect(node('c1')?.querySelector('[data-slot="roadmap-jev"]')).toBeTruthy());
+      expect(document.querySelector('[data-slot="roadmap-jev-complexity"]')).toBeNull();
+    });
+
     it('Jev tắt: bản đồ Jev báo tắt thì không có huy hiệu và không gọi lại', async () => {
       const s = server({
         'GET /api/crew/companies/c1/jev/requests/r1/map': { body: { ...jevMap.body, enabled: false } },

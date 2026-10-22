@@ -76,6 +76,7 @@ export const api = {
 export type Api = typeof api;
 export { CREW_DATA_KEYS, type CrewDataKey } from './crew/data';
 export type * from './crew/jev';
+export { featureMode, JEV_FEATURE_IDS, JEV_FEATURE_MODES } from './crew/jev';
 export type * from './crew/types';
 export { ENDPOINTS, type EndpointKey } from './endpoints';
 export { ApiError } from './http';

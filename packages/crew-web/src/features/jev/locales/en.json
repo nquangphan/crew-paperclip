@@ -11,11 +11,11 @@
     "machines": "Machines",
     "stats": "Stats",
     "events": "Blocked or escalated cases",
-    "shadow": "Jev vs regex mismatches (C3)"
+    "shadow": "Jev vs regex mismatches (C3)",
+    "master": "Master switch",
+    "features": "Four Jev features beyond the command gate"
   },
   "settings": {
-    "enabled": "Enable Jev",
-    "enabledHint": "When off, machines do not call Jev and block nothing.",
     "serverShadow": "Server-side C3",
     "serverShadowHint": "The server compares Jev's label with regex for finished runs and runtime failures. Logging only, never changes outcomes.",
     "gateMode": "Gate mode",
@@ -190,5 +190,106 @@
     "mismatch": "{{count}} cases where Jev and regex disagree in this issue's runs.",
     "mismatchCaption": "C3 mismatches of this issue",
     "viewAll": "See all on the Jev page"
+  },
+  "master": {
+    "onTitle": "Jev is on",
+    "offTitle": "Jev is fully off",
+    "onBody": "Jev is running: the command gate on machines, the server C3 comparison and the features below, each in its own mode.",
+    "offBody": "The machine gate, the server C3 comparison and all four features are stopped. Everything runs as if Jev did not exist.",
+    "turnOff": "Turn off all of Jev",
+    "turnOn": "Turn Jev back on",
+    "failed": "Could not change the master switch",
+    "confirm": {
+      "title": "Turn off all of Jev?",
+      "body": "Jev stops everywhere: the command gate on machines (they notice on their next config pull), the server C3 comparison and all four features below (complexity flag, approval-note check, request-type hint, inbox badge). Nothing is deleted; turning it back on resumes."
+    }
+  },
+  "features": {
+    "modes": "Each feature has three modes. Off: Jev is never called. Log only: Jev is called and measured, owners see nothing. On: shown to owners. No mode changes data by itself.",
+    "masterOff": "The master switch is off, so no feature runs whatever its mode below.",
+    "modeOf": "Mode of {{name}}",
+    "mode": {
+      "off": "Off",
+      "shadow": "Log only",
+      "on": "On"
+    },
+    "saveFailed": "Could not save the mode",
+    "stat": {
+      "total": "{{count}} calls",
+      "mismatch": "{{count}} mismatches",
+      "escalated": "{{count}} unsure",
+      "errors": "{{count}} errors",
+      "latency": "p50 {{p50}} · p95 {{p95}}",
+      "none": "No calls yet.",
+      "unavailable": "No stats yet."
+    },
+    "statsDays": "Stats cover the last 7 days."
+  },
+  "feature": {
+    "complexity": {
+      "name": "Complexity check",
+      "hint": "Child tasks touching security, permissions, migrations or public APIs that the Assistant did not rate large get a flag on the issue page and the map. No model change, no comment."
+    },
+    "approval_note": {
+      "name": "Approval note check",
+      "hint": "Reads the note on Approve or Request changes; if it points the opposite way from the button it asks once. Slower than 1.5 s or any error sends right away."
+    },
+    "request_type": {
+      "name": "Request type hint",
+      "hint": "Reads title and description to suggest Code, Bug, Research or Docs as a chip you click to apply. Never changes your choice."
+    },
+    "inbox_attention": {
+      "name": "Needs your attention",
+      "hint": "Badges inbox items with a pending owner decision, sensitive file changes, or a product decision the Assistant made on its own."
+    }
+  },
+  "mismatch": {
+    "title": "Mismatches per feature",
+    "featureLabel": "Feature",
+    "unavailable": "Could not load the mismatch list.",
+    "empty": "No mismatches yet",
+    "emptyHint": "Cases where Jev differs from today's behavior appear here.",
+    "col": {
+      "time": "Time",
+      "mode": "Mode",
+      "baseline": "Current way",
+      "jev": "Jev label",
+      "confidence": "Confidence",
+      "outcome": "Owner chose",
+      "excerpt": "Content (redacted)"
+    }
+  },
+  "approval": {
+    "title": "The note seems to disagree with the button you pressed",
+    "body": "The note looks like: {{label}}. Still {{action}}?",
+    "label": {
+      "approve": "an approval",
+      "request_changes": "a request for changes",
+      "unclear": "unclear"
+    },
+    "action": {
+      "approve": "approve",
+      "request_changes": "request changes"
+    },
+    "send": "Send anyway",
+    "edit": "Edit note"
+  },
+  "requestType": {
+    "chip": "Jev suggests: {{kind}}"
+  },
+  "complexity": {
+    "flag": "Jev: should be large",
+    "flagTitle": "Jev: should be large",
+    "declared": "Assistant rated: {{level}}.",
+    "noReason": "Jev sees this touching a sensitive area.",
+    "vision": "Jev: model cannot see images"
+  },
+  "attention": {
+    "badge": "Needs your attention",
+    "kind": {
+      "owner_decision": "A question awaits an owner decision",
+      "risky_paths": "Sensitive files changed",
+      "jev_product_decision": "The Assistant made a product decision on its own"
+    }
   }
 }

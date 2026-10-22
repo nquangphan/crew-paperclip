@@ -204,6 +204,7 @@ describe('JevPage', () => {
       threshold: 0.7,
       timeoutMs: 2500,
       serverShadow: false,
+      features: { complexity: 'shadow', approval_note: 'shadow', request_type: 'shadow', inbox_attention: 'shadow' },
     });
   });
 

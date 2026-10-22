@@ -9,6 +9,7 @@ export type {
   RoadmapEdge,
   RoadmapEdgeKind,
   RoadmapJev,
+  RoadmapJevComplexity,
   RoadmapLevel,
   RoadmapNode,
   RoadmapNodeKind,

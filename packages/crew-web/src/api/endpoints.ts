@@ -254,6 +254,13 @@ export const ENDPOINTS = {
   'jev.issueSummary': { ids: ['S24.4'], method: 'GET', path: `${CREW}/jev/issues/:issueId/summary` },
   'jev.requestMap': { ids: ['S24.5'], method: 'GET', path: `${CREW}/jev/requests/:requestId/map` },
   'jev.shadow': { ids: ['S24.3'], method: 'GET', path: `${CREW}/jev/shadow` },
+  // Jev đợt 2: bốn tính năng (công tắc chung + chế độ từng tính năng ở `jev.settings`).
+  'jev.judgeApprovalNote': { ids: ['S24.7'], method: 'POST', path: `${CREW}/jev/judge/approval-note` },
+  'jev.judgeRequestType': { ids: ['S24.8'], method: 'POST', path: `${CREW}/jev/judge/request-type` },
+  'jev.judgmentOutcome': { ids: ['S24.7', 'S24.8'], method: 'POST', path: `${CREW}/jev/judgments/:id/outcome` },
+  'jev.judgmentStats': { ids: ['S24.6'], method: 'GET', path: `${CREW}/jev/judgments/stats` },
+  'jev.judgments': { ids: ['S24.6'], method: 'GET', path: `${CREW}/jev/judgments` },
+  'jev.inboxAttention': { ids: ['S24.9'], method: 'GET', path: `${CREW}/jev/inbox-attention` },
 
   // Quyền xem project theo thành viên (S21): owner đặt ở trang Thành viên, mọi trang lọc theo `projectAccess.me`.
   'projectAccess.me': { ids: ['S21.2'], method: 'GET', path: `${CREW}/project-access/me` },

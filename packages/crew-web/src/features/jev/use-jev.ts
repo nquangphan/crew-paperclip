@@ -1,6 +1,19 @@
 // Dữ liệu Jev dùng chung cho các khối trên trang: cấu hình, số liệu, ca deny/escalate và ca lệch C3.
-import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { api, type JevGateEvent, type JevLabel, queryKeys } from '@/api';
+import { keepPreviousData, useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import {
+  api,
+  featureMode,
+  JEV_FEATURE_IDS,
+  type JevFeatureId,
+  type JevFeatureMode,
+  type JevFeatures,
+  type JevGateEvent,
+  type JevLabel,
+  type JevSettings,
+  type JevSettingsInput,
+  queryKeys,
+} from '@/api';
+import { parseAttention, parseJudgmentStats, parseJudgments } from './judge-adapter';
 
 /** Chu kỳ tự làm mới số liệu và danh sách ca. */
 export const JEV_REFRESH_MS = 30_000;
@@ -73,5 +86,86 @@ export function useLabelEvent(companyId: string) {
       void queryClient.invalidateQueries({ queryKey: queryKeys.jev(companyId, 'issue') });
       void queryClient.invalidateQueries({ queryKey: queryKeys.jev(companyId, 'map') });
     },
+  });
+}
+
+/** Chế độ đủ cả 4 tính năng (thiếu khóa = shadow), để mọi lần lưu gửi bản đầy đủ. */
+export function resolvedFeatures(features: JevFeatures | undefined): Record<JevFeatureId, JevFeatureMode> {
+  return Object.fromEntries(JEV_FEATURE_IDS.map((id) => [id, featureMode(features, id)])) as Record<
+    JevFeatureId,
+    JevFeatureMode
+  >;
+}
+
+/** Cấu hình đang lưu thành body PUT, rồi áp phần đổi. Mọi nơi lưu cấu hình đi qua đây để không làm rơi trường nào. */
+export function settingsInput(s: JevSettings, patch: Partial<JevSettingsInput> = {}): JevSettingsInput {
+  return {
+    enabled: s.enabled,
+    gateMode: s.gateMode,
+    model: s.model,
+    threshold: s.threshold,
+    timeoutMs: s.timeoutMs,
+    serverShadow: s.serverShadow,
+    features: resolvedFeatures(s.features),
+    ...patch,
+  };
+}
+
+/** Lưu cấu hình và cập nhật bản cache; dùng cho công tắc chung và chế độ từng tính năng. */
+export function useSaveJevSettings(companyId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (body: JevSettingsInput) => api.jev.setSettings(companyId, body),
+    onSuccess: (next) => {
+      queryClient.setQueryData(queryKeys.jev(companyId, 'settings'), next);
+      void queryClient.invalidateQueries({ queryKey: queryKeys.jev(companyId, 'judgments') });
+    },
+  });
+}
+
+/** Số ngày của thống kê từng tính năng (mặc định của server). */
+export const JUDGMENT_STATS_DAYS = 7;
+
+/** Thống kê theo tính năng × chế độ. Lỗi hay sai dạng thì rỗng; trang vẫn dùng được. */
+export function useJudgmentStats(companyId: string, enabled: boolean) {
+  return useQuery({
+    queryKey: queryKeys.jev(companyId, 'judgments', 'stats'),
+    queryFn: async () => parseJudgmentStats(await api.jev.judgmentStats(companyId, JUDGMENT_STATS_DAYS)),
+    enabled,
+    retry: false,
+    refetchInterval: JEV_REFRESH_MS,
+  });
+}
+
+/** Ca lệch (50 dòng mới nhất) của một tính năng. */
+export function useMismatchJudgments(companyId: string, feature: JevFeatureId, enabled: boolean) {
+  return useQuery({
+    queryKey: queryKeys.jev(companyId, 'judgments', 'mismatch', feature),
+    queryFn: async () => parseJudgments(await api.jev.judgments(companyId, { feature, mismatch: true })),
+    enabled,
+    retry: false,
+    refetchInterval: JEV_REFRESH_MS,
+  });
+}
+
+/** Trần số issue mỗi lần hỏi (server từ chối nhiều hơn). */
+const INBOX_ATTENTION_MAX = 200;
+
+/** Chu kỳ làm tươi cờ "Cần Đại Ca để ý" của hộp duyệt. */
+const ATTENTION_REFRESH_MS = 60_000;
+
+/**
+ * Cờ "Cần Đại Ca để ý" theo issue cho hộp duyệt; chỉ owner hỏi. Tính năng tắt, lỗi hay sai dạng đều ra bản đồ rỗng,
+ * nên hộp duyệt giữ nguyên như cũ (không huy hiệu, không báo lỗi).
+ */
+export function useInboxAttention(companyId: string, issueIds: readonly string[], enabled: boolean) {
+  const ids = issueIds.slice(0, INBOX_ATTENTION_MAX);
+  return useQuery({
+    queryKey: queryKeys.jev(companyId, 'attention', ids.join(',')),
+    queryFn: async () => parseAttention(await api.jev.inboxAttention(companyId, ids)),
+    enabled: enabled && ids.length > 0,
+    placeholderData: keepPreviousData,
+    retry: false,
+    refetchInterval: ATTENTION_REFRESH_MS,
   });
 }

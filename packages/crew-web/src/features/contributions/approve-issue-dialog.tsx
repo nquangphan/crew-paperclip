@@ -32,6 +32,8 @@ import {
   type RequestKind,
 } from '@/features/issues/new/kinds';
 import { projectRolesOrNull, useKindLabelIds } from '@/features/issues/new/use-create-request';
+import { RequestTypeChip } from '@/features/jev/request-type-chip';
+import { useRequestTypeSuggestion } from '@/features/jev/use-request-type-suggestion';
 import { useSelectableAgents } from '@/features/wizards';
 import { useT } from '@/i18n';
 import { contributionErrorKey } from './approve-flow';
@@ -113,6 +115,7 @@ function ApproveIssueForm({
     enabled: projectId !== '',
   });
   const kindLabels = useKindLabelIds(company.id);
+  const jevKind = useRequestTypeSuggestion(company.id, c.title ?? '', c.body ?? '', kind);
 
   const projectChoices = (projects.data ?? []).filter((p) => !p.archivedAt || p.id === c.projectId);
   const kindLabelIds = kindLabels.data ?? NO_KIND_LABELS;
@@ -134,7 +137,12 @@ function ApproveIssueForm({
         contribution: c,
         choices: { projectId, assigneeAgentId: assigneeId, kind, kindLabelIds, draft },
       },
-      { onSuccess: onApproved },
+      {
+        onSuccess: () => {
+          jevKind.recordFinal(kind);
+          onApproved();
+        },
+      },
     );
   };
 
@@ -194,6 +202,12 @@ function ApproveIssueForm({
             ))}
           </SelectContent>
         </Select>
+        <RequestTypeChip
+          suggestion={jevKind.suggestion}
+          current={kind}
+          allowed={kinds}
+          onPick={(k) => isRequestKind(k) && setKind(k)}
+        />
       </Field>
 
       <Field

@@ -481,6 +481,7 @@ function Flow({ level, levelKey, direction, focusId, onOpen, labels, size = 'pag
         edges={legend?.edges}
         current={legend?.current}
         jev={Boolean(level.center.jev) || level.nodes.some((n) => n.jev)}
+        jevComplexity={Boolean(level.center.jevComplexity) || level.nodes.some((n) => n.jevComplexity)}
       />
     </div>
   );
