@@ -1,0 +1,1149 @@
+# Manifest flow ↔ file của phần Crew trong bản fork Paperclip (nguồn sự thật). Chuẩn: STANDARD.md của crew-docs
+# (repo crew, packages/docs-kit/STANDARD.md). Chỉ code Crew là nguồn; code upstream Paperclip không thuộc phạm vi,
+# trừ các file upstream Crew vá (crew/release/core-hooks.json và vá UI gốc), liệt kê đích danh dưới source.include.
+# Các mục source, shared, unassigned được bảo vệ (luật R6): chỉ đổi khi chủ dự án cho phép.
+version: 1
+source:
+  include:
+    - "server/src/crew/**"
+    - "packages/crew-plugin/src/**"
+    - "packages/crew-plugin/migrations/**"
+    - "packages/crew-web/src/**"
+    - "crew/**"
+    - "server/src/app.ts"
+    - "server/src/index.ts"
+    - "server/src/routes/agents.ts"
+    - "server/src/routes/execution-workspaces.ts"
+    - "server/src/routes/issues.ts"
+    - "server/src/routes/onboarding-seed.ts"
+    - "server/src/routes/plugins.ts"
+    - "server/src/routes/projects.ts"
+    - "server/src/services/environment-runtime.ts"
+    - "server/src/services/heartbeat.ts"
+    - "server/src/services/issues.ts"
+    - "server/src/services/plugin-worker-manager.ts"
+    - "server/src/services/recovery/service.ts"
+    - "packages/adapters/claude-local/src/server/execute.ts"
+    - "packages/adapters/claude-local/src/server/index.ts"
+    - "packages/adapters/claude-local/src/server/parse.ts"
+    - "packages/adapters/codex-local/src/server/index.ts"
+    - "packages/adapters/opencode-local/src/server/execute.ts"
+    - "packages/adapters/opencode-local/src/server/index.ts"
+    - "ui/src/components/ImageGalleryModal.tsx"
+    - "ui/src/components/IssueAttachmentsSection.tsx"
+    - "ui/src/components/MarkdownBody.tsx"
+    - "ui/src/components/StoredImage.tsx"
+    - "ui/src/components/TaskChatThread.tsx"
+    - "ui/src/components/artifacts/RichArtifactCards.tsx"
+    - "ui/src/components/issue-output/IssueOutputSection.tsx"
+    - "ui/src/components/issue-output/OutputPrimaryCard.tsx"
+    - "ui/src/components/task-chat/TaskChatBubble.tsx"
+    - "ui/src/components/task-side-panel/TaskAttachmentPanel.tsx"
+    - "ui/src/components/transcript/useLiveRunTranscripts.ts"
+    - "ui/src/lib/retention-placeholders.ts"
+    - "ui/src/main.tsx"
+    - "ui/src/pages/AgentDetail.tsx"
+    - "ui/vite.config.ts"
+  exclude:
+    - "**/*.test.*"
+    - "**/__tests__/**"
+    - "**/__fixtures__/**"
+    - "**/*.webp"
+    - "**/*.jpg"
+    - "**/*.png"
+    - "**/*.svg"
+    - "**/locales/*.json"
+    - "**/guide/content/**"
+    - "packages/crew-plugin/src/ui/guide/huong-dan.md"
+    - "packages/crew-web/src/ds/README.md"
+    - "server/src/crew/vendor/jev-use-*.ts"
+flows:
+  core-hooks:
+    title: "Móc Crew vào lõi Paperclip và nâng bản upstream"
+    doc: docs/flows/core-hooks.md
+    entrypoints:
+      - server/src/crew/core-hooks.ts
+      - crew/release/upgrade.sh
+    files:
+      - crew/release/check-core-hooks.mjs
+      - crew/release/core-hooks.json
+      - crew/release/verify.sh
+    tests:
+      - crew/release/check-core-hooks.test.mjs
+      - crew/release/upgrade.test.mjs
+      - server/src/__tests__/crew-core-hooks.test.ts
+  issue-gate:
+    title: "Cổng tạo và ghi issue (execution policy, vai trò, model)"
+    doc: docs/flows/issue-gate.md
+    entrypoints:
+      - server/src/crew/issue-gate.ts
+      - server/src/crew/issue-create-policy.ts
+    files:
+      - server/src/crew/issue-policy.ts
+      - server/src/crew/model-policy.ts
+    tests:
+      - server/src/__tests__/crew-agent-assignment.db.test.ts
+      - server/src/__tests__/crew-board-child.db.test.ts
+      - server/src/__tests__/crew-draft-start-work.db.test.ts
+      - server/src/__tests__/crew-issue-create-policy.test.ts
+      - server/src/__tests__/crew-issue-gate.db.test.ts
+      - server/src/__tests__/crew-issue-gate.test.ts
+      - server/src/__tests__/crew-model-policy.test.ts
+  agent-guards:
+    title: "Chặn agent sửa cấu hình agent, project, workspace và xóa issue"
+    doc: docs/flows/agent-guards.md
+    entrypoints:
+      - server/src/crew/agent-config-gate.ts
+      - server/src/crew/agent-write-guard.ts
+      - packages/crew-plugin/src/security/index.ts
+    files:
+      - packages/crew-plugin/src/security/guards.ts
+    tests:
+      - packages/crew-plugin/src/__tests__/security-guards.test.ts
+      - server/src/__tests__/crew-agent-board-only-routes.test.ts
+      - server/src/__tests__/crew-agent-config.test.ts
+  run-claim:
+    title: "Giữ run khi máy quá tải, nhìn lại run trước và nối phiên trong gói"
+    doc: docs/flows/run-claim.md
+    entrypoints:
+      - server/src/crew/load-gate.ts
+    files:
+      - server/src/crew/bundle-resume.ts
+      - server/src/crew/retry-progress.ts
+    tests:
+      - server/src/__tests__/crew-before-claim.test.ts
+      - server/src/__tests__/crew-bundle-resume.test.ts
+      - server/src/__tests__/crew-claim-resume-contract.test.ts
+      - server/src/__tests__/crew-load-gate-cancel.test.ts
+      - server/src/__tests__/crew-load-gate.test.ts
+      - server/src/__tests__/crew-retry-progress.test.ts
+      - server/src/crew/crew-bundle-resume.cancelled.test.ts
+  runtime-switches:
+    title: "Công tắc runtime theo máy (Claude, Codex, OpenCode)"
+    doc: docs/flows/runtime-switches.md
+    entrypoints:
+      - packages/crew-plugin/src/runtimes/switches.ts
+      - server/src/crew/runtime-gate.ts
+    files:
+      - packages/crew-web/src/api/crew/runtimes.ts
+      - packages/crew-web/src/features/machines/runtime-block.tsx
+      - server/src/crew/runtime-switch.ts
+    tests:
+      - packages/crew-plugin/src/__tests__/runtime-switches.db.test.ts
+      - packages/crew-web/test/api/runtimes.test.ts
+      - packages/crew-web/test/features/machines/runtime-block.test.tsx
+      - server/src/__tests__/crew-runtime-gate.test.ts
+      - server/src/__tests__/crew-runtime-switch.db.test.ts
+  runtime-fallback:
+    title: "Chuyển runtime khi run hỏng và chờ Claude chạy lại"
+    doc: docs/flows/runtime-fallback.md
+    entrypoints:
+      - packages/crew-plugin/src/runtimes/fallback.ts
+      - packages/crew-plugin/src/runtimes/decisions.ts
+    files:
+      - packages/crew-plugin/src/runtimes/catalog.ts
+      - packages/crew-plugin/src/runtimes/choose.ts
+      - packages/crew-plugin/src/runtimes/classify.ts
+      - packages/crew-plugin/src/runtimes/claude-retry.ts
+      - packages/crew-plugin/src/runtimes/machine.ts
+      - server/src/crew/runtime-fallback.ts
+    tests:
+      - packages/crew-plugin/src/__tests__/runtime-decisions.db.test.ts
+      - packages/crew-plugin/src/__tests__/runtime-fallback.db.test.ts
+      - packages/crew-plugin/src/__tests__/runtime-fallback.test.ts
+      - packages/crew-plugin/src/__tests__/runtime-machine.test.ts
+      - packages/crew-plugin/src/__tests__/runtimes-catalog.test.ts
+      - server/src/__tests__/crew-runtime-fallback-reconcile.test.ts
+      - server/src/__tests__/crew-runtime-handoff.db.test.ts
+  run-handoff:
+    title: "Bàn giao giữa vai trò, đánh thức lại và run bị hủy"
+    doc: docs/flows/run-handoff.md
+    entrypoints:
+      - server/src/crew/handoff-rewake.ts
+      - packages/crew-plugin/src/run-cancelled.ts
+    files: []
+    tests:
+      - server/src/__tests__/crew-failed-run-deferred-review.db.test.ts
+      - server/src/__tests__/crew-handoff-rewake-sweep.db.test.ts
+      - server/src/__tests__/crew-handoff-rewake.test.ts
+      - server/src/__tests__/crew-run-cancelled.test.ts
+      - server/src/__tests__/crew-self-handoff-run.db.test.ts
+  ssh-run-lifecycle:
+    title: "Run qua SSH trên Mac: chạy tại chỗ, dừng từ xa, biên nhận dừng"
+    doc: docs/flows/ssh-run-lifecycle.md
+    entrypoints:
+      - server/src/crew/remote-stop.ts
+    files:
+      - server/src/crew/remote-termination.ts
+      - server/src/crew/ssh-in-place.ts
+      - server/src/crew/ssh-pending-teardown.ts
+    tests:
+      - server/src/__tests__/crew-remote-stop-release.test.ts
+      - server/src/__tests__/crew-remote-stop.test.ts
+      - server/src/__tests__/crew-remote-termination.db.test.ts
+      - server/src/__tests__/crew-ssh-in-place.test.ts
+      - server/src/__tests__/crew-ssh-pending-teardown.db.test.ts
+  adapter-patches:
+    title: "Vá adapter claude_local, codex_local, opencode_local"
+    doc: docs/flows/adapter-patches.md
+    entrypoints: []
+    files:
+      - packages/adapters/claude-local/src/server/index.ts
+      - packages/adapters/claude-local/src/server/parse.ts
+      - packages/adapters/codex-local/src/server/index.ts
+      - packages/adapters/opencode-local/src/server/index.ts
+    tests:
+      - packages/adapters/claude-local/src/server/execute.remote.crew.test.ts
+      - packages/adapters/claude-local/src/server/parse.auth.crew.test.ts
+      - packages/adapters/claude-local/src/server/session-codec.crew.test.ts
+      - packages/adapters/codex-local/src/server/session-codec.crew.test.ts
+      - packages/adapters/opencode-local/src/server/execute.in-place.crew.test.ts
+      - packages/adapters/opencode-local/src/server/session-codec.crew.test.ts
+  contributions:
+    title: "Góp ý chờ owner duyệt (Phòng Marketing, Phòng QC)"
+    doc: docs/flows/contributions.md
+    entrypoints:
+      - server/src/crew/contribution-routes.ts
+      - packages/crew-web/src/features/contributions/routes.tsx
+    files:
+      - packages/crew-web/src/api/crew/contributions.ts
+      - packages/crew-web/src/features/contributions/approve-flow.ts
+      - packages/crew-web/src/features/contributions/approve-issue-dialog.tsx
+      - packages/crew-web/src/features/contributions/contribution-actions.tsx
+      - packages/crew-web/src/features/contributions/contribution-badge.tsx
+      - packages/crew-web/src/features/contributions/contribution-composer.tsx
+      - packages/crew-web/src/features/contributions/contribution-notice.tsx
+      - packages/crew-web/src/features/contributions/contribution-popup-host.tsx
+      - packages/crew-web/src/features/contributions/contribution-popup.tsx
+      - packages/crew-web/src/features/contributions/contributions-page.tsx
+      - packages/crew-web/src/features/contributions/index.ts
+      - packages/crew-web/src/features/contributions/new-contribution-dialog.tsx
+      - packages/crew-web/src/features/contributions/pending-comments.tsx
+      - packages/crew-web/src/features/contributions/reject-confirm.tsx
+      - packages/crew-web/src/features/contributions/use-contributions.ts
+      - server/src/crew/contributions.ts
+    tests:
+      - packages/crew-plugin/src/__tests__/contributions-isolation.test.ts
+      - packages/crew-web/test/api/contributions.test.ts
+      - packages/crew-web/test/features/contributions/approve-actions.test.tsx
+      - packages/crew-web/test/features/contributions/approve-dialog.test.tsx
+      - packages/crew-web/test/features/contributions/approve-flow.test.ts
+      - packages/crew-web/test/features/contributions/approve-popup.test.tsx
+      - packages/crew-web/test/features/contributions/contribution-composer.test.tsx
+      - packages/crew-web/test/features/contributions/contributions-page.test.tsx
+      - packages/crew-web/test/features/contributions/new-contribution-dialog.test.tsx
+      - packages/crew-web/test/features/contributions/pending-comments.test.tsx
+      - server/src/__tests__/crew-contributions-agent-blind.test.ts
+      - server/src/__tests__/crew-contributions.db.test.ts
+  qc-department:
+    title: "Phòng QC duyệt lại yêu cầu của mình"
+    doc: docs/flows/qc-department.md
+    entrypoints:
+      - server/src/crew/qc-verification.ts
+    files:
+      - packages/crew-web/src/api/crew/qc.ts
+      - packages/crew-web/src/features/qc/index.ts
+      - packages/crew-web/src/features/qc/qc-badge.tsx
+      - packages/crew-web/src/features/qc/qc-panel.tsx
+      - packages/crew-web/src/features/qc/qc-review-list.tsx
+      - packages/crew-web/src/features/qc/qc-status.ts
+      - packages/crew-web/src/features/qc/use-qc.ts
+    tests:
+      - packages/crew-web/test/features/qc/qc-issue-detail.test.tsx
+      - packages/crew-web/test/features/qc/qc-lists.test.tsx
+      - packages/crew-web/test/features/qc/qc-status.test.ts
+      - server/src/__tests__/crew-qc-verification.db.test.ts
+  project-access:
+    title: "Quyền xem project theo thành viên"
+    doc: docs/flows/project-access.md
+    entrypoints:
+      - server/src/crew/project-access-routes.ts
+      - packages/crew-web/src/features/access/access-guard.tsx
+    files:
+      - packages/crew-web/src/api/crew/project-access.ts
+      - packages/crew-web/src/features/access/index.ts
+      - packages/crew-web/src/features/access/nav-access.ts
+      - packages/crew-web/src/features/access/use-company-access.ts
+      - packages/crew-web/src/features/access/use-visible-projects.ts
+      - packages/crew-web/src/features/members/project-access-cell.tsx
+      - server/src/crew/project-access.ts
+    tests:
+      - packages/crew-plugin/src/__tests__/migration-0016.db.test.ts
+      - packages/crew-web/test/features/access/nav-access.test.ts
+      - packages/crew-web/test/features/access/read-only.test.tsx
+      - packages/crew-web/test/features/access/sidebar-access.test.tsx
+      - packages/crew-web/test/features/access/skeleton-pages.test.tsx
+      - packages/crew-web/test/features/access/use-company-access.test.tsx
+      - packages/crew-web/test/features/access/use-visible-projects.test.tsx
+      - server/src/__tests__/crew-project-access.db.test.ts
+  jev:
+    title: "Crew Jev trên server: cấu hình, key, máy, log gate, so sánh với regex"
+    doc: docs/flows/jev.md
+    entrypoints:
+      - server/src/crew/jev-routes.ts
+      - packages/crew-web/src/features/jev/routes.tsx
+    files:
+      - crew/release/vendor-jev-use.mjs
+      - packages/crew-web/src/api/crew/jev.ts
+      - packages/crew-web/src/features/jev/gate-events-table.tsx
+      - packages/crew-web/src/features/jev/index.ts
+      - packages/crew-web/src/features/jev/issue-jev-block.tsx
+      - packages/crew-web/src/features/jev/jev-page.tsx
+      - packages/crew-web/src/features/jev/key-form.tsx
+      - packages/crew-web/src/features/jev/machine-name.tsx
+      - packages/crew-web/src/features/jev/machines-table.tsx
+      - packages/crew-web/src/features/jev/settings-form.tsx
+      - packages/crew-web/src/features/jev/shadow-table.tsx
+      - packages/crew-web/src/features/jev/stats-panel.tsx
+      - packages/crew-web/src/features/jev/use-jev.ts
+      - server/src/crew/jev-client.ts
+      - server/src/crew/jev-machine-auth.ts
+      - server/src/crew/jev-shadow.ts
+      - server/src/crew/jev-store.ts
+      - server/src/crew/vendor/jev-use.ts
+    tests:
+      - packages/crew-web/test/features/jev/issue-jev-block.test.tsx
+      - packages/crew-web/test/features/jev/jev-page.test.tsx
+      - packages/crew-web/test/features/jev/settings-form.test.ts
+      - server/src/__tests__/crew-jev-client.test.ts
+      - server/src/__tests__/crew-jev-machine-auth.test.ts
+      - server/src/__tests__/crew-jev-routes.db.test.ts
+      - server/src/__tests__/crew-jev-shadow.db.test.ts
+  crew-plugin:
+    title: "Plugin crew.core: worker, manifest, bảng plugin, cầu nối với server"
+    doc: docs/flows/crew-plugin.md
+    entrypoints:
+      - packages/crew-plugin/src/worker.ts
+      - packages/crew-plugin/src/manifest.ts
+    files:
+      - packages/crew-plugin/migrations/.gitkeep
+      - packages/crew-plugin/migrations/0001_docs.sql
+      - packages/crew-plugin/migrations/0002_machines.sql
+      - packages/crew-plugin/migrations/0003_machine_latest.sql
+      - packages/crew-plugin/migrations/0004_project_roles.sql
+      - packages/crew-plugin/migrations/0005_attachment_audit.sql
+      - packages/crew-plugin/migrations/0006_machine_jobs.sql
+      - packages/crew-plugin/migrations/0007_setup_runs.sql
+      - packages/crew-plugin/migrations/0008_docs_storage.sql
+      - packages/crew-plugin/migrations/0009_setup_runs_abandon.sql
+      - packages/crew-plugin/migrations/0010_crew_companies.sql
+      - packages/crew-plugin/migrations/0011_removal_kinds.sql
+      - packages/crew-plugin/migrations/0012_runtimes.sql
+      - packages/crew-plugin/migrations/0013_contributions.sql
+      - packages/crew-plugin/migrations/0014_machine_pairings.sql
+      - packages/crew-plugin/migrations/0015_machine_pairings_unpaired_removal.sql
+      - packages/crew-plugin/migrations/0016_project_access.sql
+      - packages/crew-plugin/migrations/0017_runtime_retries.sql
+      - packages/crew-plugin/migrations/0018_contributor_department.sql
+      - packages/crew-plugin/migrations/0019_qc_verification.sql
+      - packages/crew-plugin/migrations/0020_jev.sql
+      - packages/crew-plugin/src/companies/data.ts
+      - packages/crew-plugin/src/features.ts
+      - packages/crew-plugin/src/shared/css.d.ts
+      - packages/crew-plugin/src/shared/db.ts
+      - packages/crew-plugin/src/shared/markers.ts
+      - packages/crew-plugin/src/shared/policy.ts
+      - packages/crew-plugin/src/shared/redact.ts
+      - packages/crew-plugin/src/ui/index.tsx
+      - packages/crew-plugin/src/ui/page.tsx
+      - packages/crew-plugin/src/ui/registry.ts
+      - packages/crew-plugin/src/ui/summary.tsx
+      - packages/crew-plugin/src/ui/tab.tsx
+      - server/src/crew/plugin-data-scope.ts
+      - server/src/crew/plugin-startup-wait.ts
+    tests:
+      - packages/crew-plugin/src/__tests__/companies.db.test.ts
+      - packages/crew-plugin/src/__tests__/companies.test.ts
+      - packages/crew-plugin/src/__tests__/migration-0012.db.test.ts
+      - packages/crew-plugin/src/__tests__/migration-0013.db.test.ts
+      - packages/crew-plugin/src/__tests__/migration-0014.db.test.ts
+      - packages/crew-plugin/src/__tests__/migration-0015.db.test.ts
+      - packages/crew-plugin/src/__tests__/migration-0018.db.test.ts
+      - packages/crew-plugin/src/__tests__/migration-0019.db.test.ts
+      - packages/crew-plugin/src/__tests__/registry.test.ts
+      - packages/crew-plugin/src/__tests__/shared-exports.test.ts
+      - packages/crew-plugin/src/__tests__/ui-bundle.test.ts
+      - packages/crew-plugin/src/__tests__/worker-definition.test.ts
+      - packages/crew-plugin/src/ui/page-headings.test.ts
+      - packages/crew-plugin/src/ui/summary.test.ts
+      - server/src/__tests__/crew-plugin-data-viewer.test.ts
+      - server/src/__tests__/crew-plugin-event-invocation-scope.test.ts
+      - server/src/__tests__/crew-plugin-manifest.test.ts
+      - server/src/__tests__/crew-plugin-startup-wait.test.ts
+      - server/src/__tests__/crew-viewer-write-matrix.test.ts
+  machine-status:
+    title: "Bản tin máy (machine-status) và ghép máy"
+    doc: docs/flows/machine-status.md
+    entrypoints:
+      - packages/crew-plugin/src/machines/webhook.ts
+      - packages/crew-plugin/src/machines/pairing.ts
+      - packages/crew-web/src/features/machines/routes.tsx
+    files:
+      - packages/crew-plugin/src/machines/data.ts
+      - packages/crew-plugin/src/shared-web/machine-card.ts
+      - packages/crew-plugin/src/shared/signature.ts
+      - packages/crew-plugin/src/shared/webhook.ts
+      - packages/crew-plugin/src/ui/machines/index.ts
+      - packages/crew-plugin/src/ui/machines/model.ts
+      - packages/crew-web/src/api/crew/machines.ts
+      - packages/crew-web/src/ds/widgets/crew/machine-card.tsx
+      - packages/crew-web/src/features/machines/index.ts
+      - packages/crew-web/src/features/machines/machines-page.tsx
+      - packages/crew-web/src/features/machines/pairing-block.tsx
+      - packages/crew-web/src/features/machines/use-machines.ts
+    tests:
+      - packages/crew-plugin/src/__tests__/machine-pairing.db.test.ts
+      - packages/crew-plugin/src/__tests__/machines.test.ts
+      - packages/crew-plugin/src/__tests__/webhook.test.ts
+      - packages/crew-plugin/src/ui/machines/card.test.ts
+      - packages/crew-web/test/ds/crew/machine-card.test.tsx
+      - packages/crew-web/test/features/machines/machines-page.test.tsx
+      - packages/crew-web/test/features/machines/pairing-block.test.tsx
+  docs-snapshot:
+    title: "Docs dự án: nhận snapshot từ Mac, đọc docs, trạng thái, đồ thị"
+    doc: docs/flows/docs-snapshot.md
+    entrypoints:
+      - packages/crew-plugin/src/docs/webhook.ts
+      - packages/crew-plugin/src/docs/api.ts
+      - packages/crew-web/src/features/docs/routes.tsx
+    files:
+      - packages/crew-plugin/src/docs/content-key.ts
+      - packages/crew-plugin/src/docs/data.ts
+      - packages/crew-plugin/src/docs/graph-data.ts
+      - packages/crew-plugin/src/docs/graph.ts
+      - packages/crew-plugin/src/docs/history.ts
+      - packages/crew-plugin/src/docs/manifest.ts
+      - packages/crew-plugin/src/docs/status.ts
+      - packages/crew-plugin/src/shared-web/docs-tree.ts
+      - packages/crew-plugin/src/ui/docs/index.ts
+      - packages/crew-plugin/src/ui/docs/tree.ts
+      - packages/crew-plugin/src/ui/docs/types.ts
+      - packages/crew-plugin/src/ui/graph/docs-graph.tsx
+      - packages/crew-plugin/src/ui/graph/model.ts
+      - packages/crew-web/src/ds/widgets/crew/docs-check-panel.tsx
+      - packages/crew-web/src/features/docs/docs-nav.tsx
+      - packages/crew-web/src/features/docs/docs-page.tsx
+      - packages/crew-web/src/features/docs/docs-paths.ts
+      - packages/crew-web/src/features/docs/docs-reader.tsx
+      - packages/crew-web/src/features/docs/index.ts
+      - packages/crew-web/src/features/projects/detail/docs-tab.tsx
+    tests:
+      - packages/crew-plugin/src/__tests__/docs-check-evidence.test.ts
+      - packages/crew-plugin/src/__tests__/docs-content-key.test.ts
+      - packages/crew-plugin/src/__tests__/docs-dedup.db.test.ts
+      - packages/crew-plugin/src/__tests__/docs-graph.db.test.ts
+      - packages/crew-plugin/src/__tests__/docs-graph.test.ts
+      - packages/crew-plugin/src/__tests__/docs-manifest.test.ts
+      - packages/crew-plugin/src/__tests__/docs-status.test.ts
+      - packages/crew-plugin/src/__tests__/docs.db.test.ts
+      - packages/crew-plugin/src/__tests__/docs.test.ts
+      - packages/crew-plugin/src/docs/docs-check-empty.test.ts
+      - packages/crew-plugin/src/ui/docs/content.test.ts
+      - packages/crew-plugin/src/ui/docs/tree.test.ts
+      - packages/crew-plugin/src/ui/graph/model.test.ts
+      - packages/crew-web/test/ds/crew/docs-check-panel.test.tsx
+      - packages/crew-web/test/features/docs/docs-page.test.tsx
+      - packages/crew-web/test/features/docs/docs-paths.test.ts
+  machine-jobs:
+    title: "Hàng đợi việc trên máy (machine jobs)"
+    doc: docs/flows/machine-jobs.md
+    entrypoints:
+      - packages/crew-plugin/src/jobs/api.ts
+    files:
+      - packages/crew-plugin/src/jobs/data.ts
+      - packages/crew-plugin/src/jobs/sanitize.ts
+      - packages/crew-plugin/src/jobs/types.ts
+      - packages/crew-plugin/src/jobs/validate.ts
+      - packages/crew-web/src/api/crew/jobs.ts
+      - packages/crew-web/src/features/machines/jobs-queue.tsx
+    tests:
+      - packages/crew-plugin/src/__tests__/machine-jobs-sanitize.test.ts
+      - packages/crew-plugin/src/__tests__/machine-jobs-validate.test.ts
+      - packages/crew-plugin/src/__tests__/machine-jobs.db.test.ts
+  setup-wizards:
+    title: "Wizard thêm agent, thêm project, gỡ và kiểm sẵn sàng"
+    doc: docs/flows/setup-wizards.md
+    entrypoints:
+      - packages/crew-plugin/src/setup/api.ts
+      - packages/crew-web/src/features/wizards/routes.tsx
+    files:
+      - packages/crew-plugin/src/setup/data.ts
+      - packages/crew-plugin/src/setup/types.ts
+      - packages/crew-web/src/api/crew/setup.ts
+      - packages/crew-web/src/ds/widgets/crew/readiness-badge.tsx
+      - packages/crew-web/src/features/readiness/assistant-instructions.ts
+      - packages/crew-web/src/features/readiness/compute.ts
+      - packages/crew-web/src/features/readiness/index.ts
+      - packages/crew-web/src/features/readiness/use-readiness.ts
+      - packages/crew-web/src/features/wizards/add-agent/add-agent-page.tsx
+      - packages/crew-web/src/features/wizards/add-agent/repo-root.ts
+      - packages/crew-web/src/features/wizards/add-agent/run-step.ts
+      - packages/crew-web/src/features/wizards/add-agent/steps.ts
+      - packages/crew-web/src/features/wizards/add-agent/validate.ts
+      - packages/crew-web/src/features/wizards/add-project/add-project-page.tsx
+      - packages/crew-web/src/features/wizards/add-project/run-step.ts
+      - packages/crew-web/src/features/wizards/add-project/steps.ts
+      - packages/crew-web/src/features/wizards/add-project/validate.ts
+      - packages/crew-web/src/features/wizards/add-project/wait-job.ts
+      - packages/crew-web/src/features/wizards/index.ts
+      - packages/crew-web/src/features/wizards/machine-host.ts
+      - packages/crew-web/src/features/wizards/remove/eligibility.ts
+      - packages/crew-web/src/features/wizards/remove/exclusive-environments.ts
+      - packages/crew-web/src/features/wizards/remove/removal-state.ts
+      - packages/crew-web/src/features/wizards/remove/remove-agent.ts
+      - packages/crew-web/src/features/wizards/remove/remove-buttons.tsx
+      - packages/crew-web/src/features/wizards/remove/remove-pages.tsx
+      - packages/crew-web/src/features/wizards/remove/remove-project.ts
+      - packages/crew-web/src/features/wizards/remove/use-removal-data.ts
+      - packages/crew-web/src/features/wizards/remove/use-selectable-agents.ts
+      - packages/crew-web/src/features/wizards/resume.ts
+      - packages/crew-web/src/features/wizards/setup-progress.tsx
+    tests:
+      - packages/crew-plugin/src/__tests__/setup-runs.db.test.ts
+      - packages/crew-web/test/api/setup-abandon.test.ts
+      - packages/crew-web/test/ds/crew/readiness-badge.test.tsx
+      - packages/crew-web/test/features/readiness/compute.test.ts
+      - packages/crew-web/test/features/readiness/load.test.ts
+      - packages/crew-web/test/features/wizards/add-agent-page.test.tsx
+      - packages/crew-web/test/features/wizards/add-agent.test.ts
+      - packages/crew-web/test/features/wizards/add-project-page.test.tsx
+      - packages/crew-web/test/features/wizards/add-project.test.ts
+      - packages/crew-web/test/features/wizards/machine-host.test.ts
+      - packages/crew-web/test/features/wizards/remove/eligibility.test.ts
+      - packages/crew-web/test/features/wizards/remove/exclusive-environments.test.ts
+      - packages/crew-web/test/features/wizards/remove/removal-state.test.ts
+      - packages/crew-web/test/features/wizards/remove/remove-agent.test.ts
+      - packages/crew-web/test/features/wizards/remove/remove-buttons.test.tsx
+      - packages/crew-web/test/features/wizards/remove/remove-project.test.ts
+      - packages/crew-web/test/features/wizards/repo-root.test.ts
+      - packages/crew-web/test/features/wizards/resume.test.ts
+      - packages/crew-web/test/features/wizards/validate-add-agent.test.ts
+      - packages/crew-web/test/features/wizards/validate.test.ts
+      - packages/crew-web/test/features/wizards/wait-job.test.ts
+  project-roles:
+    title: "Vai trò agent theo project"
+    doc: docs/flows/project-roles.md
+    entrypoints:
+      - packages/crew-plugin/src/roles/api.ts
+      - packages/crew-web/src/features/projects/detail/roles-tab.tsx
+    files:
+      - packages/crew-plugin/src/roles/data.ts
+      - packages/crew-web/src/api/crew/roles.ts
+      - packages/crew-web/src/features/projects/detail/roles-form.tsx
+      - packages/crew-web/src/features/projects/detail/use-role-agents.ts
+      - packages/crew-web/src/features/projects/detail/use-save-roles.ts
+      - server/src/crew/project-roles.ts
+    tests:
+      - packages/crew-plugin/src/__tests__/roles.db.test.ts
+      - packages/crew-web/test/features/projects/roles-form.test.tsx
+      - packages/crew-web/test/features/projects/use-save-roles.test.ts
+      - server/src/__tests__/crew-project-roles.db.test.ts
+      - server/src/__tests__/crew-project-roles.test.ts
+  agent-roles:
+    title: "Template vai trò agent (AGENTS.md) và áp vai trò"
+    doc: docs/flows/agent-roles.md
+    entrypoints:
+      - crew/agents/apply-roles.sh
+      - packages/crew-web/src/lib/instructions/index.ts
+    files:
+      - crew/agents/add-base.mjs
+      - crew/agents/assistant.md
+      - crew/agents/bmad.md
+      - crew/agents/executor.md
+      - crew/agents/integrator.md
+      - crew/agents/merge-agent-config.mjs
+      - crew/agents/policy-config.mjs
+      - crew/agents/render-instructions.mjs
+      - crew/agents/reviewer.md
+      - crew/agents/verify-result.mjs
+      - packages/crew-web/src/lib/instructions/agent-config.ts
+      - packages/crew-web/src/lib/instructions/put.ts
+      - packages/crew-web/src/lib/instructions/render.ts
+      - packages/crew-web/src/lib/instructions/templates.ts
+    tests:
+      - crew/agents/add-base.test.mjs
+      - crew/agents/apply-roles.test.mjs
+      - crew/agents/instructions.test.mjs
+      - crew/agents/integrator-pr.test.mjs
+      - crew/agents/merge-agent-config.test.mjs
+      - crew/agents/policy-config.test.mjs
+      - crew/agents/render-instructions.test.mjs
+      - crew/agents/verify-result.test.mjs
+      - packages/crew-web/test/lib/instructions/agent-config.test.ts
+      - packages/crew-web/test/lib/instructions/assistant-lists.test.ts
+      - packages/crew-web/test/lib/instructions/catalog-copy.test.ts
+      - packages/crew-web/test/lib/instructions/put.test.ts
+      - packages/crew-web/test/lib/instructions/render.test.ts
+  roadmap-map:
+    title: "Bản đồ yêu cầu và Roadmap"
+    doc: docs/flows/roadmap-map.md
+    entrypoints:
+      - packages/crew-plugin/src/handlers/map.ts
+      - packages/crew-web/src/features/roadmap/routes.tsx
+    files:
+      - packages/crew-plugin/src/handlers/roots.ts
+      - packages/crew-plugin/src/handlers/runs.ts
+      - packages/crew-plugin/src/shared-web/map.ts
+      - packages/crew-plugin/src/ui/map/layout.ts
+      - packages/crew-plugin/src/ui/map/project.ts
+      - packages/crew-plugin/src/ui/map/ticket-edge.tsx
+      - packages/crew-plugin/src/ui/map/ticket-map.tsx
+      - packages/crew-plugin/src/ui/map/ticket-node.tsx
+      - packages/crew-web/src/ds/widgets/crew/crew-map-level.ts
+      - packages/crew-web/src/ds/widgets/crew/crew-map.tsx
+      - packages/crew-web/src/ds/widgets/crew/crew-summary.tsx
+      - packages/crew-web/src/ds/widgets/roadmap/roadmap-canvas.tsx
+      - packages/crew-web/src/ds/widgets/roadmap/roadmap-doc-popup.tsx
+      - packages/crew-web/src/ds/widgets/roadmap/roadmap-flow.tsx
+      - packages/crew-web/src/ds/widgets/roadmap/roadmap-jev-badge.tsx
+      - packages/crew-web/src/ds/widgets/roadmap/roadmap-layout.ts
+      - packages/crew-web/src/ds/widgets/roadmap/roadmap-legend.tsx
+      - packages/crew-web/src/ds/widgets/roadmap/roadmap-list.tsx
+      - packages/crew-web/src/ds/widgets/roadmap/roadmap-node.tsx
+      - packages/crew-web/src/ds/widgets/roadmap/roadmap-run-list.tsx
+      - packages/crew-web/src/ds/widgets/roadmap/roadmap-runs.ts
+      - packages/crew-web/src/ds/widgets/roadmap/roadmap-types.ts
+      - packages/crew-web/src/features/roadmap/index.ts
+      - packages/crew-web/src/features/roadmap/roadmap-doc-reader.tsx
+      - packages/crew-web/src/features/roadmap/roadmap-model.ts
+      - packages/crew-web/src/features/roadmap/roadmap-page.tsx
+      - packages/crew-web/src/features/roadmap/roadmap-url.ts
+      - packages/crew-web/src/features/roadmap/use-roadmap.ts
+    tests:
+      - packages/crew-plugin/src/__tests__/map-runs.test.ts
+      - packages/crew-plugin/src/__tests__/map.data.test.ts
+      - packages/crew-plugin/src/__tests__/roots.data.test.ts
+      - packages/crew-plugin/src/ui/map/component.test.ts
+      - packages/crew-plugin/src/ui/map/project.test.ts
+      - packages/crew-web/test/ds/crew/crew-map-level.test.ts
+      - packages/crew-web/test/ds/crew/crew-map.test.tsx
+      - packages/crew-web/test/ds/crew/crew-summary.test.tsx
+      - packages/crew-web/test/ds/crew/roadmap-canvas.test.tsx
+      - packages/crew-web/test/ds/crew/roadmap-edges.test.tsx
+      - packages/crew-web/test/ds/crew/roadmap-layout.test.ts
+      - packages/crew-web/test/ds/crew/roadmap-runs.test.tsx
+      - packages/crew-web/test/features/roadmap/roadmap-jev.test.tsx
+      - packages/crew-web/test/features/roadmap/roadmap-model.test.ts
+      - packages/crew-web/test/features/roadmap/roadmap-page.test.tsx
+      - packages/crew-web/test/features/roadmap/roadmap-url.test.ts
+  issues-web:
+    title: "Issue trên UI Crew: danh sách, chi tiết, tạo yêu cầu, cổng duyệt, ép xong"
+    doc: docs/flows/issues-web.md
+    entrypoints:
+      - packages/crew-web/src/features/issues/routes.tsx
+      - packages/crew-plugin/src/issues/force-done.ts
+    files:
+      - packages/crew-web/src/api/crew/force-done.ts
+      - packages/crew-web/src/features/issues/detail/attachment-viewer-provider.tsx
+      - packages/crew-web/src/features/issues/detail/attachments.tsx
+      - packages/crew-web/src/features/issues/detail/comment-thread.ts
+      - packages/crew-web/src/features/issues/detail/comments.tsx
+      - packages/crew-web/src/features/issues/detail/composer.tsx
+      - packages/crew-web/src/features/issues/detail/crew/actions-slot.tsx
+      - packages/crew-web/src/features/issues/detail/crew/force-done-dialog.tsx
+      - packages/crew-web/src/features/issues/detail/crew/force-done.ts
+      - packages/crew-web/src/features/issues/detail/crew/gate-actions.ts
+      - packages/crew-web/src/features/issues/detail/crew/gate-dialogs.tsx
+      - packages/crew-web/src/features/issues/detail/crew/interaction-card.tsx
+      - packages/crew-web/src/features/issues/detail/crew/interactions-slot.tsx
+      - packages/crew-web/src/features/issues/detail/crew/runtime-slot.tsx
+      - packages/crew-web/src/features/issues/detail/crew/summary-slot.tsx
+      - packages/crew-web/src/features/issues/detail/documents.tsx
+      - packages/crew-web/src/features/issues/detail/history-format.ts
+      - packages/crew-web/src/features/issues/detail/history.tsx
+      - packages/crew-web/src/features/issues/detail/issue-detail.tsx
+      - packages/crew-web/src/features/issues/detail/issue-page.tsx
+      - packages/crew-web/src/features/issues/detail/issue-runs.tsx
+      - packages/crew-web/src/features/issues/detail/properties-panel.tsx
+      - packages/crew-web/src/features/issues/detail/start-work.tsx
+      - packages/crew-web/src/features/issues/detail/title-editor.tsx
+      - packages/crew-web/src/features/issues/detail/use-issue.ts
+      - packages/crew-web/src/features/issues/index.ts
+      - packages/crew-web/src/features/issues/list/issues-board.tsx
+      - packages/crew-web/src/features/issues/list/issues-page.tsx
+      - packages/crew-web/src/features/issues/list/list-view.ts
+      - packages/crew-web/src/features/issues/list/tree.ts
+      - packages/crew-web/src/features/issues/list/use-issues.ts
+      - packages/crew-web/src/features/issues/new/add-child-dialog.tsx
+      - packages/crew-web/src/features/issues/new/add-child.ts
+      - packages/crew-web/src/features/issues/new/kinds.ts
+      - packages/crew-web/src/features/issues/new/new-request-dialog.tsx
+      - packages/crew-web/src/features/issues/new/request-fields.tsx
+      - packages/crew-web/src/features/issues/new/use-create-request.ts
+      - packages/crew-web/src/features/issues/popup/issue-href.ts
+      - packages/crew-web/src/features/issues/popup/issue-nav.tsx
+      - packages/crew-web/src/features/issues/popup/issue-popup-host.tsx
+      - packages/crew-web/src/features/issues/popup/issue-popup.tsx
+    tests:
+      - packages/crew-plugin/src/__tests__/force-done.test.ts
+      - packages/crew-web/test/features/issues/add-child-dialog.test.tsx
+      - packages/crew-web/test/features/issues/add-child.test.ts
+      - packages/crew-web/test/features/issues/attachment-viewer.test.tsx
+      - packages/crew-web/test/features/issues/attachments.test.tsx
+      - packages/crew-web/test/features/issues/comment-thread.test.ts
+      - packages/crew-web/test/features/issues/comments.test.tsx
+      - packages/crew-web/test/features/issues/composer.test.tsx
+      - packages/crew-web/test/features/issues/force-done-dialog.test.tsx
+      - packages/crew-web/test/features/issues/force-done.test.ts
+      - packages/crew-web/test/features/issues/gate-actions.test.ts
+      - packages/crew-web/test/features/issues/gate-actions.test.tsx
+      - packages/crew-web/test/features/issues/history-format.test.ts
+      - packages/crew-web/test/features/issues/history.test.tsx
+      - packages/crew-web/test/features/issues/interaction-card.test.tsx
+      - packages/crew-web/test/features/issues/issue-href.test.ts
+      - packages/crew-web/test/features/issues/issue-page-company.test.tsx
+      - packages/crew-web/test/features/issues/issue-popup.test.tsx
+      - packages/crew-web/test/features/issues/issue-runs.test.tsx
+      - packages/crew-web/test/features/issues/issues-board.test.tsx
+      - packages/crew-web/test/features/issues/issues-page-pending.test.tsx
+      - packages/crew-web/test/features/issues/issues-page.test.tsx
+      - packages/crew-web/test/features/issues/kind-labels.test.tsx
+      - packages/crew-web/test/features/issues/kinds.test.ts
+      - packages/crew-web/test/features/issues/list-view.test.ts
+      - packages/crew-web/test/features/issues/new-request-dialog.test.tsx
+      - packages/crew-web/test/features/issues/properties-panel.test.tsx
+      - packages/crew-web/test/features/issues/runtime-slot.test.tsx
+      - packages/crew-web/test/features/issues/start-work.test.tsx
+      - packages/crew-web/test/features/issues/summary-slot.test.tsx
+      - packages/crew-web/test/features/issues/title-editor.test.tsx
+      - packages/crew-web/test/features/issues/tree.test.ts
+      - packages/crew-web/test/features/issues/use-create-request.test.ts
+  usage-storage:
+    title: "Chi phí (usage) và dung lượng lưu trữ"
+    doc: docs/flows/usage-storage.md
+    entrypoints:
+      - packages/crew-plugin/src/usage/data.ts
+      - packages/crew-plugin/src/storage/data.ts
+    files:
+      - packages/crew-plugin/src/ui/storage/format.ts
+      - packages/crew-plugin/src/ui/storage/index.ts
+      - packages/crew-plugin/src/ui/usage/format.ts
+      - packages/crew-plugin/src/ui/usage/index.ts
+      - packages/crew-plugin/src/usage/rollup.ts
+    tests:
+      - packages/crew-plugin/src/__tests__/storage.db.test.ts
+      - packages/crew-plugin/src/__tests__/usage-rollup.test.ts
+      - packages/crew-plugin/src/__tests__/usage.db.test.ts
+      - packages/crew-plugin/src/ui/storage/format.test.ts
+      - packages/crew-plugin/src/ui/usage/format.test.ts
+  attachments:
+    title: "File đính kèm: luật loại file, kiểm định kỳ, xem file"
+    doc: docs/flows/attachments.md
+    entrypoints:
+      - packages/crew-plugin/src/attachments/audit.ts
+    files:
+      - packages/crew-plugin/src/attachments/rules.ts
+      - packages/crew-plugin/src/shared-web/attachment-rules.ts
+      - packages/crew-web/src/ds/widgets/attachment-link-context.ts
+      - packages/crew-web/src/ds/widgets/attachment-picker.tsx
+      - packages/crew-web/src/ds/widgets/attachment-viewer-logic.ts
+      - packages/crew-web/src/ds/widgets/attachment-viewer.tsx
+      - packages/crew-web/src/ds/widgets/markdown-image-policy.ts
+    tests:
+      - packages/crew-plugin/src/__tests__/attachments-audit.db.test.ts
+      - packages/crew-plugin/src/__tests__/attachments-rules.test.ts
+      - packages/crew-web/test/ds/attachment-picker.test.tsx
+      - packages/crew-web/test/ds/attachment-viewer-logic.test.ts
+      - packages/crew-web/test/ds/markdown-image-policy.test.ts
+  guide:
+    title: "Trang Hướng dẫn"
+    doc: docs/flows/guide.md
+    entrypoints:
+      - packages/crew-web/src/features/guide/routes.tsx
+      - packages/crew-plugin/src/ui/guide/index.tsx
+    files:
+      - packages/crew-plugin/src/ui/guide/guide.d.ts
+      - packages/crew-web/src/features/guide/guide-page.tsx
+      - packages/crew-web/src/features/guide/guide-parse.ts
+      - packages/crew-web/src/features/guide/guide-roles.ts
+      - packages/crew-web/src/features/guide/guide-shot.tsx
+      - packages/crew-web/src/features/guide/index.ts
+      - packages/crew-web/src/features/guide/missing-features-section.tsx
+      - packages/crew-web/src/features/guide/missing-features.ts
+      - packages/crew-web/src/features/guide/shots.ts
+    tests:
+      - packages/crew-plugin/src/ui/guide/guide.test.ts
+      - packages/crew-web/test/features/guide/guide-content.test.ts
+      - packages/crew-web/test/features/guide/guide-page.test.tsx
+      - packages/crew-web/test/features/guide/guide-roles.test.ts
+      - packages/crew-web/test/features/guide/missing-features.test.ts
+  skills:
+    title: "Skill của company và đồng bộ skill xuống máy"
+    doc: docs/flows/skills.md
+    entrypoints:
+      - packages/crew-web/src/features/skills/routes.tsx
+    files:
+      - packages/crew-plugin/src/skills/sync-data.ts
+      - packages/crew-web/src/features/skills/add-skill-dialog.tsx
+      - packages/crew-web/src/features/skills/delete-skill-dialog.tsx
+      - packages/crew-web/src/features/skills/delete-skill.ts
+      - packages/crew-web/src/features/skills/edit-skill.tsx
+      - packages/crew-web/src/features/skills/fork-skill-dialog.tsx
+      - packages/crew-web/src/features/skills/frontmatter.ts
+      - packages/crew-web/src/features/skills/index.ts
+      - packages/crew-web/src/features/skills/name-guard.ts
+      - packages/crew-web/src/features/skills/pinned-skills.tsx
+      - packages/crew-web/src/features/skills/skill-detail.tsx
+      - packages/crew-web/src/features/skills/skill-files-editor.tsx
+      - packages/crew-web/src/features/skills/skills-page.tsx
+      - packages/crew-web/src/features/skills/sync-status.tsx
+      - packages/crew-web/src/features/skills/update-from-source.tsx
+      - packages/crew-web/src/features/skills/use-skill-sync.ts
+    tests:
+      - packages/crew-plugin/src/__tests__/skill-sync.db.test.ts
+      - packages/crew-web/test/features/skills/add-skill-dialog.test.tsx
+      - packages/crew-web/test/features/skills/delete-skill.test.ts
+      - packages/crew-web/test/features/skills/frontmatter.test.ts
+      - packages/crew-web/test/features/skills/name-guard.test.ts
+      - packages/crew-web/test/features/skills/skill-edit.test.tsx
+      - packages/crew-web/test/features/skills/skills-page.test.tsx
+      - packages/crew-web/test/features/skills/sync-status.test.tsx
+  web-shell:
+    title: "Khung UI Crew: router, phiên đăng nhập, shell, client API, i18n"
+    doc: docs/flows/web-shell.md
+    entrypoints:
+      - packages/crew-web/src/main.tsx
+      - packages/crew-web/src/app/router.tsx
+    files:
+      - packages/crew-web/src/api/crew/data.ts
+      - packages/crew-web/src/api/crew/types.ts
+      - packages/crew-web/src/api/endpoints.ts
+      - packages/crew-web/src/api/http.ts
+      - packages/crew-web/src/api/index.ts
+      - packages/crew-web/src/api/paperclip/activity.ts
+      - packages/crew-web/src/api/paperclip/agents.ts
+      - packages/crew-web/src/api/paperclip/attachments.ts
+      - packages/crew-web/src/api/paperclip/auth.ts
+      - packages/crew-web/src/api/paperclip/cli-auth.ts
+      - packages/crew-web/src/api/paperclip/comments.ts
+      - packages/crew-web/src/api/paperclip/companies.ts
+      - packages/crew-web/src/api/paperclip/dashboard.ts
+      - packages/crew-web/src/api/paperclip/documents.ts
+      - packages/crew-web/src/api/paperclip/environments.ts
+      - packages/crew-web/src/api/paperclip/health.ts
+      - packages/crew-web/src/api/paperclip/inbox.ts
+      - packages/crew-web/src/api/paperclip/interactions.ts
+      - packages/crew-web/src/api/paperclip/issues.ts
+      - packages/crew-web/src/api/paperclip/labels.ts
+      - packages/crew-web/src/api/paperclip/members.ts
+      - packages/crew-web/src/api/paperclip/profile.ts
+      - packages/crew-web/src/api/paperclip/projects.ts
+      - packages/crew-web/src/api/paperclip/runs.ts
+      - packages/crew-web/src/api/paperclip/search.ts
+      - packages/crew-web/src/api/paperclip/secrets.ts
+      - packages/crew-web/src/api/paperclip/sidebar.ts
+      - packages/crew-web/src/api/paperclip/skills.ts
+      - packages/crew-web/src/api/queryKeys.ts
+      - packages/crew-web/src/app/auth/cli-auth-page.tsx
+      - packages/crew-web/src/app/auth/login-page.tsx
+      - packages/crew-web/src/app/auth/require-session.tsx
+      - packages/crew-web/src/app/hooks.ts
+      - packages/crew-web/src/app/live/live-events.ts
+      - packages/crew-web/src/app/not-found-page.tsx
+      - packages/crew-web/src/app/providers.tsx
+      - packages/crew-web/src/app/routes-util.ts
+      - packages/crew-web/src/app/shell/account-menu.tsx
+      - packages/crew-web/src/app/shell/command-palette.tsx
+      - packages/crew-web/src/app/shell/company-switcher.tsx
+      - packages/crew-web/src/app/shell/language-switch.tsx
+      - packages/crew-web/src/app/shell/mobile-menu.ts
+      - packages/crew-web/src/app/shell/shell.tsx
+      - packages/crew-web/src/app/shell/sidebar.tsx
+      - packages/crew-web/src/app/shell/starred-projects.ts
+      - packages/crew-web/src/i18n/format.ts
+      - packages/crew-web/src/i18n/index.ts
+      - packages/crew-web/src/lib/stale-chunk-reload.ts
+    tests:
+      - packages/crew-web/test/api/agents-permissions.test.ts
+      - packages/crew-web/test/api/crew-shared.test.ts
+      - packages/crew-web/test/api/endpoints.test.ts
+      - packages/crew-web/test/api/http.test.ts
+      - packages/crew-web/test/api/labels.test.ts
+      - packages/crew-web/test/api/r3x-client.test.ts
+      - packages/crew-web/test/app/cli-auth.test.tsx
+      - packages/crew-web/test/app/command-palette.test.tsx
+      - packages/crew-web/test/app/company-switcher.test.tsx
+      - packages/crew-web/test/app/live-events.test.tsx
+      - packages/crew-web/test/app/login.test.tsx
+      - packages/crew-web/test/app/mobile-menu.test.tsx
+      - packages/crew-web/test/app/router.test.tsx
+      - packages/crew-web/test/app/routes-util.test.ts
+      - packages/crew-web/test/app/sidebar-footer.test.tsx
+      - packages/crew-web/test/app/sidebar-groups.test.tsx
+      - packages/crew-web/test/app/starred-projects.test.ts
+      - packages/crew-web/test/i18n/format.test.ts
+      - packages/crew-web/test/i18n/index.test.ts
+      - packages/crew-web/test/lib/stale-chunk-reload.test.ts
+  design-system:
+    title: "Design system của UI Crew"
+    doc: docs/flows/design-system.md
+    entrypoints:
+      - packages/crew-web/src/ds/index.ts
+    files:
+      - packages/crew-web/src/dev/crew-showcase.tsx
+      - packages/crew-web/src/dev/ds-page.tsx
+      - packages/crew-web/src/ds/brand/Logo.tsx
+      - packages/crew-web/src/ds/cn.ts
+      - packages/crew-web/src/ds/components/alert-dialog.tsx
+      - packages/crew-web/src/ds/components/alert.tsx
+      - packages/crew-web/src/ds/components/app-frame.tsx
+      - packages/crew-web/src/ds/components/avatar.tsx
+      - packages/crew-web/src/ds/components/badge.tsx
+      - packages/crew-web/src/ds/components/breadcrumb.tsx
+      - packages/crew-web/src/ds/components/button.tsx
+      - packages/crew-web/src/ds/components/card.tsx
+      - packages/crew-web/src/ds/components/checkbox.tsx
+      - packages/crew-web/src/ds/components/collapsible.tsx
+      - packages/crew-web/src/ds/components/command.tsx
+      - packages/crew-web/src/ds/components/dialog.tsx
+      - packages/crew-web/src/ds/components/dropdown-menu.tsx
+      - packages/crew-web/src/ds/components/empty-state.tsx
+      - packages/crew-web/src/ds/components/error-state.tsx
+      - packages/crew-web/src/ds/components/field.tsx
+      - packages/crew-web/src/ds/components/input.tsx
+      - packages/crew-web/src/ds/components/label.tsx
+      - packages/crew-web/src/ds/components/muted-text.tsx
+      - packages/crew-web/src/ds/components/popover.tsx
+      - packages/crew-web/src/ds/components/scroll-area.tsx
+      - packages/crew-web/src/ds/components/select.tsx
+      - packages/crew-web/src/ds/components/separator.tsx
+      - packages/crew-web/src/ds/components/sheet.tsx
+      - packages/crew-web/src/ds/components/skeleton.tsx
+      - packages/crew-web/src/ds/components/spinner.tsx
+      - packages/crew-web/src/ds/components/table.tsx
+      - packages/crew-web/src/ds/components/tabs.tsx
+      - packages/crew-web/src/ds/components/textarea.tsx
+      - packages/crew-web/src/ds/components/theme-scope.tsx
+      - packages/crew-web/src/ds/components/toggle-switch.tsx
+      - packages/crew-web/src/ds/components/tooltip.tsx
+      - packages/crew-web/src/ds/icons.ts
+      - packages/crew-web/src/ds/tokens.css
+      - packages/crew-web/src/ds/widgets/agent-row.tsx
+      - packages/crew-web/src/ds/widgets/agent-run-card.tsx
+      - packages/crew-web/src/ds/widgets/bar-chart.tsx
+      - packages/crew-web/src/ds/widgets/code-block.tsx
+      - packages/crew-web/src/ds/widgets/confirm-dialog.tsx
+      - packages/crew-web/src/ds/widgets/dashboard-list.tsx
+      - packages/crew-web/src/ds/widgets/doc-layout.tsx
+      - packages/crew-web/src/ds/widgets/doc-toc.tsx
+      - packages/crew-web/src/ds/widgets/doc-tree.tsx
+      - packages/crew-web/src/ds/widgets/expandable-content.tsx
+      - packages/crew-web/src/ds/widgets/filter-bar.tsx
+      - packages/crew-web/src/ds/widgets/floating-notice.tsx
+      - packages/crew-web/src/ds/widgets/heading-slug.ts
+      - packages/crew-web/src/ds/widgets/image-gallery.tsx
+      - packages/crew-web/src/ds/widgets/issue-detail.tsx
+      - packages/crew-web/src/ds/widgets/issue-list.tsx
+      - packages/crew-web/src/ds/widgets/issue-row.tsx
+      - packages/crew-web/src/ds/widgets/kanban-board.tsx
+      - packages/crew-web/src/ds/widgets/markdown-renderer.tsx
+      - packages/crew-web/src/ds/widgets/markdown-view.tsx
+      - packages/crew-web/src/ds/widgets/metric-card.tsx
+      - packages/crew-web/src/ds/widgets/nav-anchor.tsx
+      - packages/crew-web/src/ds/widgets/page-header.tsx
+      - packages/crew-web/src/ds/widgets/property-list.tsx
+      - packages/crew-web/src/ds/widgets/row-link.tsx
+      - packages/crew-web/src/ds/widgets/run-row.tsx
+      - packages/crew-web/src/ds/widgets/section.tsx
+      - packages/crew-web/src/ds/widgets/stage-badge.tsx
+      - packages/crew-web/src/ds/widgets/status-badge.tsx
+      - packages/crew-web/src/ds/widgets/status-glyph.tsx
+      - packages/crew-web/src/ds/widgets/status-pill.tsx
+      - packages/crew-web/src/ds/widgets/transcript.tsx
+      - packages/crew-web/src/ds/widgets/wizard.tsx
+    tests:
+      - packages/crew-web/test/ds/alert-muted.test.tsx
+      - packages/crew-web/test/ds/button.test.tsx
+      - packages/crew-web/test/ds/composer-dock.test.tsx
+      - packages/crew-web/test/ds/confirm-dialog.test.tsx
+      - packages/crew-web/test/ds/default-labels.test.tsx
+      - packages/crew-web/test/ds/dialog.test.tsx
+      - packages/crew-web/test/ds/markdown-view.test.tsx
+      - packages/crew-web/test/ds/rows.test.tsx
+      - packages/crew-web/test/ds/section-codeblock.test.tsx
+      - packages/crew-web/test/ds/status-badge.test.tsx
+      - packages/crew-web/test/ds/wizard.test.tsx
+      - packages/crew-web/test/guards/design-system.test.ts
+      - packages/crew-web/test/guards/i18n.test.ts
+  web-pages:
+    title: "Trang tổng quan, hộp thư, tìm kiếm, run, agent, project, thành viên, cài đặt"
+    doc: docs/flows/web-pages.md
+    entrypoints:
+      - packages/crew-web/src/features/dashboard/routes.tsx
+      - packages/crew-web/src/features/inbox/routes.tsx
+      - packages/crew-web/src/features/agents/routes.tsx
+      - packages/crew-web/src/features/projects/routes.tsx
+    files:
+      - packages/crew-web/src/features/agents/detail/agent-page.tsx
+      - packages/crew-web/src/features/agents/detail/instructions-tab.tsx
+      - packages/crew-web/src/features/agents/detail/model-select.tsx
+      - packages/crew-web/src/features/agents/detail/overview-tab.tsx
+      - packages/crew-web/src/features/agents/detail/rename-dialog.tsx
+      - packages/crew-web/src/features/agents/detail/runs-tab.tsx
+      - packages/crew-web/src/features/agents/detail/runtime-tab.tsx
+      - packages/crew-web/src/features/agents/detail/skills-tab.tsx
+      - packages/crew-web/src/features/agents/detail/use-agent-environment.ts
+      - packages/crew-web/src/features/agents/index.ts
+      - packages/crew-web/src/features/agents/list/agents-page.tsx
+      - packages/crew-web/src/features/agents/list/use-status-filter.ts
+      - packages/crew-web/src/features/agents/paths.ts
+      - packages/crew-web/src/features/agents/use-agent-roles.ts
+      - packages/crew-web/src/features/dashboard/dashboard-logic.ts
+      - packages/crew-web/src/features/dashboard/dashboard-page.tsx
+      - packages/crew-web/src/features/dashboard/use-dashboard.ts
+      - packages/crew-web/src/features/inbox/inbox-page.tsx
+      - packages/crew-web/src/features/inbox/index.ts
+      - packages/crew-web/src/features/inbox/tabs.ts
+      - packages/crew-web/src/features/inbox/use-inbox-badge.ts
+      - packages/crew-web/src/features/inbox/use-inbox-issues.ts
+      - packages/crew-web/src/features/members/index.ts
+      - packages/crew-web/src/features/members/invites-section.tsx
+      - packages/crew-web/src/features/members/join-requests-section.tsx
+      - packages/crew-web/src/features/members/members-model.ts
+      - packages/crew-web/src/features/members/members-page.tsx
+      - packages/crew-web/src/features/members/members-section.tsx
+      - packages/crew-web/src/features/members/routes.tsx
+      - packages/crew-web/src/features/members/use-members.ts
+      - packages/crew-web/src/features/projects/detail/issues-tab.tsx
+      - packages/crew-web/src/features/projects/detail/project-page.tsx
+      - packages/crew-web/src/features/projects/detail/readiness-tab.tsx
+      - packages/crew-web/src/features/projects/detail/rename-dialog.tsx
+      - packages/crew-web/src/features/projects/index.ts
+      - packages/crew-web/src/features/projects/list/projects-page.tsx
+      - packages/crew-web/src/features/projects/paths.ts
+      - packages/crew-web/src/features/runs/routes.tsx
+      - packages/crew-web/src/features/runs/run-actions.ts
+      - packages/crew-web/src/features/runs/run-page.tsx
+      - packages/crew-web/src/features/search/routes.tsx
+      - packages/crew-web/src/features/search/search-page.tsx
+      - packages/crew-web/src/features/settings/index.ts
+      - packages/crew-web/src/features/settings/profile-form.tsx
+      - packages/crew-web/src/features/settings/routes.tsx
+      - packages/crew-web/src/features/settings/settings-page.tsx
+      - packages/crew-web/src/features/settings/system-info.tsx
+    tests:
+      - packages/crew-web/test/features/agents/agent-page.test.tsx
+      - packages/crew-web/test/features/agents/agents-page.test.tsx
+      - packages/crew-web/test/features/agents/instructions-tab.test.tsx
+      - packages/crew-web/test/features/agents/model-select.test.tsx
+      - packages/crew-web/test/features/agents/rename-dialog.test.tsx
+      - packages/crew-web/test/features/agents/runtime-tab.test.tsx
+      - packages/crew-web/test/features/agents/skills-tab.test.tsx
+      - packages/crew-web/test/features/dashboard/dashboard-logic.test.ts
+      - packages/crew-web/test/features/dashboard/dashboard-page.test.tsx
+      - packages/crew-web/test/features/inbox/inbox-page.test.tsx
+      - packages/crew-web/test/features/inbox/tabs.test.ts
+      - packages/crew-web/test/features/members/members-model.test.ts
+      - packages/crew-web/test/features/members/members-page.test.tsx
+      - packages/crew-web/test/features/projects/project-page.test.tsx
+      - packages/crew-web/test/features/projects/projects-page.test.tsx
+      - packages/crew-web/test/features/projects/rename-dialog.test.tsx
+      - packages/crew-web/test/features/runs/run-actions.test.ts
+      - packages/crew-web/test/features/runs/run-page.test.tsx
+      - packages/crew-web/test/features/search/search-page.test.tsx
+      - packages/crew-web/test/features/settings/settings-page.test.tsx
+  stock-ui:
+    title: "UI Paperclip gốc ở /paperclip/ và chỗ trống khi log hoặc file đã bị dọn"
+    doc: docs/flows/stock-ui.md
+    entrypoints:
+      - crew/ops/stock-ui.sh
+      - ui/src/main.tsx
+    files:
+      - packages/crew-web/src/app/shell/stock-ui-link.tsx
+      - packages/crew-web/src/app/stock-ui.ts
+      - ui/src/components/ImageGalleryModal.tsx
+      - ui/src/components/IssueAttachmentsSection.tsx
+      - ui/src/components/MarkdownBody.tsx
+      - ui/src/components/StoredImage.tsx
+      - ui/src/components/TaskChatThread.tsx
+      - ui/src/components/artifacts/RichArtifactCards.tsx
+      - ui/src/components/issue-output/IssueOutputSection.tsx
+      - ui/src/components/issue-output/OutputPrimaryCard.tsx
+      - ui/src/components/task-chat/TaskChatBubble.tsx
+      - ui/src/components/task-side-panel/TaskAttachmentPanel.tsx
+      - ui/src/components/transcript/useLiveRunTranscripts.ts
+      - ui/src/lib/retention-placeholders.ts
+      - ui/src/pages/AgentDetail.tsx
+      - ui/vite.config.ts
+    tests:
+      - packages/crew-web/test/app/stock-ui-link.test.tsx
+      - packages/crew-web/test/app/stock-ui.test.ts
+      - ui/src/components/StoredImage.test.tsx
+      - ui/src/components/TaskChatThread.test.tsx
+      - ui/src/components/task-side-panel/TaskAttachmentPanel.test.tsx
+      - ui/src/components/transcript/useLiveRunTranscripts.test.tsx
+      - ui/src/pages/AgentDetail.log-visibility.test.tsx
+  ops-deploy:
+    title: "Deploy overlay lên VPS, auto-deploy và rollback"
+    doc: docs/flows/ops-deploy.md
+    entrypoints:
+      - crew/ops/deploy.sh
+      - crew/ops/auto-deploy.mjs
+      - crew/ops/overlay-source.sh
+    files:
+      - crew/ops/auto-deploy-vps.sh
+      - crew/ops/compose-set-image.py
+      - crew/ops/inspect-adapters.mjs
+      - crew/ops/inspect-image.sh
+      - crew/ops/nginx-crew.conf
+      - crew/ops/overlay-job.sh
+      - crew/ops/rollback.sh
+      - crew/release/auto-deploy.json
+    tests:
+      - crew/ops/auto-deploy-vps.test.mjs
+      - crew/ops/auto-deploy.test.mjs
+      - crew/ops/compose-set-image.test.mjs
+      - crew/ops/inspect-adapters.test.mjs
+      - crew/ops/overlay-source.test.mjs
+  ops-backup:
+    title: "Sao lưu DB, kéo bản sao về Mac, diễn tập khôi phục, dọn log run"
+    doc: docs/flows/ops-backup.md
+    entrypoints:
+      - crew/ops/backup.sh
+      - crew/ops/pull-backup.sh
+    files:
+      - crew/ops/backup-serve.sh
+      - crew/ops/launchd/com.2p.crew-backup-pull.plist
+      - crew/ops/prune-run-logs.sh
+      - crew/ops/restore-drill.sh
+      - crew/ops/systemd/crew-v3-spike-backup.service
+      - crew/ops/systemd/crew-v3-spike-backup.timer
+    tests:
+      - crew/ops/pull-backup.test.mjs
+  ops-tools:
+    title: "Công cụ vận hành: cấu hình policy, quyền agent, kiểm company, xem run, trạng thái plugin, company e2e"
+    doc: docs/flows/ops-tools.md
+    entrypoints:
+      - crew/ops/policy-config.py
+      - crew/ops/plugin-state.sh
+    files:
+      - crew/ops/active-runs.sh
+      - crew/ops/agent-permissions.sh
+      - crew/ops/check-crew-companies.sh
+      - crew/ops/e2e-company.sh
+      - crew/ops/plugin-state.py
+      - crew/ops/policy-env.sh
+      - crew/ops/watch-run.sh
+    tests:
+      - crew/ops/agent-permissions.test.mjs
+      - crew/ops/check-crew-companies.test.mjs
+      - crew/ops/e2e-company.test.mjs
+      - crew/ops/plugin-state.test.mjs
+      - crew/ops/policy-config.test.mjs
+shared:
+  server/src/services/heartbeat.ts: [run-claim, runtime-switches, run-handoff, ssh-run-lifecycle]
+  server/src/services/issues.ts: [issue-gate, qc-department]
+  server/src/services/environment-runtime.ts: [ssh-run-lifecycle]
+  server/src/routes/agents.ts: [agent-guards]
+  server/src/routes/onboarding-seed.ts: [agent-guards]
+  server/src/routes/projects.ts: [agent-guards]
+  server/src/routes/execution-workspaces.ts: [agent-guards]
+  server/src/routes/issues.ts: [agent-guards, run-handoff]
+  server/src/routes/plugins.ts: [crew-plugin]
+  server/src/services/plugin-worker-manager.ts: [crew-plugin]
+  server/src/app.ts: [crew-plugin, contributions]
+  server/src/index.ts: [run-handoff]
+  server/src/services/recovery/service.ts: [run-handoff]
+  packages/adapters/claude-local/src/server/execute.ts: [adapter-patches, ssh-run-lifecycle]
+  packages/adapters/opencode-local/src/server/execute.ts: [adapter-patches, ssh-run-lifecycle]
+unassigned: []

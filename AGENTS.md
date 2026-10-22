@@ -2,6 +2,19 @@
 
 Guidance for human and AI contributors working in this repository.
 
+## 0. 2P Crew fork
+
+Bản fork này chứa code của 2P Crew (Crew v3) trên nền Paperclip. Khi làm việc với code Crew (`server/src/crew/`,
+`packages/crew-plugin/`, `packages/crew-web/`, `crew/`, và các file upstream Crew vá), ĐỌC `docs/index.md` TRƯỚC:
+
+1. `crew-docs where <file>` cho biết file thuộc flow nào; `crew-docs flow <id>` liệt kê đúng file của flow.
+2. Đọc `docs/flows/<id>.md` rồi mới mở các file nó liệt kê.
+3. Mỗi lần push/merge đổi file nguồn Crew phải sửa `docs/flows/<id>.md` của mọi flow chứa file đó; file nguồn Crew
+   mới phải được thêm vào một flow trong `docs/flows.yaml` rồi chạy `crew-docs generate`. Kiểm trước khi push:
+   `crew-docs check --range <base>..HEAD`. Chuẩn đầy đủ: `STANDARD.md` của `crew-docs` (repo `crew`).
+
+Phần còn lại của file này là hướng dẫn của Paperclip upstream.
+
 ## 1. Purpose
 
 Paperclip is a control plane for AI-agent companies.

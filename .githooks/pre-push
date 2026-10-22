@@ -1,0 +1,2 @@
+#!/bin/sh
+ELECTRON_RUN_AS_NODE=1 "$(git config --get crew-docs.runtime || echo /crew-docs-runtime-not-configured)" "$(git config --get crew-docs.bundle || echo /crew-docs-bundle-not-configured)" check --pre-push "$@" || exit 1 # crew-docs:pre-push
