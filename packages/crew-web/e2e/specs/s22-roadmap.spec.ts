@@ -48,7 +48,7 @@ test('PW-S22-1 owner đi từ công ty vào project, yêu cầu, việc con; pop
     await expect(page).toHaveURL(new RegExp(`request=${root.identifier}`));
     await expect(node(page, first.id)).toBeVisible();
     await expect(node(page, second.id)).toBeVisible();
-    await expect(page.locator('path[data-edge-kind="blocks"]')).toHaveCount(1);
+    await expect(page.locator('[data-slot="roadmap-canvas"] path[data-edge-kind="blocks"]')).toHaveCount(1);
 
     // Việc con mở popup chi tiết có sẵn; Esc đóng popup, Esc nữa lùi về tầng project.
     await node(page, second.id).click();
