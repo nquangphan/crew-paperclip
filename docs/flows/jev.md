@@ -24,6 +24,8 @@ có chạm bảo mật/migration/API công khai nhưng khai nhỏ hơn `large`, 
 `approval_note` (lời nhắn khi owner duyệt/yêu cầu sửa có lệch hành động), `request_type` (gợi ý loại yêu cầu),
 `inbox_attention` (huy hiệu "Cần Đại Ca để ý" trong hộp duyệt). Chế độ `shadow` chỉ đo; `on` mới hiện cho owner.
 
+`PUT /settings` nhận body một phần (mọi trường tùy chọn, ít nhất một; chỉ trường được gửi đổi, `features` gộp từng khóa), nên bản cache cũ ở web không ghi đè `enabled`. Body đầy đủ vẫn dùng được.
+
 Mọi route owner chỉ dành cho owner đăng nhập bằng phiên trình duyệt; board key, agent và role khác nhận 403. Body bị dời
 khỏi `req.body` trước mọi bước có thể lỗi, nên log HTTP không bao giờ chứa key hay lệnh. Server không có dependency npm
 `jev-use`: overlay prod chỉ chép file `.ts`, nên dùng bản bundle vendored nạp lười (hỏng thì chỉ Jev báo lỗi).

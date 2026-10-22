@@ -80,20 +80,25 @@ export function normalizeFeatures(raw: unknown): JevFeatures {
   return out;
 }
 
+const jevSettingsFields = {
+  features: featuresInputSchema,
+  enabled: z.boolean(),
+  gateMode: z.enum(JEV_GATE_MODES),
+  model: z.string().regex(/^typesafe\/jev-[A-Za-z0-9._-]{1,60}$/),
+  threshold: z.number().min(0.3).max(0.95),
+  timeoutMs: z.number().int().min(500).max(3000),
+  serverShadow: z.boolean(),
+};
+
+/** Mọi trường tùy chọn, ít nhất một trường: chỉ trường được gửi mới đổi (tránh ghi đè `enabled` bằng bản cache cũ). */
 export const jevSettingsInputSchema = z
-  .object({
-    features: featuresInputSchema.optional(),
-    enabled: z.boolean(),
-    gateMode: z.enum(JEV_GATE_MODES),
-    model: z.string().regex(/^typesafe\/jev-[A-Za-z0-9._-]{1,60}$/),
-    threshold: z.number().min(0.3).max(0.95),
-    timeoutMs: z.number().int().min(500).max(3000),
-    serverShadow: z.boolean(),
-  })
-  .strict();
+  .object(jevSettingsFields)
+  .partial()
+  .strict()
+  .refine((value) => Object.values(value).some((field) => field !== undefined), { message: "empty" });
 export type JevSettingsInput = z.infer<typeof jevSettingsInputSchema>;
 
-export interface JevSettingsRecord extends Omit<JevSettingsInput, "features"> {
+export interface JevSettingsRecord extends Required<Omit<JevSettingsInput, "features">> {
   companyId: string;
   /** Chế độ từng tính năng (đủ bốn khóa). Công tắc chung là `enabled`, không nằm ở đây. */
   features: JevFeatures;
@@ -150,8 +155,9 @@ export async function listEnabledJevSettings(db: Sql): Promise<JevSettingsRecord
 }
 
 /**
- * Ghi cấu hình và tăng `version` (Mac thấy version mới thì áp lại). `input.features` (nếu có) được gộp vào cột `features`
- * (khóa không gửi giữ nguyên); chỉ dùng khi cột đã có (migration 0021), bên gọi kiểm trước bằng `jevFeaturesReady`.
+ * Ghi cấu hình và tăng `version` (Mac thấy version mới thì áp lại). Chỉ trường có trong `input` được đổi, trường khác giữ
+ * nguyên (lần đầu thì lấy mặc định); `input.features` gộp từng khóa vào cột `features`. Dùng `features` khi cột đã có
+ * (migration 0021), bên gọi kiểm trước bằng `jevFeaturesReady`.
  */
 export async function saveJevSettings(
   db: Sql,
@@ -159,18 +165,30 @@ export async function saveJevSettings(
   input: JevSettingsInput,
   userId: string,
 ): Promise<JevSettingsRecord> {
+  const values = {
+    enabled: input.enabled ?? JEV_DEFAULTS.enabled,
+    gate_mode: input.gateMode ?? JEV_DEFAULTS.gateMode,
+    model: input.model ?? JEV_DEFAULTS.model,
+    threshold: input.threshold ?? JEV_DEFAULTS.threshold,
+    timeout_ms: input.timeoutMs ?? JEV_DEFAULTS.timeoutMs,
+    server_shadow: input.serverShadow ?? JEV_DEFAULTS.serverShadow,
+  };
+  const provided: Array<[string, boolean]> = [
+    ["enabled", input.enabled !== undefined], ["gate_mode", input.gateMode !== undefined], ["model", input.model !== undefined],
+    ["threshold", input.threshold !== undefined], ["timeout_ms", input.timeoutMs !== undefined],
+    ["server_shadow", input.serverShadow !== undefined],
+  ];
+  const updates = provided.filter(([, given]) => given).map(([column]) => sql`${sql.raw(column)} = EXCLUDED.${sql.raw(column)}`);
+  if (input.features !== undefined) updates.push(sql`features = s.features || EXCLUDED.features`);
   const withFeatures = input.features !== undefined;
   const rows = rowsOf(
     await db.execute(sql`INSERT INTO ${table("crew_jev_settings")} AS s
       (company_id, enabled, gate_mode, model, threshold, timeout_ms, server_shadow, version, updated_by_user_id, updated_at
         ${withFeatures ? sql`, features` : sql``})
-      VALUES (${companyId}, ${input.enabled}, ${input.gateMode}, ${input.model}, ${input.threshold}, ${input.timeoutMs},
-        ${input.serverShadow}, 2, ${userId}, now() ${withFeatures ? sql`, ${JSON.stringify(input.features)}::jsonb` : sql``})
-      ON CONFLICT (company_id) DO UPDATE SET enabled = EXCLUDED.enabled, gate_mode = EXCLUDED.gate_mode,
-        model = EXCLUDED.model, threshold = EXCLUDED.threshold, timeout_ms = EXCLUDED.timeout_ms,
-        server_shadow = EXCLUDED.server_shadow, version = s.version + 1,
-        ${withFeatures ? sql`features = s.features || EXCLUDED.features,` : sql``}
-        updated_by_user_id = EXCLUDED.updated_by_user_id, updated_at = now()
+      VALUES (${companyId}, ${values.enabled}, ${values.gate_mode}, ${values.model}, ${values.threshold}, ${values.timeout_ms},
+        ${values.server_shadow}, 2, ${userId}, now() ${withFeatures ? sql`, ${JSON.stringify(input.features)}::jsonb` : sql``})
+      ON CONFLICT (company_id) DO UPDATE SET ${sql.join(updates, sql`, `)}${updates.length > 0 ? sql`, ` : sql``}
+        version = s.version + 1, updated_by_user_id = EXCLUDED.updated_by_user_id, updated_at = now()
       RETURNING *`),
   );
   return toSettings(companyId, rows[0]);

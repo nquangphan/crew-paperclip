@@ -290,6 +290,41 @@ suite("Crew Jev: bốn tính năng đợt 2", () => {
     expect((await (await viewer()).get(url("/inbox-attention"))).status).toBe(403);
   });
 
+  it("PUT settings một phần: chỉ trường được gửi đổi, body rỗng 400, PUT đồng thời không lật enabled", async () => {
+    await putSettings({ enabled: true, model: "typesafe/jev-1.14", threshold: 0.7 });
+    const put = async (body: Record<string, unknown>) => (await owner()).put(url("/settings")).send(body);
+    const before = (await (await owner()).get(url("/settings"))).body;
+
+    expect((await put({})).status).toBe(400);
+    expect((await put({ features: {} })).status).toBe(200);
+    expect((await put({ enabled: undefined, unknown: 1 })).status).toBe(400);
+    expect((await put({ threshold: 0.1 })).status).toBe(400);
+
+    const off = await put({ enabled: false });
+    expect(off.status).toBe(200);
+    expect(off.body).toMatchObject({ enabled: false, threshold: 0.7, model: "typesafe/jev-1.14", gateMode: before.gateMode, timeoutMs: before.timeoutMs, features: before.features });
+    expect(off.body.version).toBeGreaterThan(before.version);
+
+    // Chỉ features: không đụng enabled (đang tắt) và các trường khác.
+    const featuresOnly = await put({ features: { complexity: "on" } });
+    expect(featuresOnly.body).toMatchObject({ enabled: false, threshold: 0.7, features: { ...before.features, complexity: "on" } });
+
+    // Nhiều PUT features đồng thời không lật enabled và không mất khóa nào.
+    expect((await put({ enabled: true })).body.enabled).toBe(true);
+    const modes = ["off", "shadow", "on"] as const;
+    const results = await Promise.all([
+      put({ features: { request_type: modes[0] } }), put({ features: { approval_note: modes[2] } }),
+      put({ features: { inbox_attention: modes[0] } }), put({ features: { complexity: modes[1] } }),
+    ]);
+    expect(results.map((res) => res.status)).toEqual([200, 200, 200, 200]);
+    const after = (await (await owner()).get(url("/settings"))).body;
+    expect(after).toMatchObject({ enabled: true, threshold: 0.7 });
+    expect(after.features).toEqual({ complexity: "shadow", approval_note: "on", request_type: "off", inbox_attention: "off" });
+
+    // Khôi phục trạng thái cho các test sau.
+    await putSettings({ ...defaults, features: { complexity: "shadow", approval_note: "on", request_type: "off", inbox_attention: "shadow" } });
+  });
+
   it("lời nhắn duyệt (on): lệch, khớp, unclear, redact, người không phải owner vẫn gọi được", async () => {
     reset();
     replies.push(["REWORK", { choice: "request_changes", confidence: 0.9 }], ["LGTM", { choice: "approve", confidence: 0.9 }], ["VAGUE", { choice: "approve", confidence: 0.9 }]);
