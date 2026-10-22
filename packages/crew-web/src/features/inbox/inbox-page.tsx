@@ -116,7 +116,7 @@ export function InboxPage() {
               <>
                 {unread ? <Badge>{t('unreadMark')}</Badge> : null}
                 {reason ? <Badge variant="outline">{reason}</Badge> : null}
-                <InboxAttentionBadge reasons={attention.data?.get(issue.id.toLowerCase())} />
+                <InboxAttentionBadge reasons={attention.data?.map.get(issue.id.toLowerCase())} />
               </>
             }
             href={opener.href(ref)}

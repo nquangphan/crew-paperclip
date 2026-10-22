@@ -83,24 +83,23 @@ export function parseJudgmentStats(raw: unknown): JudgmentStatRow[] {
   return out;
 }
 
-/** Gộp các dòng của một tính năng qua mọi chế độ (shadow + on), để hiện một hàng số cho tính năng. */
+/**
+ * Gộp các dòng của một tính năng qua mọi chế độ (shadow + on): tổng các số đếm. Phân vị không cộng được nên p50/p95 và
+ * `mode` lấy từ dòng nhiều lượt nhất, để con số luôn là phân vị thật của một chế độ và ghi rõ chế độ nào.
+ */
 export function sumFeatureStats(rows: readonly JudgmentStatRow[], feature: JevFeatureId): JudgmentStatRow | null {
   const mine = rows.filter((r) => r.feature === feature);
   if (mine.length === 0) return null;
-  const pick = (f: (r: JudgmentStatRow) => number | null) => {
-    const vals = mine.map(f).filter((v): v is number => v !== null);
-    return vals.length ? Math.max(...vals) : null;
-  };
+  const main = mine.reduce((best, r) => (r.total > best.total ? r : best), mine[0]);
   return {
     feature,
-    mode: mine[0].mode,
+    mode: main.mode,
     total: mine.reduce((a, r) => a + r.total, 0),
     mismatch: mine.reduce((a, r) => a + r.mismatch, 0),
     escalated: mine.reduce((a, r) => a + r.escalated, 0),
     errors: mine.reduce((a, r) => a + r.errors, 0),
-    // Phân vị không cộng được; lấy mức cao nhất trong các chế độ để không báo thấp hơn thực tế.
-    p50Ms: pick((r) => r.p50Ms),
-    p95Ms: pick((r) => r.p95Ms),
+    p50Ms: main.p50Ms,
+    p95Ms: main.p95Ms,
   };
 }
 
@@ -173,4 +172,20 @@ export function parseAttention(raw: unknown): Map<string, AttentionFlag['reasons
     if (reasons.length > 0) out.set(issueId.toLowerCase(), reasons);
   }
   return out;
+}
+
+/**
+ * Cờ hộp thư kèm việc tính năng có đang chạy ở chế độ `on` không (`enabled` và `mode` của server). `on` false thì không
+ * cần hỏi lại định kỳ. Mảng trần (không có `mode`) coi là `on` để không mất cờ.
+ */
+export function parseAttentionState(raw: unknown): { on: boolean; map: Map<string, AttentionFlag['reasons']> } {
+  const map = parseAttention(raw);
+  if (!isRec(raw) || Array.isArray(raw)) return { on: Array.isArray(raw), map };
+  return { on: raw.enabled !== false && raw.mode === 'on', map };
+}
+
+/** Một trang ca lệch: dòng hợp lệ và con trỏ `nextBefore` (id dòng cuối) khi còn trang sau. */
+export function parseJudgmentsPage(raw: unknown): { items: JudgmentRow[]; nextBefore: string | null } {
+  const next = isRec(raw) ? idOf(raw.nextBefore) : null;
+  return { items: parseJudgments(raw), nextBefore: next };
 }

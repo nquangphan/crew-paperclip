@@ -4,14 +4,16 @@ import { useState } from 'react';
 import type { JevSettings } from '@/api';
 import { Alert, Button, ConfirmDialog } from '@/ds';
 import { useT } from '@/i18n';
-import { settingsInput, useSaveJevSettings } from './use-jev';
+import { useJevSaving, useSaveJevSettings } from './use-jev';
 
 export function MasterSwitch({ companyId, settings }: { companyId: string; settings: JevSettings }) {
   const { t } = useT('jev');
   const [confirm, setConfirm] = useState(false);
   const save = useSaveJevSettings(companyId);
   const on = settings.enabled;
-  const apply = (enabled: boolean) => save.mutate(settingsInput(settings, { enabled }));
+  const saving = useJevSaving(companyId);
+  // Chỉ gửi `enabled`: không đè cấu hình khác bằng bản cache.
+  const apply = (enabled: boolean) => save.mutate({ enabled });
 
   return (
     <div data-testid="jev-master" data-enabled={on} className="flex flex-col gap-3">
@@ -20,11 +22,11 @@ export function MasterSwitch({ companyId, settings }: { companyId: string; setti
       </Alert>
       <div className="flex flex-wrap items-center gap-3">
         {on ? (
-          <Button variant="destructive" disabled={save.isPending} onClick={() => setConfirm(true)}>
+          <Button variant="destructive" disabled={saving} onClick={() => setConfirm(true)}>
             {t('master.turnOff')}
           </Button>
         ) : (
-          <Button disabled={save.isPending} onClick={() => apply(true)}>
+          <Button disabled={saving} onClick={() => apply(true)}>
             {t('master.turnOn')}
           </Button>
         )}

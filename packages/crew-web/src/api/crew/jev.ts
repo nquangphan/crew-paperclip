@@ -49,6 +49,9 @@ export interface JevSettingsInput {
   features?: JevFeatures;
 }
 
+/** Body PUT cấu hình: mọi trường tùy chọn, server chỉ đổi trường được gửi. */
+export type JevSettingsPatch = Partial<JevSettingsInput>;
+
 export interface JevSettings extends JevSettingsInput {
   hasKey: boolean;
   keyFingerprint: string | null;
@@ -250,7 +253,7 @@ export const jevApi = {
   issueSummary: (companyId: string, issueId: string): Promise<JevIssueSummary> =>
     call('jev.issueSummary', { companyId, issueId }),
   settings: (companyId: string): Promise<JevSettings> => call('jev.settings', { companyId }),
-  setSettings: (companyId: string, body: JevSettingsInput): Promise<JevSettings> =>
+  setSettings: (companyId: string, body: JevSettingsPatch): Promise<JevSettings> =>
     call('jev.setSettings', { companyId }, { body }),
   /** `test: true` gọi thử Jev bằng key vừa lưu; kết quả thử nằm ở `test`, key vẫn được lưu dù thử lỗi. */
   setKey: (companyId: string, apiKey: string, test: boolean): Promise<JevKeyResult> =>
@@ -282,8 +285,10 @@ export const jevApi = {
     call('jev.judgmentOutcome', { companyId, id }, { body: { outcome } }),
   judgmentStats: (companyId: string, days: number): Promise<unknown> =>
     call('jev.judgmentStats', { companyId }, { query: { days } }),
-  judgments: (companyId: string, query: { feature?: JevFeatureId; mismatch?: boolean }): Promise<unknown> =>
-    call('jev.judgments', { companyId }, { query }),
+  judgments: (
+    companyId: string,
+    query: { feature?: JevFeatureId; mismatch?: boolean; before?: string | null },
+  ): Promise<unknown> => call('jev.judgments', { companyId }, { query }),
   inboxAttention: (companyId: string, issueIds: readonly string[]): Promise<unknown> =>
     call('jev.inboxAttention', { companyId }, { query: { issueIds: issueIds.join(',') } }),
 };

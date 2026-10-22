@@ -94,8 +94,10 @@ owner; mọi lỗi, quá hạn, response sai dạng hay chế độ khác đều
 
 - Trang `jev`: `MasterSwitch` (nút "Tắt toàn bộ Jev" có xác nhận, hoặc "Bật lại Jev") và `FeaturesSection` (chọn chế độ
   từng tính năng, lưu ngay; thống kê 7 ngày `GET /judgments/stats`; ca lệch `GET /judgments?feature=&mismatch=true`).
-  Mọi lần lưu cấu hình đi qua `settingsInput`: đổi chế độ chỉ gửi khóa vừa đổi trong `features` (server gộp theo khóa),
-  còn công tắc chung và `SettingsForm` không gửi `features`, nên không đụng chế độ tính năng. `SettingsForm` không còn
+  Mọi lần lưu đi qua `useSaveJevSettings` và gửi PUT một phần: công tắc chung chỉ gửi `{enabled}`, đổi chế độ chỉ gửi
+  `{features:{<khóa>:<chế độ>}}`, `SettingsForm` chỉ gửi trường của nó; không bao giờ gửi lại giá trị cache. Các nút lưu khóa
+  nhau khi có lần lưu đang chạy và cấu hình được tải lại sau khi lưu. Thống kê và ca lệch (phân trang `before`) ngừng
+  làm tươi khi route báo lỗi. `SettingsForm` không còn
   công tắc bật (đã chuyển lên công tắc chung).
 - `judge-adapter.ts`: bộ chuyển duy nhất đọc response các route đợt 2 (`unknown` vào, kiểu của web hoặc `null` ra).
   `judge-client.ts`: `withHardTimeout` (AbortController và đồng hồ, không bao giờ ném), `judgeApprovalNote` (1500 ms),
@@ -105,11 +107,13 @@ owner; mọi lỗi, quá hạn, response sai dạng hay chế độ khác đều
   (một lần), rồi ghi `sent` hoặc `changed`. Đóng hộp lời nhắn trong lúc chờ thì bỏ lượt kiểm; bấm hai lần chỉ gọi một lần.
 - Loại yêu cầu (`use-request-type-suggestion.ts`, `request-type-chip.tsx`, nối ở `new-request-dialog.tsx` và
   `approve-issue-dialog.tsx`): chờ 800 ms và đủ 20 ký tự rồi hỏi một lần cho mỗi nội dung. Chế độ `on` hiện chip bấm để
-  chọn, không tự đổi loại; khi gửi ghi loại cuối làm `outcome`.
+  chọn, không tự đổi loại. Tối đa 3 lần hỏi mỗi lần mở form, chỉ hỏi lại khi chữ đổi đáng kể, hủy request cũ khi chữ đổi,
+  chỉ gửi `current` khi owner đã chọn loại; khi gửi ghi loại cuối làm `outcome` cho phán đoán mới nhất.
 - Cờ complexity: `complexityFlag` ở tóm tắt issue (khối `IssueJevBlock`) và `complexityFlags` ở bản đồ yêu cầu (thẻ
   `RoadmapComplexityFlag`). `kind: 'jev'` là "Jev: nên là large", `kind: 'vision'` là luật ảnh/model.
 - Hộp thư (`inbox-attention-badge.tsx`, nối ở `inbox-page.tsx`): chỉ owner hỏi `GET /inbox-attention?issueIds=` cho các
-  mục của tab đang xem; huy hiệu "Cần Đại Ca để ý" có tooltip liệt kê lý do.
+  mục của tab đang xem; huy hiệu "Cần Đại Ca để ý" có tooltip liệt kê lý do. Chỉ làm tươi
+  định kỳ khi route báo `mode: 'on'`.
 
 ## Flow liên quan
 

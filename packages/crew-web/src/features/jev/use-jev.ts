@@ -1,15 +1,22 @@
 // Dữ liệu Jev dùng chung cho các khối trên trang: cấu hình, số liệu, ca deny/escalate và ca lệch C3.
-import { keepPreviousData, useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import {
+  keepPreviousData,
+  useInfiniteQuery,
+  useIsMutating,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from '@tanstack/react-query';
 import {
   api,
   type JevFeatureId,
   type JevGateEvent,
   type JevLabel,
   type JevSettings,
-  type JevSettingsInput,
+  type JevSettingsPatch,
   queryKeys,
 } from '@/api';
-import { parseAttention, parseJudgmentStats, parseJudgments } from './judge-adapter';
+import { parseAttentionState, parseJudgmentStats, parseJudgmentsPage } from './judge-adapter';
 
 /** Chu kỳ tự làm mới số liệu và danh sách ca. */
 export const JEV_REFRESH_MS = 30_000;
@@ -85,34 +92,36 @@ export function useLabelEvent(companyId: string) {
   });
 }
 
-/**
- * Cấu hình đang lưu thành body PUT, rồi áp phần đổi. Mọi nơi lưu cấu hình đi qua đây để không làm rơi trường nào.
- * `features` chỉ có khi `patch` đổi chế độ: server gộp theo khóa (khóa không gửi giữ nguyên), nên lưu cấu hình gate hay
- * công tắc chung không đụng tới chế độ tính năng, kể cả khi tab khác vừa đổi chúng.
- */
-export function settingsInput(s: JevSettings, patch: Partial<JevSettingsInput> = {}): JevSettingsInput {
-  return {
-    enabled: s.enabled,
-    gateMode: s.gateMode,
-    model: s.model,
-    threshold: s.threshold,
-    timeoutMs: s.timeoutMs,
-    serverShadow: s.serverShadow,
-    ...patch,
-  };
-}
+const SAVE_KEY = 'jev-save';
 
-/** Lưu cấu hình và cập nhật bản cache; dùng cho công tắc chung và chế độ từng tính năng. */
-export function useSaveJevSettings(companyId: string) {
+/**
+ * Lưu một phần cấu hình (chỉ trường được gửi mới đổi trên server, nên không bao giờ gửi lại `enabled` hay trường nào
+ * khác từ cache có thể đã cũ). Xong thì tải lại cấu hình. Công tắc chung, chế độ tính năng và form gate dùng chung hook này.
+ */
+export function useSaveJevSettings(companyId: string, onSaved?: (next: JevSettings) => void) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (body: JevSettingsInput) => api.jev.setSettings(companyId, body),
+    mutationKey: [SAVE_KEY, companyId],
+    mutationFn: (body: JevSettingsPatch) => api.jev.setSettings(companyId, body),
     onSuccess: (next) => {
       queryClient.setQueryData(queryKeys.jev(companyId, 'settings'), next);
+      onSaved?.(next);
+    },
+    onSettled: () => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.jev(companyId, 'settings') });
       void queryClient.invalidateQueries({ queryKey: queryKeys.jev(companyId, 'judgments') });
     },
   });
 }
+
+/** Có lần lưu cấu hình nào đang chạy (ở bất kỳ nút nào): các nút lưu khóa nhau để thứ tự tới server không lẫn. */
+export function useJevSaving(companyId: string): boolean {
+  return useIsMutating({ mutationKey: [SAVE_KEY, companyId] }) > 0;
+}
+
+/** Làm tươi định kỳ, nhưng dừng khi route đã báo lỗi (ví dụ 503 vì chưa có migration): không hỏi mãi một route hỏng. */
+export const pollUnlessFailed = (query: { state: { status: string } }) =>
+  query.state.status === 'error' ? false : JEV_REFRESH_MS;
 
 /** Số ngày của thống kê từng tính năng (mặc định của server). */
 export const JUDGMENT_STATS_DAYS = 7;
@@ -124,18 +133,21 @@ export function useJudgmentStats(companyId: string, enabled: boolean) {
     queryFn: async () => parseJudgmentStats(await api.jev.judgmentStats(companyId, JUDGMENT_STATS_DAYS)),
     enabled,
     retry: false,
-    refetchInterval: JEV_REFRESH_MS,
+    refetchInterval: pollUnlessFailed,
   });
 }
 
-/** Ca lệch (50 dòng mới nhất) của một tính năng. */
+/** Ca lệch của một tính năng, 50 dòng mỗi trang (mới nhất trước), phân trang bằng `before`. */
 export function useMismatchJudgments(companyId: string, feature: JevFeatureId, enabled: boolean) {
-  return useQuery({
+  return useInfiniteQuery({
     queryKey: queryKeys.jev(companyId, 'judgments', 'mismatch', feature),
-    queryFn: async () => parseJudgments(await api.jev.judgments(companyId, { feature, mismatch: true })),
+    queryFn: async ({ pageParam }) =>
+      parseJudgmentsPage(await api.jev.judgments(companyId, { feature, mismatch: true, before: pageParam })),
+    initialPageParam: null as string | null,
+    getNextPageParam: (last) => last.nextBefore,
     enabled,
     retry: false,
-    refetchInterval: JEV_REFRESH_MS,
+    refetchInterval: pollUnlessFailed,
   });
 }
 
@@ -153,10 +165,11 @@ export function useInboxAttention(companyId: string, issueIds: readonly string[]
   const ids = issueIds.slice(0, INBOX_ATTENTION_MAX);
   return useQuery({
     queryKey: queryKeys.jev(companyId, 'attention', ids.join(',')),
-    queryFn: async () => parseAttention(await api.jev.inboxAttention(companyId, ids)),
+    queryFn: async () => parseAttentionState(await api.jev.inboxAttention(companyId, ids)),
     enabled: enabled && ids.length > 0,
     placeholderData: keepPreviousData,
     retry: false,
-    refetchInterval: ATTENTION_REFRESH_MS,
+    // Tính năng tắt, shadow hay công tắc chung tắt thì lần tải đầu đã cho biết, không hỏi lại định kỳ.
+    refetchInterval: (query) => (query.state.data?.on ? ATTENTION_REFRESH_MS : false),
   });
 }

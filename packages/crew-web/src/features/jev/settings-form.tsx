@@ -1,6 +1,5 @@
 // Form cấu hình Jev (S24.2): bật/tắt, chế độ gate, model, ngưỡng, timeout, C3 phía server. Chọn "Chặn thật" phải xác nhận.
 // Form dựng lại theo `version` của server, nên sau khi lưu hoặc có máy khác đổi cấu hình thì giá trị trên màn là bản mới nhất.
-import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { api, type JevGateMode, type JevSettings, type JevSettingsInput, queryKeys } from '@/api';
 import {
@@ -17,6 +16,7 @@ import {
   ToggleSwitch,
 } from '@/ds';
 import { useT } from '@/i18n';
+import { useJevSaving, useSaveJevSettings } from './use-jev';
 
 export const THRESHOLD_RANGE = { min: 0.3, max: 0.95 } as const;
 export const TIMEOUT_RANGE = { min: 500, max: 3000 } as const;
@@ -90,7 +90,6 @@ interface BodyProps {
 
 function SettingsFormBody({ companyId, settings, saved, onSaved }: BodyProps) {
   const { t } = useT('jev');
-  const queryClient = useQueryClient();
   const [gateMode, setGateMode] = useState<JevGateMode>(settings.gateMode);
   const [model, setModel] = useState(settings.model);
   const [threshold, setThreshold] = useState(String(settings.threshold));
@@ -99,13 +98,8 @@ function SettingsFormBody({ companyId, settings, saved, onSaved }: BodyProps) {
   const [errors, setErrors] = useState<FieldErrors>({});
   const [confirmEnforce, setConfirmEnforce] = useState(false);
 
-  const save = useMutation({
-    mutationFn: (body: JevSettingsInput) => api.jev.setSettings(companyId, body),
-    onSuccess: (next) => {
-      onSaved(next.version);
-      queryClient.setQueryData(queryKeys.jev(companyId, 'settings'), next);
-    },
-  });
+  const save = useSaveJevSettings(companyId, (next) => onSaved(next.version));
+  const saving = useJevSaving(companyId);
 
   const submit = () => {
     onSaved(null);
@@ -122,7 +116,9 @@ function SettingsFormBody({ companyId, settings, saved, onSaved }: BodyProps) {
       return;
     }
     setErrors({});
-    save.mutate(parsed.value);
+    // Chỉ các trường của form này; công tắc chung (`enabled`) và chế độ tính năng có chỗ lưu riêng.
+    const { enabled: _enabled, ...fields } = parsed.value;
+    save.mutate(fields);
   };
 
   return (
@@ -214,7 +210,7 @@ function SettingsFormBody({ companyId, settings, saved, onSaved }: BodyProps) {
       ) : null}
       {saved !== null ? <Alert variant="info">{t('settings.saved', { version: saved })}</Alert> : null}
       <div>
-        <Button type="submit" disabled={save.isPending}>
+        <Button type="submit" disabled={saving}>
           {save.isPending ? t('settings.saving') : t('settings.save')}
         </Button>
       </div>

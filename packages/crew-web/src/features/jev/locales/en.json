@@ -219,7 +219,7 @@
       "mismatch": "{{count}} mismatches",
       "escalated": "{{count}} unsure",
       "errors": "{{count}} errors",
-      "latency": "p50 {{p50}} · p95 {{p95}}",
+      "latency": "p50 {{p50}} · p95 {{p95}} ({{mode}} mode)",
       "none": "No calls yet.",
       "unavailable": "No stats yet."
     },

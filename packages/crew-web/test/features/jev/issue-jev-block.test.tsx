@@ -155,7 +155,6 @@ describe('IssueJevBlock', () => {
       const el = await screen.findByTestId('jev-complexity-flag');
       expect(within(el).getByText('Jev: nên là large')).toBeTruthy();
       expect(within(el).getByText(/Trợ Lý xếp: small\. Jev thấy việc này chạm bảo mật\/phân quyền\./)).toBeTruthy();
-      expect(el.getAttribute('title')).toBe(flag.reason);
       expect(screen.queryByRole('button', { name: /^Jev: \d+ lệnh/ })).toBeNull();
     });
 

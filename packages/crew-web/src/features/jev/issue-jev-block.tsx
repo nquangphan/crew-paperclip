@@ -33,7 +33,7 @@ export function IssueJevBlock({ issueId }: { issueId: string }) {
       <Card>
         <CardContent className="flex flex-col gap-3">
           {flag ? (
-            <div data-testid="jev-complexity-flag" title={flag.reason ?? undefined}>
+            <div data-testid="jev-complexity-flag">
               <Alert variant="warning" title={t(flag.kind === 'vision' ? 'complexity.vision' : 'complexity.flag')}>
                 {[
                   flag.declared ? t('complexity.declared', { level: flag.declared }) : null,

@@ -3,9 +3,11 @@ import {
   complexityFlagFor,
   parseApprovalNote,
   parseAttention,
+  parseAttentionState,
   parseComplexityFlag,
   parseJudgmentStats,
   parseJudgments,
+  parseJudgmentsPage,
   parseRequestType,
   sumFeatureStats,
 } from '@/features/jev/judge-adapter';
@@ -95,8 +97,9 @@ describe('thống kê và ca lệch', () => {
       mismatch: 3,
       escalated: 1,
       errors: 3,
+      mode: 'on',
       p50Ms: 400,
-      p95Ms: 1200,
+      p95Ms: 900,
     });
     expect(sumFeatureStats(rows, 'complexity')).toBeNull();
   });
@@ -178,5 +181,22 @@ describe('parseAttention', () => {
     expect(parseAttention(null).size).toBe(0);
     expect(parseAttention({ items: 'x' }).size).toBe(0);
     expect(parseAttention('boom').size).toBe(0);
+  });
+});
+
+describe('parseAttentionState và parseJudgmentsPage', () => {
+  it('chỉ chế độ on (và công tắc chung bật) mới tính là đang chạy, để dừng hỏi định kỳ', () => {
+    expect(parseAttentionState({ enabled: true, mode: 'on', items: [] }).on).toBe(true);
+    expect(parseAttentionState({ enabled: true, mode: 'shadow', items: [] }).on).toBe(false);
+    expect(parseAttentionState({ enabled: true, mode: 'off', items: [] }).on).toBe(false);
+    expect(parseAttentionState({ enabled: false, mode: 'on', items: [] }).on).toBe(false);
+    expect(parseAttentionState('hỏng').on).toBe(false);
+    expect(parseAttentionState([{ issueId: 'a', reasons: [{ kind: 'owner_decision', text: 'x' }] }]).on).toBe(true);
+  });
+
+  it('trang ca lệch giữ nextBefore', () => {
+    expect(parseJudgmentsPage({ items: [], nextBefore: '31' }).nextBefore).toBe('31');
+    expect(parseJudgmentsPage({ items: [], nextBefore: null }).nextBefore).toBeNull();
+    expect(parseJudgmentsPage('x')).toEqual({ items: [], nextBefore: null });
   });
 });

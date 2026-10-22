@@ -661,7 +661,8 @@ test('PW-S24-6 Trang Jev: công tắc chung có xác nhận, đổi chế độ 
   await page.getByRole('option', { name: 'Bật', exact: true }).click();
   await expect.poll(() => state.puts.length).toBe(1);
   expect(state.puts[0].features).toEqual({ request_type: 'on' });
-  expect(state.puts[0].enabled).toBe(true);
+  // Không gửi lại `enabled` hay trường gate từ cache.
+  expect(Object.keys(state.puts[0])).toEqual(['features']);
 
   // Công tắc chung: hỏi xác nhận, rồi tắt toàn bộ.
   await page.getByRole('button', { name: 'Tắt toàn bộ Jev' }).click();
@@ -672,15 +673,16 @@ test('PW-S24-6 Trang Jev: công tắc chung có xác nhận, đổi chế độ 
   expect(state.puts).toHaveLength(1);
   await confirm.getByRole('button', { name: 'Tắt toàn bộ Jev' }).click();
   await expect.poll(() => state.puts.length).toBe(2);
-  expect(state.puts[1].enabled).toBe(false);
-  expect(state.puts[1]).not.toHaveProperty('features');
+  expect(state.puts[1]).toEqual({ enabled: false });
   await expect(page.getByTestId('jev-master')).toHaveAttribute('data-enabled', 'false');
   await expect(page.getByRole('button', { name: 'Bật lại Jev' })).toBeVisible();
 
   // Màn hẹp.
-  await page.setViewportSize({ width: 390, height: 844 });
+  // Cao đủ để cả trang (kể cả bảng ca lệch) nằm trong khung nhìn, vì phần cuộn là khung main chứ không phải trang.
+  await page.setViewportSize({ width: 390, height: 2800 });
   await page.reload();
   await expect(page.getByTestId('jev-master')).toBeVisible();
+  await expect(page.getByTestId('jev-mismatch-row')).toHaveCount(2);
   await shot(page, 'jev-page-mobile');
 });
 
@@ -792,7 +794,9 @@ test('PW-S24-9 Form Yêu cầu mới: chip "Jev gợi ý" hiện sau khi ngừng
   const chip = dialog.getByTestId('jev-kind-chip');
   await expect(chip).toHaveText('Jev gợi ý: Nghiên cứu');
   expect(bodies).toHaveLength(1);
-  expect(bodies[0]).toMatchObject({ title: 'So sánh hai thư viện biểu đồ cho trang báo cáo', current: 'code' });
+  expect(bodies[0]).toMatchObject({ title: 'So sánh hai thư viện biểu đồ cho trang báo cáo' });
+  // Owner chưa chọn loại nào thì không gửi `current`.
+  expect(bodies[0]).not.toHaveProperty('current');
   await expect(dialog.getByRole('combobox', { name: 'Loại' })).toHaveText('Code');
   await shot(page, 'request-type-chip', dialog);
   await chip.click();
@@ -886,6 +890,8 @@ test('PW-S24-11 Cờ complexity: trang issue và thẻ bản đồ hiện "Jev: 
     await expect(mark).toHaveAttribute('title', /Trợ Lý xếp: small\. Jev thấy việc này chạm bảo mật/);
     await expect(card(root.id).locator('[data-slot="roadmap-jev-complexity"]')).toHaveCount(0);
     await expect(page.locator('[data-slot="roadmap-legend-complexity"]')).toHaveCount(1);
+    await page.getByRole('button', { name: 'Vừa màn hình' }).click();
+    await expect(mark).toBeInViewport();
     await shot(page, 'roadmap-complexity-flag');
 
     await page.goto(company.path(`issues/${child.identifier}`));

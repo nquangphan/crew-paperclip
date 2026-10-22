@@ -80,7 +80,6 @@ describe('Jev gợi ý loại yêu cầu', () => {
     expect(judgeCalls(s)[0].body).toEqual({
       title: 'So sánh hai thư viện biểu đồ cho báo cáo',
       description: '',
-      current: 'code',
     });
     // Loại vẫn là Code cho tới khi owner bấm chip.
     expect(screen.getByRole('combobox', { name: 'Loại' }).textContent).toBe('Code');

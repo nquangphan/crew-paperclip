@@ -70,7 +70,6 @@ describe('dialog duyệt góp ý: Jev gợi ý loại', () => {
     expect(s.calls.find((c) => c.url === JUDGE)?.body).toEqual({
       title: 'So sánh hai thư viện biểu đồ',
       description: 'Cần biết thư viện nào nhẹ hơn cho trang báo cáo',
-      current: 'code',
     });
     expect(screen.getByRole('combobox', { name: 'Loại' }).textContent).toContain('Code');
     fireEvent.click(chip);
