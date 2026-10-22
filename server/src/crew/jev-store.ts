@@ -292,7 +292,17 @@ export async function recordMachineEvents(db: Sql, companyId: string, machineId:
 
 export const JEV_CATEGORIES = ["rm_recursive", "no_verify", "force_push", "push_default", "pr_merge", "credential"] as const;
 export const JEV_VERDICTS = ["allow", "deny", "escalate", "error"] as const;
-export const JEV_GATE_ERROR_CODES = ["no_key", "timeout", "unreachable", "bad_response", "bad_event", "internal"] as const;
+export const JEV_GATE_ERROR_CODES = [
+  "no_key",
+  "timeout",
+  "unreachable",
+  "bad_response",
+  "bad_event",
+  "internal",
+  // Mac bỏ qua Jev vì đã đủ tiến trình nền, hoặc phải bỏ dòng cũ chưa đẩy khi `gate.log` vượt trần (`reason` = `dropped:<n>`).
+  "skipped_bg",
+  "dropped",
+] as const;
 export const JEV_LABELS = ["correct", "wrong"] as const;
 export type JevLabel = (typeof JEV_LABELS)[number];
 
