@@ -21,6 +21,24 @@ Có hai đường áp, cho cùng kết quả từng byte:
   Template được nhúng nguyên văn lúc build (`?raw`), và `render.ts` là bản port TypeScript của `render-instructions.mjs`;
   test chạy script gốc để so.
 
+## Loại yêu cầu Lập kế hoạch (`plan`)
+
+Giống loại `docs`: loại chỉ là nhãn Paperclip `plan` trên issue gốc 4 stage, con mang dòng `crew-kind plan`; server không
+đổi template hay gate. Marker và hành vi các template dạy:
+
+- Trợ Lý (`assistant.md`): làm rõ mục tiêu, ràng buộc, ngoài phạm vi, tiêu chí; điểm repo không trả lời được thì bắt buộc
+  hỏi owner bằng thẻ `ask_user_questions` và chờ trước khi tạo con. Chỉ tạo con `crew-kind plan` (thường một), không con
+  code, không con E2E, mô tả con chép đủ câu trả lời của owner. Tổng kết gốc có mục `### Kế hoạch` với dòng
+  `- File kế hoạch: \`<path>\``, lấy từ dòng `crew-plan-file path=<path>` của executor. Yêu cầu Code có dòng
+  `crew-from-plan <path>`: đọc plan trên `origin/HEAD` (thiếu file thì hỏi owner merge pull request kế hoạch), tách con
+  theo các bước của plan, không brainstorm lại phạm vi đã chốt.
+- Executor (`executor.md`): làm như issue tài liệu; đặt file theo quy ước repo, mặc định `plans/<yymmdd-hhmm>-<slug>/plan.md`
+  và `docs/superpowers/specs/<yyyy-mm-dd>-<slug>-design.md`; brainstorm tự trả lời rồi `writing-plans`; plan có mục tiêu,
+  phạm vi, tiêu chí, các bước kèm file và lệnh kiểm, rủi ro, giả định; comment báo xong có `crew-plan-file path=<path>`.
+- Reviewer (`reviewer.md`): diff chỉ file plan/spec, kiểm đủ mục, bước cụ thể, bám câu trả lời của owner; gốc kế hoạch
+  không đòi con E2E.
+- Integrator (`integrator.md`): không đòi con E2E cho gốc nhãn `plan`; đường pull request giữ nguyên.
+
 ## Điểm vào
 
 - `crew/agents/apply-roles.sh agent <agentId> <vai trò> <thư mục ghim> [...]` với vai trò `assistant`, `executor`,
@@ -97,7 +115,8 @@ Có hai đường áp, cho cùng kết quả từng byte:
 
 - `crew/agents/instructions.test.mjs`: luật chung của mọi template (cấm xóa đệ quy ngoài thư mục tạm), dòng mẫu
   `crew-docs-check`, `crew-merge`, `crew-fix`, `crew-commit`, `crew-review` khớp định dạng và regex của server, cách
-  integrator nhận diện stage.
+  integrator nhận diện stage. Loại yêu cầu Lập kế hoạch: Trợ Lý nhận bằng nhãn `plan`, hỏi owner trước khi tạo con, chỉ tạo con `crew-kind plan`
+  và ghi `- File kế hoạch:` trong tổng kết; executor, reviewer, integrator có luật tương ứng.
 - `crew/agents/integrator-pr.test.mjs`: script mở pull request của integrator: mở mới, dùng lại, đã merge, origin không
   ở GitHub, `gh` chưa đăng nhập, nhánh đã đi khác (không `--force`), lỗi tạo PR có credential bị che, đầu vào sai.
 - `crew/agents/apply-roles.test.mjs`: thứ tự đọc → upload → PATCH, dừng trước khi ghi khi không đọc được, vai trò BMAD và

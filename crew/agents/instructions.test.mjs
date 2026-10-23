@@ -557,7 +557,7 @@ test("executor: issue tài liệu tạo nhánh và commit như code, không TDD,
     "`tests=none-docs-only`",
     "Ảnh nghiệm thu vẫn bắt buộc",
   ]) assert.ok(body.includes(needle), `thiếu: ${needle}`);
-  assert.match(text, /Với issue code \(kể cả issue tài liệu `crew-kind docs`\), \*\*nhánh trước tiên\*\*/);
+  assert.match(text, /Với issue code \(kể cả issue tài liệu `crew-kind docs` và issue kế hoạch `crew-kind plan`\), \*\*nhánh trước tiên\*\*/);
   assert.ok(text.indexOf("## Issue research") < text.indexOf("## Issue tài liệu"));
   // Mục research vẫn cấm nhánh và commit: tài liệu không đi theo đường research.
   assert.match(section(text, "## Issue research (`crew-kind research`)"), /không tạo nhánh, không sửa file, không commit/);
@@ -895,6 +895,69 @@ test("executor: mục Codex/OpenCode đọc SKILL.md ghim, workflow-check theo r
   const before = section(text, "## Trước khi làm");
   assert.match(before, /Comment bắt đầu bằng `Crew: chuyển runtime sau run …`[^\n]*như comment `Crew: lần chạy lại sau run …`/);
   assert.match(before, /`git switch crew\/<identifier>`/);
+});
+
+test("assistant: yêu cầu lập kế hoạch nhận bằng nhãn plan, hỏi owner trước khi tạo con, chỉ con crew-kind plan, tổng kết có File kế hoạch", () => {
+  const text = read("assistant");
+  assert.ok(text.split("\n").some((l) => l.trim().replace(/^`|`$/g, "") === "crew-kind plan"));
+  for (const needle of [
+    "4 stage mà `labels` của issue gốc có nhãn tên `plan` là yêu cầu **lập kế hoạch**",
+    "**bắt buộc** hỏi owner bằng thẻ câu hỏi `ask_user_questions`",
+    "**trước khi tạo con**",
+    "Yêu cầu lập kế hoạch chỉ có con kế hoạch (dòng `crew-kind plan`, thường là một con), không con code, không con E2E",
+    "mô tả con chép đủ câu trả lời của owner",
+    "Chỉ ghi dòng `crew-kind plan` với con của yêu cầu lập kế hoạch, kể cả con sửa",
+    "vẫn có dòng `crew-kind plan`",
+    "Yêu cầu chỉ research, tài liệu hoặc lập kế hoạch thì không cần con E2E",
+    "### Kế hoạch\n- File kế hoạch: `<path>`",
+    "`crew-plan-file path=<path>`",
+  ]) assert.ok(text.includes(needle), `thiếu: ${needle}`);
+  // Yêu cầu code theo plan: đọc plan trên origin/HEAD, thiếu file thì hỏi owner, không brainstorm lại.
+  assert.match(text, /dòng `crew-from-plan <path>` trong mô tả: đọc plan đó trên `origin\/HEAD`/);
+  assert.match(text, /Thiếu file thì hỏi owner merge pull request kế hoạch bằng thẻ câu hỏi/);
+  assert.match(text, /không brainstorm lại phạm vi đã chốt/);
+});
+
+test("executor: issue kế hoạch đặt file theo quy ước repo, brainstorm tự trả lời rồi writing-plans, plan đủ mục, báo crew-plan-file", () => {
+  const text = read("executor");
+  const body = section(text, "## Issue kế hoạch (`crew-kind plan`)");
+  for (const needle of [
+    "Làm như issue tài liệu",
+    "quy ước của repo",
+    "`plans/<yymmdd-hhmm>-<slug>/plan.md`",
+    "`docs/superpowers/specs/<yyyy-mm-dd>-<slug>-design.md`",
+    "`superpowers:brainstorming`",
+    "không hỏi trong terminal",
+    "`superpowers:writing-plans`",
+    "mục tiêu; phạm vi và ngoài phạm vi; tiêu chí nghiệm thu; các bước, mỗi bước kèm file chạm vào và lệnh kiểm; rủi ro; giả định",
+    "`crew-plan-file path=<đường dẫn plan tính từ gốc repo>`",
+    "Ảnh nghiệm thu: render file plan",
+  ]) assert.ok(body.includes(needle), `thiếu: ${needle}`);
+  assert.match(text, /Với issue code \(kể cả issue tài liệu `crew-kind docs` và issue kế hoạch `crew-kind plan`\), \*\*nhánh trước tiên\*\*/);
+  assert.ok(text.indexOf("## Issue tài liệu") < text.indexOf("## Issue kế hoạch"));
+});
+
+test("reviewer: issue kế hoạch diff chỉ file plan/spec, kiểm đủ mục, bước cụ thể, bám câu trả lời owner; gốc kế hoạch không đòi E2E", () => {
+  const text = read("reviewer");
+  const body = section(text, "## Issue kế hoạch (`crew-kind plan`)");
+  for (const needle of [
+    "`crew-review sha=<40 hex> verdict=approved`",
+    "chỉ được có file plan và spec",
+    "mục tiêu; phạm vi và ngoài phạm vi; tiêu chí nghiệm thu; các bước kèm file chạm vào và lệnh kiểm; rủi ro; giả định",
+    "file được nêu có thật",
+    "Bám câu trả lời của owner",
+    "không mâu thuẫn code và docs hiện có",
+    "`crew-plan-file path=<path>`",
+    "Không chạy test code",
+  ].map((n) => n.replace("không mâu thuẫn", "Không mâu thuẫn")).filter(Boolean)) {
+    assert.ok(body.toLowerCase().includes(needle.toLowerCase()), `thiếu: ${needle}`);
+  }
+  assert.ok(text.indexOf("## Issue tài liệu") < text.indexOf("## Issue kế hoạch") && text.indexOf("## Issue kế hoạch") < text.indexOf("## Issue BMAD"));
+  assert.match(text, /gốc có nhãn `plan` \(chỉ có con kế hoạch\) không đòi con E2E/);
+});
+
+test("integrator: gốc nhãn plan không đòi con E2E", () => {
+  assert.match(read("integrator"), /issue gốc có nhãn `plan`, chỉ có con `crew-kind plan`\) không có code nên không đòi con E2E/);
 });
 
 test("reviewer: mục chạy bằng Codex giữ luật duyệt, chỉ nhận issue con code", () => {
