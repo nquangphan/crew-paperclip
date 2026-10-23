@@ -6,7 +6,16 @@ const BASE = '/api/crew/companies/c1';
 
 describe('machinePins', () => {
   it('danh sách máy cho form gửi projectId ở query và trả items', async () => {
-    const item = { machineId: 'm1', hostname: 'Phans-Mac-mini', online: true, status: null, running: 0, load1: 1, cpuCount: 10, memFreePct: 54 };
+    const item = {
+      machineId: 'm1',
+      hostname: 'Phans-Mac-mini',
+      online: true,
+      status: null,
+      running: 0,
+      load1: 1,
+      cpuCount: 10,
+      memFreePct: 54,
+    };
     const { calls } = mockServer({ [`GET ${BASE}/machines`]: { body: { items: [item] } } });
     expect(await api.machinePins.candidates('c1', 'p1')).toEqual([item]);
     expect(calls[0]?.url).toBe(`${BASE}/machines?projectId=p1`);
@@ -33,7 +42,11 @@ describe('machinePins', () => {
     expect(await api.machinePins.projectMachines('c1', 'p1')).toEqual({ repo, machines: [] });
     expect(await api.machinePins.addMachine('c1', 'p1', 'm1')).toEqual({ status: 'provisioning' });
     expect(await api.machinePins.setRepo('c1', 'p1', repo)).toEqual(repo);
-    expect(calls.map((c) => [c.method, c.body])).toEqual([['GET', null], ['POST', { machineId: 'm1' }], ['PUT', repo]]);
+    expect(calls.map((c) => [c.method, c.body])).toEqual([
+      ['GET', null],
+      ['POST', { machineId: 'm1' }],
+      ['PUT', repo],
+    ]);
   });
 
   it('blockers, release, provisionOthers: đúng đường, query và body', async () => {

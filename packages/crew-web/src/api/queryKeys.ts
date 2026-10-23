@@ -82,7 +82,8 @@ export const queryKeys = {
   projectAccess: (companyId: string) => ['project-access', companyId, 'me'] as const,
   projectAccessAll: (companyId: string) => ['project-access', companyId, 'all'] as const,
   /** Máy cho form tạo yêu cầu gốc, máy của một yêu cầu, máy và repo của project. */
-  machineCandidates: (companyId: string, projectId: string) => ['machines', companyId, 'candidates', projectId] as const,
+  machineCandidates: (companyId: string, projectId: string) =>
+    ['machines', companyId, 'candidates', projectId] as const,
   issueMachine: (issueId: string) => ['machines', 'issue', issueId] as const,
   projectMachines: (projectId: string) => ['machines', 'project', projectId] as const,
   members: (companyId: string) => ['members', companyId] as const,

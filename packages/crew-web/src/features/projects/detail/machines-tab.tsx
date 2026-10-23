@@ -72,12 +72,24 @@ export function MachinesTab({ projectId }: { projectId: string }) {
   );
 }
 
-function MachineRow({ machine, canAdd, busy, onAdd }: { machine: ProjectMachine; canAdd: boolean; busy: boolean; onAdd: () => void }) {
+function MachineRow({
+  machine,
+  canAdd,
+  busy,
+  onAdd,
+}: {
+  machine: ProjectMachine;
+  canAdd: boolean;
+  busy: boolean;
+  onAdd: () => void;
+}) {
   const { t, lang } = useT('projects');
   return (
     <li className="flex flex-wrap items-center gap-2">
       <strong>{machine.hostname}</strong>
-      <Badge variant={machine.online ? 'secondary' : 'outline'}>{t(machine.online ? 'machines.online' : 'machines.offline')}</Badge>
+      <Badge variant={machine.online ? 'secondary' : 'outline'}>
+        {t(machine.online ? 'machines.online' : 'machines.offline')}
+      </Badge>
       <span>{t(`machines.status.${machine.status ?? 'none'}`)}</span>
       {machine.error ? <Badge variant="destructive">{machine.error}</Badge> : null}
       {machine.repoPath ? <MutedText>{t('machines.repoPath', { path: machine.repoPath })}</MutedText> : null}
@@ -117,27 +129,59 @@ function RepoCard({ projectId, repo, canEdit }: { projectId: string; repo: Proje
         {canEdit ? (
           <>
             <Field label={t('machines.repo.origin')} htmlFor="project-repo-origin">
-              <Input id="project-repo-origin" value={form.originUrl} onChange={(e) => setForm({ ...form, originUrl: e.target.value.trim() })} />
+              <Input
+                id="project-repo-origin"
+                value={form.originUrl}
+                onChange={(e) => setForm({ ...form, originUrl: e.target.value.trim() })}
+              />
             </Field>
             <Field label={t('machines.repo.branch')} htmlFor="project-repo-branch">
-              <Input id="project-repo-branch" value={form.branch} onChange={(e) => setForm({ ...form, branch: e.target.value.trim() })} />
+              <Input
+                id="project-repo-branch"
+                value={form.branch}
+                onChange={(e) => setForm({ ...form, branch: e.target.value.trim() })}
+              />
             </Field>
             <strong>{t('machines.repo.companions')}</strong>
             {form.companions.map((companion, index) => (
+              // biome-ignore lint/suspicious/noArrayIndexKey: ô nhập có điều khiển, tên còn đang gõ nên không làm khóa được.
               <span key={index} className="flex flex-wrap items-center gap-2">
-                <Input aria-label={t('machines.repo.companionName')} value={companion.name} onChange={(e) => setCompanion(index, { name: e.target.value.trim() })} />
-                <Input aria-label={t('machines.repo.companionOrigin')} value={companion.originUrl} onChange={(e) => setCompanion(index, { originUrl: e.target.value.trim() })} />
-                <Button type="button" size="sm" variant="ghost" onClick={() => setForm({ ...form, companions: form.companions.filter((_, i) => i !== index) })}>
+                <Input
+                  aria-label={t('machines.repo.companionName')}
+                  value={companion.name}
+                  onChange={(e) => setCompanion(index, { name: e.target.value.trim() })}
+                />
+                <Input
+                  aria-label={t('machines.repo.companionOrigin')}
+                  value={companion.originUrl}
+                  onChange={(e) => setCompanion(index, { originUrl: e.target.value.trim() })}
+                />
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => setForm({ ...form, companions: form.companions.filter((_, i) => i !== index) })}
+                >
                   {t('machines.repo.remove')}
                 </Button>
               </span>
             ))}
             <span className="flex gap-2">
-              <Button type="button" size="sm" variant="outline" disabled={form.companions.length >= 5}
-                onClick={() => setForm({ ...form, companions: [...form.companions, { name: '', originUrl: '' }] })}>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                disabled={form.companions.length >= 5}
+                onClick={() => setForm({ ...form, companions: [...form.companions, { name: '', originUrl: '' }] })}
+              >
                 {t('machines.repo.addCompanion')}
               </Button>
-              <Button type="button" size="sm" disabled={form.originUrl === '' || save.isPending} onClick={() => save.mutate()}>
+              <Button
+                type="button"
+                size="sm"
+                disabled={form.originUrl === '' || save.isPending}
+                onClick={() => save.mutate()}
+              >
                 {save.isPending ? t('machines.repo.saving') : t('machines.repo.save')}
               </Button>
             </span>
@@ -146,8 +190,14 @@ function RepoCard({ projectId, repo, canEdit }: { projectId: string; repo: Proje
           </>
         ) : repo ? (
           <ul className="flex flex-col gap-1">
-            <li>{repo.originUrl} ({repo.branch})</li>
-            {repo.companions.map((c) => <li key={c.name}>{c.name}: {c.originUrl}</li>)}
+            <li>
+              {repo.originUrl} ({repo.branch})
+            </li>
+            {repo.companions.map((c) => (
+              <li key={c.name}>
+                {c.name}: {c.originUrl}
+              </li>
+            ))}
           </ul>
         ) : null}
       </CardContent>

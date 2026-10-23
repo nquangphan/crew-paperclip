@@ -137,7 +137,8 @@ function RequestForm({
   const noRoles = projectId !== '' && roles.isSuccess && assistantId === null;
 
   // Project điền sẵn mà chưa sẵn sàng hay owner không thấy thì ô Project trống, nên chưa cho gửi tới khi chọn lại.
-  const ready = readyProjects.some((p) => p.id === projectId) && assistantId !== null && title.trim() !== '' && !create.isPending;
+  const ready =
+    readyProjects.some((p) => p.id === projectId) && assistantId !== null && title.trim() !== '' && !create.isPending;
 
   const submit = (draft: boolean) => {
     if (!ready || assistantId === null) return;

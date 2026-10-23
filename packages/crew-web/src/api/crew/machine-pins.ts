@@ -13,7 +13,11 @@ import type {
 export const machinePinsApi = {
   /** Máy đã ghép của company kèm số run, tải và trạng thái project trên máy (form tạo yêu cầu gốc). */
   candidates: async (companyId: string, projectId: string): Promise<MachineCandidate[]> => {
-    const res: { items: MachineCandidate[] } = await call('machinePin.candidates', { companyId }, { query: { projectId } });
+    const res: { items: MachineCandidate[] } = await call(
+      'machinePin.candidates',
+      { companyId },
+      { query: { projectId } },
+    );
     return res.items;
   },
   /** Máy của cả cây chứa yêu cầu này. */

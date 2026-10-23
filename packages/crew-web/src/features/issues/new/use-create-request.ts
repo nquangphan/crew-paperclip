@@ -80,7 +80,10 @@ export async function uploadAttachments(companyId: string, issueId: string, file
 export async function createRequest(input: CreateRequestInput): Promise<CreateRequestResult> {
   const machineId = input.machineId;
   // Chọn máy: tạo ở dạng nháp, ghim máy, rồi mới chuyển Cần làm, để Trợ Lý không chạy trước khi máy được ghim.
-  const issue = await api.issues.create(input.companyId, buildCreateBody({ ...input, draft: input.draft || machineId !== null }));
+  const issue = await api.issues.create(
+    input.companyId,
+    buildCreateBody({ ...input, draft: input.draft || machineId !== null }),
+  );
   let machineError: string | null = null;
   if (machineId !== null) {
     try {

@@ -140,7 +140,6 @@
     "machineBuildFailed": "dựng hỏng"
   },
   "detail": {
-    "back": "Về danh sách yêu cầu",
     "loadFailed": "Không tải được yêu cầu",
     "copyId": "Copy mã",
     "copyLink": "Copy link",

@@ -140,7 +140,6 @@
     "machineBuildFailed": "setup failed"
   },
   "detail": {
-    "back": "Back to requests",
     "loadFailed": "Could not load the request",
     "copyId": "Copy ID",
     "copyLink": "Copy link",

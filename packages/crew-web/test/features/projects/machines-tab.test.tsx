@@ -16,11 +16,39 @@ afterEach(cleanup);
 const COMPANY = { id: 'c1', name: '2P', issuePrefix: 'TPS' };
 const URL = '/api/crew/companies/c1/projects/p1/machines';
 const DATA = {
-  repo: { originUrl: 'git@github.com:nquangphan/kidy_school.git', branch: 'main', companions: [{ name: 'kidy_school_2.0_docs', originUrl: 'git@github.com:nquangphan/kidy_school_2.0_docs.git' }] },
+  repo: {
+    originUrl: 'git@github.com:nquangphan/kidy_school.git',
+    branch: 'main',
+    companions: [{ name: 'kidy_school_2.0_docs', originUrl: 'git@github.com:nquangphan/kidy_school_2.0_docs.git' }],
+  },
   machines: [
-    { machineId: 'm-book', hostname: 'Phans-MacBook-Pro', online: true, status: 'ready', error: null, repoPath: '/Users/a/Documents/projects/kidy_school', updatedAt: '2026-10-24T01:00:00.000Z' },
-    { machineId: 'm-mini', hostname: 'Phans-Mac-mini', online: true, status: null, error: null, repoPath: null, updatedAt: null },
-    { machineId: 'm-old', hostname: 'Mac-cu', online: false, status: 'failed', error: 'GitHub từ chối key SSH', repoPath: null, updatedAt: '2026-10-23T01:00:00.000Z' },
+    {
+      machineId: 'm-book',
+      hostname: 'Phans-MacBook-Pro',
+      online: true,
+      status: 'ready',
+      error: null,
+      repoPath: '/Users/a/Documents/projects/kidy_school',
+      updatedAt: '2026-10-24T01:00:00.000Z',
+    },
+    {
+      machineId: 'm-mini',
+      hostname: 'Phans-Mac-mini',
+      online: true,
+      status: null,
+      error: null,
+      repoPath: null,
+      updatedAt: null,
+    },
+    {
+      machineId: 'm-old',
+      hostname: 'Mac-cu',
+      online: false,
+      status: 'failed',
+      error: 'GitHub từ chối key SSH',
+      repoPath: null,
+      updatedAt: '2026-10-23T01:00:00.000Z',
+    },
   ],
 };
 const mount = () =>
@@ -58,19 +86,28 @@ describe('tab Máy của project', () => {
   it('owner sửa origin và repo đi kèm', async () => {
     const { calls } = mockServer({
       [`GET ${URL}`]: { body: { ...DATA, repo: null } },
-      'PUT /api/crew/companies/c1/projects/p1/repo': { body: { originUrl: 'git@github.com:o/r.git', branch: 'main', companions: [] } },
+      'PUT /api/crew/companies/c1/projects/p1/repo': {
+        body: { originUrl: 'git@github.com:o/r.git', branch: 'main', companions: [] },
+      },
     });
     mount();
     fireEvent.change(await screen.findByLabelText('Origin repo'), { target: { value: 'git@github.com:o/r.git' } });
     fireEvent.click(screen.getByRole('button', { name: 'Lưu repo' }));
     await waitFor(() => expect(calls.some((c) => c.method === 'PUT')).toBe(true));
-    expect(calls.find((c) => c.method === 'PUT')?.body).toEqual({ originUrl: 'git@github.com:o/r.git', branch: 'main', companions: [] });
+    expect(calls.find((c) => c.method === 'PUT')?.body).toEqual({
+      originUrl: 'git@github.com:o/r.git',
+      branch: 'main',
+      companions: [],
+    });
   });
 
   it('repo sai thì hiện lời server', async () => {
     mockServer({
       [`GET ${URL}`]: () => ({ body: { ...DATA, repo: null } }),
-      'PUT /api/crew/companies/c1/projects/p1/repo': () => ({ status: 422, body: { error: 'Origin không hợp lệ', code: 'crew_machine_invalid' } }),
+      'PUT /api/crew/companies/c1/projects/p1/repo': () => ({
+        status: 422,
+        body: { error: 'Origin không hợp lệ', code: 'crew_machine_invalid' },
+      }),
     });
     mount();
     fireEvent.change(await screen.findByLabelText('Origin repo'), { target: { value: 'bad' } });
@@ -84,7 +121,9 @@ describe('tab Máy của project', () => {
       [`GET ${URL}`]: { body: { repo: null, machines: [] } },
     });
     mount();
-    expect(await screen.findByText('Chưa có máy nào được ghép. Máy chưa ghép, mở app 2P Crew → Máy → Ghép.')).toBeTruthy();
+    expect(
+      await screen.findByText('Chưa có máy nào được ghép. Máy chưa ghép, mở app 2P Crew → Máy → Ghép.'),
+    ).toBeTruthy();
     expect(screen.queryByRole('button', { name: 'Lưu repo' })).toBeNull();
   });
 });

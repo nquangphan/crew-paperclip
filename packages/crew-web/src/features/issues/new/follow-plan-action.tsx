@@ -18,12 +18,18 @@ export function FollowPlanAction({ issue }: { issue: Issue }) {
   const { t } = useT('issues');
   const { readOnly } = useCompanyAccess();
   const [open, setOpen] = useState(false);
-  const [created, setCreated] = useState<{ identifier: string; draft: boolean; failedUploads: string[]; machineError: string | null } | null>(
-    null,
-  );
+  const [created, setCreated] = useState<{
+    identifier: string;
+    draft: boolean;
+    failedUploads: string[];
+    machineError: string | null;
+  } | null>(null);
   if (readOnly || !canFollowPlan(issue)) return null;
   const onCreated = (made: Issue, info: CreatedRequest) =>
-    setCreated({ identifier: made.identifier ?? made.id, draft: info.draft, failedUploads: info.failedUploads,
+    setCreated({
+      identifier: made.identifier ?? made.id,
+      draft: info.draft,
+      failedUploads: info.failedUploads,
       machineError: info.machineError,
     });
   return (
@@ -43,7 +49,9 @@ export function FollowPlanAction({ issue }: { issue: Issue }) {
       {created ? (
         <Alert
           variant="info"
-          title={t(created.draft ? 'followPlan.createdDraft' : 'followPlan.created', { identifier: created.identifier })}
+          title={t(created.draft ? 'followPlan.createdDraft' : 'followPlan.created', {
+            identifier: created.identifier,
+          })}
         >
           <IssueLink identifier={created.identifier}>{t('followPlan.open')}</IssueLink>
         </Alert>

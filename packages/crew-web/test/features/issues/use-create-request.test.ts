@@ -41,9 +41,9 @@ describe('buildCreateBody', () => {
 
   it('Lập kế hoạch gửi nhãn plan', () => {
     expect(buildCreateBody({ ...base, kind: 'plan' })).toMatchObject({ labelIds: ['l-plan'] });
-    expect(() => buildCreateBody({ ...base, kind: 'plan', kindLabelIds: { ...base.kindLabelIds, plan: null } })).toThrow(
-      'Company chưa có nhãn “plan” nên chưa chọn được loại Lập kế hoạch.',
-    );
+    expect(() =>
+      buildCreateBody({ ...base, kind: 'plan', kindLabelIds: { ...base.kindLabelIds, plan: null } }),
+    ).toThrow('Company chưa có nhãn “plan” nên chưa chọn được loại Lập kế hoạch.');
   });
 
   it('Viết tài liệu gửi nhãn docs', () => {
@@ -61,13 +61,13 @@ describe('buildCreateBody', () => {
 
   it('câu lỗi thiếu nhãn research theo ngôn ngữ đang chọn', async () => {
     await setLanguage('en');
-    expect(() => buildCreateBody({ ...base, kind: 'research', kindLabelIds: { research: null, docs: null, plan: null } })).toThrow(
-      'The company has no “research” label, so the Research type is unavailable.',
-    );
+    expect(() =>
+      buildCreateBody({ ...base, kind: 'research', kindLabelIds: { research: null, docs: null, plan: null } }),
+    ).toThrow('The company has no “research” label, so the Research type is unavailable.');
     await setLanguage('vi');
-    expect(() => buildCreateBody({ ...base, kind: 'research', kindLabelIds: { research: null, docs: null, plan: null } })).toThrow(
-      'Company chưa có nhãn “research” nên chưa chọn được loại Nghiên cứu.',
-    );
+    expect(() =>
+      buildCreateBody({ ...base, kind: 'research', kindLabelIds: { research: null, docs: null, plan: null } }),
+    ).toThrow('Company chưa có nhãn “research” nên chưa chọn được loại Nghiên cứu.');
   });
 
   it('lưu nháp là backlog; không bao giờ có policy hay reviewer', () => {
@@ -152,7 +152,12 @@ describe('createRequest', () => {
         return { body: { id: 'i1', identifier: 'TPS-9', status: 'todo' } };
       },
     });
-    const result = await createRequest({ ...base, kind: 'code', machineId: 'm-mini', files: [new File(['1'], 'a.png')] });
+    const result = await createRequest({
+      ...base,
+      kind: 'code',
+      machineId: 'm-mini',
+      files: [new File(['1'], 'a.png')],
+    });
     expect(order).toEqual(['create:backlog', 'pin', 'upload', 'todo']);
     expect(result).toMatchObject({ machineError: null, failedUploads: [], issue: { status: 'todo' } });
   });
@@ -173,7 +178,9 @@ describe('createRequest', () => {
   it('chuyển Cần làm lỗi sau khi ghim: vẫn trả yêu cầu kèm lỗi, không tạo lần hai', async () => {
     const { calls } = mockServer({
       'POST /api/companies/c1/issues': { status: 201, body: { id: 'i1', identifier: 'TPS-9', status: 'backlog' } },
-      'PUT /api/crew/companies/c1/issues/i1/machine': { body: { rootIssueId: 'i1', isRoot: true, locked: false, pin: null } },
+      'PUT /api/crew/companies/c1/issues/i1/machine': {
+        body: { rootIssueId: 'i1', isRoot: true, locked: false, pin: null },
+      },
       'PATCH /api/issues/i1': { status: 500, body: { error: 'máy chủ lỗi' } },
     });
     const result = await createRequest({ ...base, kind: 'code', machineId: 'm-mini', files: [] });

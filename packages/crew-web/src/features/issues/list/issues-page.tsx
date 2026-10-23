@@ -415,7 +415,9 @@ export function IssuesPage() {
             {notice.failedUploads.length > 0 ? (
               <ErrorState title={t('page.uploadFailed', { names: notice.failedUploads.join(', ') })} />
             ) : null}
-            {notice.machineError ? <ErrorState title={t('page.machineFailed', { error: notice.machineError })} /> : null}
+            {notice.machineError ? (
+              <ErrorState title={t('page.machineFailed', { error: notice.machineError })} />
+            ) : null}
           </CardContent>
         </Card>
       ) : null}

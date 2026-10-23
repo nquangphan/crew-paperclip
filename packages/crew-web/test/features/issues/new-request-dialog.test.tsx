@@ -211,7 +211,9 @@ describe('NewRequestDialog', () => {
       'crew-from-plan plans/x/plan.md\nKế hoạch: TPS-7',
     );
     expect(await screen.findByText('Trợ Lý Alpha')).toBeTruthy();
-    await waitFor(() => expect((screen.getByRole('button', { name: 'Tạo' }) as HTMLButtonElement).disabled).toBe(false));
+    await waitFor(() =>
+      expect((screen.getByRole('button', { name: 'Tạo' }) as HTMLButtonElement).disabled).toBe(false),
+    );
     fireEvent.click(screen.getByRole('button', { name: 'Tạo' }));
     await waitFor(() => expect(posts(calls)).toHaveLength(1));
     expect(posts(calls)[0].body).toMatchObject({
@@ -389,11 +391,56 @@ describe('NewRequestDialog', () => {
 
 const MACHINES = {
   items: [
-    { machineId: 'm-mini', hostname: 'Phans-Mac-mini', online: true, status: null, running: 0, load1: 1.2, cpuCount: 10, memFreePct: 54 },
-    { machineId: 'm-book', hostname: 'Phans-MacBook-Pro', online: true, status: 'ready', running: 2, load1: 3.9, cpuCount: 12, memFreePct: 60 },
-    { machineId: 'm-prov', hostname: 'Mac-dang-dung', online: true, status: 'provisioning', running: 0, load1: 0.5, cpuCount: 8, memFreePct: 50 },
-    { machineId: 'm-bad', hostname: 'Mac-hong', online: true, status: 'failed', running: 1, load1: 0.7, cpuCount: 8, memFreePct: 50 },
-    { machineId: 'm-off', hostname: 'Mac-cu', online: false, status: 'ready', running: 0, load1: null, cpuCount: null, memFreePct: null },
+    {
+      machineId: 'm-mini',
+      hostname: 'Phans-Mac-mini',
+      online: true,
+      status: null,
+      running: 0,
+      load1: 1.2,
+      cpuCount: 10,
+      memFreePct: 54,
+    },
+    {
+      machineId: 'm-book',
+      hostname: 'Phans-MacBook-Pro',
+      online: true,
+      status: 'ready',
+      running: 2,
+      load1: 3.9,
+      cpuCount: 12,
+      memFreePct: 60,
+    },
+    {
+      machineId: 'm-prov',
+      hostname: 'Mac-dang-dung',
+      online: true,
+      status: 'provisioning',
+      running: 0,
+      load1: 0.5,
+      cpuCount: 8,
+      memFreePct: 50,
+    },
+    {
+      machineId: 'm-bad',
+      hostname: 'Mac-hong',
+      online: true,
+      status: 'failed',
+      running: 1,
+      load1: 0.7,
+      cpuCount: 8,
+      memFreePct: 50,
+    },
+    {
+      machineId: 'm-off',
+      hostname: 'Mac-cu',
+      online: false,
+      status: 'ready',
+      running: 0,
+      load1: null,
+      cpuCount: null,
+      memFreePct: null,
+    },
   ],
 };
 const MINI_LABEL = 'Phans-Mac-mini · 0 run · load 1,2 · sẽ dựng lần đầu';
@@ -401,7 +448,13 @@ const PIN_VIEW = {
   rootIssueId: 'i-new',
   isRoot: true,
   locked: false,
-  pin: { machineId: 'm-mini', hostname: 'Phans-Mac-mini', source: 'owner', reason: {}, pinnedAt: '2026-10-24T01:00:00.000Z' },
+  pin: {
+    machineId: 'm-mini',
+    hostname: 'Phans-Mac-mini',
+    source: 'owner',
+    reason: {},
+    pinnedAt: '2026-10-24T01:00:00.000Z',
+  },
 };
 const machineTrigger = () => screen.findByRole('combobox', { name: 'Máy thực thi' });
 
@@ -421,7 +474,9 @@ describe('Máy thực thi', () => {
     const trigger = await machineTrigger();
     expect(trigger.textContent).toContain('Tự chọn');
     fireEvent.keyDown(trigger, { key: 'Enter' });
-    await waitFor(() => expect(within(screen.getByRole('listbox')).getByRole('option', { name: MINI_LABEL })).toBeTruthy());
+    await waitFor(() =>
+      expect(within(screen.getByRole('listbox')).getByRole('option', { name: MINI_LABEL })).toBeTruthy(),
+    );
     const list = within(screen.getByRole('listbox'));
     expect(list.getByRole('option', { name: MINI_LABEL })).toBeTruthy();
     expect(list.getByRole('option', { name: 'Phans-MacBook-Pro · 2 run · load 3,9' })).toBeTruthy();
