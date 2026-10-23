@@ -205,6 +205,11 @@ suite("cổng ghim máy của H1 (Postgres)", () => {
     expect(await actions(run.id, MACHINE_WAITING_ACTION)).toHaveLength(1);
     expect((await comments(w.root)).filter((c) => c.body.includes("không còn ghép"))).toHaveLength(1);
     expect(await jobs(w.companyId)).toHaveLength(0);
+    expect(await evaluateMachineGate(db, run, new Date(Date.now() + 59 * 60_000))).toEqual({ action: "hold" });
+    expect(await evaluateMachineGate(db, run, new Date(Date.now() + 61 * 60_000))).toEqual({
+      action: "fail", issueId: w.root, reason: "máy Phans-Mac-mini đã gỡ ghép khỏi Crew và chưa được ghép lại sau 60 phút chờ",
+    });
+    expect((await comments(w.root)).filter((c) => c.body.startsWith("Máy Phans-Mac-mini đã gỡ ghép"))).toHaveLength(1);
   });
 
   it("agent ngoài vai trò chạy trên Mac khác máy ghim: giữ run; agent chạy trên server: stock", async () => {
@@ -213,6 +218,11 @@ suite("cổng ghim máy của H1 (Postgres)", () => {
     const onBook = await queuedRun(w.companyId, await extraAgent(w.companyId, BOOK.ip), w.child);
     expect(await evaluateMachineGate(db, onBook)).toEqual({ action: "hold" });
     expect(await actions(onBook.id, MACHINE_WAITING_ACTION)).toHaveLength(1);
+    expect(await evaluateMachineGate(db, onBook, new Date(Date.now() + 59 * 60_000))).toEqual({ action: "hold" });
+    expect(await evaluateMachineGate(db, onBook, new Date(Date.now() + 61 * 60_000))).toEqual({
+      action: "fail", issueId: w.child, reason: `agent ngoài vai ${BOOK.ip} chưa có environment trên máy Phans-Mac-mini sau 60 phút chờ`,
+    });
+    expect(await actions(onBook.id, MACHINE_FAILED_ACTION)).toHaveLength(1);
     const onServer = await queuedRun(w.companyId, await extraAgent(w.companyId), w.child);
     expect(await evaluateMachineGate(db, onServer)).toEqual({ action: "pass", environmentId: null });
     expect(await jobs(w.companyId)).toHaveLength(0);

@@ -49,8 +49,9 @@ fallback) dựa vào kho git dùng chung trên một máy. Owner chọn máy lú
    - agent vai trò thiếu environment: `reconcileProjectMachine`, dựng xong thì `pass`; `project_machines` `failed` thì
      `fail`; chưa có dòng hay dòng `ready` thì `startProvisioning` (không dựng được, ví dụ chưa có repo, thì `fail`);
      còn lại `hold`, activity `crew.machine.waiting` và comment một lần mỗi run;
-   - run chờ máy dựng quá `PROVISION_TIMEOUT_MS` (60 phút, tính từ activity chờ đầu tiên của run) thì `fail`; việc dựng
-     vẫn nằm trong hàng đợi, `project_machines` vẫn `provisioning`;
+   - mọi lý do `hold` dùng chung một đồng hồ: run chờ quá `PROVISION_TIMEOUT_MS` (60 phút, tính từ activity chờ đầu tiên
+     của run) thì `fail` với lý do của trường hợp đó (máy đã gỡ ghép, agent chưa có environment trên máy, máy chưa dựng
+     xong project); việc dựng vẫn nằm trong hàng đợi, `project_machines` vẫn `provisioning`;
    - `fail`: activity `crew.machine.failed` và comment một lần mỗi run; cổng tải hủy run và chuyển issue sang `blocked`;
    - lỗi bất ngờ khi cây đã ghim hay đang ghi ghim: `hold`; lỗi trước khi biết có ghim: `pass` với `null` như stock.
 
@@ -89,7 +90,8 @@ lần mỗi run).
 - `server/src/__tests__/crew-machine-gate.db.test.ts` (Postgres nhúng): project chưa quản lý máy thì stock, ghim auto
   máy `ready`, ghim máy chưa dựng rồi giữ run tới khi dựng xong, project chưa có repo thì không ghim máy chưa dựng và
   không chặn issue, dựng hỏng thì `fail` (qua cổng claim: hủy run, issue `blocked`), chờ quá 60 phút thì `fail` mà việc
-  vẫn chờ, ghim của owner giữ nguyên, máy ghim đã gỡ hay agent ngoài vai trò trên Mac khác thì giữ run, lỗi bất ngờ khi
+  vẫn chờ, ghim của owner giữ nguyên, máy ghim đã gỡ hay agent ngoài vai trò trên Mac khác thì giữ run và quá 60 phút
+  thì `fail` với lý do riêng, lỗi bất ngờ khi
   cây đã ghim thì giữ run.
 - `server/src/__tests__/crew-load-gate.test.ts` (`ghim máy trong cổng claim`): `pass` kèm environment, `hold`, `fail`,
   cổng ném lỗi thì giữ run, `probeKeyOf`.

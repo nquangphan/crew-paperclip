@@ -1,5 +1,5 @@
 import { and, asc, eq, sql } from "drizzle-orm";
-import { activityLog, type Db, type heartbeatRuns, issues } from "@paperclipai/db";
+import { activityLog, agents, type Db, type heartbeatRuns, issues } from "@paperclipai/db";
 import { logger } from "../middleware/logger.js";
 import { logActivity } from "../services/activity-log.js";
 import { issueService } from "../services/issues.js";
@@ -79,17 +79,39 @@ async function agentRunsOnMac(db: Db, companyId: string, agentId: string): Promi
   return rows.length > 0;
 }
 
-async function fail(db: Db, run: Run, issueId: string, machine: PairedMachine, error: string): Promise<MachineGateOutcome> {
+/** Lý do hủy run (câu thường, cũng là lý do hủy) và việc owner cần làm trước khi chuyển issue về `todo`. */
+interface Failure { reason: string; fix: string }
+
+const PROVISION_FIX = "Sửa lỗi rồi bấm Thêm máy ở trang project → Máy, sau đó chuyển issue về `todo`.";
+
+const provisionFailure = (machine: PairedMachine, error: string): Failure => ({
+  reason: `không dựng được project trên máy ${machine.hostname}: ${error}`, fix: PROVISION_FIX,
+});
+
+async function fail(db: Db, run: Run, issueId: string, machineId: string, failure: Failure): Promise<MachineGateOutcome> {
+  const reason = failure.reason.charAt(0).toUpperCase() + failure.reason.slice(1);
   await noteOnce(db, run, issueId, MACHINE_FAILED_ACTION,
-    `Không dựng được project trên máy ${machine.hostname}: ${error}. Crew hủy run \`${run.id}\` và chuyển issue sang ` +
-      "`blocked`. Sửa lỗi rồi bấm Thêm máy ở trang project → Máy, sau đó chuyển issue về `todo`.",
-    { machineId: machine.machineId, error });
-  return { action: "fail", issueId, reason: `không dựng được project trên máy ${machine.hostname}: ${error}` };
+    `${reason}. Crew hủy run \`${run.id}\` và chuyển issue sang \`blocked\`. ${failure.fix}`,
+    { machineId, reason: failure.reason });
+  return { action: "fail", issueId, reason: failure.reason };
 }
 
-async function wait(db: Db, run: Run, issueId: string, machineId: string, body: string): Promise<MachineGateOutcome> {
+/**
+ * Giữ run với comment một lần; mọi lý do chờ dùng chung một đồng hồ, tính từ activity chờ đầu tiên của run. Chờ quá
+ * `PROVISION_TIMEOUT_MS` thì `fail` với lý do của trường hợp đó.
+ */
+async function wait(
+  db: Db, run: Run, issueId: string, machineId: string, now: Date, body: string, expired: Failure,
+): Promise<MachineGateOutcome> {
+  const since = await waitingSince(db, run.id);
+  if (since && now.getTime() - since.getTime() > PROVISION_TIMEOUT_MS) return fail(db, run, issueId, machineId, expired);
   await noteOnce(db, run, issueId, MACHINE_WAITING_ACTION, body, { machineId });
   return HOLD;
+}
+
+async function agentName(db: Db, agentId: string): Promise<string> {
+  const [row] = await db.select({ name: agents.name }).from(agents).where(eq(agents.id, agentId)).limit(1);
+  return row?.name ?? agentId;
 }
 
 async function decide(db: Db, run: Run, now: Date, state: PinState): Promise<MachineGateOutcome> {
@@ -130,36 +152,43 @@ async function decide(db: Db, run: Run, now: Date, state: PinState): Promise<Mac
   const machine = await pairedMachine(db, run.companyId, pin.machineId);
   if (!machine) {
     const hostname = (await machineHostname(db, run.companyId, pin.machineId)) ?? pin.machineId;
-    return wait(db, run, issueId, pin.machineId,
+    return wait(db, run, issueId, pin.machineId, now,
       `Run \`${run.id}\` đang chờ máy ${hostname}: cây yêu cầu đã ghim vào máy này nhưng máy không còn ghép với Crew. ` +
-        "Ghép lại máy trong app 2P Crew → Máy để run tự chạy.");
+        "Ghép lại máy trong app 2P Crew → Máy để run tự chạy.",
+      {
+        reason: `máy ${hostname} đã gỡ ghép khỏi Crew và chưa được ghép lại sau 60 phút chờ`,
+        fix: "Ghép lại máy trong app 2P Crew → Máy, rồi chuyển issue về `todo`.",
+      });
   }
   const ready = await agentEnvironmentOnMachine(db, run.companyId, run.agentId, machine);
   if (ready) return { action: "pass", environmentId: ready };
   const layout = await projectLayout(db, run.companyId, projectId);
   if (!layout?.agents.some((agent) => agent.agentId === run.agentId)) {
     if (!(await agentRunsOnMac(db, run.companyId, run.agentId))) return PASS;
-    return wait(db, run, issueId, machine.machineId,
+    return wait(db, run, issueId, machine.machineId, now,
       `Run \`${run.id}\` đang chờ: agent không có environment trên máy ${machine.hostname} (máy ghim của cây yêu cầu) ` +
-        "và không phải agent vai trò của project nên Crew không tự dựng được. Tạo environment cho agent trên máy này để run tự chạy.");
+        "và không phải agent vai trò của project nên Crew không tự dựng được. Tạo environment cho agent trên máy này để run tự chạy.",
+      {
+        reason: `agent ${await agentName(db, run.agentId)} chưa có environment trên máy ${machine.hostname} sau 60 phút chờ`,
+        fix: "Tạo environment SSH cho agent trên máy này, rồi chuyển issue về `todo`.",
+      });
   }
 
   let row = await reconcileProjectMachine(db, { companyId: run.companyId, projectId, machineId: machine.machineId });
   const built = await agentEnvironmentOnMachine(db, run.companyId, run.agentId, machine);
   if (built) return { action: "pass", environmentId: built };
-  if (row?.status === "failed") return fail(db, run, issueId, machine, row.error ?? "dựng project thất bại");
+  if (row?.status === "failed") return fail(db, run, issueId, machine.machineId, provisionFailure(machine, row.error ?? "dựng project thất bại"));
   if (!row || row.status === "ready") {
     const started = await startProvisioning(db, { companyId: run.companyId, projectId, machineId: machine.machineId, createdBy: "crew:auto" });
-    if (!started.ok) return fail(db, run, issueId, machine, PROVISION_UNAVAILABLE[started.reason]);
+    if (!started.ok) {
+      return fail(db, run, issueId, machine.machineId, provisionFailure(machine, PROVISION_UNAVAILABLE[started.reason]));
+    }
     row = await readProjectMachine(db, run.companyId, projectId, machine.machineId);
   }
-  const since = await waitingSince(db, run.id);
-  if (since && now.getTime() - since.getTime() > PROVISION_TIMEOUT_MS) {
-    return fail(db, run, issueId, machine, "máy chưa dựng xong project sau 60 phút (app 2P Crew trên máy có đang mở không?)");
-  }
-  return wait(db, run, issueId, machine.machineId,
+  return wait(db, run, issueId, machine.machineId, now,
     `Run \`${run.id}\` đang chờ dựng project trên máy ${machine.hostname}. Run sẽ tự chạy khi máy dựng xong ` +
-      "(xem trang project → Máy).");
+      "(xem trang project → Máy).",
+    provisionFailure(machine, "máy chưa dựng xong project sau 60 phút (app 2P Crew trên máy có đang mở không?)"));
 }
 
 /**
@@ -167,8 +196,9 @@ async function decide(db: Db, run: Run, now: Date, state: PinState): Promise<Mac
  * với `null` (hành vi stock). Cây chưa ghim thì chọn máy rồi ghim `auto` (máy chưa dựng project chỉ được chọn khi project
  * dựng được). Cây đã ghim: agent có environment trên máy ghim thì `pass` kèm id đó; máy ghim không còn ghép, hay agent
  * không phải vai trò của project mà chạy trên Mac khác, thì `hold`; agent vai trò thiếu environment thì đối chiếu việc
- * dựng, xếp lại việc khi cần và `hold` với comment một lần mỗi run; dựng hỏng, không dựng được, hay run chờ máy dựng quá
- * `PROVISION_TIMEOUT_MS` thì `fail` (việc dựng vẫn nằm trong hàng đợi). Lỗi bất ngờ khi cây đã ghim (hoặc vừa ghi ghim)
+ * dựng, xếp lại việc khi cần và `hold` với comment một lần mỗi run; dựng hỏng hay không dựng được thì `fail`. Mọi lý do
+ * `hold` dùng chung một đồng hồ: run chờ quá `PROVISION_TIMEOUT_MS` (tính từ lần chờ đầu) thì `fail` với lý do của trường
+ * hợp đó (việc dựng vẫn nằm trong hàng đợi). Lỗi bất ngờ khi cây đã ghim (hoặc vừa ghi ghim)
  * thì `hold`, để run không bao giờ chạy trên máy khác máy ghim; cây chưa ghim thì `pass` như stock.
  */
 export async function evaluateMachineGate(db: Db, run: Run, now: Date = new Date()): Promise<MachineGateOutcome> {
