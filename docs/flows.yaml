@@ -125,9 +125,11 @@ flows:
       - server/src/crew/machine-select.ts
     files:
       - server/src/crew/machine-pin.ts
+      - server/src/crew/machine-provision.ts
     tests:
       - server/src/__tests__/crew-machine-select.test.ts
       - server/src/__tests__/crew-machine-pin.db.test.ts
+      - server/src/__tests__/crew-machine-provision.db.test.ts
   runtime-switches:
     title: "Công tắc runtime theo máy (Claude, Codex, OpenCode)"
     doc: docs/flows/runtime-switches.md

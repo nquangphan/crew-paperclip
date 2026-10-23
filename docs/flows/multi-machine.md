@@ -27,6 +27,16 @@ fallback) dựa vào kho git dùng chung trên một máy. Owner chọn máy lú
    `tailscale_ip` (`pairedMachines`, `machineOfHost`), environment của agent trên một máy (`agentEnvironmentOnMachine`:
    environment mặc định cùng host, không thì environment có `metadata.crewAgentId`), environment theo ghim
    (`resolvePinnedEnvironment`) và ứng viên chọn máy (`loadMachineCandidates`).
+3. `server/src/crew/machine-provision.ts`: origin và repo đi kèm của project (`project_repos`; `writeProjectRepo` từ chối
+   origin `https` có userinfo), bố cục project (`projectLayout`: khóa project và tên thư mục checkout của từng agent vai
+   trò, đọc từ environment mặc định), `projectProvisionable` (có repo và ít nhất một checkout vai trò, cờ `provisionable`
+   của bước 1), `startProvisioning` đặt `project_machines` sang `provisioning` và xếp đúng một việc `ensure-project`
+   (`ensureProjectPayload`, nhánh agent `agent/<khóa>-<tên>`), `reconcileProjectMachine` đọc kết quả việc: xong thì
+   `createMachineEnvironment` cho agent còn thiếu (tên `<environment mặc định>@<tên máy>`, cấu hình SSH và secret từ
+   environment mẫu của dòng ghép, `metadata.crewAgentId`/`crewMachineId`, secret binding như route tạo environment) rồi
+   `ready` (thiếu checkout của agent mới thì xếp việc lại); lỗi hay bị hủy thì `failed`; việc còn chờ thì giữ
+   `provisioning` (máy tắt: việc nằm trong hàng đợi). Environment cùng tên của chính agent, kể cả đã archive, được bật lại
+   chứ không tạo bản mới; không bao giờ xóa environment.
 
 ## Files
 
@@ -34,11 +44,12 @@ fallback) dựa vào kho git dùng chung trên một máy. Owner chọn máy lú
 |-----------|---------|--------------|
 | `server/src/crew/machine-select.ts` | Chọn máy (thuần) | `chooseMachine`, `choiceReason`, `isOnline`, `MACHINE_REPORT_MAX_AGE_MS`, `DEFAULT_MAX_LOAD1` |
 | `server/src/crew/machine-pin.ts` | Truy vấn ghim máy, máy đã ghép, environment theo máy, ứng viên | `findRootIssueId`, `treeStarted`, `readPin`, `insertAutoPin`, `setOwnerPin`, `pairedMachines`, `machineOfHost`, `agentEnvironmentOnMachine`, `resolvePinnedEnvironment`, `crewResolveRunEnvironment`, `loadMachineCandidates` |
+| `server/src/crew/machine-provision.ts` | Repo của project, xếp việc `ensure-project`, đối chiếu kết quả, tạo environment theo máy | `readProjectRepo`, `writeProjectRepo`, `projectLayout`, `projectProvisionable`, `ensureProjectPayload`, `startProvisioning`, `reconcileProjectMachine`, `listProjectMachines`, `machineEnvironmentName`, `createMachineEnvironment`, `PROVISION_TIMEOUT_MS`, `CHECKOUT_RE` |
 
 ## Dữ liệu
 
 Bảng plugin `issue_machine_pins`, `project_machines`, `project_repos` (migration `0022`), đọc `machine_pairings`,
-`machine_latest`, `crew_project_roles`; bảng lõi `issues`, `environments`, `environment_leases`, `heartbeat_runs`, `agents`.
+`machine_latest`, `crew_project_roles`, ghi hàng đợi `crew_machine_jobs` (việc `ensure-project`); bảng lõi `issues`, `environments`, `environment_leases`, `heartbeat_runs`, `agents`.
 
 ## Flow liên quan
 
@@ -51,3 +62,7 @@ Bảng plugin `issue_machine_pins`, `project_machines`, `project_repos` (migrati
 - `server/src/__tests__/crew-machine-pin.db.test.ts` (Postgres nhúng): tìm issue gốc, cây có lease thì khóa, ghim tự động
   không đè ghim có sẵn và owner đổi được, environment của agent theo host của máy (archived thì bỏ), environment theo
   ghim (máy đã gỡ thì `null`), ứng viên với số run `running` theo host, trạng thái project và `maxLoad1` của environment mẫu.
+- `server/src/__tests__/crew-machine-provision.db.test.ts` (Postgres nhúng): bố cục project, từ chối khi máy chưa ghép hay
+  chưa có repo, xếp đúng một việc, việc xong tạo environment đúng host/secret/checkout rồi `ready` và gọi lại không tạo
+  thêm, việc lỗi thì `failed`, việc chờ lâu vẫn `provisioning`, thiếu checkout thì xếp việc lại, bật lại environment đã
+  archive, `projectProvisionable`, từ chối origin có userinfo.
