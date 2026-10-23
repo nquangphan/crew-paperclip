@@ -192,7 +192,9 @@ describe('runRemoveAgent', () => {
 
   it('agent có vai trò: kiểm cây ghim của chính agent trước khi đổi vai trò; dọn máy khác chỉ cho agent đó', async () => {
     const f = setup(removeRun());
-    f.state.machineBlockers = [{ issueId: 'i1', identifier: 'TPS-9', hostname: 'Phans-Mac-mini', runStatus: 'running' }];
+    f.state.machineBlockers = [
+      { issueId: 'i1', identifier: 'TPS-9', hostname: 'Phans-Mac-mini', runStatus: 'running' },
+    ];
     const blocked = await runRemoveAgent(ctxOf(f.api), removeRun());
     expect(blocked.steps.roles?.status).toBe('failed');
     expect(f.names()).not.toContain('roles.set');
@@ -207,6 +209,14 @@ describe('runRemoveAgent', () => {
       primaryMachineId: 'm1',
     });
     expect(g.names().indexOf('machinePins.release')).toBeLessThan(g.names().indexOf('roles.set'));
+  });
+
+  it('Chạy tiếp khi agent đã ra khỏi vai trò (lỗi ở AGENTS.md lần trước): không hỏi chặn, không dọn máy khác', async () => {
+    const f = setup(removeRun());
+    if (f.state.roles) f.state.roles.executorAgentIds = [ID.executor];
+    const run = await runRemoveAgent(ctxOf(f.api), removeRun());
+    expect(run.status).toBe('done');
+    expect(f.names().filter((n) => n.startsWith('machinePins.'))).toEqual([]);
   });
 
   it('agent không vai trò, không project: không hỏi và không dọn máy khác', async () => {

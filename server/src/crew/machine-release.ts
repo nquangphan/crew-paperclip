@@ -4,8 +4,8 @@ import type { Db } from "@paperclipai/db";
 import { environmentService } from "../services/environments.js";
 import { crewTableSql, type ExecDb, jsonRecord, MAX_TREE_DEPTH, pairedMachine, pairedMachines } from "./machine-pin.js";
 import {
-  listProjectMachines, type ProjectLayout, projectLayout, readProjectMachine, readProjectRepo, startProvisioning,
-  writeProjectRepo,
+  listProjectMachines, type ProjectLayout, projectLayout, projectRoleAgentIds, readProjectMachine, readProjectRepo,
+  startProvisioning, writeProjectRepo,
 } from "./machine-provision.js";
 import { rowsOf } from "./project-roles.js";
 
@@ -29,16 +29,16 @@ const checkoutRank = (name: string) =>
 const byRank = (a: string, b: string) => checkoutRank(a) - checkoutRank(b) || a.localeCompare(b);
 
 /**
- * Agent của `agentIds` thuộc vai trò của project (`projectLayout`) và id lạ (không thuộc project này, kể cả agent của
- * project khác cùng company). Đường gỡ chỉ được đụng agent của chính project, nên có id lạ thì bên gọi từ chối cả lệnh.
+ * Id lạ của `agentIds`: không nằm trong dòng `crew_project_roles` của project (kể cả agent của project khác cùng company).
+ * Đường gỡ chỉ được đụng agent của chính project, nên có id lạ thì bên gọi từ chối cả lệnh. Agent trong dòng vai trò mà
+ * ngoài `projectLayout` (terminated, không có environment SSH, checkout lạ) vẫn hợp lệ: không có checkout nào để gỡ.
  */
 export async function scopeReleaseAgents(
   db: ExecDb, input: { companyId: string; projectId: string; agentIds: readonly string[] },
 ): Promise<{ layout: ProjectLayout | null; unknown: string[] }> {
-  const layout = await projectLayout(db, input.companyId, input.projectId);
-  const known = new Set(layout?.agents.map((agent) => agent.agentId) ?? []);
+  const known = new Set((await projectRoleAgentIds(db, input.companyId, input.projectId)) ?? []);
   const unknown = [...new Set(input.agentIds.map((id) => id.toLowerCase()))].filter((id) => !known.has(id));
-  return { layout, unknown };
+  return { layout: await projectLayout(db, input.companyId, input.projectId), unknown };
 }
 
 /**
@@ -112,8 +112,9 @@ async function queueRemoveCheckouts(
 /**
  * Dọn máy khác khi gỡ agent (`wholeProject: false`) hay cả project: từ chối khi còn cây chạy dở (`machineReleaseBlockers`);
  * archive (không xóa) environment `@máy` của các agent; xếp `remove-checkouts` cho máy khác `primaryMachineId`; gỡ cả
- * project thì xóa dòng `project_machines` của project. Gọi lại không xếp việc trùng. `agentIds` phải là agent vai trò của
- * chính project (gọi trước khi xóa vai trò); có id lạ thì không làm gì.
+ * project thì xóa dòng `project_machines` của project. Gọi lại không xếp việc trùng. `agentIds` phải nằm trong dòng vai
+ * trò của chính project (gọi trước khi xóa vai trò); có id lạ thì không làm gì. Agent ngoài `projectLayout` không có
+ * checkout để gỡ: chỉ environment `@máy` còn active của nó (nếu có) bị archive.
  */
 export async function releaseProjectMachines(
   db: Db,
@@ -123,7 +124,7 @@ export async function releaseProjectMachines(
   },
 ): Promise<ReleaseOutcome> {
   const scope = await scopeReleaseAgents(db, input);
-  if (scope.unknown.length > 0 || !scope.layout) return { ok: false, reason: "unknown_agents", agentIds: scope.unknown };
+  if (scope.unknown.length > 0) return { ok: false, reason: "unknown_agents", agentIds: scope.unknown };
   const layout = scope.layout;
   const blockers = await machineReleaseBlockers(db, {
     companyId: input.companyId, projectId: input.projectId, agentIds: input.wholeProject ? null : input.agentIds,
@@ -142,15 +143,15 @@ export async function releaseProjectMachines(
     archivedEnvironmentIds.push(String(row.id));
   }
   const wanted = new Set(input.agentIds.map((id) => id.toLowerCase()));
-  const projectKey = layout.projectKey;
-  const names = layout.agents.filter((agent) => wanted.has(agent.agentId)).map((agent) => agent.checkoutName).sort(byRank);
+  const names = (layout?.agents ?? []).filter((agent) => wanted.has(agent.agentId)).map((agent) => agent.checkoutName).sort(byRank);
   const machines = new Set(envRows.map((row) => row.machine_id).filter((id): id is string => typeof id === "string"));
   if (input.wholeProject) {
     for (const row of await listProjectMachines(db, input.companyId, input.projectId)) machines.add(row.machineId);
   }
   if (input.primaryMachineId) machines.delete(input.primaryMachineId.toLowerCase());
   const jobs: ReleaseResult["jobs"] = [];
-  if (names.length > 0) {
+  if (layout && names.length > 0) {
+    const projectKey = layout.projectKey;
     for (const machineId of [...machines].sort()) {
       jobs.push({
         machineId,

@@ -145,6 +145,42 @@ suite("dọn máy khác khi gỡ, dựng sẵn máy khác khi thêm", () => {
     expect(await jobs(w.companyId)).toEqual([]);
   });
 
+  it("agent trong dòng vai trò mà ngoài bố cục (terminated, không có environment SSH) vẫn được nhận: bỏ qua checkout, gỡ phần còn lại", async () => {
+    const w = await world();
+    const reviewer = w.agents.reviewer;
+    const integrator = w.agents.integrator;
+    await db.update(agents).set({ status: "terminated" }).where(eq(agents.id, reviewer.agentId));
+    await db.update(agents).set({ defaultEnvironmentId: null }).where(eq(agents.id, integrator.agentId));
+    expect(await machineReleaseBlockers(db, { companyId: w.companyId, projectId: w.projectId, agentIds: [reviewer.agentId, integrator.agentId] })).toEqual([]);
+    const all = Object.values(w.agents).map((a) => a.agentId);
+    const released = await releaseProjectMachines(db, {
+      companyId: w.companyId, projectId: w.projectId, agentIds: all, wholeProject: true, primaryMachineId: BOOK.machineId, createdBy: "owner",
+    });
+    expect(released.ok && released.result.archivedEnvironmentIds.sort()).toEqual(Object.values(w.miniEnvs).sort());
+    expect((await jobs(w.companyId)).map((j) => [j.machine_id, (j.payload as { roles: string[] }).roles])).toEqual([
+      [MINI.machineId, ["assistant", "executor-1"]],
+    ]);
+    // Chỉ còn agent ngoài bố cục: không có checkout nào để gỡ, không xếp việc, không lỗi.
+    const w2 = await world();
+    await db.update(agents).set({ status: "terminated" }).where(eq(agents.id, w2.agents.reviewer.agentId));
+    expect(await releaseProjectMachines(db, {
+      companyId: w2.companyId, projectId: w2.projectId, agentIds: [w2.agents.reviewer.agentId], wholeProject: false,
+      primaryMachineId: BOOK.machineId, createdBy: "owner",
+    })).toEqual({ ok: true, result: { archivedEnvironmentIds: [w2.miniEnvs.reviewer], jobs: [] } });
+  });
+
+  it("project không còn agent nào trong bố cục: gỡ cả project vẫn chạy, xóa dòng máy, không xếp việc", async () => {
+    const w = await world();
+    for (const a of Object.values(w.agents)) await db.update(agents).set({ status: "terminated" }).where(eq(agents.id, a.agentId));
+    const released = await releaseProjectMachines(db, {
+      companyId: w.companyId, projectId: w.projectId, agentIds: Object.values(w.agents).map((a) => a.agentId), wholeProject: true,
+      primaryMachineId: BOOK.machineId, createdBy: "owner",
+    });
+    expect(released).toMatchObject({ ok: true, result: { jobs: [] } });
+    expect(await jobs(w.companyId)).toEqual([]);
+    expect(rows(await db.execute(sql.raw(`SELECT count(*)::int AS n FROM ${ns}.project_machines WHERE project_id = '${w.projectId}'`)))[0]?.n).toBe(0);
+  });
+
   it("gỡ agent A rồi B trước khi máy nhận việc: gộp vai trò vào việc còn queued; việc đã claimed thì xếp việc mới", async () => {
     const w = await world();
     const release = (agentId: string) => releaseProjectMachines(db, {
@@ -268,6 +304,9 @@ suite("dọn máy khác khi gỡ, dựng sẵn máy khác khi thêm", () => {
     expect(foreignRelease.status).toBe(422);
     const [otherEnv] = await db.select().from(environments).where(eq(environments.id, other.miniEnvId));
     expect(otherEnv?.status).toBe("active");
+    await db.update(agents).set({ status: "terminated" }).where(eq(agents.id, w.agents.reviewer.agentId));
+    const outside = await request(app("owner", "board_key")).get(`${base}/blockers?agentIds=${w.agents.reviewer.agentId}`);
+    expect(outside.status).toBe(200);
     const many = Array.from({ length: 21 }, () => w.agents.assistant.agentId).join(",");
     expect((await request(app("owner", "board_key")).get(`${base}/blockers?agentIds=${many}`)).status).toBe(422);
     const provision = await request(app("owner", "board_key")).post(`${base}/provision`)

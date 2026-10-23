@@ -11,7 +11,7 @@ import {
   setOwnerPin, treeStarted,
 } from "./machine-pin.js";
 import {
-  listProjectMachines, PROVISION_UNAVAILABLE, projectLayout, type ProvisionStart, readProjectMachine, readProjectRepo,
+  listProjectMachines, originHasCredential, PROVISION_UNAVAILABLE, projectLayout, type ProvisionStart, readProjectMachine, readProjectRepo,
   reconcileProjectMachine, startProvisioning, writeProjectRepo,
 } from "./machine-provision.js";
 import {
@@ -39,9 +39,12 @@ const BRANCH_RE = /^[A-Za-z0-9._/-]{1,100}$/;
 const COMPANION_NAME_RE = /^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/;
 // biome-ignore lint/suspicious/noControlCharactersInRegex: ký tự điều khiển là thứ bị từ chối
 const CONTROL_RE = /[\x00-\x1f\x7f]/;
-/** Origin không được mang user/token (`https://user:token@…`): không bao giờ lưu credential. */
+/**
+ * Origin không được mang credential: không userinfo ở `https://` (`user@`, `token@`), không mật khẩu ở mọi scheme
+ * (`ssh://user:mật khẩu@`). `ssh://git@host/…` và `git@host:…` hợp lệ.
+ */
 const origin = z.string().max(500).regex(ORIGIN_RE)
-  .refine((value) => !CONTROL_RE.test(value) && !/^https:\/\/[^/]*@/.test(value));
+  .refine((value) => !CONTROL_RE.test(value) && !originHasCredential(value));
 
 export const projectRepoSchema = z.object({
   originUrl: origin,

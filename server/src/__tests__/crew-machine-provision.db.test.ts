@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { eq, sql } from "drizzle-orm";
-import { createDb, environments, projects } from "@paperclipai/db";
+import { agents, createDb, environments, projects } from "@paperclipai/db";
 import { getEmbeddedPostgresTestSupport, startEmbeddedPostgresTestDatabase } from "./helpers/embedded-postgres.js";
 import { applyCrewMachineTables, BOOK, MINI, SECRET_ID, seedCrewProject, seedPairing, seedTemplate } from "./helpers/crew-machine-tables.js";
 
@@ -221,6 +221,71 @@ suite("dựng project trên máy (Postgres)", () => {
     expect(again).toMatchObject({ status: "active", config: expect.objectContaining({ host: MINI.ip, remoteWorkspacePath: "/Users/owner/crew-agents/kidy-school/executor-1" }) });
   });
 
+  it("thay agent của ô: environment @máy đã archive của agent cũ (không còn vai trò) được agent mới nhận lại, máy ready", async () => {
+    const w = await world();
+    const old = w.agents["executor-1"];
+    const name = machineEnvironmentName(old.environmentName, MINI.hostname);
+    const [stale] = await db.insert(environments).values({
+      name, driver: "ssh", status: "archived", config: { host: MINI.ip, remoteWorkspacePath: "/Users/owner/crew-agents/kidy-school/executor-1" },
+      metadata: { workspaceRealizationMode: "in_place", crewAgentId: old.agentId, crewMachineId: MINI.machineId },
+    }).returning();
+    // Wizard gỡ agent cũ rồi gắn agent mới vào ô: environment mặc định mới cùng tên theo ô, cùng checkout.
+    const [replacement] = await db.insert(agents).values({
+      companyId: w.companyId, name: "kidy-school executor-1 mới", role: "engineer", status: "idle", adapterType: "claude_local",
+      adapterConfig: {}, permissions: {}, runtimeConfig: {}, defaultEnvironmentId: old.environmentId,
+    }).returning();
+    await db.update(agents).set({ status: "paused", defaultEnvironmentId: null }).where(eq(agents.id, old.agentId));
+    await db.execute(sql.raw(`UPDATE ${ns}.crew_project_roles SET executor_agent_ids = ARRAY['${replacement!.id}']::uuid[]
+      WHERE project_id = '${w.projectId}'`));
+    await writeProjectRepo(db, { companyId: w.companyId, projectId: w.projectId, userId: "owner", repo: { originUrl: ORIGIN, branch: "main", companions: [] } });
+    const started = await startProvisioning(db, { companyId: w.companyId, projectId: w.projectId, machineId: MINI.machineId, createdBy: "owner" });
+    if (!started.ok) throw new Error("không xếp được việc");
+    const result = {
+      kind: "ensure-project", repoPath: "/x", cloned: false, companions: [],
+      checkouts: ["assistant", "executor-1", "reviewer", "integrator"].map((role) => ({ role, path: `/Users/owner/crew-agents/kidy-school/${role}`, head: "c".repeat(40) })),
+    };
+    await db.execute(sql.raw(`UPDATE ${ns}.crew_machine_jobs SET status = 'done', result = '${JSON.stringify(result)}'::jsonb WHERE id = '${started.jobId}'`));
+
+    expect(await reconcileProjectMachine(db, { companyId: w.companyId, projectId: w.projectId, machineId: MINI.machineId }))
+      .toMatchObject({ status: "ready", error: null });
+    const [taken] = await db.select().from(environments).where(eq(environments.id, stale!.id));
+    expect(taken).toMatchObject({ status: "active", metadata: expect.objectContaining({ crewAgentId: replacement!.id, crewMachineId: MINI.machineId }) });
+    expect(await db.select().from(environments).where(eq(environments.name, name))).toHaveLength(1);
+  });
+
+  it("environment @máy cùng tên còn active, hay của agent vai trò hiện tại, hay của company khác: không nhận lại, failed", async () => {
+    const cases = ["active", "current-role", "other-company"] as const;
+    for (const kind of cases) {
+      const w = await world();
+      const executor = w.agents["executor-1"];
+      const name = machineEnvironmentName(executor.environmentName, MINI.hostname);
+      let owner: string = w.agents.reviewer.agentId;
+      if (kind === "active" || kind === "other-company") {
+        const other = await seedCrewProject(db, ns, { key: "khac", host: BOOK.ip });
+        owner = other.agents.assistant.agentId;
+        if (kind === "active") {
+          await db.update(agents).set({ companyId: w.companyId }).where(eq(agents.id, owner));
+        }
+      }
+      const [env] = await db.insert(environments).values({
+        name, driver: "ssh", status: kind === "active" ? "active" : "archived", config: { host: MINI.ip },
+        metadata: { crewAgentId: owner, crewMachineId: MINI.machineId },
+      }).returning();
+      await writeProjectRepo(db, { companyId: w.companyId, projectId: w.projectId, userId: "owner", repo: { originUrl: ORIGIN, branch: "main", companions: [] } });
+      const started = await startProvisioning(db, { companyId: w.companyId, projectId: w.projectId, machineId: MINI.machineId, createdBy: "owner" });
+      if (!started.ok) throw new Error("không xếp được việc");
+      const result = {
+        kind: "ensure-project", repoPath: "/x", cloned: false, companions: [],
+        checkouts: ["assistant", "executor-1", "reviewer", "integrator"].map((role) => ({ role, path: `/Users/owner/crew-agents/kidy-school/${role}`, head: "d".repeat(40) })),
+      };
+      await db.execute(sql.raw(`UPDATE ${ns}.crew_machine_jobs SET status = 'done', result = '${JSON.stringify(result)}'::jsonb WHERE id = '${started.jobId}'`));
+      expect(await reconcileProjectMachine(db, { companyId: w.companyId, projectId: w.projectId, machineId: MINI.machineId }), kind)
+        .toMatchObject({ status: "failed", error: expect.stringContaining("không thuộc agent") });
+      const [kept] = await db.select().from(environments).where(eq(environments.id, env!.id));
+      expect((kept!.metadata as Record<string, unknown>).crewAgentId, kind).toBe(owner);
+    }
+  });
+
   it("project dựng được khi có repo và ít nhất một checkout vai trò", async () => {
     const w = await world();
     expect(await projectProvisionable(db, w.companyId, w.projectId)).toBe(false);
@@ -239,8 +304,16 @@ suite("dựng project trên máy (Postgres)", () => {
       .rejects.toThrow(/userinfo/);
     await expect(write({ originUrl: ORIGIN, branch: "main", companions: [{ name: "docs", originUrl: "https://u:p@github.com/x/y.git" }] }))
       .rejects.toThrow(/userinfo/);
+    await expect(write({ originUrl: "ssh://u:p@github.com/nquangphan/kidy_school.git", branch: "main", companions: [] }))
+      .rejects.toThrow(/mật khẩu/);
+    await expect(write({ originUrl: ORIGIN, branch: "main", companions: [{ name: "docs", originUrl: "ssh://git:pw@github.com/x/y.git" }] }))
+      .rejects.toThrow(/mật khẩu/);
     expect(await readProjectRepo(db, w.companyId, w.projectId)).toBeNull();
     expect(await write({ originUrl: "https://github.com/nquangphan/kidy_school.git", branch: "main", companions: [] }))
       .toMatchObject({ originUrl: "https://github.com/nquangphan/kidy_school.git" });
+    expect(await write({
+      originUrl: "ssh://git@github.com/nquangphan/kidy_school.git", branch: "main",
+      companions: [{ name: "docs", originUrl: "ssh://git@github.com:22/x/y.git" }],
+    })).toMatchObject({ originUrl: "ssh://git@github.com/nquangphan/kidy_school.git" });
   });
 });

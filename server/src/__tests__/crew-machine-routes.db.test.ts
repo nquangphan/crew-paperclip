@@ -107,6 +107,9 @@ suite("route máy của Crew", () => {
     const invalid = [
       { originUrl: "ftp://x", branch: "main", companions: [] },
       { originUrl: "https://bob:tok@github.com/o/r.git", branch: "main", companions: [] },
+      { originUrl: "ssh://bob:pw@github.com/o/r.git", branch: "main", companions: [] },
+      { originUrl: "ssh://git:p@ss@github.com:22/o/r.git", branch: "main", companions: [] },
+      { originUrl: ORIGIN, branch: "main", companions: [{ name: "docs", originUrl: "ssh://u:p@github.com/o/d.git" }] },
       { originUrl: "https://github.com/o/r.git\u0007", branch: "main", companions: [] },
       { originUrl: `https://github.com/${"a".repeat(500)}.git`, branch: "main", companions: [] },
       { originUrl: ORIGIN, branch: "-main", companions: [] },
@@ -130,6 +133,15 @@ suite("route máy của Crew", () => {
     });
     expect(ok.status).toBe(200);
     expect(ok.body.companions).toHaveLength(1);
+    const sshUser = await request(await as(OWNER)).put(url(`/projects/${w.projectId}/repo`)).send({
+      originUrl: "ssh://git@github.com/nquangphan/kidy_school.git", branch: "main",
+      companions: [{ name: "docs", originUrl: "ssh://git@github.com:22/nquangphan/docs.git" }],
+    });
+    expect(sshUser.status).toBe(200);
+    expect(sshUser.body.originUrl).toBe("ssh://git@github.com/nquangphan/kidy_school.git");
+    expect((await request(await as(OWNER)).put(url(`/projects/${w.projectId}/repo`)).send({
+      originUrl: ORIGIN, branch: "main", companions: [{ name: "kidy_school_2.0_docs", originUrl: "git@github.com:nquangphan/kidy_school_2.0_docs.git" }],
+    })).status).toBe(200);
   });
 
   it("owner chọn máy chưa dựng: ghim owner và xếp ensure-project; trang project thấy provisioning", async () => {

@@ -303,7 +303,9 @@ describe('runRemoveProject', () => {
 
   it('cây ghim máy còn run: dừng ở bước đầu trước khi pause, báo danh sách', async () => {
     const f = setup();
-    f.state.machineBlockers = [{ issueId: 'i1', identifier: 'TPS-9', hostname: 'Phans-Mac-mini', runStatus: 'running' }];
+    f.state.machineBlockers = [
+      { issueId: 'i1', identifier: 'TPS-9', hostname: 'Phans-Mac-mini', runStatus: 'running' },
+    ];
     const run = await runRemoveProject(ctxOf(f.api), removeRun());
     expect(run.steps['pause-agents']?.status).toBe('failed');
     expect(run.steps['pause-agents']?.error).toContain('remove.errors.machineBusy');
@@ -313,18 +315,39 @@ describe('runRemoveProject', () => {
 
   it('bước pause-agents nhờ server dọn máy khác: cả project, loại máy chính, ghi số vào refs', async () => {
     const f = setup();
-    f.state.machineRelease = { archivedEnvironmentIds: ['e-mini-1', 'e-mini-2'], jobs: [{ machineId: 'm2', jobId: 'j9' }] };
+    f.state.machineRelease = {
+      archivedEnvironmentIds: ['e-mini-1', 'e-mini-2'],
+      jobs: [{ machineId: 'm2', jobId: 'j9' }],
+    };
     const run = await runRemoveProject(ctxOf(f.api), removeRun());
     expect(run.status).toBe('done');
     const call = f.calls.find((c) => c.fn === 'machinePins.release');
     expect(call?.args[2]).toEqual({
-      agentIds: [ID.assistant, ID.executor, ID.reviewer],
+      agentIds: [ID.assistant, ID.executor, ID.reviewer, ID.integrator],
       wholeProject: true,
       primaryMachineId: 'm1',
     });
     expect(run.steps['pause-agents']?.refs).toMatchObject({ otherEnvironments: '2', otherMachines: '1' });
     // Dọn máy khác xong trước khi dòng vai trò bị xóa.
     expect(f.names().indexOf('machinePins.release')).toBeLessThan(f.names().indexOf('roles.remove'));
+  });
+
+  it('Chạy tiếp sau khi owner thay agent ở ô: chỉ gửi agent đang trong dòng vai trò, không gửi id cũ trong refs', async () => {
+    const f = setup();
+    f.failOn('machinePins.release', 1, new ApiError(500, 'lỗi mạng'));
+    const first = await runRemoveProject(ctxOf(f.api), removeRun());
+    expect(first.steps['pause-agents']?.status).toBe('failed');
+    expect(first.steps['pause-agents']?.refs?.agent_executor).toBe(ID.executor);
+    const NEW = 'e9999999-9999-4999-8999-999999999999';
+    f.state.agents.push({ id: NEW, name: 'demo-executor-moi', status: 'idle', defaultEnvironmentId: 'env-executor' });
+    if (f.state.roles) f.state.roles.executorAgentIds = [NEW];
+    f.clearFailures();
+    const second = await runRemoveProject(ctxOf(f.api), first);
+    expect(second.status).toBe('done');
+    const releases = f.calls
+      .filter((c) => c.fn === 'machinePins.release')
+      .map((c) => (c.args[2] as { agentIds: string[] }).agentIds);
+    expect(releases.at(-1)).toEqual([ID.assistant, NEW, ID.reviewer, ID.integrator]);
   });
 
   it('server bận lúc dọn (409): bước pause-agents failed kèm danh sách; server cũ (404) thì bỏ qua', async () => {

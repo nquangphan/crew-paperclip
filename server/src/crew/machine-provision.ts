@@ -71,15 +71,20 @@ export async function readProjectRepo(db: ExecDb, companyId: string, projectId: 
   };
 }
 
-/** Origin `http(s)://user@…` mang token hay mật khẩu: không bao giờ lưu. */
+/** Origin `http(s)://user@…` mang token hay mật khẩu. */
 const HTTP_USERINFO_RE = /^https?:\/\/[^/?#]*@/i;
+/** Origin `<scheme>://user:mật khẩu@…` (kể cả `ssh://`); `ssh://git@host` hay `git@host:đường` không có mật khẩu. */
+const URL_PASSWORD_RE = /^[a-z][a-z0-9+.-]*:\/\/[^/?#@]*:[^/?#]*@/i;
 
-/** Ghi origin và repo đi kèm của project; ném khi một origin `https` có userinfo. */
+/** Origin mang credential (userinfo của `http(s)`, mật khẩu của mọi scheme): không bao giờ lưu hay gửi xuống máy. */
+export const originHasCredential = (origin: string) => HTTP_USERINFO_RE.test(origin) || URL_PASSWORD_RE.test(origin);
+
+/** Ghi origin và repo đi kèm của project; ném khi một origin mang credential. */
 export async function writeProjectRepo(
   db: ExecDb, input: { companyId: string; projectId: string; repo: ProjectRepo; userId: string },
 ): Promise<ProjectRepo> {
   for (const origin of [input.repo.originUrl, ...input.repo.companions.map((c) => c.originUrl)]) {
-    if (HTTP_USERINFO_RE.test(origin)) throw new Error("origin https không được chứa userinfo (user@ hay token@)");
+    if (originHasCredential(origin)) throw new Error("origin không được chứa userinfo https (user@, token@) hay mật khẩu (user:mật khẩu@)");
   }
   await db.execute(sql`INSERT INTO ${crewTableSql("project_repos")}
       (company_id, project_id, origin_url, branch, companions, updated_by_user_id)
@@ -91,10 +96,10 @@ export async function writeProjectRepo(
 }
 
 /**
- * Agent vai trò của project (Trợ Lý, executor, reviewer, integrator, các ô runtime) cùng tên thư mục checkout của từng
- * agent, đọc từ environment mặc định. Agent không có checkout `~/crew-agents/<khóa>/<tên>` hay khác khóa thì bị bỏ.
+ * Mọi agent trong dòng `crew_project_roles` của project (Trợ Lý, executor, reviewer, integrator, các ô runtime), chữ
+ * thường, không trùng, theo thứ tự đó; kể cả agent terminated hay không có checkout. `null` khi project chưa có dòng vai trò.
  */
-export async function projectLayout(db: ExecDb, companyId: string, projectId: string): Promise<ProjectLayout | null> {
+export async function projectRoleAgentIds(db: ExecDb, companyId: string, projectId: string): Promise<string[] | null> {
   const roleRows = rowsOf(await db.execute(sql`SELECT to_jsonb(r) AS r FROM ${crewTableSql("crew_project_roles")} r
     WHERE r.company_id = ${companyId} AND r.project_id = ${projectId} LIMIT 1`));
   if (!roleRows[0]) return null;
@@ -104,7 +109,15 @@ export async function projectLayout(db: ExecDb, companyId: string, projectId: st
     r.assistant_agent_id, ...executors, r.reviewer_agent_id, r.integrator_agent_id,
     r.codex_executor_agent_id, r.opencode_executor_agent_id, r.codex_reviewer_agent_id,
   ].filter((id): id is string => typeof id === "string" && UUID_RE.test(id)).map((id) => id.toLowerCase());
-  const ids = [...new Set(ordered)];
+  return [...new Set(ordered)];
+}
+
+/**
+ * Agent vai trò của project (Trợ Lý, executor, reviewer, integrator, các ô runtime) cùng tên thư mục checkout của từng
+ * agent, đọc từ environment mặc định. Agent không có checkout `~/crew-agents/<khóa>/<tên>` hay khác khóa thì bị bỏ.
+ */
+export async function projectLayout(db: ExecDb, companyId: string, projectId: string): Promise<ProjectLayout | null> {
+  const ids = (await projectRoleAgentIds(db, companyId, projectId)) ?? [];
   if (ids.length === 0) return null;
   const rows = rowsOf(await db.execute(sql`SELECT a.id::text AS id, e.name AS env_name,
       e.config->>'remoteWorkspacePath' AS path, e.metadata->'crewLoadGate' AS gate
@@ -260,7 +273,9 @@ export async function reconcileProjectMachine(
           : setProjectMachine(db, key, { status: "failed", error: PROVISION_UNAVAILABLE[again.reason] });
       }
       try {
-        await createMachineEnvironment(db, { companyId: input.companyId, agent, machine, checkoutPath: checkout.path });
+        await createMachineEnvironment(db, {
+          companyId: input.companyId, projectId: input.projectId, agent, machine, checkoutPath: checkout.path,
+        });
       } catch (error) {
         const reason = error instanceof Error ? error.message : String(error);
         return setProjectMachine(db, key, {
@@ -285,16 +300,36 @@ export function machineEnvironmentName(baseName: string, hostname: string): stri
   return `${baseName}@${slug || "may"}`;
 }
 
+/**
+ * Environment `@máy` cùng tên của agent khác được nhận lại khi nó đã archive và agent cũ (`crewAgentId`) không còn trong
+ * dòng vai trò của project, cùng company với project hay không còn tồn tại: tên environment theo ô nên thay agent của ô
+ * để lại environment cũ đúng tên này.
+ */
+async function canTakeOver(
+  db: ExecDb, input: { companyId: string; projectId: string }, status: string, owner: unknown,
+): Promise<boolean> {
+  if (status !== "archived") return false;
+  if (typeof owner === "string" && UUID_RE.test(owner)) {
+    if ((await projectRoleAgentIds(db, input.companyId, input.projectId))?.includes(owner.toLowerCase())) return false;
+    const rows = rowsOf(await db.execute(sql`SELECT company_id::text AS company_id FROM agents WHERE id = ${owner} LIMIT 1`));
+    return !rows[0] || rows[0].company_id === input.companyId;
+  }
+  return false;
+}
+
 type CreateInput = Exclude<Parameters<ReturnType<typeof environmentService>["create"]>[0], string>;
 
 /**
  * Environment SSH của agent trên máy, đúng các bước của route tạo environment (`routes/environments.ts`): chuẩn hóa cấu
  * hình, ghi dòng và secret binding trong một transaction. Host, cổng, user, `knownHosts` và secret SSH chép từ environment
  * mẫu của máy; `crewLoadGate` chép từ mẫu (thiếu thì từ environment mặc định của agent). Environment cùng tên của chính
- * agent (kể cả đã archive) được bật lại và ghi đè cấu hình; cùng tên mà của agent khác thì ném.
+ * agent (kể cả đã archive) được bật lại và ghi đè cấu hình. Cùng tên mà của agent khác: environment đã archive của agent
+ * không còn trong dòng vai trò của project (agent cũ của ô vừa được thay, cùng company hay đã bị xóa) thì agent mới nhận
+ * lại; còn lại (đang active, hay của agent vai trò hiện tại, hay của company khác) thì ném.
  */
 export async function createMachineEnvironment(
-  db: Db, input: { companyId: string; agent: ProjectRoleAgent; machine: PairedMachine; checkoutPath: string },
+  db: Db,
+  input: { companyId: string; projectId: string; agent: ProjectRoleAgent; machine: PairedMachine; checkoutPath: string },
 ): Promise<string> {
   const envs = environmentService(db);
   const template = await envs.getById(input.machine.templateEnvironmentId);
@@ -320,7 +355,8 @@ export async function createMachineEnvironment(
   };
   const name = machineEnvironmentName(input.agent.environmentName, input.machine.hostname);
   const existing = (await envs.list({ driver: "ssh" })).find((env) => env.name === name) ?? null;
-  if (existing && (existing.metadata as Record<string, unknown> | null)?.crewAgentId !== input.agent.agentId) {
+  const owner = (existing?.metadata as Record<string, unknown> | null)?.crewAgentId;
+  if (existing && owner !== input.agent.agentId && !(await canTakeOver(db, input, existing.status, owner))) {
     throw new Error(`environment ${name} đã có và không thuộc agent ${input.agent.agentId}`);
   }
   const normalized = await normalizeEnvironmentConfigForPersistence({

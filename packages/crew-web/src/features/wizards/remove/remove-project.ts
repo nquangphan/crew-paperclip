@@ -159,7 +159,7 @@ export async function assertNoMachineBlockers(
 
 /**
  * Nhờ server archive environment `@máy` trên máy khác và xếp gỡ checkout ở đó; ghi số vào refs để trang hiện.
- * Phải chạy khi agent còn giữ vai trò trong project (server từ chối agent đã ra khỏi vai trò hay đã terminated).
+ * Phải chạy khi agent còn giữ vai trò trong project (server từ chối agent không có trong dòng vai trò).
  */
 export async function releaseOtherMachines(
   ctx: RemoveContext<RemoveApi>,
@@ -216,11 +216,10 @@ const STEPS: Record<RemoveProjectStepId, StepWork> = {
       // Thu quyền giao việc để agent đã gỡ không giữ `tasks:assign`; agent đã paused sẵn cũng được ghi lại.
       await ctx.api.agents.setPermissions(agent.id, { ...REMOVED_AGENT_PERMISSIONS }, run.companyId);
     }
-    // Dọn máy khác trước khi bước `roles` xóa dòng vai trò; agent terminated không còn thuộc phạm vi server nhận.
-    const live = ROLE_SLOTS.flatMap((slot) => (refs[`agent_${slot}`] ? [refs[`agent_${slot}`]] : [])).filter(
-      (id) => agents.find((a) => a.id === id)?.status !== 'terminated',
-    );
-    await releaseOtherMachines(ctx, run, refs, { projectId, agentIds: live, wholeProject: true });
+    // Dọn máy khác trước khi bước `roles` xóa dòng vai trò. Chỉ gửi agent đang trong dòng vai trò (server từ chối id
+    // ngoài dòng): refs của lần chạy trước có thể còn agent owner đã thay ở ô.
+    const inRoles = roles ? [...new Set(slotAgents(roles).map(([, id]) => id))] : [];
+    await releaseOtherMachines(ctx, run, refs, { projectId, agentIds: inRoles, wholeProject: true });
   },
 
   async roles(ctx, run) {
