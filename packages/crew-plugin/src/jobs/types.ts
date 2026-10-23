@@ -1,6 +1,6 @@
 /** Work the board queues for a Mac; the 2P Crew app claims it with a board key and reports the result. */
 export type MachineJobKind = "inspect-folder" | "prepare-checkouts" | "agent-workspace" | "skill-sync" | "check"
-  | "remove-checkouts" | "skill-remove" | "runtimes-setup";
+  | "remove-checkouts" | "skill-remove" | "runtimes-setup" | "ensure-project";
 export type MachineJobStatus = "queued" | "claimed" | "done" | "failed" | "cancelled";
 /** `executor-codex`, `executor-opencode`, `reviewer-codex`: agent chạy runtime ngoài Claude, mỗi ô một agent. */
 export type CrewRoleSlot = "assistant" | "executor" | "executor-2" | "reviewer" | "integrator"
@@ -8,7 +8,7 @@ export type CrewRoleSlot = "assistant" | "executor" | "executor-2" | "reviewer" 
 
 export const MACHINE_JOB_KINDS: readonly MachineJobKind[] = [
   "inspect-folder", "prepare-checkouts", "agent-workspace", "skill-sync", "check", "remove-checkouts", "skill-remove",
-  "runtimes-setup",
+  "runtimes-setup", "ensure-project",
 ];
 export const MACHINE_JOB_STATUSES: readonly MachineJobStatus[] = ["queued", "claimed", "done", "failed", "cancelled"];
 export const CREW_ROLE_SLOTS: readonly CrewRoleSlot[] = [
@@ -33,7 +33,15 @@ export type JobPayload =
   /** Removes the copy under `~/.crew/skills/<companyId>/<slug>`. */
   | { kind: "skill-remove"; skillId: string; slug: string }
   /** Cài/cập nhật wrapper runtime trên Mac rồi báo trạng thái. Key OpenCode không bao giờ đi qua hàng đợi. */
-  | { kind: "runtimes-setup" };
+  | { kind: "runtimes-setup" }
+  /**
+   * Dựng project trên máy (flow `multi-machine`, server Crew xếp việc): tìm repo có sẵn cùng origin hoặc clone về
+   * `~/crew-agents/<projectKey>/repo`, cài crew-docs, worktree cho từng `roles[].role`, repo đi kèm cạnh worktree.
+   */
+  | {
+    kind: "ensure-project"; projectKey: string; projectId: string; originUrl: string; branch: string;
+    roles: { role: string; branch: string }[]; companions: { name: string; originUrl: string }[];
+  };
 
 /** Why a checkout was kept by `remove-checkouts`; keeping one is a `done` result, never a failure. */
 export type KeptCheckoutReason = "dirty" | "busy" | "not_worktree" | "git_failed";
@@ -57,19 +65,23 @@ export type JobResult =
     wrappers: { codex: boolean; opencode: boolean };
     codex: { version: string | null; loggedIn: boolean | null };
     opencode: { version: string | null; keyPresent: boolean | null };
+  }
+  | {
+    kind: "ensure-project"; repoPath: string; cloned: boolean;
+    checkouts: { role: string; path: string; head: string }[]; companions: { name: string; path: string }[];
   };
 
 export type JobErrorCode =
-  | "folder_not_git" | "folder_forbidden" | "folder_missing" | "checkout_exists" | "git_failed"
+  | "folder_not_git" | "folder_forbidden" | "folder_missing" | "checkout_exists" | "git_failed" | "clone_auth_failed"
   | "skill_fetch_failed" | "check_failed" | "lease_expired" | "app_error";
 
 export const JOB_ERROR_CODES: readonly JobErrorCode[] = [
-  "folder_not_git", "folder_forbidden", "folder_missing", "checkout_exists", "git_failed",
+  "folder_not_git", "folder_forbidden", "folder_missing", "checkout_exists", "git_failed", "clone_auth_failed",
   "skill_fetch_failed", "check_failed", "lease_expired", "app_error",
 ];
 
-/** A claimed job the app has not reported within this window goes back to the queue. */
-export const JOB_LEASE_MINUTES = 10;
+/** A claimed job the app has not reported within this window goes back to the queue (always longer than the app's 15 minutes). */
+export const JOB_LEASE_MINUTES = 17;
 /** Lease expiries after which a job stops being retried automatically. */
 export const JOB_MAX_ATTEMPTS = 3;
 export const JOB_LIST_LIMIT = 100;
