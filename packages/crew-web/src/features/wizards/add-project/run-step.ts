@@ -106,7 +106,11 @@ export interface AddProjectApi extends InstructionsApi {
     provisionOthers(
       companyId: string,
       projectId: string,
-      body: { exceptMachineId: string | null; includeReady: boolean; repo: { originUrl: string; branch: string } | null },
+      body: {
+        exceptMachineId: string | null;
+        includeReady: boolean;
+        repo: { originUrl: string; branch: string } | null;
+      },
     ): Promise<{ queued: { machineId: string; jobId: string }[]; skipped: { machineId: string; reason: string }[] }>;
   };
 }
@@ -163,7 +167,8 @@ const REF_MAX = 200;
  */
 export function repoOf(remote: string | undefined): { originUrl: string; branch: string } | null {
   if (!remote || remote.includes('[ĐÃ CHE]')) return null;
-  return { originUrl: remote.replace(/^(https?:\/\/)[^/]*@/, '$1'), branch: 'main' };
+  const origin = remote.replace(/^(https?:\/\/)[^/]*@/, '$1').replace(/^(ssh:\/\/[^/:@]*):[^/@]*@/, '$1@');
+  return { originUrl: origin, branch: 'main' };
 }
 
 /**
@@ -184,6 +189,8 @@ export async function provisionOthersSafely(
     });
     refs.others = String(result.queued.length);
   } catch (error) {
+    // Server cũ chưa có route dựng máy khác: bỏ qua im lặng.
+    if (error instanceof ApiError && error.status === 404) return;
     refs.othersError = (error instanceof Error ? error.message : String(error)).slice(0, REF_MAX);
   }
 }

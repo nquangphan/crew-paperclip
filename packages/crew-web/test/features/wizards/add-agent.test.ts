@@ -32,7 +32,13 @@ const ID = {
 const PROJECT = 'p0000000-0000-4000-8000-000000000001';
 
 function existing(id: string, name: string, role: 'assistant' | 'executor' | 'reviewer' | 'integrator'): FakeAgent {
-  const body = crewAgentCreateBody({ name, role, model: 'claude-sonnet-5-5', pinDir: PIN, environmentId: `env-${name}` });
+  const body = crewAgentCreateBody({
+    name,
+    role,
+    model: 'claude-sonnet-5-5',
+    pinDir: PIN,
+    environmentId: `env-${name}`,
+  });
   return {
     id,
     name,
@@ -785,5 +791,13 @@ describe('environment theo máy của run (hai máy)', () => {
     const call = f.calls.find((c) => c.fn === 'machinePins.provisionOthers');
     expect(call?.args[1]).toBe(PROJECT);
     expect(call?.args[2]).toEqual({ exceptMachineId: 'm1', includeReady: true, repo: null });
+  });
+
+  it('xếp dựng máy khác lỗi thì ghi refs.othersError, run vẫn xong', async () => {
+    const f = setup(addAgentRun('executor-2'));
+    f.failOn('machinePins.provisionOthers', 1, new ApiError(500, 'server lỗi'));
+    const run = await runAddAgent(ctxOf(f.api), f.state.run);
+    expect(run.status).toBe('done');
+    expect(run.steps['assistant-instructions']?.refs?.othersError).toContain('server lỗi');
   });
 });
