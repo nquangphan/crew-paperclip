@@ -138,8 +138,10 @@ suite("dựng project trên máy (Postgres)", () => {
 
     const again = await startProvisioning(db, { companyId: w.companyId, projectId: w.projectId, machineId: MINI.machineId, createdBy: "owner" });
     expect(again.ok).toBe(true);
-    const later = new Date(Date.now() + 3 * 60 * 60_000);
-    expect(await reconcileProjectMachine(db, { companyId: w.companyId, projectId: w.projectId, machineId: MINI.machineId, now: later }))
+    await db.execute(sql.raw(`UPDATE ${ns}.crew_machine_jobs SET created_at = created_at - interval '3 hours' WHERE company_id = '${w.companyId}'`));
+    await db.execute(sql.raw(`UPDATE ${ns}.project_machines SET updated_at = now() - interval '3 hours'
+      WHERE company_id = '${w.companyId}' AND machine_id = '${MINI.machineId}'`));
+    expect(await reconcileProjectMachine(db, { companyId: w.companyId, projectId: w.projectId, machineId: MINI.machineId }))
       .toMatchObject({ status: "provisioning", error: null });
   });
 
@@ -152,12 +154,50 @@ suite("dựng project trên máy (Postgres)", () => {
       kind: "ensure-project", repoPath: "/x", cloned: false, companions: [],
       checkouts: ["assistant", "reviewer", "integrator"].map((role) => ({ role, path: `/Users/owner/crew-agents/kidy-school/${role}`, head: "d".repeat(40) })),
     };
-    await db.execute(sql.raw(`UPDATE ${ns}.crew_machine_jobs SET status = 'done', result = '${JSON.stringify(result)}'::jsonb WHERE id = '${started.jobId}'`));
+    await db.execute(sql.raw(`UPDATE ${ns}.crew_machine_jobs SET status = 'done', result = '${JSON.stringify(result)}'::jsonb,
+      payload = jsonb_set(payload, '{roles}', (SELECT jsonb_agg(r) FROM jsonb_array_elements(payload->'roles') r WHERE r->>'role' <> 'executor-1'))
+      WHERE id = '${started.jobId}'`));
     expect(await reconcileProjectMachine(db, { companyId: w.companyId, projectId: w.projectId, machineId: MINI.machineId }))
       .toMatchObject({ status: "provisioning" });
-    const queued = rows(await db.execute(sql.raw(`SELECT status FROM ${ns}.crew_machine_jobs
+    const queued = rows(await db.execute(sql.raw(`SELECT status, payload FROM ${ns}.crew_machine_jobs
       WHERE company_id = '${w.companyId}' AND kind = 'ensure-project' AND status = 'queued'`)));
     expect(queued).toHaveLength(1);
+    expect((queued[0]!.payload as { roles: { role: string }[] }).roles.map((r) => r.role)).toContain("executor-1");
+  });
+
+  it("máy bỏ sót checkout đã được yêu cầu: failed nêu tên checkout, không xếp việc mới", async () => {
+    const w = await world();
+    await writeProjectRepo(db, { companyId: w.companyId, projectId: w.projectId, userId: "owner", repo: { originUrl: ORIGIN, branch: "main", companions: [] } });
+    const started = await startProvisioning(db, { companyId: w.companyId, projectId: w.projectId, machineId: MINI.machineId, createdBy: "owner" });
+    if (!started.ok) throw new Error("không xếp được việc");
+    const result = {
+      kind: "ensure-project", repoPath: "/x", cloned: false, companions: [],
+      checkouts: ["assistant", "reviewer", "integrator"].map((role) => ({ role, path: `/Users/owner/crew-agents/kidy-school/${role}`, head: "e".repeat(40) })),
+    };
+    await db.execute(sql.raw(`UPDATE ${ns}.crew_machine_jobs SET status = 'done', result = '${JSON.stringify(result)}'::jsonb WHERE id = '${started.jobId}'`));
+    expect(await reconcileProjectMachine(db, { companyId: w.companyId, projectId: w.projectId, machineId: MINI.machineId }))
+      .toMatchObject({ status: "failed", error: "Máy không dựng checkout executor-1" });
+    const queued = rows(await db.execute(sql.raw(`SELECT status FROM ${ns}.crew_machine_jobs
+      WHERE company_id = '${w.companyId}' AND kind = 'ensure-project' AND status = 'queued'`)));
+    expect(queued).toHaveLength(0);
+  });
+
+  it("environment mẫu của máy không còn active: failed kèm lý do, gọi lại không ném", async () => {
+    const w = await world();
+    await writeProjectRepo(db, { companyId: w.companyId, projectId: w.projectId, userId: "owner", repo: { originUrl: ORIGIN, branch: "main", companions: [] } });
+    const started = await startProvisioning(db, { companyId: w.companyId, projectId: w.projectId, machineId: MINI.machineId, createdBy: "owner" });
+    if (!started.ok) throw new Error("không xếp được việc");
+    await db.update(environments).set({ status: "archived" }).where(eq(environments.id, w.miniTemplate));
+    const result = {
+      kind: "ensure-project", repoPath: "/x", cloned: false, companions: [],
+      checkouts: ["assistant", "executor-1", "reviewer", "integrator"].map((role) => ({ role, path: `/Users/owner/crew-agents/kidy-school/${role}`, head: "f".repeat(40) })),
+    };
+    await db.execute(sql.raw(`UPDATE ${ns}.crew_machine_jobs SET status = 'done', result = '${JSON.stringify(result)}'::jsonb WHERE id = '${started.jobId}'`));
+    const key = { companyId: w.companyId, projectId: w.projectId, machineId: MINI.machineId };
+    const failed = await reconcileProjectMachine(db, key);
+    expect(failed).toMatchObject({ status: "failed" });
+    expect(failed!.error).toMatch(/^Không tạo được environment cho assistant: .*không còn active/);
+    await expect(reconcileProjectMachine(db, key)).resolves.toMatchObject({ status: "failed" });
   });
 
   it("environment cùng tên đã archive của chính agent được bật lại, không tạo bản mới", async () => {

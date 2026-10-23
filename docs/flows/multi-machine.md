@@ -34,7 +34,8 @@ fallback) dựa vào kho git dùng chung trên một máy. Owner chọn máy lú
    (`ensureProjectPayload`, nhánh agent `agent/<khóa>-<tên>`), `reconcileProjectMachine` đọc kết quả việc: xong thì
    `createMachineEnvironment` cho agent còn thiếu (tên `<environment mặc định>@<tên máy>`, cấu hình SSH và secret từ
    environment mẫu của dòng ghép, `metadata.crewAgentId`/`crewMachineId`, secret binding như route tạo environment) rồi
-   `ready` (thiếu checkout của agent mới thì xếp việc lại); lỗi hay bị hủy thì `failed`; việc còn chờ thì giữ
+   `ready` (thiếu checkout của agent không có trong việc, tức agent thêm sau, thì xếp việc lại; thiếu checkout đã yêu cầu
+   hay không tạo được environment thì `failed` nêu lý do, giữ environment đã tạo); lỗi hay bị hủy thì `failed`; việc còn chờ thì giữ
    `provisioning` (máy tắt: việc nằm trong hàng đợi). Environment cùng tên của chính agent, kể cả đã archive, được bật lại
    chứ không tạo bản mới; không bao giờ xóa environment.
 
@@ -64,5 +65,6 @@ Bảng plugin `issue_machine_pins`, `project_machines`, `project_repos` (migrati
   ghim (máy đã gỡ thì `null`), ứng viên với số run `running` theo host, trạng thái project và `maxLoad1` của environment mẫu.
 - `server/src/__tests__/crew-machine-provision.db.test.ts` (Postgres nhúng): bố cục project, từ chối khi máy chưa ghép hay
   chưa có repo, xếp đúng một việc, việc xong tạo environment đúng host/secret/checkout rồi `ready` và gọi lại không tạo
-  thêm, việc lỗi thì `failed`, việc chờ lâu vẫn `provisioning`, thiếu checkout thì xếp việc lại, bật lại environment đã
-  archive, `projectProvisionable`, từ chối origin có userinfo.
+  thêm, việc lỗi thì `failed`, việc chờ lâu vẫn `provisioning`, thiếu checkout của agent thêm sau thì xếp việc lại,
+  thiếu checkout đã yêu cầu thì `failed` không xếp việc, environment mẫu không active thì `failed` và gọi lại không ném,
+  bật lại environment đã archive, `projectProvisionable`, từ chối origin có userinfo.

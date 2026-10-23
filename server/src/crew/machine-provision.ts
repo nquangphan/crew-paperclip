@@ -219,18 +219,20 @@ function parseResult(value: unknown): EnsureProjectResult | null {
 /**
  * Đối chiếu `project_machines` đang `provisioning` với việc `ensure-project` mới nhất của project trên máy:
  * - `done`: tạo environment cho agent vai trò nào còn thiếu trên máy (theo checkout máy báo), rồi `ready`; máy không báo
- *   checkout của một agent (agent thêm sau khi việc được xếp) thì xếp việc mới và giữ `provisioning`;
+ *   checkout của agent không có trong việc (agent thêm sau khi việc được xếp) thì xếp việc mới và giữ `provisioning`;
+ *   thiếu checkout đã yêu cầu hay không tạo được environment (mẫu không active, trùng tên, secret) thì `failed`, giữ
+ *   environment đã tạo;
  * - `failed`: `failed` kèm câu lỗi của app; `cancelled` hay không có việc: `failed`;
  * - còn chờ (kể cả rất lâu, máy tắt): giữ `provisioning`; cổng H1 tự hủy run chờ quá `PROVISION_TIMEOUT_MS`.
  * Gọi lại bao nhiêu lần cũng được; trạng thái khác `provisioning` thì trả nguyên.
  */
 export async function reconcileProjectMachine(
-  db: Db, input: { companyId: string; projectId: string; machineId: string; now?: Date },
+  db: Db, input: { companyId: string; projectId: string; machineId: string },
 ): Promise<ProjectMachineRow | null> {
   const key = { companyId: input.companyId, projectId: input.projectId, machineId: input.machineId };
   const row = await readProjectMachine(db, input.companyId, input.projectId, input.machineId);
   if (!row || row.status !== "provisioning") return row;
-  const jobs = rowsOf(await db.execute(sql`SELECT status, result, error_code, error_text FROM ${crewTableSql("crew_machine_jobs")}
+  const jobs = rowsOf(await db.execute(sql`SELECT status, payload, result, error_code, error_text FROM ${crewTableSql("crew_machine_jobs")}
     WHERE company_id = ${input.companyId} AND machine_id = ${input.machineId} AND kind = 'ensure-project'
       AND payload->>'projectId' = ${input.projectId}
     ORDER BY created_at DESC, id DESC LIMIT 1`));
@@ -242,15 +244,29 @@ export async function reconcileProjectMachine(
     if (!machine) return setProjectMachine(db, key, { status: "failed", error: "Máy chưa ghép, mở app 2P Crew → Máy → Ghép" });
     const layout = await projectLayout(db, input.companyId, input.projectId);
     if (!layout) return setProjectMachine(db, key, { status: "failed", error: "Project không còn vai trò" });
+    const payloadRoles = jsonRecord(job.payload).roles;
+    const requested = new Set(
+      (Array.isArray(payloadRoles) ? payloadRoles : []).map((item) => jsonRecord(item).role).filter((role) => typeof role === "string"),
+    );
     for (const agent of layout.agents) {
       if (await agentEnvironmentOnMachine(db, input.companyId, agent.agentId, machine)) continue;
       const checkout = result.checkouts.find((item) => item.role === agent.checkoutName);
       if (!checkout) {
+        if (requested.has(agent.checkoutName)) {
+          return setProjectMachine(db, key, { status: "failed", error: `Máy không dựng checkout ${agent.checkoutName}` });
+        }
         const again = await startProvisioning(db, { ...key, createdBy: "crew:auto" });
         return again.ok ? readProjectMachine(db, input.companyId, input.projectId, input.machineId)
           : setProjectMachine(db, key, { status: "failed", error: PROVISION_UNAVAILABLE[again.reason] });
       }
-      await createMachineEnvironment(db, { companyId: input.companyId, agent, machine, checkoutPath: checkout.path });
+      try {
+        await createMachineEnvironment(db, { companyId: input.companyId, agent, machine, checkoutPath: checkout.path });
+      } catch (error) {
+        const reason = error instanceof Error ? error.message : String(error);
+        return setProjectMachine(db, key, {
+          status: "failed", error: `Không tạo được environment cho ${agent.checkoutName}: ${reason}`,
+        });
+      }
     }
     return setProjectMachine(db, key, { status: "ready", error: null, repoPath: result.repoPath });
   }
@@ -258,7 +274,8 @@ export async function reconcileProjectMachine(
     const text = typeof job.error_text === "string" && job.error_text ? job.error_text : String(job.error_code ?? "Dựng project thất bại");
     return setProjectMachine(db, key, { status: "failed", error: text });
   }
-  if (!job || job.status === "cancelled") return setProjectMachine(db, key, { status: "failed", error: "Việc dựng project đã bị hủy" });
+  if (!job) return setProjectMachine(db, key, { status: "failed", error: "Không có việc dựng project nào cho máy này" });
+  if (job.status === "cancelled") return setProjectMachine(db, key, { status: "failed", error: "Việc dựng project đã bị hủy" });
   return row;
 }
 
