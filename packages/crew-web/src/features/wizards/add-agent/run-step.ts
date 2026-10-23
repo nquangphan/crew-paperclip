@@ -38,6 +38,7 @@ import {
   machineTargetOf,
   pauseAgents,
   pinDirOf,
+  provisionOthersSafely,
   required,
   resultOf,
   runJob,
@@ -65,6 +66,7 @@ export interface AddAgentApi {
     get(id: string, companyId?: string): Promise<AgentDetail>;
     update(id: string, body: Record<string, unknown>, companyId?: string): Promise<unknown>;
   };
+  machinePins: AddProjectApi['machinePins'];
   roles: {
     get(companyId: string, projectId: string): Promise<ProjectRoles | null>;
     set(companyId: string, projectId: string, roles: ProjectRoles): Promise<unknown>;
@@ -408,6 +410,12 @@ const STEPS: Record<AddAgentStepId, StepWork> = {
       const agent = (await ctx.api.agents.list(run.companyId)).find((a) => a.id === saved.agent);
       if (agent?.status === 'paused') await ctx.api.agents.resume(agent.id, run.companyId);
     }
+    // Agent mới cần worktree trên mọi máy khác, kể cả máy đã `ready`.
+    await provisionOthersSafely(ctx, run, refs, {
+      projectId: agentInputOf(run).projectId,
+      includeReady: true,
+      repo: null,
+    });
   },
 };
 

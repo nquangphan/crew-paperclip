@@ -777,4 +777,13 @@ describe('environment theo máy của run (hai máy)', () => {
     expect(f.names()).not.toContain('environments.update');
     expect(f.names()).not.toContain('environments.create');
   });
+
+  it('thêm agent xong thì xếp dựng lại cả máy đã sẵn sàng (cần worktree cho agent mới), loại máy của run', async () => {
+    const f = setup(addAgentRun('executor-2'));
+    const run = await runAddAgent(ctxOf(f.api), f.state.run);
+    expect(run.status).toBe('done');
+    const call = f.calls.find((c) => c.fn === 'machinePins.provisionOthers');
+    expect(call?.args[1]).toBe(PROJECT);
+    expect(call?.args[2]).toEqual({ exceptMachineId: 'm1', includeReady: true, repo: null });
+  });
 });

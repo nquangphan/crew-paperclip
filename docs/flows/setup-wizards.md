@@ -44,10 +44,12 @@ Luật chính:
    tiến độ; bước cuối `done` thì run `done`.
 3. `packages/crew-web/src/features/wizards/add-project/run-step.ts` → `runAddProjectStep`: các bước `inspect`,
    `project`, `checkouts`, `environments`, `agents`, `roles`, `check`; chọn environment mẫu đúng máy (`pickTemplate`),
-   chờ việc trên máy bằng `waitJob` (`add-project/wait-job.ts`).
+   chờ việc trên máy bằng `waitJob` (`add-project/wait-job.ts`). Phần bổ sung cho nhiều máy: bước `inspect` lưu `remote`;
+   bước `check` xong thì `provisionOthersSafely` xếp `ensure-project` cho máy khác (`refs.others`, lỗi ở
+   `refs.othersError`, không làm hỏng run); `repoOf` bỏ remote đã che và cắt userinfo https trước khi gửi.
 4. `packages/crew-web/src/features/wizards/add-agent/run-step.ts` → `runAddAgentStep`: `agent`, `pin`,
    `environment`, `workspace`, `role`, `assistant-instructions` (render lại AGENTS.md của Trợ Lý khi danh sách executor
-   đổi). Mỗi bước kiểm trước rồi chỉ ghi phần chưa đạt, nên chế độ sửa dùng cùng code. Repo gốc của project không có
+   đổi); bước cuối còn xếp dựng lại mọi máy khác kể cả máy `ready` (`includeReady`, phần bổ sung cho nhiều máy). Mỗi bước kiểm trước rồi chỉ ghi phần chưa đạt, nên chế độ sửa dùng cùng code. Repo gốc của project không có
    lần thêm project được hỏi máy qua việc `inspect-folder` (`add-agent/repo-root.ts`).
 5. `packages/crew-web/src/features/wizards/remove/remove-project.ts` → `runRemoveProject`; `remove/remove-agent.ts` →
    `runRemoveAgent`: pause, ghi hay xóa vai trò, archive environment riêng (`exclusiveEnvironments`), gỡ checkout; checkout

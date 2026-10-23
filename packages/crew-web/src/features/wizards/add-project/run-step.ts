@@ -102,6 +102,13 @@ export interface AddProjectApi extends InstructionsApi {
   };
   roles: { set(companyId: string, projectId: string, roles: ProjectRoles): Promise<unknown> };
   crew: { machines(companyId: string): Promise<unknown> };
+  machinePins: {
+    provisionOthers(
+      companyId: string,
+      projectId: string,
+      body: { exceptMachineId: string | null; includeReady: boolean; repo: { originUrl: string; branch: string } | null },
+    ): Promise<{ queued: { machineId: string; jobId: string }[]; skipped: { machineId: string; reason: string }[] }>;
+  };
 }
 
 export type Translate = (key: string, params?: Record<string, unknown>) => string;
@@ -149,6 +156,37 @@ export class StepError extends Error {
 }
 
 const REF_MAX = 200;
+
+/**
+ * Origin để máy khác tìm hay clone repo. Remote có credential đã che thì bỏ; userinfo https còn sót thì cắt đi.
+ * Nhánh chính mặc định `main`.
+ */
+export function repoOf(remote: string | undefined): { originUrl: string; branch: string } | null {
+  if (!remote || remote.includes('[ĐÃ CHE]')) return null;
+  return { originUrl: remote.replace(/^(https?:\/\/)[^/]*@/, '$1'), branch: 'main' };
+}
+
+/**
+ * Máy chính xong: nhờ server xếp `ensure-project` cho mọi máy đã ghép khác (máy offline thì việc chờ trong hàng đợi). Không
+ * ném: lỗi ghi vào refs của bước, lỗi từng máy hiện ở tab Máy của project.
+ */
+export async function provisionOthersSafely(
+  ctx: { api: Pick<AddProjectApi, 'machinePins'> },
+  run: SetupRun,
+  refs: Record<string, string>,
+  input: { projectId: string; includeReady: boolean; repo: { originUrl: string; branch: string } | null },
+): Promise<void> {
+  try {
+    const result = await ctx.api.machinePins.provisionOthers(run.companyId, input.projectId, {
+      exceptMachineId: run.machineId,
+      includeReady: input.includeReady,
+      repo: input.repo,
+    });
+    refs.others = String(result.queued.length);
+  } catch (error) {
+    refs.othersError = (error instanceof Error ? error.message : String(error)).slice(0, REF_MAX);
+  }
+}
 
 /** Refs của mọi bước (kể cả bước lỗi còn giữ id đã tạo), theo thứ tự bước. */
 export function runRefs(run: SetupRun): Record<string, string> {
@@ -394,6 +432,7 @@ const STEPS: Record<AddProjectStepId, StepWork> = {
     );
     if (result.root.length <= REF_MAX) refs.root = result.root;
     if (result.branch && result.branch.length <= REF_MAX) refs.branch = result.branch;
+    if (result.remote && result.remote.length <= REF_MAX) refs.remote = result.remote;
     return {};
   },
 
@@ -516,7 +555,7 @@ const STEPS: Record<AddProjectStepId, StepWork> = {
     return {};
   },
 
-  async check(ctx, run) {
+  async check(ctx, run, refs) {
     const input = inputOf(run);
     const result = resultOf(await runJob(ctx, run, { kind: 'check', projectKey: input.key }, false), 'check');
     const bad = result.items.filter((i) => i.status === 'error');
@@ -525,6 +564,13 @@ const STEPS: Record<AddProjectStepId, StepWork> = {
     const ids = agentIdsOf(runRefs(run));
     for (const agent of await ctx.api.agents.list(run.companyId)) {
       if (ids.has(agent.id) && agent.status === 'paused') await ctx.api.agents.resume(agent.id, run.companyId);
+    }
+    if (run.projectId) {
+      await provisionOthersSafely(ctx, run, refs, {
+        projectId: run.projectId,
+        includeReady: false,
+        repo: repoOf(runRefs(run).remote),
+      });
     }
     return {};
   },

@@ -88,7 +88,7 @@ const defaultOutcome: JobOutcome = (payload) => {
       kind: 'inspect-folder',
       root: payload.folder,
       branch: 'main',
-      remote: null,
+      remote: 'git@github.com:owner/demo.git',
       docsBundle: null,
       clean: true,
     };
