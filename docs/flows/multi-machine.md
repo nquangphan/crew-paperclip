@@ -28,6 +28,17 @@ fallback) dựa vào kho git dùng chung trên một máy. Owner chọn máy lú
 
   `status` của máy trong project: `"ready" | "provisioning" | "failed" | null` (null = chưa dựng). Bảng máy chưa có thì
   503 `crew_machine_unavailable`; body `machineId` sai thì 400 `crew_machine_invalid`.
+- Ba route dọn/dựng máy khác, cùng router, chỉ owner bằng phiên trình duyệt hoặc board API key của owner (app 2P Crew gọi
+  bằng board key); không phải owner thì 403 `crew_machine_forbidden`, body sai thì 400 `crew_machine_invalid`:
+
+| Method, đường | Body | Trả |
+|---|---|---|
+| `GET …/projects/:projectId/machines/blockers?agentIds=a,b` | — | `{ blockers: [{ issueId, identifier, hostname, runStatus }] }`; thiếu `agentIds` = cả project |
+| `POST …/projects/:projectId/machines/release` | `{ agentIds: uuid[1..20], wholeProject, primaryMachineId: uuid \| null }` | `{ archivedEnvironmentIds, jobs: [{ machineId, jobId }] }`; 409 `crew_machine_busy` kèm `blockers` |
+| `POST …/projects/:projectId/machines/provision` | `{ exceptMachineId: uuid \| null, includeReady, repo: { originUrl, branch } \| null }` | `{ queued: [{ machineId, jobId }], skipped: [{ machineId, reason }] }` |
+
+  `primaryMachineId`/`exceptMachineId` là mã máy `crew-mac status` (`machineId` trong cấu hình status), cũng là mã app
+  gửi lúc ghép nên trùng `machine_pairings.machine_id`.
 
 ## Các bước
 
@@ -82,6 +93,24 @@ fallback) dựa vào kho git dùng chung trên một máy. Owner chọn máy lú
      sai thì 422 `crew_machine_invalid`, đúng thì `writeProjectRepo`.
    - `GET …/projects/:projectId/machines`: trước khi trả, `reconcileProjectMachine` mọi dòng `provisioning` để trang project
      thấy kết quả việc dựng mà không chờ run.
+6. Gỡ và thêm (`server/src/crew/machine-release.ts`; phần owner duyệt thêm ngoài spec, 24/10/2026): mọi đường gỡ (wizard
+   web gỡ project/agent, app 2P Crew gỡ project) hỏi `…/machines/blockers` trước khi pause và gọi `…/machines/release` sau
+   khi archive environment mặc định; mọi đường thêm (wizard thêm project/agent, app thêm project) gọi
+   `…/machines/provision` sau khi máy chính xong, lỗi không làm hỏng wizard. Luật:
+   - Không làm gãy cây đang chạy: `machineReleaseBlockers` tìm cây của project đã ghim máy còn run `queued`/`running`
+     (của agent trong phạm vi gỡ; gỡ cả project hay thiếu `agentIds` thì của mọi agent); `releaseProjectMachines` kiểm lại
+     và trả 409 kèm danh sách, không archive gì.
+   - Không bao giờ DELETE environment: chỉ đổi `status` sang `archived` (`environmentService.update`), và chỉ environment
+     có `metadata.crewAgentId` của agent trong phạm vi; environment mặc định do đường gỡ cũ tự archive.
+   - `remove-checkouts` cho máy khác: máy có environment `@máy` của agent, cộng mọi máy trong `project_machines` khi gỡ cả
+     project, trừ `primaryMachineId`. `roles` là tên thư mục checkout (Trợ Lý, executor, reviewer, integrator, còn lại),
+     `removeStatusRepo: false`; dùng lại việc `remove-checkouts` còn chờ của cùng project trên máy đó nên gọi lại không
+     xếp trùng. Bản clone `repo` trên máy khác được giữ.
+   - `project_machines`: gỡ cả project thì xóa mọi dòng của project; gỡ một agent thì giữ dòng.
+   - Dựng sẵn (`provisionOtherMachines`): `repo` chỉ ghi khi project chưa có `project_repos`; máy chính
+     (`exceptMachineId`) được ghi `ready` khi environment mặc định của mọi agent vai trò trỏ đúng host của máy đó; mọi
+     máy đã ghép khác được `startProvisioning` (máy offline vẫn xếp việc), trừ máy `provisioning` và máy `ready` (trừ khi
+     `includeReady`, khi thêm agent cần worktree mới). Lỗi từng máy (`no_repo`, `no_roles`) nằm ở `skipped`, không ném.
 
 ## Files
 
@@ -91,12 +120,13 @@ fallback) dựa vào kho git dùng chung trên một máy. Owner chọn máy lú
 | `server/src/crew/machine-select.ts` | Chọn máy (thuần) | `chooseMachine`, `choiceReason`, `isOnline`, `MACHINE_REPORT_MAX_AGE_MS`, `DEFAULT_MAX_LOAD1` |
 | `server/src/crew/machine-pin.ts` | Truy vấn ghim máy, máy đã ghép, environment theo máy, ứng viên | `findRootIssueId`, `treeStarted`, `readPin`, `insertAutoPin`, `setOwnerPin`, `pairedMachines`, `machineOfHost`, `agentEnvironmentOnMachine`, `resolvePinnedEnvironment`, `crewResolveRunEnvironment`, `loadMachineCandidates` |
 | `server/src/crew/machine-routes.ts` | Route máy cho form yêu cầu và trang project | `crewMachineRoutes`, `MACHINE_ERRORS`, `projectRepoSchema`, `ORIGIN_RE` |
+| `server/src/crew/machine-release.ts` | Dọn environment và checkout ở máy khác khi gỡ, dựng sẵn project ở máy khác khi thêm | `machineReleaseBlockers`, `releaseProjectMachines`, `provisionOtherMachines`, `ReleaseBlocker`, `ReleaseResult`, `ProvisionOthersResult` |
 | `server/src/crew/machine-provision.ts` | Repo của project, xếp việc `ensure-project`, đối chiếu kết quả, tạo environment theo máy | `readProjectRepo`, `writeProjectRepo`, `projectLayout`, `projectProvisionable`, `ensureProjectPayload`, `startProvisioning`, `reconcileProjectMachine`, `listProjectMachines`, `machineEnvironmentName`, `createMachineEnvironment`, `PROVISION_TIMEOUT_MS`, `CHECKOUT_RE` |
 
 ## Dữ liệu
 
 Bảng plugin `issue_machine_pins`, `project_machines`, `project_repos` (migration `0022`), đọc `machine_pairings`,
-`machine_latest`, `crew_project_roles`, ghi hàng đợi `crew_machine_jobs` (việc `ensure-project`); bảng lõi `issues`, `environments`, `environment_leases`, `heartbeat_runs`, `agents`.
+`machine_latest`, `crew_project_roles`, ghi hàng đợi `crew_machine_jobs` (việc `ensure-project`, `remove-checkouts`); bảng lõi `issues`, `environments`, `environment_leases`, `heartbeat_runs`, `agents`.
 Activity `crew.machine.pinned` (entity issue gốc), `crew.machine.waiting` và `crew.machine.failed` (entity run, dấu một
 lần mỗi run).
 
@@ -134,3 +164,8 @@ lần mỗi run).
   gốc/máy phải ghép, máy chưa dựng mà project chưa có repo thì 409 không ghim, luật repo (422 `crew_machine_invalid`, tên
   repo đi kèm trùng checkout vai trò), owner chọn máy chưa dựng thì ghim và trang project thấy `provisioning`, cây có lease
   thì 409 `crew_machine_locked`, thêm máy ở trang project (403, 422 máy chưa ghép, 202).
+- `server/src/__tests__/crew-machine-release.db.test.ts` (Postgres nhúng): cây ghim còn run thì từ chối gỡ và không archive,
+  gỡ một agent archive environment máy khác (không xóa) và xếp `remove-checkouts` đúng tên checkout, gỡ cả project xóa dòng
+  máy và gọi lại không xếp thêm, dựng sẵn máy khác (ghi repo khi chưa có, bỏ máy `provisioning`/`ready` trừ
+  `includeReady`), máy chính được ghi `ready`, chưa có repo thì `skipped`; route: owner bằng board key, viewer 403,
+  `blockers` thiếu `agentIds` là cả project, `release` bận 409, origin có userinfo 400.

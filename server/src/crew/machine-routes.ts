@@ -1,9 +1,10 @@
 import { type Request, Router } from "express";
-import { and, eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { z } from "zod";
 import { type Db, issues, projects } from "@paperclipai/db";
-import { badRequest, HttpError, notFound } from "../errors.js";
+import { badRequest, forbidden, HttpError, notFound } from "../errors.js";
 import { logger } from "../middleware/logger.js";
+import { hasCompanyAccess } from "../routes/authz.js";
 import { isUuid, requireOwner, resolveContributionActor } from "./contributions.js";
 import {
   findRootIssueId, loadMachineCandidates, machineHostname, machineTablesReady, pairedMachine, pairedMachines, readPin,
@@ -13,7 +14,9 @@ import {
   listProjectMachines, PROVISION_UNAVAILABLE, projectLayout, type ProvisionStart, readProjectMachine, readProjectRepo,
   reconcileProjectMachine, startProvisioning, writeProjectRepo,
 } from "./machine-provision.js";
+import { machineReleaseBlockers, provisionOtherMachines, releaseProjectMachines } from "./machine-release.js";
 import { isOnline } from "./machine-select.js";
+import { rowsOf } from "./project-roles.js";
 
 const BASE = "/crew/companies/:companyId";
 
@@ -25,6 +28,8 @@ export const MACHINE_ERRORS = {
   unknownMachine: "crew_machine_unknown",
   noRepo: "crew_machine_no_repo",
   noRoles: "crew_machine_no_roles",
+  busy: "crew_machine_busy",
+  forbidden: "crew_machine_forbidden",
 } as const;
 
 export const ORIGIN_RE = /^(?:(?:https|ssh|file):\/\/\S+|[A-Za-z0-9._-]+@[A-Za-z0-9.-]+:\S+)$/;
@@ -105,6 +110,8 @@ async function issueMachineView(db: Db, companyId: string, issueId: string) {
  * - `GET  …/projects/:projectId/machines`: repo và máy của project, đối chiếu việc dựng đang chờ trước khi trả.
  * - `POST …/projects/:projectId/machines` `{ machineId }`: dựng project trên một máy (202).
  * - `PUT  …/projects/:projectId/repo`: origin, nhánh và repo đi kèm; sai luật thì 422 `crew_machine_invalid`.
+ * - `GET  …/projects/:projectId/machines/blockers?agentIds=`, `POST …/machines/release`, `POST …/machines/provision`:
+ *   dọn máy khác khi gỡ agent/project và dựng sẵn máy khác khi thêm; chỉ owner, bằng phiên hoặc board API key.
  */
 export function crewMachineRoutes(db: Db): Router {
   const router = Router();
@@ -209,6 +216,70 @@ export function crewMachineRoutes(db: Db): Router {
     const clash = repo.companions.find((c) => checkouts.has(c.name));
     if (clash) throw invalidRepo(`Tên repo đi kèm "${clash.name}" trùng thư mục checkout của một vai trò trong project.`);
     res.json(await writeProjectRepo(db, { companyId: actor.companyId, projectId, repo, userId: actor.userId }));
+  });
+
+  /**
+   * Owner của company, bằng phiên trình duyệt hoặc board API key (app 2P Crew gọi các route dọn/dựng bằng board key của
+   * owner). Role đọc từ DB như router góp ý.
+   */
+  async function ownerBoard(req: Request): Promise<{ companyId: string; userId: string }> {
+    const actor = req.actor;
+    const companyId = req.params.companyId;
+    const denied = () => forbidden("Crew: chỉ owner của company được làm việc này.", { code: MACHINE_ERRORS.forbidden });
+    if (actor?.type !== "board" || (actor.source !== "session" && actor.source !== "board_key") || typeof actor.userId !== "string") {
+      throw denied();
+    }
+    if (!isUuid(companyId) || !hasCompanyAccess(req, companyId)) throw notFound("Không có company này.");
+    const membership = rowsOf(await db.execute(sql`SELECT membership_role FROM company_memberships
+      WHERE company_id = ${companyId} AND principal_type = 'user' AND principal_id = ${actor.userId} AND status = 'active' LIMIT 1`));
+    if (membership[0]?.membership_role !== "owner") throw denied();
+    return { companyId, userId: actor.userId };
+  }
+  const releaseSchema = z.object({
+    agentIds: z.array(z.string().uuid()).min(1).max(20),
+    wholeProject: z.boolean(),
+    primaryMachineId: z.string().uuid().nullable(),
+  }).strict();
+  const provisionSchema = z.object({
+    exceptMachineId: z.string().uuid().nullable(),
+    includeReady: z.boolean(),
+    repo: z.object({ originUrl: origin, branch: z.string().regex(BRANCH_RE).refine((v) => !v.startsWith("-")) }).strict().nullable(),
+  }).strict();
+
+  router.get(`${BASE}/projects/:projectId/machines/blockers`, async (req, res) => {
+    const owner = await ownerBoard(req);
+    await ready();
+    await assertProject(db, owner.companyId, req.params.projectId);
+    const raw = typeof req.query.agentIds === "string" && req.query.agentIds !== "" ? req.query.agentIds.split(",") : null;
+    if (raw && raw.some((id) => !isUuid(id))) throw badRequest("agentIds không hợp lệ.", { code: MACHINE_ERRORS.invalid });
+    res.json({ blockers: await machineReleaseBlockers(db, { companyId: owner.companyId, projectId: req.params.projectId, agentIds: raw }) });
+  });
+
+  router.post(`${BASE}/projects/:projectId/machines/release`, async (req, res) => {
+    const owner = await ownerBoard(req);
+    await ready();
+    await assertProject(db, owner.companyId, req.params.projectId);
+    const input = body(releaseSchema, req.body, "Danh sách agent hay máy chính không hợp lệ.");
+    const released = await releaseProjectMachines(db, { ...input, companyId: owner.companyId, projectId: req.params.projectId, createdBy: owner.userId });
+    if (!released.ok) {
+      res.status(409).json({
+        error: "Cây yêu cầu đang chạy trên máy đã ghim: chờ run xong (hoặc hủy run) rồi gỡ lại.",
+        code: MACHINE_ERRORS.busy,
+        blockers: released.blockers,
+      });
+      return;
+    }
+    logger.info({ companyId: owner.companyId, projectId: req.params.projectId, archived: released.result.archivedEnvironmentIds.length,
+      jobs: released.result.jobs.length }, "crew machines released");
+    res.json(released.result);
+  });
+
+  router.post(`${BASE}/projects/:projectId/machines/provision`, async (req, res) => {
+    const owner = await ownerBoard(req);
+    await ready();
+    await assertProject(db, owner.companyId, req.params.projectId);
+    const input = body(provisionSchema, req.body, "Máy, repo hay cờ includeReady không hợp lệ.");
+    res.json(await provisionOtherMachines(db, { ...input, companyId: owner.companyId, projectId: req.params.projectId, createdBy: owner.userId }));
   });
 
   return router;
