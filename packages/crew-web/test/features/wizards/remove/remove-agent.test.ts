@@ -189,4 +189,30 @@ describe('runRemoveAgent', () => {
     expect(f.calls.filter((c) => c.fn === 'agents.setPermissions').map((c) => c.args[0])).toEqual([ID.spare]);
     expect(run.steps['pause-agent']?.refs).toEqual({ agent: ID.spare });
   });
+
+  it('agent có vai trò: kiểm cây ghim của chính agent trước khi đổi vai trò; dọn máy khác chỉ cho agent đó', async () => {
+    const f = setup(removeRun());
+    f.state.machineBlockers = [{ issueId: 'i1', identifier: 'TPS-9', hostname: 'Phans-Mac-mini', runStatus: 'running' }];
+    const blocked = await runRemoveAgent(ctxOf(f.api), removeRun());
+    expect(blocked.steps.roles?.status).toBe('failed');
+    expect(f.names()).not.toContain('roles.set');
+    expect(f.calls.find((c) => c.fn === 'machinePins.blockers')?.args[2]).toEqual([ID.executor2]);
+
+    const g = setup(removeRun());
+    const done = await runRemoveAgent(ctxOf(g.api), removeRun());
+    expect(done.status).toBe('done');
+    expect(g.calls.find((c) => c.fn === 'machinePins.release')?.args[2]).toEqual({
+      agentIds: [ID.executor2],
+      wholeProject: false,
+      primaryMachineId: 'm1',
+    });
+    expect(g.names().indexOf('machinePins.release')).toBeLessThan(g.names().indexOf('roles.set'));
+  });
+
+  it('agent không vai trò, không project: không hỏi và không dọn máy khác', async () => {
+    const run = removeRun({ agentId: ID.spare, projectId: null, role: null });
+    const f = setup(run);
+    expect((await runRemoveAgent(ctxOf(f.api), run)).status).toBe('done');
+    expect(f.names().filter((n) => n.startsWith('machinePins.'))).toEqual([]);
+  });
 });

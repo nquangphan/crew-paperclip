@@ -363,5 +363,20 @@
     "spec": "e2e/specs/s24-jev.spec.ts",
     "tests": ["PW-S24-10 ", "PW-S24-11 "],
     "tier": "T1"
+  },
+  "S25.1": {
+    "spec": "e2e/specs/s25-machine-pick.spec.ts",
+    "tests": ["PW-S25-1 ", "PW-S25-2 "],
+    "tier": "T2"
+  },
+  "S25.2": {
+    "spec": "e2e/specs/s25-machine-pick.spec.ts",
+    "tests": ["PW-S25-1 "],
+    "tier": "T2"
+  },
+  "S25.3": {
+    "spec": "test/features/projects/machines-tab.test.tsx",
+    "tests": ["tab Máy của project"],
+    "tier": "T1"
   }
 }

@@ -131,6 +131,7 @@ interface Notice {
   identifier: string;
   draft: boolean;
   failedUploads: string[];
+  machineError: string | null;
 }
 
 const countDescendants = (node: TreeNode<CompactIssue>): number =>
@@ -414,6 +415,7 @@ export function IssuesPage() {
             {notice.failedUploads.length > 0 ? (
               <ErrorState title={t('page.uploadFailed', { names: notice.failedUploads.join(', ') })} />
             ) : null}
+            {notice.machineError ? <ErrorState title={t('page.machineFailed', { error: notice.machineError })} /> : null}
           </CardContent>
         </Card>
       ) : null}
@@ -565,7 +567,12 @@ export function IssuesPage() {
         onOpenChange={setNewOpen}
         companyId={company.id}
         onCreated={(issue, info) =>
-          setNotice({ identifier: issue.identifier ?? issue.id, draft: info.draft, failedUploads: info.failedUploads })
+          setNotice({
+            identifier: issue.identifier ?? issue.id,
+            draft: info.draft,
+            failedUploads: info.failedUploads,
+            machineError: info.machineError,
+          })
         }
       />
     </div>

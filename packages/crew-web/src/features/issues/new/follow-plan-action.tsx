@@ -18,10 +18,14 @@ export function FollowPlanAction({ issue }: { issue: Issue }) {
   const { t } = useT('issues');
   const { readOnly } = useCompanyAccess();
   const [open, setOpen] = useState(false);
-  const [created, setCreated] = useState<{ identifier: string; draft: boolean; failedUploads: string[] } | null>(null);
+  const [created, setCreated] = useState<{ identifier: string; draft: boolean; failedUploads: string[]; machineError: string | null } | null>(
+    null,
+  );
   if (readOnly || !canFollowPlan(issue)) return null;
   const onCreated = (made: Issue, info: CreatedRequest) =>
-    setCreated({ identifier: made.identifier ?? made.id, draft: info.draft, failedUploads: info.failedUploads });
+    setCreated({ identifier: made.identifier ?? made.id, draft: info.draft, failedUploads: info.failedUploads,
+      machineError: info.machineError,
+    });
   return (
     <div className="flex flex-col items-start gap-2">
       <Button
@@ -47,6 +51,7 @@ export function FollowPlanAction({ issue }: { issue: Issue }) {
       {created && created.failedUploads.length > 0 ? (
         <ErrorState title={t('page.uploadFailed', { names: created.failedUploads.join(', ') })} />
       ) : null}
+      {created?.machineError ? <ErrorState title={t('page.machineFailed', { error: created.machineError })} /> : null}
       <NewRequestDialog
         open={open}
         onOpenChange={setOpen}

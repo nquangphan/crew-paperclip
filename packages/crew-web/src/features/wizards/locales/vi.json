@@ -268,6 +268,7 @@
     "errors": {
       "wrongKind": "Setup run không phải lần gỡ",
       "agentMissing": "Không thấy agent trong company",
+      "machineBusy": "Chưa gỡ được: {{list}} đang có run chờ hoặc đang chạy trên máy đã ghim. Chờ run xong (hoặc hủy run) rồi bấm Chạy tiếp.",
       "blocked": {
         "assistant": "{{name}} đang là Trợ Lý: đổi vai trò rồi bấm Chạy tiếp",
         "reviewer": "{{name}} đang là reviewer: đổi vai trò rồi bấm Chạy tiếp",

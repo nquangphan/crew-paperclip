@@ -16,7 +16,8 @@ export type MachineJobKind =
   | 'check'
   | 'remove-checkouts'
   | 'skill-remove'
-  | 'runtimes-setup';
+  | 'runtimes-setup'
+  | 'ensure-project';
 export type MachineJobStatus = 'queued' | 'claimed' | 'done' | 'failed' | 'cancelled';
 export type JobPayload =
   | { kind: 'inspect-folder'; folder: string }
@@ -28,11 +29,20 @@ export type JobPayload =
       kind: 'remove-checkouts';
       projectId: string;
       projectKey: string;
-      roles: CrewRoleSlot[];
+      roles: string[];
       removeStatusRepo: boolean;
     }
   | { kind: 'skill-remove'; skillId: string; slug: string }
-  | { kind: 'runtimes-setup' };
+  | { kind: 'runtimes-setup' }
+  | {
+      kind: 'ensure-project';
+      projectKey: string;
+      projectId: string;
+      originUrl: string;
+      branch: string;
+      roles: { role: string; branch: string }[];
+      companions: { name: string; originUrl: string }[];
+    };
 export type JobResult =
   | {
       kind: 'inspect-folder';
@@ -48,14 +58,14 @@ export type JobResult =
   | { kind: 'check'; items: { id: string; status: 'ok' | 'warn' | 'error'; title: string }[] }
   | {
       kind: 'remove-checkouts';
-      removed: { role: CrewRoleSlot; path: string }[];
+      removed: { role: string; path: string }[];
       kept: {
-        role: CrewRoleSlot;
+        role: string;
         path: string;
         reason: 'dirty' | 'busy' | 'not_worktree' | 'git_failed';
         detail?: string;
       }[];
-      absent: CrewRoleSlot[];
+      absent: string[];
     }
   | { kind: 'skill-remove'; removed: boolean }
   | {
@@ -63,6 +73,13 @@ export type JobResult =
       wrappers: { codex: boolean; opencode: boolean };
       codex: { version: string | null; loggedIn: boolean | null };
       opencode: { version: string | null; keyPresent: boolean | null };
+    }
+  | {
+      kind: 'ensure-project';
+      repoPath: string;
+      cloned: boolean;
+      checkouts: { role: string; path: string; head: string }[];
+      companions: { name: string; path: string }[];
     };
 export type JobErrorCode =
   | 'folder_not_git'
@@ -73,6 +90,7 @@ export type JobErrorCode =
   | 'skill_fetch_failed'
   | 'check_failed'
   | 'lease_expired'
+  | 'clone_auth_failed'
   | 'app_error';
 export interface MachineJob {
   id: string;
@@ -380,4 +398,67 @@ export interface QcIssueState {
   verifiedByUserId: string | null;
   /** "Chưa đạt" đang chờ owner duyệt (không kèm lý do). */
   reopenRequest: { id: string; status: 'pending' | 'approving' } | null;
+}
+
+// Chạy nhiều máy: router Crew của server (`server/src/crew/machine-routes.ts`).
+export type ProjectMachineStatus = 'ready' | 'provisioning' | 'failed';
+export interface MachineCandidate {
+  machineId: string;
+  hostname: string;
+  online: boolean;
+  /** Trạng thái project trên máy; `null` = máy chưa dựng project. */
+  status: ProjectMachineStatus | null;
+  running: number;
+  load1: number | null;
+  cpuCount: number | null;
+  memFreePct: number | null;
+}
+export interface IssueMachinePin {
+  machineId: string;
+  hostname: string;
+  source: 'owner' | 'auto';
+  /** Số lúc tự chọn (`running`, `load1`, `cpuCount`, `memFreePct`, `reportAgeSec`, `rule`) hoặc `{ backfill: true }`. */
+  reason: Record<string, unknown>;
+  pinnedAt: string;
+}
+export interface IssueMachine {
+  rootIssueId: string;
+  isRoot: boolean;
+  /** Cây đã có run: không đổi máy được nữa. */
+  locked: boolean;
+  pin: IssueMachinePin | null;
+}
+export interface ProjectRepo {
+  originUrl: string;
+  branch: string;
+  companions: { name: string; originUrl: string }[];
+}
+export interface ProjectMachine {
+  machineId: string;
+  hostname: string;
+  online: boolean;
+  status: ProjectMachineStatus | null;
+  error: string | null;
+  repoPath: string | null;
+  updatedAt: string | null;
+}
+export interface ProjectMachines {
+  repo: ProjectRepo | null;
+  machines: ProjectMachine[];
+}
+
+/** Run chờ hoặc đang chạy trên máy đã ghim của cây yêu cầu, chặn việc gỡ. */
+export interface ReleaseBlocker {
+  issueId: string;
+  identifier: string | null;
+  hostname: string;
+  runStatus: string;
+}
+export interface ReleaseResult {
+  archivedEnvironmentIds: string[];
+  jobs: { machineId: string; jobId: string }[];
+}
+export interface ProvisionOthersResult {
+  queued: { machineId: string; jobId: string }[];
+  skipped: { machineId: string; reason: string }[];
 }

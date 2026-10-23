@@ -5,6 +5,7 @@ import { forceDoneApi } from './crew/force-done';
 import { jevApi } from './crew/jev';
 import { jobsApi } from './crew/jobs';
 import { machinesApi } from './crew/machines';
+import { machinePinsApi } from './crew/machine-pins';
 import { projectAccessApi } from './crew/project-access';
 import { qcApi } from './crew/qc';
 import { rolesApi } from './crew/roles';
@@ -68,6 +69,7 @@ export const api = {
   contributions: contributionsApi,
   qc: qcApi,
   projectAccess: projectAccessApi,
+  machinePins: machinePinsApi,
   members: membersApi,
   invites: invitesApi,
   joinRequests: joinRequestsApi,

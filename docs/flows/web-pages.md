@@ -72,6 +72,7 @@ Luật chính:
 | `packages/crew-web/src/features/projects/list/projects-page.tsx` | Danh sách project | `ProjectsPage` |
 | `packages/crew-web/src/features/projects/detail/project-page.tsx` | Chi tiết project | `ProjectPage` |
 | `packages/crew-web/src/features/projects/detail/issues-tab.tsx`, `readiness-tab.tsx`, `rename-dialog.tsx` | Tab Yêu cầu, Sẵn sàng, đổi tên | `IssuesTab`, `ReadinessTab`, `RenameDialog` |
+| `packages/crew-web/src/features/projects/detail/machines-tab.tsx` | Tab Máy: máy đã ghép kèm trạng thái dựng project (tự làm mới 10 giây khi còn máy đang dựng), owner bấm Thêm máy/Thử lại, sửa origin, nhánh, repo đi kèm (form đồng bộ lại theo dữ liệu server, hiện lời server khi 422) | `MachinesTab`, `PROJECT_MACHINES_REFRESH_MS` |
 | `packages/crew-web/src/features/projects/paths.ts`, `index.ts` | Đường dẫn, export | `projectRef`, `companyHref` |
 | `packages/crew-web/src/features/members/` | Thành viên, lời mời, yêu cầu tham gia | `MembersPage`, `useMembers`, `CONTRIBUTOR_DEPARTMENTS`, `inviteLink` |
 | `packages/crew-web/src/features/settings/` | Cài đặt | `SettingsPage`, `ProfileForm`, `SystemInfo` |
@@ -95,6 +96,7 @@ Luật chính:
 - `skills`: skill company mà tab Skills bật tắt.
 - `contributions`, `qc-department`, `project-access`: phòng góp ý, thẻ chờ duyệt, quyền xem project trên trang Thành
   viên và lọc kết quả.
+- `multi-machine`: tab Máy của project (S25.3) và các route máy của project.
 - `web-shell`, `design-system`: khung và component.
 
 ## Tests
@@ -107,6 +109,7 @@ Luật chính:
   lại, đổi model chỉ gửi `model`, đổi tên, cấu hình chạy chỉ đọc, bật tắt skill.
 - `packages/crew-web/test/features/projects/project-page.test.tsx`, `projects-page.test.tsx`, `rename-dialog.test.tsx`:
   tải theo `urlKey`, các tab, "Làm tiếp", đổi tên chỉ gửi trường cho phép.
+- `packages/crew-web/test/features/projects/machines-tab.test.tsx`: tab Máy của project (trạng thái dựng, Thêm máy/Thử lại, repo đi kèm).
 - `packages/crew-web/test/features/projects/roles-form.test.tsx`, `use-save-roles.test.ts`: tab Vai trò (xem flow
   `project-roles`).
 - `packages/crew-web/test/features/members/`: link lời mời, phòng góp ý của thành viên.

@@ -10,6 +10,9 @@ hoặc yêu cầu sửa ở cổng, và ép đóng (Ép Done) khi cần.
 
 Luật chính:
 
+- Owner chọn máy thực thi khi tạo yêu cầu gốc (S25.1): chọn máy thì web tạo nháp, gọi `PUT …/issues/:id/machine`, upload
+  đính kèm rồi mới chuyển `todo`; ghim lỗi thì yêu cầu ở lại nháp và trang báo lỗi. Trang yêu cầu có dòng Máy (S25.2),
+  owner đổi được ở yêu cầu gốc khi cây chưa có run.
 - Web không tự gắn policy, reviewer hay approver: server gắn theo vai trò project khi tạo. Loại yêu cầu (Code, Bug,
   Nghiên cứu, Viết tài liệu, Lập kế hoạch) chỉ khác ở nhãn `research`/`docs`/`plan`.
 - Thao tác cổng chỉ gửi `status` và bình luận theo luật stage của server; body không bao giờ có `executionPolicy`,
@@ -37,10 +40,13 @@ Luật chính:
    (`issues-board.tsx`) kéo thẻ gửi PATCH trạng thái, server từ chối thì thẻ về cột cũ và hiện lỗi nguyên văn.
 2. `packages/crew-web/src/features/issues/new/new-request-dialog.tsx` → `NewRequestDialog`: chỉ liệt kê project sẵn
    sàng, người nhận cố định là Trợ Lý của project; `use-create-request.ts` → `createRequest` POST issue rồi upload đính
-   kèm lần lượt. Có chip "Jev gợi ý: <loại>" dưới ô Loại (flow `jev`): bấm mới chọn, lỗi thì không hiện gì.
+   kèm lần lượt. Owner thấy thêm ô "Máy thực thi" (`machine-field.tsx` → `MachineField`, mặc định "Tự chọn", chỉ liệt kê
+   máy online, ghi chú "sẽ dựng lần đầu" / "đang dựng" / "dựng hỏng" theo trạng thái project trên máy); chọn máy thì
+   `createRequest` tạo nháp, ghim máy (`api.machinePins.set`), upload, rồi mới chuyển Cần làm. Ghim lỗi thì yêu cầu ở
+   lại nháp và `machineError` hiện ở thông báo sau khi tạo. Có chip "Jev gợi ý: <loại>" dưới ô Loại (flow `jev`): bấm mới chọn, lỗi thì không hiện gì.
 3. `packages/crew-web/src/features/issues/detail/issue-detail.tsx` → `IssueDetail`: dùng chung cho trang và popup; đọc
    dữ liệu qua `use-issue.ts` và gắn các khối: tóm tắt Crew (`SummarySlot`), thao tác cổng (`ActionsSlot`), câu hỏi
-   của Trợ Lý (`InteractionsSlot`), thuộc tính và runtime (`PropertiesPanel`, `RuntimeSlot`), bình luận, đính kèm,
+   của Trợ Lý (`InteractionsSlot`), thuộc tính và runtime (`PropertiesPanel`, `MachineSlot`, `RuntimeSlot`), bình luận, đính kèm,
    tài liệu, run, lịch sử.
 4. `packages/crew-web/src/features/issues/detail/crew/gate-actions.ts` → `gateActionsFor`, `awaitingMyApproval`: tính
    nút Duyệt, Yêu cầu sửa, Hủy theo stage đang chờ; `actions-slot.tsx` gửi PATCH và làm mới mọi dữ liệu bị đổi. Trước khi gửi
@@ -86,6 +92,7 @@ Luật chính:
 | `packages/crew-web/src/features/issues/list/issues-board.tsx` | Chế độ Bảng | `boardLayout` |
 | `packages/crew-web/src/features/issues/list/use-issues.ts` | Dữ liệu và trạng thái URL | `COLUMN_IDS`, `KIND_FILTERS`, `VIEW_MODES` |
 | `packages/crew-web/src/features/issues/list/list-view.ts`, `tree.ts` | Nhóm, vạch ngày, cây | `groupIssues`, `dateGroup`, `buildIssueTree` |
+| `packages/crew-web/src/features/issues/new/machine-field.tsx` | Ô "Máy thực thi" của form tạo yêu cầu (owner) | `MachineField`, `machineOptionLabel`, `formatMachineNumber`, `AUTO_MACHINE` |
 | `packages/crew-web/src/features/issues/new/` | Tạo yêu cầu, loại, thêm việc con, làm theo kế hoạch | `NewRequestDialog` (nhận `initial`), `createRequest`, `REQUEST_KINDS`, `AddChildAction`, `FollowPlanAction`, `parsePlanSource` |
 | `packages/crew-web/src/features/issues/detail/issue-detail.tsx` | Khung chi tiết | `IssueDetail` |
 | `packages/crew-web/src/features/issues/detail/issue-page.tsx` | Trang đầy đủ | `IssuePage` |
@@ -96,6 +103,7 @@ Luật chính:
 | `packages/crew-web/src/features/issues/detail/crew/interaction-card.tsx`, `interactions-slot.tsx` | Câu hỏi và xác nhận của Trợ Lý, thẻ chọn dựng từ bình luận/tổng kết | `InteractionCard`, `CommentQuestionsCard`, `InteractionsSlot` |
 | `packages/crew-web/src/features/issues/detail/crew/comment-questions.ts` | Đọc điểm `Q1.` + `a)`/`b)` agent viết, chọn điểm chưa ai trả lời, soạn lời trả lời | `parseCommentQuestions`, `summaryQuestions`, `pendingQuestions`, `commentAnswerBody` |
 | `packages/crew-web/src/features/issues/detail/crew/summary-slot.tsx` | Tóm tắt Crew, bản đồ, kiểm docs | `SummarySlot` |
+| `packages/crew-web/src/features/issues/detail/crew/machine-slot.tsx` | Dòng "Máy" ở cột Thuộc tính: máy của cả cây, cách chọn; owner đổi ở yêu cầu gốc khi cây chưa có run, ẩn dòng khi không đọc được | `MachineSlot`, `machineLine` |
 | `packages/crew-web/src/features/issues/detail/crew/runtime-slot.tsx` | Quyết định chọn runtime | `RuntimeSlot` |
 | `packages/crew-web/src/features/issues/detail/history-format.ts`, `history.tsx` | Khối Lịch sử | `History`, `FORCE_DONE_ACTION`, `BOARD_OVERRIDE_ACTION` |
 | `packages/crew-web/src/features/issues/detail/` (còn lại) | Bình luận, ô soạn, đính kèm, tài liệu, run, thuộc tính, sửa tiêu đề, Bắt đầu làm | `Comments`, `Composer`, `Attachments`, `IssueRuns`, `PropertiesPanel`, `TitleEditor` |
@@ -105,6 +113,7 @@ Luật chính:
 
 - Route lõi Paperclip: issue (danh sách, chi tiết, PATCH, tiêu đề), bình luận, đính kèm, tài liệu, activity, run,
   interaction (`respond`), nhãn.
+- Route Crew của server: `GET /machines?projectId=`, `GET|PUT /issues/:id/machine` (xem flow `multi-machine`).
 - Route plugin: `issues.force-done`; data key `crew.map`, `crew.docsCheck`, `crew.runtimeDecisions`.
 - Activity: `crew.policy.board_override` (gate server), `crew.issue.force_done` (plugin).
 - Bảng: plugin không ghi bảng riêng ở flow này; Ép Done đi qua `ctx.issues.update` của host.
@@ -118,6 +127,7 @@ Luật chính:
 - `attachments`: xem và chọn file đính kèm.
 - `contributions`: nhóm Chờ duyệt và bình luận chờ duyệt trong danh sách và luồng bình luận.
 - `qc-department`: nhãn QC trên thẻ của chế độ Bảng.
+- `multi-machine`: route ghim máy mà ô Máy thực thi và dòng Máy gọi.
 - `web-shell`: shell gắn popup, quyền ghi hay chỉ đọc.
 
 ## Tests
@@ -128,6 +138,7 @@ Luật chính:
   `tree.test.ts`, `issues-page-pending.test.tsx`: cây và thu gọn, chế độ Bảng, nhóm và vạch ngày, nhóm Chờ duyệt.
 - `packages/crew-web/test/features/issues/new-request-dialog.test.tsx`, `use-create-request.test.ts`, `kinds.test.ts`,
   `kind-labels.test.tsx`, `add-child.test.ts`, `add-child-dialog.test.tsx`: tạo yêu cầu, nhãn loại, thêm việc con.
+- `packages/crew-web/test/features/issues/machine-slot.test.tsx`: dòng Máy (S25.2) và ca ô Máy thực thi của `new-request-dialog.test.tsx` (S25.1).
 - `packages/crew-web/test/features/issues/follow-plan.test.ts`, `follow-plan-action.test.tsx`: đọc path/PR từ tổng kết,
   mô tả điền sẵn, nút chỉ ở gốc `plan` đã xong và người ghi được; `new-request-dialog.test.tsx` có ca `initial`.
 - `packages/crew-web/test/features/issues/gate-actions.test.ts`, `gate-actions.test.tsx`: nút cổng chỉ cho người tham gia

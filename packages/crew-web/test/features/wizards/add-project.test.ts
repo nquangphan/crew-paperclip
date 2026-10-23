@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { ApiError } from '@/api';
-import { runAddProject, runAddProjectStep, StepBusyError } from '@/features/wizards/add-project/run-step';
+import { repoOf, runAddProject, runAddProjectStep, StepBusyError } from '@/features/wizards/add-project/run-step';
 import { renderInstructions } from '@/lib/instructions';
 import { addProjectRun, COMPANY, fakeApi, PIN, TEMPLATE_ENV } from './fake-api';
 
@@ -424,5 +424,46 @@ describe('runAddProject', () => {
     );
     expect(run.steps.inspect?.status).toBe('done');
     expect(f.calls).toHaveLength(0);
+  });
+
+  it('kiểm xong thì nhờ server dựng sẵn máy khác, gửi origin lấy từ bước kiểm folder; lỗi không làm hỏng run', async () => {
+    const f = fakeApi();
+    f.state.machineProvision = { queued: [{ machineId: 'm2', jobId: 'j1' }], skipped: [] };
+    const run = await runAddProject(ctxOf(f.api), f.state.run);
+    expect(run.status).toBe('done');
+    const call = f.calls.find((c) => c.fn === 'machinePins.provisionOthers');
+    expect(call?.args[2]).toEqual({
+      exceptMachineId: 'm1',
+      includeReady: false,
+      repo: { originUrl: 'git@github.com:owner/demo.git', branch: 'main' },
+    });
+    expect(run.steps.check?.refs).toMatchObject({ others: '1' });
+
+    const g = fakeApi();
+    g.failOn('machinePins.provisionOthers', 1, new ApiError(500, 'server lỗi'));
+    const still = await runAddProject(ctxOf(g.api), g.state.run);
+    expect(still.status).toBe('done');
+    expect(still.steps.check?.refs?.othersError).toContain('server lỗi');
+  });
+
+  it('server cũ trả 404 cho dựng máy khác thì bỏ qua im lặng, run vẫn xong', async () => {
+    const f = fakeApi();
+    f.failOn('machinePins.provisionOthers', 1, new ApiError(404, 'not found'));
+    const run = await runAddProject(ctxOf(f.api), f.state.run);
+    expect(run.status).toBe('done');
+    expect(run.steps.check?.refs?.othersError).toBeUndefined();
+  });
+
+  it('repoOf: bỏ remote có credential đã che, cắt userinfo https, nhận git@ và https sạch', () => {
+    expect(repoOf('git@github.com:o/r.git')).toEqual({ originUrl: 'git@github.com:o/r.git', branch: 'main' });
+    expect(repoOf('https://github.com/o/r.git')).toEqual({ originUrl: 'https://github.com/o/r.git', branch: 'main' });
+    expect(repoOf('https://tok@github.com/o/r.git')).toEqual({
+      originUrl: 'https://github.com/o/r.git',
+      branch: 'main',
+    });
+    expect(repoOf('ssh://git:pw@host/o/r.git')).toEqual({ originUrl: 'ssh://git@host/o/r.git', branch: 'main' });
+    expect(repoOf('ssh://git@host/o/r.git')).toEqual({ originUrl: 'ssh://git@host/o/r.git', branch: 'main' });
+    expect(repoOf('https://[ĐÃ CHE]@github.com/o/r.git')).toBeNull();
+    expect(repoOf(undefined)).toBeNull();
   });
 });

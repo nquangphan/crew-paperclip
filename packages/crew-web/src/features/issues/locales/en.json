@@ -7,6 +7,7 @@
     "created": "Created request {{identifier}}",
     "createdDraft": "Saved draft {{identifier}} (not running)",
     "open": "Open",
+    "machineFailed": "The request stays a draft because the machine setup did not finish: {{error}}",
     "uploadFailed": "Could not attach: {{names}}"
   },
   "list": {
@@ -127,7 +128,16 @@
     "creating": "Creating",
     "saveDraft": "Save draft (does not run)",
     "cancel": "Cancel",
-    "createFailed": "Could not create the request"
+    "createFailed": "Could not create the request",
+    "machine": "Machine",
+    "machineAuto": "Automatic",
+    "machineHint": "Automatic: Crew picks a machine with free resources right before the first run. The whole request tree runs on one machine.",
+    "machineFailed": "Machines could not be loaded; the request will pick one automatically.",
+    "machineOption": "{{host}} · {{running}} runs · load {{load}}",
+    "machineFirstBuild": "first setup",
+    "machineProvisioning": "setting up",
+    "startFailed": "The machine was pinned but the request could not be moved to To do: {{error}}",
+    "machineBuildFailed": "setup failed"
   },
   "detail": {
     "back": "Back to requests",
@@ -278,6 +288,18 @@
   "crew": {
     "mapFailed": "Could not load the Crew summary",
     "docsFailed": "Could not load the docs check",
+    "machine": {
+      "label": "Machine",
+      "none": "Not chosen yet (picked before the first run)",
+      "auto": "{{host}} · automatic ({{running}} runs, load {{load}}, {{mem}}% RAM free)",
+      "backfill": "{{host}} · machine running the project when multi-machine was turned on",
+      "owner": "{{host}} · chosen by the owner",
+      "change": "Change machine",
+      "pick": "Pick a machine",
+      "save": "Save",
+      "cancel": "Cancel",
+      "changeFailed": "Could not change the machine"
+    },
     "runtime": {
       "title": "Runtime",
       "failed": "Could not load the runtime decisions",

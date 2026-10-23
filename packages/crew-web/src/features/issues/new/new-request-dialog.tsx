@@ -29,12 +29,14 @@ import { useProjectReadiness } from '@/features/readiness';
 import { useT } from '@/i18n';
 import type { NewRequestInitial } from './follow-plan';
 import { availableKinds, isRequestKind, missingKindLabels, NO_KIND_LABELS, type RequestKind } from './kinds';
+import { AUTO_MACHINE, MachineField } from './machine-field';
 import { AttachmentsField, DescriptionField } from './request-fields';
 import { projectRolesOrNull, useCreateRequest, useKindLabelIds } from './use-create-request';
 
 export interface CreatedRequest {
   draft: boolean;
   failedUploads: string[];
+  machineError: string | null;
 }
 
 interface NewRequestDialogProps {
@@ -85,7 +87,13 @@ function RequestForm({
   initial?: NewRequestInitial;
 }) {
   const { t } = useT('issues');
+  const { isOwner } = useCompanyAccess();
   const [projectId, setProjectId] = useState(initial?.projectId ?? '');
+  const [machine, setMachine] = useState(AUTO_MACHINE);
+  const pickProject = (id: string) => {
+    setProjectId(id);
+    setMachine(AUTO_MACHINE);
+  };
   const [kind, setKind] = useState<RequestKind>(initial?.kind ?? 'code');
   // Chỉ khi loại đã được chọn (owner chọn hay điền sẵn) thì mới gửi `current` cho Jev; mặc định `code` chưa phải
   // lựa chọn của ai.
@@ -143,11 +151,12 @@ function RequestForm({
         kindLabelIds,
         draft,
         files,
+        machineId: isOwner && machine !== AUTO_MACHINE ? machine : null,
       },
       {
-        onSuccess: ({ issue, failedUploads }) => {
+        onSuccess: ({ issue, failedUploads, machineError }) => {
           jevKind.recordFinal(kind);
-          onCreated?.(issue, { draft, failedUploads });
+          onCreated?.(issue, { draft: draft || machineError !== null, failedUploads, machineError });
           onClose();
         },
       },
@@ -169,7 +178,7 @@ function RequestForm({
         {loadingProjects ? (
           <Spinner />
         ) : readyProjects.length === 0 ? null : (
-          <Select value={projectId} onValueChange={setProjectId}>
+          <Select value={projectId} onValueChange={pickProject}>
             <SelectTrigger aria-label={t('new.project')} className="w-full">
               <SelectValue placeholder={t('new.projectPlaceholder')} />
             </SelectTrigger>
@@ -203,6 +212,10 @@ function RequestForm({
           <RequestTypeChip suggestion={jevKind.suggestion} current={kind} allowed={kinds} onPick={pickKind} />
         </div>
       </Field>
+
+      {isOwner && projectId !== '' ? (
+        <MachineField companyId={companyId} projectId={projectId} value={machine} onChange={setMachine} />
+      ) : null}
 
       <Field label={t('new.titleLabel')} htmlFor="new-request-title">
         <Input

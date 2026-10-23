@@ -17,6 +17,7 @@ const base = {
   kindLabelIds: { research: 'l-research', docs: 'l-docs', plan: 'l-plan' },
   draft: false,
   files: [] as File[],
+  machineId: null,
 };
 
 describe('buildCreateBody', () => {
@@ -129,5 +130,55 @@ describe('createRequest', () => {
       'Project không hợp lệ',
     );
     expect(calls).toHaveLength(1);
+  });
+
+  it('có máy: tạo nháp, ghim máy, upload, rồi mới chuyển Cần làm', async () => {
+    const order: string[] = [];
+    mockServer({
+      'POST /api/companies/c1/issues': (init) => {
+        order.push(`create:${JSON.parse(String(init?.body)).status}`);
+        return { status: 201, body: { id: 'i1', identifier: 'TPS-9', status: 'backlog' } };
+      },
+      'PUT /api/crew/companies/c1/issues/i1/machine': () => {
+        order.push('pin');
+        return { body: { rootIssueId: 'i1', isRoot: true, locked: false, pin: null } };
+      },
+      'POST /api/companies/c1/issues/i1/attachments': () => {
+        order.push('upload');
+        return { status: 201, body: { id: 'att' } };
+      },
+      'PATCH /api/issues/i1': () => {
+        order.push('todo');
+        return { body: { id: 'i1', identifier: 'TPS-9', status: 'todo' } };
+      },
+    });
+    const result = await createRequest({ ...base, kind: 'code', machineId: 'm-mini', files: [new File(['1'], 'a.png')] });
+    expect(order).toEqual(['create:backlog', 'pin', 'upload', 'todo']);
+    expect(result).toMatchObject({ machineError: null, failedUploads: [], issue: { status: 'todo' } });
+  });
+
+  it('ghim máy lỗi: yêu cầu ở lại nháp, lỗi trả về, không chuyển Cần làm', async () => {
+    const { calls } = mockServer({
+      'POST /api/companies/c1/issues': { status: 201, body: { id: 'i1', identifier: 'TPS-9', status: 'backlog' } },
+      'PUT /api/crew/companies/c1/issues/i1/machine': {
+        status: 409,
+        body: { error: 'Project chưa có origin repo: nhập ở trang project → Máy.' },
+      },
+    });
+    const result = await createRequest({ ...base, kind: 'code', machineId: 'm-mini', files: [] });
+    expect(result.machineError).toContain('Project chưa có origin repo');
+    expect(calls.some((c) => c.method === 'PATCH')).toBe(false);
+  });
+
+  it('chuyển Cần làm lỗi sau khi ghim: vẫn trả yêu cầu kèm lỗi, không tạo lần hai', async () => {
+    const { calls } = mockServer({
+      'POST /api/companies/c1/issues': { status: 201, body: { id: 'i1', identifier: 'TPS-9', status: 'backlog' } },
+      'PUT /api/crew/companies/c1/issues/i1/machine': { body: { rootIssueId: 'i1', isRoot: true, locked: false, pin: null } },
+      'PATCH /api/issues/i1': { status: 500, body: { error: 'máy chủ lỗi' } },
+    });
+    const result = await createRequest({ ...base, kind: 'code', machineId: 'm-mini', files: [] });
+    expect(result.issue.id).toBe('i1');
+    expect(result.machineError).toContain('máy chủ lỗi');
+    expect(calls.filter((c) => c.method === 'POST')).toHaveLength(1);
   });
 });

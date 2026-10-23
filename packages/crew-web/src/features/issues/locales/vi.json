@@ -7,6 +7,7 @@
     "created": "Đã tạo yêu cầu {{identifier}}",
     "createdDraft": "Đã lưu nháp {{identifier}} (chưa chạy)",
     "open": "Mở",
+    "machineFailed": "Yêu cầu vẫn là nháp vì chưa thiết lập xong máy thực thi: {{error}}",
     "uploadFailed": "Không đính kèm được: {{names}}"
   },
   "list": {
@@ -127,7 +128,16 @@
     "creating": "Đang tạo",
     "saveDraft": "Lưu nháp (chưa chạy)",
     "cancel": "Hủy",
-    "createFailed": "Không tạo được yêu cầu"
+    "createFailed": "Không tạo được yêu cầu",
+    "machine": "Máy thực thi",
+    "machineAuto": "Tự chọn",
+    "machineHint": "Tự chọn: Crew chọn máy còn tài nguyên ngay trước run đầu tiên. Cả cây yêu cầu chạy trên một máy.",
+    "machineFailed": "Không tải được danh sách máy, yêu cầu sẽ tự chọn máy.",
+    "machineOption": "{{host}} · {{running}} run · load {{load}}",
+    "machineFirstBuild": "sẽ dựng lần đầu",
+    "machineProvisioning": "đang dựng",
+    "startFailed": "Đã ghim máy nhưng chưa chuyển được sang Cần làm: {{error}}",
+    "machineBuildFailed": "dựng hỏng"
   },
   "detail": {
     "back": "Về danh sách yêu cầu",
@@ -278,6 +288,18 @@
   "crew": {
     "mapFailed": "Không tải được tóm tắt Crew",
     "docsFailed": "Không tải được kết quả kiểm docs",
+    "machine": {
+      "label": "Máy",
+      "none": "Chưa chọn máy (tự chọn trước run đầu tiên)",
+      "auto": "{{host}} · tự chọn ({{running}} run, load {{load}}, RAM trống {{mem}}%)",
+      "backfill": "{{host}} · máy đang chạy project lúc bật chạy nhiều máy",
+      "owner": "{{host}} · Đại Ca chọn",
+      "change": "Đổi máy",
+      "pick": "Chọn máy",
+      "save": "Lưu",
+      "cancel": "Hủy",
+      "changeFailed": "Không đổi được máy"
+    },
     "runtime": {
       "title": "Runtime",
       "failed": "Không tải được quyết định runtime",

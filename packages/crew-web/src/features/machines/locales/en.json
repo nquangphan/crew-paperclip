@@ -25,7 +25,8 @@
       "agent-workspace": "Prepare agent workspace",
       "skill-sync": "Sync skill",
       "check": "Check project",
-      "runtimes-setup": "Install runtimes"
+      "runtimes-setup": "Install runtimes",
+      "ensure-project": "Set up project on machine"
     },
     "status": {
       "queued": "Queued",

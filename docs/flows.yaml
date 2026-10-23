@@ -691,6 +691,7 @@ flows:
       - packages/crew-web/src/features/issues/detail/crew/gate-dialogs.tsx
       - packages/crew-web/src/features/issues/detail/crew/interaction-card.tsx
       - packages/crew-web/src/features/issues/detail/crew/interactions-slot.tsx
+      - packages/crew-web/src/features/issues/detail/crew/machine-slot.tsx
       - packages/crew-web/src/features/issues/detail/crew/runtime-slot.tsx
       - packages/crew-web/src/features/issues/detail/crew/summary-slot.tsx
       - packages/crew-web/src/features/issues/detail/documents.tsx
@@ -714,6 +715,7 @@ flows:
       - packages/crew-web/src/features/issues/new/follow-plan-action.tsx
       - packages/crew-web/src/features/issues/new/follow-plan.ts
       - packages/crew-web/src/features/issues/new/kinds.ts
+      - packages/crew-web/src/features/issues/new/machine-field.tsx
       - packages/crew-web/src/features/issues/new/new-request-dialog.tsx
       - packages/crew-web/src/features/issues/new/request-fields.tsx
       - packages/crew-web/src/features/issues/new/use-create-request.ts
@@ -751,6 +753,7 @@ flows:
       - packages/crew-web/test/features/issues/kinds.test.ts
       - packages/crew-web/test/features/issues/list-view.test.ts
       - packages/crew-web/test/features/issues/new-request-dialog.test.tsx
+      - packages/crew-web/test/features/issues/machine-slot.test.tsx
       - packages/crew-web/test/features/issues/properties-panel.test.tsx
       - packages/crew-web/test/features/issues/runtime-slot.test.tsx
       - packages/crew-web/test/features/issues/start-work.test.tsx
@@ -856,6 +859,7 @@ flows:
       - packages/crew-web/src/app/router.tsx
     files:
       - packages/crew-web/src/api/crew/data.ts
+      - packages/crew-web/src/api/crew/machine-pins.ts
       - packages/crew-web/src/api/crew/types.ts
       - packages/crew-web/src/api/endpoints.ts
       - packages/crew-web/src/api/http.ts
@@ -908,6 +912,7 @@ flows:
       - packages/crew-web/test/api/crew-shared.test.ts
       - packages/crew-web/test/api/endpoints.test.ts
       - packages/crew-web/test/api/http.test.ts
+      - packages/crew-web/test/api/machine-pins.test.ts
       - packages/crew-web/test/api/labels.test.ts
       - packages/crew-web/test/api/r3x-client.test.ts
       - packages/crew-web/test/app/cli-auth.test.tsx
@@ -1057,6 +1062,7 @@ flows:
       - packages/crew-web/src/features/members/use-members.ts
       - packages/crew-web/src/features/projects/detail/issues-tab.tsx
       - packages/crew-web/src/features/projects/detail/project-page.tsx
+      - packages/crew-web/src/features/projects/detail/machines-tab.tsx
       - packages/crew-web/src/features/projects/detail/readiness-tab.tsx
       - packages/crew-web/src/features/projects/detail/rename-dialog.tsx
       - packages/crew-web/src/features/projects/index.ts
@@ -1086,6 +1092,7 @@ flows:
       - packages/crew-web/test/features/inbox/tabs.test.ts
       - packages/crew-web/test/features/members/members-model.test.ts
       - packages/crew-web/test/features/members/members-page.test.tsx
+      - packages/crew-web/test/features/projects/machines-tab.test.tsx
       - packages/crew-web/test/features/projects/project-page.test.tsx
       - packages/crew-web/test/features/projects/projects-page.test.tsx
       - packages/crew-web/test/features/projects/rename-dialog.test.tsx

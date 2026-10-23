@@ -257,6 +257,7 @@ File nào thuộc flow nào. Dùng `crew-docs where <file>` để tra từ dòng
 | `packages/crew-web/src/api/crew/force-done.ts` | [issues-web](flows/issues-web.md) (file) |
 | `packages/crew-web/src/api/crew/jev.ts` | [jev](flows/jev.md) (file) |
 | `packages/crew-web/src/api/crew/jobs.ts` | [machine-jobs](flows/machine-jobs.md) (file) |
+| `packages/crew-web/src/api/crew/machine-pins.ts` | [web-shell](flows/web-shell.md) (file) |
 | `packages/crew-web/src/api/crew/machines.ts` | [machine-status](flows/machine-status.md) (file) |
 | `packages/crew-web/src/api/crew/project-access.ts` | [project-access](flows/project-access.md) (file) |
 | `packages/crew-web/src/api/crew/qc.ts` | [qc-department](flows/qc-department.md) (file) |
@@ -478,6 +479,7 @@ File nào thuộc flow nào. Dùng `crew-docs where <file>` để tra từ dòng
 | `packages/crew-web/src/features/issues/detail/crew/gate-dialogs.tsx` | [issues-web](flows/issues-web.md) (file) |
 | `packages/crew-web/src/features/issues/detail/crew/interaction-card.tsx` | [issues-web](flows/issues-web.md) (file) |
 | `packages/crew-web/src/features/issues/detail/crew/interactions-slot.tsx` | [issues-web](flows/issues-web.md) (file) |
+| `packages/crew-web/src/features/issues/detail/crew/machine-slot.tsx` | [issues-web](flows/issues-web.md) (file) |
 | `packages/crew-web/src/features/issues/detail/crew/runtime-slot.tsx` | [issues-web](flows/issues-web.md) (file) |
 | `packages/crew-web/src/features/issues/detail/crew/summary-slot.tsx` | [issues-web](flows/issues-web.md) (file) |
 | `packages/crew-web/src/features/issues/detail/documents.tsx` | [issues-web](flows/issues-web.md) (file) |
@@ -501,6 +503,7 @@ File nào thuộc flow nào. Dùng `crew-docs where <file>` để tra từ dòng
 | `packages/crew-web/src/features/issues/new/follow-plan-action.tsx` | [issues-web](flows/issues-web.md) (file) |
 | `packages/crew-web/src/features/issues/new/follow-plan.ts` | [issues-web](flows/issues-web.md) (file) |
 | `packages/crew-web/src/features/issues/new/kinds.ts` | [issues-web](flows/issues-web.md) (file) |
+| `packages/crew-web/src/features/issues/new/machine-field.tsx` | [issues-web](flows/issues-web.md) (file) |
 | `packages/crew-web/src/features/issues/new/new-request-dialog.tsx` | [issues-web](flows/issues-web.md) (file) |
 | `packages/crew-web/src/features/issues/new/request-fields.tsx` | [issues-web](flows/issues-web.md) (file) |
 | `packages/crew-web/src/features/issues/new/use-create-request.ts` | [issues-web](flows/issues-web.md) (file) |
@@ -547,6 +550,7 @@ File nào thuộc flow nào. Dùng `crew-docs where <file>` để tra từ dòng
 | `packages/crew-web/src/features/members/use-members.ts` | [web-pages](flows/web-pages.md) (file) |
 | `packages/crew-web/src/features/projects/detail/docs-tab.tsx` | [docs-snapshot](flows/docs-snapshot.md) (file) |
 | `packages/crew-web/src/features/projects/detail/issues-tab.tsx` | [web-pages](flows/web-pages.md) (file) |
+| `packages/crew-web/src/features/projects/detail/machines-tab.tsx` | [web-pages](flows/web-pages.md) (file) |
 | `packages/crew-web/src/features/projects/detail/project-page.tsx` | [web-pages](flows/web-pages.md) (file) |
 | `packages/crew-web/src/features/projects/detail/readiness-tab.tsx` | [web-pages](flows/web-pages.md) (file) |
 | `packages/crew-web/src/features/projects/detail/rename-dialog.tsx` | [web-pages](flows/web-pages.md) (file) |
@@ -640,6 +644,7 @@ File nào thuộc flow nào. Dùng `crew-docs where <file>` để tra từ dòng
 | `packages/crew-web/test/api/endpoints.test.ts` | [web-shell](flows/web-shell.md) (test) |
 | `packages/crew-web/test/api/http.test.ts` | [web-shell](flows/web-shell.md) (test) |
 | `packages/crew-web/test/api/labels.test.ts` | [web-shell](flows/web-shell.md) (test) |
+| `packages/crew-web/test/api/machine-pins.test.ts` | [web-shell](flows/web-shell.md) (test) |
 | `packages/crew-web/test/api/r3x-client.test.ts` | [web-shell](flows/web-shell.md) (test) |
 | `packages/crew-web/test/api/runtimes.test.ts` | [runtime-switches](flows/runtime-switches.md) (test) |
 | `packages/crew-web/test/api/setup-abandon.test.ts` | [setup-wizards](flows/setup-wizards.md) (test) |
@@ -738,6 +743,7 @@ File nào thuộc flow nào. Dùng `crew-docs where <file>` để tra từ dòng
 | `packages/crew-web/test/features/issues/kind-labels.test.tsx` | [issues-web](flows/issues-web.md) (test) |
 | `packages/crew-web/test/features/issues/kinds.test.ts` | [issues-web](flows/issues-web.md) (test) |
 | `packages/crew-web/test/features/issues/list-view.test.ts` | [issues-web](flows/issues-web.md) (test) |
+| `packages/crew-web/test/features/issues/machine-slot.test.tsx` | [issues-web](flows/issues-web.md) (test) |
 | `packages/crew-web/test/features/issues/new-request-dialog.test.tsx` | [issues-web](flows/issues-web.md) (test) |
 | `packages/crew-web/test/features/issues/properties-panel.test.tsx` | [issues-web](flows/issues-web.md) (test) |
 | `packages/crew-web/test/features/issues/runtime-slot.test.tsx` | [issues-web](flows/issues-web.md) (test) |
@@ -760,6 +766,7 @@ File nào thuộc flow nào. Dùng `crew-docs where <file>` để tra từ dòng
 | `packages/crew-web/test/features/machines/runtime-block.test.tsx` | [runtime-switches](flows/runtime-switches.md) (test) |
 | `packages/crew-web/test/features/members/members-model.test.ts` | [web-pages](flows/web-pages.md) (test) |
 | `packages/crew-web/test/features/members/members-page.test.tsx` | [web-pages](flows/web-pages.md) (test) |
+| `packages/crew-web/test/features/projects/machines-tab.test.tsx` | [web-pages](flows/web-pages.md) (test) |
 | `packages/crew-web/test/features/projects/project-page.test.tsx` | [web-pages](flows/web-pages.md) (test) |
 | `packages/crew-web/test/features/projects/projects-page.test.tsx` | [web-pages](flows/web-pages.md) (test) |
 | `packages/crew-web/test/features/projects/rename-dialog.test.tsx` | [web-pages](flows/web-pages.md) (test) |
