@@ -267,7 +267,7 @@ async function chooseChildReviewer(
     // Chỉ đọc công tắc khi các điều kiện khác đã cho reviewer Codex.
     if (chooseReviewer({ ...base, codexSwitchOn: true }).runtime !== "codex_local") return chooseReviewer({ ...base, codexSwitchOn: false });
     const machineId = codex?.defaultEnvironmentId
-      ? await resolveAgentMachine(db, { companyId, agentId: codexReviewerAgentId })
+      ? await resolveAgentMachine(db, { companyId, agentId: codexReviewerAgentId, issueId: data.parentId ?? null })
       : null;
     const codexSwitchOn = await readRuntimeSwitch(db, { companyId, machineId, runtime: "codex_local" });
     return chooseReviewer({ ...base, codexSwitchOn });

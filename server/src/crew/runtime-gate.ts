@@ -28,7 +28,7 @@ export interface RuntimeGateDeps {
    */
   cancelSuperseded(run: Run): Promise<boolean>;
   /** Máy của agent theo luật chung với plugin; `null` = không xác định (công tắc mặc định). */
-  resolveMachine(input: { companyId: string; agentId: string }): Promise<string | null>;
+  resolveMachine(input: { companyId: string; agentId: string; issueId: string | null }): Promise<string | null>;
   switchOn(input: { companyId: string; machineId: string | null; runtime: CrewRuntime }): Promise<boolean>;
   hasWaitingMarker(runId: string): Promise<boolean>;
   /** Ghi hàng chờ `crew_runtime_waits` (`ON CONFLICT DO NOTHING`) rồi activity `crew.runtime_gate.waiting`. */
@@ -71,7 +71,7 @@ export async function evaluateRuntimeGate(input: { db: Db; run: Run }, deps: Run
     let machineId: string | null = null;
     if (agent.defaultEnvironmentId) {
       try {
-        machineId = await deps.resolveMachine({ companyId: run.companyId, agentId: run.agentId });
+        machineId = await deps.resolveMachine({ companyId: run.companyId, agentId: run.agentId, issueId: readIssueId(run.contextSnapshot) });
       } catch (err) {
         failSoft(err, "resolving the agent machine");
       }

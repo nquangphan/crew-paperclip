@@ -99,3 +99,5 @@ lần mỗi run).
   cổng ném lỗi thì giữ run, `probeKeyOf`.
 - `server/src/__tests__/crew-run-environment.test.ts` (Postgres nhúng): Crew trả environment của máy ghim thì heartbeat dùng
   nó thay environment mặc định của agent; Crew trả `null` hay ném lỗi thì giữ environment mặc định và run vẫn chạy.
+- `server/src/__tests__/crew-runtime-machine.db.test.ts` (Postgres nhúng): máy của agent cho công tắc runtime theo máy
+  ghim của cây, rồi theo host của environment (hai Mac cùng đường checkout), host chưa ghép thì giữ luật đường dẫn cũ.

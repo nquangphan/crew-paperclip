@@ -133,6 +133,7 @@ flows:
       - server/src/__tests__/crew-machine-provision.db.test.ts
       - server/src/__tests__/crew-machine-gate.db.test.ts
       - server/src/__tests__/crew-run-environment.test.ts
+      - server/src/__tests__/crew-runtime-machine.db.test.ts
   runtime-switches:
     title: "Công tắc runtime theo máy (Claude, Codex, OpenCode)"
     doc: docs/flows/runtime-switches.md

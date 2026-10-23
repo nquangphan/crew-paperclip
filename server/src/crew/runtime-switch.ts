@@ -1,5 +1,6 @@
 import { sql } from "drizzle-orm";
 import { derivePluginDatabaseNamespace } from "../services/plugin-database.js";
+import { machineOfHost, pinnedMachineId } from "./machine-pin.js";
 import type { CrewRuntime } from "./model-policy.js";
 import { CREW_PLUGIN_KEY, type CrewRolesDb, rowsOf, warnOncePerMinute } from "./project-roles.js";
 
@@ -23,6 +24,7 @@ export const crewRuntimeSwitchesTable = () => pluginTable("crew_runtime_switches
 export const crewRuntimeWaitsTable = () => pluginTable("crew_runtime_waits");
 export const crewRuntimeDecisionsTable = () => pluginTable("crew_runtime_decisions");
 export const crewMachineLatestTable = () => pluginTable("machine_latest");
+export const crewMachinePairingsTable = () => pluginTable("machine_pairings");
 
 type Row = Record<string, unknown>;
 
@@ -83,7 +85,7 @@ export interface MachineCheckouts {
 /**
  * Máy chạy một agent, cùng luật với plugin (`runtimes/machine.ts`): máy có bản tin mới nhất chứa checkout = thư mục làm
  * việc của environment (nhiều máy thì bản tin mới nhất thắng); không thấy mà company chỉ có một máy thì lấy máy đó; còn
- * lại `null` (dùng công tắc mặc định).
+ * lại `null` (dùng công tắc mặc định). Chỉ còn là bước cuối của `resolveAgentMachine` cho máy chưa ghép.
  */
 export function resolveMachineForWorkspace(workspacePath: string | null, machines: readonly MachineCheckouts[]): string | null {
   if (workspacePath) {
@@ -104,17 +106,35 @@ function checkoutPaths(value: unknown): string[] {
 }
 
 /**
- * Máy của agent: `defaultEnvironmentId` → `environment.config.remoteWorkspacePath` → bản tin mới nhất của các máy trong
- * company (bảng `machine_latest` của plugin). Bảng bản tin chưa có thì coi như chưa có máy (`null`). Lỗi đọc thì ném để
- * bên gọi tự chọn cách xử lý (cổng H1 fail open).
+ * Máy chạy một agent (flow `multi-machine`):
+ * 1. `issueId` thuộc cây đã ghim máy → máy ghim;
+ * 2. host của environment mặc định trùng `tailscale_ip` của một máy đã ghép → máy đó;
+ * 3. luật cũ theo đường dẫn checkout trong bản tin (máy chưa ghép, Mac mini trước khi ghép).
+ * Bảng plugin chưa có thì bỏ qua bước đó. Mọi câu đọc bảng plugin chạy trong savepoint (an toàn trong `tx` của H4).
  */
-export async function resolveAgentMachine(db: CrewRolesDb, input: { companyId: string; agentId: string }): Promise<string | null> {
+export async function resolveAgentMachine(
+  db: CrewRolesDb,
+  input: { companyId: string; agentId: string; issueId?: string | null },
+): Promise<string | null> {
   const { companyId, agentId } = input;
+  if (input.issueId) {
+    const issueId = input.issueId;
+    const pinned = await db.transaction((tx) => pinnedMachineId(tx, companyId, issueId));
+    if (pinned) return pinned;
+  }
   const agentRows = rowsOf(
-    await db.execute(sql`SELECT e.config->>'remoteWorkspacePath' AS workspace
+    await db.execute(sql`SELECT e.config->>'remoteWorkspacePath' AS workspace, e.config->>'host' AS host
       FROM "agents" a LEFT JOIN "environments" e ON e.id = a.default_environment_id
       WHERE a.id = ${agentId} AND a.company_id = ${companyId} LIMIT 1`),
   );
+  const host = agentRows[0]?.host;
+  if (typeof host === "string" && host) {
+    const byHost = await db.transaction(async (tx) => {
+      const exists = rowsOf(await tx.execute(sql`SELECT to_regclass(${crewMachinePairingsTable()}) IS NOT NULL AS ok`));
+      return exists[0]?.ok === true ? machineOfHost(tx, companyId, host) : null;
+    });
+    if (byHost) return byHost;
+  }
   const workspace = agentRows[0]?.workspace;
   const reports = await readPluginRows(
     db,

@@ -50,7 +50,7 @@ describe("evaluateRuntimeGate", () => {
     });
     await evaluateRuntimeGate({ db, run: run() }, d);
     expect(seen).toEqual([
-      { companyId: CO, agentId: AGENT },
+      { companyId: CO, agentId: AGENT, issueId: ISSUE },
       { companyId: CO, machineId: MACHINE, runtime: "codex_local" },
     ]);
   });

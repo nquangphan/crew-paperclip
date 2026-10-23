@@ -13,9 +13,16 @@ Mặc định khi máy chưa có dòng công tắc: Claude bật, Codex và Open
 plugin (không nhận env của server) đọc key `opencodeInPlacePatch` trong cấu hình plugin của company. Hai bên phải được
 đặt cùng nhau.
 
-Máy của agent được xác định cùng một luật ở server và plugin: `defaultEnvironmentId` của agent →
-`config.remoteWorkspacePath` của environment → máy có bản tin mới nhất chứa checkout đó; company chỉ có một máy thì lấy
-máy đó; còn lại không xác định (dùng mặc định). Agent không có environment luôn dùng mặc định.
+Máy của agent phía server (`resolveAgentMachine`) xét lần lượt:
+
+1. Run hay issue thuộc cây yêu cầu đã ghim máy (flow `multi-machine`) → máy ghim.
+2. `config.host` của environment mặc định trùng `tailscale_ip` của một máy đã ghép (`machine_pairings`, chưa gỡ) → máy
+   đó. Hai Mac dùng cùng đường `~/crew-agents/...` nên đường checkout không phân biệt được máy.
+3. Luật cũ (máy chưa ghép), giống plugin: `config.remoteWorkspacePath` của environment → máy có bản tin mới nhất chứa
+   checkout đó; company chỉ có một máy thì lấy máy đó; còn lại không xác định (dùng mặc định).
+
+Bảng plugin chưa có thì bỏ qua bước đó. Agent không có environment chỉ còn bước 1 hoặc dùng mặc định. Cổng `runtimeGate`
+truyền `issueId` trong `contextSnapshot` của run; reviewer Codex ở H4 truyền issue cha (flow `issue-gate`).
 
 ## Điểm vào
 
@@ -39,7 +46,8 @@ máy đó; còn lại không xác định (dùng mặc định). Agent không c�
    một trong ba runtime. Trước tiên hủy run `queued` của agent mà issue đã bị fallback chuyển đi (`cancelSuperseded`).
    Công tắc tắt thì giữ run, ghi một dòng hàng chờ `crew_runtime_waits` và activity một lần mỗi run. Lỗi hạ tầng: Claude
    được chạy (fail open), Codex/OpenCode coi như tắt và giữ.
-5. `server/src/crew/runtime-switch.ts` → `readRuntimeSwitch`, `resolveAgentMachine`, `readPluginRows`: đọc bảng plugin
+5. `server/src/crew/runtime-switch.ts` → `readRuntimeSwitch`, `resolveAgentMachine`, `readPluginRows`: máy của agent
+   theo ghim, host rồi đường checkout (dùng `pinnedMachineId`, `machineOfHost` của `machine-pin.ts`); đọc bảng plugin
    trong savepoint (lỗi SQL không làm hỏng transaction của bên gọi), bảng chưa có thì dùng mặc định và cảnh báo tối đa
    một lần mỗi phút mỗi company.
 
@@ -72,7 +80,7 @@ máy đó; còn lại không xác định (dùng mặc định). Agent không c�
 - `machine-jobs`: việc `runtimes-setup`.
 - `web-pages`: trang máy chứa khối Runtime.
 - `multi-machine`: `heartbeat.ts` có thêm vá C16 chọn environment của run theo máy đã ghim cho cây yêu cầu; lease SSH,
-  lệnh dừng và retry vì vậy luôn ở máy đó.
+  lệnh dừng và retry vì vậy luôn ở máy đó. `resolveAgentMachine` đọc máy ghim và bảng `machine_pairings` của flow đó.
 
 ## Tests
 

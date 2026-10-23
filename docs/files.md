@@ -857,6 +857,7 @@ File nào thuộc flow nào. Dùng `crew-docs where <file>` để tra từ dòng
 | `server/src/__tests__/crew-runtime-fallback-reconcile.test.ts` | [runtime-fallback](flows/runtime-fallback.md) (test) |
 | `server/src/__tests__/crew-runtime-gate.test.ts` | [runtime-switches](flows/runtime-switches.md) (test) |
 | `server/src/__tests__/crew-runtime-handoff.db.test.ts` | [runtime-fallback](flows/runtime-fallback.md) (test) |
+| `server/src/__tests__/crew-runtime-machine.db.test.ts` | [multi-machine](flows/multi-machine.md) (test) |
 | `server/src/__tests__/crew-runtime-switch.db.test.ts` | [runtime-switches](flows/runtime-switches.md) (test) |
 | `server/src/__tests__/crew-self-handoff-run.db.test.ts` | [run-handoff](flows/run-handoff.md) (test) |
 | `server/src/__tests__/crew-ssh-in-place.test.ts` | [ssh-run-lifecycle](flows/ssh-run-lifecycle.md) (test) |

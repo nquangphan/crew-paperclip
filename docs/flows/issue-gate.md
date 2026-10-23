@@ -37,7 +37,8 @@ Luật áp theo company:
    - Hệ thống: issue watchdog/recovery giữ stock, trừ khi giao lại cho chính executor của issue nguồn; routine do agent
      tạo/sửa bị từ chối (`crew_routine_issue_forbidden`).
    - Issue con code mà executor không chạy Codex: `chooseChildReviewer` → `chooseReviewer` có thể đặt reviewer Codex
-     đứng trước reviewer Claude trong stage review, khi công tắc `codex_local` trên máy reviewer Codex đang bật.
+     đứng trước reviewer Claude trong stage review, khi công tắc `codex_local` trên máy reviewer Codex đang bật. Máy của
+     reviewer Codex suy theo cây của issue cha (`issueId: data.parentId`) khi cây đã ghim máy (flow `multi-machine`).
 3. `server/src/crew/issue-policy.ts` → `buildCrewPolicy`: dựng template đã normalize, `maxReviewRounds` là
    `CREW_MAX_REVIEW_ROUNDS` (5). Gốc: reviewer, integrator (merge + docs), owner, integrator (push). Research và bmad:
    reviewer, owner. Con: reviewer.
@@ -96,6 +97,7 @@ Luật áp theo company:
   (`loadCrewRoles`, `agentAssignmentAllowed`).
 - `runtime-switches`: công tắc `codex_local` quyết định có reviewer Codex.
 - `runtime-fallback`: hệ thống đổi participant reviewer Codex sang reviewer Claude.
+- `multi-machine`: máy ghim của cây quyết định máy (và công tắc `codex_local`) của reviewer Codex.
 - `qc-department`: chạy ngay sau gate trong H2.
 - `run-handoff`: vá C11/C12 cho run tự bàn giao issue của mình.
 - `agent-roles`: template vai trò dạy agent viết đúng comment bằng chứng và marker.
