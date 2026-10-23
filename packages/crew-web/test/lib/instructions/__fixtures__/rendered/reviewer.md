@@ -67,11 +67,11 @@ Có `crew-commit` như issue code; duyệt và quyết định như issue code (
 ## Issue kế hoạch (`crew-kind plan`)
 
 Có `crew-commit` như issue code; duyệt và quyết định như issue tài liệu (`crew-review sha=<40 hex> verdict=approved`), chỉ khác:
-1. Phạm vi: `git diff --stat $(git merge-base origin/HEAD <sha>)..<sha>` chỉ được có file plan và spec (và ảnh minh họa của chúng). Có mã nguồn, cấu hình, test hay script: cần sửa.
+1. Phạm vi: `git diff --stat $(git merge-base origin/HEAD <sha>)..<sha>` chỉ được có file plan và spec (và ảnh minh họa của chúng), cùng file chỉ mục hay docs mà quy ước repo bắt cập nhật khi thêm plan hoặc spec (ví dụ `plans/README.md`, `docs/index.md`). Có mã nguồn, cấu hình, test hay script: cần sửa.
 2. Đủ mục bắt buộc trong plan: mục tiêu; phạm vi và ngoài phạm vi; tiêu chí nghiệm thu; các bước kèm file chạm vào và lệnh kiểm; rủi ro; giả định. Thiếu mục nào: cần sửa, nêu mục thiếu.
 3. Bước cụ thể: file được nêu có thật trên `<sha>` (hoặc là file bước đó tạo mới và nói rõ), lệnh kiểm là lệnh repo thật sự có (`git grep`, `package.json`). Bước mơ hồ kiểu "làm tính năng X" không kèm file và lệnh kiểm: cần sửa.
 4. Bám câu trả lời của owner chép trong mô tả issue: plan không được trái hay bỏ sót lựa chọn đã chốt. Không mâu thuẫn code và docs hiện có của repo.
-5. Comment báo xong của executor có dòng `crew-plan-file path=<path>` trỏ đúng file plan có trong diff. Ảnh nghiệm thu như bước 3 của "Cách review": ảnh phải là plan đã render.
+5. Comment `Executor: xong ...` cuối cùng của executor (comment báo xong đi kèm `PATCH` status, không phải comment `crew-commit`) có dòng `crew-plan-file path=<path>` trỏ đúng file plan có trong diff; lấy dòng `crew-plan-file` mới nhất nếu có nhiều. Ảnh nghiệm thu như bước 3 của "Cách review": ảnh phải là plan đã render.
 6. Không chạy test code và không đòi executor chạy test code.
 
 ## Issue BMAD (`crew-kind bmad`)

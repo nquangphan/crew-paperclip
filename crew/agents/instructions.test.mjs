@@ -360,7 +360,7 @@ test("assistant: yêu cầu viết tài liệu nhận ra bằng nhãn docs trên
   assert.ok(text.split("\n").some((l) => l.trim().replace(/^`|`$/g, "") === "crew-kind docs"));
   assert.match(text, /4 stage mà `labels` của issue gốc có nhãn tên `docs` là yêu cầu \*\*viết tài liệu\*\*/);
   assert.match(text, /Yêu cầu viết tài liệu chỉ có con tài liệu \(dòng `crew-kind docs`\), không trộn con code/);
-  assert.match(text, /không phải research, không phải viết tài liệu, không phải bug/);
+  assert.match(text, /không phải research, không phải viết tài liệu, không phải lập kế hoạch, không phải bug/);
   assert.match(text, /Với yêu cầu viết tài liệu, con sửa vẫn có dòng `crew-kind docs`/);
 });
 
@@ -911,6 +911,8 @@ test("assistant: yêu cầu lập kế hoạch nhận bằng nhãn plan, hỏi o
     "Yêu cầu chỉ research, tài liệu hoặc lập kế hoạch thì không cần con E2E",
     "### Kế hoạch\n- File kế hoạch: `<path>`",
     "`crew-plan-file path=<path>`",
+    "dòng `crew-plan-file path=<path>` mới nhất trong các comment của con kế hoạch",
+    "lập kế hoạch, gốc chạy lại từ reviewer",
   ]) assert.ok(text.includes(needle), `thiếu: ${needle}`);
   // Yêu cầu code theo plan: đọc plan trên origin/HEAD, thiếu file thì hỏi owner, không brainstorm lại.
   assert.match(text, /dòng `crew-from-plan <path>` trong mô tả: đọc plan đó trên `origin\/HEAD`/);
@@ -931,6 +933,8 @@ test("executor: issue kế hoạch đặt file theo quy ước repo, brainstorm 
     "`superpowers:writing-plans`",
     "mục tiêu; phạm vi và ngoài phạm vi; tiêu chí nghiệm thu; các bước, mỗi bước kèm file chạm vào và lệnh kiểm; rủi ro; giả định",
     "`crew-plan-file path=<đường dẫn plan tính từ gốc repo>`",
+    "nằm trong comment `Executor: xong ...` cuối cùng",
+    "không chen vào comment `crew-commit`",
     "Ảnh nghiệm thu: render file plan",
   ]) assert.ok(body.includes(needle), `thiếu: ${needle}`);
   assert.match(text, /Với issue code \(kể cả issue tài liệu `crew-kind docs` và issue kế hoạch `crew-kind plan`\), \*\*nhánh trước tiên\*\*/);
@@ -943,6 +947,8 @@ test("reviewer: issue kế hoạch diff chỉ file plan/spec, kiểm đủ mục
   for (const needle of [
     "`crew-review sha=<40 hex> verdict=approved`",
     "chỉ được có file plan và spec",
+    "file chỉ mục hay docs mà quy ước repo bắt cập nhật khi thêm plan hoặc spec",
+    "Comment `Executor: xong ...` cuối cùng",
     "mục tiêu; phạm vi và ngoài phạm vi; tiêu chí nghiệm thu; các bước kèm file chạm vào và lệnh kiểm; rủi ro; giả định",
     "file được nêu có thật",
     "Bám câu trả lời của owner",

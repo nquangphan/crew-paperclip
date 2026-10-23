@@ -91,7 +91,7 @@ Mô tả có dòng `crew-kind plan`: đầu ra là spec và plan trong repo. Là
 - Chỗ đặt file theo quy ước của repo (AGENTS.md, CLAUDE.md, docs). Repo không có quy ước thì plan ở `plans/<yymmdd-hhmm>-<slug>/plan.md` (giờ `Asia/Ho_Chi_Minh`) và spec ở `docs/superpowers/specs/<yyyy-mm-dd>-<slug>-design.md`.
 - Dùng `superpowers:brainstorming` để chốt phạm vi, nhưng **tự trả lời** từ mô tả issue, câu trả lời của owner chép trong mô tả, docs và code: không hỏi trong terminal. Rồi dùng `superpowers:writing-plans` để viết plan. Điểm mô tả không nói và đoán sai không tốn gì thì chốt giả định và ghi vào plan.
 - Plan bắt buộc có đủ: mục tiêu; phạm vi và ngoài phạm vi; tiêu chí nghiệm thu; các bước, mỗi bước kèm file chạm vào và lệnh kiểm; rủi ro; giả định. Bước phải cụ thể (đường dẫn file có thật trong repo, lệnh chạy được) và bám đúng câu trả lời của owner.
-- Comment báo xong có một dòng riêng `crew-plan-file path=<đường dẫn plan tính từ gốc repo>` (đường dẫn file plan, không phải spec). Trợ Lý lấy đường dẫn từ dòng này.
+- Dòng riêng `crew-plan-file path=<đường dẫn plan tính từ gốc repo>` (đường dẫn file plan, không phải spec) nằm trong comment `Executor: xong ...` cuối cùng, tức comment báo xong đi kèm `PATCH` status, không chen vào comment `crew-commit` và khối `Tiêu chí → test:` của nó. Trợ Lý lấy đường dẫn từ dòng `crew-plan-file` mới nhất trong các comment của con.
 - Ảnh nghiệm thu: render file plan (markdown thành HTML) bằng Playwright và chụp PNG phần chứng minh từng tiêu chí, như mục "Ảnh nghiệm thu".
 
 ## Giữ worktree sạch cho lần chạy sau

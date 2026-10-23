@@ -86,7 +86,7 @@ Q1. <câu hỏi đầy đủ>
 
 Superpowers là mặc định. Chọn BMAD chỉ khi **đủ cả ba**:
 1. Mục "Agent BMAD của company" cuối file có ít nhất một agent.
-2. Là yêu cầu code (gốc có 4 stage), không phải research, không phải viết tài liệu, không phải bug.
+2. Là yêu cầu code (gốc có 4 stage), không phải research, không phải viết tài liệu, không phải lập kế hoạch, không phải bug.
 3. Issue gốc có nhãn `bmad`, hoặc mô tả đòi rõ lập epic/story, PRD, hay dùng BMAD.
 
 Ghi lựa chọn ở dòng thứ ba của comment `crew-plan` (sau dòng `revision=`):
@@ -282,9 +282,9 @@ Q1. <việc chỉ owner quyết được, viết thành câu hỏi đầy đủ:
 - Đề xuất: <a hoặc b> — <lý do ngắn>
 ```
 
-Mục `### Kế hoạch` chỉ có ở tổng kết của yêu cầu lập kế hoạch (bỏ mục này với loại khác): dòng `- File kế hoạch: \`<path>\`` phải đúng dạng này, `<path>` lấy từ dòng `crew-plan-file path=<path>` trong comment báo xong của executor con kế hoạch (không đoán đường dẫn); web đọc dòng này để tạo yêu cầu Code từ kế hoạch. Mục nào khác không có gì thì ghi một dòng `- Không có.`, không bỏ mục. Mục `### Cần owner quyết định` viết đủ từng điểm `Q1`, `Q2`… ngay trong tổng kết theo mục "Câu hỏi và điểm cần owner chốt" (câu hỏi, lựa chọn và nghĩa của từng lựa chọn, đề xuất kèm lý do), không bao giờ chỉ trỏ tới file, tài liệu đính kèm hay link. Lấy nội dung từ kế hoạch `crew-plan`, báo cáo và comment của các con, câu trả lời của owner; không đoán điều không có trong đó. Mô tả, comment và `status` đi chung trong **một** `PATCH` này (vẫn là lệnh ghi cuối của run); không `PATCH` mô tả riêng.
+Mục `### Kế hoạch` chỉ có ở tổng kết của yêu cầu lập kế hoạch (bỏ mục này với loại khác): dòng `- File kế hoạch: \`<path>\`` phải đúng dạng này, `<path>` lấy từ dòng `crew-plan-file path=<path>` mới nhất trong các comment của con kế hoạch (nằm trong comment `Executor: xong ...` cuối cùng của executor; không đoán đường dẫn); web đọc dòng này để tạo yêu cầu Code từ kế hoạch. Mục nào khác không có gì thì ghi một dòng `- Không có.`, không bỏ mục. Mục `### Cần owner quyết định` viết đủ từng điểm `Q1`, `Q2`… ngay trong tổng kết theo mục "Câu hỏi và điểm cần owner chốt" (câu hỏi, lựa chọn và nghĩa của từng lựa chọn, đề xuất kèm lý do), không bao giờ chỉ trỏ tới file, tài liệu đính kèm hay link. Lấy nội dung từ kế hoạch `crew-plan`, báo cáo và comment của các con, câu trả lời của owner; không đoán điều không có trong đó. Mô tả, comment và `status` đi chung trong **một** `PATCH` này (vẫn là lệnh ghi cuối của run); không `PATCH` mô tả riêng.
 
-Server chuyển issue gốc sang reviewer (rồi integrator và owner với yêu cầu code hay viết tài liệu, hoặc owner với research). Đó là bình thường. Gửi lại sau yêu cầu sửa của owner cũng vậy: với yêu cầu code hay viết tài liệu, gốc chạy lại từ reviewer, integrator gộp lại cả con sửa và ghi bằng chứng docs mới, rồi owner duyệt lại và integrator mới mở pull request; không gửi gì thêm. Con nào chưa qua review: không `done`, comment nêu con đó rồi dừng.
+Server chuyển issue gốc sang reviewer (rồi integrator và owner với yêu cầu code hay viết tài liệu, hoặc owner với research). Đó là bình thường. Gửi lại sau yêu cầu sửa của owner cũng vậy: với yêu cầu code, viết tài liệu hay lập kế hoạch, gốc chạy lại từ reviewer, integrator gộp lại cả con sửa và ghi bằng chứng docs mới, rồi owner duyệt lại và integrator mới mở pull request; không gửi gì thêm. Con nào chưa qua review: không `done`, comment nêu con đó rồi dừng.
 
 ## Chốt trạng thái gốc
 
