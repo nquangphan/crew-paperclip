@@ -29,6 +29,7 @@ import {
   isRuntimeFallbackWake,
 } from "./runtime-fallback.js";
 import { warnOncePerMinute } from "./project-roles.js";
+import { evaluateMachineGate, type MachineGateOutcome } from "./machine-gate.js";
 
 /** Same shape as BeforeClaimInput in core-hooks.ts (not imported: implementations must not import the registry). */
 export interface BeforeClaimInput {
@@ -152,14 +153,21 @@ export type ProgressMode = ProgressTarget["mode"];
 const PROGRESS_ACTION: Record<ProgressMode, string> = { retry: "crew.retry_progress", fallback: "crew.runtime_fallback" };
 
 export interface BeforeClaimDeps {
-  loadTarget(run: BeforeClaimInput["run"]): Promise<{
+  /**
+   * Machine of the request tree (flow `multi-machine`), asked before anything else. Missing means `pass` without a
+   * pinned environment (hand-built deps of older tests).
+   */
+  machineGate?(run: BeforeClaimInput["run"]): Promise<MachineGateOutcome>;
+  /** `environmentId`: the agent's environment on the pinned machine; `null`/missing means the agent's default environment. */
+  loadTarget(run: BeforeClaimInput["run"], environmentId?: string | null): Promise<{
     environmentId: string;
     environmentName: string;
     settings: LoadGateSettings;
   } | null>;
   /**
-   * Load of the environment's host. Calls answered by the same probe return the same object: it marks
-   * one claim pass of the environment, in which only the first held run of each agent waits on the clock.
+   * Load of the environment's host; one cached probe per host and port, shared by every environment on that machine.
+   * Calls answered by the same probe return the same object: it marks one claim pass of the environment, in which
+   * only the first held run of each agent waits on the clock.
    */
   probeHost(environmentId: string, run: BeforeClaimInput["run"]): Promise<HostProbe>;
   /**
@@ -341,8 +349,8 @@ export async function evaluateBeforeClaim(input: BeforeClaimInput, deps: BeforeC
   let gated = false;
   const hold = await decideBeforeClaim(input, {
     ...deps,
-    loadTarget: async (run) => {
-      const target = await deps.loadTarget(run);
+    loadTarget: async (run, environmentId) => {
+      const target = await deps.loadTarget(run, environmentId);
       gated = target !== null;
       return target;
     },
@@ -369,7 +377,24 @@ export async function evaluateBeforeClaim(input: BeforeClaimInput, deps: BeforeC
 async function decideBeforeClaim(input: BeforeClaimInput, deps: BeforeClaimDeps): Promise<boolean> {
   const { run } = input;
   if (run.status !== "queued") return false;
-  const target = await deps.loadTarget(run);
+  let machine: MachineGateOutcome = { action: "pass", environmentId: null };
+  if (deps.machineGate) {
+    try {
+      machine = await deps.machineGate(run);
+    } catch (err) {
+      // The tree may be pinned to another machine than the default environment's: never claim blind.
+      logger.warn({ err, runId: run.id }, "crew-load-gate: machine gate failed; the run stays held");
+      return true;
+    }
+  }
+  if (machine.action === "hold") return true;
+  if (machine.action === "fail") {
+    deps.scheduleCancel(run.id, `Crew: ${machine.reason}`);
+    const issueId = machine.issueId;
+    await logFailure(run.id, "block issue", () => deps.blockIssue(issueId));
+    return true;
+  }
+  const target = await deps.loadTarget(run, machine.environmentId);
   // No load gate on this environment: only the runtime switch applies (no progress check, like retries).
   if (!target) return deps.runtimeGate(run);
   const expiredReason = `Crew: hết ${target.settings.maxWaitMinutes} phút chờ máy ${target.environmentName}`;
@@ -486,6 +511,14 @@ async function logFailure(runId: string, what: string, action: () => Promise<voi
   } catch (err) {
     logger.warn({ err, runId }, `crew-load-gate: ${what} failed; the run stays held`);
   }
+}
+
+/** Load probe cache key: host and SSH port of the environment, so every environment on one machine shares one probe. */
+export function probeKeyOf(config: unknown): string | null {
+  if (!config || typeof config !== "object") return null;
+  const { host, port } = config as Record<string, unknown>;
+  if (typeof host !== "string" || host.length === 0) return null;
+  return `${host}:${typeof port === "number" || typeof port === "string" ? port : 22}`;
 }
 
 const probeCache = createProbeCache(LOAD_GATE_PROBE_TTL_MS);
@@ -617,24 +650,35 @@ export function defaultBeforeClaimDeps(db: Db): BeforeClaimDeps {
   };
   const runtimeGateDeps = defaultRuntimeGateDeps(db, { scheduleCancel });
   return {
-    async loadTarget(run) {
-      const [agent] = await db
-        .select({ defaultEnvironmentId: agents.defaultEnvironmentId })
-        .from(agents)
-        .where(eq(agents.id, run.agentId))
-        .limit(1);
-      if (!agent?.defaultEnvironmentId) return null;
-      const environment = await environmentService(db).getById(agent.defaultEnvironmentId);
+    machineGate: (run) => evaluateMachineGate(db, run),
+    async loadTarget(run, environmentId) {
+      let id = environmentId ?? null;
+      if (!id) {
+        const [agent] = await db
+          .select({ defaultEnvironmentId: agents.defaultEnvironmentId })
+          .from(agents)
+          .where(eq(agents.id, run.agentId))
+          .limit(1);
+        id = agent?.defaultEnvironmentId ?? null;
+      }
+      if (!id) return null;
+      const environment = await environmentService(db).getById(id);
       if (!environment || environment.driver !== "ssh" || environment.status !== "active") return null;
       const settings = readLoadGateSettings(environment.metadata as Record<string, unknown> | null);
       if (!settings) return null;
       return { environmentId: environment.id, environmentName: environment.name, settings };
     },
-    probeHost(environmentId, run) {
-      return probeCache.get(environmentId, async () => {
+    async probeHost(environmentId, run) {
+      let environment: Awaited<ReturnType<ReturnType<typeof environmentService>["getById"]>>;
+      try {
+        environment = await environmentService(db).getById(environmentId);
+      } catch (err) {
+        const error = errorMessage(err);
+        return probeCache.get(environmentId, async () => ({ ok: false, error }));
+      }
+      if (!environment) return probeCache.get(environmentId, async () => ({ ok: false, error: "environment not found" }));
+      return probeCache.get(probeKeyOf(environment.config) ?? environmentId, async () => {
         try {
-          const environment = await environmentService(db).getById(environmentId);
-          if (!environment) return { ok: false, error: "environment not found" };
           const parsed = await resolveEnvironmentDriverConfigForRuntime(db, run.companyId, environment, {
             heartbeatRunId: run.id,
           });

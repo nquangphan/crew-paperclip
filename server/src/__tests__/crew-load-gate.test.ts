@@ -9,8 +9,10 @@ import {
   decideGate,
   evaluateBeforeClaim,
   parseLoadAvg,
+  probeKeyOf,
   readLoadGateSettings,
 } from "../crew/load-gate.ts";
+import type { MachineGateOutcome } from "../crew/machine-gate.ts";
 import type { RetryProgress } from "../crew/retry-progress.ts";
 
 const SETTINGS = { maxLoad1: 8, maxWaitMinutes: 60 };
@@ -615,5 +617,83 @@ describe("crewBeforeClaim when the gate itself fails", () => {
 
   it("lets a run that is not a retry be claimed (fails open)", async () => {
     expect(await crewBeforeClaim({ db: {} as Db, run: run() })).toBe(false);
+  });
+});
+
+describe("ghim máy trong cổng claim", () => {
+  const run = {
+    id: "run-m", companyId: "c-1", agentId: "a-1", status: "queued", retryOfRunId: null, resultJson: null,
+    contextSnapshot: { issueId: "i-1" },
+  } as unknown as BeforeClaimInput["run"];
+  function machineDeps(gate: () => Promise<MachineGateOutcome>) {
+    const seen = { targets: [] as (string | null | undefined)[], cancels: [] as string[], blocked: [] as string[], held: 0 };
+    const deps: BeforeClaimDeps = {
+      machineGate: gate,
+      loadTarget: async (_run, environmentId) => {
+        seen.targets.push(environmentId);
+        return null;
+      },
+      probeHost: async () => ({ ok: true, load1: 1 }),
+      markHeld: async () => {
+        seen.held += 1;
+      },
+      releaseHeld: async () => "claim",
+      remoteStopPending: async () => false,
+      firstNoticeAt: async () => null,
+      recordNotice: async () => undefined,
+      postComment: async () => undefined,
+      scheduleCancel: (runId) => {
+        seen.cancels.push(runId);
+      },
+      blockIssue: async (issueId) => {
+        seen.blocked.push(issueId);
+      },
+      now: () => new Date("2026-10-24T01:00:00.000Z"),
+      retryState: async () => ({ checked: false }),
+      checkRetryProgress: async () => {
+        throw new Error("không gọi khi không retry");
+      },
+      recordRetryProgress: async () => null,
+      postRetryComment: async () => undefined,
+      runtimeGate: async () => false,
+      fallbackPreviousRunId: async () => null,
+    };
+    return { deps, seen };
+  }
+
+  it("cây đã ghim: cổng tải đọc environment của máy ghim", async () => {
+    const { deps, seen } = machineDeps(async () => ({ action: "pass", environmentId: "env-mini" }));
+    expect(await evaluateBeforeClaim({ db: {} as never, run }, deps)).toBe(false);
+    expect(seen.targets).toEqual(["env-mini"]);
+  });
+
+  it("máy ghim đang dựng project: giữ run và đánh dấu chưa bắt đầu", async () => {
+    const { deps, seen } = machineDeps(async () => ({ action: "hold" }));
+    expect(await evaluateBeforeClaim({ db: {} as never, run }, deps)).toBe(true);
+    expect(seen.held).toBe(1);
+    expect(seen.targets).toEqual([]);
+  });
+
+  it("dựng project thất bại: hủy run và chuyển issue sang blocked", async () => {
+    const { deps, seen } = machineDeps(async () => ({ action: "fail", issueId: "i-1", reason: "không dựng được project trên máy mini: lỗi" }));
+    expect(await evaluateBeforeClaim({ db: {} as never, run }, deps)).toBe(true);
+    expect(seen.cancels).toEqual(["run-m"]);
+    expect(seen.blocked).toEqual(["i-1"]);
+  });
+
+  it("cổng ghim máy ném lỗi: giữ run, không rơi về environment mặc định", async () => {
+    const { deps, seen } = machineDeps(async () => {
+      throw new Error("mất kết nối Postgres");
+    });
+    expect(await evaluateBeforeClaim({ db: {} as never, run }, deps)).toBe(true);
+    expect(seen.held).toBe(1);
+    expect(seen.targets).toEqual([]);
+  });
+
+  it("khóa cache đo tải theo host: các environment cùng máy dùng chung một lần đo", () => {
+    expect(probeKeyOf({ host: "100.64.0.2", port: 2222, remoteWorkspacePath: "/a" })).toBe("100.64.0.2:2222");
+    expect(probeKeyOf({ host: "100.64.0.2", port: 2222, remoteWorkspacePath: "/b" })).toBe("100.64.0.2:2222");
+    expect(probeKeyOf({ host: "100.64.0.2" })).toBe("100.64.0.2:22");
+    expect(probeKeyOf({})).toBeNull();
   });
 });

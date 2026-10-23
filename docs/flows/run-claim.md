@@ -29,11 +29,15 @@ có cho chạy ngay không (hook H1):
 1. `server/src/crew/core-hooks.ts` → `beforeClaim`: gọi `crewBeforeClaim`; không giữ run thì `applyBundleResumeSafely`.
 2. `server/src/crew/load-gate.ts` → `crewBeforeClaim`, `evaluateBeforeClaim`, `decideBeforeClaim`:
    - run không ở `queued` thì không giữ;
+   - trước mọi kiểm khác, hỏi cổng ghim máy (`machineGate`, flow `multi-machine`): `hold` thì giữ run (marker
+     `NEVER_STARTED`), `fail` thì hủy run và chuyển issue sang `blocked`, `pass` kèm environment trên máy ghim thì cổng
+     tải đọc environment đó thay cho environment mặc định; cổng ném lỗi thì giữ run;
    - lệnh dừng run trước còn dở (`crew.remote_stop.started` chưa có kết quả, trong `REMOTE_STOP_PENDING_WINDOW_MS`) thì
      giữ, không ghi dấu;
    - đã hết hạn trước đó thì giữ và thử lại việc hủy và comment còn thiếu;
    - đo tải bằng `sysctl -n vm.loadavg` qua SSH (`createProbeCache`: một lần đo mỗi `LOAD_GATE_PROBE_TTL_MS`, cache cả
-     lỗi); `decideGate` trả `claim`, `wait` hoặc `expire`;
+     lỗi; cache theo host và cổng SSH (`probeKeyOf`), mọi environment cùng máy dùng chung một lần đo); `decideGate`
+     trả `claim`, `wait` hoặc `expire`;
    - chỉ run đứng đầu hàng của mỗi agent trong một lượt đo (`isHeadOfLine`) mới tính giờ chờ, ghi dấu và comment; run
      phía sau chỉ chờ lượt;
    - được claim thì hỏi tiếp công tắc runtime (`runtimeGate`, flow `runtime-switches`), rồi kiểm tiến độ run trước khi
@@ -73,6 +77,7 @@ có cho chạy ngay không (hook H1):
 ## Flow liên quan
 
 - `core-hooks`: đăng ký H1.
+- `multi-machine`: cổng ghim máy (`evaluateMachineGate`) hỏi trước cổng tải.
 - `runtime-switches`: `runtimeGate` hỏi sau cổng tải.
 - `runtime-fallback`: run trước của một fallback đọc từ quyết định runtime (`fallbackPreviousRunId`).
 - `ssh-run-lifecycle`: lệnh dừng run dùng chung (`buildRemoteStopCommand`) và activity `crew.remote_stop.*`.
@@ -81,7 +86,8 @@ có cho chạy ngay không (hook H1):
 ## Tests
 
 - `server/src/__tests__/crew-load-gate.test.ts`: đọc `crewLoadGate`, parse `vm.loadavg`, cache lần đo (cả lỗi),
-  `decideGate`, các nhánh `evaluateBeforeClaim` (chờ, hết hạn, đầu hàng, kiểm tiến độ).
+  `decideGate`, các nhánh `evaluateBeforeClaim` (chờ, hết hạn, đầu hàng, kiểm tiến độ, cổng ghim máy `pass`/`hold`/`fail`
+  và ném lỗi), khóa cache đo theo host `probeKeyOf`.
 - `server/src/__tests__/crew-before-claim.test.ts`: scheduler giữ run khi hook trả `true`; hủy khi hết hạn không bị kẹt
   khóa start của agent; agent không có environment có cổng thì claim như cũ.
 - `server/src/__tests__/crew-load-gate-cancel.test.ts`: dấu chưa bắt đầu với stale gate stock và recovery; hai lần đánh
