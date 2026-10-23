@@ -1052,6 +1052,7 @@ flows:
       - packages/crew-web/src/features/members/use-members.ts
       - packages/crew-web/src/features/projects/detail/issues-tab.tsx
       - packages/crew-web/src/features/projects/detail/project-page.tsx
+      - packages/crew-web/src/features/projects/detail/machines-tab.tsx
       - packages/crew-web/src/features/projects/detail/readiness-tab.tsx
       - packages/crew-web/src/features/projects/detail/rename-dialog.tsx
       - packages/crew-web/src/features/projects/index.ts
@@ -1081,6 +1082,7 @@ flows:
       - packages/crew-web/test/features/inbox/tabs.test.ts
       - packages/crew-web/test/features/members/members-model.test.ts
       - packages/crew-web/test/features/members/members-page.test.tsx
+      - packages/crew-web/test/features/projects/machines-tab.test.tsx
       - packages/crew-web/test/features/projects/project-page.test.tsx
       - packages/crew-web/test/features/projects/projects-page.test.tsx
       - packages/crew-web/test/features/projects/rename-dialog.test.tsx

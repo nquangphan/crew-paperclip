@@ -32,7 +32,8 @@
       "issues": "Yêu cầu",
       "roles": "Vai trò",
       "docs": "Docs",
-      "readiness": "Sẵn sàng"
+      "readiness": "Sẵn sàng",
+      "machines": "Máy"
     },
     "removed": "Project đã gỡ lúc {{time}}",
     "removedHint": "Dữ liệu được giữ nguyên (project chỉ lưu trữ). Thêm lại project bằng wizard Thêm project."
@@ -105,5 +106,40 @@
     "icon": "Biểu tượng",
     "save": "Lưu",
     "cancel": "Hủy"
+  },
+  "machines": {
+    "title": "Máy",
+    "hint": "Máy đã ghép và trạng thái dựng project trên từng máy. Yêu cầu mới chạy trên máy còn tài nguyên.",
+    "loadFailed": "Không tải được máy của project",
+    "unpaired": "Chưa có máy nào được ghép. Máy chưa ghép, mở app 2P Crew → Máy → Ghép.",
+    "online": "Đang online",
+    "offline": "Mất liên lạc",
+    "status": {
+      "none": "Chưa dựng project",
+      "provisioning": "Đang dựng project",
+      "ready": "Sẵn sàng",
+      "failed": "Dựng lỗi"
+    },
+    "repoPath": "Repo: {{path}}",
+    "updated": "Cập nhật {{time}}",
+    "add": "Thêm máy",
+    "retry": "Thử lại",
+    "addFailed": "Không thêm được máy",
+    "repo": {
+      "title": "Repo của project",
+      "hint": "Máy chưa có project sẽ dùng bản repo có sẵn cùng origin, không có thì clone. Repo đi kèm được đặt cạnh worktree agent.",
+      "none": "Chưa có origin repo: owner nhập ở đây trước khi thêm máy.",
+      "origin": "Origin repo",
+      "branch": "Nhánh chính",
+      "companions": "Repo đi kèm",
+      "companionName": "Tên thư mục repo đi kèm",
+      "companionOrigin": "Origin repo đi kèm",
+      "addCompanion": "Thêm repo đi kèm",
+      "remove": "Bỏ",
+      "save": "Lưu repo",
+      "saving": "Đang lưu",
+      "saved": "Đã lưu",
+      "saveFailed": "Không lưu được repo"
+    }
   }
 }

@@ -548,6 +548,7 @@ File nào thuộc flow nào. Dùng `crew-docs where <file>` để tra từ dòng
 | `packages/crew-web/src/features/members/use-members.ts` | [web-pages](flows/web-pages.md) (file) |
 | `packages/crew-web/src/features/projects/detail/docs-tab.tsx` | [docs-snapshot](flows/docs-snapshot.md) (file) |
 | `packages/crew-web/src/features/projects/detail/issues-tab.tsx` | [web-pages](flows/web-pages.md) (file) |
+| `packages/crew-web/src/features/projects/detail/machines-tab.tsx` | [web-pages](flows/web-pages.md) (file) |
 | `packages/crew-web/src/features/projects/detail/project-page.tsx` | [web-pages](flows/web-pages.md) (file) |
 | `packages/crew-web/src/features/projects/detail/readiness-tab.tsx` | [web-pages](flows/web-pages.md) (file) |
 | `packages/crew-web/src/features/projects/detail/rename-dialog.tsx` | [web-pages](flows/web-pages.md) (file) |
@@ -762,6 +763,7 @@ File nào thuộc flow nào. Dùng `crew-docs where <file>` để tra từ dòng
 | `packages/crew-web/test/features/machines/runtime-block.test.tsx` | [runtime-switches](flows/runtime-switches.md) (test) |
 | `packages/crew-web/test/features/members/members-model.test.ts` | [web-pages](flows/web-pages.md) (test) |
 | `packages/crew-web/test/features/members/members-page.test.tsx` | [web-pages](flows/web-pages.md) (test) |
+| `packages/crew-web/test/features/projects/machines-tab.test.tsx` | [web-pages](flows/web-pages.md) (test) |
 | `packages/crew-web/test/features/projects/project-page.test.tsx` | [web-pages](flows/web-pages.md) (test) |
 | `packages/crew-web/test/features/projects/projects-page.test.tsx` | [web-pages](flows/web-pages.md) (test) |
 | `packages/crew-web/test/features/projects/rename-dialog.test.tsx` | [web-pages](flows/web-pages.md) (test) |

@@ -32,7 +32,8 @@
       "issues": "Requests",
       "roles": "Roles",
       "docs": "Docs",
-      "readiness": "Readiness"
+      "readiness": "Readiness",
+      "machines": "Machines"
     },
     "removed": "Project removed at {{time}}",
     "removedHint": "Data is kept (the project is only archived). Add it again with the Add project wizard."
@@ -105,5 +106,40 @@
     "icon": "Icon",
     "save": "Save",
     "cancel": "Cancel"
+  },
+  "machines": {
+    "title": "Machines",
+    "hint": "Paired machines and the project setup on each one. New requests run on a machine with free resources.",
+    "loadFailed": "Could not load the project's machines",
+    "unpaired": "No machine is paired yet. Open the 2P Crew app → Machine → Pair.",
+    "online": "Online",
+    "offline": "Offline",
+    "status": {
+      "none": "Not set up",
+      "provisioning": "Setting up",
+      "ready": "Ready",
+      "failed": "Setup failed"
+    },
+    "repoPath": "Repo: {{path}}",
+    "updated": "Updated {{time}}",
+    "add": "Add machine",
+    "retry": "Retry",
+    "addFailed": "Could not add the machine",
+    "repo": {
+      "title": "Project repository",
+      "hint": "A machine without the project reuses a local clone with the same origin, or clones it. Companion repos sit next to the agent worktrees.",
+      "none": "No origin yet: the owner enters it here before adding a machine.",
+      "origin": "Origin",
+      "branch": "Main branch",
+      "companions": "Companion repos",
+      "companionName": "Companion folder name",
+      "companionOrigin": "Companion origin",
+      "addCompanion": "Add companion repo",
+      "remove": "Remove",
+      "save": "Save repo",
+      "saving": "Saving",
+      "saved": "Saved",
+      "saveFailed": "Could not save the repo"
+    }
   }
 }

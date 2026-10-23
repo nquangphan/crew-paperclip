@@ -72,6 +72,7 @@ Luật chính:
 | `packages/crew-web/src/features/projects/list/projects-page.tsx` | Danh sách project | `ProjectsPage` |
 | `packages/crew-web/src/features/projects/detail/project-page.tsx` | Chi tiết project | `ProjectPage` |
 | `packages/crew-web/src/features/projects/detail/issues-tab.tsx`, `readiness-tab.tsx`, `rename-dialog.tsx` | Tab Yêu cầu, Sẵn sàng, đổi tên | `IssuesTab`, `ReadinessTab`, `RenameDialog` |
+| `packages/crew-web/src/features/projects/detail/machines-tab.tsx` | Tab Máy: máy đã ghép kèm trạng thái dựng project (tự làm mới 10 giây khi còn máy đang dựng), owner bấm Thêm máy/Thử lại, sửa origin, nhánh, repo đi kèm (form đồng bộ lại theo dữ liệu server, hiện lời server khi 422) | `MachinesTab`, `PROJECT_MACHINES_REFRESH_MS` |
 | `packages/crew-web/src/features/projects/paths.ts`, `index.ts` | Đường dẫn, export | `projectRef`, `companyHref` |
 | `packages/crew-web/src/features/members/` | Thành viên, lời mời, yêu cầu tham gia | `MembersPage`, `useMembers`, `CONTRIBUTOR_DEPARTMENTS`, `inviteLink` |
 | `packages/crew-web/src/features/settings/` | Cài đặt | `SettingsPage`, `ProfileForm`, `SystemInfo` |

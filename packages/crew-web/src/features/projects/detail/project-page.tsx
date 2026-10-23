@@ -1,4 +1,4 @@
-// Chi tiết project (S8): tab Yêu cầu, Vai trò, Docs, Sẵn sàng; đổi tên; Gỡ project (S8.7, không xóa dữ liệu). Project đã
+// Chi tiết project (S8): tab Yêu cầu, Vai trò, Docs, Sẵn sàng, Máy; đổi tên; Gỡ project (S8.7, không xóa dữ liệu). Project đã
 // gỡ hiện banner với giờ gỡ.
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
@@ -26,11 +26,12 @@ import { formatDateTime, useT } from '@/i18n';
 import { companyHref } from '../paths';
 import { DocsTab } from './docs-tab';
 import { IssuesTab } from './issues-tab';
+import { MachinesTab } from './machines-tab';
 import { ReadinessTab } from './readiness-tab';
 import { RenameDialog } from './rename-dialog';
 import { RolesTab } from './roles-tab';
 
-const TABS = ['issues', 'roles', 'docs', 'readiness'] as const;
+const TABS = ['issues', 'roles', 'docs', 'readiness', 'machines'] as const;
 type Tab = (typeof TABS)[number];
 
 export function ProjectPage() {
@@ -119,6 +120,9 @@ export function ProjectPage() {
         </TabsContent>
         <TabsContent value="readiness">
           <ReadinessTab projectId={data.id} />
+        </TabsContent>
+        <TabsContent value="machines">
+          <MachinesTab projectId={data.id} />
         </TabsContent>
       </Tabs>
       {renaming ? (
