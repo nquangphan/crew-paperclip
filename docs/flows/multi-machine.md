@@ -14,6 +14,20 @@ fallback) dựa vào kho git dùng chung trên một máy. Owner chọn máy lú
 - H1 (`crewCoreHooks.beforeClaim` → `crewBeforeClaim` → `evaluateBeforeClaim`) hỏi `machineGate`
   (`server/src/crew/machine-gate.ts` → `evaluateMachineGate`) trước mọi bước của cổng tải.
 - Vá lõi C16 (`heartbeat.ts`, `executeRun`) gọi `crewCoreHooks.resolveRunEnvironment` → `crewResolveRunEnvironment`.
+- `server/src/crew/machine-routes.ts` → `crewMachineRoutes`, gắn trong router góp ý (flow `contributions`), chỉ phiên
+  trình duyệt; đọc: mọi thành viên, ghi: chỉ owner. Đường dưới `/api/crew/companies/:c`:
+
+| Method, đường | Body | Trả |
+|---|---|---|
+| `GET …/machines?projectId=` | — | `{ items: [{ machineId, hostname, online, status, running, load1, cpuCount, memFreePct }] }` |
+| `GET …/issues/:issueId/machine` | — | `{ rootIssueId, isRoot, locked, pin: null \| { machineId, hostname, source, reason, pinnedAt } }` |
+| `PUT …/issues/:issueId/machine` | `{ machineId }` | như GET; lỗi 422 `crew_machine_not_root`, 409 `crew_machine_locked`, 422 `crew_machine_unknown`, 409 `crew_machine_no_repo`/`crew_machine_no_roles` |
+| `GET …/projects/:projectId/machines` | — | `{ repo: null \| { originUrl, branch, companions }, machines: [{ machineId, hostname, online, status, error, repoPath, updatedAt }] }` |
+| `POST …/projects/:projectId/machines` | `{ machineId }` | 202 `{ status: "provisioning" }` |
+| `PUT …/projects/:projectId/repo` | `{ originUrl, branch, companions }` | 200 repo; sai luật thì 422 `crew_machine_invalid` |
+
+  `status` của máy trong project: `"ready" | "provisioning" | "failed" | null` (null = chưa dựng). Bảng máy chưa có thì
+  503 `crew_machine_unavailable`; body `machineId` sai thì 400 `crew_machine_invalid`.
 
 ## Các bước
 
@@ -55,6 +69,19 @@ fallback) dựa vào kho git dùng chung trên một máy. Owner chọn máy lú
      xong project); việc dựng vẫn nằm trong hàng đợi, `project_machines` vẫn `provisioning`;
    - `fail`: activity `crew.machine.failed` và comment một lần mỗi run; cổng tải hủy run và chuyển issue sang `blocked`;
    - lỗi bất ngờ khi cây đã ghim hay đang ghi ghim: `hold`; lỗi trước khi biết có ghim: `pass` với `null` như stock.
+5. `server/src/crew/machine-routes.ts` (route của owner):
+   - `PUT …/issues/:issueId/machine`: chỉ owner; chỉ issue gốc (issue con: 422 `crew_machine_not_root`); cây đã có lease
+     (`treeStarted`) thì 409 `crew_machine_locked`, kiểm trước khi ghi ghim; máy phải còn ghép (không thì 422
+     `crew_machine_unknown`); project chưa dựng trên máy đó (không `ready`/`provisioning`) thì `startProvisioning` xếp
+     `ensure-project` trước (không dựng được thì 409 `crew_machine_no_repo`/`crew_machine_no_roles`, chưa ghim); rồi
+     `setOwnerPin`.
+   - `POST …/projects/:projectId/machines`: chỉ owner, `startProvisioning` rồi 202.
+   - `PUT …/projects/:projectId/repo`: chỉ owner; `projectRepoSchema` kiểm đúng luật của việc `ensure-project` (origin ≤ 500
+     ký tự, không ký tự điều khiển, khớp mẫu origin, `https` không có userinfo; nhánh không bắt đầu `-`; 0–5 repo đi kèm, tên
+     khác `repo`, không trùng nhau) và tên repo đi kèm không trùng thư mục checkout vai trò của project (`projectLayout`);
+     sai thì 422 `crew_machine_invalid`, đúng thì `writeProjectRepo`.
+   - `GET …/projects/:projectId/machines`: trước khi trả, `reconcileProjectMachine` mọi dòng `provisioning` để trang project
+     thấy kết quả việc dựng mà không chờ run.
 
 ## Files
 
@@ -63,6 +90,7 @@ fallback) dựa vào kho git dùng chung trên một máy. Owner chọn máy lú
 | `server/src/crew/machine-gate.ts` | Cổng ghim máy trong H1: ghim cây, giữ run khi máy đang dựng, hủy khi dựng hỏng | `evaluateMachineGate`, `MachineGateOutcome`, `MACHINE_PINNED_ACTION`, `MACHINE_WAITING_ACTION`, `MACHINE_FAILED_ACTION` |
 | `server/src/crew/machine-select.ts` | Chọn máy (thuần) | `chooseMachine`, `choiceReason`, `isOnline`, `MACHINE_REPORT_MAX_AGE_MS`, `DEFAULT_MAX_LOAD1` |
 | `server/src/crew/machine-pin.ts` | Truy vấn ghim máy, máy đã ghép, environment theo máy, ứng viên | `findRootIssueId`, `treeStarted`, `readPin`, `insertAutoPin`, `setOwnerPin`, `pairedMachines`, `machineOfHost`, `agentEnvironmentOnMachine`, `resolvePinnedEnvironment`, `crewResolveRunEnvironment`, `loadMachineCandidates` |
+| `server/src/crew/machine-routes.ts` | Route máy cho form yêu cầu và trang project | `crewMachineRoutes`, `MACHINE_ERRORS`, `projectRepoSchema`, `ORIGIN_RE` |
 | `server/src/crew/machine-provision.ts` | Repo của project, xếp việc `ensure-project`, đối chiếu kết quả, tạo environment theo máy | `readProjectRepo`, `writeProjectRepo`, `projectLayout`, `projectProvisionable`, `ensureProjectPayload`, `startProvisioning`, `reconcileProjectMachine`, `listProjectMachines`, `machineEnvironmentName`, `createMachineEnvironment`, `PROVISION_TIMEOUT_MS`, `CHECKOUT_RE` |
 
 ## Dữ liệu
@@ -76,6 +104,7 @@ lần mỗi run).
 
 - `run-claim`: cổng H1 gọi luật ghim máy trước cổng tải.
 - `core-hooks`: đăng ký vá C16.
+- `contributions`: router góp ý gắn router máy, dùng chung `resolveContributionActor`/`requireOwner`.
 
 ## Tests
 
@@ -101,3 +130,7 @@ lần mỗi run).
   nó thay environment mặc định của agent; Crew trả `null` hay ném lỗi thì giữ environment mặc định và run vẫn chạy.
 - `server/src/__tests__/crew-runtime-machine.db.test.ts` (Postgres nhúng): máy của agent cho công tắc runtime theo máy
   ghim của cây, rồi theo host của environment (hai Mac cùng đường checkout), host chưa ghép thì giữ luật đường dẫn cũ.
+- `server/src/__tests__/crew-machine-routes.db.test.ts` (Postgres nhúng): danh sách máy cho form, ghim chỉ owner/chỉ issue
+  gốc/máy phải ghép, máy chưa dựng mà project chưa có repo thì 409 không ghim, luật repo (422 `crew_machine_invalid`, tên
+  repo đi kèm trùng checkout vai trò), owner chọn máy chưa dựng thì ghim và trang project thấy `provisioning`, cây có lease
+  thì 409 `crew_machine_locked`, thêm máy ở trang project (403, 422 máy chưa ghép, 202).

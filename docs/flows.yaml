@@ -123,6 +123,7 @@ flows:
     doc: docs/flows/multi-machine.md
     entrypoints:
       - server/src/crew/machine-gate.ts
+      - server/src/crew/machine-routes.ts
     files:
       - server/src/crew/machine-select.ts
       - server/src/crew/machine-pin.ts
@@ -134,6 +135,7 @@ flows:
       - server/src/__tests__/crew-machine-gate.db.test.ts
       - server/src/__tests__/crew-run-environment.test.ts
       - server/src/__tests__/crew-runtime-machine.db.test.ts
+      - server/src/__tests__/crew-machine-routes.db.test.ts
   runtime-switches:
     title: "Công tắc runtime theo máy (Claude, Codex, OpenCode)"
     doc: docs/flows/runtime-switches.md

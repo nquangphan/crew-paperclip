@@ -838,6 +838,7 @@ File nào thuộc flow nào. Dùng `crew-docs where <file>` để tra từ dòng
 | `server/src/__tests__/crew-machine-gate.db.test.ts` | [multi-machine](flows/multi-machine.md) (test) |
 | `server/src/__tests__/crew-machine-pin.db.test.ts` | [multi-machine](flows/multi-machine.md) (test) |
 | `server/src/__tests__/crew-machine-provision.db.test.ts` | [multi-machine](flows/multi-machine.md) (test) |
+| `server/src/__tests__/crew-machine-routes.db.test.ts` | [multi-machine](flows/multi-machine.md) (test) |
 | `server/src/__tests__/crew-machine-select.test.ts` | [multi-machine](flows/multi-machine.md) (test) |
 | `server/src/__tests__/crew-model-policy.test.ts` | [issue-gate](flows/issue-gate.md) (test) |
 | `server/src/__tests__/crew-plugin-data-viewer.test.ts` | [crew-plugin](flows/crew-plugin.md) (test) |
@@ -887,6 +888,7 @@ File nào thuộc flow nào. Dùng `crew-docs where <file>` để tra từ dòng
 | `server/src/crew/machine-gate.ts` | [multi-machine](flows/multi-machine.md) (điểm vào) |
 | `server/src/crew/machine-pin.ts` | [multi-machine](flows/multi-machine.md) (file) |
 | `server/src/crew/machine-provision.ts` | [multi-machine](flows/multi-machine.md) (file) |
+| `server/src/crew/machine-routes.ts` | [multi-machine](flows/multi-machine.md) (điểm vào) |
 | `server/src/crew/machine-select.ts` | [multi-machine](flows/multi-machine.md) (file) |
 | `server/src/crew/model-policy.ts` | [issue-gate](flows/issue-gate.md) (file) |
 | `server/src/crew/plugin-data-scope.ts` | [crew-plugin](flows/crew-plugin.md) (file) |

@@ -32,6 +32,7 @@ import {
 import { crewPluginStartupWait } from "./plugin-startup-wait.js";
 import { listQcStates, QC_ERRORS, verifyQcRound } from "./qc-verification.js";
 import { crewJevRoutes } from "./jev-routes.js";
+import { crewMachineRoutes } from "./machine-routes.js";
 import { crewProjectAccessRoutes } from "./project-access-routes.js";
 
 const BASE = "/crew/companies/:companyId";
@@ -59,8 +60,9 @@ function conflictWith(res: Response, code: string, error: string, contribution: 
  * - Body không bao giờ nằm ở `req.body` khi handler chạy (xem {@link takeBody}), nên log và Sentry không có nội dung.
  * - Quyền xét theo role đọc từ DB (owner / viewer có dấu khách góp ý), không qua `assertCompanyAccess`.
  * - Không ghi `activity_log`, không phát live event hay event plugin; log chỉ ghi id.
- * - Router quyền xem project (`…/project-access`) và router Jev (`…/jev`, tự dời body khỏi `req.body`) gắn bên trong
- *   router này, nên không cần vá lõi riêng.
+ * - Router quyền xem project (`…/project-access`), router Jev (`…/jev`, tự dời body khỏi `req.body`) và router máy
+ *   (`…/machines`, `…/issues/:id/machine`, `…/projects/:id/machines|repo`) gắn bên trong router này, nên không
+ *   cần vá lõi riêng.
  */
 export function crewContributionRoutes(db: Db): Router {
   const router = Router();
@@ -73,6 +75,7 @@ export function crewContributionRoutes(db: Db): Router {
 
   router.use(crewProjectAccessRoutes(db));
   router.use(crewJevRoutes(db));
+  router.use(crewMachineRoutes(db));
   // Router này gắn trước route plugin stock: request `/plugins/...` lúc vừa khởi động chờ worker plugin đăng ký xong.
   router.use("/plugins", crewPluginStartupWait());
 
