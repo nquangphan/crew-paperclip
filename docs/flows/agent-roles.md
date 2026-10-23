@@ -29,13 +29,13 @@ Giống loại `docs`: loại chỉ là nhãn Paperclip `plan` trên issue gốc
 - Trợ Lý (`assistant.md`): làm rõ mục tiêu, ràng buộc, ngoài phạm vi, tiêu chí; điểm repo không trả lời được thì bắt buộc
   hỏi owner bằng thẻ `ask_user_questions` và chờ trước khi tạo con. Chỉ tạo con `crew-kind plan` (thường một), không con
   code, không con E2E, mô tả con chép đủ câu trả lời của owner. Tổng kết gốc có mục `### Kế hoạch` với dòng
-  `- File kế hoạch: \`<path>\``, lấy từ dòng `crew-plan-file path=<path>` của executor. Yêu cầu Code có dòng
+  `- File kế hoạch: \`<path>\``, lấy từ dòng `crew-plan-file path=<path>` mới nhất trong các comment của con. Yêu cầu Code có dòng
   `crew-from-plan <path>`: đọc plan trên `origin/HEAD` (thiếu file thì hỏi owner merge pull request kế hoạch), tách con
   theo các bước của plan, không brainstorm lại phạm vi đã chốt.
 - Executor (`executor.md`): làm như issue tài liệu; đặt file theo quy ước repo, mặc định `plans/<yymmdd-hhmm>-<slug>/plan.md`
   và `docs/superpowers/specs/<yyyy-mm-dd>-<slug>-design.md`; brainstorm tự trả lời rồi `writing-plans`; plan có mục tiêu,
-  phạm vi, tiêu chí, các bước kèm file và lệnh kiểm, rủi ro, giả định; comment báo xong có `crew-plan-file path=<path>`.
-- Reviewer (`reviewer.md`): diff chỉ file plan/spec, kiểm đủ mục, bước cụ thể, bám câu trả lời của owner; gốc kế hoạch
+  phạm vi, tiêu chí, các bước kèm file và lệnh kiểm, rủi ro, giả định; dòng `crew-plan-file path=<path>` nằm trong comment `Executor: xong ...` cuối cùng, không chen vào comment `crew-commit`.
+- Reviewer (`reviewer.md`): diff chỉ file plan/spec (cho thêm file chỉ mục/docs mà quy ước repo đòi khi thêm plan), kiểm đủ mục, bước cụ thể, bám câu trả lời của owner; gốc kế hoạch
   không đòi con E2E.
 - Integrator (`integrator.md`): không đòi con E2E cho gốc nhãn `plan`; đường pull request giữ nguyên.
 

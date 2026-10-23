@@ -70,7 +70,8 @@ Luật chính:
    Bấm mở `NewRequestDialog` với `initial` do `followPlanInitial` dựng: project của yêu cầu kế hoạch, loại Code, tiêu đề
    `Làm theo kế hoạch: <tiêu đề>`, mô tả gồm dòng `crew-from-plan <path>` (path đọc từ dòng `- File kế hoạch: \`<path>\``
    trong mô tả gốc), dòng `Kế hoạch: <mã> · PR: <url>` (PR từ dòng `- Pull request: <url>`) và dòng nhắc merge PR kế hoạch.
-   Thiếu path thì bỏ dòng `crew-from-plan`; thiếu PR thì bỏ cả link PR lẫn dòng nhắc merge. Tạo xong hiện thông báo kèm link.
+   Thiếu path thì bỏ dòng `crew-from-plan`; thiếu PR thì bỏ cả link PR lẫn dòng nhắc merge. Tạo xong hiện thông báo kèm link, và báo tên file đính kèm tải lên hỏng. Loại Code điền sẵn tính là đã chọn (Jev nhận
+   `current`); chỉ gửi được khi project nằm trong danh sách project sẵn sàng mà người dùng thấy.
 9. `packages/crew-web/src/features/issues/popup/issue-nav.tsx` → `IssueLink`, `useIssueOpener`: click thường mở popup,
    Cmd/Ctrl/Shift/chuột giữa mở trang đầy đủ ở tab mới; hợp đồng URL ở `issue-href.ts`.
 
