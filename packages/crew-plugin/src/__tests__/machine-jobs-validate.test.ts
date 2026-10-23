@@ -13,6 +13,15 @@ const removeCheckouts = {
   projectId: "30000000-0000-4000-8000-000000000001", projectKey: "demo", roles: ["executor-2"], removeStatusRepo: false,
 };
 
+const ensureProject = {
+  projectKey: "kidy-school",
+  projectId: "30000000-0000-4000-8000-000000000001",
+  originUrl: "git@github.com:nquangphan/kidy_school.git",
+  branch: "main",
+  roles: [{ role: "assistant", branch: "agent/kidy-school-assistant" }, { role: "executor-1", branch: "agent/kidy-school-executor-1" }],
+  companions: [{ name: "kidy_school_2.0_docs", originUrl: "https://github.com/nquangphan/kidy_school_2.0_docs.git" }],
+};
+
 describe("validateJobPayload", () => {
   it.each([
     ["inspect-folder", { folder: "relative/path" }, "folder phải là đường tuyệt đối"],
@@ -46,7 +55,8 @@ describe("validateJobPayload", () => {
     ["remove-checkouts", { ...removeCheckouts, roles: [] }, "roles phải có 1 đến 8 vai trò"],
     ["remove-checkouts", { ...removeCheckouts, roles: "executor" }, "roles phải là mảng"],
     ["remove-checkouts", { ...removeCheckouts, roles: ["executor", "executor"] }, "role executor bị trùng"],
-    ["remove-checkouts", { ...removeCheckouts, roles: ["boss"] }, "role không hợp lệ"],
+    ["remove-checkouts", { ...removeCheckouts, roles: ["Boss"] }, "role không hợp lệ"],
+    ["remove-checkouts", { ...removeCheckouts, roles: ["repo"] }, "role không hợp lệ"],
     ["remove-checkouts", { ...removeCheckouts, roles: [{ role: "executor" }] }, "role không hợp lệ"],
     ["remove-checkouts", { ...removeCheckouts, roles: [...allSlots, "executor"] }, "roles phải có 1 đến 8 vai trò"],
     ["remove-checkouts", { ...removeCheckouts, roles: ["executor-codex", "executor-codex"] }, "role executor-codex bị trùng"],
@@ -61,8 +71,29 @@ describe("validateJobPayload", () => {
     ["skill-remove", { skillId: removeCheckouts.projectId, slug: ".." }, "slug không hợp lệ"],
     ["skill-remove", { skillId: removeCheckouts.projectId, slug: "a/b" }, "slug không hợp lệ"],
     ["skill-remove", { skillId: removeCheckouts.projectId, slug: "demo", version: "1" }, "trường version không được hỗ trợ"],
+    ["ensure-project", { ...ensureProject, projectId: "x" }, "projectId phải là uuid"],
+    ["ensure-project", { ...ensureProject, projectKey: "Kidy" }, "projectKey không hợp lệ"],
+    ["ensure-project", { ...ensureProject, originUrl: "ftp://github.com/a/b" }, "originUrl không hợp lệ"],
+    ["ensure-project", { ...ensureProject, originUrl: "git@github.com:a/b c" }, "originUrl không hợp lệ"],
+    ["ensure-project", { ...ensureProject, originUrl: `https://github.com/${"a".repeat(500)}` }, "originUrl không hợp lệ"],
+    ["ensure-project", { ...ensureProject, branch: "-main" }, "branch không hợp lệ"],
+    ["ensure-project", { ...ensureProject, roles: [] }, "roles phải có 1 đến 8 vai trò"],
+    ["ensure-project", { ...ensureProject, roles: [{ role: "repo", branch: "x" }] }, "role không hợp lệ"],
+    ["ensure-project", { ...ensureProject, roles: [{ role: "Executor", branch: "x" }] }, "role không hợp lệ"],
+    ["ensure-project", { ...ensureProject, roles: [{ role: "assistant", branch: "x" }, { role: "assistant", branch: "y" }] }, "role assistant bị trùng"],
+    ["ensure-project", { ...ensureProject, companions: [{ name: "../x", originUrl: "git@github.com:a/b.git" }] }, "tên repo đi kèm không hợp lệ"],
+    ["ensure-project", { ...ensureProject, companions: [{ name: "assistant", originUrl: "git@github.com:a/b.git" }] }, "tên repo đi kèm assistant bị trùng"],
+    ["ensure-project", { ...ensureProject, companions: "docs" }, "companions phải là mảng"],
+    ["ensure-project", { ...ensureProject, folder: "/x" }, "trường folder không được hỗ trợ"],
   ])("%s từ chối %j", (kind, payload, error) => {
     expect(validateJobPayload(kind as MachineJobKind, payload)).toBe(error);
+  });
+
+  it("ensure-project hợp lệ: gắn kind, projectId chữ thường, chỉ giữ trường đã biết", () => {
+    expect(validateJobPayload("ensure-project", { ...ensureProject, projectId: ensureProject.projectId.toUpperCase() }))
+      .toEqual({ kind: "ensure-project", ...ensureProject });
+    expect(validateJobPayload("ensure-project", { ...ensureProject, companions: [] }))
+      .toEqual({ kind: "ensure-project", ...ensureProject, companions: [] });
   });
 
   it("nhận payload hợp lệ và gắn kind", () => {
@@ -104,6 +135,18 @@ describe("validateJobResult", () => {
     kind: "runtimes-setup", wrappers: { codex: true, opencode: false },
     codex: { version: "0.130.0", loggedIn: true }, opencode: { version: null, keyPresent: null },
   };
+  it("ensure-project: result đúng dạng thì giữ trường đã biết, sai dạng thì từ chối", () => {
+    const result = {
+      kind: "ensure-project", repoPath: "/Volumes/CORSAIR/Projects/kidy_school", cloned: false,
+      checkouts: [{ role: "executor-1", path: "/Users/a/crew-agents/kidy-school/executor-1", head: "abc" }],
+      companions: [{ name: "kidy_school_2.0_docs", path: "/Users/a/crew-agents/kidy-school/kidy_school_2.0_docs" }],
+    };
+    expect(validateJobResult("ensure-project", { ...result, extra: 1 })).toEqual(result);
+    expect(validateJobResult("ensure-project", { ...result, cloned: "no" })).toBe("result không hợp lệ");
+    expect(validateJobResult("ensure-project", { ...result, checkouts: [{ role: "Bad", path: "/x", head: "a" }] })).toBe("result không hợp lệ");
+    expect(validateJobResult("ensure-project", { ...result, companions: [{ name: "x" }] })).toBe("result không hợp lệ");
+  });
+
   const inspect = { kind: "inspect-folder", root: "/Users/a/repo", branch: "main", remote: null, docsBundle: null, clean: true };
   it.each([
     ["inspect-folder", { ...inspect, root: 1 }],
@@ -121,11 +164,11 @@ describe("validateJobResult", () => {
     ["check", { kind: "check", items: [{ id: "git", status: "ok" }] }],
     ["check", { kind: "check", items: [null] }],
     ["remove-checkouts", { kind: "remove-checkouts", removed: [], kept: [] }],
-    ["remove-checkouts", { kind: "remove-checkouts", removed: [{ role: "boss", path: "/p" }], kept: [], absent: [] }],
+    ["remove-checkouts", { kind: "remove-checkouts", removed: [{ role: "Boss", path: "/p" }], kept: [], absent: [] }],
     ["remove-checkouts", { kind: "remove-checkouts", removed: [{ role: "executor" }], kept: [], absent: [] }],
     ["remove-checkouts", { kind: "remove-checkouts", removed: [], kept: [{ role: "executor", path: "/p", reason: "locked" }], absent: [] }],
     ["remove-checkouts", { kind: "remove-checkouts", removed: [], kept: [{ role: "executor", path: "/p", reason: "dirty", detail: 3 }], absent: [] }],
-    ["remove-checkouts", { kind: "remove-checkouts", removed: [], kept: [], absent: ["boss"] }],
+    ["remove-checkouts", { kind: "remove-checkouts", removed: [], kept: [], absent: ["Boss"] }],
     ["remove-checkouts", { kind: "remove-checkouts", removed: [], kept: "x", absent: [] }],
     ["skill-remove", { kind: "skill-remove", removed: "yes" }],
     ["skill-remove", { kind: "skill-remove" }],
@@ -162,6 +205,15 @@ describe("validateJobResult", () => {
     })).toEqual({ ...runtimesSetup, opencode: { version: "1.18.35", keyPresent: false } });
     const json = JSON.stringify(validateJobResult("runtimes-setup", { ...runtimesSetup, codex: { ...runtimesSetup.codex, token: "sk-secret" } }));
     expect(json).not.toContain("sk-secret");
+  });
+
+  it("remove-checkouts nhận tên thư mục checkout của app (executor-1) bên cạnh tám ô", () => {
+    expect(validateJobPayload("remove-checkouts", { ...removeCheckouts, roles: ["executor-1", "assistant"] }))
+      .toEqual({ kind: "remove-checkouts", ...removeCheckouts, roles: ["executor-1", "assistant"] });
+    const result = {
+      kind: "remove-checkouts", removed: [{ role: "executor-1", path: "/Users/a/crew-agents/demo/executor-1" }], kept: [], absent: ["integrator"],
+    };
+    expect(validateJobResult("remove-checkouts", result)).toEqual(result);
   });
 
   it("remove-checkouts giữ trường đã biết, làm sạch và cắt detail 300 ký tự", () => {

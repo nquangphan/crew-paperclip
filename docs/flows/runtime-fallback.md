@@ -39,6 +39,9 @@ runtime khác, thay vì để issue nằm im. Luật chính:
 3. `packages/crew-plugin/src/runtimes/fallback.ts` → `applyFallback`: dừng khi issue không thuộc project Crew, không có
    policy Crew, đã đóng, đã giao agent khác, hoặc agent không phải executor/reviewer Codex; đã quyết cho run này thì
    `duplicate`.
+   - Máy của agent: cây của issue đã ghim máy (flow `multi-machine`) thì máy của mọi agent là máy ghim
+     (`pinnedMachineOfIssue`), fallback "cùng máy" vì vậy chọn agent chạy được trên máy ghim; chưa ghim thì theo luật
+     đường dẫn cũ.
    - Executor: `chooseFallback` (`choose.ts`) với máy của agent (`machine.ts` → `resolveAgentMachine`), công tắc,
      sức khỏe runtime từ bản tin máy (`runtimeHealthOf`), các lần chuyển trước. Chuyển được thì ghi quyết định, đổi
      `assigneeAgentId` kèm override model của runtime đích (H2 kiểm lệnh ghi này), comment, rồi đánh thức đích khi run
@@ -67,7 +70,7 @@ runtime khác, thay vì để issue nằm im. Luật chính:
 | `packages/crew-plugin/src/runtimes/classify.ts` | Phân loại run hỏng | `classifyRuntimeFailure`, `OPENCODE_QUOTA_RE`, `OPENCODE_AUTH_RE` |
 | `packages/crew-plugin/src/runtimes/claude-retry.ts` | Đánh thức lại Claude theo backoff | `scheduleClaudeRetry`, `runClaudeRetryJob`, `CLAUDE_RETRY_BACKOFF_MINUTES` |
 | `packages/crew-plugin/src/runtimes/catalog.ts` | Bản chép bảng runtime/model | `CREW_RUNTIME_CATALOG`, `CREW_RUNTIME_ORDER` |
-| `packages/crew-plugin/src/runtimes/machine.ts` | Máy của agent phía plugin | `resolveAgentMachine`, `workspaceOfEnvironment`, `loadMachineCheckouts` |
+| `packages/crew-plugin/src/runtimes/machine.ts` | Máy của agent phía plugin | `resolveAgentMachine`, `pinnedMachineOfIssue`, `workspaceOfEnvironment`, `loadMachineCheckouts` |
 | `server/src/crew/runtime-fallback.ts` | Phần server: run cũ cần kiểm, comment | `fallbackPreviousRunId`, `isRuntimeFallbackWake`, `CREW_RUNTIME_FALLBACK_WAKE_REASON`, `CREW_RUNTIME_FALLBACK_CHECKED_ACTION` |
 
 ## Dữ liệu
@@ -87,6 +90,7 @@ runtime khác, thay vì để issue nằm im. Luật chính:
 - `issue-gate`: H2 kiểm lệnh đổi assignee/override và phép đổi participant reviewer Codex.
 - `project-roles`: danh sách executor và reviewer Codex của project.
 - `machine-status`: bản tin máy cho sức khỏe runtime và checkout.
+- `multi-machine`: bảng `issue_machine_pins` ghim máy cho cả cây yêu cầu.
 - `jev`: mẫu so sánh Jev với regex phân loại lỗi.
 - `run-handoff`: vá C14 cho wake reviewer bị hoãn sau run executor lỗi.
 
@@ -99,6 +103,8 @@ runtime khác, thay vì để issue nằm im. Luật chính:
   H2 từ chối thì thành `fallback_refused`.
 - `packages/crew-plugin/src/__tests__/runtime-decisions.db.test.ts`: dòng `select` khi có issue mới, lý do chọn reviewer
   tính lại theo luật server, data `crew.runtimeDecisions` giới hạn và lọc company.
+- `packages/crew-plugin/src/__tests__/runtime-machine-pin.db.test.ts`: máy ghim của cây thắng luật đường dẫn; cây chưa
+  ghim giữ luật cũ; không đọc issue của company khác.
 - `packages/crew-plugin/src/__tests__/runtime-machine.test.ts`: workspace của environment lấy từ refs của wizard.
 - `packages/crew-plugin/src/__tests__/runtimes-catalog.test.ts`: bản chép khớp bảng chung và bản server.
 - `server/src/__tests__/crew-runtime-fallback-reconcile.test.ts`: lệnh tách nhánh, đọc kết quả tách, comment, H1 tìm và

@@ -16,7 +16,7 @@ Luật chính:
   đã biết (`validateJobResult`); lỗi từ Mac bỏ mã điều khiển, che credential và cắt `JOB_ERROR_MAX` ký tự.
 - Nhận việc không có transaction (host chạy mỗi câu SQL riêng), nên mỗi bước là một câu nguyên tử: trả lease hết hạn
   về hàng đợi, rồi compare-and-set `status = 'queued'`. Hai máy nhận cùng lúc chỉ một bên được.
-- Lease `JOB_LEASE_MINUTES`; hết lease quá `JOB_MAX_ATTEMPTS` lần thì `failed` với `lease_expired`. Kết quả của lần
+- Lease `JOB_LEASE_MINUTES` (17 phút, luôn dài hơn hạn 15 phút của app); hết lease quá `JOB_MAX_ATTEMPTS` lần thì `failed` với `lease_expired`. Kết quả của lần
   nhận cũ tới sau khi việc đã được nhận lại thì bị từ chối.
 - Lỗi DB trả câu cố định cho người gọi, chi tiết chỉ vào log server.
 
@@ -61,6 +61,11 @@ Luật chính:
 - Bảng plugin `crew_machine_jobs` (`0006_machine_jobs.sql`; thêm loại việc gỡ ở `0011_removal_kinds.sql`, loại
   `runtimes-setup` ở `0012_runtimes.sql`).
 - Loại việc, trạng thái, ô vai trò và mã lỗi: hằng trong `packages/crew-plugin/src/jobs/types.ts`.
+- Việc `ensure-project` do server Crew xếp (không qua wizard): payload `projectKey`, `projectId`, `originUrl`, `branch`,
+  `roles[]` (`role`, `branch`), `companions[]` (`name`, `originUrl`); result `repoPath`, `cloned`, `checkouts[]`,
+  `companions[]`. Clone thiếu quyền báo mã lỗi `clone_auth_failed`.
+- Việc `remove-checkouts`: `roles` là 1–8 tên thư mục checkout (tám ô của wizard hoặc tên thư mục của app như
+  `executor-1`), khác `repo`; server Crew xếp việc này cho máy khác khi gỡ agent/project (flow `multi-machine`).
 - Log: `crew machine job changed` (hành động, job, company, user).
 - Bên nhận việc: app 2P Crew trên Mac (repo `crew`).
 
@@ -70,6 +75,7 @@ Luật chính:
 - `machine-status`: trang Máy và bản tin `jobsAgent` cho biết máy có app nhận việc.
 - `skills`: việc `skill-sync`, `skill-remove`.
 - `runtime-switches`: việc `runtimes-setup`.
+- `multi-machine`: việc `ensure-project`.
 - `crew-plugin`: worker chia `routeKey` tiền tố `jobs.`.
 
 ## Tests
@@ -78,7 +84,7 @@ Luật chính:
   nhận, lease hết hạn và `lease_expired`, kết quả đúng máy và đúng lần nhận, việc `check` lỗi giữ mục kiểm, khóa
   project của lần cài đặt.
 - `packages/crew-plugin/src/__tests__/machine-jobs-validate.test.ts`: payload hợp lệ, kết quả chỉ giữ trường của hợp
-  đồng và che user:pass.
+  đồng và che user:pass; `ensure-project`: bảng ca payload (chép sang app), result giữ trường đã biết.
 - `packages/crew-plugin/src/__tests__/machine-jobs-sanitize.test.ts`: bỏ mã điều khiển, che token và userinfo URL, cắt
   độ dài không làm vỡ ký tự.
 - Hàng đợi trên web được kiểm trong `packages/crew-web/test/features/machines/machines-page.test.tsx` (flow

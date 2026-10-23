@@ -162,7 +162,7 @@ describe("machine job queue on the real host database", () => {
     expect(won.claimedAt).not.toBeNull();
     const stored = await row(job.id);
     const lease = new Date(stored.lease_until).getTime() - new Date(stored.claimed_at).getTime();
-    expect(lease).toBe(10 * 60_000);
+    expect(lease).toBe(17 * 60_000);
     expect((await claim()).status).toBe(204);
   });
 
@@ -197,15 +197,15 @@ describe("machine job queue on the real host database", () => {
     const failed = await row(job.id);
     expect(failed).toMatchObject({ status: "failed", error_code: "lease_expired", attempts: 3, lease_until: null });
     expect(failed.finished_at).not.toBeNull();
-    expect(failed.error_text).toBe("Máy không báo kết quả trong 10 phút");
+    expect(failed.error_text).toBe("Máy không báo kết quả trong 17 phút");
   });
 
   it("claimNextJob nhận thời điểm do người gọi đưa vào", async () => {
     const job = await create();
     const t0 = new Date("2026-10-10T00:00:00.000Z");
     expect(await claimNextJob(host.ctx, companyId, machine1, t0)).toMatchObject({ id: job.id, claimedAt: t0.toISOString() });
-    expect(await claimNextJob(host.ctx, companyId, machine1, new Date(t0.getTime() + 9 * 60_000))).toBeNull();
-    expect(await claimNextJob(host.ctx, companyId, machine1, new Date(t0.getTime() + 11 * 60_000))).toMatchObject({ id: job.id, attempts: 1 });
+    expect(await claimNextJob(host.ctx, companyId, machine1, new Date(t0.getTime() + 16 * 60_000))).toBeNull();
+    expect(await claimNextJob(host.ctx, companyId, machine1, new Date(t0.getTime() + 18 * 60_000))).toMatchObject({ id: job.id, attempts: 1 });
   });
 
   it("nhận kết quả đúng máy, đúng trạng thái và làm sạch lỗi", async () => {
