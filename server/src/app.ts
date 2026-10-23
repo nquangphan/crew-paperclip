@@ -526,6 +526,7 @@ export async function createApp(
       verify: captureRawBody,
     }),
   );
+  app.use(CREW_DOCS_SNAPSHOT_WEBHOOK_PATH, crewDocsSnapshotJson(captureRawBody));
   // Chat providers sign the exact request bytes. Capture every webhook media
   // type before the global JSON parser so JSON events and form-encoded action
   // callbacks are verified against the provider's original body.
@@ -1368,3 +1369,4 @@ export async function createApp(
   return app;
 }
 import { crewContributionRoutes } from "./crew/contribution-routes.js";
+import { CREW_DOCS_SNAPSHOT_WEBHOOK_PATH, crewDocsSnapshotJson } from "./crew/docs-snapshot-body.js";

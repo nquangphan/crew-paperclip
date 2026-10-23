@@ -62,7 +62,7 @@ Luật chính:
 |-----------|---------|--------------|
 | `server/src/crew/contribution-routes.ts` | Router Crew: góp ý, người góp ý, `/access`, QC; gắn router con | `crewContributionRoutes` |
 | `server/src/crew/contributions.ts` | Bảng góp ý, quyền người gọi, máy trạng thái duyệt | `resolveContributionActor`, `createContribution`, `approveContribution`, `completeContribution`, `rejectContribution`, `selfHeal`, `grantContributor`, `CONTRIBUTION_ERRORS`, `contributionIdempotencyKey` |
-| `server/src/app.ts` | File upstream chứa C7 | `createApp` |
+| `server/src/app.ts` | File upstream chứa C7 (cùng file với C15, parser webhook `docs-snapshot`) | `createApp` |
 | `packages/crew-web/src/api/crew/contributions.ts` | Client API | `contributionsApi` |
 | `packages/crew-web/src/features/contributions/approve-flow.ts` | Ba bước duyệt ở trình duyệt | `approveContribution`, `contributionErrorKey` |
 | `packages/crew-web/src/features/contributions/use-contributions.ts` | Hook query/mutation | `useContributions`, `useApproveContribution`, `useRejectContribution`, `useCreateContribution` |

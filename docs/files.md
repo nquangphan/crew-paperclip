@@ -810,6 +810,7 @@ File nào thuộc flow nào. Dùng `crew-docs where <file>` để tra từ dòng
 | `server/src/__tests__/crew-contributions-agent-blind.test.ts` | [contributions](flows/contributions.md) (test) |
 | `server/src/__tests__/crew-contributions.db.test.ts` | [contributions](flows/contributions.md) (test) |
 | `server/src/__tests__/crew-core-hooks.test.ts` | [core-hooks](flows/core-hooks.md) (test) |
+| `server/src/__tests__/crew-docs-snapshot-body.test.ts` | [docs-snapshot](flows/docs-snapshot.md) (test) |
 | `server/src/__tests__/crew-draft-start-work.db.test.ts` | [issue-gate](flows/issue-gate.md) (test) |
 | `server/src/__tests__/crew-failed-run-deferred-review.db.test.ts` | [run-handoff](flows/run-handoff.md) (test) |
 | `server/src/__tests__/crew-handoff-rewake-sweep.db.test.ts` | [run-handoff](flows/run-handoff.md) (test) |
@@ -854,6 +855,7 @@ File nào thuộc flow nào. Dùng `crew-docs where <file>` để tra từ dòng
 | `server/src/crew/contributions.ts` | [contributions](flows/contributions.md) (file) |
 | `server/src/crew/core-hooks.ts` | [core-hooks](flows/core-hooks.md) (điểm vào) |
 | `server/src/crew/crew-bundle-resume.cancelled.test.ts` | [run-claim](flows/run-claim.md) (test) |
+| `server/src/crew/docs-snapshot-body.ts` | [docs-snapshot](flows/docs-snapshot.md) (file) |
 | `server/src/crew/handoff-rewake.ts` | [run-handoff](flows/run-handoff.md) (điểm vào) |
 | `server/src/crew/issue-create-policy.ts` | [issue-gate](flows/issue-gate.md) (điểm vào) |
 | `server/src/crew/issue-gate.ts` | [issue-gate](flows/issue-gate.md) (điểm vào) |

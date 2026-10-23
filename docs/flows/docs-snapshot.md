@@ -73,6 +73,7 @@ Luật chính:
 | `packages/crew-plugin/src/ui/graph/docs-graph.tsx` | Vẽ đồ thị trong UI stock | `DocsGraphView` |
 | `packages/crew-plugin/src/ui/graph/model.ts` | Lọc, bố cục, nhãn đồ thị | `filterGraph`, `layoutGraph`, `flowOptions` |
 | `packages/crew-plugin/src/shared-web/docs-tree.ts` | Export cho crew-web | |
+| `server/src/crew/docs-snapshot-body.ts` | Parser JSON 16 MB cho route webhook snapshot (vá lõi C15) | `crewDocsSnapshotJson`, `CREW_DOCS_SNAPSHOT_WEBHOOK_PATH` |
 | `packages/crew-web/src/features/docs/routes.tsx` | Route `docs` | `routes` |
 | `packages/crew-web/src/features/docs/index.ts` | Export feature | |
 | `packages/crew-web/src/features/docs/docs-page.tsx` | Trang Docs | `DocsPage` |
@@ -88,8 +89,12 @@ Luật chính:
   `docs_commits`, `docs_commit_files`, `docs_snapshot_pages` (`0008_docs_storage.sql`).
 - Bảng lõi đọc: `projects`, `issues` (`execution_policy`), `issue_comments` (comment `crew-docs check` và
   `crew-commit sha=`).
-- Giới hạn webhook: body 5 MiB, manifest 512 KiB, số commit và đường dẫn mỗi lần gửi (hằng đầu
-  `packages/crew-plugin/src/docs/webhook.ts`).
+- Giới hạn webhook: body 16 MiB (`DOCS_SNAPSHOT_MAX_BYTES`), manifest 512 KiB, số commit và đường dẫn mỗi lần gửi (hằng
+  đầu `packages/crew-plugin/src/docs/webhook.ts`). Parser JSON toàn server chỉ nhận 10 MB, nên vá lõi C15 gắn parser
+  16 MB riêng cho đúng route `POST /api/plugins/crew.core/webhooks/docs-snapshot` (`server/src/crew/docs-snapshot-body.ts`,
+  gắn trong `server/src/app.ts` trước parser toàn server, vẫn giữ `rawBody` để kiểm HMAC). Route khác giữ trần 10 MB.
+  crew-mac (repo crew) dừng trước khi gửi body quá 16 MB. Trần cũ 5 MiB làm repo có `docs/` khoảng 5 MB (kidy_school_2.0_docs)
+  không gửi được snapshot nào từ 16/10 đến 23/10/2026.
 - Viewer: các data key docs mà UI viewer cần nằm trong `CREW_VIEWER_DATA_KEYS` (flow `crew-plugin`).
 
 ## Flow liên quan

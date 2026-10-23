@@ -77,7 +77,7 @@ Luật chính:
 | `server/src/crew/plugin-startup-wait.ts` | Chờ plugin nạp xong lúc khởi động | `crewPluginStartupWait` |
 | `server/src/crew/plugin-data-scope.ts` | Viewer đọc data `crew.core` | `crewViewerPluginDataScope`, `CREW_VIEWER_DATA_KEYS` |
 
-File upstream có vá (mục `shared`, mô tả ở `crew/release/core-hooks.json`): `server/src/app.ts` (mount router Crew),
+File upstream có vá (mục `shared`, mô tả ở `crew/release/core-hooks.json`): `server/src/app.ts` (mount router Crew; C15 gắn parser JSON 16 MB cho webhook `docs-snapshot`, flow `docs-snapshot`),
 `server/src/routes/plugins.ts` (gọi `crewViewerPluginDataScope`), `server/src/services/plugin-worker-manager.ts` (giao
 sự kiện plugin dạng call để xóa invocation scope khi handler xong).
 

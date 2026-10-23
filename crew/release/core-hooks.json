@@ -355,6 +355,19 @@
       "tests": [
         "server/src/__tests__/crew-failed-run-deferred-review.db.test.ts"
       ]
+    },
+    {
+      "id": "C15",
+      "kind": "core-patch",
+      "file": "server/src/app.ts",
+      "symbol": "createApp JSON parser for the Crew docs snapshot webhook",
+      "anchor": "  app.use(CREW_DOCS_SNAPSHOT_WEBHOOK_PATH, crewDocsSnapshotJson(captureRawBody));",
+      "importLine": "import { CREW_DOCS_SNAPSHOT_WEBHOOK_PATH, crewDocsSnapshotJson } from \"./crew/docs-snapshot-body.js\";",
+      "description": "Mount a 16 MB JSON parser on POST /api/plugins/crew.core/webhooks/docs-snapshot before the global 10 MB parser, with the same rawBody capture so the HMAC check still sees the exact bytes. Crew machines post the whole docs/ tree of a repo as one signed snapshot and a large docs repo outgrows 10 MB; the crew.core webhook enforces the same 16 MB cap after auth (DOCS_SNAPSHOT_MAX_BYTES) and crew-mac stops before sending more. Every other route keeps the global ceiling.",
+      "upstreamPr": null,
+      "tests": [
+        "server/src/__tests__/crew-docs-snapshot-body.test.ts"
+      ]
     }
   ]
 }

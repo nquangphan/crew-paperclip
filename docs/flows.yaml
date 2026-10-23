@@ -445,8 +445,10 @@ flows:
       - packages/crew-web/src/features/docs/docs-reader.tsx
       - packages/crew-web/src/features/docs/index.ts
       - packages/crew-web/src/features/projects/detail/docs-tab.tsx
+      - server/src/crew/docs-snapshot-body.ts
     tests:
       - packages/crew-plugin/src/__tests__/docs-check-evidence.test.ts
+      - server/src/__tests__/crew-docs-snapshot-body.test.ts
       - packages/crew-plugin/src/__tests__/docs-content-key.test.ts
       - packages/crew-plugin/src/__tests__/docs-dedup.db.test.ts
       - packages/crew-plugin/src/__tests__/docs-graph.db.test.ts

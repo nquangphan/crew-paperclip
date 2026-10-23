@@ -129,8 +129,10 @@ export function validateDocsSnapshot(value: unknown): DocsSnapshot {
   if (v.commits !== undefined && !validCommits(v.commits)) fail("commits không hợp lệ");
   return v as unknown as DocsSnapshot;
 }
+/** Same cap as the server's dedicated JSON parser for this route and crew-mac's `DOCS_BODY_MAX_BYTES`. */
+export const DOCS_SNAPSHOT_MAX_BYTES = 16 * 1024 * 1024;
 export async function receiveDocsSnapshot(ctx: PluginContext, input: PluginWebhookInput): Promise<void> {
-  const authenticated = await authenticateCrewWebhook(input, ctx, { maxBytes: 5 * 1024 * 1024 });
+  const authenticated = await authenticateCrewWebhook(input, ctx, { maxBytes: DOCS_SNAPSHOT_MAX_BYTES });
   const body = validateDocsSnapshot(authenticated.body);
   const project = await ctx.db.query<{ id: string }>(
     "SELECT id FROM public.projects WHERE id = $1 AND company_id = $2",
