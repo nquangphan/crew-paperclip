@@ -1125,6 +1125,7 @@ flows:
       - crew/ops/backup-serve.sh
       - crew/ops/launchd/com.2p.crew-backup-pull.plist
       - crew/ops/prune-run-logs.sh
+      - crew/ops/prune-webhook-deliveries.sh
       - crew/ops/restore-drill.sh
       - crew/ops/systemd/crew-v3-spike-backup.service
       - crew/ops/systemd/crew-v3-spike-backup.timer

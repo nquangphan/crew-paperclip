@@ -57,6 +57,7 @@ File nào thuộc flow nào. Dùng `crew-docs where <file>` để tra từ dòng
 | `crew/ops/policy-config.test.mjs` | [ops-tools](flows/ops-tools.md) (test) |
 | `crew/ops/policy-env.sh` | [ops-tools](flows/ops-tools.md) (file) |
 | `crew/ops/prune-run-logs.sh` | [ops-backup](flows/ops-backup.md) (file) |
+| `crew/ops/prune-webhook-deliveries.sh` | [ops-backup](flows/ops-backup.md) (file) |
 | `crew/ops/pull-backup.sh` | [ops-backup](flows/ops-backup.md) (điểm vào) |
 | `crew/ops/pull-backup.test.mjs` | [ops-backup](flows/ops-backup.md) (test) |
 | `crew/ops/restore-drill.sh` | [ops-backup](flows/ops-backup.md) (file) |

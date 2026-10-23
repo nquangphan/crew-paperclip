@@ -22,7 +22,7 @@ cấu hình compose). Flow này giữ được dữ liệu khi VPS hỏng, mà v
 ## Điểm vào
 
 - Timer systemd `crew/ops/systemd/crew-v3-spike-backup.timer` (hằng ngày theo giờ VPS, `Persistent=true` để chạy bù sau
-  khi máy tắt) chạy service `crew-v3-spike-backup.service`: `prune-run-logs.sh` rồi `backup.sh`.
+  khi máy tắt) chạy service `crew-v3-spike-backup.service`: `prune-run-logs.sh`, `prune-webhook-deliveries.sh`, rồi `backup.sh`.
 - `crew/ops/deploy.sh` gọi `backup.sh` trước khi đổi image (flow `ops-deploy`).
 - LaunchAgent `crew/ops/launchd/com.2p.crew-backup-pull.plist` trên Mac chạy `pull-backup.sh` hằng ngày.
 - `crew/ops/restore-drill.sh <TS>` chạy tay trên VPS.
@@ -30,6 +30,9 @@ cấu hình compose). Flow này giữ được dữ liệu khi VPS hỏng, mà v
 ## Các bước
 
 1. `crew/ops/prune-run-logs.sh`: xóa log run cũ hơn `KEEP_DAYS`.
+   `crew/ops/prune-webhook-deliveries.sh`: xóa dòng `plugin_webhook_deliveries` cũ hơn `KEEP_DAYS` (mặc định 3, owner chốt
+   23/10/2026) rồi `vacuum` bảng. Server lưu nguyên body của mọi webhook plugin (bản tin máy, ảnh chụp docs tới 16 MB)
+   mà không tự dọn; ngày 23/10/2026 bảng đã 348 MB. Lỗi ở bước này không chặn backup.
 2. `crew/ops/backup.sh`: một lần sao lưu tại một thời điểm (timer, deploy và chạy tay có thể chồng nhau). `pg_dump`
    dạng custom, tar thư mục dữ liệu Paperclip (trừ các bản SQL tích hợp hằng giờ) và tar cấu hình. File dở dang luôn có
    đuôi `.tmp` và bị dọn ở lần sau; `tar` thoát 1 vì file đổi trong lúc đọc vẫn tính là bản dùng được. Giữ `KEEP_SETS`
@@ -52,6 +55,7 @@ cấu hình compose). Flow này giữ được dữ liệu khi VPS hỏng, mà v
 | `crew/ops/pull-backup.sh` | Kéo và kiểm bản sao về Mac | `CREW_PULL_KEEP_DAYS`, `FRESH_DAYS` |
 | `crew/ops/restore-drill.sh` | Diễn tập khôi phục | (script) |
 | `crew/ops/prune-run-logs.sh` | Dọn log run cũ | `KEEP_DAYS` |
+| `crew/ops/prune-webhook-deliveries.sh` | Dọn dòng webhook plugin cũ | `KEEP_DAYS` |
 | `crew/ops/systemd/crew-v3-spike-backup.service` | Service chạy dọn log rồi sao lưu | (unit) |
 | `crew/ops/systemd/crew-v3-spike-backup.timer` | Lịch hằng ngày | (unit) |
 | `crew/ops/launchd/com.2p.crew-backup-pull.plist` | Lịch kéo bản sao trên Mac | `com.2p.crew-backup-pull` |
