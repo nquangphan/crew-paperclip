@@ -173,6 +173,7 @@ flows:
       - packages/crew-plugin/src/__tests__/runtime-decisions.db.test.ts
       - packages/crew-plugin/src/__tests__/runtime-fallback.db.test.ts
       - packages/crew-plugin/src/__tests__/runtime-fallback.test.ts
+      - packages/crew-plugin/src/__tests__/runtime-machine-pin.db.test.ts
       - packages/crew-plugin/src/__tests__/runtime-machine.test.ts
       - packages/crew-plugin/src/__tests__/runtimes-catalog.test.ts
       - server/src/__tests__/crew-runtime-fallback-reconcile.test.ts

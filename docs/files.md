@@ -146,6 +146,7 @@ File nào thuộc flow nào. Dùng `crew-docs where <file>` để tra từ dòng
 | `packages/crew-plugin/src/__tests__/runtime-decisions.db.test.ts` | [runtime-fallback](flows/runtime-fallback.md) (test) |
 | `packages/crew-plugin/src/__tests__/runtime-fallback.db.test.ts` | [runtime-fallback](flows/runtime-fallback.md) (test) |
 | `packages/crew-plugin/src/__tests__/runtime-fallback.test.ts` | [runtime-fallback](flows/runtime-fallback.md) (test) |
+| `packages/crew-plugin/src/__tests__/runtime-machine-pin.db.test.ts` | [runtime-fallback](flows/runtime-fallback.md) (test) |
 | `packages/crew-plugin/src/__tests__/runtime-machine.test.ts` | [runtime-fallback](flows/runtime-fallback.md) (test) |
 | `packages/crew-plugin/src/__tests__/runtime-switches.db.test.ts` | [runtime-switches](flows/runtime-switches.md) (test) |
 | `packages/crew-plugin/src/__tests__/runtimes-catalog.test.ts` | [runtime-fallback](flows/runtime-fallback.md) (test) |
