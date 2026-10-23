@@ -6,7 +6,7 @@ import { CompanyContext } from '@/app/hooks';
 import type { NewRequestInitial } from '@/features/issues/new/follow-plan';
 import { NewRequestDialog } from '@/features/issues/new/new-request-dialog';
 import { initI18n, setLanguage } from '@/i18n';
-import { accessRoute, mockServer } from '../../app/fetch-mock';
+import { accessRoute, mockServer, projectAccessRoute } from '../../app/fetch-mock';
 
 // Trạng thái sẵn sàng đã có test riêng ở test/features/readiness; ở đây chỉ cần danh sách kết quả.
 vi.mock('@/features/readiness', () => ({
@@ -221,6 +221,45 @@ describe('NewRequestDialog', () => {
       assigneeAgentId: 'a-assist',
     });
     expect(posts(calls)[0].body).not.toHaveProperty('labelIds');
+  });
+
+  it('initial trỏ project chưa sẵn sàng hoặc không thấy được thì nút Tạo tắt', async () => {
+    const { calls } = mockServer(routes());
+    mount(vi.fn(), vi.fn(), { projectId: 'p2', kind: 'code', title: 'Làm theo kế hoạch: X', description: 'mô tả' });
+    await screen.findByRole('combobox', { name: 'Project' });
+    const create = screen.getByRole('button', { name: 'Tạo' }) as HTMLButtonElement;
+    await new Promise((r) => setTimeout(r, 50));
+    expect(create.disabled).toBe(true);
+    fireEvent.click(create);
+    expect(posts(calls)).toHaveLength(0);
+  });
+
+  it('project sẵn sàng nhưng owner không thấy thì không gửi được', async () => {
+    mockServer(routes(projectAccessRoute('c1', ['p9'])));
+    mount(vi.fn(), vi.fn(), { projectId: 'p1', kind: 'code', title: 'Làm theo kế hoạch: X', description: 'mô tả' });
+    await screen.findByText(/Chưa có project nào sẵn sàng/);
+    await new Promise((r) => setTimeout(r, 50));
+    expect((screen.getByRole('button', { name: 'Tạo' }) as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it('đóng rồi mở lại thì form dựng lại từ initial', async () => {
+    mockServer(routes());
+    const initial = { projectId: 'p1', kind: 'code' as const, title: 'Tiêu đề điền sẵn', description: 'mô tả' };
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const ui = (open: boolean) => (
+      <QueryClientProvider client={client}>
+        <CompanyContext.Provider value={{ company: COMPANY, companies: [COMPANY] }}>
+          <NewRequestDialog open={open} onOpenChange={vi.fn()} companyId="c1" initial={initial} />
+        </CompanyContext.Provider>
+      </QueryClientProvider>
+    );
+    const view = render(ui(true));
+    fireEvent.change(await screen.findByLabelText('Tiêu đề'), { target: { value: 'Đã sửa tay' } });
+    expect((screen.getByLabelText('Tiêu đề') as HTMLInputElement).value).toBe('Đã sửa tay');
+    view.rerender(ui(false));
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    view.rerender(ui(true));
+    expect(((await screen.findByLabelText('Tiêu đề')) as HTMLInputElement).value).toBe('Tiêu đề điền sẵn');
   });
 
   it('không có nhãn docs thì ẩn loại Viết tài liệu và hiện gợi ý, Nghiên cứu vẫn chọn được', async () => {

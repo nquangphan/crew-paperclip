@@ -77,20 +77,52 @@ describe('FollowPlanAction', () => {
     expect(await screen.findByText('Đã tạo yêu cầu TPS-8.')).toBeTruthy();
   });
 
-  it('không có nút khi chưa xong, không nhãn plan, là việc con hoặc người xem chỉ đọc', async () => {
-    const cases: [object, Record<string, unknown>][] = [
-      [{ ...PLAN, status: 'in_review' }, {}],
-      [{ ...PLAN, labels: [{ id: 'l-docs', name: 'docs' }] }, {}],
-      [{ ...PLAN, parentId: 'i0' }, {}],
-      [PLAN, accessRoute('c1', { userId: 'u1', membershipRole: 'viewer', contributor: false })],
+  it('không có nút khi chưa xong, không nhãn plan hoặc là việc con', async () => {
+    const cases: object[] = [
+      { ...PLAN, status: 'in_review' },
+      { ...PLAN, labels: [{ id: 'l-docs', name: 'docs' }] },
+      { ...PLAN, parentId: 'i0' },
     ];
-    for (const [issue, extra] of cases) {
-      const s = mockServer(routes(extra));
+    for (const issue of cases) {
+      const s = mockServer(routes());
       mount(<FollowPlanAction issue={issue as never} />);
-      await waitFor(() => expect(s.calls.length).toBeGreaterThanOrEqual(0));
+      await waitFor(() => expect(s.calls.some((c) => c.url.endsWith('/access'))).toBe(true));
       await new Promise((r) => setTimeout(r, 20));
       expect(screen.queryByRole('button', { name: BUTTON })).toBeNull();
       cleanup();
     }
+  });
+
+  it('người xem chỉ đọc: chờ quyền tải xong mà vẫn không có nút; thành viên thì có nút', async () => {
+    const viewer = mockServer(
+      routes(accessRoute('c1', { userId: 'u1', membershipRole: 'viewer', contributor: false })),
+    );
+    mount(<FollowPlanAction issue={PLAN as never} />);
+    await waitFor(() => expect(viewer.calls.some((c) => c.url.endsWith('/access'))).toBe(true));
+    await new Promise((r) => setTimeout(r, 20));
+    expect(screen.queryByRole('button', { name: BUTTON })).toBeNull();
+    cleanup();
+
+    const member = mockServer(
+      routes(accessRoute('c1', { userId: 'u1', membershipRole: 'member', contributor: false })),
+    );
+    mount(<FollowPlanAction issue={PLAN as never} />);
+    expect(await screen.findByRole('button', { name: BUTTON })).toBeTruthy();
+    expect(member.calls.some((c) => c.url.endsWith('/access'))).toBe(true);
+  });
+
+  it('file đính kèm tải lên hỏng thì báo tên file sau khi tạo xong', async () => {
+    mockServer(routes({ 'POST /api/companies/c1/issues/i-new/attachments': { status: 500, body: { error: 'x' } } }));
+    mount(<FollowPlanAction issue={PLAN as never} />);
+    fireEvent.click(await screen.findByRole('button', { name: BUTTON }));
+    const dialog = await screen.findByRole('dialog');
+    expect(await within(dialog).findByText('Trợ Lý Alpha')).toBeTruthy();
+    const input = document.querySelector('input[type="file"]') as HTMLInputElement;
+    fireEvent.change(input, { target: { files: [new File(['x'], 'mockup.png', { type: 'image/png' })] } });
+    const create = within(dialog).getByRole('button', { name: 'Tạo' }) as HTMLButtonElement;
+    await waitFor(() => expect(create.disabled).toBe(false));
+    fireEvent.click(create);
+    expect(await screen.findByText('Đã tạo yêu cầu TPS-8.')).toBeTruthy();
+    expect(await screen.findByText('Không đính kèm được: mockup.png')).toBeTruthy();
   });
 });

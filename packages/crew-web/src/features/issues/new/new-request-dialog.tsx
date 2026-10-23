@@ -87,8 +87,9 @@ function RequestForm({
   const { t } = useT('issues');
   const [projectId, setProjectId] = useState(initial?.projectId ?? '');
   const [kind, setKind] = useState<RequestKind>(initial?.kind ?? 'code');
-  // Chỉ khi owner đã chọn loại thì mới gửi `current` cho Jev; mặc định `code` chưa phải lựa chọn của họ.
-  const [kindPicked, setKindPicked] = useState(false);
+  // Chỉ khi loại đã được chọn (owner chọn hay điền sẵn) thì mới gửi `current` cho Jev; mặc định `code` chưa phải
+  // lựa chọn của ai.
+  const [kindPicked, setKindPicked] = useState(initial?.kind !== undefined);
   const pickKind = (v: string) => {
     if (!isRequestKind(v)) return;
     setKind(v);
@@ -127,8 +128,8 @@ function RequestForm({
   const assistant = agents.data?.find((a) => a.id === assistantId);
   const noRoles = projectId !== '' && roles.isSuccess && assistantId === null;
 
-  // Project điền sẵn mà chưa sẵn sàng thì ô Project trống, nên chưa cho gửi tới khi owner chọn lại.
-  const ready = readyIds.has(projectId) && assistantId !== null && title.trim() !== '' && !create.isPending;
+  // Project điền sẵn mà chưa sẵn sàng hay owner không thấy thì ô Project trống, nên chưa cho gửi tới khi chọn lại.
+  const ready = readyProjects.some((p) => p.id === projectId) && assistantId !== null && title.trim() !== '' && !create.isPending;
 
   const submit = (draft: boolean) => {
     if (!ready || assistantId === null) return;

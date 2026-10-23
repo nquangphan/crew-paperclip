@@ -1,7 +1,7 @@
 // crew: tự dựng
 import type { Issue } from '@paperclipai/shared';
 import { useState } from 'react';
-import { Alert, Button } from '@/ds';
+import { Alert, Button, ErrorState } from '@/ds';
 import { ListChecks } from '@/ds/icons';
 import { useCompanyAccess } from '@/features/access';
 import { useT } from '@/i18n';
@@ -18,10 +18,10 @@ export function FollowPlanAction({ issue }: { issue: Issue }) {
   const { t } = useT('issues');
   const { readOnly } = useCompanyAccess();
   const [open, setOpen] = useState(false);
-  const [created, setCreated] = useState<{ identifier: string; draft: boolean } | null>(null);
+  const [created, setCreated] = useState<{ identifier: string; draft: boolean; failedUploads: string[] } | null>(null);
   if (readOnly || !canFollowPlan(issue)) return null;
   const onCreated = (made: Issue, info: CreatedRequest) =>
-    setCreated({ identifier: made.identifier ?? made.id, draft: info.draft });
+    setCreated({ identifier: made.identifier ?? made.id, draft: info.draft, failedUploads: info.failedUploads });
   return (
     <div className="flex flex-col items-start gap-2">
       <Button
@@ -43,6 +43,9 @@ export function FollowPlanAction({ issue }: { issue: Issue }) {
         >
           <IssueLink identifier={created.identifier}>{t('followPlan.open')}</IssueLink>
         </Alert>
+      ) : null}
+      {created && created.failedUploads.length > 0 ? (
+        <ErrorState title={t('page.uploadFailed', { names: created.failedUploads.join(', ') })} />
       ) : null}
       <NewRequestDialog
         open={open}

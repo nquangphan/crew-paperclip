@@ -3,6 +3,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { CompanyContext } from '@/app/hooks';
+import type { NewRequestInitial } from '@/features/issues/new/follow-plan';
 import { NewRequestDialog } from '@/features/issues/new/new-request-dialog';
 import { initI18n, setLanguage } from '@/i18n';
 import { mockServer } from '../../app/fetch-mock';
@@ -44,11 +45,11 @@ const routes = (judge: unknown) =>
     [`POST ${JUDGE}`]: judge,
   }) as Parameters<typeof mockServer>[0];
 
-function mount() {
+function mount(initial?: NewRequestInitial) {
   render(
     <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
       <CompanyContext.Provider value={{ company: COMPANY, companies: [COMPANY] }}>
-        <NewRequestDialog open onOpenChange={vi.fn()} companyId="c1" />
+        <NewRequestDialog open onOpenChange={vi.fn()} companyId="c1" initial={initial} />
       </CompanyContext.Provider>
     </QueryClientProvider>,
   );
@@ -89,6 +90,20 @@ describe('Jev gợi ý loại yêu cầu', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Tạo' }));
     await waitFor(() => expect(s.calls.some((c) => c.url === OUTCOME)).toBe(true));
     expect(s.calls.find((c) => c.url === OUTCOME)?.body).toEqual({ outcome: 'research' });
+  });
+
+  it('loại điền sẵn coi như đã chọn: Jev nhận current và chip ẩn khi Jev đồng ý', async () => {
+    const s = mockServer(routes(reply({ label: 'code' })));
+    mount({
+      projectId: 'p1',
+      kind: 'code',
+      title: 'Làm theo kế hoạch: Đăng nhập',
+      description: 'crew-from-plan plans/x/plan.md',
+    });
+    await waitFor(() => expect(judgeCalls(s)).toHaveLength(1), { timeout: 4000 });
+    expect(judgeCalls(s)[0].body).toMatchObject({ current: 'code' });
+    await new Promise((r) => setTimeout(r, 100));
+    expect(screen.queryByTestId('jev-kind-chip')).toBeNull();
   });
 
   it('dưới 20 ký tự không gọi Jev; gõ liên tiếp chỉ gọi một lần sau khi ngừng', async () => {
