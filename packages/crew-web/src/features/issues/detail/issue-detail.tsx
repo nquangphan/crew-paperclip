@@ -26,6 +26,7 @@ import { IssueJevBlock } from '@/features/jev/issue-jev-block';
 import { displayStatus, QcPanel, useQcStates } from '@/features/qc';
 import { useT } from '@/i18n';
 import { AddChildAction } from '../new/add-child-dialog';
+import { FollowPlanAction } from '../new/follow-plan-action';
 import { issuePageHref } from '../popup/issue-href';
 import { IssueLink, useIssuePopupCanGoBack } from '../popup/issue-nav';
 import { AttachmentViewerProvider } from './attachment-viewer-provider';
@@ -244,6 +245,7 @@ export function IssueDetail({ issueRef, variant, onClose }: IssueDetailProps) {
                 <StartWorkButton issue={issue} />
                 <ActionsSlot issue={issue} />
                 <AddChildAction issue={issue} />
+                <FollowPlanAction issue={issue} />
                 <ForceDoneAction issue={issue} childIssues={childIssues} />
               </div>
             )

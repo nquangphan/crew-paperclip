@@ -3,6 +3,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { CompanyContext } from '@/app/hooks';
+import type { NewRequestInitial } from '@/features/issues/new/follow-plan';
 import { NewRequestDialog } from '@/features/issues/new/new-request-dialog';
 import { initI18n, setLanguage } from '@/i18n';
 import { accessRoute, mockServer } from '../../app/fetch-mock';
@@ -47,23 +48,24 @@ const ROLES = {
 const AGENTS = [{ id: 'a-assist', name: 'Trợ Lý Alpha' }];
 const RESEARCH = { id: 'l-research', name: 'research' };
 const DOCS = { id: 'l-docs', name: 'docs' };
+const PLAN = { id: 'l-plan', name: 'plan' };
 
 function routes(over: Record<string, unknown> = {}) {
   return {
     'GET /api/companies/c1/projects': { body: PROJECTS },
     'GET /api/companies/c1/agents': { body: AGENTS },
     'GET /api/plugins/crew.core/api/projects/p1/roles': { body: { roles: ROLES } },
-    'GET /api/companies/c1/labels': { body: [RESEARCH, DOCS] },
+    'GET /api/companies/c1/labels': { body: [RESEARCH, DOCS, PLAN] },
     'POST /api/companies/c1/issues': { status: 201, body: { id: 'i-new', identifier: 'TPS-5' } },
     ...over,
   } as Parameters<typeof mockServer>[0];
 }
 
-function mount(onOpenChange = vi.fn(), onCreated = vi.fn()) {
+function mount(onOpenChange = vi.fn(), onCreated = vi.fn(), initial?: NewRequestInitial) {
   render(
     <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
       <CompanyContext.Provider value={{ company: COMPANY, companies: [COMPANY] }}>
-        <NewRequestDialog open onOpenChange={onOpenChange} companyId="c1" onCreated={onCreated} />
+        <NewRequestDialog open onOpenChange={onOpenChange} companyId="c1" onCreated={onCreated} initial={initial} />
       </CompanyContext.Provider>
     </QueryClientProvider>,
   );
@@ -164,11 +166,61 @@ describe('NewRequestDialog', () => {
     const names = within(screen.getByRole('listbox'))
       .getAllByRole('option')
       .map((o) => o.textContent);
-    expect(names).toEqual(['Code', 'Bug', 'Nghiên cứu', 'Viết tài liệu']);
+    expect(names).toEqual(['Code', 'Bug', 'Nghiên cứu', 'Viết tài liệu', 'Lập kế hoạch']);
     fireEvent.click(screen.getByRole('option', { name: 'Viết tài liệu' }));
     fireEvent.click(screen.getByRole('button', { name: 'Tạo' }));
     await waitFor(() => expect(posts(calls)).toHaveLength(1));
     expect(posts(calls)[0].body).toMatchObject({ labelIds: ['l-docs'] });
+  });
+
+  it('loại Lập kế hoạch gửi labelIds nhãn plan', async () => {
+    const { calls } = mockServer(routes());
+    mount();
+    await fillReady();
+    await screen.findByText('Trợ Lý Alpha');
+    await waitFor(() => {
+      fireEvent.keyDown(kindTrigger(), { key: 'Enter' });
+      expect(screen.getByRole('option', { name: 'Lập kế hoạch' })).toBeTruthy();
+    });
+    fireEvent.click(screen.getByRole('option', { name: 'Lập kế hoạch' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Tạo' }));
+    await waitFor(() => expect(posts(calls)).toHaveLength(1));
+    expect(posts(calls)[0].body).toMatchObject({ labelIds: ['l-plan'] });
+  });
+
+  it('không có nhãn plan thì ẩn loại Lập kế hoạch và hiện gợi ý', async () => {
+    mockServer(routes({ 'GET /api/companies/c1/labels': { body: [RESEARCH, DOCS] } }));
+    mount();
+    await fillReady();
+    await screen.findByText(/chưa có nhãn “plan”/);
+    fireEvent.keyDown(kindTrigger(), { key: 'Enter' });
+    expect(screen.queryByRole('option', { name: 'Lập kế hoạch' })).toBeNull();
+    expect(screen.getByRole('option', { name: 'Viết tài liệu' })).toBeTruthy();
+  });
+
+  it('initial điền sẵn project, loại, tiêu đề, mô tả và gửi đúng body', async () => {
+    const { calls } = mockServer(routes());
+    mount(vi.fn(), vi.fn(), {
+      projectId: 'p1',
+      kind: 'code',
+      title: 'Làm theo kế hoạch: Đăng nhập',
+      description: 'crew-from-plan plans/x/plan.md\nKế hoạch: TPS-7',
+    });
+    expect(((await screen.findByLabelText('Tiêu đề')) as HTMLInputElement).value).toBe('Làm theo kế hoạch: Đăng nhập');
+    expect((screen.getByLabelText('Mô tả') as HTMLTextAreaElement).value).toBe(
+      'crew-from-plan plans/x/plan.md\nKế hoạch: TPS-7',
+    );
+    expect(await screen.findByText('Trợ Lý Alpha')).toBeTruthy();
+    await waitFor(() => expect((screen.getByRole('button', { name: 'Tạo' }) as HTMLButtonElement).disabled).toBe(false));
+    fireEvent.click(screen.getByRole('button', { name: 'Tạo' }));
+    await waitFor(() => expect(posts(calls)).toHaveLength(1));
+    expect(posts(calls)[0].body).toMatchObject({
+      title: 'Làm theo kế hoạch: Đăng nhập',
+      description: 'crew-from-plan plans/x/plan.md\nKế hoạch: TPS-7',
+      projectId: 'p1',
+      assigneeAgentId: 'a-assist',
+    });
+    expect(posts(calls)[0].body).not.toHaveProperty('labelIds');
   });
 
   it('không có nhãn docs thì ẩn loại Viết tài liệu và hiện gợi ý, Nghiên cứu vẫn chọn được', async () => {

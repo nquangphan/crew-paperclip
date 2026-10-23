@@ -27,6 +27,7 @@ import { RequestTypeChip } from '@/features/jev/request-type-chip';
 import { useRequestTypeSuggestion } from '@/features/jev/use-request-type-suggestion';
 import { useProjectReadiness } from '@/features/readiness';
 import { useT } from '@/i18n';
+import type { NewRequestInitial } from './follow-plan';
 import { availableKinds, isRequestKind, missingKindLabels, NO_KIND_LABELS, type RequestKind } from './kinds';
 import { AttachmentsField, DescriptionField } from './request-fields';
 import { projectRolesOrNull, useCreateRequest, useKindLabelIds } from './use-create-request';
@@ -41,10 +42,12 @@ interface NewRequestDialogProps {
   onOpenChange: (open: boolean) => void;
   companyId: string;
   onCreated?: (issue: Issue, info: CreatedRequest) => void;
+  /** Giá trị điền sẵn lúc mở (ví dụ "Làm theo kế hoạch này"); đóng rồi mở lại thì form dựng lại từ đây. */
+  initial?: NewRequestInitial;
 }
 
 /** Dialog Yêu cầu mới (S5): form chỉ có trong lúc mở, nên đóng rồi mở lại là form trống. */
-export function NewRequestDialog({ open, onOpenChange, companyId, onCreated }: NewRequestDialogProps) {
+export function NewRequestDialog({ open, onOpenChange, companyId, onCreated, initial }: NewRequestDialogProps) {
   const { t } = useT('issues');
   const { isContributor, readOnly, loading } = useCompanyAccess();
   // Chờ biết vai trò rồi mới mở, để khách không chớp dialog thường (và không gọi các route chỉ owner đọc).
@@ -59,7 +62,12 @@ export function NewRequestDialog({ open, onOpenChange, companyId, onCreated }: N
           <DialogTitle>{t('new.title')}</DialogTitle>
           <DialogDescription>{t('new.description')}</DialogDescription>
         </DialogHeader>
-        <RequestForm companyId={companyId} onClose={() => onOpenChange(false)} onCreated={onCreated} />
+        <RequestForm
+          companyId={companyId}
+          onClose={() => onOpenChange(false)}
+          onCreated={onCreated}
+          initial={initial}
+        />
       </DialogContent>
     </Dialog>
   );
@@ -69,14 +77,16 @@ function RequestForm({
   companyId,
   onClose,
   onCreated,
+  initial,
 }: {
   companyId: string;
   onClose: () => void;
   onCreated?: NewRequestDialogProps['onCreated'];
+  initial?: NewRequestInitial;
 }) {
   const { t } = useT('issues');
-  const [projectId, setProjectId] = useState('');
-  const [kind, setKind] = useState<RequestKind>('code');
+  const [projectId, setProjectId] = useState(initial?.projectId ?? '');
+  const [kind, setKind] = useState<RequestKind>(initial?.kind ?? 'code');
   // Chỉ khi owner đã chọn loại thì mới gửi `current` cho Jev; mặc định `code` chưa phải lựa chọn của họ.
   const [kindPicked, setKindPicked] = useState(false);
   const pickKind = (v: string) => {
@@ -84,8 +94,8 @@ function RequestForm({
     setKind(v);
     setKindPicked(true);
   };
-  const [title, setTitle] = useState('');
-  const [description, setDescription] = useState('');
+  const [title, setTitle] = useState(initial?.title ?? '');
+  const [description, setDescription] = useState(initial?.description ?? '');
   const [files, setFiles] = useState<File[]>([]);
 
   const readiness = useProjectReadiness(companyId, api);
@@ -117,7 +127,8 @@ function RequestForm({
   const assistant = agents.data?.find((a) => a.id === assistantId);
   const noRoles = projectId !== '' && roles.isSuccess && assistantId === null;
 
-  const ready = projectId !== '' && assistantId !== null && title.trim() !== '' && !create.isPending;
+  // Project điền sẵn mà chưa sẵn sàng thì ô Project trống, nên chưa cho gửi tới khi owner chọn lại.
+  const ready = readyIds.has(projectId) && assistantId !== null && title.trim() !== '' && !create.isPending;
 
   const submit = (draft: boolean) => {
     if (!ready || assistantId === null) return;
