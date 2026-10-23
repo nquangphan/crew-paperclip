@@ -11,9 +11,10 @@ fallback) dựa vào kho git dùng chung trên một máy. Owner chọn máy lú
 
 ## Điểm vào
 
-- H1 (`crewCoreHooks.beforeClaim` → `crewBeforeClaim` → `evaluateBeforeClaim`) hỏi `machineGate`
-  (`server/src/crew/machine-gate.ts` → `evaluateMachineGate`) trước mọi bước của cổng tải.
-- Vá lõi C16 (`heartbeat.ts`, `executeRun`) gọi `crewCoreHooks.resolveRunEnvironment` → `crewResolveRunEnvironment`.
+- Cổng claim của heartbeat (H1: `crewCoreHooks.beforeClaim` → `crewBeforeClaim` → `evaluateBeforeClaim`) hỏi
+  `machineGate` (`server/src/crew/machine-gate.ts` → `evaluateMachineGate`) trước mọi bước của cổng tải.
+- Lúc chạy run, heartbeat (`heartbeat.ts`, `executeRun`, C16) hỏi `crewCoreHooks.resolveRunEnvironment` →
+  `crewResolveRunEnvironment` environment của run trước luật stock (environment mặc định của agent).
 - `server/src/crew/machine-routes.ts` → `crewMachineRoutes`, gắn trong router góp ý (flow `contributions`), chỉ phiên
   trình duyệt; đọc: mọi thành viên, ghi: chỉ owner. Đường dưới `/api/crew/companies/:c`:
 
@@ -65,7 +66,7 @@ fallback) dựa vào kho git dùng chung trên một máy. Owner chọn máy lú
    hay không tạo được environment thì `failed` nêu lý do, giữ environment đã tạo); lỗi hay bị hủy thì `failed`; việc còn chờ thì giữ
    `provisioning` (máy tắt: việc nằm trong hàng đợi). Environment cùng tên của chính agent, kể cả đã archive, được bật lại
    chứ không tạo bản mới; không bao giờ xóa environment.
-4. `server/src/crew/machine-gate.ts` → `evaluateMachineGate` (cổng claim H1, xem flow `run-claim`):
+4. `server/src/crew/machine-gate.ts` → `evaluateMachineGate` (cổng claim, xem flow `run-claim`):
    - không có issue, bảng chưa có hay project chưa có máy nào trong `project_machines`: `pass` với `null` (hành vi stock);
    - cây chưa ghim: `chooseMachine` (cờ `provisionable` từ `projectProvisionable`) rồi ghim `auto`, activity
      `crew.machine.pinned`; không chọn được máy thì `pass` với `null`;
@@ -115,17 +116,27 @@ fallback) dựa vào kho git dùng chung trên một máy. Owner chọn máy lú
      (`exceptMachineId`) được ghi `ready` khi environment mặc định của mọi agent vai trò trỏ đúng host của máy đó; mọi
      máy đã ghép khác được `startProvisioning` (máy offline vẫn xếp việc), trừ máy `provisioning` và máy `ready` (trừ khi
      `includeReady`, khi thêm agent cần worktree mới). Lỗi từng máy (`no_repo`, `no_roles`) nằm ở `skipped`, không ném.
+7. Chuyển dữ liệu cũ (`crew/ops/backfill-machines.sql`): chạy một lần lúc rollout, sau khi plugin áp migration `0022`
+   và mọi máy đang chạy project đã ghép; lệnh `psql` nằm ở đầu file, kèm khối SELECT xem trước (để dạng comment).
+   Script nằm ở ops vì plugin không đọc được bảng lõi `environments`. Trong một transaction:
+   - mỗi project có bảng vai trò được gắn `ready` với mọi máy đã ghép có `tailscale_ip` trùng host environment mặc định
+     (SSH) của một agent vai trò còn hoạt động; host không khớp máy đã ghép nào thì bỏ qua;
+   - mỗi cây đang mở (issue gốc chưa `done`/`cancelled`) được ghim `auto`, `reason` `{"backfill": true}`, vào máy của
+     người nhận issue gốc, không có thì máy của Trợ Lý; máy đó phải đã gắn với project ở bước trên, không thì cây không
+     được ghim và cổng claim tự chọn máy ở run kế tiếp. Nhờ vậy cây chạy dở lúc deploy không đổi máy;
+   - chạy lại không đổi gì (`ON CONFLICT DO NOTHING`), ghim có sẵn (kể cả của owner) giữ nguyên, không xóa dòng nào.
 
 ## Files
 
 | Đường dẫn | Vai trò | Symbol chính |
 |-----------|---------|--------------|
-| `server/src/crew/machine-gate.ts` | Cổng ghim máy trong H1: ghim cây, giữ run khi máy đang dựng, hủy khi dựng hỏng | `evaluateMachineGate`, `MachineGateOutcome`, `MACHINE_PINNED_ACTION`, `MACHINE_WAITING_ACTION`, `MACHINE_FAILED_ACTION` |
+| `server/src/crew/machine-gate.ts` | Cổng ghim máy trong cổng claim: ghim cây, giữ run khi máy đang dựng, hủy khi dựng hỏng | `evaluateMachineGate`, `MachineGateOutcome`, `MACHINE_PINNED_ACTION`, `MACHINE_WAITING_ACTION`, `MACHINE_FAILED_ACTION` |
 | `server/src/crew/machine-select.ts` | Chọn máy (thuần) | `chooseMachine`, `choiceReason`, `isOnline`, `MACHINE_REPORT_MAX_AGE_MS`, `DEFAULT_MAX_LOAD1` |
 | `server/src/crew/machine-pin.ts` | Truy vấn ghim máy, máy đã ghép, environment theo máy, ứng viên | `findRootIssueId`, `treeStarted`, `readPin`, `insertAutoPin`, `setOwnerPin`, `pairedMachines`, `machineOfHost`, `agentEnvironmentOnMachine`, `resolvePinnedEnvironment`, `crewResolveRunEnvironment`, `loadMachineCandidates` |
 | `server/src/crew/machine-routes.ts` | Route máy cho form yêu cầu và trang project | `crewMachineRoutes`, `MACHINE_ERRORS`, `projectRepoSchema`, `ORIGIN_RE` |
 | `server/src/crew/machine-release.ts` | Dọn environment và checkout ở máy khác khi gỡ, dựng sẵn project ở máy khác khi thêm | `machineReleaseBlockers`, `releaseProjectMachines`, `scopeReleaseAgents`, `ReleaseOutcome`, `provisionOtherMachines`, `ReleaseBlocker`, `ReleaseResult`, `ProvisionOthersResult` |
 | `server/src/crew/machine-provision.ts` | Repo của project, xếp việc `ensure-project`, đối chiếu kết quả, tạo environment theo máy | `readProjectRepo`, `writeProjectRepo`, `projectLayout`, `projectProvisionable`, `ensureProjectPayload`, `startProvisioning`, `reconcileProjectMachine`, `listProjectMachines`, `machineEnvironmentName`, `createMachineEnvironment`, `PROVISION_TIMEOUT_MS`, `CHECKOUT_RE` |
+| `crew/ops/backfill-machines.sql` | Chuyển dữ liệu cũ lúc rollout: gắn project với máy đang chạy nó, ghim cây đang mở | — |
 
 ## Dữ liệu
 
@@ -136,8 +147,8 @@ lần mỗi run).
 
 ## Flow liên quan
 
-- `run-claim`: cổng H1 gọi luật ghim máy trước cổng tải.
-- `core-hooks`: đăng ký vá C16.
+- `run-claim`: cổng claim gọi luật ghim máy trước cổng tải.
+- `core-hooks`: đăng ký chỗ heartbeat hỏi Crew environment của run.
 - `contributions`: router góp ý gắn router máy, dùng chung `resolveContributionActor`/`requireOwner`.
 
 ## Tests
@@ -174,3 +185,6 @@ lần mỗi run).
   máy và gọi lại không xếp thêm, dựng sẵn máy khác (ghi repo khi chưa có, bỏ máy `provisioning`/`ready` trừ
   `includeReady`), máy chính được ghi `ready`, chưa có repo thì `skipped`; route: owner bằng board key, viewer 403,
   `blockers` thiếu `agentIds` là cả project, `release` bận 409, agent project khác hay quá 20 id thì 422, origin có userinfo 400.
+- `server/src/__tests__/crew-machine-backfill.db.test.ts` (Postgres nhúng): chạy script hai lần; project gắn đúng máy
+  đang chạy agent vai trò (một máy, hai máy), cây mở ghim theo máy của người nhận gốc rồi Trợ Lý, cây `done`/`cancelled`
+  và issue con không ghim, host chưa ghép thì không gắn không ghim, ghim của owner giữ nguyên.

@@ -33,6 +33,7 @@ File nào thuộc flow nào. Dùng `crew-docs where <file>` để tra từ dòng
 | `crew/ops/auto-deploy-vps.test.mjs` | [ops-deploy](flows/ops-deploy.md) (test) |
 | `crew/ops/auto-deploy.mjs` | [ops-deploy](flows/ops-deploy.md) (điểm vào) |
 | `crew/ops/auto-deploy.test.mjs` | [ops-deploy](flows/ops-deploy.md) (test) |
+| `crew/ops/backfill-machines.sql` | [multi-machine](flows/multi-machine.md) (file) |
 | `crew/ops/backup-serve.sh` | [ops-backup](flows/ops-backup.md) (file) |
 | `crew/ops/backup.sh` | [ops-backup](flows/ops-backup.md) (điểm vào) |
 | `crew/ops/check-crew-companies.sh` | [ops-tools](flows/ops-tools.md) (file) |
@@ -835,6 +836,7 @@ File nào thuộc flow nào. Dùng `crew-docs where <file>` để tra từ dòng
 | `server/src/__tests__/crew-jev-shadow.db.test.ts` | [jev](flows/jev.md) (test) |
 | `server/src/__tests__/crew-load-gate-cancel.test.ts` | [run-claim](flows/run-claim.md) (test) |
 | `server/src/__tests__/crew-load-gate.test.ts` | [run-claim](flows/run-claim.md) (test) |
+| `server/src/__tests__/crew-machine-backfill.db.test.ts` | [multi-machine](flows/multi-machine.md) (test) |
 | `server/src/__tests__/crew-machine-gate.db.test.ts` | [multi-machine](flows/multi-machine.md) (test) |
 | `server/src/__tests__/crew-machine-pin.db.test.ts` | [multi-machine](flows/multi-machine.md) (test) |
 | `server/src/__tests__/crew-machine-provision.db.test.ts` | [multi-machine](flows/multi-machine.md) (test) |
