@@ -25,11 +25,14 @@ export const CREW_MAP_EDGE_KINDS: readonly RoadmapEdgeKind[] = ['parent', 'block
 const byIdentifier = (a: CrewMapNode, b: CrewMapNode) =>
   a.identifier.localeCompare(b.identifier, 'vi', { numeric: true }) || a.id.localeCompare(b.id);
 
-function facts(t: TFn, issue: CrewMapNode, current: boolean, docs: boolean) {
+/** Loại của yêu cầu gốc có nhãn mà worker không báo được. */
+export type RootKind = 'docs' | 'plan' | null;
+
+function facts(t: TFn, issue: CrewMapNode, current: boolean, rootKind: RootKind) {
   const stage = issue.stage ? t(`stage.${resolveStageKey(issue.stage, issue.kind)}`) : t('stage.none');
   const rounds = t('crewMap.roundsShort', { round: issue.reviewRounds, max: issue.maxReviewRounds });
-  // Yêu cầu viết tài liệu đi pipeline của code nên worker báo `code`; việc sửa (`fix`) vẫn hiện là Sửa.
-  const kind = docs && issue.kind === 'code' ? 'docs' : issue.kind;
+  // Yêu cầu tài liệu / kế hoạch đi pipeline của code nên worker báo `code`; việc sửa (`fix`) vẫn hiện là Sửa.
+  const kind = rootKind && issue.kind === 'code' ? rootKind : issue.kind;
   const notes = [
     t(`crewMap.kind.${kind}`),
     t('crewMap.stageLine', { stage }),
@@ -48,13 +51,13 @@ function facts(t: TFn, issue: CrewMapNode, current: boolean, docs: boolean) {
 /**
  * Bản đồ Crew → tầng Roadmap. Việc không nối được về gốc qua `parentId` (dữ liệu hỏng) vẫn được vẽ, treo thẳng dưới
  * gốc, để không mất thông tin. Cạnh trỏ tới issue không có trong bản đồ bị bỏ và ghi vào `diagnostics`.
- * `docs`: yêu cầu gốc có nhãn `docs` (worker không đọc được nhãn), việc loại code hiện là Viết tài liệu.
+ * `rootKind`: loại của yêu cầu gốc theo nhãn `docs`/`plan` (worker không đọc được nhãn), việc loại code hiện là loại đó.
  */
 export function crewMapLevel(
   map: CrewMap,
   currentIssueId: string | undefined,
   t: TFn,
-  { docs = false }: { docs?: boolean } = {},
+  { rootKind = null }: { rootKind?: RootKind } = {},
 ): CrewMapLevel {
   const rootId = map.root.id;
   const byId = new Map(map.nodes.map((n) => [n.id, n]));
@@ -97,7 +100,7 @@ export function crewMapLevel(
       assignee: issue.assignee?.name ?? null,
       current,
       runs: roadmapRuns(runsOf(issue.id)),
-      ...facts(t, issue, current, docs),
+      ...facts(t, issue, current, rootKind),
     };
   });
   const rootCurrent = rootId === currentIssueId;
@@ -111,7 +114,7 @@ export function crewMapLevel(
     done: all.filter((n) => n.status === 'done').length,
     current: rootCurrent,
     runs: map.runs ? roadmapRuns(runsOf(rootId), map.runs.tree) : undefined,
-    ...facts(t, root, rootCurrent, docs),
+    ...facts(t, root, rootCurrent, rootKind),
   };
 
   // Cạnh cha-con theo cây đã dựng (luôn khớp bố cục); phụ thuộc và vòng sửa lấy từ worker.

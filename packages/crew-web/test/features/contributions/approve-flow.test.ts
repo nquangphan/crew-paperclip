@@ -30,7 +30,7 @@ const CHOICES: IssueApprovalChoices = {
   projectId: 'p1',
   assigneeAgentId: 'a-assistant',
   kind: 'code',
-  kindLabelIds: { research: null, docs: null },
+  kindLabelIds: { research: null, docs: null, plan: null },
   draft: false,
 };
 
@@ -96,7 +96,7 @@ describe('approveContribution', () => {
     await approveContribution(
       'c1',
       ISSUE,
-      { ...CHOICES, draft: true, kind: 'research', kindLabelIds: { research: 'l-r', docs: null } },
+      { ...CHOICES, draft: true, kind: 'research', kindLabelIds: { research: 'l-r', docs: null, plan: null } },
       deps,
     );
     expect(vi.mocked(deps.createIssue).mock.calls[0]?.[1]).toMatchObject({ allowDuplicate: true });
@@ -145,7 +145,7 @@ describe('approveContribution', () => {
     await approveContribution(
       'c1',
       ISSUE,
-      { ...CHOICES, projectId: 'p2', draft: true, kind: 'research', kindLabelIds: { research: 'l-r', docs: null } },
+      { ...CHOICES, projectId: 'p2', draft: true, kind: 'research', kindLabelIds: { research: 'l-r', docs: null, plan: null } },
       deps,
     );
     expect(deps.createIssue).toHaveBeenCalledWith(
@@ -240,7 +240,7 @@ describe('approveContribution', () => {
       approveContribution(
         'c1',
         ISSUE,
-        { ...CHOICES, kind: 'research', kindLabelIds: { research: null, docs: null } },
+        { ...CHOICES, kind: 'research', kindLabelIds: { research: null, docs: null, plan: null } },
         deps,
       ),
     ).rejects.toThrow('research');

@@ -189,7 +189,7 @@ export interface JevRequestMap {
 
 export type JudgeAction = 'approve' | 'request_changes';
 export type ApprovalNoteLabel = JudgeAction | 'unclear';
-export type RequestTypeLabel = 'code' | 'bug' | 'research' | 'docs';
+export type RequestTypeLabel = 'code' | 'bug' | 'research' | 'docs' | 'plan';
 
 /** Kết quả hợp lệ của phép chấm lời nhắn duyệt. */
 export interface ApprovalNoteVerdict {

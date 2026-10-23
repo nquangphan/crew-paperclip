@@ -55,6 +55,7 @@
     "kindOption": {
       "research": "Research",
       "docs": "Write docs",
+      "plan": "Plan",
       "other": "Code / Bug"
     },
     "sortOption": {
@@ -104,11 +105,13 @@
       "code": "Code",
       "bug": "Bug",
       "research": "Research",
-      "docs": "Write docs"
+      "docs": "Write docs",
+      "plan": "Plan"
     },
     "labelMissing": {
       "research": "The company has no “research” label, so the Research type is unavailable.",
-      "docs": "The company has no “docs” label, so the Write docs type is unavailable."
+      "docs": "The company has no “docs” label, so the Write docs type is unavailable.",
+      "plan": "The company has no “plan” label, so the Plan type is unavailable."
     },
     "titleLabel": "Title",
     "titlePlaceholder": "What needs doing, in one sentence",
@@ -168,6 +171,7 @@
       "owner": "Owner",
       "kindResearch": "Research",
       "kindDocs": "Write docs",
+      "kindPlan": "Plan",
       "kindCode": "Code / Bug",
       "stageType": {
         "review": "Reviewer",
@@ -411,6 +415,12 @@
     "draftTitle": "Draft request: no agent is working on it",
     "draftBody": "Click Start work when you want the team to begin. The Assistant is called right away.",
     "draftBodyReadOnly": "This request is saved for later and has not been handed to an agent."
+  },
+  "followPlan": {
+    "button": "Follow this plan",
+    "created": "Request {{identifier}} created.",
+    "createdDraft": "Draft {{identifier}} saved.",
+    "open": "Open request"
   },
   "addChild": {
     "button": "Add child request",

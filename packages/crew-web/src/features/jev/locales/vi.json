@@ -236,7 +236,7 @@
     },
     "request_type": {
       "name": "Gợi ý loại yêu cầu",
-      "hint": "Đọc tiêu đề và mô tả để gợi ý Code, Bug, Nghiên cứu hay Tài liệu bằng một chip bấm để chọn. Không tự đổi lựa chọn."
+      "hint": "Đọc tiêu đề và mô tả để gợi ý Code, Bug, Nghiên cứu, Tài liệu hay Kế hoạch bằng một chip bấm để chọn. Không tự đổi lựa chọn."
     },
     "inbox_attention": {
       "name": "Cần Đại Ca để ý",

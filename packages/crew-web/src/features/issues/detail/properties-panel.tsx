@@ -124,7 +124,9 @@ export function PropertiesPanel({
             ? t('detail.props.kindResearch')
             : labelledKind === 'docs'
               ? t('detail.props.kindDocs')
-              : t('detail.props.kindCode')}
+              : labelledKind === 'plan'
+                ? t('detail.props.kindPlan')
+                : t('detail.props.kindCode')}
         </PropertyRow>
         <PropertyRow label={t('detail.props.model')} wrap>
           {model ? t('detail.props.modelValue', { ...model, runtime: t(`crew.runtime.name.${model.runtime}`) }) : none}

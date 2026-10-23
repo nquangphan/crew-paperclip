@@ -14,7 +14,7 @@ const base = {
   description: 'mô tả',
   projectId: 'p1',
   assigneeAgentId: 'a-assistant',
-  kindLabelIds: { research: 'l-research', docs: 'l-docs' },
+  kindLabelIds: { research: 'l-research', docs: 'l-docs', plan: 'l-plan' },
   draft: false,
   files: [] as File[],
 };
@@ -38,26 +38,33 @@ describe('buildCreateBody', () => {
     expect(buildCreateBody({ ...base, kind: 'research' })).toMatchObject({ labelIds: ['l-research'] });
   });
 
+  it('Lập kế hoạch gửi nhãn plan', () => {
+    expect(buildCreateBody({ ...base, kind: 'plan' })).toMatchObject({ labelIds: ['l-plan'] });
+    expect(() => buildCreateBody({ ...base, kind: 'plan', kindLabelIds: { ...base.kindLabelIds, plan: null } })).toThrow(
+      'Company chưa có nhãn “plan” nên chưa chọn được loại Lập kế hoạch.',
+    );
+  });
+
   it('Viết tài liệu gửi nhãn docs', () => {
     expect(buildCreateBody({ ...base, kind: 'docs' })).toMatchObject({ labelIds: ['l-docs'] });
   });
 
   it('Nghiên cứu hay Viết tài liệu mà không có nhãn thì ném lỗi, không gửi thiếu nhãn', () => {
     expect(() =>
-      buildCreateBody({ ...base, kind: 'research', kindLabelIds: { research: null, docs: 'l-docs' } }),
+      buildCreateBody({ ...base, kind: 'research', kindLabelIds: { research: null, docs: 'l-docs', plan: null } }),
     ).toThrow();
     expect(() =>
-      buildCreateBody({ ...base, kind: 'docs', kindLabelIds: { research: 'l-research', docs: null } }),
+      buildCreateBody({ ...base, kind: 'docs', kindLabelIds: { research: 'l-research', docs: null, plan: null } }),
     ).toThrow('Company chưa có nhãn “docs” nên chưa chọn được loại Viết tài liệu.');
   });
 
   it('câu lỗi thiếu nhãn research theo ngôn ngữ đang chọn', async () => {
     await setLanguage('en');
-    expect(() => buildCreateBody({ ...base, kind: 'research', kindLabelIds: { research: null, docs: null } })).toThrow(
+    expect(() => buildCreateBody({ ...base, kind: 'research', kindLabelIds: { research: null, docs: null, plan: null } })).toThrow(
       'The company has no “research” label, so the Research type is unavailable.',
     );
     await setLanguage('vi');
-    expect(() => buildCreateBody({ ...base, kind: 'research', kindLabelIds: { research: null, docs: null } })).toThrow(
+    expect(() => buildCreateBody({ ...base, kind: 'research', kindLabelIds: { research: null, docs: null, plan: null } })).toThrow(
       'Company chưa có nhãn “research” nên chưa chọn được loại Nghiên cứu.',
     );
   });

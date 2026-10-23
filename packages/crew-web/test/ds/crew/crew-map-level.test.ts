@@ -154,14 +154,18 @@ describe('crewMapLevel', () => {
     expect(level.center.notes).toContain('Việc đang xem');
   });
 
-  it('yêu cầu Viết tài liệu: việc code hiện là Viết tài liệu, việc sửa vẫn là Sửa', () => {
+  it('yêu cầu Viết tài liệu hoặc Lập kế hoạch: việc code hiện là loại đó, việc sửa vẫn là Sửa', () => {
     const docsMap = family([issue('r', null), issue('a', 'r'), issue('f', 'r', { kind: 'fix' })]);
     const kindNote = (level: RoadmapLevel, id: string) =>
       [level.center, ...level.nodes].find((n) => n.id === id)?.notes?.[0];
-    const docs = crewMapLevel(docsMap, undefined, t, { docs: true }).level;
+    const docs = crewMapLevel(docsMap, undefined, t, { rootKind: 'docs' }).level;
     expect(kindNote(docs, 'r')).toBe('Viết tài liệu');
     expect(kindNote(docs, 'a')).toBe('Viết tài liệu');
     expect(kindNote(docs, 'f')).toBe('Sửa');
+    const plan = crewMapLevel(docsMap, undefined, t, { rootKind: 'plan' }).level;
+    expect(kindNote(plan, 'r')).toBe('Lập kế hoạch');
+    expect(kindNote(plan, 'a')).toBe('Lập kế hoạch');
+    expect(kindNote(plan, 'f')).toBe('Sửa');
     const code = crewMapLevel(docsMap, undefined, t).level;
     expect(kindNote(code, 'a')).toBe('Lập trình');
   });

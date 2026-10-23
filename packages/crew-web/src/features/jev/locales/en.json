@@ -236,7 +236,7 @@
     },
     "request_type": {
       "name": "Request type hint",
-      "hint": "Reads title and description to suggest Code, Bug, Research or Docs as a chip you click to apply. Never changes your choice."
+      "hint": "Reads title and description to suggest Code, Bug, Research, Docs or Plan as a chip you click to apply. Never changes your choice."
     },
     "inbox_attention": {
       "name": "Needs your attention",

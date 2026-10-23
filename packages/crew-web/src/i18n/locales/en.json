@@ -295,6 +295,7 @@
       "code": "Code",
       "research": "Research",
       "docs": "Write docs",
+      "plan": "Plan",
       "fix": "Fix"
     },
     "stageLine": "Stage: {{stage}}",

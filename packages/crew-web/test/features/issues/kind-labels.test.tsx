@@ -11,6 +11,7 @@ const LABELS = [
   { id: 'l-bug', name: 'bug', color: '#f00' },
   { id: 'l-research', name: 'research', color: '#00f' },
   { id: 'l-docs', name: 'docs', color: '#0a0' },
+  { id: 'l-plan', name: 'plan', color: '#00a' },
 ];
 
 describe('useKindLabelIds', () => {
@@ -21,7 +22,7 @@ describe('useKindLabelIds', () => {
       <QueryClientProvider client={qc}>{children}</QueryClientProvider>
     );
     const { result } = renderHook(() => useKindLabelIds('c1'), { wrapper });
-    await waitFor(() => expect(result.current.data).toEqual({ research: 'l-research', docs: 'l-docs' }));
+    await waitFor(() => expect(result.current.data).toEqual({ research: 'l-research', docs: 'l-docs', plan: 'l-plan' }));
     expect(qc.getQueryData(queryKeys.labels('c1'))).toEqual(LABELS);
     await act(() => qc.invalidateQueries({ queryKey: queryKeys.issues('c1') }));
     const gets = s.calls.filter((c) => c.url.endsWith('/companies/c1/labels'));

@@ -46,6 +46,11 @@ describe('parseApprovalNote', () => {
 });
 
 describe('parseRequestType', () => {
+  it('nhận loại plan', () => {
+    expect(parseRequestType({ ok: true, mode: 'on', label: 'plan', confidence: 0.8, judgmentId: '4' })?.label).toBe(
+      'plan',
+    );
+  });
   it('nhận kết quả đúng dạng', () => {
     expect(parseRequestType({ ok: true, mode: 'on', label: 'docs', confidence: 0.7, judgmentId: '3' })).toEqual({
       mode: 'on',

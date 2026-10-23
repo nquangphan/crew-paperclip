@@ -99,6 +99,20 @@ describe('SummarySlot (S6.1–S6.3)', () => {
     expect(s.calls.some((c) => c.method === 'GET' && c.url.endsWith('/api/issues/i-root'))).toBe(true);
   });
 
+  it('yêu cầu gốc có nhãn plan: map ghi loại Lập kế hoạch cho việc con', async () => {
+    mockServer({
+      [`POST ${DATA}/crew.map`]: { body: { data: map } },
+      [`POST ${DATA}/crew.docsCheck`]: { body: { data: docs.ok } },
+      'GET /api/issues/i-root': { body: { ...ISSUE, id: 'i-root', labels: [{ id: 'l-plan', name: 'plan' }] } },
+    });
+    mountAt(CHILD);
+    fireEvent.click(await screen.findByRole('button', { name: 'Mở map' }));
+    await waitFor(() => {
+      const card = screen.getByText('Thêm trang đăng nhập').closest('button');
+      expect(card?.getAttribute('aria-label')).toMatch(/Lập kế hoạch/);
+    });
+  });
+
   it('bấm ô trong map điều hướng tới issue đó', async () => {
     mockServer({
       [`POST ${DATA}/crew.map`]: { body: { data: map } },

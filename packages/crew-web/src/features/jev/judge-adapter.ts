@@ -26,7 +26,7 @@ const oneOf = <T extends string>(list: readonly T[], v: unknown): T | null =>
 const idOf = (v: unknown): string | null => (typeof v === 'number' ? String(v) : str(v));
 
 const NOTE_LABELS = ['approve', 'request_changes', 'unclear'] as const satisfies readonly ApprovalNoteLabel[];
-const TYPE_LABELS = ['code', 'bug', 'research', 'docs'] as const satisfies readonly RequestTypeLabel[];
+const TYPE_LABELS = ['code', 'bug', 'research', 'docs', 'plan'] as const satisfies readonly RequestTypeLabel[];
 const ATTENTION_KINDS = [
   'owner_decision',
   'risky_paths',

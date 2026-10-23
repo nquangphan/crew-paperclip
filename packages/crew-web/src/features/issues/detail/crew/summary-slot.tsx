@@ -30,14 +30,15 @@ export function SummarySlot({ issue }: { issue: Issue }) {
     queryFn: () => api.crew.docsCheck(companyId, rootId),
     enabled: crew,
   });
-  // Loại Viết tài liệu nằm ở nhãn của yêu cầu gốc; đang xem việc con thì đọc gốc (thường đã có trong cache).
+  // Loại Viết tài liệu / Lập kế hoạch nằm ở nhãn của yêu cầu gốc; đang xem việc con thì đọc gốc (thường đã có trong cache).
   const viewingRoot = rootId === issue.id;
   const rootQuery = useQuery({
     queryKey: queryKeys.issue(rootId),
     queryFn: () => api.issues.get(rootId),
     enabled: crew && !viewingRoot,
   });
-  const docs = labelledKindOf(viewingRoot ? issue.labels : rootQuery.data?.labels) === 'docs';
+  const labelled = labelledKindOf(viewingRoot ? issue.labels : rootQuery.data?.labels);
+  const rootKind = labelled === 'docs' || labelled === 'plan' ? labelled : null;
 
   if (mapQuery.error) {
     return (
@@ -65,7 +66,7 @@ export function SummarySlot({ issue }: { issue: Issue }) {
       />
       {expanded ? (
         <div className="flex flex-col gap-2">
-          <CrewMap map={map} currentIssueId={issue.id} onOpenIssue={openIssue} docs={docs} />
+          <CrewMap map={map} currentIssueId={issue.id} onOpenIssue={openIssue} rootKind={rootKind} />
           {docsQuery.error ? (
             <ErrorState title={t('crew.docsFailed')} message={docsQuery.error.message} />
           ) : (

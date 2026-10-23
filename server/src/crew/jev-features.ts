@@ -332,7 +332,7 @@ export async function approvalNoteJudgment(
   }
 }
 
-export const REQUEST_TYPES = ["code", "bug", "research", "docs"] as const;
+export const REQUEST_TYPES = ["code", "bug", "research", "docs", "plan"] as const;
 export type RequestType = (typeof REQUEST_TYPES)[number];
 export const requestTypeBodySchema = z
   .object({
@@ -352,6 +352,7 @@ const REQUEST_TYPE_QUESTION: Question = {
     bug: "Fix something that is broken or behaves wrongly.",
     research: "Investigate, compare options or answer a question; the result is a report, not code.",
     docs: "Write or update documentation, guides or other text.",
+    plan: "Write a plan or specification for work to be done later; the result is plan documents, not the implementation.",
   },
 };
 

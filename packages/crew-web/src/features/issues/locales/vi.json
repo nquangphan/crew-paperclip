@@ -55,6 +55,7 @@
     "kindOption": {
       "research": "Nghiên cứu",
       "docs": "Viết tài liệu",
+      "plan": "Lập kế hoạch",
       "other": "Code / Bug"
     },
     "sortOption": {
@@ -104,11 +105,13 @@
       "code": "Code",
       "bug": "Bug",
       "research": "Nghiên cứu",
-      "docs": "Viết tài liệu"
+      "docs": "Viết tài liệu",
+      "plan": "Lập kế hoạch"
     },
     "labelMissing": {
       "research": "Company chưa có nhãn “research” nên chưa chọn được loại Nghiên cứu.",
-      "docs": "Company chưa có nhãn “docs” nên chưa chọn được loại Viết tài liệu."
+      "docs": "Company chưa có nhãn “docs” nên chưa chọn được loại Viết tài liệu.",
+      "plan": "Company chưa có nhãn “plan” nên chưa chọn được loại Lập kế hoạch."
     },
     "titleLabel": "Tiêu đề",
     "titlePlaceholder": "Việc cần làm, một câu",
@@ -168,6 +171,7 @@
       "owner": "Owner",
       "kindResearch": "Nghiên cứu",
       "kindDocs": "Viết tài liệu",
+      "kindPlan": "Lập kế hoạch",
       "kindCode": "Code / Bug",
       "stageType": {
         "review": "Reviewer",
@@ -411,6 +415,12 @@
     "draftTitle": "Yêu cầu nháp: agent chưa làm",
     "draftBody": "Bấm Bắt đầu làm khi bạn muốn đội bắt đầu. Trợ Lý sẽ được gọi ngay.",
     "draftBodyReadOnly": "Yêu cầu này đang lưu để làm sau, chưa giao cho agent."
+  },
+  "followPlan": {
+    "button": "Làm theo kế hoạch này",
+    "created": "Đã tạo yêu cầu {{identifier}}.",
+    "createdDraft": "Đã lưu nháp {{identifier}}.",
+    "open": "Mở yêu cầu"
   },
   "addChild": {
     "button": "Thêm việc con",

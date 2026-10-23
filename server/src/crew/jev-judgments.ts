@@ -55,7 +55,7 @@ export async function recordJudgment(db: Pick<Db, "execute">, input: JudgmentInp
 
 /** Kết quả owner chọn được phép theo tính năng. */
 export const APPROVAL_OUTCOMES = ["sent", "changed"] as const;
-export const REQUEST_TYPE_OUTCOMES = ["code", "bug", "research", "docs"] as const;
+export const REQUEST_TYPE_OUTCOMES = ["code", "bug", "research", "docs", "plan"] as const;
 export const outcomeBodySchema = z
   .object({ outcome: z.enum([...APPROVAL_OUTCOMES, ...REQUEST_TYPE_OUTCOMES]) })
   .strict();

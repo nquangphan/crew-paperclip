@@ -173,7 +173,7 @@ Thanh công cụ trên ảnh:
 #### Lọc danh sách
 
 1. Bấm **Lọc** (5).
-2. Tích một giá trị ở mỗi mục: trạng thái, người làm, project, loại (**Nghiên cứu**, **Viết tài liệu** hoặc **Code / Bug**). Danh sách đổi ngay.
+2. Tích một giá trị ở mỗi mục: trạng thái, người làm, project, loại (**Nghiên cứu**, **Viết tài liệu**, **Lập kế hoạch** hoặc **Code / Bug**). Danh sách đổi ngay.
 3. Bấm lại mục đang chọn để bỏ, hoặc **Xóa** để bỏ hết. Nút đổi thành **Lọc: n** khi đang có n bộ lọc.
 
 {{shot:issues-columns}}
@@ -283,7 +283,7 @@ Yêu cầu là cách duy nhất để giao việc cho đội agent. Mọi yêu c
 
 1. Bấm **Yêu cầu mới** ở thanh bên trái hoặc ở trang Yêu cầu.
 2. Chọn **Project** (1). Danh sách chỉ có project đã **sẵn sàng**. Không có project nào sẵn sàng thì hộp thoại báo "Chưa có project nào sẵn sàng" (xem mục [Project](#projects)).
-3. Chọn **Loại** (2): **Code**, **Bug**, **Nghiên cứu** hoặc **Viết tài liệu** (bảng dưới).
+3. Chọn **Loại** (2): **Code**, **Bug**, **Nghiên cứu**, **Viết tài liệu** hoặc **Lập kế hoạch** (bảng dưới).
 4. Viết **Tiêu đề** (3) một câu, và **Mô tả** (4): muốn gì, vì sao, ở chỗ nào, cái gì không được đụng.
 5. **Đính kèm** ảnh hoặc file nếu cần. File có đuôi lạ hiện cảnh báo, bạn vẫn gửi được.
 6. **Người nhận** luôn là Trợ Lý của project, không đổi được.
@@ -296,6 +296,7 @@ Yêu cầu là cách duy nhất để giao việc cho đội agent. Mọi yêu c
 | **Bug** | Có lỗi | Tả **triệu chứng**: "bấm X thì ra Y, đúng ra phải Z". Agent viết test bắt lỗi rồi mới sửa |
 | **Nghiên cứu** | Cần so sánh, đề xuất, không sửa code | Chỉ hai bước duyệt: Reviewer rồi owner, không đẩy code. Company phải có nhãn "research" |
 | **Viết tài liệu** | Cần file tài liệu trong repo: spec, mockup, markdown, ảnh | Đi đủ các bước duyệt như Code (gộp, kiểm docs, owner duyệt rồi mở pull request). Agent không viết test code, không sửa code trừ khi yêu cầu ghi rõ; vẫn đính kèm ảnh chụp tài liệu hoặc mockup. Company phải có nhãn "docs" |
+| **Lập kế hoạch** | Cần spec và plan trước khi làm, chưa viết code | Agent làm rõ yêu cầu (hỏi bạn khi cần), viết spec và plan vào repo của project rồi đi đủ các bước duyệt như Viết tài liệu (Reviewer kiểm plan, owner duyệt, mở pull request). Không viết test code. Yêu cầu xong có nút **Làm theo kế hoạch này** ở trang chi tiết: mở hộp Yêu cầu mới loại Code đã điền sẵn đường dẫn plan và link pull request (merge pull request kế hoạch trước khi bắt đầu làm). Company phải có nhãn "plan" |
 
 > **Ví dụ tốt:** *Tiêu đề:* Thêm nút xuất Excel ở trang báo cáo. *Mô tả:* Trang Báo cáo doanh thu cần nút Xuất Excel, file có cột Ngày, Đơn hàng, Tổng tiền. Không đổi cách tính tổng.
 
@@ -486,7 +487,7 @@ Mục **Chờ duyệt** ở thanh bên trái có số mục đang chờ; Tổng 
 #### Duyệt một yêu cầu
 
 1. Bấm **Duyệt** (2) trên dòng yêu cầu.
-2. Hộp thoại **Duyệt yêu cầu** cho chọn **Project**, **Loại** (Code, Bug, Nghiên cứu, Viết tài liệu), **Agent nhận việc** (mặc định Trợ Lý của project) và ô **Lưu nháp**.
+2. Hộp thoại **Duyệt yêu cầu** cho chọn **Project**, **Loại** (Code, Bug, Nghiên cứu, Viết tài liệu, Lập kế hoạch), **Agent nhận việc** (mặc định Trợ Lý của project) và ô **Lưu nháp**.
 3. Bấm **Duyệt**. Yêu cầu được đăng nguyên văn như bạn tự đăng, agent bắt đầu làm (trừ khi lưu nháp).
 
 #### Duyệt một bình luận
@@ -794,6 +795,7 @@ Bình luận của agent có các dòng bắt đầu bằng `crew-`: bằng ch�
 | `crew-stack on=CRE-…` | Việc này xây tiếp trên code của việc kia |
 | `crew-kind research` | Việc nghiên cứu, không sửa code |
 | `crew-kind docs` | Việc viết tài liệu: chỉ sửa file tài liệu, không chạy test code |
+| `crew-kind plan` | Việc lập kế hoạch: chỉ sửa file plan/spec, không chạy test code |
 | `crew-review … verdict=approved` | Reviewer đã duyệt |
 | `crew-docs-check commit=… exit=0` | Integrator đã kiểm tài liệu trên code đã gộp; `exit=0` là đạt |
 | `crew-merge sha=… pushed=pr pr=…` | Đã mở pull request vào nhánh chính, chờ owner bấm Merge trên GitHub |

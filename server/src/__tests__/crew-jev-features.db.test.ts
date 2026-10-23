@@ -415,6 +415,14 @@ suite("Crew Jev: bốn tính năng đợt 2", () => {
     // Mất key: im lặng.
     const outcome = await (await owner()).post(url(`/judgments/${ok.body.judgmentId}/outcome`)).send({ outcome: "code" });
     expect(outcome.body).toEqual({ ok: true });
+
+    // Loại plan là phương án hợp lệ của câu hỏi và của kết quả owner chọn.
+    reset();
+    replies.push(["KEHOACH", { choice: "plan", confidence: 0.9 }]);
+    const plan = await judgeType({ title: "KEHOACH lập kế hoạch đăng nhập", current: "code" });
+    expect(plan.body).toMatchObject({ ok: true, mode: "on", label: "plan" });
+    const planOutcome = await (await owner()).post(url(`/judgments/${plan.body.judgmentId}/outcome`)).send({ outcome: "plan" });
+    expect(planOutcome.body).toEqual({ ok: true });
   });
 
   it("shadow: trả ngay không chờ Jev, ghi dòng ở nền, owner không thấy nhãn", async () => {
@@ -577,7 +585,7 @@ suite("Crew Jev: bốn tính năng đợt 2", () => {
     expect(stats.status).toBe(200);
     const find = (feature: string, mode: string) => stats.body.rows.find((row: { feature: string; mode: string }) => row.feature === feature && row.mode === mode);
     expect(find("approval_note", "on")).toMatchObject({ total: 4, mismatch: 1, shown: 1, outcomes: { changed: 1 } });
-    expect(find("request_type", "on")).toMatchObject({ total: 4, error: 2, outcomes: { code: 1 } });
+    expect(find("request_type", "on")).toMatchObject({ total: 5, error: 2, outcomes: { code: 1, plan: 1 } });
     expect(find("request_type", "shadow").total).toBeGreaterThanOrEqual(1);
     expect(find("complexity", "shadow").mismatch).toBe(1);
     expect(typeof find("approval_note", "on").p95Ms).toBe("number");

@@ -295,6 +295,7 @@
       "code": "Lập trình",
       "research": "Nghiên cứu",
       "docs": "Viết tài liệu",
+      "plan": "Lập kế hoạch",
       "fix": "Sửa"
     },
     "stageLine": "Giai đoạn: {{stage}}",
