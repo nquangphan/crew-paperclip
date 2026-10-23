@@ -49,6 +49,7 @@ Cấu trúc thư mục, luật và cách xem thử nằm ở `packages/crew-web/
 | `packages/crew-web/src/ds/brand/Logo.tsx` | Logo "2P Crew" | `Logo` |
 | `packages/crew-web/src/ds/components/app-frame.tsx` | Khung trang và sidebar | `AppFrame` |
 | `packages/crew-web/src/ds/components/theme-scope.tsx` | Bọc vùng theo theme | `ThemeScope` |
+| `packages/crew-web/src/ds/components/choice-button.tsx` | Nút lựa chọn và câu hỏi của thẻ hỏi owner: nhãn dài xuống dòng, không tràn khung | `ChoiceButton`, `ChoiceLegend` |
 | `packages/crew-web/src/ds/components/` (còn lại) | Component cơ bản (button, dialog, select, tabs, table...) | |
 | `packages/crew-web/src/ds/widgets/markdown-view.tsx`, `markdown-renderer.tsx` | Markdown tải lười | `MarkdownView` |
 | `packages/crew-web/src/ds/widgets/issue-detail.tsx` | Khung chi tiết issue, khung ô soạn bình luận | `ComposerDock` |

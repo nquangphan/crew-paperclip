@@ -16,14 +16,17 @@ import {
   CardHeader,
   CardTitle,
   Checkbox,
+  ChoiceButton,
+  ChoiceLegend,
   ErrorState,
   Label,
   MarkdownView,
   MutedText,
   Textarea,
 } from '@/ds';
-import { useT } from '@/i18n';
-import { useRefreshAfterGate } from './actions-slot';
+import { formatDateTime, useT } from '@/i18n';
+import { useGateMutation, useRefreshAfterGate } from './actions-slot';
+import { commentAnswerBody, type PendingQuestions } from './comment-questions';
 
 export type CardInteraction =
   | AskUserQuestionsInteraction
@@ -88,37 +91,24 @@ function QuestionBlock({
     onChange({ ...choice, other: on, optionIds: single && on ? [] : choice.optionIds });
   };
   return (
-    <fieldset className="flex flex-col gap-2">
-      <legend>{question.prompt}</legend>
+    // fieldset mặc định rộng tối thiểu bằng nội dung: thiếu min-w-0 thì câu dài đẩy thẻ tràn khỏi cột.
+    <fieldset className="flex min-w-0 flex-col gap-2">
+      <ChoiceLegend>{question.prompt}</ChoiceLegend>
       {question.helpText ? <MutedText>{question.helpText}</MutedText> : null}
       {textOnly(question) ? null : (
         <div className="flex flex-wrap gap-2">
           {question.options.map((o) => {
             const on = o.freeText ? choice.other : choice.optionIds.includes(o.id);
             return (
-              <Button
-                key={o.id}
-                type="button"
-                size="sm"
-                variant={on ? 'default' : 'outline'}
-                aria-pressed={on}
-                title={o.description ?? undefined}
-                onClick={() => pick(o.id)}
-              >
+              <ChoiceButton key={o.id} selected={on} title={o.description ?? undefined} onClick={() => pick(o.id)}>
                 {o.label}
-              </Button>
+              </ChoiceButton>
             );
           })}
           {question.allowOther && !free ? (
-            <Button
-              type="button"
-              size="sm"
-              variant={choice.other ? 'default' : 'outline'}
-              aria-pressed={choice.other}
-              onClick={pickOther}
-            >
+            <ChoiceButton selected={choice.other} onClick={pickOther}>
               {t('interactions.other')}
-            </Button>
+            </ChoiceButton>
           ) : null}
         </div>
       )}
@@ -138,26 +128,31 @@ function toggle(ids: string[], id: string): string[] {
 }
 
 function QuestionsBody({
-  interaction,
+  questions,
+  submitLabel,
   pending,
   onSubmit,
+  secondary,
 }: {
-  interaction: AskUserQuestionsInteraction;
+  questions: Question[];
+  submitLabel?: string | null;
   pending: boolean;
   onSubmit: (answers: AskUserQuestionsAnswer[]) => void;
+  /** Nút gửi thứ hai (viền), cùng điều kiện bật với nút chính. */
+  secondary?: { label: string; onSubmit: (answers: AskUserQuestionsAnswer[]) => void };
 }) {
   const { t } = useT('issues');
-  const questions = interaction.payload.questions;
   const [choices, setChoices] = useState<Record<string, Choice>>({});
   const choiceOf = (q: Question) => choices[q.id] ?? EMPTY;
   const answered = questions.filter((q) => hasAnswer(q, choiceOf(q)));
   const ready = answered.length > 0 && questions.every((q) => !q.required || hasAnswer(q, choiceOf(q)));
+  const answers = () => answered.map((q) => toAnswer(q, choiceOf(q)));
   return (
     <form
       className="flex flex-col gap-4"
       onSubmit={(e) => {
         e.preventDefault();
-        if (ready && !pending) onSubmit(answered.map((q) => toAnswer(q, choiceOf(q))));
+        if (ready && !pending) onSubmit(answers());
       }}
     >
       {questions.map((q) => (
@@ -168,10 +163,21 @@ function QuestionsBody({
           onChange={(next) => setChoices((all) => ({ ...all, [q.id]: next }))}
         />
       ))}
-      <div className="flex">
+      <div className="flex flex-wrap gap-2">
         <Button type="submit" size="sm" disabled={!ready || pending}>
-          {interaction.payload.submitLabel ?? t('interactions.send')}
+          {submitLabel ?? t('interactions.send')}
         </Button>
+        {secondary ? (
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            disabled={!ready || pending}
+            onClick={() => secondary.onSubmit(answers())}
+          >
+            {secondary.label}
+          </Button>
+        ) : null}
       </div>
     </form>
   );
@@ -269,7 +275,8 @@ export function InteractionCard({ issue, interaction }: { issue: Issue; interact
         {interaction.summary ? <MutedText>{interaction.summary}</MutedText> : null}
         {interaction.kind === 'ask_user_questions' ? (
           <QuestionsBody
-            interaction={interaction}
+            questions={interaction.payload.questions}
+            submitLabel={interaction.payload.submitLabel}
             pending={resolve.isPending}
             onSubmit={(answers) =>
               resolve.mutate(() => api.interactions.respond(issue.id, interaction.id, { answers }))
@@ -290,6 +297,69 @@ export function InteractionCard({ issue, interaction }: { issue: Issue; interact
           />
         )}
         {resolve.error ? <ErrorState title={t('interactions.failed')} message={resolve.error.message} /> : null}
+      </CardContent>
+    </Card>
+  );
+}
+
+/**
+ * Thẻ chọn dựng từ điểm cần owner chốt mà agent viết trong bình luận hay trong tổng kết (`Q1.` kèm `a)`, `b)`), khi
+ * agent không tạo thẻ câu hỏi. Lựa chọn gửi thành lời nhắn `Qn: <lựa chọn>`: đang chờ owner duyệt thì đi cùng Duyệt
+ * hoặc Yêu cầu sửa (lúc đó bình luận thường không đánh thức ai), ngoài ra là một bình luận đánh thức agent đang giữ
+ * issue như owner tự comment.
+ */
+export function CommentQuestionsCard({
+  issue,
+  found,
+  approval,
+  authorName,
+}: {
+  issue: Issue;
+  found: PendingQuestions;
+  approval: boolean;
+  authorName: string;
+}) {
+  const { t, lang } = useT('issues');
+  const refresh = useRefreshAfterGate(issue);
+  const send = useMutation({
+    mutationFn: (body: string) => api.comments.add(issue.id, body),
+    onSuccess: refresh,
+  });
+  const gate = useGateMutation(issue);
+  const { comment, questions } = found;
+  const body = (answers: AskUserQuestionsAnswer[]) =>
+    commentAnswerBody(t('interactions.commentAnswerHeading'), t('interactions.other'), questions, answers);
+  const error = send.error ?? gate.error;
+  const source = found.fromSummary ? 'interactions.summarySource' : 'interactions.commentSource';
+  return (
+    <Card data-testid="comment-questions-card">
+      <CardHeader>
+        <CardTitle>{t('interactions.commentTitle', { name: authorName })}</CardTitle>
+      </CardHeader>
+      <CardContent className="flex flex-col gap-3">
+        <MutedText>
+          {t(source, { time: formatDateTime(comment.createdAt, lang) })}{' '}
+          {t(approval ? 'interactions.viaGate' : 'interactions.viaComment')}
+        </MutedText>
+        {approval ? (
+          <QuestionsBody
+            questions={questions}
+            submitLabel={t('interactions.approveWithAnswers')}
+            pending={gate.isPending}
+            onSubmit={(answers) => gate.mutate({ id: 'approve', comment: body(answers) })}
+            secondary={{
+              label: t('interactions.changesWithAnswers'),
+              onSubmit: (answers) => gate.mutate({ id: 'request_changes', comment: body(answers) }),
+            }}
+          />
+        ) : (
+          <QuestionsBody
+            questions={questions}
+            pending={send.isPending}
+            onSubmit={(answers) => send.mutate(body(answers))}
+          />
+        )}
+        {error ? <ErrorState title={t('interactions.failed')} message={error.message} /> : null}
       </CardContent>
     </Card>
   );

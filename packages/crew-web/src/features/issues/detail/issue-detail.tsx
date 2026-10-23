@@ -262,7 +262,7 @@ export function IssueDetail({ issueRef, variant, onClose }: IssueDetailProps) {
         <Attachments issueId={issue.id} />
         <IssueRuns issueId={issue.id} agentNames={agentNames} />
         <IssueJevBlock issueId={issue.id} />
-        <InteractionsSlot issue={issue} />
+        <InteractionsSlot issue={issue} agentNames={agentNames} />
         {readOnly && !isContributor ? null : (
           <ComposerDock>
             <Composer issue={issue} />

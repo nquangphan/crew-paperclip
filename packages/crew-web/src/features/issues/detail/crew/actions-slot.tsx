@@ -35,27 +35,15 @@ export function useRefreshAfterGate(issue: Issue) {
   };
 }
 
-const LABEL: Record<GateActionId, string> = {
-  approve: 'gate.approve.button',
-  request_changes: 'gate.requestChanges.button',
-  cancel: 'gate.cancel.button',
-  reopen: 'gate.reopen.button',
-};
-
 /**
- * Nút thao tác cổng cạnh tiêu đề (S6.7 Duyệt, S6.8 Yêu cầu sửa, S6.10 Hủy, S6.11 Mở lại). Nút hiện theo
- * `executionState` mới nhất (sự kiện trực tiếp invalidate issue). Duyệt và Yêu cầu sửa đọc lại issue ngay trước
- * khi gửi: owner không còn là người duyệt stage đang chờ thì không gửi (gửi `done` bằng quyền board lúc đó là vượt
- * cổng), báo trạng thái đã đổi và làm mới trang. Server từ chối thì hiện câu lỗi nguyên văn, không tự thử lại.
+ * Gửi một thao tác cổng. Duyệt và Yêu cầu sửa đọc lại issue ngay trước khi gửi: owner không còn là người duyệt stage
+ * đang chờ thì không gửi (gửi `done` bằng quyền board lúc đó là vượt cổng), báo trạng thái đã đổi và làm mới trang.
  */
-export function ActionsSlot({ issue }: { issue: Issue }) {
+export function useGateMutation(issue: Issue, onDone?: () => void) {
   const { t } = useT('issues');
   const me = useMe();
-  const { readOnly } = useCompanyAccess();
   const refresh = useRefreshAfterGate(issue);
-  const [open, setOpen] = useState<GateActionId | null>(null);
-  const actions = gateActionsFor(issue, me);
-  const gate = useMutation({
+  return useMutation({
     mutationFn: async ({ id, comment }: { id: GateActionId; comment?: string }) => {
       const body = gateAction(id).body(comment);
       if (needsApprovalStage(id)) {
@@ -68,10 +56,31 @@ export function ActionsSlot({ issue }: { issue: Issue }) {
       return api.issues.update(issue.id, body);
     },
     onSuccess: () => {
-      setOpen(null);
+      onDone?.();
       refresh();
     },
   });
+}
+
+const LABEL: Record<GateActionId, string> = {
+  approve: 'gate.approve.button',
+  request_changes: 'gate.requestChanges.button',
+  cancel: 'gate.cancel.button',
+  reopen: 'gate.reopen.button',
+};
+
+/**
+ * Nút thao tác cổng cạnh tiêu đề (S6.7 Duyệt, S6.8 Yêu cầu sửa, S6.10 Hủy, S6.11 Mở lại). Nút hiện theo
+ * `executionState` mới nhất (sự kiện trực tiếp invalidate issue); gửi qua `useGateMutation`. Server từ chối thì hiện
+ * câu lỗi nguyên văn, không tự thử lại.
+ */
+export function ActionsSlot({ issue }: { issue: Issue }) {
+  const { t } = useT('issues');
+  const me = useMe();
+  const { readOnly } = useCompanyAccess();
+  const [open, setOpen] = useState<GateActionId | null>(null);
+  const actions = gateActionsFor(issue, me);
+  const gate = useGateMutation(issue, () => setOpen(null));
   const run = (id: GateActionId, comment?: string) => gate.mutate({ id, comment });
   // Jev đọc lời nhắn trước khi gửi và chỉ hỏi lại một lần khi lệch ý (chế độ `on`); mọi trường hợp khác gửi như cũ.
   const jev = useApprovalNoteCheck({

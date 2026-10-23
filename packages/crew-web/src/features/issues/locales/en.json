@@ -312,7 +312,16 @@
     "send": "Send answer",
     "accept": "Accept",
     "reject": "Decline",
-    "rejectReason": "Reason (when declining)"
+    "rejectReason": "Reason (when declining)",
+    "commentTitle": "{{name}} needs a decision",
+    "commentSource": "From the comment at {{time}}.",
+    "commentAnswerHeading": "Answers:",
+    "agent": "Agent",
+    "summarySource": "From the summary at {{time}}.",
+    "viaComment": "Sending posts a comment with the choices.",
+    "viaGate": "The choices go with your Approve or Request changes decision.",
+    "approveWithAnswers": "Approve with answers",
+    "changesWithAnswers": "Request changes with answers"
   },
   "forceDone": {
     "button": "Force Done",

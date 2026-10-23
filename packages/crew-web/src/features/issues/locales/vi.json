@@ -312,7 +312,16 @@
     "send": "Gửi trả lời",
     "accept": "Đồng ý",
     "reject": "Từ chối",
-    "rejectReason": "Lý do (khi từ chối)"
+    "rejectReason": "Lý do (khi từ chối)",
+    "commentTitle": "{{name}} cần chốt",
+    "commentSource": "Từ bình luận lúc {{time}}.",
+    "commentAnswerHeading": "Trả lời câu hỏi:",
+    "agent": "Agent",
+    "summarySource": "Từ tổng kết lúc {{time}}.",
+    "viaComment": "Gửi trả lời sẽ đăng một bình luận ghi lựa chọn.",
+    "viaGate": "Lựa chọn đi kèm quyết định Duyệt hoặc Yêu cầu sửa.",
+    "approveWithAnswers": "Duyệt kèm trả lời",
+    "changesWithAnswers": "Yêu cầu sửa theo trả lời"
   },
   "forceDone": {
     "button": "Ép Done",

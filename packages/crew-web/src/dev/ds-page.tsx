@@ -28,6 +28,8 @@ import {
   CardHeader,
   CardTitle,
   Checkbox,
+  ChoiceButton,
+  ChoiceLegend,
   CodeBlock,
   Collapsible,
   CollapsibleContent,
@@ -270,6 +272,18 @@ function Showcase({ theme }: { theme: 'light' | 'dark' }) {
             <ToggleSwitch checked onCheckedChange={() => {}} aria-label="Bật" />
             <Checkbox aria-label="Chọn" />
           </div>
+          <fieldset className="flex min-w-0 flex-col gap-2">
+            <ChoiceLegend>Q1. Làm ở project nào? Câu hỏi dài vẫn xuống dòng trong khung thẻ.</ChoiceLegend>
+            <div className="flex flex-wrap gap-2">
+              <ChoiceButton selected>
+                a) Tạo lại yêu cầu ở project 2.0 — crew 2.0 làm, issue này đóng ở đây
+              </ChoiceButton>
+              <ChoiceButton>
+                b) Làm ở project này — không khả thi vì repo không có màn hình đó, nhãn dài xuống dòng
+              </ChoiceButton>
+              <ChoiceButton>Khác</ChoiceButton>
+            </div>
+          </fieldset>
           <div className="grid grid-cols-2 gap-4">
             <Field label="Tên project" hint="Tối đa 60 ký tự">
               <Input placeholder="Nhập tên" />

@@ -320,6 +320,7 @@ File nào thuộc flow nào. Dùng `crew-docs where <file>` để tra từ dòng
 | `packages/crew-web/src/ds/components/button.tsx` | [design-system](flows/design-system.md) (file) |
 | `packages/crew-web/src/ds/components/card.tsx` | [design-system](flows/design-system.md) (file) |
 | `packages/crew-web/src/ds/components/checkbox.tsx` | [design-system](flows/design-system.md) (file) |
+| `packages/crew-web/src/ds/components/choice-button.tsx` | [design-system](flows/design-system.md) (file) |
 | `packages/crew-web/src/ds/components/collapsible.tsx` | [design-system](flows/design-system.md) (file) |
 | `packages/crew-web/src/ds/components/command.tsx` | [design-system](flows/design-system.md) (file) |
 | `packages/crew-web/src/ds/components/dialog.tsx` | [design-system](flows/design-system.md) (file) |
@@ -467,6 +468,7 @@ File nào thuộc flow nào. Dùng `crew-docs where <file>` để tra từ dòng
 | `packages/crew-web/src/features/issues/detail/comments.tsx` | [issues-web](flows/issues-web.md) (file) |
 | `packages/crew-web/src/features/issues/detail/composer.tsx` | [issues-web](flows/issues-web.md) (file) |
 | `packages/crew-web/src/features/issues/detail/crew/actions-slot.tsx` | [issues-web](flows/issues-web.md) (file) |
+| `packages/crew-web/src/features/issues/detail/crew/comment-questions.ts` | [issues-web](flows/issues-web.md) (file) |
 | `packages/crew-web/src/features/issues/detail/crew/force-done-dialog.tsx` | [issues-web](flows/issues-web.md) (file) |
 | `packages/crew-web/src/features/issues/detail/crew/force-done.ts` | [issues-web](flows/issues-web.md) (file) |
 | `packages/crew-web/src/features/issues/detail/crew/gate-actions.ts` | [issues-web](flows/issues-web.md) (file) |
@@ -708,6 +710,7 @@ File nào thuộc flow nào. Dùng `crew-docs where <file>` để tra từ dòng
 | `packages/crew-web/test/features/issues/add-child.test.ts` | [issues-web](flows/issues-web.md) (test) |
 | `packages/crew-web/test/features/issues/attachment-viewer.test.tsx` | [issues-web](flows/issues-web.md) (test) |
 | `packages/crew-web/test/features/issues/attachments.test.tsx` | [issues-web](flows/issues-web.md) (test) |
+| `packages/crew-web/test/features/issues/comment-questions.test.ts` | [issues-web](flows/issues-web.md) (test) |
 | `packages/crew-web/test/features/issues/comment-thread.test.ts` | [issues-web](flows/issues-web.md) (test) |
 | `packages/crew-web/test/features/issues/comments.test.tsx` | [issues-web](flows/issues-web.md) (test) |
 | `packages/crew-web/test/features/issues/composer.test.tsx` | [issues-web](flows/issues-web.md) (test) |

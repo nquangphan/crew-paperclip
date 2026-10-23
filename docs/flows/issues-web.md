@@ -45,7 +45,17 @@ Luật chính:
 4. `packages/crew-web/src/features/issues/detail/crew/gate-actions.ts` → `gateActionsFor`, `awaitingMyApproval`: tính
    nút Duyệt, Yêu cầu sửa, Hủy theo stage đang chờ; `actions-slot.tsx` gửi PATCH và làm mới mọi dữ liệu bị đổi. Trước khi gửi
    Duyệt / Yêu cầu sửa kèm lời nhắn, Jev đọc lời nhắn với hạn cứng 1500 ms và chỉ hỏi lại một lần khi lệch ý (flow
-   `jev`); lỗi hay quá hạn thì gửi như cũ.
+ `jev`); lỗi hay quá hạn thì gửi như cũ. Phần gửi (đọc lại issue, chặn khi owner không còn là người duyệt) nằm ở
+   `useGateMutation`, dùng chung với thẻ câu hỏi ở bước 4b.
+4b. `packages/crew-web/src/features/issues/detail/crew/interactions-slot.tsx` → `InteractionsSlot`: thẻ
+   `ask_user_questions` / xác nhận đang chờ thì hiện thẻ đó (`InteractionCard`). Không có thẻ nào đang chờ thì
+   `comment-questions.ts` → `pendingQuestions` tìm điểm cần owner chốt agent viết theo mẫu `Q1.` + `a)`, `b)` (mỗi
+   lựa chọn một dòng hoặc gọn trên một dòng, `Đề xuất` thành dòng gợi ý), trong bình luận agent mới nhất hoặc trong mục
+   `### Cần owner quyết định` của tổng kết ở mô tả (gắn với bình luận `crew-assistant done`). Bỏ qua khi đã có bình
+   luận của người sau đó, hoặc có thẻ tạo từ 10 phút trước đó trở về sau. `CommentQuestionsCard` dựng thẻ chọn:
+   đang chờ owner duyệt thì lựa chọn đi kèm Duyệt hoặc Yêu cầu sửa (bình luận thường lúc đó không đánh thức ai); ngoài
+   ra gửi một bình luận `- Qn: <lựa chọn>`, và chỉ dựng thẻ khi người hỏi là agent đang giữ issue (bình luận chỉ đánh
+   thức agent đó). Nút lựa chọn xuống dòng trong nút, không tràn sang cột bên.
 5. `packages/crew-web/src/features/issues/detail/crew/force-done-dialog.tsx` → `ForceDoneAction` và `force-done.ts`:
    hộp Ép Done (lý do, chọn việc con cần hủy), thứ tự hủy run, gọi route, rồi hủy con.
 6. `packages/crew-plugin/src/issues/force-done.ts` → `handleIssuesApi`: kiểm board, body, lý do; `ctx.issues.update`
@@ -76,7 +86,8 @@ Luật chính:
 | `packages/crew-web/src/features/issues/detail/crew/gate-actions.ts` | Luật nút cổng | `gateActionsFor`, `awaitingMyApproval`, `MIN_CHANGE_REASON` |
 | `packages/crew-web/src/features/issues/detail/crew/actions-slot.tsx`, `gate-dialogs.tsx` | Nút và hộp cổng | `ActionsSlot`, `CommentDialog` |
 | `packages/crew-web/src/features/issues/detail/crew/force-done.ts`, `force-done-dialog.tsx` | Ép Done phía web | `ForceDoneAction`, `MIN_FORCE_REASON` |
-| `packages/crew-web/src/features/issues/detail/crew/interaction-card.tsx`, `interactions-slot.tsx` | Câu hỏi và xác nhận của Trợ Lý | `InteractionCard`, `InteractionsSlot` |
+| `packages/crew-web/src/features/issues/detail/crew/interaction-card.tsx`, `interactions-slot.tsx` | Câu hỏi và xác nhận của Trợ Lý, thẻ chọn dựng từ bình luận/tổng kết | `InteractionCard`, `CommentQuestionsCard`, `InteractionsSlot` |
+| `packages/crew-web/src/features/issues/detail/crew/comment-questions.ts` | Đọc điểm `Q1.` + `a)`/`b)` agent viết, chọn điểm chưa ai trả lời, soạn lời trả lời | `parseCommentQuestions`, `summaryQuestions`, `pendingQuestions`, `commentAnswerBody` |
 | `packages/crew-web/src/features/issues/detail/crew/summary-slot.tsx` | Tóm tắt Crew, bản đồ, kiểm docs | `SummarySlot` |
 | `packages/crew-web/src/features/issues/detail/crew/runtime-slot.tsx` | Quyết định chọn runtime | `RuntimeSlot` |
 | `packages/crew-web/src/features/issues/detail/history-format.ts`, `history.tsx` | Khối Lịch sử | `History`, `FORCE_DONE_ACTION`, `BOARD_OVERRIDE_ACTION` |
@@ -112,6 +123,9 @@ Luật chính:
   `kind-labels.test.tsx`, `add-child.test.ts`, `add-child-dialog.test.tsx`: tạo yêu cầu, nhãn loại, thêm việc con.
 - `packages/crew-web/test/features/issues/gate-actions.test.ts`, `gate-actions.test.tsx`: nút cổng chỉ cho người tham gia
   stage đang chờ, body gửi đi.
+- `packages/crew-web/test/features/issues/comment-questions.test.ts`, `interaction-card.test.tsx`: đọc câu hỏi theo các
+  kiểu agent viết, bỏ bình luận nhắc lại lựa chọn đã chốt, thẻ dựng từ bình luận/tổng kết gửi bình luận hoặc Duyệt /
+  Yêu cầu sửa kèm lựa chọn.
 - `packages/crew-web/test/features/issues/force-done.test.ts`, `force-done-dialog.test.tsx`, `history.test.tsx`,
   `history-format.test.ts`: Ép Done và dòng lịch sử gộp.
 - `packages/crew-web/test/features/issues/` (còn lại): bình luận, ô soạn, đính kèm, câu hỏi Trợ Lý, thuộc tính, runtime,

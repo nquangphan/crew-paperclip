@@ -660,6 +660,7 @@ flows:
       - packages/crew-web/src/features/issues/detail/comments.tsx
       - packages/crew-web/src/features/issues/detail/composer.tsx
       - packages/crew-web/src/features/issues/detail/crew/actions-slot.tsx
+      - packages/crew-web/src/features/issues/detail/crew/comment-questions.ts
       - packages/crew-web/src/features/issues/detail/crew/force-done-dialog.tsx
       - packages/crew-web/src/features/issues/detail/crew/force-done.ts
       - packages/crew-web/src/features/issues/detail/crew/gate-actions.ts
@@ -700,6 +701,7 @@ flows:
       - packages/crew-web/test/features/issues/add-child.test.ts
       - packages/crew-web/test/features/issues/attachment-viewer.test.tsx
       - packages/crew-web/test/features/issues/attachments.test.tsx
+      - packages/crew-web/test/features/issues/comment-questions.test.ts
       - packages/crew-web/test/features/issues/comment-thread.test.ts
       - packages/crew-web/test/features/issues/comments.test.tsx
       - packages/crew-web/test/features/issues/composer.test.tsx
@@ -913,6 +915,7 @@ flows:
       - packages/crew-web/src/ds/components/button.tsx
       - packages/crew-web/src/ds/components/card.tsx
       - packages/crew-web/src/ds/components/checkbox.tsx
+      - packages/crew-web/src/ds/components/choice-button.tsx
       - packages/crew-web/src/ds/components/collapsible.tsx
       - packages/crew-web/src/ds/components/command.tsx
       - packages/crew-web/src/ds/components/dialog.tsx

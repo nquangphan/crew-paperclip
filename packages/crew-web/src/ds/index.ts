@@ -10,6 +10,7 @@ export * from './components/breadcrumb';
 export * from './components/button';
 export * from './components/card';
 export * from './components/checkbox';
+export * from './components/choice-button';
 export * from './components/collapsible';
 export * from './components/command';
 export * from './components/dialog';

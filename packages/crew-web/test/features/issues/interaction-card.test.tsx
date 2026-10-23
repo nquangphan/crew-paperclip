@@ -60,6 +60,8 @@ const CHECKBOX = {
 };
 
 const posts = (s: ReturnType<typeof mockServer>) => s.calls.filter((c) => c.method === 'POST');
+const loaded = (s: ReturnType<typeof mockServer>) =>
+  ['/api/issues/i1/interactions', '/api/issues/i1/comments'].every((u) => s.calls.some((c) => c.url.startsWith(u)));
 
 describe('InteractionsSlot (S6.9)', () => {
   it('chỉ hiện thẻ đang chờ', async () => {
@@ -209,9 +211,126 @@ describe('InteractionsSlot (S6.9)', () => {
   });
 
   it('không có thẻ đang chờ thì không render gì', async () => {
-    const s = mockServer({ 'GET /api/issues/i1/interactions': { body: [] } });
+    const s = mockServer({
+      'GET /api/issues/i1/interactions': { body: [] },
+      'GET /api/issues/i1/comments': { body: [] },
+    });
     const { container } = mount(<InteractionsSlot issue={ISSUE as never} />);
-    await waitFor(() => expect(s.calls.length).toBe(1));
+    await waitFor(() => expect(loaded(s)).toBe(true));
+    expect(container.textContent).toBe('');
+  });
+});
+
+// Agent viết điểm cần owner chốt trong bình luận (không tạo thẻ): trang dựng thẻ chọn từ bình luận đó.
+const WORKING = { ...ISSUE, status: 'in_progress', assigneeAgentId: 'ag1', executionState: null };
+const ASK_COMMENT = {
+  id: 'cm1',
+  companyId: 'c1',
+  issueId: 'i1',
+  authorType: 'agent',
+  authorAgentId: 'ag1',
+  authorUserId: null,
+  createdAt: '2026-10-10T02:00:00.000Z',
+  body: 'Tổng kết.\n\n### Cần owner quyết định\nQ1. Làm ở project nào?\n- a) Project 2.0 — crew 2.0 làm\n- b) Project này — không khả thi\n- Đề xuất: a — đúng repo',
+};
+
+describe('InteractionsSlot: câu hỏi trong bình luận', () => {
+  it('dựng thẻ từ bình luận của agent đang giữ issue, gửi trả lời thành bình luận Qn', async () => {
+    const s = mockServer({
+      'GET /api/issues/i1/interactions': { body: [] },
+      'GET /api/issues/i1/comments': { body: [ASK_COMMENT] },
+      'POST /api/issues/i1/comments': { body: { ...ASK_COMMENT, id: 'cm2' } },
+    });
+    mount(<InteractionsSlot issue={WORKING as never} agentNames={{ ag1: 'kidy-school-assistant' }} />);
+    const card = await screen.findByTestId('comment-questions-card');
+    expect(within(card).getByText('kidy-school-assistant cần chốt')).toBeTruthy();
+    expect(within(card).getByText('Đề xuất: a — đúng repo')).toBeTruthy();
+    fireEvent.click(within(card).getByRole('button', { name: 'a) Project 2.0 — crew 2.0 làm' }));
+    fireEvent.click(within(card).getByRole('button', { name: 'Gửi trả lời' }));
+    await waitFor(() => expect(posts(s)).toHaveLength(1));
+    expect(posts(s)[0].url).toBe('/api/issues/i1/comments');
+    expect(posts(s)[0].body).toEqual({ body: 'Trả lời câu hỏi:\n- Q1: a) Project 2.0 — crew 2.0 làm' });
+  });
+
+  it('bình luận của agent khác người đang giữ issue thì không dựng thẻ (trả lời không tới được người hỏi)', async () => {
+    const s = mockServer({
+      'GET /api/issues/i1/interactions': { body: [] },
+      'GET /api/issues/i1/comments': { body: [ASK_COMMENT] },
+    });
+    const { container } = mount(<InteractionsSlot issue={{ ...WORKING, assigneeAgentId: 'a9' } as never} />);
+    await waitFor(() => expect(loaded(s)).toBe(true));
+    await new Promise((r) => setTimeout(r, 20));
+    expect(container.textContent).toBe('');
+  });
+
+  it('chờ owner duyệt: câu hỏi trong tổng kết đi kèm Duyệt (PATCH done + comment)', async () => {
+    const summary =
+      'Yêu cầu.\n\n## Tổng kết của Trợ Lý\n\n### Cần owner quyết định\nQ1. Làm code luôn không?\n- a) Tạo yêu cầu code mới\n- b) Dừng ở mockup\n- Đề xuất: a — đủ đặc tả';
+    const done = { ...ASK_COMMENT, body: 'crew-assistant done children=TPS-3\nTrợ Lý: mọi issue con đã qua review.' };
+    const root = { ...ISSUE, description: summary, assigneeAgentId: null, assigneeUserId: 'u1' };
+    const s = mockServer({
+      'GET /api/issues/i1/interactions': { body: [] },
+      'GET /api/issues/i1/comments': { body: [done] },
+      'GET /api/issues/i1': { body: root },
+      'PATCH /api/issues/i1': { body: { ...root, status: 'done' } },
+    });
+    mount(<InteractionsSlot issue={root as never} />);
+    const card = await screen.findByTestId('comment-questions-card');
+    expect(within(card).queryByRole('button', { name: 'Gửi trả lời' })).toBeNull();
+    fireEvent.click(within(card).getByRole('button', { name: 'b) Dừng ở mockup' }));
+    fireEvent.click(within(card).getByRole('button', { name: 'Duyệt kèm trả lời' }));
+    await waitFor(() => expect(s.calls.filter((c) => c.method === 'PATCH')).toHaveLength(1));
+    expect(s.calls.find((c) => c.method === 'PATCH')?.body).toEqual({
+      status: 'done',
+      comment: 'Trả lời câu hỏi:\n- Q1: b) Dừng ở mockup',
+    });
+  });
+
+  it('chờ owner duyệt: Yêu cầu sửa theo trả lời gửi status in_progress', async () => {
+    const s = mockServer({
+      'GET /api/issues/i1/interactions': { body: [] },
+      'GET /api/issues/i1/comments': { body: [ASK_COMMENT] },
+      'GET /api/issues/i1': { body: ISSUE },
+      'PATCH /api/issues/i1': { body: { ...ISSUE, status: 'in_progress' } },
+    });
+    mount(<InteractionsSlot issue={ISSUE as never} />);
+    const card = await screen.findByTestId('comment-questions-card');
+    fireEvent.click(within(card).getByRole('button', { name: 'a) Project 2.0 — crew 2.0 làm' }));
+    fireEvent.click(within(card).getByRole('button', { name: 'Yêu cầu sửa theo trả lời' }));
+    await waitFor(() => expect(s.calls.filter((c) => c.method === 'PATCH')).toHaveLength(1));
+    expect(s.calls.find((c) => c.method === 'PATCH')?.body).toEqual({
+      status: 'in_progress',
+      comment: 'Trả lời câu hỏi:\n- Q1: a) Project 2.0 — crew 2.0 làm',
+    });
+  });
+
+  it('có thẻ câu hỏi thật đang chờ thì chỉ hiện thẻ đó', async () => {
+    mockServer({
+      'GET /api/issues/i1/interactions': { body: [QUESTION] },
+      'GET /api/issues/i1/comments': { body: [ASK_COMMENT] },
+    });
+    mount(<InteractionsSlot issue={ISSUE as never} />);
+    expect(await screen.findByTestId('interaction-card')).toBeTruthy();
+    expect(screen.queryByTestId('comment-questions-card')).toBeNull();
+  });
+
+  it('owner đã bình luận sau câu hỏi thì không dựng thẻ', async () => {
+    const reply = {
+      ...ASK_COMMENT,
+      id: 'cm2',
+      authorType: 'user',
+      authorAgentId: null,
+      authorUserId: 'u1',
+      body: 'Q1: a',
+      createdAt: '2026-10-10T03:00:00.000Z',
+    };
+    const s = mockServer({
+      'GET /api/issues/i1/interactions': { body: [] },
+      'GET /api/issues/i1/comments': { body: [ASK_COMMENT, reply] },
+    });
+    const { container } = mount(<InteractionsSlot issue={ISSUE as never} />);
+    await waitFor(() => expect(loaded(s)).toBe(true));
+    await new Promise((r) => setTimeout(r, 20));
     expect(container.textContent).toBe('');
   });
 });

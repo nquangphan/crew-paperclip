@@ -232,6 +232,8 @@ Một yêu cầu nhỏ thường xong trong 15 đến 30 phút.
 
 Yêu cầu chưa rõ thì Trợ Lý đặt một **thẻ câu hỏi** ngay trong yêu cầu ("Trợ Lý cần hỏi"), có sẵn lựa chọn và ô **Khác**. Yêu cầu chuyển **Bị chặn** trong lúc chờ. Chọn đáp án rồi bấm **Gửi trả lời**, Trợ Lý chạy tiếp. Thẻ "Trợ Lý cần xác nhận" có hai nút **Đồng ý** và **Từ chối** (nên ghi lý do khi từ chối).
 
+Agent viết điểm cần bạn chốt trong bình luận hay trong tổng kết (dạng `Q1.` kèm các lựa chọn `a)`, `b)`) mà không đặt thẻ thì trang tự dựng thẻ chọn từ đó ("<agent> cần chốt"). Bình thường **Gửi trả lời** đăng một bình luận ghi lựa chọn (`- Q1: a) …`) và agent đang làm chạy tiếp. Lúc yêu cầu đang chờ bạn duyệt, thẻ có **Duyệt kèm trả lời** và **Yêu cầu sửa theo trả lời**: lựa chọn đi kèm quyết định đó. Bạn trả lời bằng bình luận thì thẻ tự ẩn.
+
 Bạn sửa được tiêu đề, mô tả, viết bình luận và đính kèm file. Bấm file đính kèm (cả link file trong mô tả, bình luận) để xem ngay trong trang, không mở tab mới: ảnh xem lớn và chuyển ảnh bằng nút hoặc phím mũi tên, PDF, markdown, code và mockup HTML hiện sẵn; file khác có nút **Tải về**. Ô viết bình luận nằm ngay trên luồng trao đổi, bình luận mới nhất ở trên cùng. Ảnh trong mô tả và bình luận (file đính kèm, ảnh PNG/JPEG/GIF/WebP nhúng base64) hiện vừa khung, bấm để xem lớn; ảnh SVG hay loại nhúng khác bị chặn và chỉ hiện tên kèm ghi chú "ảnh bị chặn", ảnh ở trang web khác hiện thành link. Run đang chạy có nút **Dừng run** (có hộp xác nhận).
 {{/roles}}
 {{roles:owner}}
