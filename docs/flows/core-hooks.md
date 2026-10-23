@@ -71,6 +71,7 @@ import cuối file để merge upstream ít conflict), mô tả lý do và `upst
 - `adapter-patches`: vá P2–P7, P9.
 - `run-handoff`: vá C10–C14.
 - `contributions`: vá C7.
+- `docs-snapshot`: vá C15 (parser JSON 16 MB cho webhook `docs-snapshot`).
 - `ops-deploy`: build image từ cây đã qua `verify.sh`.
 
 ## Tests
