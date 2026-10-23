@@ -31,7 +31,9 @@ fallback) dựa vào kho git dùng chung trên một máy. Owner chọn máy lú
   503 `crew_machine_unavailable`; body `machineId` sai thì 400 `crew_machine_invalid`.
 - Ba route dọn/dựng máy khác, cùng router, chỉ owner bằng phiên trình duyệt hoặc board API key của owner (app 2P Crew gọi
   bằng board key); không phải owner thì 403 `crew_machine_forbidden`, body sai thì 400 `crew_machine_invalid`; `agentIds`
-  có id không thuộc vai trò của project (`scopeReleaseAgents`) hay quá 20 id thì 422 `crew_machine_invalid`, không làm gì:
+  có id không nằm trong dòng `crew_project_roles` của project (`scopeReleaseAgents`) hay quá 20 id thì 422
+  `crew_machine_invalid`, không làm gì; id trong dòng vai trò mà ngoài `projectLayout` (terminated, không có environment
+  SSH, checkout lạ) vẫn hợp lệ:
 
 | Method, đường | Body | Trả |
 |---|---|---|
@@ -56,7 +58,8 @@ fallback) dựa vào kho git dùng chung trên một máy. Owner chọn máy lú
    environment mặc định cùng host, không thì environment có `metadata.crewAgentId`), environment theo ghim
    (`resolvePinnedEnvironment`) và ứng viên chọn máy (`loadMachineCandidates`).
 3. `server/src/crew/machine-provision.ts`: origin và repo đi kèm của project (`project_repos`; `writeProjectRepo` từ chối
-   origin `https` có userinfo), bố cục project (`projectLayout`: khóa project và tên thư mục checkout của từng agent vai
+   origin mang credential, `originHasCredential`: userinfo của `http(s)://`, mật khẩu `user:…@` của mọi scheme kể cả
+   `ssh://`; `ssh://git@host/…` và `git@host:…` hợp lệ), agent trong dòng vai trò (`projectRoleAgentIds`), bố cục project (`projectLayout`: khóa project và tên thư mục checkout của từng agent vai
    trò, đọc từ environment mặc định), `projectProvisionable` (có repo và ít nhất một checkout vai trò, cờ `provisionable`
    của bước 1), `startProvisioning` đặt `project_machines` sang `provisioning` và xếp đúng một việc `ensure-project`
    (`ensureProjectPayload`, nhánh agent `agent/<khóa>-<tên>`), `reconcileProjectMachine` đọc kết quả việc: xong thì
@@ -65,7 +68,10 @@ fallback) dựa vào kho git dùng chung trên một máy. Owner chọn máy lú
    `ready` (thiếu checkout của agent không có trong việc, tức agent thêm sau, thì xếp việc lại; thiếu checkout đã yêu cầu
    hay không tạo được environment thì `failed` nêu lý do, giữ environment đã tạo); lỗi hay bị hủy thì `failed`; việc còn chờ thì giữ
    `provisioning` (máy tắt: việc nằm trong hàng đợi). Environment cùng tên của chính agent, kể cả đã archive, được bật lại
-   chứ không tạo bản mới; không bao giờ xóa environment.
+   chứ không tạo bản mới. Tên theo ô nên thay agent của ô để lại environment `@máy` cùng tên của agent cũ: environment đó
+   đã archive và agent cũ không còn trong dòng vai trò (cùng company, hay đã bị xóa) thì agent mới nhận lại (`active`,
+   `crewAgentId` mới, cấu hình và secret binding mới); còn active, hay của agent vai trò hiện tại, hay của company khác thì
+   `failed`. Không bao giờ xóa environment.
 4. `server/src/crew/machine-gate.ts` → `evaluateMachineGate` (cổng claim, xem flow `run-claim`):
    - không có issue, bảng chưa có hay project chưa có máy nào trong `project_machines`: `pass` với `null` (hành vi stock);
    - cây chưa ghim: `chooseMachine` (cờ `provisionable` từ `projectProvisionable`) rồi ghim `auto`, activity
@@ -90,7 +96,7 @@ fallback) dựa vào kho git dùng chung trên một máy. Owner chọn máy lú
      `setOwnerPin`.
    - `POST …/projects/:projectId/machines`: chỉ owner, `startProvisioning` rồi 202.
    - `PUT …/projects/:projectId/repo`: chỉ owner; `projectRepoSchema` kiểm đúng luật của việc `ensure-project` (origin ≤ 500
-     ký tự, không ký tự điều khiển, khớp mẫu origin, `https` không có userinfo; nhánh không bắt đầu `-`; 0–5 repo đi kèm, tên
+     ký tự, không ký tự điều khiển, khớp mẫu origin, không credential như `writeProjectRepo`; nhánh không bắt đầu `-`; 0–5 repo đi kèm, tên
      khác `repo`, không trùng nhau) và tên repo đi kèm không trùng thư mục checkout vai trò của project (`projectLayout`);
      sai thì 422 `crew_machine_invalid`, đúng thì `writeProjectRepo`.
    - `GET …/projects/:projectId/machines`: trước khi trả, `reconcileProjectMachine` mọi dòng `provisioning` để trang project
@@ -99,9 +105,13 @@ fallback) dựa vào kho git dùng chung trên một máy. Owner chọn máy lú
    web gỡ project/agent, app 2P Crew gỡ project) hỏi `…/machines/blockers` trước khi pause và gọi `…/machines/release` sau
    khi archive environment mặc định; mọi đường thêm (wizard thêm project/agent, app thêm project) gọi
    `…/machines/provision` sau khi máy chính xong, lỗi không làm hỏng wizard. Luật:
-   - Chỉ agent của chính project: mọi id trong `agentIds` phải là agent vai trò của project (`projectLayout`), nên đường
-     gỡ gọi `release` trước khi xóa vai trò; có id lạ (kể cả agent project khác cùng company) thì từ chối cả lệnh. Khóa
-     project và tên checkout lấy từ `projectLayout`.
+   - Chỉ agent của chính project: mọi id trong `agentIds` phải nằm trong dòng `crew_project_roles` của project
+     (`projectRoleAgentIds`), nên đường gỡ gọi `release` trước khi xóa vai trò; có id lạ (kể cả agent project khác cùng
+     company) thì từ chối cả lệnh. Khóa project và tên checkout lấy từ `projectLayout`; agent trong dòng vai trò mà ngoài
+     bố cục (terminated, không có environment SSH, checkout lạ) không có checkout để gỡ, chỉ environment `@máy` còn active
+     của nó bị archive, nên gỡ không kẹt 422 mãi. Bên gọi chỉ gửi id đang trong dòng vai trò: wizard gỡ project đọc lại dòng
+     vai trò mỗi lần chạy (refs của lần trước có thể còn agent đã thay), wizard gỡ agent chỉ hỏi chặn và dọn khi agent còn
+     giữ ô, app gỡ project lọc id trong tiến độ theo dòng vai trò.
    - Không làm gãy cây đang chạy: `machineReleaseBlockers` tìm cây của project đã ghim máy còn run `queued`/`running`
      (của agent trong phạm vi gỡ; gỡ cả project hay thiếu `agentIds` thì của mọi agent); `releaseProjectMachines` kiểm lại
      và trả 409 kèm danh sách, không archive gì.
@@ -119,10 +129,13 @@ fallback) dựa vào kho git dùng chung trên một máy. Owner chọn máy lú
 7. Chuyển dữ liệu cũ (`crew/ops/backfill-machines.sql`): chạy một lần lúc rollout, sau khi plugin áp migration `0022`
    và mọi máy đang chạy project đã ghép; lệnh `psql` nằm ở đầu file, kèm khối SELECT xem trước (để dạng comment).
    Script nằm ở ops vì plugin không đọc được bảng lõi `environments`. Trong một transaction:
-   - mỗi project có bảng vai trò được gắn `ready` với mọi máy đã ghép có `tailscale_ip` trùng host environment mặc định
-     (SSH) của một agent vai trò còn hoạt động; host không khớp máy đã ghép nào thì bỏ qua;
+   - mỗi project có bảng vai trò được gắn `ready` với máy đã ghép chỉ khi environment mặc định (SSH) của mọi agent vai
+     trò chưa terminated đều trỏ `tailscale_ip` của máy đó (cùng luật máy chính `markPrimaryReady`); project có agent chia
+     hai máy, có agent không có environment SSH, hay host không khớp máy đã ghép nào thì không được gắn máy nào (máy `ready`
+     phải có đủ environment của mọi vai trò). Trước khi chạy, xem khối 1 (host của từng project) và khối 1b (`tailscale_ip`
+     trùng giữa hai máy đã ghép, phải rỗng);
    - mỗi cây đang mở (issue gốc chưa `done`/`cancelled`) được ghim `auto`, `reason` `{"backfill": true}`, vào máy của
-     người nhận issue gốc, không có thì máy của Trợ Lý; máy đó phải đã gắn với project ở bước trên, không thì cây không
+     người nhận issue gốc, không có thì máy của Trợ Lý; máy đó phải đã gắn `ready` với project ở bước trên, không thì cây không
      được ghim và cổng claim tự chọn máy ở run kế tiếp. Nhờ vậy cây chạy dở lúc deploy không đổi máy;
    - chạy lại không đổi gì (`ON CONFLICT DO NOTHING`), ghim có sẵn (kể cả của owner) giữ nguyên, không xóa dòng nào.
 
@@ -135,7 +148,7 @@ fallback) dựa vào kho git dùng chung trên một máy. Owner chọn máy lú
 | `server/src/crew/machine-pin.ts` | Truy vấn ghim máy, máy đã ghép, environment theo máy, ứng viên | `findRootIssueId`, `treeStarted`, `readPin`, `insertAutoPin`, `setOwnerPin`, `pairedMachines`, `machineOfHost`, `agentEnvironmentOnMachine`, `resolvePinnedEnvironment`, `crewResolveRunEnvironment`, `loadMachineCandidates` |
 | `server/src/crew/machine-routes.ts` | Route máy cho form yêu cầu và trang project | `crewMachineRoutes`, `MACHINE_ERRORS`, `projectRepoSchema`, `ORIGIN_RE` |
 | `server/src/crew/machine-release.ts` | Dọn environment và checkout ở máy khác khi gỡ, dựng sẵn project ở máy khác khi thêm | `machineReleaseBlockers`, `releaseProjectMachines`, `scopeReleaseAgents`, `ReleaseOutcome`, `provisionOtherMachines`, `ReleaseBlocker`, `ReleaseResult`, `ProvisionOthersResult` |
-| `server/src/crew/machine-provision.ts` | Repo của project, xếp việc `ensure-project`, đối chiếu kết quả, tạo environment theo máy | `readProjectRepo`, `writeProjectRepo`, `projectLayout`, `projectProvisionable`, `ensureProjectPayload`, `startProvisioning`, `reconcileProjectMachine`, `listProjectMachines`, `machineEnvironmentName`, `createMachineEnvironment`, `PROVISION_TIMEOUT_MS`, `CHECKOUT_RE` |
+| `server/src/crew/machine-provision.ts` | Repo của project, xếp việc `ensure-project`, đối chiếu kết quả, tạo environment theo máy | `readProjectRepo`, `writeProjectRepo`, `originHasCredential`, `projectRoleAgentIds`, `projectLayout`, `projectProvisionable`, `ensureProjectPayload`, `startProvisioning`, `reconcileProjectMachine`, `listProjectMachines`, `machineEnvironmentName`, `createMachineEnvironment`, `PROVISION_TIMEOUT_MS`, `CHECKOUT_RE` |
 | `crew/ops/backfill-machines.sql` | Chuyển dữ liệu cũ lúc rollout: gắn project với máy đang chạy nó, ghim cây đang mở | — |
 
 ## Dữ liệu
@@ -162,7 +175,10 @@ lần mỗi run).
   chưa có repo, xếp đúng một việc, việc xong tạo environment đúng host/secret/checkout rồi `ready` và gọi lại không tạo
   thêm, việc lỗi thì `failed`, việc chờ lâu vẫn `provisioning`, thiếu checkout của agent thêm sau thì xếp việc lại,
   thiếu checkout đã yêu cầu thì `failed` không xếp việc, environment mẫu không active thì `failed` và gọi lại không ném,
-  bật lại environment đã archive, `projectProvisionable`, từ chối origin có userinfo.
+  bật lại environment đã archive, thay agent của ô thì agent mới nhận lại environment `@máy` đã archive của agent cũ và máy
+  `ready`, environment cùng tên còn active/của agent vai trò hiện tại/của company khác thì `failed` và không đổi chủ,
+  `projectProvisionable`, từ chối origin có userinfo `https` hay mật khẩu `ssh://user:…@` (kể cả repo đi kèm), nhận
+  `ssh://git@…`.
 - `server/src/__tests__/crew-machine-gate.db.test.ts` (Postgres nhúng): project chưa quản lý máy thì stock, ghim auto
   máy `ready`, ghim máy chưa dựng rồi giữ run tới khi dựng xong, project chưa có repo thì không ghim máy chưa dựng và
   không chặn issue, dựng hỏng thì `fail` (qua cổng claim: hủy run, issue `blocked`), chờ quá 60 phút thì `fail` mà việc
@@ -177,14 +193,19 @@ lần mỗi run).
   ghim của cây, rồi theo host của environment (hai Mac cùng đường checkout), host chưa ghép thì giữ luật đường dẫn cũ.
 - `server/src/__tests__/crew-machine-routes.db.test.ts` (Postgres nhúng): danh sách máy cho form, ghim chỉ owner/chỉ issue
   gốc/máy phải ghép, máy chưa dựng mà project chưa có repo thì 409 không ghim, luật repo (422 `crew_machine_invalid`, tên
-  repo đi kèm trùng checkout vai trò), owner chọn máy chưa dựng thì ghim và trang project thấy `provisioning`, cây có lease
+  repo đi kèm trùng checkout vai trò, mật khẩu trong `ssh://`, nhận `ssh://git@…`), owner chọn máy chưa dựng thì ghim và trang project thấy `provisioning`, cây có lease
   thì 409 `crew_machine_locked`, thêm máy ở trang project (403, 422 máy chưa ghép, 202).
 - `server/src/__tests__/crew-machine-release.db.test.ts` (Postgres nhúng): cây ghim còn run thì từ chối gỡ và không archive,
-  agent không thuộc vai trò của project (project khác cùng company) thì không archive, không xếp việc, gỡ A rồi B gộp
+  agent không thuộc vai trò của project (project khác cùng company) thì không archive, không xếp việc, agent trong dòng
+  vai trò mà ngoài bố cục (terminated, không có environment SSH) vẫn được nhận và chỉ bỏ checkout của nó, project không
+  còn agent nào trong bố cục thì gỡ cả project vẫn chạy, gỡ A rồi B gộp
   vai trò vào việc `queued` còn việc `claimed` thì xếp việc mới, gỡ một agent archive environment máy khác (không xóa) và xếp `remove-checkouts` đúng tên checkout, gỡ cả project xóa dòng
   máy và gọi lại không xếp thêm, dựng sẵn máy khác (ghi repo khi chưa có, bỏ máy `provisioning`/`ready` trừ
   `includeReady`), máy chính được ghi `ready`, chưa có repo thì `skipped`; route: owner bằng board key, viewer 403,
-  `blockers` thiếu `agentIds` là cả project, `release` bận 409, agent project khác hay quá 20 id thì 422, origin có userinfo 400.
+  `blockers` thiếu `agentIds` là cả project, `blockers` của agent terminated trong dòng vai trò 200, `release` bận 409,
+  agent project khác hay quá 20 id thì 422, origin có userinfo 400.
 - `server/src/__tests__/crew-machine-backfill.db.test.ts` (Postgres nhúng): chạy script hai lần; project gắn đúng máy
-  đang chạy agent vai trò (một máy, hai máy), cây mở ghim theo máy của người nhận gốc rồi Trợ Lý, cây `done`/`cancelled`
-  và issue con không ghim, host chưa ghép thì không gắn không ghim, ghim của owner giữ nguyên.
+  chứa mọi agent vai trò, project chia hai máy hay có agent không có environment SSH thì không gắn máy nào và không ghim
+  auto, agent terminated ở máy khác không tính, cây mở ghim theo máy của người nhận gốc rồi Trợ Lý, cây
+  `done`/`cancelled` và issue con không ghim, host chưa ghép thì không gắn không ghim, ghim của owner giữ nguyên, các
+  khối SELECT xem trước chạy được.
