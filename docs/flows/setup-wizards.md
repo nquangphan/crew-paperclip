@@ -54,8 +54,8 @@ Luật chính:
 5. `packages/crew-web/src/features/wizards/remove/remove-project.ts` → `runRemoveProject`; `remove/remove-agent.ts` →
    `runRemoveAgent`: pause, ghi hay xóa vai trò, archive environment riêng (`exclusiveEnvironments`), gỡ checkout; checkout
    còn việc chưa commit được máy giữ lại và báo (`keptCheckouts`). `assertNoMachineBlockers` kiểm cây ghim còn run trước
-   khi pause (project) hay đổi vai trò (agent); `releaseOtherMachines` dọn máy khác sau khi archive environment (server
-   cũ trả 404/503 thì bỏ qua).
+   khi pause (project) hay đổi vai trò (agent); `releaseOtherMachines` dọn máy khác khi agent còn giữ vai trò (cuối bước pause
+   của project; trước khi ghi vai trò mới của agent), server cũ trả 404/503 thì bỏ qua.
 6. `packages/crew-web/src/features/wizards/setup-progress.tsx` → `SetupProgress`: khung tiến độ dùng chung, "Chạy tiếp",
    báo người khác đang chạy, "Bỏ lần dở".
 7. `packages/crew-web/src/features/wizards/machine-host.ts` → `machineHost`, `projectMachine`: suy host SSH và máy của

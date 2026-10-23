@@ -125,6 +125,8 @@ describe('runRemoveProject', () => {
       agent_integrator: ID.integrator,
       paused_assistant: ID.assistant,
       paused_executor: ID.executor,
+      otherEnvironments: '0',
+      otherMachines: '0',
     });
 
     // Environment reviewer dùng chung với agent ngoài project: giữ. Environment mẫu không bị chạm.
@@ -134,8 +136,6 @@ describe('runRemoveProject', () => {
       environment_assistant: 'env-assistant',
       environment_executor: 'env-executor',
       environment_integrator: 'env-integrator',
-      otherEnvironments: '0',
-      otherMachines: '0',
     });
     expect(f.state.environments.find((e) => e.id === 'env-template')?.status).toBe('active');
 
@@ -311,21 +311,23 @@ describe('runRemoveProject', () => {
     expect(f.names()).not.toContain('agents.pause');
   });
 
-  it('bước environments nhờ server dọn máy khác: cả project, loại máy chính, ghi số vào refs', async () => {
+  it('bước pause-agents nhờ server dọn máy khác: cả project, loại máy chính, ghi số vào refs', async () => {
     const f = setup();
     f.state.machineRelease = { archivedEnvironmentIds: ['e-mini-1', 'e-mini-2'], jobs: [{ machineId: 'm2', jobId: 'j9' }] };
     const run = await runRemoveProject(ctxOf(f.api), removeRun());
     expect(run.status).toBe('done');
     const call = f.calls.find((c) => c.fn === 'machinePins.release');
     expect(call?.args[2]).toEqual({
-      agentIds: [ID.assistant, ID.executor, ID.reviewer, ID.integrator],
+      agentIds: [ID.assistant, ID.executor, ID.reviewer],
       wholeProject: true,
       primaryMachineId: 'm1',
     });
-    expect(run.steps.environments?.refs).toMatchObject({ otherEnvironments: '2', otherMachines: '1' });
+    expect(run.steps['pause-agents']?.refs).toMatchObject({ otherEnvironments: '2', otherMachines: '1' });
+    // Dọn máy khác xong trước khi dòng vai trò bị xóa.
+    expect(f.names().indexOf('machinePins.release')).toBeLessThan(f.names().indexOf('roles.remove'));
   });
 
-  it('server bận lúc dọn (409): bước environments failed kèm danh sách; server cũ (404) thì bỏ qua', async () => {
+  it('server bận lúc dọn (409): bước pause-agents failed kèm danh sách; server cũ (404) thì bỏ qua', async () => {
     const f = setup();
     f.failOn(
       'machinePins.release',
@@ -335,8 +337,8 @@ describe('runRemoveProject', () => {
       }),
     );
     const run = await runRemoveProject(ctxOf(f.api), removeRun());
-    expect(run.steps.environments?.status).toBe('failed');
-    expect(run.steps.environments?.error).toContain('TPS-9 (Phans-Mac-mini)');
+    expect(run.steps['pause-agents']?.status).toBe('failed');
+    expect(run.steps['pause-agents']?.error).toContain('TPS-9 (Phans-Mac-mini)');
     const old = setup();
     old.failOn('machinePins.blockers', 1, new ApiError(404, 'không có'));
     old.failOn('machinePins.release', 1, new ApiError(404, 'không có'));

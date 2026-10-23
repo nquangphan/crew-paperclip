@@ -206,6 +206,7 @@ describe('runRemoveAgent', () => {
       wholeProject: false,
       primaryMachineId: 'm1',
     });
+    expect(g.names().indexOf('machinePins.release')).toBeLessThan(g.names().indexOf('roles.set'));
   });
 
   it('agent không vai trò, không project: không hỏi và không dọn máy khác', async () => {

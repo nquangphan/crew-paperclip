@@ -78,6 +78,15 @@ const STEPS: Record<RemoveAgentStepId, StepWork> = {
     if (slot) {
       const reason = blockOf(roles, slot);
       if (reason) throw new StepError(`remove.errors.blocked.${reason}`, { name: input.agentName });
+      // Dọn máy khác khi agent còn trong vai trò (server từ chối agent đã ra khỏi vai trò).
+      const self = (await ctx.api.agents.list(run.companyId)).find((a) => a.id === input.agentId);
+      if (self?.status !== 'terminated') {
+        await releaseOtherMachines(ctx, run, refs, {
+          projectId: input.projectId,
+          agentIds: [input.agentId],
+          wholeProject: false,
+        });
+      }
       roles = rolesWithout(roles, input.agentId);
       await ctx.api.roles.set(run.companyId, input.projectId, roles);
     }
@@ -124,13 +133,6 @@ const STEPS: Record<RemoveAgentStepId, StepWork> = {
     for (const { environmentId } of targets) {
       await ctx.api.environments.archive(environmentId);
       refs.environment = environmentId;
-    }
-    if (input.projectId) {
-      await releaseOtherMachines(ctx, run, refs, {
-        projectId: input.projectId,
-        agentIds: [input.agentId],
-        wholeProject: false,
-      });
     }
   },
 

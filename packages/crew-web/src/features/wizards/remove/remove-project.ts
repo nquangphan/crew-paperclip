@@ -157,14 +157,18 @@ export async function assertNoMachineBlockers(
   if (blockers.length > 0) throw new StepError('remove.errors.machineBusy', { list: blockerList(blockers) });
 }
 
-/** Nhờ server archive environment `@máy` trên máy khác và xếp gỡ checkout ở đó; ghi số vào refs để trang hiện. */
+/**
+ * Nhờ server archive environment `@máy` trên máy khác và xếp gỡ checkout ở đó; ghi số vào refs để trang hiện.
+ * Phải chạy khi agent còn giữ vai trò trong project (server từ chối agent đã ra khỏi vai trò hay đã terminated).
+ */
 export async function releaseOtherMachines(
   ctx: RemoveContext<RemoveApi>,
   run: SetupRun,
   refs: Record<string, string>,
   input: { projectId: string; agentIds: string[]; wholeProject: boolean },
 ): Promise<void> {
-  if (input.agentIds.length === 0) return;
+  // Đã dọn thành công ở lần chạy trước: không gọi lại (server chỉ nhận agent còn giữ vai trò) và giữ số đã ghi.
+  if (input.agentIds.length === 0 || refs.otherMachines !== undefined) return;
   try {
     const result = await ctx.api.machinePins.release(run.companyId, input.projectId, {
       agentIds: input.agentIds,
@@ -174,7 +178,7 @@ export async function releaseOtherMachines(
     refs.otherEnvironments = String(result.archivedEnvironmentIds.length);
     refs.otherMachines = String(result.jobs.length);
   } catch (error) {
-    if (error instanceof ApiError && error.status === 409) {
+    if (error instanceof ApiError && error.status === 409 && error.code === 'crew_machine_busy') {
       const blockers = (error.body as { blockers?: ReleaseBlocker[] } | null)?.blockers ?? [];
       throw new StepError('remove.errors.machineBusy', { list: blockerList(blockers) });
     }
@@ -212,6 +216,11 @@ const STEPS: Record<RemoveProjectStepId, StepWork> = {
       // Thu quyền giao việc để agent đã gỡ không giữ `tasks:assign`; agent đã paused sẵn cũng được ghi lại.
       await ctx.api.agents.setPermissions(agent.id, { ...REMOVED_AGENT_PERMISSIONS }, run.companyId);
     }
+    // Dọn máy khác trước khi bước `roles` xóa dòng vai trò; agent terminated không còn thuộc phạm vi server nhận.
+    const live = ROLE_SLOTS.flatMap((slot) => (refs[`agent_${slot}`] ? [refs[`agent_${slot}`]] : [])).filter(
+      (id) => agents.find((a) => a.id === id)?.status !== 'terminated',
+    );
+    await releaseOtherMachines(ctx, run, refs, { projectId, agentIds: live, wholeProject: true });
   },
 
   async roles(ctx, run) {
@@ -238,11 +247,6 @@ const STEPS: Record<RemoveProjectStepId, StepWork> = {
         if (slot) refs[`environment_${slot}`] = environmentId;
       }
     }
-    await releaseOtherMachines(ctx, run, refs, {
-      projectId: projectInputOf(run).projectId,
-      agentIds: scope.map((s) => s.agentId),
-      wholeProject: true,
-    });
   },
 
   async checkouts(ctx, run, refs) {
