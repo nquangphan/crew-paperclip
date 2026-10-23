@@ -355,6 +355,7 @@ flows:
       - packages/crew-plugin/migrations/0019_qc_verification.sql
       - packages/crew-plugin/migrations/0020_jev.sql
       - packages/crew-plugin/migrations/0021_jev_features.sql
+      - packages/crew-plugin/migrations/0022_multi_machine.sql
       - packages/crew-plugin/src/companies/data.ts
       - packages/crew-plugin/src/features.ts
       - packages/crew-plugin/src/shared/css.d.ts
@@ -378,6 +379,7 @@ flows:
       - packages/crew-plugin/src/__tests__/migration-0015.db.test.ts
       - packages/crew-plugin/src/__tests__/migration-0018.db.test.ts
       - packages/crew-plugin/src/__tests__/migration-0019.db.test.ts
+      - packages/crew-plugin/src/__tests__/migration-0022.db.test.ts
       - packages/crew-plugin/src/__tests__/registry.test.ts
       - packages/crew-plugin/src/__tests__/shared-exports.test.ts
       - packages/crew-plugin/src/__tests__/ui-bundle.test.ts

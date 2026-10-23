@@ -108,6 +108,7 @@ File nào thuộc flow nào. Dùng `crew-docs where <file>` để tra từ dòng
 | `packages/crew-plugin/migrations/0019_qc_verification.sql` | [crew-plugin](flows/crew-plugin.md) (file) |
 | `packages/crew-plugin/migrations/0020_jev.sql` | [crew-plugin](flows/crew-plugin.md) (file) |
 | `packages/crew-plugin/migrations/0021_jev_features.sql` | [crew-plugin](flows/crew-plugin.md) (file) |
+| `packages/crew-plugin/migrations/0022_multi_machine.sql` | [crew-plugin](flows/crew-plugin.md) (file) |
 | `packages/crew-plugin/src/__tests__/attachments-audit.db.test.ts` | [attachments](flows/attachments.md) (test) |
 | `packages/crew-plugin/src/__tests__/attachments-rules.test.ts` | [attachments](flows/attachments.md) (test) |
 | `packages/crew-plugin/src/__tests__/companies.db.test.ts` | [crew-plugin](flows/crew-plugin.md) (test) |
@@ -137,6 +138,7 @@ File nào thuộc flow nào. Dùng `crew-docs where <file>` để tra từ dòng
 | `packages/crew-plugin/src/__tests__/migration-0016.db.test.ts` | [project-access](flows/project-access.md) (test) |
 | `packages/crew-plugin/src/__tests__/migration-0018.db.test.ts` | [crew-plugin](flows/crew-plugin.md) (test) |
 | `packages/crew-plugin/src/__tests__/migration-0019.db.test.ts` | [crew-plugin](flows/crew-plugin.md) (test) |
+| `packages/crew-plugin/src/__tests__/migration-0022.db.test.ts` | [crew-plugin](flows/crew-plugin.md) (test) |
 | `packages/crew-plugin/src/__tests__/registry.test.ts` | [crew-plugin](flows/crew-plugin.md) (test) |
 | `packages/crew-plugin/src/__tests__/roles.db.test.ts` | [project-roles](flows/project-roles.md) (test) |
 | `packages/crew-plugin/src/__tests__/roots.data.test.ts` | [roadmap-map](flows/roadmap-map.md) (test) |
