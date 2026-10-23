@@ -14,7 +14,9 @@ import {
   listProjectMachines, PROVISION_UNAVAILABLE, projectLayout, type ProvisionStart, readProjectMachine, readProjectRepo,
   reconcileProjectMachine, startProvisioning, writeProjectRepo,
 } from "./machine-provision.js";
-import { machineReleaseBlockers, provisionOtherMachines, releaseProjectMachines } from "./machine-release.js";
+import {
+  machineReleaseBlockers, provisionOtherMachines, releaseProjectMachines, scopeReleaseAgents,
+} from "./machine-release.js";
 import { isOnline } from "./machine-select.js";
 import { rowsOf } from "./project-roles.js";
 
@@ -49,6 +51,11 @@ export const projectRepoSchema = z.object({
     .refine((list) => new Set(list.map((item) => item.name)).size === list.length, "tên repo đi kèm bị trùng"),
 }).strict();
 const machineBodySchema = z.object({ machineId: z.string().uuid() }).strict();
+
+/** Số agent tối đa trong một lệnh hỏi chặn hay dọn máy khác. */
+const RELEASE_MAX_AGENTS = 20;
+const unknownAgents = (agentIds: string[]) =>
+  new HttpError(422, "Có agent không thuộc vai trò của project này.", { code: MACHINE_ERRORS.invalid, agentIds });
 
 const invalidRepo = (message: string, issues?: unknown) =>
   new HttpError(422, message, { code: MACHINE_ERRORS.invalid, ...(issues ? { issues } : {}) });
@@ -236,7 +243,7 @@ export function crewMachineRoutes(db: Db): Router {
     return { companyId, userId: actor.userId };
   }
   const releaseSchema = z.object({
-    agentIds: z.array(z.string().uuid()).min(1).max(20),
+    agentIds: z.array(z.string().uuid()).min(1).max(RELEASE_MAX_AGENTS),
     wholeProject: z.boolean(),
     primaryMachineId: z.string().uuid().nullable(),
   }).strict();
@@ -252,6 +259,13 @@ export function crewMachineRoutes(db: Db): Router {
     await assertProject(db, owner.companyId, req.params.projectId);
     const raw = typeof req.query.agentIds === "string" && req.query.agentIds !== "" ? req.query.agentIds.split(",") : null;
     if (raw && raw.some((id) => !isUuid(id))) throw badRequest("agentIds không hợp lệ.", { code: MACHINE_ERRORS.invalid });
+    if (raw && raw.length > RELEASE_MAX_AGENTS) {
+      throw new HttpError(422, `Tối đa ${RELEASE_MAX_AGENTS} agent mỗi lần.`, { code: MACHINE_ERRORS.invalid });
+    }
+    if (raw) {
+      const { unknown } = await scopeReleaseAgents(db, { companyId: owner.companyId, projectId: req.params.projectId, agentIds: raw });
+      if (unknown.length > 0) throw unknownAgents(unknown);
+    }
     res.json({ blockers: await machineReleaseBlockers(db, { companyId: owner.companyId, projectId: req.params.projectId, agentIds: raw }) });
   });
 
@@ -261,6 +275,7 @@ export function crewMachineRoutes(db: Db): Router {
     await assertProject(db, owner.companyId, req.params.projectId);
     const input = body(releaseSchema, req.body, "Danh sách agent hay máy chính không hợp lệ.");
     const released = await releaseProjectMachines(db, { ...input, companyId: owner.companyId, projectId: req.params.projectId, createdBy: owner.userId });
+    if (!released.ok && released.reason === "unknown_agents") throw unknownAgents(released.agentIds);
     if (!released.ok) {
       res.status(409).json({
         error: "Cây yêu cầu đang chạy trên máy đã ghim: chờ run xong (hoặc hủy run) rồi gỡ lại.",

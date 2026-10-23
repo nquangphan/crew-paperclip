@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { eq, sql } from "drizzle-orm";
-import { companyMemberships, createDb, environments, heartbeatRuns, issues } from "@paperclipai/db";
+import { agents, companyMemberships, createDb, environments, heartbeatRuns, issues, projects } from "@paperclipai/db";
 import { CREW_POLICY_CONFIG_ENV } from "../crew/issue-policy.js";
 import { getEmbeddedPostgresTestSupport, startEmbeddedPostgresTestDatabase } from "./helpers/embedded-postgres.js";
 import { applyCrewMachineTables, BOOK, MINI, type SeededProject, seedCrewProject, seedPairing, seedTemplate } from "./helpers/crew-machine-tables.js";
@@ -73,6 +73,25 @@ suite("dọn máy khác khi gỡ, dựng sẵn máy khác khi thêm", () => {
     (await db.insert(heartbeatRuns).values({
       companyId: w.companyId, agentId, status, invocationSource: "on_demand", responsibleUserId: "owner", contextSnapshot: { issueId },
     }).returning())[0]!;
+  /** Project khác cùng company, một agent có checkout `other-app/executor-1` và environment `@phans-mac-mini`. */
+  async function otherProjectAgent(w: SeededProject) {
+    await db.insert(projects).values({ companyId: w.companyId, name: "other-app" });
+    const [base] = await db.insert(environments).values({
+      name: `other-app-executor-1-${w.companyId.slice(0, 6)}`, driver: "ssh", status: "active",
+      config: { host: BOOK.ip, port: 2222, username: "owner", remoteWorkspacePath: "/Users/owner/crew-agents/other-app/executor-1" },
+      metadata: { workspaceRealizationMode: "in_place" },
+    }).returning();
+    const [agent] = await db.insert(agents).values({
+      companyId: w.companyId, name: "other-app executor-1", role: "engineer", status: "idle", adapterType: "claude_local",
+      adapterConfig: {}, permissions: {}, runtimeConfig: {}, defaultEnvironmentId: base!.id,
+    }).returning();
+    const [mini] = await db.insert(environments).values({
+      name: `${base!.name}@phans-mac-mini`, driver: "ssh", status: "active",
+      config: { host: MINI.ip, port: 2222, username: "owner", remoteWorkspacePath: "/Users/owner/crew-agents/other-app/executor-1" },
+      metadata: { workspaceRealizationMode: "in_place", crewAgentId: agent!.id, crewMachineId: MINI.machineId },
+    }).returning();
+    return { agentId: agent!.id, miniEnvId: mini!.id };
+  }
   const jobs = async (companyId: string) =>
     rows(await db.execute(sql.raw(`SELECT machine_id::text AS machine_id, kind, payload, created_by_user_id FROM ${ns}.crew_machine_jobs
       WHERE company_id = '${companyId}' ORDER BY created_at`)));
@@ -109,6 +128,38 @@ suite("dọn máy khác khi gỡ, dựng sẵn máy khác khi thêm", () => {
     }]);
     const machineRows = rows(await db.execute(sql.raw(`SELECT count(*)::int AS n FROM ${ns}.project_machines WHERE project_id = '${w.projectId}'`)));
     expect(machineRows[0]?.n).toBe(2);
+  });
+
+  it("agent không thuộc vai trò của project (dù cùng company) thì từ chối cả lệnh: không archive, không xếp việc", async () => {
+    const w = await world();
+    const other = await otherProjectAgent(w);
+    for (const agentIds of [[other.agentId], [w.agents["executor-1"].agentId, other.agentId]]) {
+      for (const wholeProject of [false, true]) {
+        expect(await releaseProjectMachines(db, {
+          companyId: w.companyId, projectId: w.projectId, agentIds, wholeProject, primaryMachineId: BOOK.machineId, createdBy: "owner",
+        })).toEqual({ ok: false, reason: "unknown_agents", agentIds: [other.agentId] });
+      }
+    }
+    const archived = await db.select().from(environments).where(eq(environments.status, "archived"));
+    expect(archived.map((e) => e.id).filter((id) => [other.miniEnvId, ...Object.values(w.miniEnvs)].includes(id))).toEqual([]);
+    expect(await jobs(w.companyId)).toEqual([]);
+  });
+
+  it("gỡ agent A rồi B trước khi máy nhận việc: gộp vai trò vào việc còn queued; việc đã claimed thì xếp việc mới", async () => {
+    const w = await world();
+    const release = (agentId: string) => releaseProjectMachines(db, {
+      companyId: w.companyId, projectId: w.projectId, agentIds: [agentId], wholeProject: false, primaryMachineId: BOOK.machineId, createdBy: "owner",
+    });
+    const jobIdOf = (r: Awaited<ReturnType<typeof release>>) => (r.ok ? r.result.jobs[0]?.jobId : null);
+    const first = jobIdOf(await release(w.agents.reviewer.agentId));
+    expect(jobIdOf(await release(w.agents["executor-1"].agentId))).toBe(first);
+    expect((await jobs(w.companyId)).map((j) => (j.payload as { roles: string[] }).roles)).toEqual([["executor-1", "reviewer"]]);
+    expect(jobIdOf(await release(w.agents.reviewer.agentId))).toBe(first);
+    await db.execute(sql.raw(`UPDATE ${ns}.crew_machine_jobs SET status = 'claimed' WHERE id = '${first}'`));
+    expect(jobIdOf(await release(w.agents["executor-1"].agentId))).toBe(first);
+    const third = jobIdOf(await release(w.agents.assistant.agentId));
+    expect(third).not.toBe(first);
+    expect((await jobs(w.companyId)).map((j) => (j.payload as { roles: string[] }).roles)).toEqual([["executor-1", "reviewer"], ["assistant"]]);
   });
 
   it("gỡ cả project: archive mọi environment máy khác, một việc remove-checkouts cho Mac mini, xóa dòng máy của project; gọi lại không xếp thêm", async () => {
@@ -208,6 +259,17 @@ suite("dọn máy khác khi gỡ, dựng sẵn máy khác khi thêm", () => {
     expect((await request(app("owner", "board_key")).get(`${base}/blockers?agentIds=nope`)).status).toBe(400);
     const [env] = await db.select().from(environments).where(eq(environments.id, w.miniEnvs.assistant!));
     expect(env?.status).toBe("active");
+    const other = await otherProjectAgent(w);
+    const foreign = await request(app("owner", "board_key")).get(`${base}/blockers?agentIds=${other.agentId}`);
+    expect(foreign.status).toBe(422);
+    expect(JSON.stringify(foreign.body)).toContain("crew_machine_invalid");
+    const foreignRelease = await request(app("owner", "board_key")).post(`${base}/release`)
+      .send({ agentIds: [other.agentId], wholeProject: true, primaryMachineId: BOOK.machineId });
+    expect(foreignRelease.status).toBe(422);
+    const [otherEnv] = await db.select().from(environments).where(eq(environments.id, other.miniEnvId));
+    expect(otherEnv?.status).toBe("active");
+    const many = Array.from({ length: 21 }, () => w.agents.assistant.agentId).join(",");
+    expect((await request(app("owner", "board_key")).get(`${base}/blockers?agentIds=${many}`)).status).toBe(422);
     const provision = await request(app("owner", "board_key")).post(`${base}/provision`)
       .send({ exceptMachineId: BOOK.machineId, includeReady: true, repo: null });
     expect(provision.status).toBe(200);
