@@ -266,6 +266,13 @@ export const ENDPOINTS = {
   'projectAccess.me': { ids: ['S21.2'], method: 'GET', path: `${CREW}/project-access/me` },
   'projectAccess.list': { ids: ['S21.1'], method: 'GET', path: `${CREW}/project-access` },
   'projectAccess.set': { ids: ['S21.1'], method: 'PUT', path: `${CREW}/project-access/:userId` },
+  // Chạy nhiều máy (S25): chọn máy khi tạo yêu cầu gốc, máy của yêu cầu, máy và repo của project.
+  'machinePin.candidates': { ids: ['S25.1'], method: 'GET', path: `${CREW}/machines` },
+  'machinePin.get': { ids: ['S25.2'], method: 'GET', path: `${CREW}/issues/:issueId/machine` },
+  'machinePin.set': { ids: ['S25.1', 'S25.2'], method: 'PUT', path: `${CREW}/issues/:issueId/machine` },
+  'projectMachines.get': { ids: ['S25.3'], method: 'GET', path: `${CREW}/projects/:projectId/machines` },
+  'projectMachines.add': { ids: ['S25.3'], method: 'POST', path: `${CREW}/projects/:projectId/machines` },
+  'projectMachines.setRepo': { ids: ['S25.3'], method: 'PUT', path: `${CREW}/projects/:projectId/repo` },
 
   // Thành viên (S20.8): route stock của Paperclip, chỉ owner dùng.
   'members.list': { ids: ['S20.8'], method: 'GET', path: '/api/companies/:companyId/members' },

@@ -25,7 +25,8 @@
       "agent-workspace": "Dựng chỗ làm của agent",
       "skill-sync": "Đồng bộ skill",
       "check": "Kiểm tra project",
-      "runtimes-setup": "Cài runtime"
+      "runtimes-setup": "Cài runtime",
+      "ensure-project": "Dựng project trên máy"
     },
     "status": {
       "queued": "Đang chờ",
