@@ -118,6 +118,14 @@ flows:
       - server/src/__tests__/crew-load-gate.test.ts
       - server/src/__tests__/crew-retry-progress.test.ts
       - server/src/crew/crew-bundle-resume.cancelled.test.ts
+  multi-machine:
+    title: "Một project chạy trên nhiều máy: ghim máy theo cây yêu cầu, tự chọn máy, dựng project trên máy"
+    doc: docs/flows/multi-machine.md
+    entrypoints:
+      - server/src/crew/machine-select.ts
+    files: []
+    tests:
+      - server/src/__tests__/crew-machine-select.test.ts
   runtime-switches:
     title: "Công tắc runtime theo máy (Claude, Codex, OpenCode)"
     doc: docs/flows/runtime-switches.md

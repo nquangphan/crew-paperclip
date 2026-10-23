@@ -58,6 +58,7 @@ Paperclip, không mô tả Crew. Phạm vi file nguồn của Crew là `source.i
 | [Crew Jev trên server: cấu hình, key, máy, log gate, so sánh với regex](flows/jev.md) | `jev` | `server/src/crew/jev-routes.ts`, `packages/crew-web/src/features/jev/routes.tsx` |
 | [Hàng đợi việc trên máy (machine jobs)](flows/machine-jobs.md) | `machine-jobs` | `packages/crew-plugin/src/jobs/api.ts` |
 | [Bản tin máy (machine-status) và ghép máy](flows/machine-status.md) | `machine-status` | `packages/crew-plugin/src/machines/webhook.ts`, `packages/crew-plugin/src/machines/pairing.ts`, `packages/crew-web/src/features/machines/routes.tsx` |
+| [Một project chạy trên nhiều máy: ghim máy theo cây yêu cầu, tự chọn máy, dựng project trên máy](flows/multi-machine.md) | `multi-machine` | `server/src/crew/machine-select.ts` |
 | [Sao lưu DB, kéo bản sao về Mac, diễn tập khôi phục, dọn log run](flows/ops-backup.md) | `ops-backup` | `crew/ops/backup.sh`, `crew/ops/pull-backup.sh` |
 | [Deploy overlay lên VPS, auto-deploy và rollback](flows/ops-deploy.md) | `ops-deploy` | `crew/ops/deploy.sh`, `crew/ops/auto-deploy.mjs`, `crew/ops/overlay-source.sh` |
 | [Công cụ vận hành: cấu hình policy, quyền agent, kiểm company, xem run, trạng thái plugin, company e2e](flows/ops-tools.md) | `ops-tools` | `crew/ops/policy-config.py`, `crew/ops/plugin-state.sh` |
