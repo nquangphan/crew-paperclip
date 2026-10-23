@@ -7,7 +7,7 @@
     "created": "Created request {{identifier}}",
     "createdDraft": "Saved draft {{identifier}} (not running)",
     "open": "Open",
-    "machineFailed": "The chosen machine was not pinned, so the request stays a draft: {{error}}",
+    "machineFailed": "The request stays a draft because the machine setup did not finish: {{error}}",
     "uploadFailed": "Could not attach: {{names}}"
   },
   "list": {
@@ -136,6 +136,7 @@
     "machineOption": "{{host}} · {{running}} runs · load {{load}}",
     "machineFirstBuild": "first setup",
     "machineProvisioning": "setting up",
+    "startFailed": "The machine was pinned but the request could not be moved to To do: {{error}}",
     "machineBuildFailed": "setup failed"
   },
   "detail": {

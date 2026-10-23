@@ -26,7 +26,7 @@ export interface CreateRequestResult {
   issue: Issue;
   /** Tên file upload lỗi; issue vẫn đã tạo. */
   failedUploads: string[];
-  /** Lỗi ghim máy (yêu cầu vẫn được tạo, ở dạng nháp); `null` khi không chọn máy hay ghim được. */
+  /** Lỗi ghim máy hay chuyển Cần làm (yêu cầu vẫn được tạo, ở dạng nháp); `null` khi không chọn máy hay mọi bước đều xong. */
   machineError: string | null;
 }
 
@@ -90,10 +90,18 @@ export async function createRequest(input: CreateRequestInput): Promise<CreateRe
     }
   }
   const failedUploads = await uploadAttachments(input.companyId, issue.id, input.files);
-  const started =
-    machineId !== null && machineError === null && !input.draft
-      ? await api.issues.update(issue.id, { status: 'todo' })
-      : issue;
+  let started = issue;
+  if (machineId !== null && machineError === null && !input.draft) {
+    // Yêu cầu đã tạo và ghim máy: chuyển Cần làm lỗi thì vẫn trả yêu cầu (đang là nháp) kèm lỗi, không ném để khỏi tạo trùng.
+    try {
+      started = await api.issues.update(issue.id, { status: 'todo' });
+    } catch (error) {
+      machineError = getI18n().t('new.startFailed', {
+        ns: 'issues',
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
   return { issue: started, failedUploads, machineError };
 }
 

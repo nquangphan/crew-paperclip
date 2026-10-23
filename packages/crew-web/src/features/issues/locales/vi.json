@@ -7,7 +7,7 @@
     "created": "Đã tạo yêu cầu {{identifier}}",
     "createdDraft": "Đã lưu nháp {{identifier}} (chưa chạy)",
     "open": "Mở",
-    "machineFailed": "Chưa ghim được máy đã chọn nên yêu cầu vẫn là nháp: {{error}}",
+    "machineFailed": "Yêu cầu vẫn là nháp vì chưa thiết lập xong máy thực thi: {{error}}",
     "uploadFailed": "Không đính kèm được: {{names}}"
   },
   "list": {
@@ -136,6 +136,7 @@
     "machineOption": "{{host}} · {{running}} run · load {{load}}",
     "machineFirstBuild": "sẽ dựng lần đầu",
     "machineProvisioning": "đang dựng",
+    "startFailed": "Đã ghim máy nhưng chưa chuyển được sang Cần làm: {{error}}",
     "machineBuildFailed": "dựng hỏng"
   },
   "detail": {

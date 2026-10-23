@@ -169,4 +169,16 @@ describe('createRequest', () => {
     expect(result.machineError).toContain('Project chưa có origin repo');
     expect(calls.some((c) => c.method === 'PATCH')).toBe(false);
   });
+
+  it('chuyển Cần làm lỗi sau khi ghim: vẫn trả yêu cầu kèm lỗi, không tạo lần hai', async () => {
+    const { calls } = mockServer({
+      'POST /api/companies/c1/issues': { status: 201, body: { id: 'i1', identifier: 'TPS-9', status: 'backlog' } },
+      'PUT /api/crew/companies/c1/issues/i1/machine': { body: { rootIssueId: 'i1', isRoot: true, locked: false, pin: null } },
+      'PATCH /api/issues/i1': { status: 500, body: { error: 'máy chủ lỗi' } },
+    });
+    const result = await createRequest({ ...base, kind: 'code', machineId: 'm-mini', files: [] });
+    expect(result.issue.id).toBe('i1');
+    expect(result.machineError).toContain('máy chủ lỗi');
+    expect(calls.filter((c) => c.method === 'POST')).toHaveLength(1);
+  });
 });

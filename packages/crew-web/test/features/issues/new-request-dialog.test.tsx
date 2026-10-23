@@ -408,10 +408,8 @@ const machineTrigger = () => screen.findByRole('combobox', { name: 'Máy thực 
 /** Máy tải bất đồng bộ nên mở danh sách lại tới khi mục cần chọn xuất hiện. */
 async function pickMachine(option: string) {
   const trigger = await machineTrigger();
-  await waitFor(() => {
-    fireEvent.keyDown(trigger, { key: 'Enter' });
-    expect(within(screen.getByRole('listbox')).getByRole('option', { name: option })).toBeTruthy();
-  });
+  fireEvent.keyDown(trigger, { key: 'Enter' });
+  await waitFor(() => expect(within(screen.getByRole('listbox')).getByRole('option', { name: option })).toBeTruthy());
   fireEvent.click(within(screen.getByRole('listbox')).getByRole('option', { name: option }));
 }
 
@@ -422,10 +420,8 @@ describe('Máy thực thi', () => {
     await fillReady();
     const trigger = await machineTrigger();
     expect(trigger.textContent).toContain('Tự chọn');
-    await waitFor(() => {
-      fireEvent.keyDown(trigger, { key: 'Enter' });
-      expect(within(screen.getByRole('listbox')).getByRole('option', { name: MINI_LABEL })).toBeTruthy();
-    });
+    fireEvent.keyDown(trigger, { key: 'Enter' });
+    await waitFor(() => expect(within(screen.getByRole('listbox')).getByRole('option', { name: MINI_LABEL })).toBeTruthy());
     const list = within(screen.getByRole('listbox'));
     expect(list.getByRole('option', { name: MINI_LABEL })).toBeTruthy();
     expect(list.getByRole('option', { name: 'Phans-MacBook-Pro · 2 run · load 3,9' })).toBeTruthy();
