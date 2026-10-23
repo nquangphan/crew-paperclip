@@ -851,6 +851,7 @@ flows:
       - packages/crew-web/src/app/router.tsx
     files:
       - packages/crew-web/src/api/crew/data.ts
+      - packages/crew-web/src/api/crew/machine-pins.ts
       - packages/crew-web/src/api/crew/types.ts
       - packages/crew-web/src/api/endpoints.ts
       - packages/crew-web/src/api/http.ts
@@ -903,6 +904,7 @@ flows:
       - packages/crew-web/test/api/crew-shared.test.ts
       - packages/crew-web/test/api/endpoints.test.ts
       - packages/crew-web/test/api/http.test.ts
+      - packages/crew-web/test/api/machine-pins.test.ts
       - packages/crew-web/test/api/labels.test.ts
       - packages/crew-web/test/api/r3x-client.test.ts
       - packages/crew-web/test/app/cli-auth.test.tsx

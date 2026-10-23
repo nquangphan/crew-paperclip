@@ -96,6 +96,7 @@ Luật chính:
 - `skills`: skill company mà tab Skills bật tắt.
 - `contributions`, `qc-department`, `project-access`: phòng góp ý, thẻ chờ duyệt, quyền xem project trên trang Thành
   viên và lọc kết quả.
+- `multi-machine`: tab Máy của project (S25.3) và các route máy của project.
 - `web-shell`, `design-system`: khung và component.
 
 ## Tests
@@ -108,6 +109,7 @@ Luật chính:
   lại, đổi model chỉ gửi `model`, đổi tên, cấu hình chạy chỉ đọc, bật tắt skill.
 - `packages/crew-web/test/features/projects/project-page.test.tsx`, `projects-page.test.tsx`, `rename-dialog.test.tsx`:
   tải theo `urlKey`, các tab, "Làm tiếp", đổi tên chỉ gửi trường cho phép.
+- `packages/crew-web/test/features/projects/machines-tab.test.tsx`: tab Máy của project (trạng thái dựng, Thêm máy/Thử lại, repo đi kèm).
 - `packages/crew-web/test/features/projects/roles-form.test.tsx`, `use-save-roles.test.ts`: tab Vai trò (xem flow
   `project-roles`).
 - `packages/crew-web/test/features/members/`: link lời mời, phòng góp ý của thành viên.

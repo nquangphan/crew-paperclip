@@ -68,6 +68,7 @@ Luật chính:
 | `packages/crew-web/src/api/index.ts` | Cổng vào lớp dữ liệu | `api` |
 | `packages/crew-web/src/api/queryKeys.ts` | Khóa TanStack Query | `queryKeys` |
 | `packages/crew-web/src/api/crew/data.ts` | Data plugin `crew.core` | `CREW_DATA_KEYS` |
+| `packages/crew-web/src/api/crew/machine-pins.ts` | Client router Crew của server cho chạy nhiều máy (ứng viên, máy ghim của yêu cầu, máy của project, chặn/gỡ/dựng máy khác) | `machinePinsApi` |
 | `packages/crew-web/src/api/crew/types.ts` | Kiểu dữ liệu plugin dùng ở web | |
 | `packages/crew-web/src/api/paperclip/` | Client route lõi Paperclip (issue, agent, project, environment, skill...) | |
 | `packages/crew-web/src/i18n/index.ts`, `format.ts` | i18n và định dạng giờ, tiền | `useT`, `formatDateTime` |
@@ -75,7 +76,7 @@ Luật chính:
 
 ## Dữ liệu
 
-- Route lõi Paperclip và route plugin: toàn bộ liệt kê trong `ENDPOINTS` (`packages/crew-web/src/api/endpoints.ts`), kể cả ba khóa máy mới `projectMachines.blockers`, `projectMachines.release`, `projectMachines.provision`.
+- Route lõi Paperclip và route plugin: toàn bộ liệt kê trong `ENDPOINTS` (`packages/crew-web/src/api/endpoints.ts`), kể cả các khóa chạy nhiều máy `machinePin.*` và `projectMachines.*`; khóa query tương ứng là `machineCandidates`, `issueMachine`, `projectMachines`.
   Plugin ở `/api/plugins/crew.core`, router Crew của server ở `/api/crew/companies/:companyId`.
 - WebSocket `/api/companies/:companyId/events/ws`.
 - Trình duyệt: `localStorage` khóa `crew.lang`; `sessionStorage` cho chống lặp tải lại.

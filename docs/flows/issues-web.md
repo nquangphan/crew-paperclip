@@ -10,6 +10,9 @@ hoặc yêu cầu sửa ở cổng, và ép đóng (Ép Done) khi cần.
 
 Luật chính:
 
+- Owner chọn máy thực thi khi tạo yêu cầu gốc (S25.1): chọn máy thì web tạo nháp, gọi `PUT …/issues/:id/machine`, upload
+  đính kèm rồi mới chuyển `todo`; ghim lỗi thì yêu cầu ở lại nháp và trang báo lỗi. Trang yêu cầu có dòng Máy (S25.2),
+  owner đổi được ở yêu cầu gốc khi cây chưa có run.
 - Web không tự gắn policy, reviewer hay approver: server gắn theo vai trò project khi tạo. Loại yêu cầu (Code, Bug,
   Nghiên cứu, Viết tài liệu, Lập kế hoạch) chỉ khác ở nhãn `research`/`docs`/`plan`.
 - Thao tác cổng chỉ gửi `status` và bình luận theo luật stage của server; body không bao giờ có `executionPolicy`,
@@ -89,6 +92,7 @@ Luật chính:
 | `packages/crew-web/src/features/issues/list/issues-board.tsx` | Chế độ Bảng | `boardLayout` |
 | `packages/crew-web/src/features/issues/list/use-issues.ts` | Dữ liệu và trạng thái URL | `COLUMN_IDS`, `KIND_FILTERS`, `VIEW_MODES` |
 | `packages/crew-web/src/features/issues/list/list-view.ts`, `tree.ts` | Nhóm, vạch ngày, cây | `groupIssues`, `dateGroup`, `buildIssueTree` |
+| `packages/crew-web/src/features/issues/new/machine-field.tsx` | Ô "Máy thực thi" của form tạo yêu cầu (owner) | `MachineField`, `machineOptionLabel`, `formatMachineNumber`, `AUTO_MACHINE` |
 | `packages/crew-web/src/features/issues/new/` | Tạo yêu cầu, loại, thêm việc con, làm theo kế hoạch | `NewRequestDialog` (nhận `initial`), `createRequest`, `REQUEST_KINDS`, `AddChildAction`, `FollowPlanAction`, `parsePlanSource` |
 | `packages/crew-web/src/features/issues/detail/issue-detail.tsx` | Khung chi tiết | `IssueDetail` |
 | `packages/crew-web/src/features/issues/detail/issue-page.tsx` | Trang đầy đủ | `IssuePage` |
@@ -109,6 +113,7 @@ Luật chính:
 
 - Route lõi Paperclip: issue (danh sách, chi tiết, PATCH, tiêu đề), bình luận, đính kèm, tài liệu, activity, run,
   interaction (`respond`), nhãn.
+- Route Crew của server: `GET /machines?projectId=`, `GET|PUT /issues/:id/machine` (xem flow `multi-machine`).
 - Route plugin: `issues.force-done`; data key `crew.map`, `crew.docsCheck`, `crew.runtimeDecisions`.
 - Activity: `crew.policy.board_override` (gate server), `crew.issue.force_done` (plugin).
 - Bảng: plugin không ghi bảng riêng ở flow này; Ép Done đi qua `ctx.issues.update` của host.
@@ -122,6 +127,7 @@ Luật chính:
 - `attachments`: xem và chọn file đính kèm.
 - `contributions`: nhóm Chờ duyệt và bình luận chờ duyệt trong danh sách và luồng bình luận.
 - `qc-department`: nhãn QC trên thẻ của chế độ Bảng.
+- `multi-machine`: route ghim máy mà ô Máy thực thi và dòng Máy gọi.
 - `web-shell`: shell gắn popup, quyền ghi hay chỉ đọc.
 
 ## Tests
@@ -132,6 +138,7 @@ Luật chính:
   `tree.test.ts`, `issues-page-pending.test.tsx`: cây và thu gọn, chế độ Bảng, nhóm và vạch ngày, nhóm Chờ duyệt.
 - `packages/crew-web/test/features/issues/new-request-dialog.test.tsx`, `use-create-request.test.ts`, `kinds.test.ts`,
   `kind-labels.test.tsx`, `add-child.test.ts`, `add-child-dialog.test.tsx`: tạo yêu cầu, nhãn loại, thêm việc con.
+- `packages/crew-web/test/features/issues/machine-slot.test.tsx`: dòng Máy (S25.2) và ca ô Máy thực thi của `new-request-dialog.test.tsx` (S25.1).
 - `packages/crew-web/test/features/issues/follow-plan.test.ts`, `follow-plan-action.test.tsx`: đọc path/PR từ tổng kết,
   mô tả điền sẵn, nút chỉ ở gốc `plan` đã xong và người ghi được; `new-request-dialog.test.tsx` có ca `initial`.
 - `packages/crew-web/test/features/issues/gate-actions.test.ts`, `gate-actions.test.tsx`: nút cổng chỉ cho người tham gia
