@@ -58,11 +58,45 @@ export async function loadMachineCheckouts(ctx: Pick<PluginContext, "db">, compa
   });
 }
 
-/** Máy của agent (`null` = không xác định, dùng công tắc mặc định). Mọi truy vấn đều lọc theo company. */
+/**
+ * Máy đã ghim cho cây chứa `issueId` (bảng `issue_machine_pins`, server Crew ghi; flow `multi-machine`): đi `parent_id`
+ * lên tới issue gốc trong cùng company. Chưa ghim, không tìm được gốc hay bảng chưa có thì `null`.
+ */
+export async function pinnedMachineOfIssue(
+  ctx: Pick<PluginContext, "db">, companyId: string, issueId: string,
+): Promise<string | null> {
+  try {
+    const rows = await ctx.db.query<{ machine_id: string }>(
+      `WITH RECURSIVE up(id, parent_id, depth) AS (
+         SELECT id, parent_id, 0 FROM public.issues WHERE id = $2 AND company_id = $1
+         UNION ALL
+         SELECT i.id, i.parent_id, up.depth + 1 FROM public.issues i JOIN up ON i.id = up.parent_id
+         WHERE i.company_id = $1 AND up.depth < 50
+       )
+       SELECT p.machine_id::text AS machine_id FROM up
+       JOIN ${pluginNamespace(ctx)}.issue_machine_pins p ON p.company_id = $1 AND p.root_issue_id = up.id
+       WHERE up.parent_id IS NULL LIMIT 1`,
+      [checkedId(companyId), checkedId(issueId)],
+    );
+    return rows[0]?.machine_id ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Máy của agent (`null` = không xác định, dùng công tắc mặc định). Cây của `issueId` đã ghim máy thì là máy ghim (mọi run
+ * của cây chạy ở đó); còn lại theo luật đường dẫn cũ. Plugin không đọc được bảng `environments` nên không suy theo host
+ * như server. Mọi truy vấn đều lọc theo company.
+ */
 export async function resolveAgentMachine(
-  ctx: Pick<PluginContext, "db">, input: { companyId: string; agentId: string },
+  ctx: Pick<PluginContext, "db">, input: { companyId: string; agentId: string; issueId?: string | null },
 ): Promise<string | null> {
   const companyId = checkedId(input.companyId);
+  if (input.issueId) {
+    const pinned = await pinnedMachineOfIssue(ctx, companyId, input.issueId);
+    if (pinned) return pinned;
+  }
   const agents = await ctx.db.query<{ default_environment_id: string | null }>(
     "SELECT default_environment_id::text AS default_environment_id FROM public.agents WHERE id = $1 AND company_id = $2",
     [checkedId(input.agentId), companyId],

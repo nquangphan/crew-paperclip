@@ -187,7 +187,7 @@ async function executorFallback(
   const from = agents.get(agentId);
   if (!from || !isCrewRuntime(from.adapterType)) return "skipped";
   const fromRuntime = from.adapterType;
-  const machineId = await machineOfAgent(ctx, companyId, from);
+  const machineId = await machineOfAgent(ctx, companyId, from, issueId);
   const complexity = parseCrewModelMarker(issue.description)?.complexity ?? "medium";
   const prior = await ctx.db.query<{ from_runtime: string | null; to_runtime: string | null }>(
     `SELECT from_runtime, to_runtime FROM ${decisions(ctx)}
@@ -199,7 +199,7 @@ async function executorFallback(
   for (const agent of agents.values()) {
     if (agent.id === agentId || !isCrewRuntime(agent.adapterType)) continue;
     candidates.push({ agentId: agent.id, name: agent.name, runtime: agent.adapterType, status: agent.status,
-      machineId: await machineOfAgent(ctx, companyId, agent) });
+      machineId: await machineOfAgent(ctx, companyId, agent, issueId) });
   }
   const switches = {} as Record<CrewRuntime, boolean>;
   for (const runtime of CREW_RUNTIMES) switches[runtime] = await readRuntimeSwitch(ctx, { companyId, machineId, runtime });
@@ -292,7 +292,7 @@ async function reviewerFallback(ctx: Ctx, input: FallbackInput, issue: Issue, ro
   const claudeId = roles.reviewerAgentId;
   const stage = policyStages(issue.executionPolicy).find((item) => item.id === state.currentStageId);
   const agents = await loadAgents(ctx, companyId, [agentId, claudeId]);
-  const machineId = await machineOfAgent(ctx, companyId, agents.get(agentId));
+  const machineId = await machineOfAgent(ctx, companyId, agents.get(agentId), issueId);
   const reason = REVIEWER_TRIGGER_REASON[trigger];
   const base: NewRuntimeDecision = { companyId, issueId, role: "reviewer", kind: "fallback", runId, machineId,
     fromAgentId: agentId, fromRuntime: "codex_local", trigger, reason };

@@ -168,11 +168,13 @@ export async function loadAgents(ctx: DbCtx, companyId: string, ids: readonly (s
 
 /**
  * Máy của agent cho công tắc: agent không có environment thì không tra máy (`null` = công tắc mặc định), như cổng H1
- * của server; có environment thì theo luật chung `resolveAgentMachine`.
+ * của server; có environment thì theo luật chung `resolveAgentMachine` (máy ghim của cây `issueId` trước).
  */
-export async function machineOfAgent(ctx: DbCtx, companyId: string, agent: AgentInfo | undefined): Promise<string | null> {
+export async function machineOfAgent(
+  ctx: DbCtx, companyId: string, agent: AgentInfo | undefined, issueId: string | null = null,
+): Promise<string | null> {
   if (!agent?.defaultEnvironmentId) return null;
-  return await resolveAgentMachine(ctx, { companyId, agentId: agent.id });
+  return await resolveAgentMachine(ctx, { companyId, agentId: agent.id, issueId });
 }
 
 type Stage = { id: string | null; type: string | null; agentIds: string[] };
@@ -227,7 +229,7 @@ export async function recordSelect(
     const assignee = assigneeId ? agents.get(assigneeId) : undefined;
     result.executor = await insertRuntimeDecision(ctx, {
       companyId, issueId: issue.id, role: "executor", kind: "select",
-      machineId: await machineOfAgent(ctx, companyId, assignee), toAgentId: assignee?.id ?? null,
+      machineId: await machineOfAgent(ctx, companyId, assignee, issue.id), toAgentId: assignee?.id ?? null,
       toRuntime: marker.runtime, model: marker.model, complexity: marker.complexity, reason: marker.reason,
     });
   }
@@ -241,7 +243,7 @@ export async function recordSelect(
       claudeReviewerAgentId: roles.reviewerAgentId,
       codexReviewer: codex ? { agentId: codex.id, status: codex.status } : null,
     };
-    const machineId = await machineOfAgent(ctx, companyId, reviewer);
+    const machineId = await machineOfAgent(ctx, companyId, reviewer, issue.id);
     let reason: string;
     if (reviewerId === roles.codexReviewerAgentId) {
       reason = chooseReviewer({ ...base, codexSwitchOn: true }).reason;
@@ -249,7 +251,7 @@ export async function recordSelect(
       const ideal = chooseReviewer({ ...base, codexSwitchOn: true });
       const choice = ideal.runtime === "codex_local" && codex
         ? chooseReviewer({ ...base, codexSwitchOn: await readRuntimeSwitch(ctx, {
-          companyId, machineId: await machineOfAgent(ctx, companyId, codex), runtime: "codex_local",
+          companyId, machineId: await machineOfAgent(ctx, companyId, codex, issue.id), runtime: "codex_local",
         }) })
         : ideal;
       // Server chọn Claude mà luật hiện giờ cho Codex: công tắc vừa đổi hoặc server đọc lỗi.
