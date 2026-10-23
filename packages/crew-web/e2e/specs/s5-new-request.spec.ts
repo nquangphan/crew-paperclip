@@ -270,6 +270,84 @@ test('PW-S5-9 loại Viết tài liệu: chọn được khi company có nhãn d
   await page.screenshot({ path: testInfo.outputPath('issue-docs-kind.png'), fullPage: true });
 });
 
+test('PW-S5-10 loại Lập kế hoạch: chọn được khi company có nhãn plan; yêu cầu gắn nhãn plan hiện loại Lập kế hoạch @t1', async ({
+  page,
+  company,
+  api,
+}, testInfo) => {
+  const planLabel = await ensureLabel(api, company.id, 'plan', '#7c3aed');
+  const dialog = await openDialog(page, company.path('issues'));
+  const kind = dialog.getByRole('combobox', { name: 'Loại' });
+  await kind.click();
+  await expect(page.getByRole('option', { name: 'Lập kế hoạch', exact: true })).toBeVisible();
+  await page.screenshot({ path: testInfo.outputPath('new-request-plan-kind.png') });
+  await page.getByRole('option', { name: 'Lập kế hoạch', exact: true }).click();
+  await expect(kind).toHaveText('Lập kế hoạch');
+  await expect(dialog.getByText('chưa có nhãn “plan”')).toHaveCount(0);
+  await page.keyboard.press('Escape');
+  await expect(dialog).toBeHidden();
+
+  // Không có project sẵn sàng ở T1 nên tạo yêu cầu bằng API với nhãn plan, như dialog gửi.
+  const issue = await createIssue(api, company.id, {
+    title: `PW-S5-10 lập kế hoạch ${uniqueToken()}`,
+    status: 'backlog',
+    labelIds: [planLabel],
+  });
+  await page.goto(company.path(`issues/${issue.identifier}`));
+  const props = page.getByTestId('properties-panel');
+  await expect(props.getByText('Lập kế hoạch', { exact: true })).toBeVisible();
+  await page.screenshot({ path: testInfo.outputPath('issue-plan-kind.png'), fullPage: true });
+});
+
+test('PW-S5-11 nút Làm theo kế hoạch này: chỉ ở yêu cầu gốc nhãn plan đã xong, mở hộp Yêu cầu mới loại Code điền sẵn @t1', async ({
+  page,
+  company,
+  api,
+}, testInfo) => {
+  const planLabel = await ensureLabel(api, company.id, 'plan', '#7c3aed');
+  const token = uniqueToken();
+  const path = `plans/261023-1500-${token}/plan.md`;
+  const pr = 'https://github.com/acme/app/pull/42';
+  const done = await createIssue(api, company.id, {
+    title: `PW-S5-11 kế hoạch ${token}`,
+    status: 'done',
+    labelIds: [planLabel],
+    description: `Đã xong.\n\n### Kế hoạch\n- File kế hoạch: \`${path}\`\n- Pull request: ${pr}`,
+  });
+  await page.goto(company.path(`issues/${done.identifier}`));
+  const button = page.getByRole('button', { name: 'Làm theo kế hoạch này' });
+  await expect(button).toBeVisible();
+  await button.click();
+  const dialog = page.getByRole('dialog', { name: 'Yêu cầu mới' });
+  await expect(dialog).toBeVisible();
+  await expect(dialog.getByRole('combobox', { name: 'Loại' })).toHaveText('Code');
+  await expect(dialog.getByLabel('Tiêu đề')).toHaveValue(`Làm theo kế hoạch: PW-S5-11 kế hoạch ${token}`);
+  await expect(dialog.getByLabel('Mô tả')).toHaveValue(
+    [
+      `crew-from-plan ${path}`,
+      `Kế hoạch: ${done.identifier} · PR: ${pr}`,
+      'Merge PR kế hoạch trước khi bắt đầu làm.',
+    ].join('\n'),
+  );
+  await page.screenshot({ path: testInfo.outputPath('follow-plan-dialog.png') });
+  await page.keyboard.press('Escape');
+  await expect(dialog).toBeHidden();
+
+  // Chưa xong, hoặc không nhãn plan: không có nút.
+  const open = await createIssue(api, company.id, {
+    title: `PW-S5-11 chưa xong ${token}`,
+    status: 'todo',
+    labelIds: [planLabel],
+  });
+  await page.goto(company.path(`issues/${open.identifier}`));
+  await expect(page.getByTestId('properties-panel')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Làm theo kế hoạch này' })).toHaveCount(0);
+  const plain = await createIssue(api, company.id, { title: `PW-S5-11 thường ${token}`, status: 'done' });
+  await page.goto(company.path(`issues/${plain.identifier}`));
+  await expect(page.getByTestId('properties-panel')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Làm theo kế hoạch này' })).toHaveCount(0);
+});
+
 /** Chọn project nền, điền tiêu đề, bấm Tạo (hoặc Lưu nháp); trả issue vừa tạo và ghi để cuối ca hủy. */
 async function submit(
   page: Page,

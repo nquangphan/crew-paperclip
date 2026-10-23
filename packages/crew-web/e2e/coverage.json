@@ -149,6 +149,16 @@
     "tests": ["PW-S5-9 "],
     "tier": "T1"
   },
+  "S5.10": {
+    "spec": "e2e/specs/s5-new-request.spec.ts",
+    "tests": ["PW-S5-10 "],
+    "tier": "T1"
+  },
+  "S5.11": {
+    "spec": "e2e/specs/s5-new-request.spec.ts",
+    "tests": ["PW-S5-11 "],
+    "tier": "T1"
+  },
   "S6.1": {
     "spec": "e2e/specs/s6-crew-map.spec.ts",
     "tests": ["PW-S6-MAP-1 "],

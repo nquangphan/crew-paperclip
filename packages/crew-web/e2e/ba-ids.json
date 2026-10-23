@@ -11,7 +11,9 @@
     "S22.x": "Roadmap (plans/261012-1410-roadmap-map): S22.1 bản đồ công ty → project → yêu cầu → việc con, nhánh Docs, chuyển tầng (URL, Back, Esc), popup chi tiết và dạng danh sách; S22.2 lọc theo quyền project (kể cả deep link).",
     "S24.x": "Jev (plans/261022-0749-jev-integration): S24.1 owner lưu, kiểm thử và xóa key OpenRouter (chỉ hiện vân tay), S24.2 cấu hình bật/chế độ gate/model/ngưỡng/timeout/C3 phía server, S24.3 bảng máy, số theo ngày, ca deny/escalate (gắn nhãn Đúng/Nhầm) và ca lệch C3, S24.4 khối Jev trên trang chi tiết issue (tóm tắt, danh sách ca của issue, Đúng/Nhầm), S24.5 huy hiệu Jev trên thẻ bản đồ Roadmap (chỉ owner), S24.6 công tắc chung «Tắt toàn bộ Jev», chế độ off/shadow/on của 4 tính năng, thống kê và ca lệch từng tính năng, S24.7 hỏi lại khi lời nhắn Duyệt/Yêu cầu sửa lệch ý, S24.8 chip Jev gợi ý loại yêu cầu, S24.9 huy hiệu «Cần Đại Ca để ý» và cờ complexity.",
     "S23.x": "Phòng QC duyệt lại yêu cầu do mình gửi: S23.1 Xác nhận đạt (chỉ đổi trạng thái QC), S23.2 Chưa đạt kèm lý do (chờ owner duyệt, duyệt thì mở lại cho người làm), S23.3 trạng thái Chờ QC duyệt/QC verified ở danh sách, bảng, chi tiết, bản đồ và mục Cần tôi duyệt.",
-    "S5.9": "Loại yêu cầu Viết tài liệu (nhãn docs): dialog Yêu cầu mới cho chọn khi company có nhãn docs, trang chi tiết ghi loại Viết tài liệu."
+    "S5.9": "Loại yêu cầu Viết tài liệu (nhãn docs): dialog Yêu cầu mới cho chọn khi company có nhãn docs, trang chi tiết ghi loại Viết tài liệu.",
+    "S5.10": "Loại yêu cầu Lập kế hoạch (nhãn plan): dialog Yêu cầu mới cho chọn khi company có nhãn plan, trang chi tiết ghi loại Lập kế hoạch.",
+    "S5.11": "Nút Làm theo kế hoạch này trên yêu cầu gốc nhãn plan đã xong: mở hộp Yêu cầu mới loại Code điền sẵn tiêu đề và mô tả (crew-from-plan, mã kế hoạch, link PR); không có nút khi chưa xong hoặc không nhãn plan."
   },
   "ids": [
     "S0.1",
@@ -44,6 +46,8 @@
     "S5.6",
     "S5.7",
     "S5.9",
+    "S5.10",
+    "S5.11",
     "S6.1",
     "S6.2",
     "S6.3",
