@@ -72,16 +72,18 @@ function rolesError(roles: unknown): string | null {
   return missing ? `roles thiếu ${missing}` : null;
 }
 
-/** Role names for `remove-checkouts`: 1 to 5 distinct slots. */
+const checkoutNameOk = (value: unknown): value is string =>
+  typeof value === "string" && CHECKOUT_NAME.test(value) && value !== "repo";
+
+/** Tên thư mục checkout cần gỡ: 1 đến 8 tên không trùng (tám ô của wizard hay tên thư mục của app như `executor-1`). */
 function roleListError(roles: unknown): string | null {
   if (!Array.isArray(roles)) return "roles phải là mảng";
   for (const role of roles) {
-    const error = roleError(role);
-    if (error) return error;
+    if (!checkoutNameOk(role)) return "role không hợp lệ";
   }
   if (roles.length < 1 || roles.length > CREW_ROLE_SLOTS.length) return `roles phải có 1 đến ${CREW_ROLE_SLOTS.length} vai trò`;
   const seen = new Set<string>();
-  for (const role of roles as CrewRoleSlot[]) {
+  for (const role of roles as string[]) {
     if (seen.has(role)) return `role ${role} bị trùng`;
     seen.add(role);
   }
@@ -90,8 +92,6 @@ function roleListError(roles: unknown): string | null {
 
 const originError = (value: unknown) =>
   typeof value === "string" && value.length <= 500 && !CONTROL.test(value) && ORIGIN.test(value) ? null : "originUrl không hợp lệ";
-const checkoutNameOk = (value: unknown): value is string =>
-  typeof value === "string" && CHECKOUT_NAME.test(value) && value !== "repo";
 
 /** Vai trò của `ensure-project`: 1–8 thư mục checkout không trùng, mỗi cái một nhánh. */
 function ensureRolesError(roles: unknown): string | null {
@@ -164,7 +164,7 @@ export function validateJobPayload(kind: MachineJobKind, payload: unknown): JobP
         ?? (typeof p.removeStatusRepo === "boolean" ? null : "removeStatusRepo phải là boolean");
       return error ?? {
         kind, projectId: (p.projectId as string).toLowerCase(), projectKey: p.projectKey as string,
-        roles: [...p.roles as CrewRoleSlot[]], removeStatusRepo: p.removeStatusRepo as boolean,
+        roles: [...(p.roles as string[])], removeStatusRepo: p.removeStatusRepo as boolean,
       };
     }
     case "skill-remove":
@@ -199,10 +199,10 @@ const boolOrNull = (value: unknown): value is boolean | null => value === null |
 const version = (value: unknown): value is string | null =>
   value === null || typeof value === "string" && value.length > 0 && value.length <= 200 && !CONTROL.test(value);
 
-const roleOnly = (value: unknown): value is CrewRoleSlot => roleError(value) === null;
-const removedCheckout = (value: unknown): value is { role: CrewRoleSlot; path: string } =>
+const roleOnly = (value: unknown): value is string => checkoutNameOk(value);
+const removedCheckout = (value: unknown): value is { role: string; path: string } =>
   isObject(value) && roleOnly(value.role) && str(value.path);
-const keptCheckout = (value: unknown): value is { role: CrewRoleSlot; path: string; reason: KeptCheckoutReason; detail?: unknown } =>
+const keptCheckout = (value: unknown): value is { role: string; path: string; reason: KeptCheckoutReason; detail?: unknown } =>
   removedCheckout(value) && KEPT_CHECKOUT_REASONS.includes((value as Record<string, unknown>).reason as KeptCheckoutReason)
   && ((value as Record<string, unknown>).detail === undefined || str((value as Record<string, unknown>).detail));
 

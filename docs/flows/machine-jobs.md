@@ -64,6 +64,8 @@ Luật chính:
 - Việc `ensure-project` do server Crew xếp (không qua wizard): payload `projectKey`, `projectId`, `originUrl`, `branch`,
   `roles[]` (`role`, `branch`), `companions[]` (`name`, `originUrl`); result `repoPath`, `cloned`, `checkouts[]`,
   `companions[]`. Clone thiếu quyền báo mã lỗi `clone_auth_failed`.
+- Việc `remove-checkouts`: `roles` là 1–8 tên thư mục checkout (tám ô của wizard hoặc tên thư mục của app như
+  `executor-1`), khác `repo`; server Crew xếp việc này cho máy khác khi gỡ agent/project (flow `multi-machine`).
 - Log: `crew machine job changed` (hành động, job, company, user).
 - Bên nhận việc: app 2P Crew trên Mac (repo `crew`).
 

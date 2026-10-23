@@ -55,7 +55,8 @@ describe("validateJobPayload", () => {
     ["remove-checkouts", { ...removeCheckouts, roles: [] }, "roles phải có 1 đến 8 vai trò"],
     ["remove-checkouts", { ...removeCheckouts, roles: "executor" }, "roles phải là mảng"],
     ["remove-checkouts", { ...removeCheckouts, roles: ["executor", "executor"] }, "role executor bị trùng"],
-    ["remove-checkouts", { ...removeCheckouts, roles: ["boss"] }, "role không hợp lệ"],
+    ["remove-checkouts", { ...removeCheckouts, roles: ["Boss"] }, "role không hợp lệ"],
+    ["remove-checkouts", { ...removeCheckouts, roles: ["repo"] }, "role không hợp lệ"],
     ["remove-checkouts", { ...removeCheckouts, roles: [{ role: "executor" }] }, "role không hợp lệ"],
     ["remove-checkouts", { ...removeCheckouts, roles: [...allSlots, "executor"] }, "roles phải có 1 đến 8 vai trò"],
     ["remove-checkouts", { ...removeCheckouts, roles: ["executor-codex", "executor-codex"] }, "role executor-codex bị trùng"],
@@ -163,11 +164,11 @@ describe("validateJobResult", () => {
     ["check", { kind: "check", items: [{ id: "git", status: "ok" }] }],
     ["check", { kind: "check", items: [null] }],
     ["remove-checkouts", { kind: "remove-checkouts", removed: [], kept: [] }],
-    ["remove-checkouts", { kind: "remove-checkouts", removed: [{ role: "boss", path: "/p" }], kept: [], absent: [] }],
+    ["remove-checkouts", { kind: "remove-checkouts", removed: [{ role: "Boss", path: "/p" }], kept: [], absent: [] }],
     ["remove-checkouts", { kind: "remove-checkouts", removed: [{ role: "executor" }], kept: [], absent: [] }],
     ["remove-checkouts", { kind: "remove-checkouts", removed: [], kept: [{ role: "executor", path: "/p", reason: "locked" }], absent: [] }],
     ["remove-checkouts", { kind: "remove-checkouts", removed: [], kept: [{ role: "executor", path: "/p", reason: "dirty", detail: 3 }], absent: [] }],
-    ["remove-checkouts", { kind: "remove-checkouts", removed: [], kept: [], absent: ["boss"] }],
+    ["remove-checkouts", { kind: "remove-checkouts", removed: [], kept: [], absent: ["Boss"] }],
     ["remove-checkouts", { kind: "remove-checkouts", removed: [], kept: "x", absent: [] }],
     ["skill-remove", { kind: "skill-remove", removed: "yes" }],
     ["skill-remove", { kind: "skill-remove" }],
@@ -204,6 +205,15 @@ describe("validateJobResult", () => {
     })).toEqual({ ...runtimesSetup, opencode: { version: "1.18.35", keyPresent: false } });
     const json = JSON.stringify(validateJobResult("runtimes-setup", { ...runtimesSetup, codex: { ...runtimesSetup.codex, token: "sk-secret" } }));
     expect(json).not.toContain("sk-secret");
+  });
+
+  it("remove-checkouts nhận tên thư mục checkout của app (executor-1) bên cạnh tám ô", () => {
+    expect(validateJobPayload("remove-checkouts", { ...removeCheckouts, roles: ["executor-1", "assistant"] }))
+      .toEqual({ kind: "remove-checkouts", ...removeCheckouts, roles: ["executor-1", "assistant"] });
+    const result = {
+      kind: "remove-checkouts", removed: [{ role: "executor-1", path: "/Users/a/crew-agents/demo/executor-1" }], kept: [], absent: ["integrator"],
+    };
+    expect(validateJobResult("remove-checkouts", result)).toEqual(result);
   });
 
   it("remove-checkouts giữ trường đã biết, làm sạch và cắt detail 300 ký tự", () => {

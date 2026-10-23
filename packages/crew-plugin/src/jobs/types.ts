@@ -29,7 +29,7 @@ export type JobPayload =
   | { kind: "skill-sync"; skillId: string; slug: string; version: string }
   | { kind: "check"; projectKey: string }
   /** Removes the project's checkouts under `~/crew-agents/<projectKey>/`; a dirty, busy or foreign checkout is kept. */
-  | { kind: "remove-checkouts"; projectId: string; projectKey: string; roles: CrewRoleSlot[]; removeStatusRepo: boolean }
+  | { kind: "remove-checkouts"; projectId: string; projectKey: string; roles: string[]; removeStatusRepo: boolean }
   /** Removes the copy under `~/.crew/skills/<companyId>/<slug>`. */
   | { kind: "skill-remove"; skillId: string; slug: string }
   /** Cài/cập nhật wrapper runtime trên Mac rồi báo trạng thái. Key OpenCode không bao giờ đi qua hàng đợi. */
@@ -55,9 +55,9 @@ export type JobResult =
   | { kind: "check"; items: { id: string; status: "ok" | "warn" | "error"; title: string }[] }
   | {
     kind: "remove-checkouts";
-    removed: { role: CrewRoleSlot; path: string }[];
-    kept: { role: CrewRoleSlot; path: string; reason: KeptCheckoutReason; detail?: string }[];
-    absent: CrewRoleSlot[];
+    removed: { role: string; path: string }[];
+    kept: { role: string; path: string; reason: KeptCheckoutReason; detail?: string }[];
+    absent: string[];
   }
   | { kind: "skill-remove"; removed: boolean }
   | {
