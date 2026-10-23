@@ -288,6 +288,18 @@
   "crew": {
     "mapFailed": "Could not load the Crew summary",
     "docsFailed": "Could not load the docs check",
+    "machine": {
+      "label": "Machine",
+      "none": "Not chosen yet (picked before the first run)",
+      "auto": "{{host}} · automatic ({{running}} runs, load {{load}}, {{mem}}% RAM free)",
+      "backfill": "{{host}} · machine running the project when multi-machine was turned on",
+      "owner": "{{host}} · chosen by the owner",
+      "change": "Change machine",
+      "pick": "Pick a machine",
+      "save": "Save",
+      "cancel": "Cancel",
+      "changeFailed": "Could not change the machine"
+    },
     "runtime": {
       "title": "Runtime",
       "failed": "Could not load the runtime decisions",

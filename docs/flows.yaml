@@ -683,6 +683,7 @@ flows:
       - packages/crew-web/src/features/issues/detail/crew/gate-dialogs.tsx
       - packages/crew-web/src/features/issues/detail/crew/interaction-card.tsx
       - packages/crew-web/src/features/issues/detail/crew/interactions-slot.tsx
+      - packages/crew-web/src/features/issues/detail/crew/machine-slot.tsx
       - packages/crew-web/src/features/issues/detail/crew/runtime-slot.tsx
       - packages/crew-web/src/features/issues/detail/crew/summary-slot.tsx
       - packages/crew-web/src/features/issues/detail/documents.tsx
@@ -744,6 +745,7 @@ flows:
       - packages/crew-web/test/features/issues/kinds.test.ts
       - packages/crew-web/test/features/issues/list-view.test.ts
       - packages/crew-web/test/features/issues/new-request-dialog.test.tsx
+      - packages/crew-web/test/features/issues/machine-slot.test.tsx
       - packages/crew-web/test/features/issues/properties-panel.test.tsx
       - packages/crew-web/test/features/issues/runtime-slot.test.tsx
       - packages/crew-web/test/features/issues/start-work.test.tsx

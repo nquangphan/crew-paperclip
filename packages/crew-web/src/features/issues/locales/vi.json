@@ -288,6 +288,18 @@
   "crew": {
     "mapFailed": "Không tải được tóm tắt Crew",
     "docsFailed": "Không tải được kết quả kiểm docs",
+    "machine": {
+      "label": "Máy",
+      "none": "Chưa chọn máy (tự chọn trước run đầu tiên)",
+      "auto": "{{host}} · tự chọn ({{running}} run, load {{load}}, RAM trống {{mem}}%)",
+      "backfill": "{{host}} · máy đang chạy project lúc bật chạy nhiều máy",
+      "owner": "{{host}} · Đại Ca chọn",
+      "change": "Đổi máy",
+      "pick": "Chọn máy",
+      "save": "Lưu",
+      "cancel": "Hủy",
+      "changeFailed": "Không đổi được máy"
+    },
     "runtime": {
       "title": "Runtime",
       "failed": "Không tải được quyết định runtime",

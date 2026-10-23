@@ -18,6 +18,7 @@ import { displayStatus } from '@/features/qc/qc-status';
 import { formatDateTime, useT } from '@/i18n';
 import { labelledKindOf } from '../new/kinds';
 import { IssueLink } from '../popup/issue-nav';
+import { MachineSlot } from './crew/machine-slot';
 import { RuntimeSlot } from './crew/runtime-slot';
 import type { ChildSummary } from './use-issue';
 
@@ -157,6 +158,7 @@ export function PropertiesPanel({
         <PropertyRow label={t('detail.props.round')}>
           {policy ? `${state?.changesRequestedCount ?? 0}/${policy.maxReviewRounds ?? DEFAULT_MAX_ROUNDS}` : none}
         </PropertyRow>
+        <MachineSlot issue={issue} />
       </PropertySection>
       <RuntimeSlot issue={issue} />
       <PropertySection title={t('detail.props.section.about')}>
