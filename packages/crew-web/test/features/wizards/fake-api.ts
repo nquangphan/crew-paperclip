@@ -142,6 +142,13 @@ export function fakeApi(opts: { run?: SetupRun; busy?: boolean; jobOutcome?: Job
     environments: [structuredClone(TEMPLATE_ENV)] as Record<string, unknown>[],
     /** Secret của company đang chạy wizard (environment mẫu phải trỏ vào đây). */
     secrets: [{ id: 'sec-1' }] as { id: string }[],
+    /** Route Crew máy khác: cây ghim còn run, kết quả dọn máy khác, kết quả dựng sẵn. */
+    machineBlockers: [] as { issueId: string; identifier: string | null; hostname: string; runStatus: string }[],
+    machineRelease: { archivedEnvironmentIds: [] as string[], jobs: [] as { machineId: string; jobId: string }[] },
+    machineProvision: {
+      queued: [] as { machineId: string; jobId: string }[],
+      skipped: [] as { machineId: string; reason: string }[],
+    },
     agents: [] as FakeAgent[],
     files: new Map<string, { content: string; contentHash: string }>(),
     roles: null as ProjectRoles | null,
@@ -396,6 +403,20 @@ export function fakeApi(opts: { run?: SetupRun; busy?: boolean; jobOutcome?: Job
         const deleted = state.roles !== null;
         state.roles = null;
         return { deleted };
+      },
+    },
+    machinePins: {
+      blockers: async (companyId: string, projectId: string, agentIds?: string[]) => {
+        record('machinePins.blockers', companyId, projectId, agentIds ?? null);
+        return structuredClone(state.machineBlockers);
+      },
+      release: async (companyId: string, projectId: string, body: Record<string, unknown>) => {
+        record('machinePins.release', companyId, projectId, structuredClone(body));
+        return structuredClone(state.machineRelease);
+      },
+      provisionOthers: async (companyId: string, projectId: string, body: Record<string, unknown>) => {
+        record('machinePins.provisionOthers', companyId, projectId, structuredClone(body));
+        return structuredClone(state.machineProvision);
       },
     },
     crew: {

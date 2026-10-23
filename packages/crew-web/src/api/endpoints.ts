@@ -273,6 +273,9 @@ export const ENDPOINTS = {
   'projectMachines.get': { ids: ['S25.3'], method: 'GET', path: `${CREW}/projects/:projectId/machines` },
   'projectMachines.add': { ids: ['S25.3'], method: 'POST', path: `${CREW}/projects/:projectId/machines` },
   'projectMachines.setRepo': { ids: ['S25.3'], method: 'PUT', path: `${CREW}/projects/:projectId/repo` },
+  'projectMachines.blockers': { ids: ['S8.7', 'S11.9'], method: 'GET', path: `${CREW}/projects/:projectId/machines/blockers` },
+  'projectMachines.release': { ids: ['S8.7', 'S11.9'], method: 'POST', path: `${CREW}/projects/:projectId/machines/release` },
+  'projectMachines.provision': { ids: ['S25.3'], method: 'POST', path: `${CREW}/projects/:projectId/machines/provision` },
 
   // Thành viên (S20.8): route stock của Paperclip, chỉ owner dùng.
   'members.list': { ids: ['S20.8'], method: 'GET', path: '/api/companies/:companyId/members' },

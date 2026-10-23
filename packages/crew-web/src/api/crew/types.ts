@@ -29,7 +29,7 @@ export type JobPayload =
       kind: 'remove-checkouts';
       projectId: string;
       projectKey: string;
-      roles: CrewRoleSlot[];
+      roles: string[];
       removeStatusRepo: boolean;
     }
   | { kind: 'skill-remove'; skillId: string; slug: string }
@@ -58,14 +58,14 @@ export type JobResult =
   | { kind: 'check'; items: { id: string; status: 'ok' | 'warn' | 'error'; title: string }[] }
   | {
       kind: 'remove-checkouts';
-      removed: { role: CrewRoleSlot; path: string }[];
+      removed: { role: string; path: string }[];
       kept: {
-        role: CrewRoleSlot;
+        role: string;
         path: string;
         reason: 'dirty' | 'busy' | 'not_worktree' | 'git_failed';
         detail?: string;
       }[];
-      absent: CrewRoleSlot[];
+      absent: string[];
     }
   | { kind: 'skill-remove'; removed: boolean }
   | {
@@ -445,4 +445,20 @@ export interface ProjectMachine {
 export interface ProjectMachines {
   repo: ProjectRepo | null;
   machines: ProjectMachine[];
+}
+
+/** Run chờ hoặc đang chạy trên máy đã ghim của cây yêu cầu, chặn việc gỡ. */
+export interface ReleaseBlocker {
+  issueId: string;
+  identifier: string | null;
+  hostname: string;
+  runStatus: string;
+}
+export interface ReleaseResult {
+  archivedEnvironmentIds: string[];
+  jobs: { machineId: string; jobId: string }[];
+}
+export interface ProvisionOthersResult {
+  queued: { machineId: string; jobId: string }[];
+  skipped: { machineId: string; reason: string }[];
 }

@@ -2,7 +2,15 @@
 // → gỡ checkout trên máy → archive project. Khung bước (khóa `lockToken`, refs, "Chạy tiếp" từ bước lỗi) dùng chung với
 // wizard thêm project. Không bao giờ DELETE agent/project/environment, không terminate, không hủy issue đang mở; checkout
 // còn việc chưa commit được máy giữ lại và báo. Project archive sau cùng: lỗi giữa chừng thì project vẫn hiện để chạy tiếp.
-import type { CrewRoleSlot, ProjectRoles, RemoveProjectInput, SetupRun, SetupStepId } from '@/api';
+import {
+  ApiError,
+  type CrewRoleSlot,
+  type ProjectRoles,
+  type ReleaseBlocker,
+  type RemoveProjectInput,
+  type SetupRun,
+  type SetupStepId,
+} from '@/api';
 import { CREW_ROLE_SLOTS, slotAgents } from '@/lib/instructions';
 import {
   type AddProjectApi,
@@ -43,6 +51,14 @@ export interface RemoveApi {
     archive(environmentId: string): Promise<unknown>;
   };
   roles: { get(companyId: string, projectId: string): Promise<ProjectRoles | null> };
+  machinePins: {
+    blockers(companyId: string, projectId: string, agentIds?: string[]): Promise<ReleaseBlocker[]>;
+    release(
+      companyId: string,
+      projectId: string,
+      body: { agentIds: string[]; wholeProject: boolean; primaryMachineId: string | null },
+    ): Promise<{ archivedEnvironmentIds: string[]; jobs: { machineId: string; jobId: string }[] }>;
+  };
 }
 
 export interface RemoveProjectApi extends RemoveApi {
@@ -118,6 +134,55 @@ export function keptCheckouts(run: SetupRun): KeptCheckout[] {
   });
 }
 
+const blockerList = (blockers: readonly ReleaseBlocker[]) =>
+  blockers.map((b) => `${b.identifier ?? b.issueId} (${b.hostname})`).join(', ');
+/** Server cũ chưa có route máy (404) hay plugin chưa nâng cấp (503): giữ đúng cách gỡ hôm nay. */
+const machineRoutesMissing = (error: unknown) =>
+  error instanceof ApiError && (error.status === 404 || error.status === 503);
+
+/** Cây ghim máy của project còn run chờ/chạy thì không gỡ: gỡ lúc này làm gãy cây đó. */
+export async function assertNoMachineBlockers(
+  ctx: RemoveContext<RemoveApi>,
+  companyId: string,
+  projectId: string,
+  agentIds: string[] | null,
+): Promise<void> {
+  let blockers: ReleaseBlocker[];
+  try {
+    blockers = await ctx.api.machinePins.blockers(companyId, projectId, agentIds ?? undefined);
+  } catch (error) {
+    if (machineRoutesMissing(error)) return;
+    throw error;
+  }
+  if (blockers.length > 0) throw new StepError('remove.errors.machineBusy', { list: blockerList(blockers) });
+}
+
+/** Nhờ server archive environment `@máy` trên máy khác và xếp gỡ checkout ở đó; ghi số vào refs để trang hiện. */
+export async function releaseOtherMachines(
+  ctx: RemoveContext<RemoveApi>,
+  run: SetupRun,
+  refs: Record<string, string>,
+  input: { projectId: string; agentIds: string[]; wholeProject: boolean },
+): Promise<void> {
+  if (input.agentIds.length === 0) return;
+  try {
+    const result = await ctx.api.machinePins.release(run.companyId, input.projectId, {
+      agentIds: input.agentIds,
+      wholeProject: input.wholeProject,
+      primaryMachineId: run.machineId,
+    });
+    refs.otherEnvironments = String(result.archivedEnvironmentIds.length);
+    refs.otherMachines = String(result.jobs.length);
+  } catch (error) {
+    if (error instanceof ApiError && error.status === 409) {
+      const blockers = (error.body as { blockers?: ReleaseBlocker[] } | null)?.blockers ?? [];
+      throw new StepError('remove.errors.machineBusy', { list: blockerList(blockers) });
+    }
+    if (machineRoutesMissing(error)) return;
+    throw error;
+  }
+}
+
 /** Agent trong vai trò, theo ô (đọc ở bước đầu; các bước sau dùng refs vì vai trò đã bị xóa). */
 function scopeOf(run: SetupRun): { slot: CrewRoleSlot; agentId: string }[] {
   const refs = run.steps['pause-agents']?.refs ?? {};
@@ -133,6 +198,7 @@ const STEPS: Record<RemoveProjectStepId, StepWork> = {
     if (roles) {
       for (const [slot, agentId] of slotAgents(roles)) if (agentId) refs[`agent_${slot}`] ??= agentId;
     }
+    await assertNoMachineBlockers(ctx, run.companyId, projectId, null);
     const agents = await ctx.api.agents.list(run.companyId);
     for (const slot of ROLE_SLOTS) {
       const agentId = refs[`agent_${slot}`];
@@ -155,22 +221,28 @@ const STEPS: Record<RemoveProjectStepId, StepWork> = {
 
   async environments(ctx, run, refs) {
     const scope = scopeOf(run);
-    if (scope.length === 0) return;
-    const [environments, agents] = await Promise.all([
-      ctx.api.environments.list(run.companyId),
-      ctx.api.agents.list(run.companyId),
-    ]);
-    const targets = exclusiveEnvironments({
-      environments,
-      agents,
-      scope: scope.map((s) => s.agentId),
-      projectKey: run.projectKey,
-    });
-    for (const { agentId, environmentId } of targets) {
-      await ctx.api.environments.archive(environmentId);
-      const slot = scope.find((s) => s.agentId === agentId)?.slot;
-      if (slot) refs[`environment_${slot}`] = environmentId;
+    if (scope.length > 0) {
+      const [environments, agents] = await Promise.all([
+        ctx.api.environments.list(run.companyId),
+        ctx.api.agents.list(run.companyId),
+      ]);
+      const targets = exclusiveEnvironments({
+        environments,
+        agents,
+        scope: scope.map((s) => s.agentId),
+        projectKey: run.projectKey,
+      });
+      for (const { agentId, environmentId } of targets) {
+        await ctx.api.environments.archive(environmentId);
+        const slot = scope.find((s) => s.agentId === agentId)?.slot;
+        if (slot) refs[`environment_${slot}`] = environmentId;
+      }
     }
+    await releaseOtherMachines(ctx, run, refs, {
+      projectId: projectInputOf(run).projectId,
+      agentIds: scope.map((s) => s.agentId),
+      wholeProject: true,
+    });
   },
 
   async checkouts(ctx, run, refs) {

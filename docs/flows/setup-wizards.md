@@ -17,7 +17,9 @@ Luật chính:
 - Một khóa project chỉ có một run thêm project dở; một project hay agent chỉ có một run gỡ dở. Run thêm project lỗi mà
   chưa tạo project thì owner "Bỏ lần dở" (`abandoned`, trả khóa); run gỡ không bỏ được, chỉ chạy tiếp.
 - Không bao giờ xóa: gỡ là pause agent, archive environment và project (PATCH trạng thái), gỡ checkout. Chỉ dòng vai
-  trò được xóa. Environment mẫu (giữ secret SSH) không bao giờ bị chạm.
+  trò được xóa. Environment mẫu (giữ secret SSH) không bao giờ bị chạm. Gỡ project hay agent còn archive environment
+  `@máy` của agent trên máy khác và xếp `remove-checkouts` ở đó qua route Crew (flow `multi-machine`); cây ghim máy còn
+  run chờ hay đang chạy thì dừng ngay ở bước đầu.
 - Lỗi giữa chừng thì pause agent do chính wizard tạo; agent có sẵn không bị đụng.
 - Agent giữ vai trò bắt buộc (Trợ Lý, reviewer, integrator, executor duy nhất) không gỡ được vì project sẽ fail
   closed; ô runtime là tùy chọn.
@@ -49,7 +51,9 @@ Luật chính:
    lần thêm project được hỏi máy qua việc `inspect-folder` (`add-agent/repo-root.ts`).
 5. `packages/crew-web/src/features/wizards/remove/remove-project.ts` → `runRemoveProject`; `remove/remove-agent.ts` →
    `runRemoveAgent`: pause, ghi hay xóa vai trò, archive environment riêng (`exclusiveEnvironments`), gỡ checkout; checkout
-   còn việc chưa commit được máy giữ lại và báo (`keptCheckouts`).
+   còn việc chưa commit được máy giữ lại và báo (`keptCheckouts`). `assertNoMachineBlockers` kiểm cây ghim còn run trước
+   khi pause (project) hay đổi vai trò (agent); `releaseOtherMachines` dọn máy khác sau khi archive environment (server
+   cũ trả 404/503 thì bỏ qua).
 6. `packages/crew-web/src/features/wizards/setup-progress.tsx` → `SetupProgress`: khung tiến độ dùng chung, "Chạy tiếp",
    báo người khác đang chạy, "Bỏ lần dở".
 7. `packages/crew-web/src/features/wizards/machine-host.ts` → `machineHost`, `projectMachine`: suy host SSH và máy của
@@ -100,6 +104,7 @@ Luật chính:
 - `machine-jobs`: việc trên máy mà wizard xếp và chờ.
 - `project-roles`: wizard ghi và xóa vai trò theo project.
 - `agent-roles`: template AGENTS.md theo vai trò mà wizard render.
+- `multi-machine`: route Crew dọn máy khác khi gỡ (`machines/blockers`, `machines/release`).
 - `machine-status`: dữ liệu máy và lần ghép dùng để chọn máy và host.
 - `web-pages`: trang project và agent gắn nút gỡ và nhãn sẵn sàng.
 

@@ -35,4 +35,20 @@ describe('machinePins', () => {
     expect(await api.machinePins.setRepo('c1', 'p1', repo)).toEqual(repo);
     expect(calls.map((c) => [c.method, c.body])).toEqual([['GET', null], ['POST', { machineId: 'm1' }], ['PUT', repo]]);
   });
+
+  it('blockers, release, provisionOthers: đúng đường, query và body', async () => {
+    const { calls } = mockServer({
+      [`GET ${BASE}/projects/p1/machines/blockers`]: { body: { blockers: [] } },
+      [`POST ${BASE}/projects/p1/machines/release`]: { body: { archivedEnvironmentIds: [], jobs: [] } },
+      [`POST ${BASE}/projects/p1/machines/provision`]: { body: { queued: [], skipped: [] } },
+    });
+    expect(await api.machinePins.blockers('c1', 'p1', ['a1', 'a2'])).toEqual([]);
+    expect(calls[0]?.url).toBe(`${BASE}/projects/p1/machines/blockers?agentIds=a1%2Ca2`);
+    await api.machinePins.release('c1', 'p1', { agentIds: ['a1'], wholeProject: false, primaryMachineId: 'm1' });
+    await api.machinePins.provisionOthers('c1', 'p1', { exceptMachineId: 'm1', includeReady: true, repo: null });
+    expect(calls.slice(1).map((c) => c.body)).toEqual([
+      { agentIds: ['a1'], wholeProject: false, primaryMachineId: 'm1' },
+      { exceptMachineId: 'm1', includeReady: true, repo: null },
+    ]);
+  });
 });

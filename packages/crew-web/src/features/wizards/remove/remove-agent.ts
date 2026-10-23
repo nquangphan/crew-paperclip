@@ -13,10 +13,12 @@ import { executeStep, StepError } from '../add-project/run-step';
 import { blockOf, rolesWithout, slotOfAgent } from './eligibility';
 import { exclusiveEnvironments } from './exclusive-environments';
 import {
+  assertNoMachineBlockers,
   pausable,
   REMOVED_AGENT_PERMISSIONS,
   type RemoveApi,
   type RemoveContext,
+  releaseOtherMachines,
   removeCheckouts,
   runSteps,
 } from './remove-project';
@@ -68,6 +70,7 @@ const STEPS: Record<RemoveAgentStepId, StepWork> = {
   async roles(ctx, run, refs) {
     const input = agentRemoveInputOf(run);
     if (!input.projectId) return;
+    await assertNoMachineBlockers(ctx, run.companyId, input.projectId, [input.agentId]);
     let roles = await ctx.api.roles.get(run.companyId, input.projectId);
     if (!roles) return;
     const slot = slotOfAgent(roles, input.agentId);
@@ -121,6 +124,13 @@ const STEPS: Record<RemoveAgentStepId, StepWork> = {
     for (const { environmentId } of targets) {
       await ctx.api.environments.archive(environmentId);
       refs.environment = environmentId;
+    }
+    if (input.projectId) {
+      await releaseOtherMachines(ctx, run, refs, {
+        projectId: input.projectId,
+        agentIds: [input.agentId],
+        wholeProject: false,
+      });
     }
   },
 

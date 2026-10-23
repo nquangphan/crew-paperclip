@@ -75,7 +75,7 @@ Luật chính:
 
 ## Dữ liệu
 
-- Route lõi Paperclip và route plugin: toàn bộ liệt kê trong `ENDPOINTS` (`packages/crew-web/src/api/endpoints.ts`).
+- Route lõi Paperclip và route plugin: toàn bộ liệt kê trong `ENDPOINTS` (`packages/crew-web/src/api/endpoints.ts`), kể cả ba khóa máy mới `projectMachines.blockers`, `projectMachines.release`, `projectMachines.provision`.
   Plugin ở `/api/plugins/crew.core`, router Crew của server ở `/api/crew/companies/:companyId`.
 - WebSocket `/api/companies/:companyId/events/ws`.
 - Trình duyệt: `localStorage` khóa `crew.lang`; `sessionStorage` cho chống lặp tải lại.
