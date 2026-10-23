@@ -21,7 +21,7 @@ OpenRouter). Phần chặn chạy trên Mac (repo crew, flow `mac-jev`). Phần 
 `shadow`) và chung một công tắc `enabled`: tắt thì không tính năng nào gọi Jev hay ghi dòng đo. Jev lỗi, chậm, thiếu key hay
 tắt thì mọi thứ chạy y như cũ; route judge luôn trả 200 `{ ok: false, reason }`. Bốn tính năng: `complexity` (Jev xét việc con
 có chạm bảo mật/migration/API công khai nhưng khai nhỏ hơn `large`, cộng luật xác định "có ảnh mà model không đọc được ảnh"),
-`approval_note` (lời nhắn khi owner duyệt/yêu cầu sửa có lệch hành động), `request_type` (gợi ý loại yêu cầu),
+`approval_note` (lời nhắn khi owner duyệt/yêu cầu sửa có lệch hành động), `request_type` (gợi ý loại yêu cầu: `code`, `bug`, `research`, `docs`, `plan`),
 `inbox_attention` (huy hiệu "Cần Đại Ca để ý" trong hộp duyệt). Chế độ `shadow` chỉ đo; `on` mới hiện cho owner.
 
 `PUT /settings` nhận body một phần (mọi trường tùy chọn, ít nhất một; chỉ trường được gửi đổi, `features` gộp từng khóa), nên bản cache cũ ở web không ghi đè `enabled`. Body đầy đủ vẫn dùng được.
@@ -38,7 +38,7 @@ khỏi `req.body` trước mọi bước có thể lỗi, nên log HTTP không b
   `GET /gate-events`, `POST /gate-events/:id/label`, `GET /shadow`, `GET /issues/:issueId/summary`,
   `GET /requests/:requestId/map`.
 - Route judge (mọi thành viên company đăng nhập bằng phiên, dùng key của company): `POST /judge/approval-note`,
-  `POST /judge/request-type`, `POST /judgments/:id/outcome` (chỉ người đã gọi judge hoặc owner, giá trị `sent|changed` hoặc loại yêu cầu). Route owner thêm: `GET /judgments/stats`, `GET /judgments`,
+  `POST /judge/request-type`, `POST /judgments/:id/outcome` (chỉ người đã gọi judge hoặc owner, giá trị `sent|changed` hoặc loại yêu cầu `code|bug|research|docs|plan`). Route owner thêm: `GET /judgments/stats`, `GET /judgments`,
   `GET /inbox-attention?issueIds=`; `GET /issues/:issueId/summary` có thêm `complexityFlag`, `GET /requests/:requestId/map` có
   thêm `complexityFlags` (chỉ khi `complexity` là `on`).
 - Route máy (ký HMAC): `POST /machine/pull`, `POST /machine/events` cùng tiền tố. Mac gọi trong mỗi lượt
@@ -133,7 +133,7 @@ owner; mọi lỗi, quá hạn, response sai dạng hay chế độ khác đều
   (một lần), rồi ghi `sent` hoặc `changed`. Đóng hộp lời nhắn trong lúc chờ thì bỏ lượt kiểm; bấm hai lần chỉ gọi một lần.
 - Loại yêu cầu (`use-request-type-suggestion.ts`, `request-type-chip.tsx`, nối ở `new-request-dialog.tsx` và
   `approve-issue-dialog.tsx`): chờ 800 ms và đủ 20 ký tự rồi hỏi một lần cho mỗi nội dung. Chế độ `on` hiện chip bấm để
-  chọn, không tự đổi loại. Tối đa 3 lần hỏi mỗi lần mở form, chỉ hỏi lại khi chữ đổi đáng kể, hủy request cũ khi chữ đổi,
+  chọn, không tự đổi loại (chip chỉ hiện loại có trong form: `plan` cần company có nhãn `plan`). Tối đa 3 lần hỏi mỗi lần mở form, chỉ hỏi lại khi chữ đổi đáng kể, hủy request cũ khi chữ đổi,
   chỉ gửi `current` khi owner đã chọn loại; khi gửi ghi loại cuối làm `outcome` cho phán đoán mới nhất.
 - Cờ complexity: `complexityFlag` ở tóm tắt issue (khối `IssueJevBlock`) và `complexityFlags` ở bản đồ yêu cầu (thẻ
   `RoadmapComplexityFlag`). `kind: 'jev'` là "Jev: nên là large", `kind: 'vision'` là luật ảnh/model.

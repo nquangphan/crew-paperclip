@@ -495,6 +495,8 @@ File nào thuộc flow nào. Dùng `crew-docs where <file>` để tra từ dòng
 | `packages/crew-web/src/features/issues/list/use-issues.ts` | [issues-web](flows/issues-web.md) (file) |
 | `packages/crew-web/src/features/issues/new/add-child-dialog.tsx` | [issues-web](flows/issues-web.md) (file) |
 | `packages/crew-web/src/features/issues/new/add-child.ts` | [issues-web](flows/issues-web.md) (file) |
+| `packages/crew-web/src/features/issues/new/follow-plan-action.tsx` | [issues-web](flows/issues-web.md) (file) |
+| `packages/crew-web/src/features/issues/new/follow-plan.ts` | [issues-web](flows/issues-web.md) (file) |
 | `packages/crew-web/src/features/issues/new/kinds.ts` | [issues-web](flows/issues-web.md) (file) |
 | `packages/crew-web/src/features/issues/new/new-request-dialog.tsx` | [issues-web](flows/issues-web.md) (file) |
 | `packages/crew-web/src/features/issues/new/request-fields.tsx` | [issues-web](flows/issues-web.md) (file) |
@@ -714,6 +716,8 @@ File nào thuộc flow nào. Dùng `crew-docs where <file>` để tra từ dòng
 | `packages/crew-web/test/features/issues/comment-thread.test.ts` | [issues-web](flows/issues-web.md) (test) |
 | `packages/crew-web/test/features/issues/comments.test.tsx` | [issues-web](flows/issues-web.md) (test) |
 | `packages/crew-web/test/features/issues/composer.test.tsx` | [issues-web](flows/issues-web.md) (test) |
+| `packages/crew-web/test/features/issues/follow-plan-action.test.tsx` | [issues-web](flows/issues-web.md) (test) |
+| `packages/crew-web/test/features/issues/follow-plan.test.ts` | [issues-web](flows/issues-web.md) (test) |
 | `packages/crew-web/test/features/issues/force-done-dialog.test.tsx` | [issues-web](flows/issues-web.md) (test) |
 | `packages/crew-web/test/features/issues/force-done.test.ts` | [issues-web](flows/issues-web.md) (test) |
 | `packages/crew-web/test/features/issues/gate-actions.test.ts` | [issues-web](flows/issues-web.md) (test) |

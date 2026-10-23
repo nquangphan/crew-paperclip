@@ -11,7 +11,7 @@ hoặc yêu cầu sửa ở cổng, và ép đóng (Ép Done) khi cần.
 Luật chính:
 
 - Web không tự gắn policy, reviewer hay approver: server gắn theo vai trò project khi tạo. Loại yêu cầu (Code, Bug,
-  Nghiên cứu, Viết tài liệu) chỉ khác ở nhãn `research`/`docs`.
+  Nghiên cứu, Viết tài liệu, Lập kế hoạch) chỉ khác ở nhãn `research`/`docs`/`plan`.
 - Thao tác cổng chỉ gửi `status` và bình luận theo luật stage của server; body không bao giờ có `executionPolicy`,
   `executionState` hay assignee (đổi các khóa đó là vượt cổng).
 - Ép Done không dùng PATCH stock (board gửi `done` có thể thành Duyệt hoặc mở workflow) mà gọi route plugin
@@ -65,6 +65,12 @@ Luật chính:
    `crew.issue.force_done` và các bản ghi host đi kèm thành một dòng Ép Done trong khối Lịch sử.
 8. `packages/crew-web/src/features/issues/new/add-child-dialog.tsx` → `AddChildAction`; `add-child.ts` →
    `addChildAvailability`.
+8b. `packages/crew-web/src/features/issues/new/follow-plan-action.tsx` → `FollowPlanAction`: nút "Làm theo kế hoạch này" trên
+   yêu cầu gốc nhãn `plan` đã `done` (`follow-plan.ts` → `canFollowPlan`), ẩn với người chỉ đọc (viewer, khách góp ý).
+   Bấm mở `NewRequestDialog` với `initial` do `followPlanInitial` dựng: project của yêu cầu kế hoạch, loại Code, tiêu đề
+   `Làm theo kế hoạch: <tiêu đề>`, mô tả gồm dòng `crew-from-plan <path>` (path đọc từ dòng `- File kế hoạch: \`<path>\``
+   trong mô tả gốc), dòng `Kế hoạch: <mã> · PR: <url>` (PR từ dòng `- Pull request: <url>`) và dòng nhắc merge PR kế hoạch.
+   Thiếu path thì bỏ dòng `crew-from-plan`; thiếu PR thì bỏ cả link PR lẫn dòng nhắc merge. Tạo xong hiện thông báo kèm link.
 9. `packages/crew-web/src/features/issues/popup/issue-nav.tsx` → `IssueLink`, `useIssueOpener`: click thường mở popup,
    Cmd/Ctrl/Shift/chuột giữa mở trang đầy đủ ở tab mới; hợp đồng URL ở `issue-href.ts`.
 
@@ -79,7 +85,7 @@ Luật chính:
 | `packages/crew-web/src/features/issues/list/issues-board.tsx` | Chế độ Bảng | `boardLayout` |
 | `packages/crew-web/src/features/issues/list/use-issues.ts` | Dữ liệu và trạng thái URL | `COLUMN_IDS`, `KIND_FILTERS`, `VIEW_MODES` |
 | `packages/crew-web/src/features/issues/list/list-view.ts`, `tree.ts` | Nhóm, vạch ngày, cây | `groupIssues`, `dateGroup`, `buildIssueTree` |
-| `packages/crew-web/src/features/issues/new/` | Tạo yêu cầu, loại, thêm việc con | `NewRequestDialog`, `createRequest`, `REQUEST_KINDS`, `AddChildAction` |
+| `packages/crew-web/src/features/issues/new/` | Tạo yêu cầu, loại, thêm việc con, làm theo kế hoạch | `NewRequestDialog` (nhận `initial`), `createRequest`, `REQUEST_KINDS`, `AddChildAction`, `FollowPlanAction`, `parsePlanSource` |
 | `packages/crew-web/src/features/issues/detail/issue-detail.tsx` | Khung chi tiết | `IssueDetail` |
 | `packages/crew-web/src/features/issues/detail/issue-page.tsx` | Trang đầy đủ | `IssuePage` |
 | `packages/crew-web/src/features/issues/detail/use-issue.ts` | Dữ liệu chi tiết | `useIssue`, `useChildIssues`, `useIssueActivity` |
@@ -121,6 +127,8 @@ Luật chính:
   `tree.test.ts`, `issues-page-pending.test.tsx`: cây và thu gọn, chế độ Bảng, nhóm và vạch ngày, nhóm Chờ duyệt.
 - `packages/crew-web/test/features/issues/new-request-dialog.test.tsx`, `use-create-request.test.ts`, `kinds.test.ts`,
   `kind-labels.test.tsx`, `add-child.test.ts`, `add-child-dialog.test.tsx`: tạo yêu cầu, nhãn loại, thêm việc con.
+- `packages/crew-web/test/features/issues/follow-plan.test.ts`, `follow-plan-action.test.tsx`: đọc path/PR từ tổng kết,
+  mô tả điền sẵn, nút chỉ ở gốc `plan` đã xong và người ghi được; `new-request-dialog.test.tsx` có ca `initial`.
 - `packages/crew-web/test/features/issues/gate-actions.test.ts`, `gate-actions.test.tsx`: nút cổng chỉ cho người tham gia
   stage đang chờ, body gửi đi.
 - `packages/crew-web/test/features/issues/comment-questions.test.ts`, `interaction-card.test.tsx`: đọc câu hỏi theo các

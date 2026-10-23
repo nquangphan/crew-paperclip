@@ -687,6 +687,8 @@ flows:
       - packages/crew-web/src/features/issues/list/use-issues.ts
       - packages/crew-web/src/features/issues/new/add-child-dialog.tsx
       - packages/crew-web/src/features/issues/new/add-child.ts
+      - packages/crew-web/src/features/issues/new/follow-plan-action.tsx
+      - packages/crew-web/src/features/issues/new/follow-plan.ts
       - packages/crew-web/src/features/issues/new/kinds.ts
       - packages/crew-web/src/features/issues/new/new-request-dialog.tsx
       - packages/crew-web/src/features/issues/new/request-fields.tsx
@@ -705,6 +707,8 @@ flows:
       - packages/crew-web/test/features/issues/comment-thread.test.ts
       - packages/crew-web/test/features/issues/comments.test.tsx
       - packages/crew-web/test/features/issues/composer.test.tsx
+      - packages/crew-web/test/features/issues/follow-plan-action.test.tsx
+      - packages/crew-web/test/features/issues/follow-plan.test.ts
       - packages/crew-web/test/features/issues/force-done-dialog.test.tsx
       - packages/crew-web/test/features/issues/force-done.test.ts
       - packages/crew-web/test/features/issues/gate-actions.test.ts
