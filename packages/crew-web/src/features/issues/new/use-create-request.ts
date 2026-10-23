@@ -18,12 +18,16 @@ export interface CreateRequestInput {
   /** true: lưu nháp (backlog, chưa đánh thức agent). */
   draft: boolean;
   files: File[];
+  /** Máy owner chọn cho cây yêu cầu; `null` = Tự chọn. */
+  machineId: string | null;
 }
 
 export interface CreateRequestResult {
   issue: Issue;
   /** Tên file upload lỗi; issue vẫn đã tạo. */
   failedUploads: string[];
+  /** Lỗi ghim máy (yêu cầu vẫn được tạo, ở dạng nháp); `null` khi không chọn máy hay ghim được. */
+  machineError: string | null;
 }
 
 /** Trường dựng body tạo issue; dùng chung cho dialog Yêu cầu mới và bước đăng khi owner duyệt góp ý. */
@@ -74,9 +78,23 @@ export async function uploadAttachments(companyId: string, issueId: string, file
 }
 
 export async function createRequest(input: CreateRequestInput): Promise<CreateRequestResult> {
-  const issue = await api.issues.create(input.companyId, buildCreateBody(input));
+  const machineId = input.machineId;
+  // Chọn máy: tạo ở dạng nháp, ghim máy, rồi mới chuyển Cần làm, để Trợ Lý không chạy trước khi máy được ghim.
+  const issue = await api.issues.create(input.companyId, buildCreateBody({ ...input, draft: input.draft || machineId !== null }));
+  let machineError: string | null = null;
+  if (machineId !== null) {
+    try {
+      await api.machinePins.set(input.companyId, issue.id, machineId);
+    } catch (error) {
+      machineError = error instanceof Error ? error.message : String(error);
+    }
+  }
   const failedUploads = await uploadAttachments(input.companyId, issue.id, input.files);
-  return { issue, failedUploads };
+  const started =
+    machineId !== null && machineError === null && !input.draft
+      ? await api.issues.update(issue.id, { status: 'todo' })
+      : issue;
+  return { issue: started, failedUploads, machineError };
 }
 
 export function useCreateRequest(companyId: string) {

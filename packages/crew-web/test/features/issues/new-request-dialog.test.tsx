@@ -386,3 +386,120 @@ describe('NewRequestDialog', () => {
     expect(calls.some((c) => c.url.includes('/roles') || c.url.endsWith('/labels'))).toBe(false);
   });
 });
+
+const MACHINES = {
+  items: [
+    { machineId: 'm-mini', hostname: 'Phans-Mac-mini', online: true, status: null, running: 0, load1: 1.2, cpuCount: 10, memFreePct: 54 },
+    { machineId: 'm-book', hostname: 'Phans-MacBook-Pro', online: true, status: 'ready', running: 2, load1: 3.9, cpuCount: 12, memFreePct: 60 },
+    { machineId: 'm-prov', hostname: 'Mac-dang-dung', online: true, status: 'provisioning', running: 0, load1: 0.5, cpuCount: 8, memFreePct: 50 },
+    { machineId: 'm-bad', hostname: 'Mac-hong', online: true, status: 'failed', running: 1, load1: 0.7, cpuCount: 8, memFreePct: 50 },
+    { machineId: 'm-off', hostname: 'Mac-cu', online: false, status: 'ready', running: 0, load1: null, cpuCount: null, memFreePct: null },
+  ],
+};
+const MINI_LABEL = 'Phans-Mac-mini · 0 run · load 1,2 · sẽ dựng lần đầu';
+const PIN_VIEW = {
+  rootIssueId: 'i-new',
+  isRoot: true,
+  locked: false,
+  pin: { machineId: 'm-mini', hostname: 'Phans-Mac-mini', source: 'owner', reason: {}, pinnedAt: '2026-10-24T01:00:00.000Z' },
+};
+const machineTrigger = () => screen.findByRole('combobox', { name: 'Máy thực thi' });
+
+/** Máy tải bất đồng bộ nên mở danh sách lại tới khi mục cần chọn xuất hiện. */
+async function pickMachine(option: string) {
+  const trigger = await machineTrigger();
+  await waitFor(() => {
+    fireEvent.keyDown(trigger, { key: 'Enter' });
+    expect(within(screen.getByRole('listbox')).getByRole('option', { name: option })).toBeTruthy();
+  });
+  fireEvent.click(within(screen.getByRole('listbox')).getByRole('option', { name: option }));
+}
+
+describe('Máy thực thi', () => {
+  it('owner thấy ô mặc định Tự chọn; chỉ máy online; ghi chú theo trạng thái dựng', async () => {
+    mockServer(routes({ 'GET /api/crew/companies/c1/machines': { body: MACHINES } }));
+    mount();
+    await fillReady();
+    const trigger = await machineTrigger();
+    expect(trigger.textContent).toContain('Tự chọn');
+    await waitFor(() => {
+      fireEvent.keyDown(trigger, { key: 'Enter' });
+      expect(within(screen.getByRole('listbox')).getByRole('option', { name: MINI_LABEL })).toBeTruthy();
+    });
+    const list = within(screen.getByRole('listbox'));
+    expect(list.getByRole('option', { name: MINI_LABEL })).toBeTruthy();
+    expect(list.getByRole('option', { name: 'Phans-MacBook-Pro · 2 run · load 3,9' })).toBeTruthy();
+    expect(list.getByRole('option', { name: 'Mac-dang-dung · 0 run · load 0,5 · đang dựng' })).toBeTruthy();
+    expect(list.getByRole('option', { name: 'Mac-hong · 1 run · load 0,7 · dựng hỏng' })).toBeTruthy();
+    expect(list.queryByRole('option', { name: /Mac-cu/ })).toBeNull();
+  });
+
+  it('chọn máy: tạo nháp, ghim máy, chuyển Cần làm', async () => {
+    const { calls } = mockServer(
+      routes({
+        'GET /api/crew/companies/c1/machines': { body: MACHINES },
+        'PUT /api/crew/companies/c1/issues/i-new/machine': { body: PIN_VIEW },
+        'PATCH /api/issues/i-new': { body: { id: 'i-new', identifier: 'TPS-5', status: 'todo' } },
+      }),
+    );
+    const { onCreated } = mount();
+    await fillReady();
+    await pickMachine(MINI_LABEL);
+    fireEvent.click(screen.getByRole('button', { name: 'Tạo' }));
+    await waitFor(() => expect(onCreated).toHaveBeenCalled());
+    const writes = calls.filter((c) => c.method !== 'GET').map((c) => `${c.method} ${c.url.split('?')[0]}`);
+    expect(writes).toEqual([
+      'POST /api/companies/c1/issues',
+      'PUT /api/crew/companies/c1/issues/i-new/machine',
+      'PATCH /api/issues/i-new',
+    ]);
+    expect(posts(calls)[0]?.body).toMatchObject({ status: 'backlog' });
+    expect(calls.find((c) => c.method === 'PUT')?.body).toEqual({ machineId: 'm-mini' });
+    expect(onCreated.mock.calls[0]?.[1]).toEqual({ draft: false, failedUploads: [], machineError: null });
+  });
+
+  it('Tự chọn: tạo thẳng Cần làm, không gọi ghim máy', async () => {
+    const { calls } = mockServer(routes({ 'GET /api/crew/companies/c1/machines': { body: MACHINES } }));
+    const { onCreated } = mount();
+    await fillReady();
+    await machineTrigger();
+    await screen.findByText('Trợ Lý Alpha');
+    fireEvent.click(screen.getByRole('button', { name: 'Tạo' }));
+    await waitFor(() => expect(onCreated).toHaveBeenCalled());
+    expect(posts(calls)[0]?.body).toMatchObject({ status: 'todo' });
+    expect(calls.some((c) => c.method === 'PUT')).toBe(false);
+  });
+
+  it('ghim lỗi: báo là nháp kèm lỗi', async () => {
+    mockServer(
+      routes({
+        'GET /api/crew/companies/c1/machines': { body: MACHINES },
+        'PUT /api/crew/companies/c1/issues/i-new/machine': {
+          status: 409,
+          body: { error: 'Cây yêu cầu đã có run nên không đổi máy được nữa.' },
+        },
+      }),
+    );
+    const { onCreated } = mount();
+    await fillReady();
+    await pickMachine(MINI_LABEL);
+    fireEvent.click(screen.getByRole('button', { name: 'Tạo' }));
+    await waitFor(() => expect(onCreated).toHaveBeenCalled());
+    expect(onCreated.mock.calls[0]?.[1]).toMatchObject({
+      draft: true,
+      machineError: expect.stringContaining('không đổi máy'),
+    });
+  });
+
+  it('không phải owner: không có ô Máy thực thi', async () => {
+    mockServer(
+      routes({
+        ...accessRoute('c1', { userId: 'u4', membershipRole: 'operator', contributor: false, canApprove: false }),
+        'GET /api/crew/companies/c1/machines': { body: MACHINES },
+      }),
+    );
+    mount();
+    await fillReady();
+    expect(screen.queryByRole('combobox', { name: 'Máy thực thi' })).toBeNull();
+  });
+});

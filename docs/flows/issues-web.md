@@ -37,7 +37,10 @@ Luật chính:
    (`issues-board.tsx`) kéo thẻ gửi PATCH trạng thái, server từ chối thì thẻ về cột cũ và hiện lỗi nguyên văn.
 2. `packages/crew-web/src/features/issues/new/new-request-dialog.tsx` → `NewRequestDialog`: chỉ liệt kê project sẵn
    sàng, người nhận cố định là Trợ Lý của project; `use-create-request.ts` → `createRequest` POST issue rồi upload đính
-   kèm lần lượt. Có chip "Jev gợi ý: <loại>" dưới ô Loại (flow `jev`): bấm mới chọn, lỗi thì không hiện gì.
+   kèm lần lượt. Owner thấy thêm ô "Máy thực thi" (`machine-field.tsx` → `MachineField`, mặc định "Tự chọn", chỉ liệt kê
+   máy online, ghi chú "sẽ dựng lần đầu" / "đang dựng" / "dựng hỏng" theo trạng thái project trên máy); chọn máy thì
+   `createRequest` tạo nháp, ghim máy (`api.machinePins.set`), upload, rồi mới chuyển Cần làm. Ghim lỗi thì yêu cầu ở
+   lại nháp và `machineError` hiện ở thông báo sau khi tạo. Có chip "Jev gợi ý: <loại>" dưới ô Loại (flow `jev`): bấm mới chọn, lỗi thì không hiện gì.
 3. `packages/crew-web/src/features/issues/detail/issue-detail.tsx` → `IssueDetail`: dùng chung cho trang và popup; đọc
    dữ liệu qua `use-issue.ts` và gắn các khối: tóm tắt Crew (`SummarySlot`), thao tác cổng (`ActionsSlot`), câu hỏi
    của Trợ Lý (`InteractionsSlot`), thuộc tính và runtime (`PropertiesPanel`, `RuntimeSlot`), bình luận, đính kèm,

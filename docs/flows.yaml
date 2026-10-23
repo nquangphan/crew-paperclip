@@ -706,6 +706,7 @@ flows:
       - packages/crew-web/src/features/issues/new/follow-plan-action.tsx
       - packages/crew-web/src/features/issues/new/follow-plan.ts
       - packages/crew-web/src/features/issues/new/kinds.ts
+      - packages/crew-web/src/features/issues/new/machine-field.tsx
       - packages/crew-web/src/features/issues/new/new-request-dialog.tsx
       - packages/crew-web/src/features/issues/new/request-fields.tsx
       - packages/crew-web/src/features/issues/new/use-create-request.ts

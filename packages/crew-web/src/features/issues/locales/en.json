@@ -7,6 +7,7 @@
     "created": "Created request {{identifier}}",
     "createdDraft": "Saved draft {{identifier}} (not running)",
     "open": "Open",
+    "machineFailed": "The chosen machine was not pinned, so the request stays a draft: {{error}}",
     "uploadFailed": "Could not attach: {{names}}"
   },
   "list": {
@@ -127,7 +128,15 @@
     "creating": "Creating",
     "saveDraft": "Save draft (does not run)",
     "cancel": "Cancel",
-    "createFailed": "Could not create the request"
+    "createFailed": "Could not create the request",
+    "machine": "Machine",
+    "machineAuto": "Automatic",
+    "machineHint": "Automatic: Crew picks a machine with free resources right before the first run. The whole request tree runs on one machine.",
+    "machineFailed": "Machines could not be loaded; the request will pick one automatically.",
+    "machineOption": "{{host}} · {{running}} runs · load {{load}}",
+    "machineFirstBuild": "first setup",
+    "machineProvisioning": "setting up",
+    "machineBuildFailed": "setup failed"
   },
   "detail": {
     "back": "Back to requests",

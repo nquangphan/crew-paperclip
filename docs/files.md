@@ -500,6 +500,7 @@ File nào thuộc flow nào. Dùng `crew-docs where <file>` để tra từ dòng
 | `packages/crew-web/src/features/issues/new/follow-plan-action.tsx` | [issues-web](flows/issues-web.md) (file) |
 | `packages/crew-web/src/features/issues/new/follow-plan.ts` | [issues-web](flows/issues-web.md) (file) |
 | `packages/crew-web/src/features/issues/new/kinds.ts` | [issues-web](flows/issues-web.md) (file) |
+| `packages/crew-web/src/features/issues/new/machine-field.tsx` | [issues-web](flows/issues-web.md) (file) |
 | `packages/crew-web/src/features/issues/new/new-request-dialog.tsx` | [issues-web](flows/issues-web.md) (file) |
 | `packages/crew-web/src/features/issues/new/request-fields.tsx` | [issues-web](flows/issues-web.md) (file) |
 | `packages/crew-web/src/features/issues/new/use-create-request.ts` | [issues-web](flows/issues-web.md) (file) |
