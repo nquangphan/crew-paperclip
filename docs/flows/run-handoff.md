@@ -73,6 +73,8 @@ Mô tả và lý do chi tiết của từng vá: `crew/release/core-hooks.json` 
 - `ssh-run-lifecycle`: H3 và vá P8 là hai đường nhả lease dẫn tới việc phát lại wake.
 - `issue-gate`: luật stage và assignee.
 - `runtime-fallback`: test của vá C14 nằm ở flow đó.
+- `multi-machine`: `heartbeat.ts` có thêm vá C16 chọn environment của run theo máy đã ghim cho cây yêu cầu; lease SSH,
+  lệnh dừng và retry vì vậy luôn ở máy đó.
 
 ## Tests
 

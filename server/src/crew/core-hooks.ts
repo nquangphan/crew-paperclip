@@ -6,6 +6,7 @@ import { crewBeforeIssueCreate } from "./issue-create-policy.js";
 import { crewBeforeIssueWrite } from "./issue-gate.js";
 import { applyBundleResumeSafely } from "./bundle-resume.js";
 import { crewBeforeClaim } from "./load-gate.js";
+import { crewResolveRunEnvironment } from "./machine-pin.js";
 import { crewQcBeforeIssueWrite } from "./qc-verification.js";
 import { startRemoteStopOnRelease } from "./remote-stop.js";
 
@@ -61,6 +62,14 @@ export interface BeforeIssueCreateInput<T extends IssueCreateLike> {
  */
 export type RunLeaseReleasedInput = EnvironmentDriverReleaseInput & { db: Db };
 
+/** C16: trong `executeRun`, ngay trước `resolveExecutionWorkspaceEnvironmentId` (vá lõi, không phải hook đầu hàm). */
+export interface ResolveRunEnvironmentInput {
+  db: Db;
+  run: typeof heartbeatRuns.$inferSelect;
+  agent: { id: string; companyId: string; defaultEnvironmentId: string | null };
+  issueId: string | null;
+}
+
 export interface CrewCoreHooks {
   /** Ném 422 trước mutation cấu hình agent trên router; actor board và company absent giữ stock. */
   beforeAgentMutation(input: AgentMutationInput): Promise<void>;
@@ -82,6 +91,11 @@ export interface CrewCoreHooks {
    * bỏ chờ, ghi log và trả về, để lease vẫn được trả.
    */
   onRunLeaseReleased(input: RunLeaseReleasedInput): Promise<void>;
+  /**
+   * Environment của run: environment của agent trên máy đã ghim cho cây yêu cầu (flow `multi-machine`). Trả `null` để
+   * heartbeat chọn như stock (environment mặc định của agent). Wrapper nuốt lỗi và trả `null`.
+   */
+  resolveRunEnvironment(input: ResolveRunEnvironmentInput): Promise<string | null>;
 }
 
 /** Thời hạn chờ `onRunLeaseReleased` trước khi bỏ chờ và trả lease (Mac ngủ, TCP không RST). */
@@ -103,6 +117,7 @@ const implementations: CrewCoreHooks = {
   onRunLeaseReleased: async (input) => {
     await startRemoteStopOnRelease(input);
   },
+  resolveRunEnvironment: (input) => crewResolveRunEnvironment(input),
 };
 
 export const crewCoreHooks: CrewCoreHooks = {
@@ -140,6 +155,14 @@ export const crewCoreHooks: CrewCoreHooks = {
       );
     } finally {
       clearTimeout(timer);
+    }
+  },
+  async resolveRunEnvironment(input) {
+    try {
+      return await implementations.resolveRunEnvironment(input);
+    } catch (error) {
+      logger.warn({ err: error, runId: input.run.id }, "crew resolveRunEnvironment failed; using the stock environment");
+      return null;
     }
   },
 };

@@ -35,6 +35,8 @@ import cuối file để merge upstream ít conflict), mô tả lý do và `upst
    - `beforeIssueCreate` → `crewBeforeIssueCreate` (flow `issue-gate`);
    - `onRunLeaseReleased` → `startRemoteStopOnRelease` (flow `ssh-run-lifecycle`). Wrapper nuốt lỗi và bỏ chờ sau
      `CREW_RUN_LEASE_RELEASE_HOOK_TIMEOUT_MS` (15 giây) để lease SSH vẫn được trả khi Mac ngủ hay mạng treo.
+   - `resolveRunEnvironment` → `crewResolveRunEnvironment` (flow `multi-machine`, vá lõi C16 trong `heartbeat.ts`, ngay
+     trước `resolveExecutionWorkspaceEnvironmentId`); wrapper nuốt lỗi và trả `null`.
    `overrideCrewCoreHooksForTests` cho test thay implementation rồi khôi phục.
 2. `crew/release/upgrade.sh`: fetch `upstream`, tạo worktree và nhánh sync từ base (mặc định `main`), merge `--no-ff`.
    Chỉ `pnpm-lock.yaml` conflict thì lấy bản upstream (verify sẽ cài lại importer Crew và commit lại lockfile); conflict
@@ -72,6 +74,7 @@ import cuối file để merge upstream ít conflict), mô tả lý do và `upst
 - `run-handoff`: vá C10–C14.
 - `contributions`: vá C7.
 - `docs-snapshot`: vá C15 (parser JSON 16 MB cho webhook `docs-snapshot`).
+- `multi-machine`: vá C16.
 - `ops-deploy`: build image từ cây đã qua `verify.sh`.
 
 ## Tests
@@ -84,4 +87,7 @@ import cuối file để merge upstream ít conflict), mô tả lý do và `upst
   tự lấy bản upstream; lockfile được sinh lại thì tự commit trên nhánh sync.
 - `server/src/__tests__/crew-core-hooks.test.ts`: mặc định không giữ run; override trong test khôi phục được; H2 gọi gate
   rồi phần ghi QC; guard agent truyền lỗi về router và board bỏ qua guard; H3 gọi với `db` của driver và vẫn trả lease
-  khi implementation ném lỗi hoặc treo quá 15 giây.
+  khi implementation ném lỗi hoặc treo quá 15 giây; `resolveRunEnvironment` trả `null` khi run không có issue, trả id của
+  implementation, và trả `null` khi implementation ném lỗi.
+- `server/src/__tests__/crew-run-environment.test.ts` (Postgres nhúng): C16: Crew trả environment thì heartbeat dùng nó,
+  `null` hay lỗi thì giữ environment mặc định; run vẫn chạy khi Crew ném lỗi.

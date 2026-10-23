@@ -368,6 +368,20 @@
       "tests": [
         "server/src/__tests__/crew-docs-snapshot-body.test.ts"
       ]
+    },
+    {
+      "id": "C16",
+      "kind": "core-patch",
+      "file": "server/src/services/heartbeat.ts",
+      "symbol": "heartbeatService.executeRun (environment of the run)",
+      "anchor": "          (await crewCoreHooks.resolveRunEnvironment({ db, run, agent, issueId })) ??",
+      "importLine": "import { crewCoreHooks } from \"../crew/core-hooks.js\";",
+      "description": "Ask Crew for the run's environment before the stock resolution (agent default, instance default, local). When the issue tree of the run is pinned to a machine, Crew returns the agent's active SSH environment on that machine, so every run of one request tree (assistant, executors, review, integration, retries and fallbacks) runs on the machine that holds its shared git store. A null answer, an error or a missing environment keeps the stock agent default. One answer per run; nothing else in executeRun changes.",
+      "upstreamPr": null,
+      "tests": [
+        "server/src/__tests__/crew-run-environment.test.ts",
+        "server/src/__tests__/crew-core-hooks.test.ts"
+      ]
     }
   ]
 }

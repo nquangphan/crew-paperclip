@@ -13,6 +13,7 @@ fallback) dựa vào kho git dùng chung trên một máy. Owner chọn máy lú
 
 - H1 (`crewCoreHooks.beforeClaim` → `crewBeforeClaim` → `evaluateBeforeClaim`) hỏi `machineGate`
   (`server/src/crew/machine-gate.ts` → `evaluateMachineGate`) trước mọi bước của cổng tải.
+- Vá lõi C16 (`heartbeat.ts`, `executeRun`) gọi `crewCoreHooks.resolveRunEnvironment` → `crewResolveRunEnvironment`.
 
 ## Các bước
 
@@ -74,6 +75,7 @@ lần mỗi run).
 ## Flow liên quan
 
 - `run-claim`: cổng H1 gọi luật ghim máy trước cổng tải.
+- `core-hooks`: đăng ký vá C16.
 
 ## Tests
 
@@ -95,3 +97,5 @@ lần mỗi run).
   cây đã ghim thì giữ run.
 - `server/src/__tests__/crew-load-gate.test.ts` (`ghim máy trong cổng claim`): `pass` kèm environment, `hold`, `fail`,
   cổng ném lỗi thì giữ run, `probeKeyOf`.
+- `server/src/__tests__/crew-run-environment.test.ts` (Postgres nhúng): Crew trả environment của máy ghim thì heartbeat dùng
+  nó thay environment mặc định của agent; Crew trả `null` hay ném lỗi thì giữ environment mặc định và run vẫn chạy.

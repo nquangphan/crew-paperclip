@@ -71,6 +71,8 @@ máy đó; còn lại không xác định (dùng mặc định). Agent không c�
 - `machine-status`: bảng `machine_latest` và số liệu runtime trong bản tin.
 - `machine-jobs`: việc `runtimes-setup`.
 - `web-pages`: trang máy chứa khối Runtime.
+- `multi-machine`: `heartbeat.ts` có thêm vá C16 chọn environment của run theo máy đã ghim cho cây yêu cầu; lease SSH,
+  lệnh dừng và retry vì vậy luôn ở máy đó.
 
 ## Tests
 

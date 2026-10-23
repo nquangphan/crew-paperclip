@@ -82,6 +82,8 @@ có cho chạy ngay không (hook H1):
 - `runtime-fallback`: run trước của một fallback đọc từ quyết định runtime (`fallbackPreviousRunId`).
 - `ssh-run-lifecycle`: lệnh dừng run dùng chung (`buildRemoteStopCommand`) và activity `crew.remote_stop.*`.
 - `agent-roles`: Trợ Lý ghi marker `crew-bundle`.
+- `multi-machine`: `heartbeat.ts` có thêm vá C16 chọn environment của run theo máy đã ghim cho cây yêu cầu; lease SSH,
+  lệnh dừng và retry vì vậy luôn ở máy đó.
 
 ## Tests
 

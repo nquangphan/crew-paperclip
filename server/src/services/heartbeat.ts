@@ -21262,7 +21262,9 @@ export function heartbeatService(
         ? await environmentsSvc.findManagedSandboxEnvironment(agent.companyId)
         : null;
       const environmentResolution = resolveExecutionWorkspaceEnvironmentId({
-        agentDefaultEnvironmentId: agent.defaultEnvironmentId,
+        agentDefaultEnvironmentId:
+          (await crewCoreHooks.resolveRunEnvironment({ db, run, agent, issueId })) ??
+          agent.defaultEnvironmentId,
         instanceDefaultEnvironmentId:
           resolvedInstanceSettings.defaultEnvironmentId ?? null,
         localDefaultEnvironmentId: localEnvironment.id,

@@ -82,6 +82,8 @@ bằng chứng thì không ghi, và lõi giữ tin nhắn như trước.
   trước.
 - `run-handoff`: phát lại wake bị bỏ sau khi lease nhả.
 - `adapter-patches`: phía adapter của chế độ chạy tại chỗ và giữ session cho run SSH.
+- `multi-machine`: `heartbeat.ts` có thêm vá C16 chọn environment của run theo máy đã ghim cho cây yêu cầu; lease SSH,
+  lệnh dừng và retry vì vậy luôn ở máy đó.
 
 ## Tests
 

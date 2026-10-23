@@ -168,3 +168,30 @@ describe("H3 trong SSH driver", () => {
     expect(CREW_RUN_LEASE_RELEASE_HOOK_TIMEOUT_MS).toBe(15_000);
   });
 });
+
+describe("resolveRunEnvironment", () => {
+  const input = {
+    db: {} as Db,
+    run: { id: "run-1" } as never,
+    agent: { id: "agent-1", companyId: "company-1", defaultEnvironmentId: null },
+    issueId: null,
+  };
+
+  it("mặc định: run không có issue thì null", async () => {
+    await expect(crewCoreHooks.resolveRunEnvironment(input)).resolves.toBeNull();
+  });
+
+  it("trả id của implementation", async () => {
+    restore = overrideCrewCoreHooksForTests({ resolveRunEnvironment: async () => "env-mini" });
+    await expect(crewCoreHooks.resolveRunEnvironment({ ...input, issueId: "issue-1" })).resolves.toBe("env-mini");
+  });
+
+  it("implementation ném lỗi thì null để heartbeat giữ hành vi stock", async () => {
+    restore = overrideCrewCoreHooksForTests({
+      resolveRunEnvironment: async () => {
+        throw new Error("db down");
+      },
+    });
+    await expect(crewCoreHooks.resolveRunEnvironment({ ...input, issueId: "issue-1" })).resolves.toBeNull();
+  });
+});
