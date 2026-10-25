@@ -1,4 +1,4 @@
-import { agents, issues, labels, routines, routineTriggers, type Db } from "@paperclipai/db";
+import { agents, issues, labels, projects, routines, routineTriggers, type Db } from "@paperclipai/db";
 import { and, eq, inArray, isNotNull, or, sql } from "drizzle-orm";
 import { unprocessable } from "../errors.js";
 import {
@@ -45,6 +45,7 @@ export interface IssueCreateFields {
   inheritExecutionWorkspaceFromIssueId?: string | null;
   skipExecutionWorkspaceInheritance?: boolean;
   description?: string | null;
+  title?: string | null;
 }
 
 /** Dòng riêng trong mô tả issue con do agent tạo: issue lập epic/story bằng BMAD, cần owner duyệt sau reviewer. */
@@ -193,6 +194,29 @@ async function issueProjectId(db: Db, companyId: string, issueId: string | null 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /**
+ * Title có tag `[tên project]` ở đầu (issue mới của company có cấu hình Crew, gắn trong `crewBeforeIssueCreate`). Title đã mở đầu bằng tag đó (không phân biệt hoa thường) thì giữ; title trống
+ * (lõi tự sinh từ mô tả) hoặc project không tên thì giữ nguyên.
+ */
+export function withProjectTag<T extends string | null | undefined>(title: T, projectName: string | null | undefined): T {
+  const name = projectName?.trim();
+  const trimmed = title?.trim();
+  if (!name || !trimmed) return title;
+  const tag = `[${name}]`;
+  if (trimmed.toLowerCase().startsWith(tag.toLowerCase())) return title;
+  return `${tag} ${trimmed}` as T;
+}
+
+async function projectName(db: Db, companyId: string, projectId: string | null): Promise<string | null> {
+  if (!projectId || !UUID_RE.test(projectId)) return null;
+  const [row] = await db
+    .select({ name: projects.name })
+    .from(projects)
+    .where(and(eq(projects.id, projectId), eq(projects.companyId, companyId)))
+    .limit(1);
+  return row?.name ?? null;
+}
+
+/**
  * `adapterType` của agent cùng company (assignee của issue), để kiểm override theo runtime. Không có id hoặc không
  * tìm thấy thì `null` (luật Claude; lõi tự báo assignee lạ).
  */
@@ -331,10 +355,11 @@ export async function crewBeforeIssueCreate<T extends IssueCreateFields>(input: 
   companyId: string;
   data: T;
 }): Promise<T> {
-  const { data } = input;
-  const projectId = await resolveIssueProjectId(input.db, input.companyId, data);
+  const projectId = await resolveIssueProjectId(input.db, input.companyId, input.data);
   const config = await loadCrewRoles({ db: input.db, companyId: input.companyId, projectId, onReadError: "throw" });
   if (config.kind === "absent") return input.data;
+  const title = withProjectTag(input.data.title, await projectName(input.db, input.companyId, projectId));
+  const data = title === input.data.title ? input.data : { ...input.data, title };
   const parentProjectId =
     data.createdByAgentId && data.parentId ? await issueProjectId(input.db, input.companyId, data.parentId) : undefined;
   const projectOutsideParent = parentProjectId !== undefined && projectId !== parentProjectId;
@@ -377,7 +402,7 @@ export async function crewBeforeIssueCreate<T extends IssueCreateFields>(input: 
     projectOutsideParent,
     assigneeAdapterType,
   });
-  if (decision.kind === "keep") return input.data;
+  if (decision.kind === "keep") return data;
   if (decision.kind === "reject") throw unprocessable(MESSAGES[decision.code], {
     code: decision.code,
     ...(decision.violations ? { violations: decision.violations } : {}),
@@ -392,5 +417,5 @@ export async function crewBeforeIssueCreate<T extends IssueCreateFields>(input: 
   } else {
     policy = buildCrewPolicy(decision.template, roles as CrewRoles, decision.ownerUserId);
   }
-  return { ...input.data, executionPolicy: policy };
+  return { ...data, executionPolicy: policy };
 }

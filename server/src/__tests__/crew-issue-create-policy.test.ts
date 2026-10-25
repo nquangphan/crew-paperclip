@@ -6,7 +6,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { and, eq } from "drizzle-orm";
 import { agents, companies, createDb, issues, labels, projects, routineTriggers } from "@paperclipai/db";
 import { getEmbeddedPostgresTestSupport, startEmbeddedPostgresTestDatabase } from "./helpers/embedded-postgres.js";
-import { boardChildAwaitingExecutor, decideCreatePolicy, executorRuntimeOf } from "../crew/issue-create-policy.ts";
+import { boardChildAwaitingExecutor, decideCreatePolicy, executorRuntimeOf, withProjectTag } from "../crew/issue-create-policy.ts";
 import { buildCrewPolicy, CREW_MAX_REVIEW_ROUNDS, CREW_POLICY_CONFIG_ENV } from "../crew/issue-policy.ts";
 import { heartbeatService } from "../services/heartbeat.ts";
 import { issueService } from "../services/issues.js";
@@ -266,6 +266,20 @@ describe("decideCreatePolicy", () => {
   });
 });
 
+describe("withProjectTag", () => {
+  it("gắn [tên project] ở đầu title", () => {
+    expect(withProjectTag("Sửa lỗi đăng nhập", "kidy_school")).toBe("[kidy_school] Sửa lỗi đăng nhập");
+    expect(withProjectTag("  x  ", " p ")).toBe("[p] x");
+  });
+  it("giữ title đã có tag (không phân biệt hoa thường), title trống, project không tên", () => {
+    expect(withProjectTag("[Kidy_School] x", "kidy_school")).toBe("[Kidy_School] x");
+    expect(withProjectTag(undefined, "p")).toBeUndefined();
+    expect(withProjectTag("", "p")).toBe("");
+    expect(withProjectTag("x", null)).toBe("x");
+    expect(withProjectTag("x", "  ")).toBe("x");
+  });
+});
+
 // Hook H4 (first line of issueService.create) through the real service: createChild and every
 // other caller of create receive the Crew policy template.
 const support = await getEmbeddedPostgresTestSupport();
@@ -384,6 +398,26 @@ suite("crew policy in issueService.create", () => {
     // Đổi project sau khi tạo không đổi policy đã chốt.
     await db.update(issues).set({ projectId: otherId }).where(eq(issues.id, tracked.id));
     expect(await policyOf(tracked.id)).toBeNull();
+  });
+
+  it("title nhận tag [tên project]: gốc theo project, con thừa project của cha, tag có sẵn không gắn lại", async () => {
+    const { companyId, executorId } = await seed();
+    const projectId = randomUUID();
+    await db.insert(projects).values({ id: projectId, companyId, name: "kidy_school" });
+    const titleOf = async (id: string) => (await db.select().from(issues).where(eq(issues.id, id)))[0]!.title;
+    const root = await issueService(db).create(companyId, { title: "Sửa đăng nhập", createdByUserId: "owner-1", projectId } as never);
+    const child = await issueService(db).create(companyId, {
+      title: "Việc con",
+      parentId: root.id,
+      createdByAgentId: executorId,
+      assigneeAgentId: executorId,
+    } as never);
+    const tagged = await issueService(db).create(companyId, { title: "[kidy_school] Có sẵn", createdByUserId: "owner-1", projectId } as never);
+    const noProject = await issueService(db).create(companyId, { title: "Không project", createdByUserId: "owner-1" } as never);
+    expect(await titleOf(root.id)).toBe("[kidy_school] Sửa đăng nhập");
+    expect(await titleOf(child.id)).toBe("[kidy_school] Việc con");
+    expect(await titleOf(tagged.id)).toBe("[kidy_school] Có sẵn");
+    expect(await titleOf(noProject.id)).toBe("Không project");
   });
 
   it("config không có trackingProjectIds: issue trong project vẫn nhận bốn stage như cũ", async () => {

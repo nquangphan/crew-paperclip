@@ -249,7 +249,7 @@ suite("Crew: Phòng QC duyệt lại yêu cầu của mình", () => {
       const items = await qcStates(userId);
       expect(items.map((item) => item.issueId), userId).toEqual([qcIssueId]);
       expect(items[0]).toMatchObject({ state: "awaiting", qcUserId: users.qc, reopenRequest: null });
-      expect(items[0]!.title).toMatch(/^Yêu cầu /);
+      expect(items[0]!.title).toMatch(/^\[App\] Yêu cầu /);
       expect(items[0]!.identifier).toEqual(expect.any(String));
     }
   }, 60_000);

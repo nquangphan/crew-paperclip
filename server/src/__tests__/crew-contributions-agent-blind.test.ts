@@ -290,7 +290,7 @@ suite("Crew: agent không thấy góp ý chờ duyệt", () => {
     const complete = await request(owner).post(crew(`/contributions/${issueContributionId}/approve/complete`));
     expect(complete.status).toBe(200);
     expect(complete.body).toMatchObject({ status: "approved", resultIssueId: created.body.id });
-    expect(await db.select().from(issues).where(eq(issues.title, materialize.title))).toHaveLength(1);
+    expect(await db.select().from(issues).where(eq(issues.title, `[Marketing] ${materialize.title}`))).toHaveLength(1);
 
     await vi.waitFor(() => expect(wakeCalls).toContainEqual({ agentId, reason: "issue_assigned" }), { timeout: 10_000 });
     const agent = await app(agentActor());
