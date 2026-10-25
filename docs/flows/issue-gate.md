@@ -36,6 +36,9 @@ Luật áp theo company:
      gốc trong project theo dõi không nhận policy.
    - Hệ thống: issue watchdog/recovery giữ stock, trừ khi giao lại cho chính executor của issue nguồn; routine do agent
      tạo/sửa bị từ chối (`crew_routine_issue_forbidden`).
+   - Company có cấu hình Crew: `withProjectTag` gắn `[tên project]` vào đầu title của mọi issue mới có project (project
+     ghi rõ hoặc thừa từ issue cha). Title đã mở đầu bằng đúng tag đó (không phân biệt hoa thường) hoặc title trống (lõi
+     tự sinh từ mô tả) thì giữ. Issue cũ và lệnh đổi title, đổi project sau đó không đổi gì.
    - Issue con code mà executor không chạy Codex: `chooseChildReviewer` → `chooseReviewer` có thể đặt reviewer Codex
      đứng trước reviewer Claude trong stage review, khi công tắc `codex_local` trên máy reviewer Codex đang bật. Máy của
      reviewer Codex suy theo cây của issue cha (`issueId: data.parentId`) khi cây đã ghim máy (flow `multi-machine`).
@@ -70,7 +73,7 @@ Luật áp theo company:
 | Đường dẫn | Vai trò | Symbol chính |
 |-----------|---------|--------------|
 | `server/src/crew/issue-gate.ts` | H2: kiểm lệnh ghi issue | `crewBeforeIssueWrite`, `evaluateIssueGate`, `docsGateStages`, `pushGateStages`, `restartAfterOwnerChanges`, `CREW_CYCLE_RESET_ACTION` |
-| `server/src/crew/issue-create-policy.ts` | H4: chọn template, từ chối tạo sai luật | `crewBeforeIssueCreate`, `decideCreatePolicy`, `CREW_BMAD_KIND_RE`, `executorRuntimeOf` |
+| `server/src/crew/issue-create-policy.ts` | H4: chọn template, từ chối tạo sai luật | `crewBeforeIssueCreate`, `decideCreatePolicy`, `CREW_BMAD_KIND_RE`, `executorRuntimeOf`, `withProjectTag` |
 | `server/src/crew/issue-policy.ts` | File cấu hình, template policy, parser bằng chứng | `loadCrewCompanyConfig`, `buildCrewPolicy`, `parseCrewMergeEvidence`, `parseDocsCheckEvidence`, `CREW_HOUSEKEEPING_ORIGIN_KINDS` |
 | `server/src/crew/model-policy.ts` | Bảng runtime/model, luật override, chọn reviewer | `CREW_RUNTIME_CATALOG`, `checkAgentAdapterOverrides`, `chooseReviewer`, `CREW_CODEX_REVIEWER_MODEL` |
 | `server/src/services/issues.ts` | File upstream chứa H2, H4 | `issueService.create`, `issueService.update` |
@@ -106,7 +109,8 @@ Luật áp theo company:
 ## Tests
 
 - `server/src/__tests__/crew-issue-create-policy.test.ts`: các nhánh của `decideCreatePolicy` (agent, board, hệ
-  thống, research, project theo dõi, bmad, override theo runtime, watchdog trả về executor).
+  thống, research, project theo dõi, bmad, override theo runtime, watchdog trả về executor), `withProjectTag` và tag
+  `[tên project]` trên title qua `issueService.create`.
 - `server/src/__tests__/crew-issue-gate.test.ts`: parse file cấu hình (absent, invalid, hoa thường), đọc lại file mỗi
   lần, cảnh báo lúc khởi động, template policy, fingerprint policy, các nhánh của `evaluateIssueGate`.
 - `server/src/__tests__/crew-issue-gate.db.test.ts`: H2 trên DB thật: chặn override, xóa policy, cancel, giao cho

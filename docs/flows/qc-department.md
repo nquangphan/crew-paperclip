@@ -74,7 +74,8 @@ thành issue) được làm xong, chính người QC đã gửi phải kiểm l�
 
 ## Tests
 
-- `server/src/__tests__/crew-qc-verification.db.test.ts`: chỉ yêu cầu của QC mở vòng khi xong và lõi vẫn `done`; ai
+- `server/src/__tests__/crew-qc-verification.db.test.ts`: chỉ yêu cầu của QC mở vòng khi xong và lõi vẫn `done` (title trong hàng chờ
+  mang tag `[tên project]`); ai
   được xác nhận; xác nhận không ghi gì ngoài vòng; mở lại đóng vòng, xong lại mở vòng mới; "Chưa đạt" chỉ người QC của
   vòng, một yêu cầu mỗi lúc, agent không thấy; owner duyệt thì comment và đánh thức agent; phòng lúc gửi quyết định.
 - `packages/crew-web/test/features/qc/qc-status.test.ts`: nhãn trạng thái, "Cần tôi duyệt", quyền nút, câu lỗi.

@@ -96,8 +96,8 @@ Luật chính:
   agent, `local_implicit` và board API key; 404 với company ngoài phiên hay cấu hình hỏng; các bước tạo, duyệt, từ chối,
   tự lành và gắn dấu người góp ý.
 - `server/src/__tests__/crew-contributions-agent-blind.test.ts`: lúc chờ, mọi đường đọc của agent không có nội dung và
-  không có wake; agent 403 ở mọi endpoint; duyệt qua route stock thì agent thấy và được đánh thức đúng một lần; mục bị
-  từ chối không bao giờ tới agent.
+  không có wake; agent 403 ở mọi endpoint; duyệt qua route stock thì agent thấy và được đánh thức đúng một lần (title issue
+  có tag `[tên project]`, flow `issue-gate`); mục bị từ chối không bao giờ tới agent.
 - `packages/crew-plugin/src/__tests__/contributions-isolation.test.ts`: không file nguồn nào của plugin nhắc tới bảng góp
   ý, quyền xem project hay vòng QC.
 - `packages/crew-web/test/api/contributions.test.ts`: đúng method, đường dẫn và body của mọi lời gọi.
