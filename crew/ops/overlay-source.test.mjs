@@ -102,3 +102,14 @@ test("refuses codex-local files when core-hooks.json lists no adapter-patch for 
   assert.equal(r.status, 2);
   assert.match(r.stderr, /cannot ship/);
 });
+
+test("accepts an adapter-utils source file listed as adapter-patch (adapter-utils runs from src in the image)", () => {
+  const entries = [
+    { id: "C17", kind: "adapter-patch", file: "packages/adapter-utils/src/sandbox-callback-bridge.ts", tests: ["server/src/__tests__/crew-bridge-allowlist.test.ts"] },
+  ];
+  const ok = run(["packages/adapter-utils/src/sandbox-callback-bridge.ts"], entries);
+  assert.doesNotMatch(ok.stderr, /cannot ship/);
+  const bad = run(["packages/adapter-utils/src/execution-target.ts"], entries);
+  assert.equal(bad.status, 2);
+  assert.match(bad.stderr, /adapter-utils\/src\/execution-target\.ts/);
+});

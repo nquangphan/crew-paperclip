@@ -21,13 +21,15 @@ CHANGED=$(git diff --name-only --diff-filter=ACMR "$BASE" "$COMMIT")
 # docs/flows.yaml and .githooks/ (crew-docs manifest and git hooks) never ship: the SHIP list below leaves them out.
 # ui/ (the stock Paperclip UI at /paperclip/) is allowed as a whole: it is built and served by stock-ui.sh, and the
 # SHIP list below never includes it, so its changes cannot reach the image.
-# Adapter files beyond claude-local/src/ ship only when core-hooks.json lists them as adapter-patch (the file and its tests).
+# Adapter files beyond claude-local/src/, and packages/adapter-utils/src/ files (the image runs adapter-utils from src),
+# ship only when core-hooks.json lists them as adapter-patch (the file and its tests).
 ADAPTER_PATHS=$(node -e '
   const j = require(process.argv[1]);
   const out = new Set();
   for (const e of j.entries ?? []) {
     if (e.kind !== "adapter-patch") continue;
-    for (const f of [e.file, ...(e.tests ?? [])]) if (f.startsWith("packages/adapters/")) out.add(f);
+    for (const f of [e.file, ...(e.tests ?? [])])
+      if (f.startsWith("packages/adapters/") || f.startsWith("packages/adapter-utils/src/")) out.add(f);
   }
   process.stdout.write([...out].join("\n"));
 ' "$FORK/crew/release/core-hooks.json")

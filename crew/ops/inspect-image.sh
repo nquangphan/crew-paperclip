@@ -1,6 +1,6 @@
 #!/bin/sh
 # Checks a built overlay image before deploy. Usage: inspect-image.sh <image-tag> [<commit>]
-# Runs on the VPS (deploy.sh, set -e) and on the Mac. Adapter patches P2-P7, P9 (core-hooks.json adapter-patch):
+# Runs on the VPS (deploy.sh, set -e) and on the Mac. Adapter patches P2-P7, P9, C17 (core-hooks.json adapter-patch):
 #  - in-image check, always: needs only docker; compares /app files with crew-adapter-expect.json from the overlay tarball.
 #  - host check against <commit> (default: fork HEAD): needs node + the fork git repo, so only on the Mac. On the VPS it is
 #    skipped with a WARNING (never fails deploy); run `crew/ops/inspect-image.sh <tag> <commit>` from the Mac for the full check.

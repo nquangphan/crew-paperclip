@@ -79,7 +79,8 @@ import cuối file để merge upstream ít conflict), mô tả lý do và `upst
 - `model-settings`: vá C17, một dòng `GET /api/crew/model-settings` trong allowlist cầu nối callback của run SSH
   (`DEFAULT_SANDBOX_CALLBACK_BRIDGE_ROUTE_ALLOWLIST` trong `packages/adapter-utils/src/sandbox-callback-bridge.ts`, file
   dùng chung với flow `model-settings`) để Trợ Lý đọc bảng model ở mỗi run. Không phải hook nên không tính vào
-  `HOOK_BUDGET`.
+  `HOOK_BUDGET`. Loại `adapter-patch`: image chạy `adapter-utils` từ `src`, nên `overlay-source.sh` ship nguyên file và
+  `inspect-adapters.mjs` kiểm sha256 cùng anchor trong image như các vá adapter khác.
 - `ops-deploy`: build image từ cây đã qua `verify.sh`.
 
 ## Tests

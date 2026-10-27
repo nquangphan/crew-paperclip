@@ -386,7 +386,7 @@
     },
     {
       "id": "C17",
-      "kind": "core-patch",
+      "kind": "adapter-patch",
       "file": "packages/adapter-utils/src/sandbox-callback-bridge.ts",
       "symbol": "DEFAULT_SANDBOX_CALLBACK_BRIDGE_ROUTE_ALLOWLIST",
       "anchor": "  { method: \"GET\", path: /^\\/api\\/crew\\/model-settings$/ },",
