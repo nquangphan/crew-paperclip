@@ -6,8 +6,7 @@
 
 Một yêu cầu Crew là một issue gốc (có policy Crew) với cây việc con, cạnh phụ thuộc và vòng sửa. Flow này cho người xem
 thấy cả cây đó: plugin dựng bản đồ từ bảng issue, crew-web vẽ bản đồ ở trang chi tiết issue và ở trang Roadmap (công ty
-→ project → yêu cầu → cây việc con, kèm nhánh Docs của project). Thẻ việc có vài run mới nhất và tổng tiền; owner thấy
-thêm huy hiệu Jev.
+→ project → yêu cầu → cây việc con, kèm nhánh Docs của project). Thẻ việc có vài run mới nhất và tổng tiền.
 
 Luật chính:
 
@@ -43,14 +42,13 @@ Luật chính:
    (cạnh phụ thuộc thành "chặn"); `crew-map.tsx` → `CrewMap` vẽ nó bằng canvas Roadmap. Tham số `rootKind` (`docs` | `plan` | null,
    `SummarySlot` lấy từ nhãn của yêu cầu gốc) đổi nhãn loại của việc `code` thành "Viết tài liệu" hoặc "Lập kế hoạch"; việc `fix` vẫn là "Sửa".
 6. `packages/crew-web/src/features/roadmap/use-roadmap.ts` → `useRoadmapData`: issue, project, docs và run, lọc theo
-   project được cấp; huy hiệu Jev chỉ tải cho owner và chỉ làm tươi khi Jev bật.
+   project được cấp.
 7. `packages/crew-web/src/features/roadmap/roadmap-model.ts`: dựng từng tầng (công ty, project, yêu cầu, nhánh Docs)
    thành `RoadmapLevel`; không gọi API, không đọc URL.
 8. `packages/crew-web/src/features/roadmap/roadmap-page.tsx` → `RoadmapPage`: điều hướng tầng, popup chi tiết yêu cầu
    (`?issue=`), popup đọc docs (`?doc=`, `RoadmapDocReader`), dạng danh sách (`?view=list`).
 9. `packages/crew-web/src/ds/widgets/roadmap/`: canvas (`RoadmapCanvas`, phần nặng `roadmap-flow.tsx` nạp lười), bố cục
-   tỏa tròn và cây (`roadmap-layout.ts`), thẻ nút, khối run, chú giải, huy hiệu Jev và dòng cờ "Jev: nên là large" (`RoadmapComplexityFlag`, từ `complexityFlags` của
-   bản đồ Jev; thẻ cao thêm `COMPLEXITY_LINE`).
+   tỏa tròn và cây (`roadmap-layout.ts`), thẻ nút, khối run, chú giải.
 
 ## Files
 
@@ -71,8 +69,8 @@ Luật chính:
 | `packages/crew-web/src/ds/widgets/roadmap/roadmap-canvas.tsx` | Canvas bản đồ (nạp lười) | `RoadmapCanvas` |
 | `packages/crew-web/src/ds/widgets/roadmap/roadmap-flow.tsx` | xyflow và chuyển động camera | |
 | `packages/crew-web/src/ds/widgets/roadmap/roadmap-layout.ts` | Bố cục thuần | `rings`, `radialTree` |
-| `packages/crew-web/src/ds/widgets/roadmap/roadmap-types.ts` | Kiểu dữ liệu bản đồ | `RoadmapNode`, `RoadmapRuns`, `RoadmapJev` |
-| `packages/crew-web/src/ds/widgets/roadmap/` (còn lại) | Thẻ nút, khối run, chú giải, danh sách, popup docs, huy hiệu Jev | `RoadmapList`, `RoadmapRunList`, `RoadmapLegend`, `RoadmapJevBadge` |
+| `packages/crew-web/src/ds/widgets/roadmap/roadmap-types.ts` | Kiểu dữ liệu bản đồ | `RoadmapNode`, `RoadmapRuns` |
+| `packages/crew-web/src/ds/widgets/roadmap/` (còn lại) | Thẻ nút, khối run, chú giải, danh sách, popup docs | `RoadmapList`, `RoadmapRunList`, `RoadmapLegend` |
 | `packages/crew-web/src/features/roadmap/roadmap-page.tsx` | Trang Roadmap | `RoadmapPage` |
 | `packages/crew-web/src/features/roadmap/roadmap-model.ts` | Dựng tầng | `CAPS`, `LIST_LIMIT` |
 | `packages/crew-web/src/features/roadmap/roadmap-url.ts` | Hợp đồng URL | `parseRoadmapParams`, `roadmapHref` |
@@ -85,14 +83,12 @@ Luật chính:
 - Bảng lõi đọc: `issues` (`parent_id`, `execution_policy`, `execution_state`, mô tả có marker bundle và fix),
   `issue_relations`, `agents`, `heartbeat_runs`, `cost_events`.
 - Không ghi bảng nào.
-- Jev: route bản đồ Jev của router Crew (`api.jev.requestMap`, flow `jev`).
 
 ## Flow liên quan
 
 - `issues-web`: trang chi tiết issue và popup yêu cầu chứa bản đồ.
 - `docs-snapshot`: nhánh Docs của Roadmap và kết quả kiểm docs trong tóm tắt.
 - `usage-storage`: cùng nguồn tiền run.
-- `jev`: số liệu huy hiệu Jev.
 - `project-access`: lọc project được cấp (`useVisibleProjects`).
 - `design-system`: widget nằm trong `ds/widgets`.
 
@@ -107,5 +103,5 @@ Luật chính:
   Crew, việc treo dưới gốc, bấm mở issue, dòng tóm tắt.
 - `packages/crew-web/test/ds/crew/roadmap-canvas.test.tsx`, `roadmap-edges.test.tsx`, `roadmap-layout.test.ts`,
   `roadmap-runs.test.tsx`: nút có nhãn đọc màn hình, dây đang chạy và giảm chuyển động, bố cục, định dạng dòng run.
-- `packages/crew-web/test/features/roadmap/roadmap-page.test.tsx`, `roadmap-model.test.ts`, `roadmap-url.test.ts`,
-  `roadmap-jev.test.tsx`: điều hướng tầng và quyền xem, trần nút, URL, màu và chữ huy hiệu Jev.
+- `packages/crew-web/test/features/roadmap/roadmap-page.test.tsx`, `roadmap-model.test.ts`, `roadmap-url.test.ts`:
+  điều hướng tầng và quyền xem, trần nút, URL.

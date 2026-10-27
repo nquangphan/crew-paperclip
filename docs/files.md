@@ -73,7 +73,6 @@ File nào thuộc flow nào. Dùng `crew-docs where <file>` để tra từ dòng
 | `crew/release/core-hooks.json` | [core-hooks](flows/core-hooks.md) (file) |
 | `crew/release/upgrade.sh` | [core-hooks](flows/core-hooks.md) (điểm vào) |
 | `crew/release/upgrade.test.mjs` | [core-hooks](flows/core-hooks.md) (test) |
-| `crew/release/vendor-jev-use.mjs` | [jev](flows/jev.md) (file) |
 | `crew/release/verify.sh` | [core-hooks](flows/core-hooks.md) (file) |
 | `packages/adapters/claude-local/src/server/execute.remote.crew.test.ts` | [adapter-patches](flows/adapter-patches.md) (test) |
 | `packages/adapters/claude-local/src/server/execute.ts` | [adapter-patches](flows/adapter-patches.md) (dùng chung), [ssh-run-lifecycle](flows/ssh-run-lifecycle.md) (dùng chung) |
@@ -211,7 +210,6 @@ File nào thuộc flow nào. Dùng `crew-docs where <file>` để tra từ dòng
 | `packages/crew-plugin/src/shared/db.ts` | [crew-plugin](flows/crew-plugin.md) (file) |
 | `packages/crew-plugin/src/shared/markers.ts` | [crew-plugin](flows/crew-plugin.md) (file) |
 | `packages/crew-plugin/src/shared/policy.ts` | [crew-plugin](flows/crew-plugin.md) (file) |
-| `packages/crew-plugin/src/shared/redact.ts` | [crew-plugin](flows/crew-plugin.md) (file) |
 | `packages/crew-plugin/src/shared/signature.ts` | [machine-status](flows/machine-status.md) (file) |
 | `packages/crew-plugin/src/shared/webhook.ts` | [machine-status](flows/machine-status.md) (file) |
 | `packages/crew-plugin/src/skills/sync-data.ts` | [skills](flows/skills.md) (file) |
@@ -256,7 +254,6 @@ File nào thuộc flow nào. Dùng `crew-docs where <file>` để tra từ dòng
 | `packages/crew-web/src/api/crew/contributions.ts` | [contributions](flows/contributions.md) (file) |
 | `packages/crew-web/src/api/crew/data.ts` | [web-shell](flows/web-shell.md) (file) |
 | `packages/crew-web/src/api/crew/force-done.ts` | [issues-web](flows/issues-web.md) (file) |
-| `packages/crew-web/src/api/crew/jev.ts` | [jev](flows/jev.md) (file) |
 | `packages/crew-web/src/api/crew/jobs.ts` | [machine-jobs](flows/machine-jobs.md) (file) |
 | `packages/crew-web/src/api/crew/machine-pins.ts` | [web-shell](flows/web-shell.md) (file) |
 | `packages/crew-web/src/api/crew/machines.ts` | [machine-status](flows/machine-status.md) (file) |
@@ -390,7 +387,6 @@ File nào thuộc flow nào. Dùng `crew-docs where <file>` để tra từ dòng
 | `packages/crew-web/src/ds/widgets/roadmap/roadmap-canvas.tsx` | [roadmap-map](flows/roadmap-map.md) (file) |
 | `packages/crew-web/src/ds/widgets/roadmap/roadmap-doc-popup.tsx` | [roadmap-map](flows/roadmap-map.md) (file) |
 | `packages/crew-web/src/ds/widgets/roadmap/roadmap-flow.tsx` | [roadmap-map](flows/roadmap-map.md) (file) |
-| `packages/crew-web/src/ds/widgets/roadmap/roadmap-jev-badge.tsx` | [roadmap-map](flows/roadmap-map.md) (file) |
 | `packages/crew-web/src/ds/widgets/roadmap/roadmap-layout.ts` | [roadmap-map](flows/roadmap-map.md) (file) |
 | `packages/crew-web/src/ds/widgets/roadmap/roadmap-legend.tsx` | [roadmap-map](flows/roadmap-map.md) (file) |
 | `packages/crew-web/src/ds/widgets/roadmap/roadmap-list.tsx` | [roadmap-map](flows/roadmap-map.md) (file) |
@@ -513,26 +509,6 @@ File nào thuộc flow nào. Dùng `crew-docs where <file>` để tra từ dòng
 | `packages/crew-web/src/features/issues/popup/issue-popup-host.tsx` | [issues-web](flows/issues-web.md) (file) |
 | `packages/crew-web/src/features/issues/popup/issue-popup.tsx` | [issues-web](flows/issues-web.md) (file) |
 | `packages/crew-web/src/features/issues/routes.tsx` | [issues-web](flows/issues-web.md) (điểm vào) |
-| `packages/crew-web/src/features/jev/approval-note-check.tsx` | [jev](flows/jev.md) (file) |
-| `packages/crew-web/src/features/jev/features-section.tsx` | [jev](flows/jev.md) (file) |
-| `packages/crew-web/src/features/jev/gate-events-table.tsx` | [jev](flows/jev.md) (file) |
-| `packages/crew-web/src/features/jev/inbox-attention-badge.tsx` | [jev](flows/jev.md) (file) |
-| `packages/crew-web/src/features/jev/index.ts` | [jev](flows/jev.md) (file) |
-| `packages/crew-web/src/features/jev/issue-jev-block.tsx` | [jev](flows/jev.md) (file) |
-| `packages/crew-web/src/features/jev/jev-page.tsx` | [jev](flows/jev.md) (file) |
-| `packages/crew-web/src/features/jev/judge-adapter.ts` | [jev](flows/jev.md) (file) |
-| `packages/crew-web/src/features/jev/judge-client.ts` | [jev](flows/jev.md) (file) |
-| `packages/crew-web/src/features/jev/key-form.tsx` | [jev](flows/jev.md) (file) |
-| `packages/crew-web/src/features/jev/machine-name.tsx` | [jev](flows/jev.md) (file) |
-| `packages/crew-web/src/features/jev/machines-table.tsx` | [jev](flows/jev.md) (file) |
-| `packages/crew-web/src/features/jev/master-switch.tsx` | [jev](flows/jev.md) (file) |
-| `packages/crew-web/src/features/jev/request-type-chip.tsx` | [jev](flows/jev.md) (file) |
-| `packages/crew-web/src/features/jev/routes.tsx` | [jev](flows/jev.md) (điểm vào) |
-| `packages/crew-web/src/features/jev/settings-form.tsx` | [jev](flows/jev.md) (file) |
-| `packages/crew-web/src/features/jev/shadow-table.tsx` | [jev](flows/jev.md) (file) |
-| `packages/crew-web/src/features/jev/stats-panel.tsx` | [jev](flows/jev.md) (file) |
-| `packages/crew-web/src/features/jev/use-jev.ts` | [jev](flows/jev.md) (file) |
-| `packages/crew-web/src/features/jev/use-request-type-suggestion.ts` | [jev](flows/jev.md) (file) |
 | `packages/crew-web/src/features/machines/index.ts` | [machine-status](flows/machine-status.md) (file) |
 | `packages/crew-web/src/features/machines/jobs-queue.tsx` | [machine-jobs](flows/machine-jobs.md) (file) |
 | `packages/crew-web/src/features/machines/machines-page.tsx` | [machine-status](flows/machine-status.md) (file) |
@@ -753,15 +729,6 @@ File nào thuộc flow nào. Dùng `crew-docs where <file>` để tra từ dòng
 | `packages/crew-web/test/features/issues/title-editor.test.tsx` | [issues-web](flows/issues-web.md) (test) |
 | `packages/crew-web/test/features/issues/tree.test.ts` | [issues-web](flows/issues-web.md) (test) |
 | `packages/crew-web/test/features/issues/use-create-request.test.ts` | [issues-web](flows/issues-web.md) (test) |
-| `packages/crew-web/test/features/jev/approval-note.test.tsx` | [jev](flows/jev.md) (test) |
-| `packages/crew-web/test/features/jev/approve-request-type.test.tsx` | [jev](flows/jev.md) (test) |
-| `packages/crew-web/test/features/jev/features-page.test.tsx` | [jev](flows/jev.md) (test) |
-| `packages/crew-web/test/features/jev/issue-jev-block.test.tsx` | [jev](flows/jev.md) (test) |
-| `packages/crew-web/test/features/jev/jev-page.test.tsx` | [jev](flows/jev.md) (test) |
-| `packages/crew-web/test/features/jev/judge-adapter.test.ts` | [jev](flows/jev.md) (test) |
-| `packages/crew-web/test/features/jev/judge-client.test.ts` | [jev](flows/jev.md) (test) |
-| `packages/crew-web/test/features/jev/request-type.test.tsx` | [jev](flows/jev.md) (test) |
-| `packages/crew-web/test/features/jev/settings-form.test.ts` | [jev](flows/jev.md) (test) |
 | `packages/crew-web/test/features/machines/machines-page.test.tsx` | [machine-status](flows/machine-status.md) (test) |
 | `packages/crew-web/test/features/machines/pairing-block.test.tsx` | [machine-status](flows/machine-status.md) (test) |
 | `packages/crew-web/test/features/machines/runtime-block.test.tsx` | [runtime-switches](flows/runtime-switches.md) (test) |
@@ -778,7 +745,6 @@ File nào thuộc flow nào. Dùng `crew-docs where <file>` để tra từ dòng
 | `packages/crew-web/test/features/qc/qc-status.test.ts` | [qc-department](flows/qc-department.md) (test) |
 | `packages/crew-web/test/features/readiness/compute.test.ts` | [setup-wizards](flows/setup-wizards.md) (test) |
 | `packages/crew-web/test/features/readiness/load.test.ts` | [setup-wizards](flows/setup-wizards.md) (test) |
-| `packages/crew-web/test/features/roadmap/roadmap-jev.test.tsx` | [roadmap-map](flows/roadmap-map.md) (test) |
 | `packages/crew-web/test/features/roadmap/roadmap-model.test.ts` | [roadmap-map](flows/roadmap-map.md) (test) |
 | `packages/crew-web/test/features/roadmap/roadmap-page.test.tsx` | [roadmap-map](flows/roadmap-map.md) (test) |
 | `packages/crew-web/test/features/roadmap/roadmap-url.test.ts` | [roadmap-map](flows/roadmap-map.md) (test) |
@@ -837,11 +803,6 @@ File nào thuộc flow nào. Dùng `crew-docs where <file>` để tra từ dòng
 | `server/src/__tests__/crew-issue-create-policy.test.ts` | [issue-gate](flows/issue-gate.md) (test) |
 | `server/src/__tests__/crew-issue-gate.db.test.ts` | [issue-gate](flows/issue-gate.md) (test) |
 | `server/src/__tests__/crew-issue-gate.test.ts` | [issue-gate](flows/issue-gate.md) (test) |
-| `server/src/__tests__/crew-jev-client.test.ts` | [jev](flows/jev.md) (test) |
-| `server/src/__tests__/crew-jev-features.db.test.ts` | [jev](flows/jev.md) (test) |
-| `server/src/__tests__/crew-jev-machine-auth.test.ts` | [jev](flows/jev.md) (test) |
-| `server/src/__tests__/crew-jev-routes.db.test.ts` | [jev](flows/jev.md) (test) |
-| `server/src/__tests__/crew-jev-shadow.db.test.ts` | [jev](flows/jev.md) (test) |
 | `server/src/__tests__/crew-load-gate-cancel.test.ts` | [run-claim](flows/run-claim.md) (test) |
 | `server/src/__tests__/crew-load-gate.test.ts` | [run-claim](flows/run-claim.md) (test) |
 | `server/src/__tests__/crew-machine-backfill.db.test.ts` | [multi-machine](flows/multi-machine.md) (test) |
@@ -888,13 +849,6 @@ File nào thuộc flow nào. Dùng `crew-docs where <file>` để tra từ dòng
 | `server/src/crew/issue-create-policy.ts` | [issue-gate](flows/issue-gate.md) (điểm vào) |
 | `server/src/crew/issue-gate.ts` | [issue-gate](flows/issue-gate.md) (điểm vào) |
 | `server/src/crew/issue-policy.ts` | [issue-gate](flows/issue-gate.md) (file) |
-| `server/src/crew/jev-client.ts` | [jev](flows/jev.md) (file) |
-| `server/src/crew/jev-features.ts` | [jev](flows/jev.md) (file) |
-| `server/src/crew/jev-judgments.ts` | [jev](flows/jev.md) (file) |
-| `server/src/crew/jev-machine-auth.ts` | [jev](flows/jev.md) (file) |
-| `server/src/crew/jev-routes.ts` | [jev](flows/jev.md) (điểm vào) |
-| `server/src/crew/jev-shadow.ts` | [jev](flows/jev.md) (file) |
-| `server/src/crew/jev-store.ts` | [jev](flows/jev.md) (file) |
 | `server/src/crew/load-gate.ts` | [run-claim](flows/run-claim.md) (điểm vào) |
 | `server/src/crew/machine-gate.ts` | [multi-machine](flows/multi-machine.md) (điểm vào) |
 | `server/src/crew/machine-pin.ts` | [multi-machine](flows/multi-machine.md) (file) |
@@ -917,7 +871,6 @@ File nào thuộc flow nào. Dùng `crew-docs where <file>` để tra từ dòng
 | `server/src/crew/runtime-switch.ts` | [runtime-switches](flows/runtime-switches.md) (file) |
 | `server/src/crew/ssh-in-place.ts` | [ssh-run-lifecycle](flows/ssh-run-lifecycle.md) (file) |
 | `server/src/crew/ssh-pending-teardown.ts` | [ssh-run-lifecycle](flows/ssh-run-lifecycle.md) (file) |
-| `server/src/crew/vendor/jev-use.ts` | [jev](flows/jev.md) (file) |
 | `server/src/index.ts` | [run-handoff](flows/run-handoff.md) (dùng chung) |
 | `server/src/routes/agents.ts` | [agent-guards](flows/agent-guards.md) (dùng chung) |
 | `server/src/routes/execution-workspaces.ts` | [agent-guards](flows/agent-guards.md) (dùng chung) |

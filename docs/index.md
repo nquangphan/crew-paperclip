@@ -4,7 +4,7 @@
 
 Repo này là bản fork Paperclip mà **2P Crew** (Crew v3) chạy trên đó. Phần lớn code là Paperclip upstream và
 không thuộc phạm vi docs này. Docs ở đây chỉ mô tả phần Crew thêm vào: luật nghiệp vụ của Crew (vai trò agent,
-cổng duyệt nhiều stage, công tắc và chuyển runtime, quyền xem project, góp ý chờ duyệt, Crew Jev), plugin
+cổng duyệt nhiều stage, công tắc và chuyển runtime, quyền xem project, góp ý chờ duyệt), plugin
 `crew.core`, UI Crew, các điểm Crew móc vào lõi Paperclip và script vận hành.
 
 Agent chạy trên Mac của chủ dự án qua SSH environment; phần cài và kiểm Mac (`crew-mac`, app macOS) nằm ở repo
@@ -28,7 +28,7 @@ Paperclip, không mô tả Crew. Phạm vi file nguồn của Crew là `source.i
 
 | Thư mục | Vai trò |
 |---------|---------|
-| `server/src/crew` | Luật Crew trong server: cổng tạo/ghi issue, cổng nhận run, dừng run SSH, router Crew (góp ý, quyền xem project, Phòng QC, Jev) |
+| `server/src/crew` | Luật Crew trong server: cổng tạo/ghi issue, cổng nhận run, dừng run SSH, router Crew (góp ý, quyền xem project, Phòng QC) |
 | `crew/release/core-hooks.json` | Danh sách điểm móc và vá lõi (hook H, vá driver/adapter P, vá lõi C), kèm test của từng mục |
 | `packages/crew-plugin/src` | Plugin `crew.core`: worker, webhook bản tin máy và snapshot docs, route API (vai trò, việc trên máy, wizard, công tắc runtime, ghép máy), chuyển runtime, dữ liệu cho UI |
 | `packages/crew-plugin/migrations` | Bảng plugin `crew_*` |
@@ -55,7 +55,6 @@ Paperclip, không mô tả Crew. Phạm vi file nguồn của Crew là `source.i
 | [Trang Hướng dẫn](flows/guide.md) | `guide` | `packages/crew-web/src/features/guide/routes.tsx`, `packages/crew-plugin/src/ui/guide/index.tsx` |
 | [Cổng tạo và ghi issue (execution policy, vai trò, model)](flows/issue-gate.md) | `issue-gate` | `server/src/crew/issue-gate.ts`, `server/src/crew/issue-create-policy.ts` |
 | [Issue trên UI Crew: danh sách, chi tiết, tạo yêu cầu, cổng duyệt, ép xong](flows/issues-web.md) | `issues-web` | `packages/crew-web/src/features/issues/routes.tsx`, `packages/crew-plugin/src/issues/force-done.ts` |
-| [Crew Jev trên server: cấu hình, key, máy, log gate, so sánh với regex](flows/jev.md) | `jev` | `server/src/crew/jev-routes.ts`, `packages/crew-web/src/features/jev/routes.tsx` |
 | [Hàng đợi việc trên máy (machine jobs)](flows/machine-jobs.md) | `machine-jobs` | `packages/crew-plugin/src/jobs/api.ts` |
 | [Bản tin máy (machine-status) và ghép máy](flows/machine-status.md) | `machine-status` | `packages/crew-plugin/src/machines/webhook.ts`, `packages/crew-plugin/src/machines/pairing.ts`, `packages/crew-web/src/features/machines/routes.tsx` |
 | [Một project chạy trên nhiều máy: ghim máy theo cây yêu cầu, tự chọn máy, dựng project trên máy](flows/multi-machine.md) | `multi-machine` | `server/src/crew/machine-gate.ts`, `server/src/crew/machine-routes.ts` |

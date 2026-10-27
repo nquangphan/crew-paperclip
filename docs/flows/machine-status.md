@@ -82,7 +82,6 @@ secret company.
 - `machine-jobs`: hàng đợi việc hiện trên cùng trang Máy, gồm việc `ensure-project` (Dựng project trên máy) do server xếp.
 - `runtime-switches`: công tắc runtime theo máy trên thẻ máy.
 - `skills`: trang Skills đọc `useCrewMachines`.
-- `jev`: route máy của Jev ký theo cùng luật key máy.
 - `design-system`: `MachineCard` nằm trong `ds/widgets/crew`.
 
 ## Tests

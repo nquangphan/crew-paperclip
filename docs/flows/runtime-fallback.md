@@ -34,8 +34,7 @@ runtime khác, thay vì để issue nằm im. Luật chính:
 1. `packages/crew-plugin/src/runtimes/classify.ts` → `classifyRuntimeFailure`: phân loại theo `errorCode`,
    `errorFamily` (đọc từ `heartbeat_runs.result_json` vì payload sự kiện không có) và câu lỗi (wrapper Mac
    `crew-runtime blocked:`, mẫu lỗi OpenCode).
-2. `packages/crew-plugin/src/runtimes/fallback.ts` → `handleRunFailed`: bỏ agent ngoài ba runtime; ghi mẫu so sánh cho
-   Jev (`recordJevShadow`, flow `jev`); gọi `applyFallback`.
+2. `packages/crew-plugin/src/runtimes/fallback.ts` → `handleRunFailed`: bỏ agent ngoài ba runtime; gọi `applyFallback`.
 3. `packages/crew-plugin/src/runtimes/fallback.ts` → `applyFallback`: dừng khi issue không thuộc project Crew, không có
    policy Crew, đã đóng, đã giao agent khác, hoặc agent không phải executor/reviewer Codex; đã quyết cho run này thì
    `duplicate`.
@@ -76,7 +75,7 @@ runtime khác, thay vì để issue nằm im. Luật chính:
 ## Dữ liệu
 
 - Bảng plugin: `crew_runtime_decisions`, `crew_runtime_waits` (migration `0012_runtimes.sql`), `crew_runtime_retries`
-  (`0017_runtime_retries.sql`); ghi `crew_jev_shadow` (`0020_jev.sql`). Đọc `crew_runtime_switches`, `machine_latest`,
+  (`0017_runtime_retries.sql`). Đọc `crew_runtime_switches`, `machine_latest`,
   vai trò project.
 - Bảng lõi: đọc `heartbeat_runs`; ghi issue qua host (`assigneeAgentId`, `assigneeAdapterOverrides`, `executionState`,
   `status`) và comment.
@@ -91,7 +90,6 @@ runtime khác, thay vì để issue nằm im. Luật chính:
 - `project-roles`: danh sách executor và reviewer Codex của project.
 - `machine-status`: bản tin máy cho sức khỏe runtime và checkout.
 - `multi-machine`: bảng `issue_machine_pins` ghim máy cho cả cây yêu cầu.
-- `jev`: mẫu so sánh Jev với regex phân loại lỗi.
 - `run-handoff`: vá C14 cho wake reviewer bị hoãn sau run executor lỗi.
 
 ## Tests

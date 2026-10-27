@@ -58,7 +58,7 @@ test("accepts the stock UI files: ui/ is served by stock-ui.sh and never ships i
 });
 
 test("accepts the crew-docs manifest, flow pages and git hooks: they never ship", () => {
-  const r = run(["docs/flows.yaml", "docs/index.md", "docs/flows/jev.md", ".githooks/pre-commit", ".githooks/pre-push"]);
+  const r = run(["docs/flows.yaml", "docs/index.md", "docs/flows/contributions.md", ".githooks/pre-commit", ".githooks/pre-push"]);
   assert.doesNotMatch(r.stderr, /cannot ship/);
 });
 

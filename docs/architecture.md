@@ -7,8 +7,8 @@
   móc, anchor và test của chúng được liệt kê trong `crew/release/core-hooks.json`; `crew/release/check-core-hooks.mjs`
   kiểm anchor còn đúng sau mỗi lần nâng upstream (flow `core-hooks`). Giữ phần vá lõi nhỏ là quyết định có chủ ý: nâng
   bản Paperclip chỉ cần merge tag upstream rồi chạy `crew/release/verify.sh`.
-- **Router Crew trong server** (`/api/crew/companies/:companyId/...`): góp ý chờ duyệt, quyền xem project, Phòng QC,
-  Crew Jev. Router được gắn một lần trong `server/src/app.ts` (vá lõi C7), các router con gắn bên trong nó.
+- **Router Crew trong server** (`/api/crew/companies/:companyId/...`): góp ý chờ duyệt, quyền xem project, Phòng QC.
+  Router được gắn một lần trong `server/src/app.ts` (vá lõi C7), các router con gắn bên trong nó.
 - **Plugin `crew.core`** (`packages/crew-plugin`): chạy như worker plugin của Paperclip. Nhận webhook ký HMAC từ Mac
   (`machine-status`, `docs-snapshot`), mở route API cho UI và app Mac, chạy job định kỳ (kiểm file đính kèm, chuyển
   runtime), lắng nghe sự kiện lõi (run hỏng, run bị hủy, agent hoặc project bị đổi), và cấp data cho UI. Manifest:
@@ -18,24 +18,23 @@
 - **Mac chạy agent**: mỗi agent dùng một SSH environment trỏ về Mac của chủ dự án. Server mở SSH để chạy adapter
   (`claude_local`, `codex_local`, `opencode_local`) trên Mac, ngay trong thư mục làm việc của environment khi metadata
   đặt `workspaceRealizationMode: "in_place"`, và để dừng run từ xa. Phần mềm trên Mac
-  (`crew-mac`, app macOS) ở repo `crew`; nó gửi bản tin máy, snapshot docs và log Crew Jev về server.
+  (`crew-mac`, app macOS) ở repo `crew`; nó gửi bản tin máy và snapshot docs về server.
 
 ## Lưu trữ dữ liệu
 
 - Postgres của Paperclip. Crew đọc bảng lõi (`issues`, `heartbeat_runs`, `agents`, `projects`, `cost_events`...) và
   ghi dữ liệu riêng vào bảng plugin `crew_*` trong namespace của `crew.core` (migration ở
   `packages/crew-plugin/migrations/`). Server cũng đọc/ghi một số bảng plugin này trực tiếp (vai trò project, công tắc
-  runtime, góp ý, quyền xem project, vòng QC, Jev), nên migration là hợp đồng chung của plugin và server.
+  runtime, góp ý, quyền xem project, vòng QC), nên migration là hợp đồng chung của plugin và server.
 - Cấu hình policy Crew theo company: file JSON chỉ đọc, đường dẫn qua env `CREW_POLICY_CONFIG`
   (`server/src/crew/issue-policy.ts`). Trên VPS nó được mount vào container bởi `crew/ops/policy-env.sh` và do
   `crew/agents/apply-roles.sh` ghi.
-- Secret: secret webhook theo company và key OpenRouter của Crew Jev là company secret của Paperclip; bảng Crew chỉ giữ
-  tham chiếu hoặc vân tay, không giữ giá trị.
+- Secret: secret webhook theo company là company secret của Paperclip; bảng Crew chỉ giữ tham chiếu hoặc vân tay, không
+  giữ giá trị.
 
 ## Dịch vụ bên ngoài
 
 - SSH tới Mac của chủ dự án (environment SSH của Paperclip).
-- OpenRouter (mô hình Jev) cho Crew Jev phía server; Mac gọi Jev trực tiếp bằng key server cấp xuống qua route `/jev/machine/pull`.
 - GitHub qua `gh` trên Mac cho auto-deploy chờ merge pull request (`crew/ops/auto-deploy.mjs`).
 
 ## Triển khai

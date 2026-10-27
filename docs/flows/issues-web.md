@@ -43,15 +43,13 @@ Luật chính:
    kèm lần lượt. Owner thấy thêm ô "Máy thực thi" (`machine-field.tsx` → `MachineField`, mặc định "Tự chọn", chỉ liệt kê
    máy online, ghi chú "sẽ dựng lần đầu" / "đang dựng" / "dựng hỏng" theo trạng thái project trên máy); chọn máy thì
    `createRequest` tạo nháp, ghim máy (`api.machinePins.set`), upload, rồi mới chuyển Cần làm. Ghim lỗi thì yêu cầu ở
-   lại nháp và `machineError` hiện ở thông báo sau khi tạo. Có chip "Jev gợi ý: <loại>" dưới ô Loại (flow `jev`): bấm mới chọn, lỗi thì không hiện gì.
+   lại nháp và `machineError` hiện ở thông báo sau khi tạo.
 3. `packages/crew-web/src/features/issues/detail/issue-detail.tsx` → `IssueDetail`: dùng chung cho trang và popup; đọc
    dữ liệu qua `use-issue.ts` và gắn các khối: tóm tắt Crew (`SummarySlot`), thao tác cổng (`ActionsSlot`), câu hỏi
    của Trợ Lý (`InteractionsSlot`), thuộc tính và runtime (`PropertiesPanel`, `MachineSlot`, `RuntimeSlot`), bình luận, đính kèm,
    tài liệu, run, lịch sử.
 4. `packages/crew-web/src/features/issues/detail/crew/gate-actions.ts` → `gateActionsFor`, `awaitingMyApproval`: tính
-   nút Duyệt, Yêu cầu sửa, Hủy theo stage đang chờ; `actions-slot.tsx` gửi PATCH và làm mới mọi dữ liệu bị đổi. Trước khi gửi
-   Duyệt / Yêu cầu sửa kèm lời nhắn, Jev đọc lời nhắn với hạn cứng 1500 ms và chỉ hỏi lại một lần khi lệch ý (flow
- `jev`); lỗi hay quá hạn thì gửi như cũ. Phần gửi (đọc lại issue, chặn khi owner không còn là người duyệt) nằm ở
+   nút Duyệt, Yêu cầu sửa, Hủy theo stage đang chờ; `actions-slot.tsx` gửi PATCH và làm mới mọi dữ liệu bị đổi. Phần gửi (đọc lại issue, chặn khi owner không còn là người duyệt) nằm ở
    `useGateMutation`, dùng chung với thẻ câu hỏi ở bước 4b.
 4b. `packages/crew-web/src/features/issues/detail/crew/interactions-slot.tsx` → `InteractionsSlot`: thẻ
    `ask_user_questions` / xác nhận đang chờ thì hiện thẻ đó (`InteractionCard`). Không có thẻ nào đang chờ thì
@@ -76,8 +74,7 @@ Luật chính:
    Bấm mở `NewRequestDialog` với `initial` do `followPlanInitial` dựng: project của yêu cầu kế hoạch, loại Code, tiêu đề
    `Làm theo kế hoạch: <tiêu đề>`, mô tả gồm dòng `crew-from-plan <path>` (path đọc từ dòng `- File kế hoạch: \`<path>\``
    trong mô tả gốc), dòng `Kế hoạch: <mã> · PR: <url>` (PR từ dòng `- Pull request: <url>`) và dòng nhắc merge PR kế hoạch.
-   Thiếu path thì bỏ dòng `crew-from-plan`; thiếu PR thì bỏ cả link PR lẫn dòng nhắc merge. Tạo xong hiện thông báo kèm link, và báo tên file đính kèm tải lên hỏng. Loại Code điền sẵn tính là đã chọn (Jev nhận
-   `current`); chỉ gửi được khi project nằm trong danh sách project sẵn sàng mà người dùng thấy.
+   Thiếu path thì bỏ dòng `crew-from-plan`; thiếu PR thì bỏ cả link PR lẫn dòng nhắc merge. Tạo xong hiện thông báo kèm link, và báo tên file đính kèm tải lên hỏng. Chỉ gửi được khi project nằm trong danh sách project sẵn sàng mà người dùng thấy.
 9. `packages/crew-web/src/features/issues/popup/issue-nav.tsx` → `IssueLink`, `useIssueOpener`: click thường mở popup,
    Cmd/Ctrl/Shift/chuột giữa mở trang đầy đủ ở tab mới; hợp đồng URL ở `issue-href.ts`.
 

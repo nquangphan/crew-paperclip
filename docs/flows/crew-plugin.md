@@ -66,7 +66,6 @@ Luật chính:
 | `packages/crew-plugin/src/shared/db.ts` | Helper SQL an toàn | `pluginNamespace`, `checkedId`, `uuidArray`, `jsonObject` |
 | `packages/crew-plugin/src/shared/markers.ts` | Đọc marker Crew trong mô tả và comment | `parseCrewBundle`, `parseCrewDocsCheck`, `isCrewResearch` |
 | `packages/crew-plugin/src/shared/policy.ts` | Đọc policy Crew của issue | `crewPolicyKind`, `docsStageAgents` |
-| `packages/crew-plugin/src/shared/redact.ts` | Che secret trước khi ghi bảng plugin | `redactSecrets` |
 | `packages/crew-plugin/src/shared/css.d.ts` | Khai báo kiểu cho import CSS | |
 | `packages/crew-plugin/src/ui/index.tsx` | Export cho slot UI | |
 | `packages/crew-plugin/src/ui/registry.ts` | Đăng ký mục trang Crew và panel issue | `registerPageSection`, `registerIssuePanel` |
@@ -96,7 +95,8 @@ sự kiện plugin dạng call để xóa invocation scope khi handler xong).
     (`0017`);
   - góp ý và QC: `crew_contributors`, `crew_contributions` (`0013`, `0018`, `0019`), `crew_qc_rounds` (`0019`);
   - `crew_project_access` (`0016`);
-  - Jev: `crew_jev_settings`, `crew_jev_machines`, `crew_jev_gate_events`, `crew_jev_shadow` (`0020`); `0021` thêm cột `features` cho `crew_jev_settings` và bảng đo `crew_jev_judgments`.
+  - `0020`, `0021`: bảng `crew_jev_*` của tính năng Jev đã gỡ; không code nào đọc/ghi. Giữ hai file vì đã áp trên prod
+    (runner đối chiếu checksum) và runner plugin cấm migration `DROP`; bảng trên prod xóa tay.
   - `0022_multi_machine.sql`: `project_machines` (trạng thái dựng project trên từng máy), `project_repos` (origin, nhánh,
     repo đi kèm của project), `issue_machine_pins` (máy ghim theo issue gốc) và kind `ensure-project`. Server Crew ghi ba
     bảng này (flow `multi-machine`).
@@ -111,7 +111,7 @@ sự kiện plugin dạng call để xóa invocation scope khi handler xong).
 - `project-roles`: bảng `crew_project_roles` và `loadCrewRoles` phía server; `server/src/crew/project-roles.ts` cũng
   giữ `CREW_PLUGIN_KEY` và `rowsOf` mà các module server Crew khác dùng để đọc bảng plugin.
 - `machine-status`, `docs-snapshot`, `machine-jobs`, `setup-wizards`, `usage-storage`, `attachments`, `skills`,
-  `roadmap-map`, `runtime-switches`, `runtime-fallback`, `contributions`, `qc-department`, `project-access`, `jev`:
+  `roadmap-map`, `runtime-switches`, `runtime-fallback`, `contributions`, `qc-department`, `project-access`:
   các tính năng worker đăng ký.
 - `guide`: trang `huong-dan` của plugin.
 - `web-shell`: crew-web gọi data key và route API của plugin.
