@@ -11,7 +11,10 @@ export interface CrewRuntimeSpec {
   byComplexity: Readonly<Partial<Record<CrewComplexity, { model: string; effort: CrewEffort | null }>>>;
 }
 
-/** Bảng chép ở plugin (`src/runtimes/catalog.ts`), crew-web và `assistant.md`; mỗi bản có test so khớp nguyên văn. */
+/**
+ * Bảng mặc định, dùng khi owner chưa lưu bản cài đặt model nào (`model-settings.ts`, `CREW_MODEL_SETTINGS_DEFAULT`).
+ * Plugin giữ bản chép mặc định (`src/runtimes/catalog.ts`), có test so khớp nguyên văn.
+ */
 export const CREW_RUNTIME_CATALOG: Readonly<Record<CrewRuntime, CrewRuntimeSpec>> = Object.freeze({
   claude_local: {
     effortKey: "effort",
@@ -54,7 +57,7 @@ export const CREW_RUNTIME_CATALOG: Readonly<Record<CrewRuntime, CrewRuntimeSpec>
   },
 });
 
-/** Thứ tự runtime khi chọn và khi fallback theo độ phức tạp; `large` chỉ chạy Claude. */
+/** Thứ tự runtime mặc định khi chọn và khi fallback theo độ phức tạp; `large` chỉ chạy Claude. */
 export const CREW_RUNTIME_ORDER: Readonly<Record<CrewComplexity, readonly CrewRuntime[]>> = Object.freeze({
   trivial: ["opencode_local", "claude_local", "codex_local"],
   small: ["opencode_local", "claude_local", "codex_local"],
@@ -62,15 +65,6 @@ export const CREW_RUNTIME_ORDER: Readonly<Record<CrewComplexity, readonly CrewRu
   large: ["claude_local"],
 });
 
-/** Cột `claude_local` của bảng; crew-web và code cũ import theo nghĩa này. */
-export const CREW_COMPLEXITY_MODEL: Readonly<Record<CrewComplexity, { model: string; effort: CrewEffort }>> = Object.freeze({
-  trivial: { model: "claude-sonnet-5-5", effort: "low" },
-  small: { model: "claude-sonnet-5-5", effort: "medium" },
-  medium: { model: "claude-sonnet-5-5", effort: "high" },
-  large: { model: "claude-opus-5-5", effort: "high" },
-});
-
-export const CREW_ALLOWED_MODELS: ReadonlySet<string> = new Set(Object.values(CREW_COMPLEXITY_MODEL).map((entry) => entry.model));
 export const CREW_ALLOWED_EFFORTS: ReadonlySet<string> = new Set<CrewEffort>(["low", "medium", "high"]);
 export const CREW_OVERRIDE_FORBIDDEN_MESSAGE =
   "Crew: agent chỉ được đặt model và effort trong assigneeAdapterOverrides.";
@@ -93,13 +87,18 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 /**
  * Override merge nông vào cấu hình chạy; mọi key ngoài model và key effort của runtime đều có thể đổi lệnh hoặc môi
  * trường. `adapterType` là adapter của assignee: một trong ba runtime thì model phải thuộc cột runtime đó (vi phạm ghi
- * `@<runtime>`) và key effort phải là key của runtime; thiếu hoặc adapter khác thì giữ luật Claude cũ.
+ * `@<runtime>`) và key effort phải là key của runtime; thiếu hoặc adapter khác thì giữ luật Claude cũ. `catalog` là
+ * bảng hiện hành (`loadModelSettings`); không truyền thì dùng bảng mặc định.
  */
-export function checkAgentAdapterOverrides(value: unknown, adapterType?: string | null): string[] {
+export function checkAgentAdapterOverrides(
+  value: unknown,
+  adapterType?: string | null,
+  catalog: Readonly<Record<CrewRuntime, CrewRuntimeSpec>> = CREW_RUNTIME_CATALOG,
+): string[] {
   if (value === undefined || value === null) return [];
   if (!isRecord(value)) return ["shape"];
   const runtime = isCrewRuntime(adapterType) ? adapterType : null;
-  const spec = CREW_RUNTIME_CATALOG[runtime ?? "claude_local"];
+  const spec = catalog[runtime ?? "claude_local"];
   const violations: string[] = [];
   for (const [key, inner] of Object.entries(value)) {
     if (key !== "adapterConfig") {
@@ -130,7 +129,7 @@ export function checkAgentAdapterOverrides(value: unknown, adapterType?: string 
 
 /** Runtime được làm reviewer; OpenCode chỉ làm executor. */
 export const CREW_REVIEWER_RUNTIMES: readonly CrewRuntime[] = Object.freeze(["claude_local", "codex_local"]);
-/** Reviewer Codex chạy model cố định, không có override theo issue. */
+/** Model mặc định của reviewer Codex (vai `reviewer-codex` của cài đặt model), không có override theo issue. */
 export const CREW_CODEX_REVIEWER_MODEL = Object.freeze({ model: "gpt-6-sol", effort: "high" } as const);
 export type CrewIssueTemplate = "child" | "root" | "research" | "bmad";
 export interface ReviewerChoice {

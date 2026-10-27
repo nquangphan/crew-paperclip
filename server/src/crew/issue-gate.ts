@@ -14,12 +14,8 @@ import { unprocessable } from "../errors.js";
 import { persistActivity } from "../services/activity-log.js";
 import { normalizeIssueExecutionPolicy, parseIssueExecutionState } from "../services/issue-execution-policy.js";
 import { loadAssigneeAdapterType } from "./issue-create-policy.js";
-import {
-  CREW_CODEX_REVIEWER_MODEL,
-  CREW_OVERRIDE_FORBIDDEN_MESSAGE,
-  CREW_RUNTIME_CATALOG,
-  checkAgentAdapterOverrides,
-} from "./model-policy.js";
+import { CREW_OVERRIDE_FORBIDDEN_MESSAGE, checkAgentAdapterOverrides } from "./model-policy.js";
+import { codexReviewerOverrides, loadModelSettings, rootReviewerOverrides } from "./model-settings.js";
 import {
   type CrewMergeEvidence,
   type CrewRoles,
@@ -502,7 +498,8 @@ export async function crewBeforeIssueWrite(input: IssueWriteHookInput): Promise<
       patch.assigneeAdapterOverrides != null
         ? await loadAssigneeAdapterType(input.tx, input.existing.companyId, assigneeAgentId)
         : null;
-    const violations = checkAgentAdapterOverrides(patch.assigneeAdapterOverrides, adapterType);
+    const catalog = patch.assigneeAdapterOverrides != null ? (await loadModelSettings(input.tx)).catalog : undefined;
+    const violations = checkAgentAdapterOverrides(patch.assigneeAdapterOverrides, adapterType, catalog);
     if (violations.length > 0) {
       const config = await loadCrewCompanyConfig(input.existing.companyId);
       if (config.kind !== "absent") {
@@ -740,29 +737,13 @@ export async function crewBeforeIssueWrite(input: IssueWriteHookInput): Promise<
 /** Activity của hệ thống ghi override khi issue Crew đổi người làm; `executorOverrides` là override executor để lại. */
 export const CREW_ASSIGNEE_OVERRIDES_ACTION = "crew.assignee_overrides.handoff";
 
-/** Override cố định của reviewer Codex (model và effort theo vai trò, không theo issue). */
-export const CREW_CODEX_REVIEWER_OVERRIDES = Object.freeze({
-  adapterConfig: Object.freeze({
-    model: CREW_CODEX_REVIEWER_MODEL.model,
-    [CREW_RUNTIME_CATALOG.codex_local.effortKey as string]: CREW_CODEX_REVIEWER_MODEL.effort,
-  }),
-});
-
-/**
- * Override của reviewer Claude trên issue gốc (không có `parentId`) của yêu cầu code hay viết tài liệu: review tổng chạy
- * opus. Issue con và gốc của yêu cầu research theo cấu hình agent.
- */
-export const CREW_ROOT_REVIEWER_OVERRIDES = Object.freeze({
-  adapterConfig: Object.freeze({ model: "claude-opus-5-5", effort: "high" }),
-});
-
 /**
  * `assigneeAdapterOverrides` là một cột trên issue và lõi áp nó cho bất kỳ agent nào đang là assignee, nên override
  * Trợ Lý (hay fallback) đặt cho executor sẽ theo issue sang reviewer khi stock chuyển stage. Trên issue có policy Crew,
  * khi assignee đổi mà lệnh ghi không tự đặt override:
- * - giao cho agent của stage (reviewer, reviewer Codex, integrator): override theo vai trò, reviewer Codex là
- *   `gpt-6-sol`/`high`, reviewer chạy `claude_local` trên issue gốc (trừ gốc research) là `claude-opus-5-5`/`high`, còn lại
- *   `null` (chạy theo cấu hình agent);
+ * - giao cho agent của stage (reviewer, reviewer Codex, integrator): override theo vai trò của cài đặt model, reviewer
+ *   Codex theo vai `reviewer-codex`, reviewer chạy `claude_local` trên issue gốc (trừ gốc research) theo vai
+ *   `reviewer-root`, còn lại `null` (chạy theo cấu hình agent); issue con và gốc research theo cấu hình agent;
  * - giao cho executor: override executor đó để lại lần trước (activity hệ thống), nếu còn hợp với runtime của nó;
  *   không có mà vừa rời agent của stage thì `null`; executor sang executor khác thì giữ như stock.
  * Executor rời issue thì override của nó được ghi lại (kể cả `null`), để vòng sau trả về đúng override.
@@ -793,20 +774,23 @@ async function routeAssigneeOverrides(
   let next: Record<string, unknown> | null | undefined;
   if (!explicit && to !== null) {
     if (participants.has(to)) {
-      if (to === roles?.codexReviewerAgentId?.toLowerCase()) next = structuredClone(CREW_CODEX_REVIEWER_OVERRIDES);
+      if (to === roles?.codexReviewerAgentId?.toLowerCase()) next = codexReviewerOverrides(await loadModelSettings(tx));
       else if (
         to === roles?.reviewerAgentId?.toLowerCase() &&
         locked.parentId === null &&
         !isResearchRootPolicy(policy) &&
         (await loadAssigneeAdapterType(tx, locked.companyId, to)) === "claude_local"
       ) {
-        next = structuredClone(CREW_ROOT_REVIEWER_OVERRIDES);
+        next = rootReviewerOverrides(await loadModelSettings(tx));
       } else next = null;
     } else {
       const stashed = await lastExecutorOverrides(tx, locked, to);
       if (stashed !== undefined) {
         const adapterType = stashed === null ? null : await loadAssigneeAdapterType(tx, locked.companyId, to);
-        next = stashed === null || checkAgentAdapterOverrides(stashed, adapterType).length === 0 ? stashed : null;
+        next =
+          stashed === null || checkAgentAdapterOverrides(stashed, adapterType, (await loadModelSettings(tx)).catalog).length === 0
+            ? stashed
+            : null;
       } else if (from !== null && participants.has(from)) {
         next = null;
       }

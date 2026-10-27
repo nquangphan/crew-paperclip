@@ -26,6 +26,7 @@ import {
   loadProjectAgentRoles,
   type ProjectAgentRoles,
 } from "./project-roles.js";
+import { loadModelSettings } from "./model-settings.js";
 import { readRuntimeSwitch, resolveAgentMachine } from "./runtime-switch.js";
 import { logger } from "../middleware/logger.js";
 
@@ -102,6 +103,8 @@ export function decideCreatePolicy(input: {
   projectOutsideParent?: boolean;
   /** `adapterType` của assignee: override của agent kiểm theo runtime này; không truyền thì luật Claude. */
   assigneeAdapterType?: string | null;
+  /** Catalog hiện hành của cài đặt model; không truyền thì bảng mặc định. */
+  catalog?: Parameters<typeof checkAgentAdapterOverrides>[2];
 }): CreatePolicyDecision {
   const { data, roles } = input;
   if (data.createdByAgentId) {
@@ -129,7 +132,7 @@ export function decideCreatePolicy(input: {
     ) {
       return { kind: "reject", code: "crew_assignment_forbidden" };
     }
-    const violations = checkAgentAdapterOverrides(data.assigneeAdapterOverrides, input.assigneeAdapterType);
+    const violations = checkAgentAdapterOverrides(data.assigneeAdapterOverrides, input.assigneeAdapterType, input.catalog);
     if (violations.length > 0) return { kind: "reject", code: "crew_override_forbidden", violations };
     if (CREW_BMAD_KIND_RE.test(data.description ?? "")) {
       if (!input.ownerUserId) return { kind: "reject", code: "crew_roles_unconfigured" };
@@ -385,10 +388,11 @@ export async function crewBeforeIssueCreate<T extends IssueCreateFields>(input: 
   const boardRoot = !data.createdByAgentId && !!data.createdByUserId?.trim() && !data.parentId && data.executionPolicy == null;
   const researchLabel = boardRoot ? await hasResearchLabel(input.db, input.companyId, data.labelIds) : false;
   const trackingProject = isTrackingProject(config, data.projectId);
-  const assigneeAdapterType =
-    data.createdByAgentId && data.assigneeAdapterOverrides != null
-      ? await loadAssigneeAdapterType(input.db, input.companyId, data.assigneeAgentId)
-      : null;
+  const checksOverrides = !!data.createdByAgentId && data.assigneeAdapterOverrides != null;
+  const assigneeAdapterType = checksOverrides
+    ? await loadAssigneeAdapterType(input.db, input.companyId, data.assigneeAgentId)
+    : null;
+  const catalog = checksOverrides ? (await loadModelSettings(input.db)).catalog : undefined;
   const decision = decideCreatePolicy({
     data,
     roles,
@@ -401,6 +405,7 @@ export async function crewBeforeIssueCreate<T extends IssueCreateFields>(input: 
     agentRoutine,
     projectOutsideParent,
     assigneeAdapterType,
+    catalog,
   });
   if (decision.kind === "keep") return data;
   if (decision.kind === "reject") throw unprocessable(MESSAGES[decision.code], {
