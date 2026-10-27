@@ -72,7 +72,7 @@ import cuối file để merge upstream ít conflict), mô tả lý do và `upst
 - `ssh-run-lifecycle`: implementation của H3, vá P1, P8, C9.
 - `adapter-patches`: vá P2–P7, P9.
 - `run-handoff`: vá C10–C14.
-- `contributions`: vá C7.
+- `contributions`: vá C7 (router góp ý, route Phòng QC, router con quyền xem project và máy, bộ chờ plugin khởi động).
 - `docs-snapshot`: vá C15 (parser JSON 16 MB cho webhook `docs-snapshot`).
 - `multi-machine`: vá C16.
 - `ops-deploy`: build image từ cây đã qua `verify.sh`.
