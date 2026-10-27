@@ -326,8 +326,6 @@ flows:
       - packages/crew-plugin/migrations/0017_runtime_retries.sql
       - packages/crew-plugin/migrations/0018_contributor_department.sql
       - packages/crew-plugin/migrations/0019_qc_verification.sql
-      - packages/crew-plugin/migrations/0020_jev.sql
-      - packages/crew-plugin/migrations/0021_jev_features.sql
       - packages/crew-plugin/migrations/0022_multi_machine.sql
       - packages/crew-plugin/src/companies/data.ts
       - packages/crew-plugin/src/features.ts

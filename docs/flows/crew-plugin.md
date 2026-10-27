@@ -95,8 +95,8 @@ sự kiện plugin dạng call để xóa invocation scope khi handler xong).
     (`0017`);
   - góp ý và QC: `crew_contributors`, `crew_contributions` (`0013`, `0018`, `0019`), `crew_qc_rounds` (`0019`);
   - `crew_project_access` (`0016`);
-  - `0020`, `0021`: bảng `crew_jev_*` của tính năng Jev đã gỡ; không code nào đọc/ghi. Giữ hai file vì đã áp trên prod
-    (runner đối chiếu checksum) và runner plugin cấm migration `DROP`; bảng trên prod xóa tay.
+  - Số `0020`, `0021` bỏ trống: hai migration của tính năng Jev đã gỡ cả file. Runner chỉ chạy file đang có (không kiểm
+    file đã mất) và cấm `DROP`, nên bảng `crew_jev_*` cùng dòng ledger của hai migration trên prod được xóa tay.
   - `0022_multi_machine.sql`: `project_machines` (trạng thái dựng project trên từng máy), `project_repos` (origin, nhánh,
     repo đi kèm của project), `issue_machine_pins` (máy ghim theo issue gốc) và kind `ensure-project`. Server Crew ghi ba
     bảng này (flow `multi-machine`).

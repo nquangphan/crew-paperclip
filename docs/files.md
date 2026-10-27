@@ -106,8 +106,6 @@ File nào thuộc flow nào. Dùng `crew-docs where <file>` để tra từ dòng
 | `packages/crew-plugin/migrations/0017_runtime_retries.sql` | [crew-plugin](flows/crew-plugin.md) (file) |
 | `packages/crew-plugin/migrations/0018_contributor_department.sql` | [crew-plugin](flows/crew-plugin.md) (file) |
 | `packages/crew-plugin/migrations/0019_qc_verification.sql` | [crew-plugin](flows/crew-plugin.md) (file) |
-| `packages/crew-plugin/migrations/0020_jev.sql` | [crew-plugin](flows/crew-plugin.md) (file) |
-| `packages/crew-plugin/migrations/0021_jev_features.sql` | [crew-plugin](flows/crew-plugin.md) (file) |
 | `packages/crew-plugin/migrations/0022_multi_machine.sql` | [crew-plugin](flows/crew-plugin.md) (file) |
 | `packages/crew-plugin/src/__tests__/attachments-audit.db.test.ts` | [attachments](flows/attachments.md) (test) |
 | `packages/crew-plugin/src/__tests__/attachments-rules.test.ts` | [attachments](flows/attachments.md) (test) |
