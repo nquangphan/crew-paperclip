@@ -115,7 +115,9 @@ Luật:
    owner thì `ErrorState` "Chỉ owner sửa được"): giữ bản nháp `draft` tách khỏi bản đang lưu `base`, bốn phần
    `CatalogSection` (model, cờ xem ảnh, key effort; nút Gỡ khóa khi model còn dùng ở ô hay vai), `ComplexitySection`
    (thứ tự runtime lên/xuống và bật/tắt, model và effort từng ô; `large` khóa ở Claude), `RolesSection` (9 vai, runtime chỉ
-   đọc), nút mở `UpgradeDialog`. Các phép sửa thuần và cách khớp lỗi `path` với ô nằm ở `model-draft.ts`.
+   đọc), nút mở `UpgradeDialog`. Các phép sửa thuần và cách khớp lỗi `path` với ô nằm ở `model-draft.ts`. Mọi danh sách
+   model của một runtime (dòng catalog, select model của ô và vai, model cũ của hộp thoại nâng) lấy qua `crewModelsOf`
+   (flow `agent-roles`), sắp theo id kiểu natural sort, nên lần lưu đầu không làm đảo thứ tự theo khóa `jsonb`.
 10. Lưu: gọi `PUT` với `dryRun: true`; có agent bị đổi thì `ConfirmDialog` nêu số agent đổi và số giữ/bỏ qua, rồi `PUT` thật
     (cùng body, `dryRun: false`). Sau khi lưu hiện kết quả (agent đã đổi) ở thanh Lưu và gọi `invalidateModelSettings`.
     Lỗi: `422 invalid` viền đỏ đúng ô và tóm tắt "N lỗi" (bản nháp giữ nguyên), `422 in_use` báo tại runtime kèm nút

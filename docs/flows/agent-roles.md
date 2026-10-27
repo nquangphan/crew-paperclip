@@ -102,7 +102,9 @@ Giống loại `docs`: loại chỉ là nhãn Paperclip `plan` trên issue gốc
    với `merge-agent-config.mjs`. Danh sách model chọn được, model và effort mặc định của ô (`crewModelsOf`, `slotModels`,
    `defaultModelOf`, `defaultEffortOf`, `isCrewModel`) lấy từ `settings` của bảng cài đặt model (flow `model-settings`),
    không còn bản chép model nào trong file này; `crewAgentCreateBody` nhận `settings`, từ chối model ngoài catalog của ô
-   và ghi effort của vai vào key effort của runtime.
+   và ghi effort của vai vào key effort của runtime. `crewModelsOf` trả id đã sắp tăng dần kiểu natural sort qua
+   `sortModelIds` (`localeCompare` với `numeric: true`), vì thứ tự khóa `jsonb` của bảng đã lưu không ổn định; mọi danh
+   sách model (wizard, ô chọn model, trang Cài đặt model) đi qua hàm này.
 9. `packages/crew-web/src/lib/instructions/templates.ts` → `INSTRUCTION_TEMPLATES`: năm template nhúng nguyên văn.
 
 ## Files
@@ -164,5 +166,5 @@ Giống loại `docs`: loại chỉ là nhãn Paperclip `plan` trên issue gốc
   server, hằng số cùng giá trị với app và server, danh sách và model mặc định theo `settings`.
 - `packages/crew-web/test/lib/instructions/catalog-copy.test.ts`: các hàm thuần (`crewModelsOf`, `slotModels`,
   `defaultModelOf`, `defaultEffortOf`, `crewAgentCreateBody`) với bảng mẫu: bảng mặc định cho kết quả như các hằng số cũ,
-  bảng do owner sửa đổi danh sách và mặc định; bảng mẫu của test khớp catalog và thứ tự mặc định của server; `src` không
+  bảng do owner sửa đổi danh sách và mặc định; danh sách model sắp theo id, không theo thứ tự khóa; bảng mẫu của test khớp catalog và thứ tự mặc định của server; `src` không
   còn id model ghi cứng.
