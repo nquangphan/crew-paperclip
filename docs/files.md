@@ -257,6 +257,7 @@ File nào thuộc flow nào. Dùng `crew-docs where <file>` để tra từ dòng
 | `packages/crew-web/src/api/crew/jobs.ts` | [machine-jobs](flows/machine-jobs.md) (file) |
 | `packages/crew-web/src/api/crew/machine-pins.ts` | [web-shell](flows/web-shell.md) (file) |
 | `packages/crew-web/src/api/crew/machines.ts` | [machine-status](flows/machine-status.md) (file) |
+| `packages/crew-web/src/api/crew/model-settings.ts` | [model-settings](flows/model-settings.md) (file) |
 | `packages/crew-web/src/api/crew/project-access.ts` | [project-access](flows/project-access.md) (file) |
 | `packages/crew-web/src/api/crew/qc.ts` | [qc-department](flows/qc-department.md) (file) |
 | `packages/crew-web/src/api/crew/roles.ts` | [project-roles](flows/project-roles.md) (file) |
@@ -530,6 +531,8 @@ File nào thuộc flow nào. Dùng `crew-docs where <file>` để tra từ dòng
 | `packages/crew-web/src/features/members/project-access-cell.tsx` | [project-access](flows/project-access.md) (file) |
 | `packages/crew-web/src/features/members/routes.tsx` | [web-pages](flows/web-pages.md) (file) |
 | `packages/crew-web/src/features/members/use-members.ts` | [web-pages](flows/web-pages.md) (file) |
+| `packages/crew-web/src/features/model-settings/index.ts` | [model-settings](flows/model-settings.md) (file) |
+| `packages/crew-web/src/features/model-settings/use-model-settings.ts` | [model-settings](flows/model-settings.md) (file) |
 | `packages/crew-web/src/features/projects/detail/docs-tab.tsx` | [docs-snapshot](flows/docs-snapshot.md) (file) |
 | `packages/crew-web/src/features/projects/detail/issues-tab.tsx` | [web-pages](flows/web-pages.md) (file) |
 | `packages/crew-web/src/features/projects/detail/machines-tab.tsx` | [web-pages](flows/web-pages.md) (file) |
@@ -627,6 +630,7 @@ File nào thuộc flow nào. Dùng `crew-docs where <file>` để tra từ dòng
 | `packages/crew-web/test/api/http.test.ts` | [web-shell](flows/web-shell.md) (test) |
 | `packages/crew-web/test/api/labels.test.ts` | [web-shell](flows/web-shell.md) (test) |
 | `packages/crew-web/test/api/machine-pins.test.ts` | [web-shell](flows/web-shell.md) (test) |
+| `packages/crew-web/test/api/model-settings.test.ts` | [model-settings](flows/model-settings.md) (test) |
 | `packages/crew-web/test/api/r3x-client.test.ts` | [web-shell](flows/web-shell.md) (test) |
 | `packages/crew-web/test/api/runtimes.test.ts` | [runtime-switches](flows/runtime-switches.md) (test) |
 | `packages/crew-web/test/api/setup-abandon.test.ts` | [setup-wizards](flows/setup-wizards.md) (test) |

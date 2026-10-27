@@ -50,7 +50,11 @@ Luật chính:
 4. `packages/crew-web/src/features/wizards/add-agent/run-step.ts` → `runAddAgentStep`: `agent`, `pin`,
    `environment`, `workspace`, `role`, `assistant-instructions` (render lại AGENTS.md của Trợ Lý khi danh sách executor
    đổi); bước cuối còn xếp dựng lại mọi máy khác kể cả máy `ready` (`includeReady`, phần bổ sung cho nhiều máy). Mỗi bước kiểm trước rồi chỉ ghi phần chưa đạt, nên chế độ sửa dùng cùng code. Repo gốc của project không có
-   lần thêm project được hỏi máy qua việc `inspect-folder` (`add-agent/repo-root.ts`).
+   lần thêm project được hỏi máy qua việc `inspect-folder` (`add-agent/repo-root.ts`). Model của agent mới lấy từ bảng
+   cài đặt model (flow `model-settings`): form (`add-agent-page.tsx`, `validate.ts`) đọc `useModelSettings` để liệt kê
+   model của runtime của ô và chọn mặc định theo `settings.roles` (chưa tải xong thì chưa cho tạo, tải lỗi thì
+   `ErrorState`); bước `agent` và bước `agents` của thêm project gọi `api.modelSettings.get` rồi dựng body bằng
+   `crewAgentCreateBody({ settings })`, nên effort Codex theo vai.
 5. `packages/crew-web/src/features/wizards/remove/remove-project.ts` → `runRemoveProject`; `remove/remove-agent.ts` →
    `runRemoveAgent`: pause, ghi hay xóa vai trò, archive environment riêng (`exclusiveEnvironments`), gỡ checkout; checkout
    còn việc chưa commit được máy giữ lại và báo (`keptCheckouts`). `assertNoMachineBlockers` kiểm cây ghim còn run trước
@@ -108,6 +112,7 @@ Luật chính:
 - `machine-jobs`: việc trên máy mà wizard xếp và chờ.
 - `project-roles`: wizard ghi và xóa vai trò theo project.
 - `agent-roles`: template AGENTS.md theo vai trò mà wizard render.
+- `model-settings`: bảng model mặc định và danh sách chọn của wizard.
 - `multi-machine`: route Crew dọn máy khác khi gỡ (`machines/blockers`, `machines/release`).
 - `machine-status`: dữ liệu máy và lần ghép dùng để chọn máy và host.
 - `web-pages`: trang project và agent gắn nút gỡ và nhãn sẵn sàng.
@@ -121,7 +126,8 @@ Luật chính:
   `wait-job.test.ts`: đủ bước theo thứ tự, lỗi giữa chừng pause agent đã tạo và chạy tiếp không tạo lại, kiểm khóa
   (trùng, đã gỡ, `e2e-`), chờ việc.
 - `packages/crew-web/test/features/wizards/add-agent.test.ts`, `add-agent-page.test.tsx`, `validate-add-agent.test.ts`,
-  `repo-root.test.ts`: thêm executor, thay reviewer hay Trợ Lý, ô runtime và model, hỏi repo gốc từ máy.
+  `repo-root.test.ts`: thêm executor, thay reviewer hay Trợ Lý, ô runtime và model, hỏi repo gốc từ máy; danh sách model và
+  mặc định của ô theo bảng cài đặt model, chưa tải xong thì chưa cho tạo, tải lỗi thì `ErrorState`.
 - `packages/crew-web/test/features/wizards/remove/`: điều kiện gỡ, environment được archive, trạng thái gỡ, bước gỡ
   project và agent (không DELETE, không terminate), dọn máy khác chỉ với agent đang trong dòng vai trò (Chạy tiếp sau khi
   thay agent ở ô, hay khi agent đã ra khỏi vai trò), nút và hộp xác nhận.

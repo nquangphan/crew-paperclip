@@ -43,7 +43,7 @@ Luật chính:
 5. `packages/crew-web/src/features/agents/list/agents-page.tsx` → `AgentsPage`: vai trò theo project
    (`use-agent-roles.ts` → `useAgentHoldings`), trạng thái, sẵn sàng, lọc (`useStatusFilter`), Tạm dừng/Tiếp tục.
 6. `packages/crew-web/src/features/agents/detail/agent-page.tsx` → `AgentPage`: các tab Tổng quan, Hướng dẫn
-   (`InstructionsTab`), Skills (`SkillsTab`), Cấu hình chạy (`RuntimeTab`, `ModelSelect`), Run; đổi tên; nút Gỡ agent.
+   (`InstructionsTab`), Skills (`SkillsTab`), Cấu hình chạy (`RuntimeTab`, `ModelSelect`: danh sách model theo bảng cài đặt model của owner), Run; đổi tên; nút Gỡ agent.
 7. `packages/crew-web/src/features/projects/list/projects-page.tsx` → `ProjectsPage` và
    `packages/crew-web/src/features/projects/detail/project-page.tsx` → `ProjectPage`: tab Yêu cầu (`IssuesTab`), Vai
    trò, Docs, Sẵn sàng (`ReadinessTab`); "Làm tiếp" vào wizard; nút Gỡ project.

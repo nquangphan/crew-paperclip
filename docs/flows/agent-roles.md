@@ -98,8 +98,11 @@ Giống loại `docs`: loại chỉ là nhãn Paperclip `plan` trên issue gốc
 7. `packages/crew-web/src/lib/instructions/put.ts` → `putInstructions`: GET lấy `contentHash` rồi PUT với `baseHash`;
    server trả 409 thì báo xung đột, không ghi đè, không thử lại; nội dung không đổi thì không PUT.
 8. `packages/crew-web/src/lib/instructions/agent-config.ts` → `crewAgentCreateBody`, `crewRuntimeConfigOf`,
-   `crewExtraArgsOf`, `crewWrapperCommand`, `CREW_ROLE_SLOTS`, `CREW_RUNTIME_MODELS`: cấu hình agent Crew tạo từ web, cùng
-   giá trị với app Mac và với `merge-agent-config.mjs`.
+   `crewExtraArgsOf`, `crewWrapperCommand`, `CREW_ROLE_SLOTS`: cấu hình agent Crew tạo từ web, cùng dạng với app Mac và
+   với `merge-agent-config.mjs`. Danh sách model chọn được, model và effort mặc định của ô (`crewModelsOf`, `slotModels`,
+   `defaultModelOf`, `defaultEffortOf`, `isCrewModel`) lấy từ `settings` của bảng cài đặt model (flow `model-settings`),
+   không còn bản chép model nào trong file này; `crewAgentCreateBody` nhận `settings`, từ chối model ngoài catalog của ô
+   và ghi effort của vai vào key effort của runtime.
 9. `packages/crew-web/src/lib/instructions/templates.ts` → `INSTRUCTION_TEMPLATES`: năm template nhúng nguyên văn.
 
 ## Files
@@ -118,7 +121,7 @@ Giống loại `docs`: loại chỉ là nhãn Paperclip `plan` trên issue gốc
 | `crew/agents/policy-config.mjs` | Dựng file `CREW_POLICY_CONFIG` | `buildPolicyConfig` |
 | `crew/agents/verify-result.mjs` | Kiểm phản hồi API sau khi ghi | `checkPatchResult` |
 | `packages/crew-web/src/lib/instructions/index.ts` | Export của thư viện | (re-export) |
-| `packages/crew-web/src/lib/instructions/agent-config.ts` | Cấu hình agent Crew phía web | `crewAgentCreateBody`, `CREW_ROLE_SLOTS`, `CREW_RUNTIME_MODELS`, `slotOfAgent` |
+| `packages/crew-web/src/lib/instructions/agent-config.ts` | Cấu hình agent Crew phía web | `crewAgentCreateBody`, `CREW_ROLE_SLOTS`, `slotModels`, `defaultModelOf`, `slotOfAgent` |
 | `packages/crew-web/src/lib/instructions/render.ts` | Bản port của render | `renderInstructions`, `renderAssistantFor`, `assistantListsOf` |
 | `packages/crew-web/src/lib/instructions/put.ts` | Ghi `AGENTS.md` có kiểm xung đột | `putInstructions`, `INSTRUCTIONS_PATH` |
 | `packages/crew-web/src/lib/instructions/templates.ts` | Template nhúng nguyên văn | `INSTRUCTION_TEMPLATES` |
@@ -158,5 +161,8 @@ Giống loại `docs`: loại chỉ là nhãn Paperclip `plan` trên issue gốc
   project.
 - `packages/crew-web/test/lib/instructions/put.test.ts`: `baseHash`, không PUT khi không đổi, 409 thành xung đột.
 - `packages/crew-web/test/lib/instructions/agent-config.test.ts`: wrapper, `extraArgs`, body tạo agent qua được schema của
-  server, hằng số cùng giá trị với app và server.
-- `packages/crew-web/test/lib/instructions/catalog-copy.test.ts`: bản chép bảng model ở crew-web khớp bản server.
+  server, hằng số cùng giá trị với app và server, danh sách và model mặc định theo `settings`.
+- `packages/crew-web/test/lib/instructions/catalog-copy.test.ts`: các hàm thuần (`crewModelsOf`, `slotModels`,
+  `defaultModelOf`, `defaultEffortOf`, `crewAgentCreateBody`) với bảng mẫu: bảng mặc định cho kết quả như các hằng số cũ,
+  bảng do owner sửa đổi danh sách và mặc định; bảng mẫu của test khớp catalog và thứ tự mặc định của server; `src` không
+  còn id model ghi cứng.

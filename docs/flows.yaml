@@ -97,8 +97,12 @@ flows:
       - server/src/crew/model-settings-routes.ts
     files:
       - packages/crew-plugin/migrations/0023_model_settings.sql
+      - packages/crew-web/src/api/crew/model-settings.ts
+      - packages/crew-web/src/features/model-settings/index.ts
+      - packages/crew-web/src/features/model-settings/use-model-settings.ts
       - server/src/crew/model-settings.ts
     tests:
+      - packages/crew-web/test/api/model-settings.test.ts
       - server/src/__tests__/crew-bridge-allowlist.test.ts
       - server/src/__tests__/crew-model-settings.db.test.ts
       - server/src/__tests__/crew-model-settings.test.ts

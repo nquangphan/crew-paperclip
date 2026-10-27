@@ -66,7 +66,7 @@ Luật chính:
 | `packages/crew-web/src/api/http.ts` | Lớp gọi mạng | `http`, `ApiError`, `setUnauthorizedHandler` |
 | `packages/crew-web/src/api/endpoints.ts` | Bảng endpoint duy nhất | `ENDPOINTS`, `call` |
 | `packages/crew-web/src/api/index.ts` | Cổng vào lớp dữ liệu | `api` |
-| `packages/crew-web/src/api/queryKeys.ts` | Khóa TanStack Query | `queryKeys` |
+| `packages/crew-web/src/api/queryKeys.ts` | Khóa TanStack Query (kèm `modelSettings` cho bảng cài đặt model) | `queryKeys` |
 | `packages/crew-web/src/api/crew/data.ts` | Data plugin `crew.core` | `CREW_DATA_KEYS` |
 | `packages/crew-web/src/api/crew/machine-pins.ts` | Client router Crew của server cho chạy nhiều máy (ứng viên, máy ghim của yêu cầu, máy của project, chặn/gỡ/dựng máy khác) | `machinePinsApi` |
 | `packages/crew-web/src/api/crew/types.ts` | Kiểu dữ liệu plugin dùng ở web | |

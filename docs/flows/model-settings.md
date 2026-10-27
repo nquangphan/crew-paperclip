@@ -75,12 +75,23 @@ Luật:
    (lõi ghi revision cấu hình, giữ nguyên phần còn lại của `adapterConfig`), kèm activity; live event phát sau commit.
    `dryRun: true` chạy đúng đường áp dụng rồi rollback, nên bản xem trước và bản thật cho cùng số liệu.
 
+8. `packages/crew-web/src/api/crew/model-settings.ts` → `modelSettingsApi`: `get` (`GET /api/crew/model-settings`, khóa endpoint
+   `modelSettings.get`), `save` (`PUT`, `dryRun` tùy chọn), `upgrade` (`POST /upgrade`, `dryRun` tùy chọn). Lỗi của route
+   là `ApiError` giữ nguyên body; `modelSettingsErrorOf` phân loại theo `code` thành `invalid` (kèm `issues` có `path`),
+   `in_use`, `stale` (kèm `currentRevision`), `forbidden`, `unavailable`, `other`.
+9. `packages/crew-web/src/features/model-settings/use-model-settings.ts` → `useModelSettings`: một query dùng chung
+   (`queryKeys.modelSettings`, `staleTime` 30 giây). Wizard thêm agent/project và ô chọn model của agent đọc danh sách
+   model, model mặc định và effort từ `settings` của query này; chưa tải xong thì wizard chưa cho tạo, tải lỗi thì hiện
+   `ErrorState`. Lưu hay nâng hàng loạt xong gọi `invalidateModelSettings` để bảng và các query agent đọc lại.
+
 ## Files
 
 | Đường dẫn | Vai trò | Symbol chính |
 |-----------|---------|--------------|
 | `server/src/crew/model-settings.ts` | Kiểu, mặc định, luật, đọc bảng và cache, override reviewer, phần bảng của nâng hàng loạt | `CREW_MODEL_SETTINGS_DEFAULT`, `CREW_MODEL_ROLE_RUNTIME`, `validateModelSettings`, `loadModelSettings`, `readModelSettingsRow`, `codexReviewerOverrides`, `rootReviewerOverrides`, `applyUpgradeToSettings` |
 | `server/src/crew/model-settings-routes.ts` | Route, quyền, lưu và nâng hàng loạt trong transaction | `crewModelSettingsRoutes`, `saveModelSettings`, `upgradeModel`, `MODEL_SETTINGS_ERRORS` |
+| `packages/crew-web/src/api/crew/model-settings.ts` | Client API và kiểu của bảng cài đặt model | `modelSettingsApi` (`get`, `save`, `upgrade`), `modelSettingsErrorOf`, `ModelSettings` |
+| `packages/crew-web/src/features/model-settings/use-model-settings.ts` | Hook đọc bảng cho wizard, ô chọn model và trang cài đặt | `useModelSettings`, `invalidateModelSettings` |
 | `packages/crew-plugin/migrations/0023_model_settings.sql` | Bảng revision cài đặt model | `crew_model_settings` |
 | `packages/adapter-utils/src/sandbox-callback-bridge.ts` | File upstream chứa vá C17 (dùng chung với flow `core-hooks`) | `DEFAULT_SANDBOX_CALLBACK_BRIDGE_ROUTE_ALLOWLIST` |
 
@@ -118,4 +129,6 @@ Luật:
   nhận model vừa thêm và chặn model vừa gỡ; override reviewer theo `roles`; đọc bảng lỗi không làm hỏng lệnh ghi issue;
   nâng hàng loạt `renamed`/`merged`, issue `done` và company khác không đổi, `vision: false` ở `large` bị `422`, lỗi giữa
   chừng rollback toàn bộ.
+- `packages/crew-web/test/api/model-settings.test.ts`: client gửi đúng method, đường dẫn và body (kể cả `dryRun`);
+  `modelSettingsErrorOf` phân loại `422` sai luật, `422` đang dùng, `409`, `403`, `503` và lỗi mạng.
 - `server/src/__tests__/crew-bridge-allowlist.test.ts`: allowlist chỉ cho qua `GET /api/crew/model-settings`.
