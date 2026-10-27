@@ -1,6 +1,10 @@
+import type { PluginContext } from "@paperclipai/plugin-sdk";
+import { jsonObject, pluginNamespace } from "../shared/db.js";
+
 /**
- * Bản chép bảng runtime/model của server (`server/src/crew/model-policy.ts`). Test `runtimes-catalog` so nguyên văn
- * với bảng chung và với bản server; đổi bảng thì đổi cả hai nơi.
+ * Bản chép bảng runtime/model mặc định của server (`server/src/crew/model-policy.ts`). Test `runtimes-catalog` so nguyên
+ * văn với bảng chung và với bản server. Bảng hiện hành do owner sửa nằm ở `crew_model_settings` (`readModelSettings`);
+ * các hằng ở đây là giá trị khi chưa có dòng nào hoặc dòng sai dạng.
  */
 export type CrewRuntime = "claude_local" | "codex_local" | "opencode_local";
 export const CREW_RUNTIMES: readonly CrewRuntime[] = Object.freeze(["claude_local", "codex_local", "opencode_local"]);
@@ -77,4 +81,84 @@ export const CREW_CODEX_REVIEWER_MODEL = Object.freeze({ model: "gpt-6-sol", eff
 
 export function isCrewRuntime(value: unknown): value is CrewRuntime {
   return typeof value === "string" && (CREW_RUNTIMES as readonly string[]).includes(value);
+}
+
+export const CREW_COMPLEXITIES: readonly CrewComplexity[] = Object.freeze(["trivial", "small", "medium", "large"]);
+const EFFORTS: readonly string[] = ["low", "medium", "high"];
+const EFFORT_KEYS: readonly unknown[] = ["effort", "modelReasoningEffort", null];
+
+export const CREW_MODEL_ROLES = Object.freeze([
+  "assistant", "executor", "reviewer", "integrator", "bmad", "executor-codex", "executor-opencode", "reviewer-codex", "reviewer-root",
+] as const);
+export type CrewModelRole = (typeof CREW_MODEL_ROLES)[number];
+
+/** Bảng cài đặt model (dạng `settings` của `crew_model_settings`); bản mặc định là các hằng ở trên. */
+export interface CrewModelSettings {
+  catalog: Readonly<Record<CrewRuntime, CrewRuntimeSpec>>;
+  order: Readonly<Record<CrewComplexity, readonly CrewRuntime[]>>;
+  roles: Readonly<Record<CrewModelRole, { model: string; effort: CrewEffort | null }>>;
+}
+
+export const CREW_MODEL_SETTINGS_DEFAULT: Readonly<CrewModelSettings> = Object.freeze({
+  catalog: CREW_RUNTIME_CATALOG,
+  order: CREW_RUNTIME_ORDER,
+  roles: Object.freeze({
+    assistant: { model: "claude-opus-5-5", effort: null },
+    executor: { model: "claude-sonnet-5-5", effort: null },
+    reviewer: { model: "claude-sonnet-5-5", effort: null },
+    integrator: { model: "claude-sonnet-5-5", effort: null },
+    bmad: { model: "claude-opus-5-5", effort: null },
+    "executor-codex": { model: "gpt-6-luna", effort: "medium" },
+    "executor-opencode": { model: "opencode-go/kimi-k3", effort: null },
+    "reviewer-codex": CREW_CODEX_REVIEWER_MODEL,
+    "reviewer-root": { model: "claude-opus-5-5", effort: "high" },
+  } as const),
+});
+
+/**
+ * Kiểm dạng đủ để plugin dùng an toàn (server đã kiểm luật trước khi ghi): ba runtime, mỗi ô độ khó trỏ tới model có
+ * trong runtime, thứ tự không rỗng/không trùng, đủ 9 vai. Trả `null` khi sai dạng.
+ */
+export function parseModelSettings(value: unknown): CrewModelSettings | null {
+  const root = jsonObject(value);
+  const catalog = jsonObject(root?.catalog);
+  const order = jsonObject(root?.order);
+  const roles = jsonObject(root?.roles);
+  if (!catalog || !order || !roles) return null;
+  for (const runtime of CREW_RUNTIMES) {
+    const spec = jsonObject(catalog[runtime]);
+    const models = jsonObject(spec?.models);
+    const cells = jsonObject(spec?.byComplexity);
+    if (!spec || !models || !cells || !EFFORT_KEYS.includes(spec.effortKey)) return null;
+    if (!Object.values(models).every((m) => typeof jsonObject(m)?.vision === "boolean")) return null;
+    for (const [level, raw] of Object.entries(cells)) {
+      const cell = jsonObject(raw);
+      if (!(CREW_COMPLEXITIES as readonly string[]).includes(level) || !cell || typeof cell.model !== "string"
+        || !Object.hasOwn(models, cell.model) || !(cell.effort === null || EFFORTS.includes(cell.effort as string))) return null;
+    }
+  }
+  for (const level of CREW_COMPLEXITIES) {
+    const list = order[level];
+    if (!Array.isArray(list) || list.length === 0 || !list.every(isCrewRuntime) || new Set(list).size !== list.length) return null;
+  }
+  for (const role of CREW_MODEL_ROLES) {
+    const entry = jsonObject(roles[role]);
+    if (!entry || typeof entry.model !== "string" || !(entry.effort === null || EFFORTS.includes(entry.effort as string))) return null;
+  }
+  return root as unknown as CrewModelSettings;
+}
+
+/**
+ * Bảng hiện hành: dòng `revision` lớn nhất của `crew_model_settings`. Chưa có bảng, chưa có dòng, đọc lỗi hoặc sai dạng
+ * thì dùng mặc định (không ném lỗi). Không cache vì fallback và ghi quyết định hiếm.
+ */
+export async function readModelSettings(ctx: Pick<PluginContext, "db">): Promise<CrewModelSettings> {
+  try {
+    const rows = await ctx.db.query<{ settings: unknown }>(
+      `SELECT settings FROM ${pluginNamespace(ctx)}.crew_model_settings ORDER BY revision DESC LIMIT 1`,
+    );
+    return rows.length === 0 ? CREW_MODEL_SETTINGS_DEFAULT : parseModelSettings(rows[0]!.settings) ?? CREW_MODEL_SETTINGS_DEFAULT;
+  } catch {
+    return CREW_MODEL_SETTINGS_DEFAULT;
+  }
 }

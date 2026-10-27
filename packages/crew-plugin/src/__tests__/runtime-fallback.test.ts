@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { classifyRuntimeFailure, OPENCODE_AUTH_RE, OPENCODE_QUOTA_RE } from "../runtimes/classify.js";
+import { CREW_MODEL_SETTINGS_DEFAULT } from "../runtimes/catalog.js";
 import { chooseFallback, MAX_FALLBACKS_PER_ISSUE, runtimeHealthOf } from "../runtimes/choose.js";
 
 const [A_CLAUDE, A_CODEX, A_OC] = ["40000000-0000-4000-8000-000000000001", "40000000-0000-4000-8000-000000000002", "40000000-0000-4000-8000-000000000003"];
@@ -125,5 +126,40 @@ describe("classifyRuntimeFailure", () => {
     for (const text of ["401", "403", "unauthorized", "unauthorised", "invalid api key", "missing_api_key", "no api key"]) {
       expect(OPENCODE_AUTH_RE.test(text)).toBe(true);
     }
+  });
+});
+
+describe("chooseFallback theo bảng cài đặt", () => {
+  const custom = () => structuredClone(CREW_MODEL_SETTINGS_DEFAULT) as any;
+
+  it("bảng mặc định cho kết quả như khi không truyền bảng", () => {
+    expect(chooseFallback({ ...base, settings: CREW_MODEL_SETTINGS_DEFAULT })).toEqual(chooseFallback(base));
+  });
+
+  it("đổi order.medium: đích đổi theo thứ tự mới", () => {
+    const settings = custom();
+    settings.order.medium = ["opencode_local", "claude_local", "codex_local"];
+    expect(chooseFallback({ ...base, settings })).toMatchObject({ kind: "fallback", toRuntime: "opencode_local" });
+  });
+
+  it("đổi ô độ khó: model và effort theo bảng mới", () => {
+    const settings = custom();
+    settings.catalog.claude_local.models["claude-sonnet-6"] = { vision: true };
+    settings.catalog.claude_local.byComplexity.medium = { model: "claude-sonnet-6", effort: "low" };
+    expect(chooseFallback({ ...base, settings })).toMatchObject({ toRuntime: "claude_local", model: "claude-sonnet-6", effort: "low" });
+  });
+
+  it("runtime bị gỡ khỏi order của mức thì không là đích", () => {
+    const settings = custom();
+    settings.order.medium = ["codex_local", "opencode_local"];
+    delete settings.catalog.claude_local.byComplexity.medium;
+    expect(chooseFallback({ ...base, settings })).toMatchObject({ toRuntime: "opencode_local" });
+  });
+
+  it("vision: false chặn issue có ảnh; không ảnh thì vẫn chọn", () => {
+    const settings = custom();
+    settings.catalog.claude_local.models["claude-sonnet-5-5"].vision = false;
+    expect(chooseFallback({ ...base, hasImages: true, settings })).toEqual({ kind: "refused", reason: "issue có ảnh, không còn model đọc được ảnh" });
+    expect(chooseFallback({ ...base, settings })).toMatchObject({ kind: "fallback", toRuntime: "claude_local" });
   });
 });

@@ -1,6 +1,6 @@
 import { jsonObject } from "../shared/db.js";
 import {
-  CREW_RUNTIME_CATALOG, CREW_RUNTIME_ORDER, type CrewComplexity, type CrewEffort, type CrewRuntime,
+  CREW_MODEL_SETTINGS_DEFAULT, type CrewComplexity, type CrewEffort, type CrewModelSettings, type CrewRuntime,
 } from "./catalog.js";
 
 export type FallbackTrigger = "quota" | "auth" | "unavailable" | "switch_off";
@@ -42,18 +42,21 @@ export function chooseFallback(input: {
   health: Readonly<Partial<Record<CrewRuntime, RuntimeHealth>>>;
   tried: readonly CrewRuntime[];
   fallbacksSoFar: number;
+  /** Bảng hiện hành (`readModelSettings`); thiếu thì dùng bảng mặc định. */
+  settings?: Pick<CrewModelSettings, "catalog" | "order">;
 }): FallbackChoice {
+  const { catalog, order } = input.settings ?? CREW_MODEL_SETTINGS_DEFAULT;
   if (input.complexity === "large") return { kind: "refused", reason: REFUSED_LARGE };
   if (input.fallbacksSoFar >= MAX_FALLBACKS_PER_ISSUE) return { kind: "refused", reason: REFUSED_CAP };
   let blockedByImages = false;
-  for (const runtime of CREW_RUNTIME_ORDER[input.complexity]) {
+  for (const runtime of order[input.complexity]) {
     if (runtime === input.from.runtime || input.tried.includes(runtime)) continue;
     if (!input.switches[runtime] || input.health[runtime]?.usable === false) continue;
     const target = input.candidates.find((c) => c.runtime === runtime && c.agentId !== input.from.agentId
       && input.from.machineId !== null && c.machineId === input.from.machineId && !UNAVAILABLE_STATUSES.has(c.status));
-    const spec = CREW_RUNTIME_CATALOG[runtime].byComplexity[input.complexity];
+    const spec = catalog[runtime].byComplexity[input.complexity];
     if (!target || !spec) continue;
-    if (input.hasImages && !CREW_RUNTIME_CATALOG[runtime].models[spec.model]?.vision) { blockedByImages = true; continue; }
+    if (input.hasImages && !catalog[runtime].models[spec.model]?.vision) { blockedByImages = true; continue; }
     return { kind: "fallback", toAgentId: target.agentId, toAgentName: target.name, toRuntime: runtime, model: spec.model,
       effort: spec.effort, reason: FALLBACK_TRIGGER_REASON[input.trigger] };
   }

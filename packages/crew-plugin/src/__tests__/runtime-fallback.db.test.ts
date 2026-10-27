@@ -2,6 +2,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import type { Issue, PluginContext, PluginEvent } from "@paperclipai/plugin-sdk";
 import { pluginManifestV1Schema } from "../../../shared/src/validators/plugin.js";
 import manifest from "../manifest.js";
+import { CREW_MODEL_SETTINGS_DEFAULT } from "../runtimes/catalog.js";
 import { upsertProjectRoles } from "../roles/data.js";
 import { runClaudeRetryJob } from "../runtimes/claude-retry.js";
 import { applyFallback, handleRunFailed, registerRuntimeFallback, runRuntimeFallbackJob, runStuckReviewerSweep } from "../runtimes/fallback.js";
@@ -117,7 +118,7 @@ beforeAll(async () => {
 }, 120_000);
 afterAll(async () => { await host?.cleanup(); });
 beforeEach(async () => {
-  for (const table of ["crew_runtime_decisions", "crew_runtime_switches", "crew_runtime_waits", "crew_runtime_retries"]) await host.sql.unsafe(`DELETE FROM ${host.ns}.${table}`);
+  for (const table of ["crew_model_settings", "crew_runtime_decisions", "crew_runtime_switches", "crew_runtime_waits", "crew_runtime_retries"]) await host.sql.unsafe(`DELETE FROM ${host.ns}.${table}`);
   await host.sql`DELETE FROM heartbeat_runs`;
   await host.sql`DELETE FROM issues`;
   await host.sql`UPDATE agents SET status = 'idle'`;
@@ -140,6 +141,57 @@ describe("khai báo", () => {
     registerRuntimeFallback({ ...ctx, events: { on: (name: string) => { events.push(name); } }, jobs: { register: (key: string) => { jobs.push(key); } } } as unknown as PluginContext);
     expect(events).toEqual(["agent.run.failed"]);
     expect(jobs).toEqual(["runtime-fallback"]);
+  });
+});
+
+async function saveSettings(settings: unknown, revision = 1): Promise<void> {
+  await host.sql.unsafe(`INSERT INTO ${host.ns}.crew_model_settings (revision, settings, change, created_by_user_id) VALUES ($1, $2::jsonb, '{"kind":"save"}'::jsonb, 'owner')`,
+    [revision, host.sql.json(settings as never) as never]);
+}
+
+describe("bảng cài đặt model", () => {
+  const medium = () => addIssue(40, { description: marker("medium", "codex_local", "gpt-6-sol", "high"), assigneeAgentId: codexExec });
+  const fallbackUpdate = () => of("update").at(-1)?.[1];
+
+  it("bản revision mới nhất quyết định model, effort và thứ tự đích", async () => {
+    const old = structuredClone(CREW_MODEL_SETTINGS_DEFAULT) as any;
+    old.catalog.claude_local.byComplexity.medium = { model: "claude-opus-5", effort: "low" };
+    await saveSettings(old, 1);
+    const latest = structuredClone(CREW_MODEL_SETTINGS_DEFAULT) as any;
+    latest.catalog.claude_local.models["claude-sonnet-6"] = { vision: true };
+    latest.catalog.claude_local.byComplexity.medium = { model: "claude-sonnet-6", effort: "low" };
+    await saveSettings(latest, 2);
+    const issue = medium();
+    expect(await applyFallback(ctx, { companyId, issueId: issue, runId: await addRun(40, codexExec), agentId: codexExec, trigger: "quota" })).toBe("applied");
+    expect(fallbackUpdate()).toEqual({ assigneeAgentId: executor, assigneeAdapterOverrides: { adapterConfig: { model: "claude-sonnet-6", effort: "low" } } });
+    expect(await decisions(issue)).toEqual([expect.objectContaining({ to_runtime: "claude_local", model: "claude-sonnet-6" })]);
+  });
+
+  it("order mới đổi đích; key effort lấy từ bảng", async () => {
+    const settings = structuredClone(CREW_MODEL_SETTINGS_DEFAULT) as any;
+    settings.order.medium = ["opencode_local", "claude_local", "codex_local"];
+    await saveSettings(settings);
+    await setSwitch("opencode_local", true);
+    expect(await applyFallback(ctx, { companyId, issueId: medium(), runId: await addRun(41, codexExec), agentId: codexExec, trigger: "quota" })).toBe("applied");
+    expect(fallbackUpdate()).toEqual({ assigneeAgentId: opencodeExec, assigneeAdapterOverrides: { adapterConfig: { model: "opencode-go/glm-5.3" } } });
+  });
+
+  it("dòng sai dạng: dùng mặc định, không ném lỗi", async () => {
+    await saveSettings({ catalog: { claude_local: {} }, order: {}, roles: {} });
+    expect(await applyFallback(ctx, { companyId, issueId: medium(), runId: await addRun(42, codexExec), agentId: codexExec, trigger: "quota" })).toBe("applied");
+    expect(fallbackUpdate()).toEqual({ assigneeAgentId: executor, assigneeAdapterOverrides: { adapterConfig: { model: "claude-sonnet-5-5", effort: "high" } } });
+  });
+
+  it("cờ vision: false chặn issue có ảnh theo bảng mới", async () => {
+    const settings = structuredClone(CREW_MODEL_SETTINGS_DEFAULT) as any;
+    settings.catalog.claude_local.models["claude-sonnet-5-5"].vision = false;
+    await saveSettings(settings);
+    await setSwitch("opencode_local", false);
+    const issue = medium();
+    attachments.set(issue, [{ contentType: "image/png" }]);
+    await setSwitch("codex_local", false);
+    expect(await applyFallback(ctx, { companyId, issueId: issue, runId: await addRun(43, codexExec), agentId: codexExec, trigger: "quota" })).toBe("refused");
+    expect(await decisions(issue)).toEqual([expect.objectContaining({ kind: "fallback_refused", reason: "issue có ảnh, không còn model đọc được ảnh" })]);
   });
 });
 

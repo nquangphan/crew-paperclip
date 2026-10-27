@@ -1,7 +1,7 @@
 import type { Issue, PluginContext, PluginEvent } from "@paperclipai/plugin-sdk";
 import { checkedId, jsonObject, pluginNamespace, UUID, uuidArray } from "../shared/db.js";
 import { type ProjectRoles, readProjectRoles } from "../roles/data.js";
-import { CREW_CODEX_REVIEWER_MODEL, CREW_MODEL_LINE_RE, type CrewComplexity, type CrewEffort, type CrewRuntime, isCrewRuntime } from "./catalog.js";
+import { CREW_MODEL_LINE_RE, type CrewComplexity, type CrewEffort, type CrewRuntime, isCrewRuntime, readModelSettings } from "./catalog.js";
 import { resolveAgentMachine } from "./machine.js";
 import { readRuntimeSwitch } from "./switches.js";
 
@@ -260,7 +260,7 @@ export async function recordSelect(
     result.reviewer = await insertRuntimeDecision(ctx, {
       companyId, issueId: issue.id, role: "reviewer", kind: "select", machineId, toAgentId: reviewer.id,
       toRuntime: reviewerId === roles.codexReviewerAgentId ? "codex_local" : "claude_local",
-      model: reviewerId === roles.codexReviewerAgentId ? CREW_CODEX_REVIEWER_MODEL.model : null, reason,
+      model: reviewerId === roles.codexReviewerAgentId ? (await readModelSettings(ctx)).roles["reviewer-codex"].model : null, reason,
     });
   }
   return result;

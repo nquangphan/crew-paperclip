@@ -41,7 +41,8 @@ runtime khác, thay vì để issue nằm im. Luật chính:
    - Máy của agent: cây của issue đã ghim máy (flow `multi-machine`) thì máy của mọi agent là máy ghim
      (`pinnedMachineOfIssue`), fallback "cùng máy" vì vậy chọn agent chạy được trên máy ghim; chưa ghim thì theo luật
      đường dẫn cũ.
-   - Executor: `chooseFallback` (`choose.ts`) với máy của agent (`machine.ts` → `resolveAgentMachine`), công tắc,
+   - Executor: `chooseFallback` (`choose.ts`) đọc catalog và thứ tự runtime từ bảng cài đặt model hiện hành
+     (`readModelSettings`, flow `model-settings`), với máy của agent (`machine.ts` → `resolveAgentMachine`), công tắc,
      sức khỏe runtime từ bản tin máy (`runtimeHealthOf`), các lần chuyển trước. Chuyển được thì ghi quyết định, đổi
      `assigneeAgentId` kèm override model của runtime đích (H2 kiểm lệnh ghi này), comment, rồi đánh thức đích khi run
      cũ đã rời issue (`wakeFallbackTarget`, chờ tối đa `FALLBACK_WAKE_MAX_WAIT_MS`). H2 từ chối thì quyết định đổi thành
@@ -53,8 +54,10 @@ runtime khác, thay vì để issue nằm im. Luật chính:
    lại assignee Claude; số lần giữ qua các run hỏng liên tiếp, về 0 khi có run thành công hay đổi người.
 5. `packages/crew-plugin/src/runtimes/decisions.ts` → `insertRuntimeDecision`, `recordSelect`, `loadRuntimeDecisions`:
    sổ quyết định (`select`, `fallback`, `fallback_refused`); `chooseReviewer` và `executorRuntimeOf` là bản chép luật
-   server.
-6. `packages/crew-plugin/src/runtimes/catalog.ts`: bản chép bảng runtime/model của server, có test so nguyên văn.
+   server. Model của dòng `select` reviewer Codex lấy từ vai `reviewer-codex` của bảng cài đặt model.
+6. `packages/crew-plugin/src/runtimes/catalog.ts` → `readModelSettings`, `parseModelSettings`: đọc dòng `revision` lớn nhất
+   của `crew_model_settings` (chỉ server ghi). Chưa có dòng, đọc lỗi hoặc sai dạng thì dùng `CREW_MODEL_SETTINGS_DEFAULT`,
+   bản chép bảng mặc định của server có test so nguyên văn; không cache.
 7. `server/src/crew/runtime-fallback.ts` → `fallbackPreviousRunId`: H1 tìm run cũ cần kiểm theo quyết định `fallback`
    mới nhất (không theo lý do wake, vì recovery lõi có thể đánh thức đích trước plugin); `fallbackProgressComment`,
    `fallbackDirtyComment` dựng comment. Worktree cũ còn thay đổi chưa commit thì issue bị chặn chờ owner.
@@ -68,7 +71,7 @@ runtime khác, thay vì để issue nằm im. Luật chính:
 | `packages/crew-plugin/src/runtimes/choose.ts` | Chọn đích (hàm thuần) | `chooseFallback`, `runtimeHealthOf`, `MAX_FALLBACKS_PER_ISSUE` |
 | `packages/crew-plugin/src/runtimes/classify.ts` | Phân loại run hỏng | `classifyRuntimeFailure`, `OPENCODE_QUOTA_RE`, `OPENCODE_AUTH_RE` |
 | `packages/crew-plugin/src/runtimes/claude-retry.ts` | Đánh thức lại Claude theo backoff | `scheduleClaudeRetry`, `runClaudeRetryJob`, `CLAUDE_RETRY_BACKOFF_MINUTES` |
-| `packages/crew-plugin/src/runtimes/catalog.ts` | Bản chép bảng runtime/model | `CREW_RUNTIME_CATALOG`, `CREW_RUNTIME_ORDER` |
+| `packages/crew-plugin/src/runtimes/catalog.ts` | Bảng runtime/model mặc định và đọc bảng hiện hành | `CREW_RUNTIME_CATALOG`, `CREW_RUNTIME_ORDER`, `CREW_MODEL_SETTINGS_DEFAULT`, `readModelSettings`, `parseModelSettings` |
 | `packages/crew-plugin/src/runtimes/machine.ts` | Máy của agent phía plugin | `resolveAgentMachine`, `pinnedMachineOfIssue`, `workspaceOfEnvironment`, `loadMachineCheckouts` |
 | `server/src/crew/runtime-fallback.ts` | Phần server: run cũ cần kiểm, comment | `fallbackPreviousRunId`, `isRuntimeFallbackWake`, `CREW_RUNTIME_FALLBACK_WAKE_REASON`, `CREW_RUNTIME_FALLBACK_CHECKED_ACTION` |
 
@@ -86,6 +89,7 @@ runtime khác, thay vì để issue nằm im. Luật chính:
 
 - `runtime-switches`: công tắc và hàng chờ `crew_runtime_waits` là đầu vào của trigger `switch_off`.
 - `run-claim`: H1 kiểm worktree run cũ và tách nhánh trước khi run đích chạy.
+- `model-settings`: bảng `crew_model_settings` do server ghi, plugin chỉ đọc.
 - `issue-gate`: H2 kiểm lệnh đổi assignee/override và phép đổi participant reviewer Codex.
 - `project-roles`: danh sách executor và reviewer Codex của project.
 - `machine-status`: bản tin máy cho sức khỏe runtime và checkout.

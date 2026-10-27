@@ -2,7 +2,7 @@ import type { Issue, PluginContext, PluginEvent } from "@paperclipai/plugin-sdk"
 import { storedVerifiedCrewCompanies } from "../companies/data.js";
 import { type ProjectRoles, readProjectRoles } from "../roles/data.js";
 import { checkedId, jsonObject, pluginNamespace, UUID } from "../shared/db.js";
-import { CREW_RUNTIME_CATALOG, CREW_RUNTIMES, type CrewRuntime, isCrewRuntime } from "./catalog.js";
+import { CREW_RUNTIMES, type CrewRuntime, isCrewRuntime, readModelSettings } from "./catalog.js";
 import { CLAUDE_RETRY_MAX, runClaudeRetryJob, scheduleClaudeRetry } from "./claude-retry.js";
 import { classifyRuntimeFailure, type FailureClass } from "./classify.js";
 import {
@@ -202,8 +202,9 @@ async function executorFallback(
   }
   const switches = {} as Record<CrewRuntime, boolean>;
   for (const runtime of CREW_RUNTIMES) switches[runtime] = await readRuntimeSwitch(ctx, { companyId, machineId, runtime });
+  const settings = await readModelSettings(ctx);
   const choice = chooseFallback({
-    complexity, trigger, from: { agentId, runtime: fromRuntime, machineId }, candidates, switches, tried,
+    settings, complexity, trigger, from: { agentId, runtime: fromRuntime, machineId }, candidates, switches, tried,
     health: runtimeHealthOf(await machineReport(ctx, companyId, machineId)),
     hasImages: complexity === "large" ? false : await issueHasImages(ctx, companyId, issueId),
     fallbacksSoFar: prior.length,
@@ -221,7 +222,7 @@ async function executorFallback(
   if (!await insertRuntimeDecision(ctx, { ...base, toAgentId, toRuntime: choice.toRuntime, model: choice.model, reason: choice.reason })) {
     return "duplicate";
   }
-  const effortKey = CREW_RUNTIME_CATALOG[choice.toRuntime].effortKey;
+  const effortKey = settings.catalog[choice.toRuntime].effortKey;
   const adapterConfig = { model: choice.model, ...(effortKey && choice.effort ? { [effortKey]: choice.effort } : {}) };
   try {
     // SDK chưa khai báo `assigneeAdapterOverrides` trong patch; host chuyển nguyên patch cho issue service (H2 kiểm).

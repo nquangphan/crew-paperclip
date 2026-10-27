@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import type { Issue, PluginContext, PluginEvent } from "@paperclipai/plugin-sdk";
+import { CREW_MODEL_SETTINGS_DEFAULT } from "../runtimes/catalog.js";
 import { upsertProjectRoles } from "../roles/data.js";
 import {
   chooseReviewer, handleIssueCreated, insertRuntimeDecision, loadRuntimeDecisions, registerRuntimeDecisions,
@@ -68,6 +69,7 @@ beforeAll(async () => {
 afterAll(async () => { await host?.cleanup(); });
 beforeEach(async () => {
   await host.sql.unsafe(`DELETE FROM ${host.ns}.crew_runtime_decisions`);
+  await host.sql.unsafe(`DELETE FROM ${host.ns}.crew_model_settings`);
   await host.sql.unsafe(`DELETE FROM ${host.ns}.crew_runtime_switches`);
   await host.sql`UPDATE agents SET status = 'idle' WHERE company_id = ${companyId}`;
   issues.clear();
@@ -108,6 +110,19 @@ describe("dòng select khi có issue mới", () => {
         complexity: "medium", reason: "sửa ba file, có test", machine_id: mini },
       { role: "reviewer", kind: "select", to_agent_id: codexReviewer, to_runtime: "codex_local", model: "gpt-6-sol",
         complexity: null, reason: "executor claude_local, Codex bật → reviewer codex_local", machine_id: mini },
+    ]);
+  });
+
+  it("model của dòng reviewer Codex lấy từ vai reviewer-codex của bảng hiện hành", async () => {
+    const settings = structuredClone(CREW_MODEL_SETTINGS_DEFAULT) as any;
+    settings.catalog.codex_local.models["gpt-7"] = { vision: true };
+    settings.roles["reviewer-codex"] = { model: "gpt-7", effort: "high" };
+    await host.sql.unsafe(`INSERT INTO ${host.ns}.crew_model_settings (revision, settings, change, created_by_user_id) VALUES (1, $1::jsonb, '{"kind":"save"}'::jsonb, 'owner')`, [host.sql.json(settings as never) as never]);
+    const id = addIssue(30, { description: MARKER_CLAUDE, executionPolicy: childPolicy(codexReviewer, reviewer) as never });
+    await handleIssueCreated(ctx, created(id));
+    expect(await rows(id)).toEqual([
+      expect.objectContaining({ role: "executor", model: "claude-sonnet-5-5" }),
+      expect.objectContaining({ role: "reviewer", to_agent_id: codexReviewer, model: "gpt-7" }),
     ]);
   });
 
