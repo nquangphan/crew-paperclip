@@ -137,6 +137,8 @@ function useImageZoom(resetKey: string | null): ImageZoom {
 }
 
 /** Thanh nút zoom ở đầu hộp: nhãn % là nút về vừa khung, ẩn trên màn hẹp cho gọn. */
+// Ở biên dùng aria-disabled chứ không disabled: nút đang giữ focus mà bị disabled thì focus rơi ra ngoài hộp và phím
+// tắt + - 0 ngừng nhận.
 function ImageZoomControls({ zoom }: { zoom: ImageZoom }) {
   const { t } = useT();
   return (
@@ -146,8 +148,9 @@ function ImageZoomControls({ zoom }: { zoom: ImageZoom }) {
         size="icon-sm"
         aria-label={t('attachment.viewer.zoomOut')}
         title={t('attachment.viewer.zoomOut')}
-        disabled={!zoom.canZoomOut}
-        onClick={zoom.zoomOut}
+        aria-disabled={!zoom.canZoomOut}
+        onClick={zoom.canZoomOut ? zoom.zoomOut : undefined}
+        className="aria-disabled:opacity-50"
       >
         <ZoomOut aria-hidden />
       </Button>
@@ -166,8 +169,9 @@ function ImageZoomControls({ zoom }: { zoom: ImageZoom }) {
         size="icon-sm"
         aria-label={t('attachment.viewer.zoomIn')}
         title={t('attachment.viewer.zoomIn')}
-        disabled={!zoom.canZoomIn}
-        onClick={zoom.zoomIn}
+        aria-disabled={!zoom.canZoomIn}
+        onClick={zoom.canZoomIn ? zoom.zoomIn : undefined}
+        className="aria-disabled:opacity-50"
       >
         <ZoomIn aria-hidden />
       </Button>

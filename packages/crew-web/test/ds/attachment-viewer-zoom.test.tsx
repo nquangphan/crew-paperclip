@@ -34,8 +34,8 @@ describe('zoom ảnh trong hộp xem', () => {
   it('mặc định vừa khung: 100%, Thu nhỏ bị khóa, ảnh chưa dịch', () => {
     open(IMG1);
     expect(pct().textContent).toBe('100%');
-    expect((zoomOut() as HTMLButtonElement).disabled).toBe(true);
-    expect((zoomIn() as HTMLButtonElement).disabled).toBe(false);
+    expect(zoomOut().getAttribute('aria-disabled')).toBe('true');
+    expect(zoomIn().getAttribute('aria-disabled')).toBe('false');
     expect(img().style.transform).toBe('translate(0px, 0px) scale(1)');
   });
 
@@ -55,10 +55,13 @@ describe('zoom ảnh trong hộp xem', () => {
 
   it('Phóng to bị khóa ở mức tối đa 800%', () => {
     open(IMG1);
-    for (let i = 0; i < 12; i++) if (!(zoomIn() as HTMLButtonElement).disabled) fireEvent.click(zoomIn());
+    zoomIn().focus();
+    for (let i = 0; i < 12; i++) fireEvent.click(zoomIn());
     expect(pct().textContent).toBe('800%');
-    expect((zoomIn() as HTMLButtonElement).disabled).toBe(true);
-    expect((zoomOut() as HTMLButtonElement).disabled).toBe(false);
+    expect(zoomIn().getAttribute('aria-disabled')).toBe('true');
+    // Nút ở biên vẫn giữ focus để phím tắt tiếp tục chạy trong hộp.
+    expect(document.activeElement).toBe(zoomIn());
+    expect(zoomOut().getAttribute('aria-disabled')).toBe('false');
   });
 
   it('phím + = - 0 khi hộp có focus', () => {
