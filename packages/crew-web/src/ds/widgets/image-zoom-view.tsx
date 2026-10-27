@@ -225,7 +225,8 @@ function ZoomableImage({ zoom, children }: { zoom: ImageZoom; children: ReactNod
       const factor = before > 0 ? spread(next, other) / before : 1;
       const from = middle(prev, other);
       const to = middle(next, other);
-      gesture(factor, to, to.x - from.x, to.y - from.y);
+      // Phóng quanh điểm giữa cũ rồi dịch theo độ lệch: điểm ảnh dưới hai ngón đi đúng theo ngón, không trôi theo (1 - hệ số).
+      gesture(factor, from, to.x - from.x, to.y - from.y);
     } else if (zoomed) {
       gesture(1, CENTER, next.x - prev.x, next.y - prev.y);
     }
