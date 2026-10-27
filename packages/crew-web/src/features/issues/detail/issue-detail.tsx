@@ -28,6 +28,7 @@ import { AddChildAction } from '../new/add-child-dialog';
 import { FollowPlanAction } from '../new/follow-plan-action';
 import { issuePageHref } from '../popup/issue-href';
 import { IssueLink, useIssuePopupCanGoBack } from '../popup/issue-nav';
+import { AssistantSummary } from './assistant-summary';
 import { AttachmentViewerProvider } from './attachment-viewer-provider';
 import { Attachments } from './attachments';
 import { Comments } from './comments';
@@ -259,6 +260,7 @@ export function IssueDetail({ issueRef, variant, onClose }: IssueDetailProps) {
         ) : null}
         <SummarySlot issue={issue} />
         <DescriptionEditor issue={issue} author={creator ?? undefined} />
+        <AssistantSummary issue={issue} />
         <Documents issueId={issue.id} />
         <Attachments issueId={issue.id} />
         <IssueRuns issueId={issue.id} agentNames={agentNames} />

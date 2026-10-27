@@ -148,7 +148,8 @@ export function Comments({ issueId, agentNames }: CommentsProps) {
           >
             <ExpandableContent
               maxLines={COLLAPSED_LINES}
-              showMoreLabel={t('detail.comments.showMore')}
+              showMoreLabel={(count) => t('detail.comments.showMore', { count })}
+              fadeTo={human ? 'var(--liveness-blue)' : undefined}
               showLessLabel={t('detail.comments.showLess')}
             >
               <MarkdownView markdown={c.body} />

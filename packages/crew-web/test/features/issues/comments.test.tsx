@@ -117,8 +117,10 @@ describe('IssuePage luồng bình luận (S6.4)', () => {
     const items = await screen.findAllByTestId('comment');
     expect(items[1].querySelector('[data-collapsed]')).toBeNull();
     expect(items[1].textContent).not.toContain('Hiện đủ');
+    expect(items[1].querySelector('[data-slot="expandable-fade"]')).toBeNull();
     await waitFor(() => expect(items[0].querySelector('[data-collapsed]')).not.toBeNull());
-    const toggle = screen.getByRole('button', { name: 'Hiện đủ' });
+    expect(items[0].querySelector('[data-slot="expandable-fade"]')).not.toBeNull();
+    const toggle = screen.getByRole('button', { name: 'Hiện đủ (còn 32 dòng)' });
     expect(toggle.getAttribute('aria-expanded')).toBe('false');
     fireEvent.click(toggle);
     expect(items[0].querySelector('[data-collapsed]')).toBeNull();

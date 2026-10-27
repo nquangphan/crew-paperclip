@@ -7,6 +7,7 @@ import { Button, ChatMessage, DialogTitle, ErrorState, Input, MarkdownView, Mute
 import { Pencil } from '@/ds/icons';
 import { useCompanyAccess } from '@/features/access';
 import { useT } from '@/i18n';
+import { splitAssistantSummary } from './split-assistant-summary';
 
 /** Làm mới mọi khóa cache của issue (theo uuid và theo mã) sau khi sửa. */
 function useRefreshIssue(issue: Issue) {
@@ -158,6 +159,7 @@ export function DescriptionEditor({ issue, author }: { issue: Issue; author?: st
       />
     );
   }
+  const { body } = splitAssistantSummary(issue.description);
   return (
     <ChatMessage
       kind="brief"
@@ -176,11 +178,7 @@ export function DescriptionEditor({ issue, author }: { issue: Issue; author?: st
         )
       }
     >
-      {issue.description ? (
-        <MarkdownView markdown={issue.description} />
-      ) : (
-        <MutedText>{t('detail.description.empty')}</MutedText>
-      )}
+      {body.trim() ? <MarkdownView markdown={body} /> : <MutedText>{t('detail.description.empty')}</MutedText>}
     </ChatMessage>
   );
 }

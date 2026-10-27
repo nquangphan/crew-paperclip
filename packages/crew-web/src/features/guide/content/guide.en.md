@@ -217,9 +217,13 @@ You give it to the Assistant
   → the owner clicks Merge on GitHub
 ```
 
+#### The Assistant summary
+
+Right below the description of the root request there is a separate **Assistant summary** ("Tổng kết của Trợ Lý") block: reading it alone is enough to understand the whole request without opening each sub-request. It exists from the moment the Assistant makes its plan and is updated every time the Assistant runs again (more sub-requests created, a sub-request changes state, you answer a question, a fix round), so it always matches the work done. It contains: **Request** (what the Assistant understood the request to be, what it will and will not do), **Sub-requests** (each with its state), **Result**, **Images** (the main mockups and acceptance screenshots taken from the sub-requests' attachments), **Decided on its own**, **Plan** (only for planning requests) and **Needs owner decision**. Until the Assistant has made a plan (while it is still asking you), there is no such block. To add to the description, write above the summary; text written after the summary is moved above it by the Assistant on its next run.
+
 #### The pull request after approval
 
-After approval the Integrator does not merge into the main branch itself. It pushes the branch `crew/req/<request key>` at exactly the code you approved, opens a pull request into the main branch, and adds a **Merge request** subsection at the end of the **Assistant summary** ("Tổng kết của Trợ Lý") in the request description: the PR link, its state and any conflict. The PR description is taken from that summary.
+After approval the Integrator does not merge into the main branch itself. It pushes the branch `crew/req/<request key>` at exactly the code you approved, opens a pull request into the main branch, and adds a **Merge request** subsection at the end of the **Assistant summary** ("Tổng kết của Trợ Lý") in the request description: the PR link, its state and any conflict. The PR description is taken from that summary, except the **Images** part (image links only open inside Crew).
 
 - Open the link, review the changes on GitHub and click **Merge**. The code reaches the main branch only when you click.
 - If the PR reports a conflict, the Integrator does not fix it: resolve it on GitHub, or reopen the request and say what to change.

@@ -159,6 +159,9 @@
       "failed": "Không sửa được mô tả",
       "creator": "Người tạo"
     },
+    "assistantSummary": {
+      "title": "Tổng kết của Trợ Lý"
+    },
     "props": {
       "heading": "Thuộc tính",
       "status": "Trạng thái",
@@ -197,7 +200,7 @@
       "qcUser": "QC duyệt"
     },
     "comments": {
-      "showMore": "Hiện đủ",
+      "showMore": "Hiện đủ (còn {{count}} dòng)",
       "showLess": "Thu gọn",
       "heading": "Bình luận",
       "empty": "Chưa có bình luận",

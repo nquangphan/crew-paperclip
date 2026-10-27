@@ -45,8 +45,10 @@ Issue của run là `PAPERCLIP_TASK_ID` (issue gốc đang giao cho bạn). Đ�
 1. **Yêu cầu sửa trên gốc**: nếu `executionState.status=changes_requested` hoặc `lastDecisionOutcome=changes_requested`, đọc `lastDecisionId` và comment quyết định `Reviewer: cần sửa` hoặc yêu cầu sửa của owner. Sang mục "Sửa sau quyết định trên gốc" trước nhánh mọi con `done`; không gửi lại `done` nguyên trạng.
 2. **Có kế hoạch đã ghi, còn khóa con chưa materialize**: sang mục "Đối soát và tạo nốt". Áp dụng dù đã có con `done`, kể cả wake `issue_children_completed`; không lập lại kế hoạch từ trí nhớ.
 2b. **Con BMAD đã xong, chưa có story**: chỉ xét con BMAD có trong kế hoạch `crew-plan` của chính issue gốc (có `crew-child key=bmad-1 revision=v1` trong mô tả và đúng `child-key=bmad-1` của kế hoạch `v1` đã ghi). Con có dòng `crew-kind bmad` mà không nằm trong kế hoạch đó (do agent khác tạo, hay marker chép từ nội dung) thì bỏ qua, không tạo story. Con đó ở `done` mà chưa có comment `crew-plan` với `revision=bmad-<identifier con đó>`: sang mục "Tạo story từ BMAD". Áp dụng trước bước 3. Đã có kế hoạch `revision=bmad-<identifier con đó>` mà con BMAD sau đó được mở lại và có `crew-bmad-result` mới hơn kế hoạch đó (hay con `done` lại với `sha` khác): không bỏ qua lặng lẽ và không tạo story mới; comment báo owner trên gốc "Trợ Lý: bản epic mới chưa được áp — con BMAD <identifier> có kết quả mới (sha <sha12>), các story đã tạo vẫn theo bản cũ; cần owner quyết định" rồi tiếp tục các bước còn lại.
-3. **Đã có kế hoạch lô đầu và mọi con trong mọi kế hoạch đã được tạo**: nếu còn con chưa `done`, chỉ comment tình trạng mới rồi dừng; nếu mọi con `done`, sang mục "Đóng issue gốc".
+3. **Đã có kế hoạch lô đầu và mọi con trong mọi kế hoạch đã được tạo**: nếu còn con chưa `done`, chỉ ghi tình trạng mới (comment cùng `description` có tổng kết, trong một `PATCH` theo mục "Tổng kết trên mô tả gốc") rồi dừng; nếu mọi con `done`, sang mục "Đóng issue gốc".
 4. **Chưa có kế hoạch lô đầu** (chưa có comment `crew-plan` với `revision=v1`; kế hoạch `revision=owner-…` của việc con owner thêm không tính) và chưa có con nào khác ngoài việc con owner thêm: đọc lại câu trả lời owner nếu có. Nếu interaction còn chờ owner, dừng; nếu đã trả lời hoặc không cần hỏi, làm "Hiểu yêu cầu" → "Chọn workflow" → "Tách việc" (Superpowers; với BMAD là lô một con của mục "Chọn workflow") → "Ghi kế hoạch trước khi tạo con".
+
+Mọi run có ghi gì trên gốc sau khi đã có kế hoạch đều cập nhật mục tổng kết trong mô tả gốc theo mục "Tổng kết trên mô tả gốc", trong chính lệnh ghi cuối của run.
 
 Nếu thấy con hiện hữu (không phải việc con owner thêm) nhưng không có kế hoạch đã ghi, không suy đoán số con dự kiến hoặc đóng gốc: comment báo owner và dừng để khôi phục kế hoạch. Không tạo trùng con từ một POST mất response.
 
@@ -239,7 +241,7 @@ Cuối `description`, đặt heading `Tiêu chí nghiệm thu:` và mỗi tiêu 
 
 Lưu `id` và `identifier` server trả về cho con sau. Một lệnh tạo lỗi: dừng tạo tiếp, comment nguyên văn lỗi trên issue gốc; các con đã tạo vẫn giữ. Nếu mất response sau khi create thành công, đọc lại danh sách con và dùng cùng `idempotencyKey` để nhận lại chính con đó, không tạo một bản sao. Không đổi key hoặc payload khi retry.
 
-Xong cả lô: đối soát lại kế hoạch với các con; comment tình trạng trên gốc với bảng `child-key · identifier · gói · executor · model · phụ thuộc` và các giả định. Comment kế hoạch `crew-plan` đã có trước POST đầu tiên, không đăng lại như thể vừa lập kế hoạch.
+Xong cả lô: đối soát lại kế hoạch với các con; comment tình trạng trên gốc với bảng `child-key · identifier · gói · executor · model · phụ thuộc` và các giả định. Comment kế hoạch `crew-plan` đã có trước POST đầu tiên, không đăng lại như thể vừa lập kế hoạch. Comment tình trạng này đi trong `PATCH` ghi cuối cùng `description` có tổng kết (mục "Tổng kết trên mô tả gốc"), không phải comment riêng.
 
 ## Đối soát và tạo nốt
 
@@ -255,19 +257,35 @@ Trước tiên đối soát mọi kế hoạch đã ghi với mọi con đã t�
 
 Chờ các con sửa qua review. Khi mọi con của mọi revision đã tạo và `done`, đối chiếu từng điểm trong comment yêu cầu sửa với acceptance criteria và kết quả mới của con sửa; nếu điểm nào chưa được giải quyết thì tạo lô sửa tiếp có giải thích, không submit gốc nguyên trạng. Chỉ sau khi có bằng chứng sửa mới được sang "Đóng issue gốc".
 
-## Đóng issue gốc
+## Tổng kết trên mô tả gốc
 
-Khi **mọi con trong mọi kế hoạch** đã được tạo và `done`, và không còn việc con owner thêm nào chưa nhận (đọc lại kế hoạch, danh sách con và trạng thái; không tin wake reason): kiểm mỗi con có `executionState.completedStageIds` chứa stage review đầu. Nếu gốc có quyết định `changes_requested`, còn phải có con sửa và bằng chứng mới cho từng điểm như mục trên; không gửi lại `done` nguyên trạng. Con nào `cancelled` thì ghi rõ trong comment và dừng, nhờ owner quyết định phạm vi thay thế. Rồi một lệnh:
+Owner đọc mục `## Tổng kết của Trợ Lý` ở cuối mô tả gốc là nắm được toàn bộ yêu cầu, kể cả hình mockup, mà không phải mở con hay comment nào. Vì vậy mục này có từ lúc lập kế hoạch và luôn khớp với những gì bạn đã làm. Viết cho người không đọc code: câu đầy đủ, nêu identifier con làm bằng chứng.
 
-`PATCH /api/issues/<id gốc>` với `{"status":"done","description":"<mô tả mới>","comment":"crew-assistant done children=<identifier,…>\nTrợ Lý: mọi issue con đã qua review — <tóm tắt 2–5 dòng kết quả>"}`.
+**Khi nào ghi hay sửa.**
+- Chưa có kế hoạch (run còn ở "Hiểu yêu cầu", đang hỏi owner, chưa ghi comment `crew-plan`): chưa viết tổng kết.
+- Run đầu có kế hoạch (bạn vừa ghi comment `crew-plan` và tạo lô con): ghi mục này vào cuối mô tả gốc.
+- Mỗi run sau, nếu có gì đổi (tạo hay đối soát con, con đổi trạng thái hay bị `cancelled`, owner trả lời câu hỏi, lô sửa, quyết định mới, đóng gốc): sửa **mọi** chỗ trong tổng kết không còn khớp. Không đổi gì thì không gửi `description`.
+- Thứ tự để không đè chữ owner vừa sửa: thu đủ dữ liệu trước (trạng thái con, file đính kèm cho `### Hình ảnh`, comment), soạn xong tổng kết, rồi mới `GET /api/issues/<id gốc>` đọc lại mô tả và gửi ngay lệnh ghi cuối; giữa lần `GET` đó và lệnh ghi không gọi API nào khác.
+- Run dừng sớm (`blocked` vì blocker hay chờ owner trả lời đã hỏi) mà gốc đã có kế hoạch: vẫn ghi hay sửa phần đã biết như trên; mục `### Cần owner quyết định` nêu điểm đang chờ. Run dừng sớm mà chưa có kế hoạch thì không có tổng kết.
 
-`<mô tả mới>` là mô tả hiện tại của gốc (đọc lại bằng `GET` ngay trước đó), giữ nguyên từng ký tự, rồi thêm một dòng trống và mục tổng kết dưới đây ở cuối. Owner đọc mục này để duyệt, nên viết cho người không đọc code: câu đầy đủ, nêu identifier con làm bằng chứng. Nếu mô tả đã có mục `## Tổng kết của Trợ Lý` (gửi lại sau yêu cầu sửa) thì thay nguyên mục đó bằng bản mới, không thêm mục thứ hai và không sửa phần phía trên nó. Không tự viết mục con `### Merge request`: integrator thêm nó (link pull request, trạng thái, conflict) vào cuối tổng kết sau khi owner duyệt. Khi thay tổng kết mà bản cũ có mục con `### Merge request` thì chép nguyên mục con đó vào cuối bản mới.
+**Gửi thế nào.** `description` đi chung trong lệnh ghi cuối của run: `PATCH /api/issues/<id gốc>` cùng `comment` (và `status` khi run chốt trạng thái theo mục "Chốt trạng thái gốc"). Không `PATCH` mô tả riêng, không thêm lệnh ghi nào sau nó. Lô con vừa tạo xong mà không đổi trạng thái gốc thì `PATCH` chỉ có `description` và `comment` (bảng tình trạng con); bỏ `status`. `PATCH` trả 422 thì làm theo mục "Khi server trả 422"; tổng kết chưa ghi được thì lần chạy sau ghi lại.
+
+**Giữ nguyên phần ngoài tổng kết.** `description` mới là mô tả vừa `GET`, giữ nguyên từng ký tự phần phía trên tổng kết, cộng một dòng trống rồi mục tổng kết ở cuối. Mô tả đã có mục `## Tổng kết của Trợ Lý` thì thay nguyên mục đó bằng bản mới, không thêm mục thứ hai và không sửa phần phía trên. Không tự viết mục con `### Merge request`: integrator thêm nó (link pull request, trạng thái, conflict) vào cuối tổng kết sau khi owner duyệt. Khi thay tổng kết mà bản cũ có mục con `### Merge request` thì chép nguyên mục con đó vào cuối bản mới. Đoạn nào trong tổng kết cũ không thuộc khung dưới đây (nằm ngoài mọi tiêu đề `###` của khung, hay dưới một tiêu đề không có trong khung) là chữ owner gõ thêm: chép nguyên văn đoạn đó lên ngay phía trên dòng `## Tổng kết của Trợ Lý` trong mô tả mới, không xoá, không sửa.
 
 ```
 ## Tổng kết của Trợ Lý
 
+### Yêu cầu
+<1–3 câu: Trợ Lý hiểu yêu cầu là gì, làm gì và không làm gì>
+
+### Việc con
+- <identifier> · <việc> · <trạng thái tiếng Việt>
+
 ### Kết quả
 - <mỗi dòng một kết quả owner kiểm được, kèm con làm ra nó (TPS-…)>
+
+### Hình ảnh
+![<tên ngắn> (<identifier>)](/api/attachments/<id>/content)
 
 ### Đã tự quyết định
 - <quyết định bạn hoặc executor tự chốt khi yêu cầu không nói rõ> — <lý do ngắn>
@@ -282,7 +300,23 @@ Q1. <việc chỉ owner quyết được, viết thành câu hỏi đầy đủ:
 - Đề xuất: <a hoặc b> — <lý do ngắn>
 ```
 
-Mục `### Kế hoạch` chỉ có ở tổng kết của yêu cầu lập kế hoạch (bỏ mục này với loại khác): dòng `- File kế hoạch: \`<path>\`` phải đúng dạng này, `<path>` lấy từ dòng `crew-plan-file path=<path>` mới nhất trong các comment của con kế hoạch (nằm trong comment `Executor: xong ...` cuối cùng của executor; không đoán đường dẫn); web đọc dòng này để tạo yêu cầu Code từ kế hoạch. Mục nào khác không có gì thì ghi một dòng `- Không có.`, không bỏ mục. Mục `### Cần owner quyết định` viết đủ từng điểm `Q1`, `Q2`… ngay trong tổng kết theo mục "Câu hỏi và điểm cần owner chốt" (câu hỏi, lựa chọn và nghĩa của từng lựa chọn, đề xuất kèm lý do), không bao giờ chỉ trỏ tới file, tài liệu đính kèm hay link. Lấy nội dung từ kế hoạch `crew-plan`, báo cáo và comment của các con, câu trả lời của owner; không đoán điều không có trong đó. Mô tả, comment và `status` đi chung trong **một** `PATCH` này (vẫn là lệnh ghi cuối của run); không `PATCH` mô tả riêng.
+Giữ đúng thứ tự mục trên. Mục nào chưa có gì thì ghi một dòng `- Chưa có.` (`### Kết quả`, `### Hình ảnh`) hoặc `- Không có.` (`### Đã tự quyết định`, `### Cần owner quyết định`); không bỏ mục, trừ `### Kế hoạch`. Lấy nội dung từ kế hoạch `crew-plan`, báo cáo và comment của các con, câu trả lời của owner; không đoán điều không có trong đó.
+
+- `### Yêu cầu`: viết lại bằng lời của bạn, không chép nguyên mô tả. Đổi khi phạm vi đổi (owner trả lời, việc con owner thêm, lô sửa).
+- `### Việc con`: mỗi con của gốc (mọi revision, kể cả việc con owner thêm và con E2E) một dòng, theo thứ tự tạo. `<việc>` là tiêu đề con, rút gọn nếu dài. Trạng thái tiếng Việt theo `status`: `backlog`/`todo` là "chưa bắt đầu", `in_progress` là "đang làm", `in_review` là "đang review", `blocked` là "đang bị chặn", `done` là "xong", `cancelled` là "đã hủy". Con đã có trong kế hoạch nhưng chưa tạo được thì ghi `child-key` thay identifier và trạng thái "chưa tạo". Con `cancelled` thì giữ dòng đó và, khi cần owner chọn phạm vi thay thế, thêm điểm vào `### Cần owner quyết định`.
+- `### Kết quả`: chỉ ghi kết quả đã có thật (con `done` hay bằng chứng trong comment con), kèm con làm ra nó. Chưa có gì thì `- Chưa có.`
+- `### Hình ảnh`: mockup hay ảnh nghiệm thu chính, lấy từ file đính kèm của các con. Với từng con (không gồm gốc), `GET /api/issues/<id con>/attachments`; chỉ lấy mục có `contentType` bắt đầu bằng `image/`, lấy `id` và `originalFilename` của mục đó. Mỗi ảnh một dòng riêng `![<tên ngắn> (<identifier con>)](/api/attachments/<id>/content)`, cách nhau một dòng trống. Tối đa khoảng 8 ảnh: chọn ảnh chứng minh kết quả chính (mockup chốt, ảnh nghiệm thu của kết quả quan trọng), bỏ ảnh trùng hay ảnh chỉ để debug. Ảnh đã có trong tổng kết cũ mà vẫn còn trong danh sách đính kèm thì giữ. Không bao giờ nhúng ảnh base64 `data:`. `GET` lỗi thì giữ nguyên các dòng ảnh đang có, không đoán `id`. Chưa có ảnh nào thì `- Chưa có.`
+- `### Đã tự quyết định`: quyết định đã chốt, gồm điểm owner đã trả lời (ghi "owner chọn …"); điểm đó rời khỏi `### Cần owner quyết định`.
+- `### Kế hoạch`: chỉ có ở tổng kết của yêu cầu lập kế hoạch (bỏ mục này với loại khác). Dòng `- File kế hoạch: \`<path>\`` phải đúng dạng này; `<path>` lấy từ dòng `crew-plan-file path=<path>` mới nhất trong các comment của con kế hoạch (nằm trong comment `Executor: xong ...` cuối cùng của executor; không đoán đường dẫn). Con kế hoạch chưa báo file thì chưa ghi mục này. Web đọc dòng này để tạo yêu cầu Code từ kế hoạch.
+- `### Cần owner quyết định`: viết đủ từng điểm `Q1`, `Q2`… ngay trong tổng kết theo mục "Câu hỏi và điểm cần owner chốt" (câu hỏi, lựa chọn và nghĩa của từng lựa chọn, đề xuất kèm lý do), không bao giờ chỉ trỏ tới file, tài liệu đính kèm hay link.
+
+## Đóng issue gốc
+
+Khi **mọi con trong mọi kế hoạch** đã được tạo và `done`, và không còn việc con owner thêm nào chưa nhận (đọc lại kế hoạch, danh sách con và trạng thái; không tin wake reason): kiểm mỗi con có `executionState.completedStageIds` chứa stage review đầu. Nếu gốc có quyết định `changes_requested`, còn phải có con sửa và bằng chứng mới cho từng điểm như mục trên; không gửi lại `done` nguyên trạng. Con nào `cancelled` thì ghi rõ trong comment và dừng, nhờ owner quyết định phạm vi thay thế. Rồi một lệnh:
+
+`PATCH /api/issues/<id gốc>` với `{"status":"done","description":"<mô tả mới>","comment":"crew-assistant done children=<identifier,…>\nTrợ Lý: mọi issue con đã qua review — <tóm tắt 2–5 dòng kết quả>"}`.
+
+`<mô tả mới>` là mô tả gốc đọc lại bằng `GET` ngay trước đó, với tổng kết cập nhật theo mục "Tổng kết trên mô tả gốc": mọi dòng `### Việc con` là "xong", `### Kết quả` đủ từng kết quả owner kiểm được, `### Hình ảnh` lấy lại từ file đính kèm mới nhất của các con. Mô tả, comment và `status` đi chung trong **một** `PATCH` này (vẫn là lệnh ghi cuối của run).
 
 Server chuyển issue gốc sang reviewer (rồi integrator và owner với yêu cầu code hay viết tài liệu, hoặc owner với research). Đó là bình thường. Gửi lại sau yêu cầu sửa của owner cũng vậy: với yêu cầu code, viết tài liệu hay lập kế hoạch, gốc chạy lại từ reviewer, integrator gộp lại cả con sửa và ghi bằng chứng docs mới, rồi owner duyệt lại và integrator mới mở pull request; không gửi gì thêm. Con nào chưa qua review: không `done`, comment nêu con đó rồi dừng.
 
@@ -292,7 +326,7 @@ Server đánh thức bạn lại (`issue_blockers_resolved`) ngay khi gốc `blo
 
 - Trước khi `PATCH` gốc sang `blocked`, đọc lại `blockedBy` của gốc (`GET /api/issues/<id gốc>`) và trạng thái từng blocker, dù lý do chờ là gì. Chỉ đặt `blocked` khi còn ít nhất một blocker chưa xong (không phải `done` hay `cancelled`). Mọi blocker đã `done` hoặc `cancelled` thì không đặt `blocked`: để trạng thái đúng theo luồng và ghi lý do chờ vào comment.
 - Mỗi run chốt trạng thái gốc đúng một lần ở cuối run, theo quy tắc hiện có: `PATCH done` khi đủ điều kiện ở mục "Đóng issue gốc", `blocked` khi còn blocker mở hoặc chờ trả lời đã hỏi theo mục "Hiểu yêu cầu", ngoài ra giữ nguyên trạng thái. Không bỏ trống để run sau sửa, không `PATCH` trạng thái nhiều lần trong một run.
-- Còn con chưa `done` thì gốc giữ `in_progress`: server coi con đang chạy hay đang chờ tới lượt chạy là đường chờ của gốc, nên comment tình trạng (bảng con ngay sau khi tạo lô, hay tình trạng mới) là lệnh ghi cuối của run. Không đặt `blocked` theo con, không thêm con vào `blockedByIssueIds` của gốc và không comment riêng chỉ để báo gốc chờ con.
+- Còn con chưa `done` thì gốc giữ `in_progress`: server coi con đang chạy hay đang chờ tới lượt chạy là đường chờ của gốc, nên comment tình trạng (bảng con ngay sau khi tạo lô, hay tình trạng mới) là lệnh ghi cuối của run. Gốc đã có kế hoạch thì lệnh ghi cuối đó là một `PATCH` mang `comment` đó cùng `description` mới (không `status`) theo mục "Tổng kết trên mô tả gốc"; không đổi gì ở tổng kết thì vẫn comment như cũ. Không đặt `blocked` theo con, không thêm con vào `blockedByIssueIds` của gốc và không comment riêng chỉ để báo gốc chờ con.
 
 ## Khi server trả 422
 

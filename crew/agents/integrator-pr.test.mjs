@@ -270,6 +270,42 @@ test("mô tả chưa có tổng kết: thêm mục tổng kết chỉ có Merge 
   assert.ok(readFileSync(path.join(w.stub, "body-1.md"), "utf8").startsWith(`## Yêu cầu\n\n${description}`));
 });
 
+test("tổng kết có mục Hình ảnh: nội dung PR bỏ mục đó (link tương đối), mô tả issue giữ nguyên và chỉ thêm Merge request", () => {
+  const description = [
+    "Yêu cầu: thêm trang tổng hợp.",
+    "",
+    "## Tổng kết của Trợ Lý",
+    "",
+    "### Yêu cầu",
+    "Thêm trang tổng hợp.",
+    "",
+    "### Việc con",
+    "- TPS-146 · Trang tổng hợp · xong",
+    "",
+    "### Kết quả",
+    "- Trang tổng hợp chạy (TPS-146).",
+    "",
+    "### Hình ảnh",
+    "![Trang tổng hợp (TPS-146)](/api/attachments/aaaa/content)",
+    "",
+    "### Đã tự quyết định",
+    "- Không có.",
+    "",
+    "### Cần owner quyết định",
+    "- Không có.",
+    "",
+  ].join("\n");
+  const w = world({ description });
+  const r = w.run();
+  assert.equal(r.status, 0, r.stdout + r.stderr);
+  const body = readFileSync(path.join(w.stub, "body-1.md"), "utf8");
+  assert.doesNotMatch(body, /Hình ảnh|\/api\/attachments/);
+  for (const keep of ["### Yêu cầu", "### Việc con", "### Kết quả", "### Đã tự quyết định", "### Cần owner quyết định"]) assert.ok(body.includes(keep), keep);
+  const desc = w.json("done.json").description;
+  assert.ok(desc.startsWith(description), "giữ nguyên từng ký tự, kể cả mục Hình ảnh");
+  assert.match(desc.slice(description.length), /^\n### Merge request\n/);
+});
+
 test("đầu vào sai: T không phải sha thì thoát 2 trước khi gọi gh", () => {
   const w = world();
   const r = w.run({ T: "abc" });
