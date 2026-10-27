@@ -12,6 +12,7 @@ import {
   isCrewModel,
   modelRoleOfSlot,
   slotModels,
+  sortModelIds,
 } from '@/lib/instructions';
 import * as server from '../../../../../server/src/crew/model-policy';
 import { SETTINGS } from './__fixtures__/model-settings';
@@ -27,18 +28,18 @@ describe('bảng mẫu của test', () => {
 });
 
 describe('hàm thuần với bảng mặc định cho kết quả như các hằng số cũ', () => {
-  it('danh sách model theo runtime là catalog của runtime', () => {
+  it('danh sách model theo runtime là catalog của runtime, sắp theo id', () => {
     expect(crewModelsOf('claude_local', SETTINGS)).toEqual([
-      'claude-sonnet-5-5',
+      'claude-opus-5',
       'claude-opus-5-5',
       'claude-sonnet-5',
-      'claude-opus-5',
+      'claude-sonnet-5-5',
     ]);
     expect(crewModelsOf('codex_local', SETTINGS)).toEqual(['gpt-6-luna', 'gpt-6-sol']);
     expect(slotModels('executor-opencode', SETTINGS)).toEqual([
       'opencode-go/deepseek-v4-flash',
-      'opencode-go/kimi-k3',
       'opencode-go/glm-5.3',
+      'opencode-go/kimi-k3',
     ]);
     expect(slotModels('reviewer-codex', SETTINGS)).toEqual(['gpt-6-sol']);
   });
@@ -84,6 +85,26 @@ describe('hàm thuần với bảng mặc định cho kết quả như các hằ
       expect(body.adapterConfig).not.toHaveProperty('effort');
       expect(body.adapterConfig).not.toHaveProperty('modelReasoningEffort');
     }
+  });
+});
+
+describe('thứ tự model không phụ thuộc thứ tự khóa jsonb', () => {
+  it('sắp id tăng dần kiểu natural sort', () => {
+    expect(sortModelIds(['opencode-go/glm-5.10', 'opencode-go/kimi-k3', 'opencode-go/glm-5.3'])).toEqual([
+      'opencode-go/glm-5.3',
+      'opencode-go/glm-5.10',
+      'opencode-go/kimi-k3',
+    ]);
+  });
+
+  it('bảng đọc lại từ jsonb (khóa theo độ dài) cho cùng danh sách như bảng mặc định', () => {
+    const reordered: ModelSettings = structuredClone(SETTINGS);
+    reordered.catalog.opencode_local.models = {
+      'opencode-go/glm-5.3': { vision: false },
+      'opencode-go/kimi-k3': { vision: false },
+      'opencode-go/deepseek-v4-flash': { vision: false },
+    };
+    expect(crewModelsOf('opencode_local', reordered)).toEqual(crewModelsOf('opencode_local', SETTINGS));
   });
 });
 

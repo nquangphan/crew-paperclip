@@ -20,6 +20,7 @@ import {
 } from '@/ds';
 import { Plus, Trash2 } from '@/ds/icons';
 import { useT } from '@/i18n';
+import { crewModelsOf } from '@/lib/instructions';
 import { type Choice, ChoiceSelect, NONE } from './fields';
 import {
   addModel,
@@ -56,7 +57,7 @@ export function CatalogSection({ settings, issues, inUse, onChange, onUpgrade }:
       <MutedText>{t('models.catalog.hint')}</MutedText>
       {RUNTIMES.map((runtime) => {
         const spec = settings.catalog[runtime];
-        const ids = Object.keys(spec.models);
+        const ids = crewModelsOf(runtime, settings);
         const blockError = errorAt(issues, path.models(runtime));
         return (
           <div key={runtime} className="flex flex-col gap-3" data-runtime={runtime}>

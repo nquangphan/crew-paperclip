@@ -92,8 +92,8 @@ describe('ModelSelect', () => {
     fireEvent.keyDown(await openable(), { key: 'Enter' });
     expect(screen.getAllByRole('option').map((o) => o.textContent)).toEqual([
       'opencode-go/deepseek-v4-flash',
-      'opencode-go/kimi-k3',
       'opencode-go/glm-5.3',
+      'opencode-go/kimi-k3',
     ]);
   });
 

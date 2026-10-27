@@ -2,6 +2,7 @@
 import type { ModelSettings, ModelSettingsIssue } from '@/api';
 import { Badge, InlineError, MutedText, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/ds';
 import { useT } from '@/i18n';
+import { crewModelsOf } from '@/lib/instructions';
 import { ChoiceSelect, EffortSelect } from './fields';
 import { EFFORT_REQUIRED_ROLES, errorAt, path, ROLE_RUNTIME, ROLES, setRole } from './model-draft';
 
@@ -46,7 +47,7 @@ export function RolesSection({ settings, issues, onChange }: RolesSectionProps) 
                   <ChoiceSelect
                     label={t('models.roles.modelOf', { role })}
                     value={cell.model}
-                    choices={Object.keys(spec.models).map((id) => ({ value: id, label: id }))}
+                    choices={crewModelsOf(runtime, settings).map((id) => ({ value: id, label: id }))}
                     invalid={modelError !== undefined || rowError !== undefined}
                     onChange={(model) => onChange(setRole(settings, role, { model }))}
                   />

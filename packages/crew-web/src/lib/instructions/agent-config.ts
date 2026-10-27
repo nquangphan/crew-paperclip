@@ -57,9 +57,18 @@ export function modelRoleOfSlot(slot: CrewRoleSlot): ModelRole {
   return slot === 'executor-2' ? 'executor' : slot;
 }
 
-/** Model chọn được cho runtime: mọi model trong catalog của bảng cài đặt model (một nguồn duy nhất, không chép). */
+/**
+ * Sắp id model tăng dần kiểu natural sort (`x-5.3` trước `x-5.10`, `localeCompare` với `numeric`). Thứ tự khóa của
+ * `models` không ổn định: server lưu `jsonb`, Postgres trả khóa theo độ dài rồi chữ cái, nên mọi danh sách model hiển
+ * thị đi qua hàm này.
+ */
+export function sortModelIds(ids: Iterable<string>): string[] {
+  return [...ids].sort((a, b) => a.localeCompare(b, 'en', { numeric: true }));
+}
+
+/** Model chọn được cho runtime: mọi model trong catalog của bảng cài đặt model (một nguồn duy nhất, không chép), đã sắp. */
 export function crewModelsOf(runtime: CrewRuntime, settings: ModelSettings): string[] {
-  return Object.keys(settings.catalog[runtime].models);
+  return sortModelIds(Object.keys(settings.catalog[runtime].models));
 }
 
 /** Model chọn được cho ô: theo runtime của ô; reviewer Codex chỉ có model cố định của vai `reviewer-codex`. */

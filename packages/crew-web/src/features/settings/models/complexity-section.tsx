@@ -4,6 +4,7 @@ import type { ModelComplexity, ModelRuntime, ModelSettings, ModelSettingsIssue }
 import { Badge, Button, Field, HintTooltip, InlineError, MutedText, ToggleSwitch } from '@/ds';
 import { ChevronDown, ChevronUp } from '@/ds/icons';
 import { useT } from '@/i18n';
+import { crewModelsOf } from '@/lib/instructions';
 import { ChoiceSelect, EffortSelect } from './fields';
 import { errorAt, LEVELS, moveRuntime, path, RUNTIMES, setCell, toggleRuntime } from './model-draft';
 
@@ -162,7 +163,7 @@ function RuntimeRow({
             <ChoiceSelect
               label={t('models.complexity.modelOf', { runtime, level })}
               value={cell.model}
-              choices={Object.keys(spec.models).map((id) => ({ value: id, label: id }))}
+              choices={crewModelsOf(runtime, settings).map((id) => ({ value: id, label: id }))}
               invalid={modelError !== undefined || cellError !== undefined}
               onChange={(model) => onChange(setCell(settings, runtime, level, { model }))}
             />

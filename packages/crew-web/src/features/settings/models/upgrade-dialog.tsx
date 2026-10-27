@@ -32,6 +32,7 @@ import {
   MutedText,
 } from '@/ds';
 import { useT } from '@/i18n';
+import { crewModelsOf } from '@/lib/instructions';
 import { ChoiceSelect } from './fields';
 import { MODEL_ID_RE, RUNTIMES } from './model-draft';
 
@@ -77,7 +78,7 @@ export function UpgradeDialog({ open, onOpenChange, base, dirty, initial, onDone
   const [problem, setProblem] = useState<{ messages: string[]; stale: boolean } | null>(null);
 
   const models = base.settings.catalog[runtime].models;
-  const ids = Object.keys(models);
+  const ids = crewModelsOf(runtime, base.settings);
   const from = fromModel !== '' && fromModel in models ? fromModel : (ids[0] ?? '');
   const to = toModel.trim();
   const isNew = to !== '' && !(to in models);

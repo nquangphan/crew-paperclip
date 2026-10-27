@@ -3,7 +3,7 @@
 // runtime chỉ liệt kê model của runtime đó, reviewer Codex có model cố định.
 // Dựng project và agent bằng API board (không cần Mac: không chạy run, không dựng checkout), nên chỉ chạy ở T1 (stack
 // cục bộ) để không để lại agent thử trên prod.
-import { crewAgentCreateBody, defaultModelOf } from '../../src/lib/instructions/agent-config';
+import { crewAgentCreateBody, crewModelsOf, defaultModelOf } from '../../src/lib/instructions/agent-config';
 import type { Api } from '../support/api';
 import { uniqueToken } from '../support/data';
 import { expect, test } from '../support/fixtures';
@@ -82,7 +82,7 @@ test('PW-R24-1 Ô runtime: roles nhận đúng adapter, tab Vai trò và wizard 
   company,
 }) => {
   const c = await setupProject(api, company.id);
-  // Danh sách model theo thứ tự server trả (jsonb của Postgres sắp khóa theo độ dài rồi chữ cái, không theo thứ tự nhập).
+  // Danh sách model hiển thị đã sắp theo id (natural sort), không theo thứ tự khóa jsonb server trả.
   const settings = await loadModelSettings(api);
   const reviewerCodex = settings.roles['reviewer-codex'];
   try {
@@ -143,13 +143,13 @@ test('PW-R24-1 Ô runtime: roles nhận đúng adapter, tab Vai trò và wizard 
     // Ô executor OpenCode: chỉ model OpenCode Go.
     await page.goto(company.path(`agents/new?project=${c.projectId}&slot=executor-opencode`));
     await page.getByRole('combobox', { name: 'Model' }).click();
-    await expect(page.getByRole('option')).toHaveText(Object.keys(settings.catalog.opencode_local.models));
+    await expect(page.getByRole('option')).toHaveText(crewModelsOf('opencode_local', settings));
     await page.keyboard.press('Escape');
 
     // Trang agent Codex: chọn model trong bảng Codex.
     await page.goto(company.path(`agents/${c.agents.codex.id}?tab=runtime`));
     await page.getByRole('combobox', { name: 'Model mặc định' }).click();
-    await expect(page.getByRole('option')).toHaveText(Object.keys(settings.catalog.codex_local.models));
+    await expect(page.getByRole('option')).toHaveText(crewModelsOf('codex_local', settings));
   } finally {
     await cleanup(api, company.id, c);
   }
