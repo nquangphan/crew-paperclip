@@ -12,6 +12,7 @@ import { ADD_AGENT_STEPS } from '@/features/wizards/add-agent/steps';
 import { ADD_PROJECT_STEPS } from '@/features/wizards/add-project/steps';
 import { removeAgentSteps } from '@/features/wizards/remove/remove-agent';
 import { REMOVE_PROJECT_STEPS } from '@/features/wizards/remove/remove-project';
+import { SETTINGS } from '../../lib/instructions/__fixtures__/model-settings';
 
 export const PIN = '/Users/owner/.crew/workflows/superpowers/5.0.7';
 export const COMPANY = 'c-run';
@@ -386,6 +387,12 @@ export function fakeApi(opts: { run?: SetupRun; busy?: boolean; jobOutcome?: Job
         const saved = { content: body.content, contentHash: `hash-${id}` };
         state.files.set(id, saved);
         return structuredClone(saved);
+      },
+    },
+    modelSettings: {
+      get: async () => {
+        record('modelSettings.get');
+        return { settings: structuredClone(SETTINGS) };
       },
     },
     roles: {

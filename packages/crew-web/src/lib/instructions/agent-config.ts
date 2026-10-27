@@ -3,6 +3,8 @@
 // runtimeConfig.heartbeat, permissions là trường gốc. Không gửi `role` (enum riêng của Paperclip, để mặc định).
 // Agent Codex/OpenCode theo cùng dạng `adapterConfig` mà crew/agents/merge-agent-config.mjs kiểm.
 
+import type { ModelEffort, ModelRole, ModelSettings } from '../../api/crew/model-settings';
+
 export type CrewRole = 'assistant' | 'executor' | 'reviewer' | 'integrator';
 export type CrewRuntime = 'claude_local' | 'codex_local' | 'opencode_local';
 export type CrewRuntimeSlot = 'executor-codex' | 'executor-opencode' | 'reviewer-codex';
@@ -50,85 +52,34 @@ export function roleOfSlot(slot: CrewRoleSlot): CrewRole {
   return slot;
 }
 
-/**
- * Bản chép phần model của `CREW_RUNTIME_CATALOG` (server `server/src/crew/model-policy.ts`, plugin
- * `src/runtimes/catalog.ts`); test catalog-copy so khớp. Đổi bảng thì đổi cả ba nơi.
- */
-export const CREW_RUNTIME_MODELS: Readonly<
-  Record<
-    CrewRuntime,
-    { effortKey: 'effort' | 'modelReasoningEffort' | null; models: Readonly<Record<string, { vision: boolean }>> }
-  >
-> = Object.freeze({
-  claude_local: {
-    effortKey: 'effort',
-    // Giữ hai id cũ chỉ để chấp nhận override/agent cũ; không đưa vào CREW_MODELS hay ROLE_MODELS. Giữ một bản để rollout, gỡ ở bản sau.
-    models: {
-      'claude-sonnet-5-5': { vision: true },
-      'claude-opus-5-5': { vision: true },
-      'claude-sonnet-5': { vision: true },
-      'claude-opus-5': { vision: true },
-    },
-  },
-  codex_local: {
-    effortKey: 'modelReasoningEffort',
-    models: { 'gpt-6-luna': { vision: true }, 'gpt-6-sol': { vision: true } },
-  },
-  opencode_local: {
-    effortKey: null,
-    // Giá trị giả định, kiểm khi có key OpenCode (`opencode models opencode-go --verbose`).
-    models: {
-      'opencode-go/deepseek-v4-flash': { vision: false },
-      'opencode-go/kimi-k3': { vision: false },
-      'opencode-go/glm-5.3': { vision: false },
-    },
-  },
-});
-/** Reviewer Codex chạy model cố định, không có override theo issue. */
-export const CREW_CODEX_REVIEWER_MODEL = Object.freeze({ model: 'gpt-6-sol', effort: 'high' } as const);
-
-/** Model Crew cho phép, bằng tập model trong CREW_COMPLEXITY_MODEL của server/src/crew/model-policy.ts. */
-export const CREW_MODELS = ['claude-sonnet-5-5', 'claude-opus-5-5'] as const;
-export type CrewModel = (typeof CREW_MODELS)[number];
-
-/** Model mặc định theo vai trò, như app: Trợ Lý chạy opus, còn lại sonnet. */
-export const ROLE_MODELS: Readonly<Record<CrewRole, CrewModel>> = Object.freeze({
-  assistant: 'claude-opus-5-5',
-  executor: 'claude-sonnet-5-5',
-  reviewer: 'claude-sonnet-5-5',
-  integrator: 'claude-sonnet-5-5',
-});
-
-/**
- * Model và effort mặc định của ô runtime. Executor theo hàng `small` của bảng (độ khó hay gặp nhất); Trợ Lý ghi đè theo
- * issue bằng marker. Reviewer Codex cố định.
- */
-const RUNTIME_SLOT_DEFAULTS: Readonly<Record<CrewRuntimeSlot, { model: string; effort: 'medium' | 'high' | null }>> =
-  Object.freeze({
-    'executor-codex': { model: 'gpt-6-luna', effort: 'medium' },
-    'executor-opencode': { model: 'opencode-go/kimi-k3', effort: null },
-    'reviewer-codex': { model: CREW_CODEX_REVIEWER_MODEL.model, effort: CREW_CODEX_REVIEWER_MODEL.effort },
-  });
-
-/** Id Claude cũ còn trong catalog để server chấp nhận; giao diện không còn cho chọn. */
-const LEGACY_CLAUDE_MODELS: ReadonlySet<string> = new Set(['claude-sonnet-5', 'claude-opus-5']);
-
-export function crewModelsOf(runtime: CrewRuntime): string[] {
-  return Object.keys(CREW_RUNTIME_MODELS[runtime].models).filter((model) => !LEGACY_CLAUDE_MODELS.has(model));
+/** Vai trong bảng cài đặt model của từng ô: `executor-2` dùng vai `executor`, các ô khác dùng vai cùng tên. */
+export function modelRoleOfSlot(slot: CrewRoleSlot): ModelRole {
+  return slot === 'executor-2' ? 'executor' : slot;
 }
 
-/** Model chọn được cho ô: theo runtime của ô; reviewer Codex chỉ có model cố định. */
-export function slotModels(slot: CrewRoleSlot): string[] {
-  if (slot === 'reviewer-codex') return [CREW_CODEX_REVIEWER_MODEL.model];
-  return crewModelsOf(runtimeOfSlot(slot));
+/** Model chọn được cho runtime: mọi model trong catalog của bảng cài đặt model (một nguồn duy nhất, không chép). */
+export function crewModelsOf(runtime: CrewRuntime, settings: ModelSettings): string[] {
+  return Object.keys(settings.catalog[runtime].models);
 }
 
-export function defaultModelOf(slot: CrewRoleSlot): string {
-  return isRuntimeSlot(slot) ? RUNTIME_SLOT_DEFAULTS[slot].model : ROLE_MODELS[roleOfSlot(slot)];
+/** Model chọn được cho ô: theo runtime của ô; reviewer Codex chỉ có model cố định của vai `reviewer-codex`. */
+export function slotModels(slot: CrewRoleSlot, settings: ModelSettings): string[] {
+  if (slot === 'reviewer-codex') return [settings.roles['reviewer-codex'].model];
+  return crewModelsOf(runtimeOfSlot(slot), settings);
 }
 
-export function isCrewModel(model: string, runtime: CrewRuntime = 'claude_local'): boolean {
-  return crewModelsOf(runtime).includes(model);
+/** Model mặc định của ô theo `settings.roles`. */
+export function defaultModelOf(slot: CrewRoleSlot, settings: ModelSettings): string {
+  return settings.roles[modelRoleOfSlot(slot)].model;
+}
+
+/** Effort mặc định của ô theo `settings.roles`; null khi vai không có effort. */
+export function defaultEffortOf(slot: CrewRoleSlot, settings: ModelSettings): ModelEffort | null {
+  return settings.roles[modelRoleOfSlot(slot)].effort;
+}
+
+export function isCrewModel(model: string, settings: ModelSettings, runtime: CrewRuntime = 'claude_local'): boolean {
+  return crewModelsOf(runtime, settings).includes(model);
 }
 
 export const CREW_AGENT_PERMISSIONS = Object.freeze({ canCreateAgents: false, canCreateSkills: false } as const);
@@ -218,6 +169,8 @@ export interface ClaudeAgentConfig {
   command: string;
   extraArgs: string[];
   model: string;
+  /** Có khi vai trong bảng cài đặt model có effort. */
+  effort?: ModelEffort;
   env: Record<string, never>;
 }
 export interface CodexAgentConfig {
@@ -226,7 +179,7 @@ export interface CodexAgentConfig {
   command: string;
   extraArgs: string[];
   model: string;
-  modelReasoningEffort: 'medium' | 'high';
+  modelReasoningEffort: ModelEffort;
   dangerouslyBypassApprovalsAndSandbox: true;
   env: { CODEX_HOME: string };
 }
@@ -250,23 +203,27 @@ export type CreateAgentBody = AgentBodyBase &
     | { adapterType: 'opencode_local'; adapterConfig: OpencodeAgentConfig }
   );
 
-/** Phần `adapterConfig` mà wizard đặt khi tạo hay sửa agent của ô (trừ `model`). */
+/**
+ * Phần `adapterConfig` mà wizard đặt khi tạo hay sửa agent của ô (trừ `model` và effort). Effort theo vai trong bảng cài
+ * đặt model nên do `crewAgentCreateBody` thêm; chế độ sửa giữ effort đang có của agent.
+ */
 export function crewRuntimeConfigOf(
   slot: CrewRoleSlot,
   pinDir: string,
   projectKey: string,
-): Omit<ClaudeAgentConfig, 'model'> | Omit<CodexAgentConfig, 'model'> | Omit<OpencodeAgentConfig, 'model'> {
+):
+  | Omit<ClaudeAgentConfig, 'model' | 'effort'>
+  | Omit<CodexAgentConfig, 'model' | 'modelReasoningEffort'>
+  | Omit<OpencodeAgentConfig, 'model'> {
   const runtime = runtimeOfSlot(slot);
   const command = crewWrapperCommand(pinDir, runtime);
   const extraArgs = crewExtraArgsOf(pinDir, runtime);
   if (runtime === 'claude_local') return { engine: 'cli', command, extraArgs, env: {} };
   if (runtime === 'opencode_local') return { command, extraArgs, env: {} };
-  const effort = isRuntimeSlot(slot) ? RUNTIME_SLOT_DEFAULTS[slot].effort : null;
   return {
     engine: 'cli',
     command,
     extraArgs,
-    modelReasoningEffort: effort === 'high' ? 'high' : 'medium',
     dangerouslyBypassApprovalsAndSandbox: true,
     env: { CODEX_HOME: crewCodexHome(projectKey, slot) },
   };
@@ -283,6 +240,8 @@ export function crewAgentCreateBody(input: {
   role?: CrewRole;
   slot?: CrewRoleSlot;
   model: string;
+  /** Bảng cài đặt model hiện hành: danh sách model hợp lệ của ô và effort mặc định của vai. */
+  settings: ModelSettings;
   pinDir: string;
   /** Bắt buộc với ô Codex (dựng CODEX_HOME). */
   projectKey?: string;
@@ -293,7 +252,7 @@ export function crewAgentCreateBody(input: {
   if (!slot || !(CREW_ROLE_SLOTS as readonly string[]).includes(slot)) {
     throw new Error(`Vai trò không hợp lệ: ${String(slot)}`);
   }
-  if (!slotModels(slot).includes(input.model)) {
+  if (!slotModels(slot, input.settings).includes(input.model)) {
     throw new Error(`Model ${input.model} không nằm trong danh sách model Crew`);
   }
   const base: AgentBodyBase = {
@@ -302,8 +261,16 @@ export function crewAgentCreateBody(input: {
     ...(input.environmentId ? { defaultEnvironmentId: input.environmentId } : {}),
     permissions: { ...CREW_AGENT_PERMISSIONS },
   };
-  const adapterConfig = { ...crewRuntimeConfigOf(slot, input.pinDir, input.projectKey ?? ''), model: input.model };
-  return { ...base, adapterType: runtimeOfSlot(slot), adapterConfig } as CreateAgentBody;
+  const runtime = runtimeOfSlot(slot);
+  // Effort theo vai trong bảng cài đặt model, ghi vào key effort của runtime; ô Codex luôn có effort.
+  const effortKey = input.settings.catalog[runtime].effortKey;
+  const effort = defaultEffortOf(slot, input.settings) ?? (runtime === 'codex_local' ? 'medium' : null);
+  const adapterConfig = {
+    ...crewRuntimeConfigOf(slot, input.pinDir, input.projectKey ?? ''),
+    model: input.model,
+    ...(effortKey && effort ? { [effortKey]: effort } : {}),
+  };
+  return { ...base, adapterType: runtime, adapterConfig } as CreateAgentBody;
 }
 
 /** Vai trò project theo ô (dạng ProjectRoles của route roles; ô runtime thiếu hay null là trống). */

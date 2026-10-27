@@ -9,6 +9,7 @@ import {
   type JobResult,
   type MachineJob,
   type MachineJobStatus,
+  type ModelSettingsView,
   type ProjectRoles,
   type SetupRun,
   type SetupStepId,
@@ -16,9 +17,9 @@ import {
 import {
   CREW_AGENT_PERMISSIONS,
   crewAgentCreateBody,
+  defaultModelOf,
   type InstructionsApi,
   putInstructions,
-  ROLE_MODELS,
   renderInstructions,
   roleOfSlot,
 } from '@/lib/instructions';
@@ -101,6 +102,8 @@ export interface AddProjectApi extends InstructionsApi {
     setPermissions?(id: string, body: Record<string, unknown>, companyId?: string): Promise<unknown>;
   };
   roles: { set(companyId: string, projectId: string, roles: ProjectRoles): Promise<unknown> };
+  /** Bảng cài đặt model hiện hành: model và effort mặc định của vai khi tạo agent. */
+  modelSettings: { get(): Promise<Pick<ModelSettingsView, 'settings'>> };
   crew: { machines(companyId: string): Promise<unknown> };
   machinePins: {
     provisionOthers(
@@ -514,6 +517,7 @@ const STEPS: Record<AddProjectStepId, StepWork> = {
     const slots = projectSlots(input.executors);
     const pinDir = await pinDirOf(api, run);
     const existing = await api.agents.list(companyId);
+    const { settings } = await api.modelSettings.get();
 
     for (const slot of slots) {
       const key = `agent_${slot}`;
@@ -526,7 +530,16 @@ const STEPS: Record<AddProjectStepId, StepWork> = {
           (a) => a.name === name && a.defaultEnvironmentId === environmentId && a.status !== 'terminated',
         );
         const role = roleOfSlot(slot);
-        const body = { ...crewAgentCreateBody({ name, role, model: ROLE_MODELS[role], pinDir, environmentId }) };
+        const body = {
+          ...crewAgentCreateBody({
+            name,
+            role,
+            model: defaultModelOf(role, settings),
+            settings,
+            pinDir,
+            environmentId,
+          }),
+        };
         refs[key] = lost?.id ?? (await api.agents.create(companyId, body)).id;
       }
       await api.agents.setPermissions?.(

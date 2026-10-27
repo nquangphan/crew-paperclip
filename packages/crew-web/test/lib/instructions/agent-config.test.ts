@@ -3,7 +3,6 @@ import { describe, expect, it } from 'vitest';
 import {
   ASSISTANT_GRANTS,
   CREW_AGENT_PERMISSIONS,
-  CREW_MODELS,
   CREW_ROLE_SLOTS,
   CREW_RUNTIME_CONFIG,
   crewAgentCreateBody,
@@ -14,7 +13,6 @@ import {
   defaultModelOf,
   isCrewModel,
   isUnmanagedCodexHome,
-  ROLE_MODELS,
   RUNTIME_SLOT_KEYS,
   roleOfSlot,
   runtimeOfSlot,
@@ -22,6 +20,7 @@ import {
   WRAPPER_RE,
   wrapperReOf,
 } from '@/lib/instructions';
+import { SETTINGS } from './__fixtures__/model-settings';
 
 const PIN = '/Users/owner/.crew/workflows/superpowers/6.4.1-5bf4e7801107';
 const ENV = '55555555-5555-4555-8555-555555555555';
@@ -63,6 +62,7 @@ describe('cấu hình agent Crew', () => {
 
   it('body tạo agent có đúng các key Crew, không key lạ', () => {
     const body = crewAgentCreateBody({
+      settings: SETTINGS,
       name: 'demo-executor',
       role: 'executor',
       model: 'claude-sonnet-5-5',
@@ -86,12 +86,19 @@ describe('cấu hình agent Crew', () => {
   });
 
   it('không có environment thì không gửi defaultEnvironmentId', () => {
-    const body = crewAgentCreateBody({ name: 'a', role: 'assistant', model: 'claude-opus-5-5', pinDir: PIN });
+    const body = crewAgentCreateBody({
+      settings: SETTINGS,
+      name: 'a',
+      role: 'assistant',
+      model: 'claude-opus-5-5',
+      pinDir: PIN,
+    });
     expect(Object.keys(body).sort()).toEqual(['adapterConfig', 'adapterType', 'name', 'permissions', 'runtimeConfig']);
   });
 
   it('body qua được createAgentSchema của server mà không đổi giá trị Crew', () => {
     const body = crewAgentCreateBody({
+      settings: SETTINGS,
       name: 'a',
       role: 'reviewer',
       model: 'claude-sonnet-5-5',
@@ -107,35 +114,41 @@ describe('cấu hình agent Crew', () => {
     expect(parsed.role).toBe('general');
   });
 
-  it('model phải thuộc CREW_MODELS', () => {
-    expect(() => crewAgentCreateBody({ name: 'a', role: 'executor', model: 'claude-haiku-4', pinDir: PIN })).toThrow(
-      'Model claude-haiku-4 không nằm trong danh sách model Crew',
-    );
-    expect(() => crewAgentCreateBody({ name: 'a', role: 'executor', model: '', pinDir: PIN })).toThrow();
+  it('model phải thuộc catalog của bảng cài đặt model', () => {
+    expect(() =>
+      crewAgentCreateBody({ settings: SETTINGS, name: 'a', role: 'executor', model: 'claude-haiku-4', pinDir: PIN }),
+    ).toThrow('Model claude-haiku-4 không nằm trong danh sách model Crew');
+    expect(() =>
+      crewAgentCreateBody({ settings: SETTINGS, name: 'a', role: 'executor', model: '', pinDir: PIN }),
+    ).toThrow();
   });
 
   it('tên agent không được trống', () => {
-    expect(() => crewAgentCreateBody({ name: '  ', role: 'executor', model: 'claude-sonnet-5-5', pinDir: PIN })).toThrow(
-      'Tên agent không được trống',
-    );
+    expect(() =>
+      crewAgentCreateBody({
+        settings: SETTINGS,
+        name: '  ',
+        role: 'executor',
+        model: 'claude-sonnet-5-5',
+        pinDir: PIN,
+      }),
+    ).toThrow('Tên agent không được trống');
   });
 
   it('hằng số cùng giá trị với app và server', () => {
-    expect([...CREW_MODELS].sort()).toEqual(['claude-opus-5-5', 'claude-sonnet-5-5']);
-    expect(ROLE_MODELS).toEqual({
-      assistant: 'claude-opus-5-5',
-      executor: 'claude-sonnet-5-5',
-      reviewer: 'claude-sonnet-5-5',
-      integrator: 'claude-sonnet-5-5',
-    });
-    for (const model of Object.values(ROLE_MODELS)) expect(CREW_MODELS).toContain(model);
     expect(CREW_AGENT_PERMISSIONS).toEqual({ canCreateAgents: false, canCreateSkills: false });
     expect(CREW_RUNTIME_CONFIG).toEqual({ heartbeat: { enabled: false, maxConcurrentRuns: 1 } });
     expect(ASSISTANT_GRANTS).toEqual(['tasks:assign']);
   });
 
   it('body là bản sao: sửa body không đổi hằng số dùng chung', () => {
-    const body = crewAgentCreateBody({ name: 'a', role: 'executor', model: 'claude-sonnet-5-5', pinDir: PIN });
+    const body = crewAgentCreateBody({
+      settings: SETTINGS,
+      name: 'a',
+      role: 'executor',
+      model: 'claude-sonnet-5-5',
+      pinDir: PIN,
+    });
     body.runtimeConfig.heartbeat.enabled = true;
     body.permissions.canCreateAgents = true;
     expect(CREW_RUNTIME_CONFIG.heartbeat.enabled).toBe(false);
@@ -184,25 +197,15 @@ describe('ô runtime Codex/OpenCode', () => {
     expect(wrapperReOf('claude_local')).toBe(WRAPPER_RE);
   });
 
-  it('model theo runtime; reviewer Codex chỉ gpt-6-sol', () => {
-    expect(crewModelsOf('claude_local')).toEqual(['claude-sonnet-5-5', 'claude-opus-5-5']);
-    expect(crewModelsOf('codex_local')).toEqual(['gpt-6-luna', 'gpt-6-sol']);
-    expect(crewModelsOf('opencode_local')).toEqual([
-      'opencode-go/deepseek-v4-flash',
-      'opencode-go/kimi-k3',
-      'opencode-go/glm-5.3',
-    ]);
-    expect(slotModels('reviewer-codex')).toEqual(['gpt-6-sol']);
-    expect(slotModels('executor-codex')).toEqual(['gpt-6-luna', 'gpt-6-sol']);
-    expect(slotModels('executor')).toEqual(['claude-sonnet-5-5', 'claude-opus-5-5']);
-    expect(isCrewModel('gpt-6-sol')).toBe(false);
-    expect(isCrewModel('gpt-6-sol', 'codex_local')).toBe(true);
-    expect(isCrewModel('claude-opus-5-5', 'opencode_local')).toBe(false);
-    expect(defaultModelOf('assistant')).toBe('claude-opus-5-5');
-    expect(defaultModelOf('executor-2')).toBe('claude-sonnet-5-5');
-    expect(defaultModelOf('executor-codex')).toBe('gpt-6-luna');
-    expect(defaultModelOf('executor-opencode')).toBe('opencode-go/kimi-k3');
-    expect(defaultModelOf('reviewer-codex')).toBe('gpt-6-sol');
+  it('model theo runtime của ô; reviewer Codex chỉ có model cố định của vai', () => {
+    expect(crewModelsOf('codex_local', SETTINGS)).toEqual(['gpt-6-luna', 'gpt-6-sol']);
+    expect(slotModels('reviewer-codex', SETTINGS)).toEqual(['gpt-6-sol']);
+    expect(slotModels('executor-codex', SETTINGS)).toEqual(['gpt-6-luna', 'gpt-6-sol']);
+    expect(slotModels('executor', SETTINGS)).toEqual(crewModelsOf('claude_local', SETTINGS));
+    expect(isCrewModel('gpt-6-sol', SETTINGS)).toBe(false);
+    expect(isCrewModel('gpt-6-sol', SETTINGS, 'codex_local')).toBe(true);
+    expect(isCrewModel('claude-opus-5-5', SETTINGS, 'opencode_local')).toBe(false);
+    expect(defaultModelOf('executor-2', SETTINGS)).toBe('claude-sonnet-5-5');
   });
 
   it('CODEX_HOME của agent: đường tuyệt đối trên server, ngoài cây companies/<id>', () => {
@@ -224,6 +227,7 @@ describe('ô runtime Codex/OpenCode', () => {
 
   it('body tạo agent Codex: wrapper codex, effort, bỏ sandbox, CODEX_HOME, không OPENAI_API_KEY', () => {
     const body = crewAgentCreateBody({
+      settings: SETTINGS,
       name: 'demo-executor-codex',
       slot: 'executor-codex',
       model: 'gpt-6-luna',
@@ -250,6 +254,7 @@ describe('ô runtime Codex/OpenCode', () => {
 
   it('reviewer Codex chạy gpt-6-sol, effort high', () => {
     const body = crewAgentCreateBody({
+      settings: SETTINGS,
       name: 'r',
       slot: 'reviewer-codex',
       model: 'gpt-6-sol',
@@ -258,12 +263,20 @@ describe('ô runtime Codex/OpenCode', () => {
     });
     expect(body.adapterConfig).toMatchObject({ model: 'gpt-6-sol', modelReasoningEffort: 'high' });
     expect(() =>
-      crewAgentCreateBody({ name: 'r', slot: 'reviewer-codex', model: 'gpt-6-luna', pinDir: PIN, projectKey: 'demo' }),
+      crewAgentCreateBody({
+        settings: SETTINGS,
+        name: 'r',
+        slot: 'reviewer-codex',
+        model: 'gpt-6-luna',
+        pinDir: PIN,
+        projectKey: 'demo',
+      }),
     ).toThrow('Model gpt-6-luna không nằm trong danh sách model Crew');
   });
 
   it('body tạo agent OpenCode: wrapper opencode, model opencode-go, env rỗng, không effort', () => {
     const body = crewAgentCreateBody({
+      settings: SETTINGS,
       name: 'o',
       slot: 'executor-opencode',
       model: 'opencode-go/glm-5.3',
@@ -287,6 +300,7 @@ describe('ô runtime Codex/OpenCode', () => {
     expect(createAgentSchema.parse(body).adapterConfig).toEqual(body.adapterConfig);
     expect(() =>
       crewAgentCreateBody({
+        settings: SETTINGS,
         name: 'o',
         slot: 'executor-opencode',
         model: 'claude-sonnet-5-5',
@@ -297,8 +311,16 @@ describe('ô runtime Codex/OpenCode', () => {
   });
 
   it('ô Claude gọi theo slot cho cùng body như theo role', () => {
-    expect(crewAgentCreateBody({ name: 'a', slot: 'executor-2', model: 'claude-sonnet-5-5', pinDir: PIN })).toEqual(
-      crewAgentCreateBody({ name: 'a', role: 'executor', model: 'claude-sonnet-5-5', pinDir: PIN }),
+    expect(
+      crewAgentCreateBody({
+        settings: SETTINGS,
+        name: 'a',
+        slot: 'executor-2',
+        model: 'claude-sonnet-5-5',
+        pinDir: PIN,
+      }),
+    ).toEqual(
+      crewAgentCreateBody({ settings: SETTINGS, name: 'a', role: 'executor', model: 'claude-sonnet-5-5', pinDir: PIN }),
     );
   });
 });

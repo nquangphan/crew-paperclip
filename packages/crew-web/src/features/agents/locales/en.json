@@ -113,7 +113,8 @@
     "choose": "Choose a model",
     "save": "Save model",
     "outside": "The current model ({{model}}) is not in the Crew model table.",
-    "fixed": "The Codex reviewer runs the fixed model gpt-6-sol with high effort."
+    "fixed": "The Codex reviewer runs the fixed model {{model}} with {{effort}} effort.",
+    "loadFailed": "Could not load the model settings"
   },
   "runs": {
     "loadFailed": "Could not load runs",

@@ -67,6 +67,7 @@ export interface AddAgentApi {
     update(id: string, body: Record<string, unknown>, companyId?: string): Promise<unknown>;
   };
   machinePins: AddProjectApi['machinePins'];
+  modelSettings: AddProjectApi['modelSettings'];
   roles: {
     get(companyId: string, projectId: string): Promise<ProjectRoles | null>;
     set(companyId: string, projectId: string, roles: ProjectRoles): Promise<unknown>;
@@ -200,10 +201,6 @@ function adapterFix(slot: CrewRoleSlot, pinDir: string, projectKey: string): Rec
     extraArgs: _extraArgs,
     ...rest
   } = crewRuntimeConfigOf(slot, pinDir, projectKey) as Record<string, unknown>;
-  if (runtimeOfSlot(slot) === 'codex_local') {
-    const { modelReasoningEffort: _effort, ...codex } = rest;
-    return codex;
-  }
   return rest;
 }
 
@@ -229,13 +226,19 @@ const STEPS: Record<AddAgentStepId, StepWork> = {
       // Response tạo agent bị mất ở lần trước: agent cùng tên tạo sau khi run bắt đầu là của run này.
       const lost = same.find((a) => isTime(a.createdAt) >= isTime(run.createdAt));
       if (!lost && same.length > 0) throw new StepError('errors.agentNameTaken', { name });
-      agentId =
-        lost?.id ??
-        (
-          await api.agents.create(companyId, {
-            ...crewAgentCreateBody({ name, slot: input.slot, model: input.model, pinDir, projectKey: run.projectKey }),
-          })
-        ).id;
+      if (lost) agentId = lost.id;
+      else {
+        const { settings } = await api.modelSettings.get();
+        const body = crewAgentCreateBody({
+          name,
+          slot: input.slot,
+          model: input.model,
+          settings,
+          pinDir,
+          projectKey: run.projectKey,
+        });
+        agentId = (await api.agents.create(companyId, { ...body })).id;
+      }
       refs.agent = agentId;
       refs.created = 'true';
     } else {

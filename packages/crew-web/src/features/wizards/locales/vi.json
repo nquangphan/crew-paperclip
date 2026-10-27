@@ -79,7 +79,7 @@
       "folderAskFailed": "Không hỏi được máy repo gốc của checkout {{path}} (app 2P Crew trên máy chưa mở?): nhập folder.",
       "submit": "Bắt đầu",
       "createFailed": "Không bắt đầu được",
-      "modelFixed": "Reviewer Codex chạy model cố định gpt-6-sol, effort high.",
+      "modelFixed": "Reviewer Codex chạy model cố định {{model}}, effort {{effort}}.",
       "runtimeHint": "Agent chạy runtime {{runtime}} trên máy. Bật runtime ở trang Máy trước khi giao việc.",
       "modelHintRuntime": "Model mặc định của agent, trong danh sách model của runtime {{runtime}}."
     },

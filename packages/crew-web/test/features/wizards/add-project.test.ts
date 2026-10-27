@@ -288,21 +288,23 @@ describe('runAddProject', () => {
     };
     await runAddProject(ctxOf(f.api), f.state.run);
     expect(selected).toBe('c-other');
-    const companyArgs = f.calls.flatMap((c) => {
-      if (
-        [
-          'agents.pause',
-          'agents.resume',
-          'agents.instructionsFile',
-          'agents.saveInstructionsFile',
-          'agents.setPermissions',
-        ].includes(c.fn)
-      ) {
-        return [c.args[c.args.length - 1]];
-      }
-      if (c.fn === 'jobs.create') return [(c.args[0] as { companyId: string }).companyId];
-      return [c.args[0]];
-    });
+    const companyArgs = f.calls
+      .filter((c) => c.fn !== 'modelSettings.get')
+      .flatMap((c) => {
+        if (
+          [
+            'agents.pause',
+            'agents.resume',
+            'agents.instructionsFile',
+            'agents.saveInstructionsFile',
+            'agents.setPermissions',
+          ].includes(c.fn)
+        ) {
+          return [c.args[c.args.length - 1]];
+        }
+        if (c.fn === 'jobs.create') return [(c.args[0] as { companyId: string }).companyId];
+        return [c.args[0]];
+      });
     expect(new Set(companyArgs)).toEqual(new Set([COMPANY]));
   });
 

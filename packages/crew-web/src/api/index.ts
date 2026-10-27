@@ -5,6 +5,7 @@ import { forceDoneApi } from './crew/force-done';
 import { jobsApi } from './crew/jobs';
 import { machinePinsApi } from './crew/machine-pins';
 import { machinesApi } from './crew/machines';
+import { modelSettingsApi } from './crew/model-settings';
 import { projectAccessApi } from './crew/project-access';
 import { qcApi } from './crew/qc';
 import { rolesApi } from './crew/roles';
@@ -67,6 +68,7 @@ export const api = {
   contributions: contributionsApi,
   qc: qcApi,
   projectAccess: projectAccessApi,
+  modelSettings: modelSettingsApi,
   machinePins: machinePinsApi,
   members: membersApi,
   invites: invitesApi,
@@ -75,6 +77,8 @@ export const api = {
 
 export type Api = typeof api;
 export { CREW_DATA_KEYS, type CrewDataKey } from './crew/data';
+export type * from './crew/model-settings';
+export { modelSettingsErrorOf } from './crew/model-settings';
 export type * from './crew/types';
 export { ENDPOINTS, type EndpointKey } from './endpoints';
 export { ApiError } from './http';

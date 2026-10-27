@@ -6,10 +6,11 @@ import { createHmac, randomUUID } from 'node:crypto';
 import { mkdirSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
-import { crewAgentCreateBody } from '../../src/lib/instructions/agent-config';
+import { crewAgentCreateBody, defaultModelOf } from '../../src/lib/instructions/agent-config';
 import type { Api } from '../support/api';
 import { uniqueToken } from '../support/data';
 import { expect, test } from '../support/fixtures';
+import { loadModelSettings } from '../support/model-settings';
 
 const PLUGIN = '/api/plugins/crew.core';
 const FINGERPRINT = `SHA256:${'A'.repeat(43)}`;
@@ -113,13 +114,21 @@ test('PW-S13-AUTOFILL Tạo agent: máy và folder repo tự điền từ agent 
     const project = await api.post<{ id: string }>(`/api/companies/${company.id}/projects`, { name: `E2E ${key}` });
     created.project = project.id;
     const ids: Record<string, string> = {};
+    const settings = await loadModelSettings(api);
     for (const role of ROLES) {
       const env = await sshEnv(`${key}-${role}`, checkout(role));
       created.envs.push(env.id);
       const name = `${key}-${role}`;
       const agent = await api.post<{ id: string }>(
         `/api/companies/${company.id}/agents`,
-        crewAgentCreateBody({ name, role, model: 'claude-sonnet-5-5', pinDir: PIN, environmentId: env.id }),
+        crewAgentCreateBody({
+          name,
+          role,
+          model: defaultModelOf(role, settings),
+          settings,
+          pinDir: PIN,
+          environmentId: env.id,
+        }),
       );
       created.agents.push(agent.id);
       ids[role] = agent.id;

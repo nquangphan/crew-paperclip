@@ -3,8 +3,9 @@ import { cleanup, fireEvent, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { ModelSelect } from '@/features/agents/detail/model-select';
 import { initI18n, setLanguage } from '@/i18n';
-import { CREW_MODELS } from '@/lib/instructions';
+import { crewModelsOf } from '@/lib/instructions';
 import { mockServer } from '../../app/fetch-mock';
+import { SETTINGS } from '../../lib/instructions/__fixtures__/model-settings';
 import { agent, ID, ROLES, renderWith } from './helpers';
 
 beforeAll(async () => {
@@ -16,18 +17,26 @@ beforeAll(async () => {
 });
 afterEach(cleanup);
 
+/** Ô chọn model, sau khi bảng cài đặt model đã tải xong (trước đó ô tắt). */
+async function openable() {
+  const box = (await screen.findByRole('combobox', { name: 'Model mặc định' })) as HTMLButtonElement;
+  await waitFor(() => expect(box.disabled).toBe(false));
+  return box;
+}
+
 describe('ModelSelect', () => {
-  it('chỉ liệt kê CREW_MODELS', () => {
+  it('chỉ liệt kê catalog Claude của bảng cài đặt model', async () => {
     mockServer({});
     renderWith(<ModelSelect agent={agent() as never} companyId="c-tps" />);
-    fireEvent.keyDown(screen.getByRole('combobox', { name: 'Model mặc định' }), { key: 'Enter' });
+    fireEvent.keyDown(await openable(), { key: 'Enter' });
     const names = screen.getAllByRole('option').map((o) => o.textContent);
-    expect(names.sort()).toEqual([...CREW_MODELS].sort());
+    expect(names).toEqual(crewModelsOf('claude_local', SETTINGS));
   });
 
-  it('chưa đổi thì Lưu tắt', () => {
+  it('chưa đổi thì Lưu tắt', async () => {
     mockServer({});
     renderWith(<ModelSelect agent={agent() as never} companyId="c-tps" />);
+    await screen.findByRole('combobox', { name: 'Model mặc định' });
     expect((screen.getByRole('button', { name: 'Lưu model' }) as HTMLButtonElement).disabled).toBe(true);
   });
 
@@ -39,7 +48,7 @@ describe('ModelSelect', () => {
     });
     const onSaved = vi.fn();
     renderWith(<ModelSelect agent={agent() as never} companyId="c-tps" onSaved={onSaved} />);
-    fireEvent.keyDown(screen.getByRole('combobox', { name: 'Model mặc định' }), { key: 'Enter' });
+    fireEvent.keyDown(await openable(), { key: 'Enter' });
     fireEvent.click(screen.getByRole('option', { name: 'claude-opus-5-5' }));
     fireEvent.click(screen.getByRole('button', { name: 'Lưu model' }));
     await waitFor(() => expect(onSaved).toHaveBeenCalled());
@@ -57,13 +66,13 @@ describe('ModelSelect', () => {
       },
     });
     renderWith(<ModelSelect agent={agent() as never} companyId="c-tps" />);
-    fireEvent.keyDown(screen.getByRole('combobox', { name: 'Model mặc định' }), { key: 'Enter' });
+    fireEvent.keyDown(await openable(), { key: 'Enter' });
     fireEvent.click(screen.getByRole('option', { name: 'claude-opus-5-5' }));
     fireEvent.click(screen.getByRole('button', { name: 'Lưu model' }));
     expect(await screen.findByText('Model bị từ chối')).toBeTruthy();
   });
 
-  it('agent Codex: chỉ model Codex; agent OpenCode: chỉ model OpenCode', () => {
+  it('agent Codex: chỉ model Codex; agent OpenCode: chỉ model OpenCode', async () => {
     mockServer({});
     renderWith(
       <ModelSelect
@@ -71,7 +80,7 @@ describe('ModelSelect', () => {
         companyId="c-tps"
       />,
     );
-    fireEvent.keyDown(screen.getByRole('combobox', { name: 'Model mặc định' }), { key: 'Enter' });
+    fireEvent.keyDown(await openable(), { key: 'Enter' });
     expect(screen.getAllByRole('option').map((o) => o.textContent)).toEqual(['gpt-6-luna', 'gpt-6-sol']);
     cleanup();
     renderWith(
@@ -80,7 +89,7 @@ describe('ModelSelect', () => {
         companyId="c-tps"
       />,
     );
-    fireEvent.keyDown(screen.getByRole('combobox', { name: 'Model mặc định' }), { key: 'Enter' });
+    fireEvent.keyDown(await openable(), { key: 'Enter' });
     expect(screen.getAllByRole('option').map((o) => o.textContent)).toEqual([
       'opencode-go/deepseek-v4-flash',
       'opencode-go/kimi-k3',
@@ -88,7 +97,7 @@ describe('ModelSelect', () => {
     ]);
   });
 
-  it('model Claude trên agent Codex là ngoài bảng của runtime', () => {
+  it('model Claude trên agent Codex là ngoài bảng của runtime', async () => {
     mockServer({});
     renderWith(
       <ModelSelect
@@ -96,7 +105,7 @@ describe('ModelSelect', () => {
         companyId="c-tps"
       />,
     );
-    expect(screen.getByText('Model hiện tại (claude-sonnet-5-5) không nằm trong bảng model Crew.')).toBeTruthy();
+    expect(await screen.findByText('Model hiện tại (claude-sonnet-5-5) không nằm trong bảng model Crew.')).toBeTruthy();
   });
 
   it('reviewer Codex của project: model cố định, không đổi được', async () => {

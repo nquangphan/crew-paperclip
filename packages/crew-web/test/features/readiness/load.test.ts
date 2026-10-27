@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { loadProjectReadiness, type ReadinessSource } from '@/features/readiness';
 import { matchesAssistantTemplate } from '@/features/readiness/assistant-instructions';
 import { crewAgentCreateBody, renderAssistantFor, renderInstructions } from '@/lib/instructions';
+import { SETTINGS } from '../../lib/instructions/__fixtures__/model-settings';
 
 const C = 'c0000000-0000-4000-8000-000000000000';
 const HOME = '/Users/owner';
@@ -273,7 +274,14 @@ describe('ô runtime trong vai trò project', () => {
     });
     const list = src.agents.list;
     const codexAgent = (id: string, slot: 'executor-codex' | 'reviewer-codex') => {
-      const body = crewAgentCreateBody({ name: id, slot, model: 'gpt-6-sol', pinDir: PIN, projectKey: 'demo' });
+      const body = crewAgentCreateBody({
+        settings: SETTINGS,
+        name: id,
+        slot,
+        model: 'gpt-6-sol',
+        pinDir: PIN,
+        projectKey: 'demo',
+      });
       return agent(id, `env-${slot}`, { adapterType: body.adapterType, adapterConfig: body.adapterConfig });
     };
     src.agents.list = async (c) => [

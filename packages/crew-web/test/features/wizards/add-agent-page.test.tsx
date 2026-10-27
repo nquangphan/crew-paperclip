@@ -6,6 +6,7 @@ import { AddAgentPage } from '@/features/wizards/add-agent/add-agent-page';
 import { initI18n, setLanguage } from '@/i18n';
 import { crewAgentCreateBody } from '@/lib/instructions';
 import { mockServer } from '../../app/fetch-mock';
+import { SETTINGS, SETTINGS_VIEW } from '../../lib/instructions/__fixtures__/model-settings';
 import { data, ID, ROLES, renderPage } from '../projects/helpers';
 
 beforeAll(async () => {
@@ -42,7 +43,7 @@ const PROJECT_RUN = {
   updatedAt: 'x',
 };
 const agent = (id: string, name: string, role: 'assistant' | 'executor' | 'reviewer' | 'integrator') => ({
-  ...crewAgentCreateBody({ name, role, model: 'claude-sonnet-5-5', pinDir: PIN }),
+  ...crewAgentCreateBody({ settings: SETTINGS, name, role, model: 'claude-sonnet-5-5', pinDir: PIN }),
   id,
   status: 'idle',
   defaultEnvironmentId: `env-${name}`,
@@ -97,6 +98,42 @@ const mount = (at: string) => renderPage(<AddAgentPage />, { route: 'agents/new'
 const field = (label: string) => screen.getByLabelText(label) as HTMLInputElement;
 
 describe('AddAgentPage', () => {
+  it('chưa tải xong bảng model thì chưa có nút tạo; tải lỗi thì hiện ErrorState có Thử lại', async () => {
+    let settle: (() => void) | undefined;
+    const gate = new Promise<void>((resolve) => {
+      settle = resolve;
+    });
+    const { fetchMock } = server({});
+    const base = fetchMock.getMockImplementation() as (input: string, init?: RequestInit) => Promise<Response>;
+    fetchMock.mockImplementation(async (input: string, init?: RequestInit) => {
+      if (input === '/api/crew/model-settings') {
+        await gate;
+        return new Response(JSON.stringify({ error: 'Plugin chưa sẵn sàng' }), { status: 503 });
+      }
+      return base(input, init);
+    });
+    mount('/TPS/agents/new?project=p1&slot=executor-2');
+    await screen.findByRole('status');
+    expect(screen.queryByRole('button', { name: 'Bắt đầu' })).toBeNull();
+    settle?.();
+    expect(await screen.findByText('Plugin chưa sẵn sàng')).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Thử lại' })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Bắt đầu' })).toBeNull();
+  });
+
+  it('model mặc định và danh sách của ô theo bảng cài đặt model, reviewer Codex hiện model và effort của vai', async () => {
+    const custom = structuredClone(SETTINGS);
+    custom.catalog.codex_local.models = { 'gpt-next': { vision: true }, 'gpt-other': { vision: true } };
+    custom.roles['reviewer-codex'] = { model: 'gpt-next', effort: 'low' };
+    custom.roles['executor-codex'] = { model: 'gpt-other', effort: 'medium' };
+    server({ 'GET /api/crew/model-settings': { body: { ...SETTINGS_VIEW, settings: custom } } });
+    mount('/TPS/agents/new?project=p1&slot=reviewer-codex');
+    expect(await screen.findByText('Reviewer Codex chạy model cố định gpt-next, effort low.')).toBeTruthy();
+    cleanup();
+    mount('/TPS/agents/new?project=p1&slot=executor-codex');
+    await waitFor(() => expect(screen.getByRole('combobox', { name: 'Model' }).textContent).toBe('gpt-other'));
+  });
+
   it('?project=&slot= điền sẵn khóa, folder, máy từ lần thêm project; Bắt đầu tạo setup run add-agent rồi chạy', async () => {
     const { calls } = server({
       [`POST ${PLUGIN}/setup-runs`]: { status: 201, body: { ...AGENT_RUN, steps: {}, status: 'running' } },

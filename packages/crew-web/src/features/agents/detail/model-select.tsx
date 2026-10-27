@@ -1,14 +1,16 @@
-// Đổi model mặc định của agent (S11.5): chỉ chọn trong bảng model của runtime agent chạy (claude_local, codex_local,
-// opencode_local; bản chép CREW_RUNTIME_MODELS). Reviewer Codex chạy model cố định nên không đổi được. PATCH merge
+// Đổi model mặc định của agent (S11.5): chỉ chọn trong catalog model của runtime agent chạy (claude_local, codex_local,
+// opencode_local) theo bảng Cài đặt model của owner. Reviewer Codex chạy model cố định (vai `reviewer-codex`) nên không
+// đổi được. PATCH merge
 // adapterConfig, không gửi replaceAdapterConfig và không gửi khóa nào khác ngoài `model` (command/extraArgs/env giữ
 // nguyên ở server).
 import type { Agent } from '@paperclipai/shared';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { api } from '@/api';
-import { Button, Field, Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/ds';
+import { Button, ErrorState, Field, Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/ds';
+import { useModelSettings } from '@/features/model-settings';
 import { useT } from '@/i18n';
-import { CREW_CODEX_REVIEWER_MODEL, type CrewRuntime, crewModelsOf } from '@/lib/instructions';
+import { type CrewRuntime, crewModelsOf, slotModels } from '@/lib/instructions';
 import { useAgentHoldings } from '../use-agent-roles';
 
 const RUNTIMES = new Set<string>(['claude_local', 'codex_local', 'opencode_local']);
@@ -27,7 +29,9 @@ export function ModelSelect({ agent, companyId, onSaved }: ModelSelectProps) {
     ? (agent.adapterType as CrewRuntime)
     : 'claude_local';
   const fixed = (byAgent.get(agent.id) ?? []).some((h) => h.slot === 'reviewer-codex');
-  const models = fixed ? [CREW_CODEX_REVIEWER_MODEL.model] : crewModelsOf(runtime);
+  const settings = useModelSettings();
+  const table = settings.data?.settings;
+  const models = table ? (fixed ? slotModels('reviewer-codex', table) : crewModelsOf(runtime, table)) : [];
   const current = typeof agent.adapterConfig.model === 'string' ? agent.adapterConfig.model : '';
   const [picked, setValue] = useState<string | null>(null);
   const value = picked !== null && models.includes(picked) ? picked : models.includes(current) ? current : '';
@@ -41,6 +45,17 @@ export function ModelSelect({ agent, companyId, onSaved }: ModelSelectProps) {
     },
   });
   const dirty = value !== '' && value !== current;
+  if (settings.error) {
+    return (
+      <ErrorState
+        title={t('model.loadFailed')}
+        message={settings.error.message}
+        retryLabel={t('common:action.retry')}
+        onRetry={() => void settings.refetch()}
+      />
+    );
+  }
+  const reviewer = table?.roles['reviewer-codex'];
   return (
     <form
       className="flex items-end gap-2"
@@ -56,12 +71,12 @@ export function ModelSelect({ agent, companyId, onSaved }: ModelSelectProps) {
           current !== '' && !models.includes(current)
             ? t('model.outside', { model: current })
             : fixed
-              ? t('model.fixed')
+              ? t('model.fixed', { model: reviewer?.model ?? '', effort: reviewer?.effort ?? '' })
               : undefined
         }
         error={save.error?.message}
       >
-        <Select value={value} onValueChange={setValue} disabled={fixed && current === CREW_CODEX_REVIEWER_MODEL.model}>
+        <Select value={value} onValueChange={setValue} disabled={!table || (fixed && current === reviewer?.model)}>
           <SelectTrigger id="agent-model">
             <SelectValue placeholder={t('model.choose')} />
           </SelectTrigger>
@@ -74,7 +89,7 @@ export function ModelSelect({ agent, companyId, onSaved }: ModelSelectProps) {
           </SelectContent>
         </Select>
       </Field>
-      <Button type="submit" disabled={!dirty || save.isPending}>
+      <Button type="submit" disabled={!table || !dirty || save.isPending}>
         {t('model.save')}
       </Button>
     </form>

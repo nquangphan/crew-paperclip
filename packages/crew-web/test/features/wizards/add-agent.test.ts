@@ -11,6 +11,7 @@ import {
   renderAssistantFor,
   renderInstructions,
 } from '@/lib/instructions';
+import { SETTINGS } from '../../lib/instructions/__fixtures__/model-settings';
 import { COMPANY, type FakeAgent, fakeApi, type JobOutcome, PIN, TEMPLATE_ENV } from './fake-api';
 
 const t = (key: string, params?: Record<string, unknown>) => (params ? `${key} ${JSON.stringify(params)}` : key);
@@ -33,6 +34,7 @@ const PROJECT = 'p0000000-0000-4000-8000-000000000001';
 
 function existing(id: string, name: string, role: 'assistant' | 'executor' | 'reviewer' | 'integrator'): FakeAgent {
   const body = crewAgentCreateBody({
+    settings: SETTINGS,
     name,
     role,
     model: 'claude-sonnet-5-5',
@@ -69,7 +71,7 @@ function addAgentRun(slot: CrewRoleSlot, over: Partial<SetupRun> = {}) {
       projectId: PROJECT,
       slot,
       name: `demo-${slot}-moi`,
-      model: isRuntimeSlot(slot) ? defaultModelOf(slot) : 'claude-sonnet-5-5',
+      model: isRuntimeSlot(slot) ? defaultModelOf(slot, SETTINGS) : 'claude-sonnet-5-5',
     },
     steps: {},
     status: 'running',
@@ -120,7 +122,13 @@ describe('runAddAgent', () => {
     const create = f.calls.find((c) => c.fn === 'agents.create');
     expect(create?.args).toEqual([
       COMPANY,
-      crewAgentCreateBody({ name: 'demo-executor-2-moi', role: 'executor', model: 'claude-sonnet-5-5', pinDir: PIN }),
+      crewAgentCreateBody({
+        settings: SETTINGS,
+        name: 'demo-executor-2-moi',
+        role: 'executor',
+        model: 'claude-sonnet-5-5',
+        pinDir: PIN,
+      }),
     ]);
     expect(f.calls.find((c) => c.fn === 'agents.setPermissions')?.args).toEqual([
       newId,
@@ -503,6 +511,7 @@ describe('ô runtime Codex/OpenCode', () => {
     expect(f.calls.find((c) => c.fn === 'agents.create')?.args).toEqual([
       COMPANY,
       crewAgentCreateBody({
+        settings: SETTINGS,
         name: 'demo-executor-codex-moi',
         slot: 'executor-codex',
         model: 'gpt-6-luna',
@@ -637,6 +646,7 @@ describe('ô runtime Codex/OpenCode', () => {
       }),
     );
     const body = crewAgentCreateBody({
+      settings: SETTINGS,
       name: 'demo-codex',
       slot: 'executor-codex',
       model: 'gpt-6-luna',

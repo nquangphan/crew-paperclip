@@ -79,7 +79,7 @@
       "folderAskFailed": "Could not ask the machine for the main repo of the checkout {{path}} (is the 2P Crew app open on the Mac?): enter the folder.",
       "submit": "Start",
       "createFailed": "Could not start",
-      "modelFixed": "The Codex reviewer runs the fixed model gpt-6-sol with high effort.",
+      "modelFixed": "The Codex reviewer runs the fixed model {{model}} with {{effort}} effort.",
       "runtimeHint": "The agent runs {{runtime}} on the machine. Turn the runtime on in the Machines page before assigning work.",
       "modelHintRuntime": "Default model of the agent, from the {{runtime}} model list."
     },

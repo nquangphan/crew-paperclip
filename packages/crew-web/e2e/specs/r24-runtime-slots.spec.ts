@@ -3,10 +3,11 @@
 // runtime chỉ liệt kê model của runtime đó, reviewer Codex có model cố định.
 // Dựng project và agent bằng API board (không cần Mac: không chạy run, không dựng checkout), nên chỉ chạy ở T1 (stack
 // cục bộ) để không để lại agent thử trên prod.
-import { crewAgentCreateBody } from '../../src/lib/instructions/agent-config';
+import { crewAgentCreateBody, defaultModelOf } from '../../src/lib/instructions/agent-config';
 import type { Api } from '../support/api';
 import { uniqueToken } from '../support/data';
 import { expect, test } from '../support/fixtures';
+import { loadModelSettings } from '../support/model-settings';
 
 const PIN = '/Users/e2e/.crew/workflows/superpowers/1.0.0';
 
@@ -20,6 +21,7 @@ interface Created {
 
 async function setupProject(api: Api, companyId: string): Promise<Created> {
   const token = uniqueToken('');
+  const settings = await loadModelSettings(api);
   const project = await api.post<{ id: string }>(`/api/companies/${companyId}/projects`, {
     name: `E2E runtime ${token}`,
   });
@@ -29,7 +31,10 @@ async function setupProject(api: Api, companyId: string): Promise<Created> {
   };
   const claude = (role: 'assistant' | 'executor' | 'reviewer' | 'integrator') => {
     const name = `e2e-rt-${token}-${role}`;
-    return make(name, crewAgentCreateBody({ name, role, model: 'claude-sonnet-5-5', pinDir: PIN }));
+    return make(
+      name,
+      crewAgentCreateBody({ name, role, model: defaultModelOf(role, settings), settings, pinDir: PIN }),
+    );
   };
   const codexName = `e2e-rt-${token}-executor-codex`;
   const opencodeName = `e2e-rt-${token}-executor-opencode`;
@@ -45,7 +50,8 @@ async function setupProject(api: Api, companyId: string): Promise<Created> {
         crewAgentCreateBody({
           name: codexName,
           slot: 'executor-codex',
-          model: 'gpt-6-luna',
+          model: defaultModelOf('executor-codex', settings),
+          settings,
           pinDir: PIN,
           projectKey: 'e2e-rt',
         }),
@@ -55,7 +61,8 @@ async function setupProject(api: Api, companyId: string): Promise<Created> {
         crewAgentCreateBody({
           name: opencodeName,
           slot: 'executor-opencode',
-          model: 'opencode-go/kimi-k3',
+          model: defaultModelOf('executor-opencode', settings),
+          settings,
           pinDir: PIN,
         }),
       ),

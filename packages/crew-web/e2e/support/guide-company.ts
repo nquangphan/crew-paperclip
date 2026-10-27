@@ -16,12 +16,13 @@ import {
   CREW_AGENT_PERMISSIONS,
   type CrewRoleSlot,
   crewAgentCreateBody,
-  ROLE_MODELS,
+  defaultModelOf,
   roleOfSlot,
 } from '../../src/lib/instructions/agent-config';
 import type { Api } from './api';
 import { isProd } from './env';
 import type { E2eCompany } from './fixtures';
+import { loadModelSettings } from './model-settings';
 
 export const GUIDE_COMPANY_NAME = '2P Demo';
 const PLUGIN = '/api/plugins/crew.core';
@@ -333,6 +334,7 @@ async function ensureProject(
     `/api/companies/${companyId}/agents`,
   );
   const ids: Partial<Record<CrewRoleSlot, string>> = {};
+  const settings = await loadModelSettings(owner);
   for (const slot of slotsOf(spec)) {
     const name = `${spec.key}-${slot}`;
     const environmentId = await ensureEnvironment(owner, companyId, {
@@ -347,8 +349,14 @@ async function ensureProject(
       ids[slot] = found.id;
       continue;
     }
-    const role = roleOfSlot(slot);
-    const body = crewAgentCreateBody({ name, slot, model: ROLE_MODELS[role], pinDir: PIN_DIR, environmentId });
+    const body = crewAgentCreateBody({
+      name,
+      slot,
+      model: defaultModelOf(slot, settings),
+      settings,
+      pinDir: PIN_DIR,
+      environmentId,
+    });
     // Agent mẫu không bao giờ chạy: tắt đánh thức theo yêu cầu (giao việc, bình luận) để không có run lỗi.
     const created = await owner.post<{ id: string }>(`/api/companies/${companyId}/agents`, {
       ...body,

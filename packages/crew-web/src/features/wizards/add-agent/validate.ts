@@ -1,4 +1,5 @@
 // Kiểm form bước 1 của wizard tạo agent. Trả khóa dịch (namespace wizards), nơi hiện lỗi tự dịch.
+import type { ModelSettings } from '@/api';
 import { type CrewRoleSlot, isCrewModel, slotModels } from '@/lib/instructions';
 import { isSafeFolder, projectKeyError } from '../add-project/validate';
 import { ROLE_SLOTS } from './steps';
@@ -25,6 +26,8 @@ export interface ValidateAgentContext {
   agents: readonly { name: string; status: string }[];
   /** Chế độ sửa agent có sẵn: không kiểm tên. */
   fix: boolean;
+  /** Bảng cài đặt model hiện hành: danh sách model hợp lệ của ô. */
+  settings: ModelSettings;
 }
 
 export function validateAddAgent(form: AddAgentForm, ctx: ValidateAgentContext): AddAgentFormErrors {
@@ -39,7 +42,9 @@ export function validateAddAgent(form: AddAgentForm, ctx: ValidateAgentContext):
       errors.name = 'validate.agentNameTaken';
   }
   // Model theo runtime của ô (reviewer Codex chỉ model cố định); ô lạ thì kiểm theo model Claude.
-  const modelOk = slotOk ? slotModels(form.slot as CrewRoleSlot).includes(form.model) : isCrewModel(form.model);
+  const modelOk = slotOk
+    ? slotModels(form.slot as CrewRoleSlot, ctx.settings).includes(form.model)
+    : isCrewModel(form.model, ctx.settings);
   if (!modelOk) errors.model = 'validate.model';
   if (form.machineId === '') errors.machineId = 'validate.machine';
   const keyError = projectKeyError(form.key, ctx.companyName);

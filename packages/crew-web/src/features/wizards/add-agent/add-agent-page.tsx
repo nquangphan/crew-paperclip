@@ -35,10 +35,11 @@ import {
   Spinner,
 } from '@/ds';
 import { useVisibleProjects } from '@/features/access';
+import { useModelSettings } from '@/features/model-settings';
 import { useT } from '@/i18n';
 import {
   agentOfSlot,
-  CREW_MODELS,
+  crewModelsOf,
   defaultModelOf,
   isRuntimeSlot,
   runtimeOfSlot,
@@ -116,6 +117,8 @@ function AddAgentFormView({
     select: visible.filterProjects,
   });
   const agents = useQuery({ queryKey: queryKeys.agents(company.id), queryFn: () => api.agents.list(company.id) });
+  const modelSettings = useModelSettings();
+  const settings = modelSettings.data?.settings;
   const environments = useQuery({
     queryKey: queryKeys.environments(company.id),
     queryFn: () => api.environments.list(company.id),
@@ -235,13 +238,17 @@ function AddAgentFormView({
   })();
   // Model theo runtime của ô: chọn ô khác thì model đã chọn (của runtime cũ) bỏ, về mặc định của ô.
   const knownSlot = (ROLE_SLOTS as readonly string[]).includes(slot) ? (slot as CrewRoleSlot) : null;
-  const models: readonly string[] = knownSlot ? slotModels(knownSlot) : CREW_MODELS;
+  const models: readonly string[] = !settings
+    ? []
+    : knownSlot
+      ? slotModels(knownSlot, settings)
+      : crewModelsOf('claude_local', settings);
   const agentModel = fixAgent?.adapterConfig.model;
   const derivedModel =
     typeof agentModel === 'string' && models.includes(agentModel)
       ? agentModel
-      : knownSlot
-        ? defaultModelOf(knownSlot)
+      : knownSlot && settings
+        ? defaultModelOf(knownSlot, settings)
         : '';
   const chosenModel =
     overrides.model !== undefined && models.includes(overrides.model) ? overrides.model : derivedModel;
@@ -281,7 +288,13 @@ function AddAgentFormView({
 
   const submit = (event: FormEvent) => {
     event.preventDefault();
-    const found = validateAddAgent(form, { companyName: company.name, agents: agents.data ?? [], fix: fix !== null });
+    if (!settings) return;
+    const found = validateAddAgent(form, {
+      companyName: company.name,
+      agents: agents.data ?? [],
+      fix: fix !== null,
+      settings,
+    });
     if (projectId && projectRoles === null) found.projectId = 'validate.projectNoRoles';
     setErrors(found);
     if (Object.keys(found).length > 0) return;
@@ -293,7 +306,7 @@ function AddAgentFormView({
     });
   };
 
-  const queries = [machines, projects, agents, environments, setupRuns, roles];
+  const queries = [machines, projects, agents, environments, setupRuns, roles, modelSettings];
   const failed = queries.find((q) => q.error);
   if (failed?.error) {
     return (
@@ -316,6 +329,7 @@ function AddAgentFormView({
   }
 
   const err = (field: keyof AddAgentForm) => (errors[field] ? t(errors[field]) : undefined);
+  const reviewerCodex = settings?.roles['reviewer-codex'];
   const holder = holderOf(projectRoles, slot);
   const holderName = holder ? (agents.data?.find((a) => a.id === holder)?.name ?? holder) : null;
   const holderHint = !slot
@@ -400,7 +414,10 @@ function AddAgentFormView({
                 htmlFor="add-agent-model"
                 hint={
                   knownSlot === 'reviewer-codex'
-                    ? t('addAgent.form.modelFixed')
+                    ? t('addAgent.form.modelFixed', {
+                        model: reviewerCodex?.model ?? '',
+                        effort: reviewerCodex?.effort ?? '',
+                      })
                     : knownSlot && isRuntimeSlot(knownSlot)
                       ? t('addAgent.form.modelHintRuntime', { runtime: runtimeOfSlot(knownSlot) })
                       : t('addAgent.form.modelHint')

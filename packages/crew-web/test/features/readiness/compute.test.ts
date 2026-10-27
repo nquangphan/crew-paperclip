@@ -12,6 +12,7 @@ import {
 import en from '@/features/readiness/locales/en.json';
 import vi from '@/features/readiness/locales/vi.json';
 import { crewAgentCreateBody } from '@/lib/instructions';
+import { SETTINGS } from '../../lib/instructions/__fixtures__/model-settings';
 
 const HOME = '/Users/owner';
 const PIN = `${HOME}/.crew/workflows/superpowers/6.4.1-5bf4e7801107`;
@@ -435,6 +436,7 @@ describe('locale readiness', () => {
 
 describe('agent runtime Codex/OpenCode', () => {
   const codexBody = crewAgentCreateBody({
+    settings: SETTINGS,
     name: 'c',
     slot: 'executor-codex',
     model: 'gpt-6-luna',
@@ -442,6 +444,7 @@ describe('agent runtime Codex/OpenCode', () => {
     projectKey: 'demo',
   });
   const opencodeBody = crewAgentCreateBody({
+    settings: SETTINGS,
     name: 'o',
     slot: 'executor-opencode',
     model: 'opencode-go/glm-5.3',

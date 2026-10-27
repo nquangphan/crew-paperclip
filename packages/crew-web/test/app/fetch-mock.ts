@@ -1,5 +1,6 @@
 // Giả server cho test app: khớp "METHOD /đường?query" (query bỏ qua nếu khóa không có `?`).
 import { vi } from 'vitest';
+import { SETTINGS_VIEW } from '../lib/instructions/__fixtures__/model-settings';
 
 type Reply =
   | { status?: number; body?: unknown }
@@ -9,11 +10,13 @@ const isAccessRoute = (method: string, path: string) =>
   method === 'GET' && /^\/api\/crew\/companies\/[^/]+\/access$/.test(path);
 const isProjectAccessRoute = (method: string, path: string) =>
   method === 'GET' && /^\/api\/crew\/companies\/[^/]+\/project-access\/me$/.test(path);
+const isModelSettingsRoute = (method: string, path: string) => method === 'GET' && path === '/api/crew/model-settings';
 const allProjects = { body: { all: true, projectIds: [] } };
 const ownerAccess = { body: { userId: 'u1', membershipRole: 'owner', contributor: false, canApprove: true } };
 
 /**
  * Route `GET …/access` không khai thì mặc định là owner (UI không ở chế độ chỉ đọc); test vai trò khác khai `accessRoute`.
+ * Route `GET /api/crew/model-settings` không khai thì trả bảng mẫu (bản mặc định, revision 0).
  * Route `GET …/project-access/me` không khai thì mặc định thấy mọi project; test quyền xem khai `projectAccessRoute`.
  */
 export function mockServer(routes: Record<string, Reply>) {
@@ -27,7 +30,8 @@ export function mockServer(routes: Record<string, Reply>) {
       routes[`${method} ${url}`] ??
       routes[`${method} ${path}`] ??
       (isAccessRoute(method, path) ? ownerAccess : undefined) ??
-      (isProjectAccessRoute(method, path) ? allProjects : undefined);
+      (isProjectAccessRoute(method, path) ? allProjects : undefined) ??
+      (isModelSettingsRoute(method, path) ? { body: SETTINGS_VIEW } : undefined);
     if (!reply) return new Response(JSON.stringify({ error: `no mock ${method} ${url}` }), { status: 404 });
     const r = typeof reply === 'function' ? reply(init) : reply;
     return new Response(r.body === undefined ? null : JSON.stringify(r.body), { status: r.status ?? 200 });

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { type AddAgentForm, validateAddAgent } from '@/features/wizards/add-agent/validate';
+import { SETTINGS } from '../../lib/instructions/__fixtures__/model-settings';
 
 const FORM: AddAgentForm = {
   projectId: 'p1',
@@ -14,6 +15,7 @@ const ctx = (over: Partial<Parameters<typeof validateAddAgent>[1]> = {}) => ({
   companyName: '2P Solutions',
   agents: [{ name: 'demo-executor', status: 'idle' }],
   fix: false,
+  settings: SETTINGS,
   ...over,
 });
 

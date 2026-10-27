@@ -270,6 +270,12 @@ export const ENDPOINTS = {
     path: `${CREW}/projects/:projectId/machines/provision`,
   },
 
+  // Cài đặt model của owner (S18.4): router Crew của server, dùng chung toàn instance (không có :companyId).
+  // `get` cũng là nguồn model mặc định và danh sách chọn của wizard tạo agent/project (S13) và ô chọn model (S11.5).
+  'modelSettings.get': { ids: ['S18.4', 'S13.1', 'S11.5'], method: 'GET', path: '/api/crew/model-settings' },
+  'modelSettings.save': { ids: ['S18.4'], method: 'PUT', path: '/api/crew/model-settings' },
+  'modelSettings.upgrade': { ids: ['S18.4'], method: 'POST', path: '/api/crew/model-settings/upgrade' },
+
   // Thành viên (S20.8): route stock của Paperclip, chỉ owner dùng.
   'members.list': { ids: ['S20.8'], method: 'GET', path: '/api/companies/:companyId/members' },
   'members.directory': { ids: ['S20.8'], method: 'GET', path: '/api/companies/:companyId/user-directory' },
