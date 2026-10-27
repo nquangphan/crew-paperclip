@@ -399,6 +399,7 @@ File nào thuộc flow nào. Dùng `crew-docs where <file>` để tra từ dòng
 | `packages/crew-web/src/ds/widgets/status-badge.tsx` | [design-system](flows/design-system.md) (file) |
 | `packages/crew-web/src/ds/widgets/status-glyph.tsx` | [design-system](flows/design-system.md) (file) |
 | `packages/crew-web/src/ds/widgets/status-pill.tsx` | [design-system](flows/design-system.md) (file) |
+| `packages/crew-web/src/ds/widgets/summary-panel.tsx` | [design-system](flows/design-system.md) (file) |
 | `packages/crew-web/src/ds/widgets/transcript.tsx` | [design-system](flows/design-system.md) (file) |
 | `packages/crew-web/src/ds/widgets/wizard.tsx` | [design-system](flows/design-system.md) (file) |
 | `packages/crew-web/src/features/access/access-guard.tsx` | [project-access](flows/project-access.md) (điểm vào) |
