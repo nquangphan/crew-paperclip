@@ -51,7 +51,8 @@ Luật:
    `issues: [{ path, message }]`; `path` nối bằng dấu chấm, id model giữ nguyên (có thể chứa `.` hay `/`).
 3. `server/src/crew/model-settings.ts` → `loadModelSettings`, `readModelSettingsRow`: đọc dòng revision lớn nhất bằng
    `readPluginRows` (savepoint, an toàn trong `tx` của H2/H4), cache 60 giây trong process; lưu thành công ghi đè cache
-   ngay (`rememberModelSettings`). Bảng chưa có hay chưa có dòng: mặc định. Đọc lỗi hay dòng sai dạng: cache gần nhất,
+   ngay (`rememberModelSettings`; bản cũ hơn bản đang cache còn hạn thì bỏ qua, để một lần `GET` đọc trước khi lưu commit
+   không đè bản vừa lưu). Bảng chưa có hay chưa có dòng: mặc định. Đọc lỗi hay dòng sai dạng: cache gần nhất,
    chưa có thì mặc định, cảnh báo tối đa 1 lần/phút.
 4. `server/src/crew/model-settings.ts` → `codexReviewerOverrides`, `rootReviewerOverrides`: override reviewer Codex và
    reviewer gốc dựng từ `roles` và key effort của runtime; `issue-gate.ts` (`routeAssigneeOverrides`) dùng chúng, H2/H4
