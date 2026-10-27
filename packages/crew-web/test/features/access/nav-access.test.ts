@@ -8,11 +8,6 @@ const operator = { isOwner: false, isContributor: false, readOnly: false, loadin
 const loading = { isOwner: false, isContributor: false, readOnly: true, loading: true };
 
 describe('navItemVisible', () => {
-  it('Jev chỉ hiện với owner', () => {
-    expect(navItemVisible('jev', owner)).toBe(true);
-    for (const a of [contributor, viewer, operator]) expect(navItemVisible('jev', a)).toBe(false);
-  });
-
   it('owner thấy Thành viên và Chờ duyệt, cùng mọi mục thường', () => {
     for (const id of ['members', 'contributions', 'inbox', 'agents', 'skills', 'machines', 'newIssue'] as const) {
       expect(navItemVisible(id, owner), id).toBe(true);

@@ -6,7 +6,6 @@ import { api, queryKeys } from '@/api';
 import { useMe } from '@/app/hooks';
 import { Button, ConfirmDialog, ErrorState } from '@/ds';
 import { useCompanyAccess } from '@/features/access';
-import { ApprovalNoteConfirm, useApprovalNoteCheck } from '@/features/jev/approval-note-check';
 import { useT } from '@/i18n';
 import {
   awaitingMyApproval,
@@ -82,21 +81,12 @@ export function ActionsSlot({ issue }: { issue: Issue }) {
   const actions = gateActionsFor(issue, me);
   const gate = useGateMutation(issue, () => setOpen(null));
   const run = (id: GateActionId, comment?: string) => gate.mutate({ id, comment });
-  // Jev đọc lời nhắn trước khi gửi và chỉ hỏi lại một lần khi lệch ý (chế độ `on`); mọi trường hợp khác gửi như cũ.
-  const jev = useApprovalNoteCheck({
-    companyId: issue.companyId,
-    issueId: issue.id,
-    send: (action, note) => run(action, note),
-  });
   const show = (id: GateActionId) => {
     gate.reset();
     setOpen(id);
   };
   const close = (next: boolean) => {
-    if (!next) {
-      jev.cancel();
-      setOpen(null);
-    }
+    if (!next) setOpen(null);
   };
   const inDialog = open === 'approve' || open === 'request_changes';
   if (readOnly) return null;
@@ -127,10 +117,10 @@ export function ActionsSlot({ issue }: { issue: Issue }) {
         initial={t('gate.approve.default')}
         minLength={1}
         submitLabel={t('gate.approve.button')}
-        pending={gate.isPending || jev.checking}
+        pending={gate.isPending}
         error={open === 'approve' ? gate.error : null}
         failedTitle={t('gate.failed')}
-        onSubmit={(comment) => void jev.check('approve', comment, comment === t('gate.approve.default'))}
+        onSubmit={(comment) => run('approve', comment)}
       />
       <CommentDialog
         open={open === 'request_changes'}
@@ -142,12 +132,11 @@ export function ActionsSlot({ issue }: { issue: Issue }) {
         initial=""
         minLength={MIN_CHANGE_REASON}
         submitLabel={t('gate.requestChanges.submit')}
-        pending={gate.isPending || jev.checking}
+        pending={gate.isPending}
         error={open === 'request_changes' ? gate.error : null}
         failedTitle={t('gate.failed')}
-        onSubmit={(comment) => void jev.check('request_changes', comment)}
+        onSubmit={(comment) => run('request_changes', comment)}
       />
-      <ApprovalNoteConfirm prompt={jev.prompt} onSend={jev.confirmSend} onEdit={jev.edit} />
       <ConfirmDialog
         open={open === 'cancel'}
         onOpenChange={close}

@@ -163,9 +163,6 @@ const CENTER_SIZE: Partial<Record<RoadmapLevel['center']['kind'], { w: number; h
 /** Chiều cao thêm của ô chi tiết (`detail`, dạng dòng lệnh) trên thẻ. */
 const DETAIL_LINE = 30;
 
-/** Chiều cao thêm của dòng cờ complexity của Jev (dòng `h-4` cộng khe `gap-1.5`). */
-export const COMPLEXITY_LINE = 22;
-
 /** Một dòng run trên thẻ (`leading-4`). */
 export const RUN_LINE = 16;
 /** Phần cố định của khối run: khe trên khối, vạch ngăn + đệm, dòng chân (tổng tiền · số run). */
@@ -181,7 +178,7 @@ export function roadmapNodeSize(node: RoadmapNode, center: boolean): { w: number
   const s = (center ? CENTER_SIZE[node.kind] : undefined) ?? NODE_SIZE[node.kind];
   return {
     w: s.w,
-    h: s.h + (node.detail ? DETAIL_LINE : 0) + runsHeight(node) + (node.jevComplexity ? COMPLEXITY_LINE : 0),
+    h: s.h + (node.detail ? DETAIL_LINE : 0) + runsHeight(node),
   };
 }
 

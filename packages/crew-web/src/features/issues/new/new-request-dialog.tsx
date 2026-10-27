@@ -23,8 +23,6 @@ import {
 } from '@/ds';
 import { useCompanyAccess, useVisibleProjects } from '@/features/access';
 import { NewContributionDialog } from '@/features/contributions/new-contribution-dialog';
-import { RequestTypeChip } from '@/features/jev/request-type-chip';
-import { useRequestTypeSuggestion } from '@/features/jev/use-request-type-suggestion';
 import { useProjectReadiness } from '@/features/readiness';
 import { useT } from '@/i18n';
 import type { NewRequestInitial } from './follow-plan';
@@ -95,14 +93,6 @@ function RequestForm({
     setMachine(AUTO_MACHINE);
   };
   const [kind, setKind] = useState<RequestKind>(initial?.kind ?? 'code');
-  // Chỉ khi loại đã được chọn (owner chọn hay điền sẵn) thì mới gửi `current` cho Jev; mặc định `code` chưa phải
-  // lựa chọn của ai.
-  const [kindPicked, setKindPicked] = useState(initial?.kind !== undefined);
-  const pickKind = (v: string) => {
-    if (!isRequestKind(v)) return;
-    setKind(v);
-    setKindPicked(true);
-  };
   const [title, setTitle] = useState(initial?.title ?? '');
   const [description, setDescription] = useState(initial?.description ?? '');
   const [files, setFiles] = useState<File[]>([]);
@@ -122,7 +112,6 @@ function RequestForm({
   });
   const kindLabels = useKindLabelIds(companyId);
   const create = useCreateRequest(companyId);
-  const jevKind = useRequestTypeSuggestion(companyId, title, description, kindPicked ? kind : undefined);
 
   const loadingProjects = readiness.isLoading || projects.isLoading;
   const readyIds = new Set((readiness.data ?? []).filter((r) => r.state === 'ready').map((r) => r.projectId));
@@ -156,7 +145,6 @@ function RequestForm({
       },
       {
         onSuccess: ({ issue, failedUploads, machineError }) => {
-          jevKind.recordFinal(kind);
           onCreated?.(issue, { draft: draft || machineError !== null, failedUploads, machineError });
           onClose();
         },
@@ -195,23 +183,18 @@ function RequestForm({
       </Field>
 
       <Field label={t('new.kind')} hint={kindHint || undefined}>
-        <div className="flex items-center gap-2">
-          <div className="min-w-0 flex-1">
-            <Select value={kind} onValueChange={pickKind}>
-              <SelectTrigger aria-label={t('new.kind')} className="w-full">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {kinds.map((k) => (
-                  <SelectItem key={k} value={k}>
-                    {t(`new.kinds.${k}`)}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <RequestTypeChip suggestion={jevKind.suggestion} current={kind} allowed={kinds} onPick={pickKind} />
-        </div>
+        <Select value={kind} onValueChange={(v) => isRequestKind(v) && setKind(v)}>
+          <SelectTrigger aria-label={t('new.kind')} className="w-full">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {kinds.map((k) => (
+              <SelectItem key={k} value={k}>
+                {t(`new.kinds.${k}`)}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </Field>
 
       {isOwner && projectId !== '' ? (

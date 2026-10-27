@@ -22,7 +22,6 @@ import {
 } from '@/ds';
 import { ArrowLeft, Check, Copy, ExternalLink, X } from '@/ds/icons';
 import { useCompanyAccess, useVisibleProjects } from '@/features/access';
-import { IssueJevBlock } from '@/features/jev/issue-jev-block';
 import { displayStatus, QcPanel, useQcStates } from '@/features/qc';
 import { useT } from '@/i18n';
 import { AddChildAction } from '../new/add-child-dialog';
@@ -263,7 +262,6 @@ export function IssueDetail({ issueRef, variant, onClose }: IssueDetailProps) {
         <Documents issueId={issue.id} />
         <Attachments issueId={issue.id} />
         <IssueRuns issueId={issue.id} agentNames={agentNames} />
-        <IssueJevBlock issueId={issue.id} />
         <InteractionsSlot issue={issue} agentNames={agentNames} />
         {readOnly && !isContributor ? null : (
           <ComposerDock>

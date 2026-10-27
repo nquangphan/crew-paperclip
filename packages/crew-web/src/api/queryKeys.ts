@@ -64,8 +64,6 @@ export const queryKeys = {
   crewCompanies: ['crew', 'crew.companies'] as const,
   machineJobs: (companyId: string, filters?: Filters) =>
     (filters ? ['machine-jobs', companyId, filters] : ['machine-jobs', companyId]) as readonly unknown[],
-  /** Mọi dữ liệu Jev của company; `jev(c)` là tiền tố để invalidate. */
-  jev: (companyId: string, ...rest: readonly unknown[]) => ['jev', companyId, ...rest] as const,
   runtimeSwitches: (companyId: string) => ['runtime-switches', companyId] as const,
   setupRun: (id: string) => ['setup-run', id] as const,
 

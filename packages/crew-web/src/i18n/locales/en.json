@@ -128,7 +128,6 @@
     "projects": "Projects",
     "agents": "Agents",
     "skills": "Skills",
-    "jev": "Jev",
     "machines": "Machines",
     "docs": "Docs",
     "guide": "Guide",
@@ -371,14 +370,7 @@
       "blocks": "Blocks (must finish first)",
       "repair": "Fix round",
       "current": "Task you are viewing",
-      "running": "Running (work in progress)",
-      "jev": {
-        "blocked": "Jev: a command was really blocked",
-        "attention": "Jev: log-only deny or unsure case",
-        "quiet": "Jev: only allowed commands (count)",
-        "mismatch": "Jev: C3 mismatch (small dot)",
-        "complexity": "Jev: should be large (warning flag)"
-      }
+      "running": "Running (work in progress)"
     },
     "controls": {
       "label": "Map controls",
@@ -404,24 +396,6 @@
       "latest": "Latest runs: {{runs}}",
       "noteSubscription": "API-equivalent price; the subscription plan is not charged",
       "noteApi": "API-equivalent price from run usage"
-    },
-    "jev": {
-      "name": "Jev",
-      "blocked": "{{count}} blocked",
-      "attention": "{{count}} flagged",
-      "calls": "{{count}} cmds",
-      "tip": {
-        "calls": "{{count}} commands",
-        "blocked": "{{count}} really blocked",
-        "logOnly": "{{count}} log-only deny",
-        "escalate": "{{count}} unsure",
-        "error": "{{count}} errors",
-        "mismatch": "{{count}} C3 mismatches"
-      },
-      "complexity": "Jev: should be large",
-      "complexityDeclared": "Assistant rated: {{level}}",
-      "complexityNoReason": "Jev sees this touching a sensitive area.",
-      "complexityVision": "Jev: model cannot see images"
     }
   }
 }

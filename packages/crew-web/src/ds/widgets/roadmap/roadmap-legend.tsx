@@ -2,7 +2,7 @@
 // Chú giải của bản đồ Roadmap: bảy trạng thái (cùng biểu tượng với danh sách yêu cầu, màu theo bảng màu của bản đồ), các
 // loại cạnh và dây "đang chạy" (mẫu nét vẽ bằng đúng class của dây trên bản đồ). Nằm dưới khung bản đồ (không che nút);
 // thu gọn được bằng nút "Chú thích", mặc định thu gọn trên màn hẹp.
-import { ChevronDown, ShieldCheck, TriangleAlert } from 'lucide-react';
+import { ChevronDown } from 'lucide-react';
 import { useId, useState } from 'react';
 import { useT } from '@/i18n';
 import { cn } from '../../cn';
@@ -24,14 +24,6 @@ export const ROADMAP_STATUSES = [
 const NARROW = '(max-width: 639px)';
 const startsOpen = () => typeof window === 'undefined' || !window.matchMedia?.(NARROW).matches;
 
-/** Mục chú giải của huy hiệu Jev (màu trùng huy hiệu trên thẻ). */
-const JEV_LEGEND = [
-  { tone: 'blocked', color: 'var(--roadmap-tone-blocked)' },
-  { tone: 'attention', color: 'var(--roadmap-tone-todo)' },
-  { tone: 'quiet', color: 'var(--muted-foreground)' },
-  { tone: 'mismatch', color: 'var(--roadmap-tone-todo)' },
-] as const;
-
 const SWATCH_PATH = 'M 1,6 C 9,1 15,11 23,6';
 
 /** Mẫu nét của một loại cạnh: cùng class `.roadmap-edge` với dây trên bản đồ nên luôn khớp màu và kiểu nét. */
@@ -50,21 +42,11 @@ export interface RoadmapLegendProps {
   edges?: readonly RoadmapEdgeKind[];
   /** Thêm mục "Việc đang xem" (bản đồ Crew ở trang chi tiết). */
   current?: boolean;
-  /** Thêm mục Jev (huy hiệu khiên): chỉ khi bản đồ có thẻ mang huy hiệu. */
-  jev?: boolean;
-  /** Thêm mục cờ "Jev: nên là large": chỉ khi bản đồ có thẻ mang cờ complexity. */
-  jevComplexity?: boolean;
 }
 
 const DEFAULT_EDGES: readonly RoadmapEdgeKind[] = ['parent', 'blocks'];
 
-export function RoadmapLegend({
-  className,
-  edges = DEFAULT_EDGES,
-  current = false,
-  jev = false,
-  jevComplexity = false,
-}: RoadmapLegendProps) {
+export function RoadmapLegend({ className, edges = DEFAULT_EDGES, current = false }: RoadmapLegendProps) {
   const { t } = useT();
   const [open, setOpen] = useState(startsOpen);
   const listId = useId();
@@ -108,20 +90,6 @@ export function RoadmapLegend({
               className="size-3 rounded-sm bg-card ring-2 ring-primary ring-offset-1 ring-offset-background"
             />
             <span>{t('roadmap.legend.current')}</span>
-          </li>
-        ) : null}
-        {jev
-          ? JEV_LEGEND.map(({ tone, color }) => (
-              <li key={tone} className="flex items-center gap-1.5" data-slot="roadmap-legend-jev">
-                <ShieldCheck aria-hidden className="size-3.5" style={{ color }} />
-                <span>{t(`roadmap.legend.jev.${tone}`)}</span>
-              </li>
-            ))
-          : null}
-        {jevComplexity ? (
-          <li className="flex items-center gap-1.5" data-slot="roadmap-legend-complexity">
-            <TriangleAlert aria-hidden className="size-3.5" style={{ color: 'var(--roadmap-tone-todo)' }} />
-            <span>{t('roadmap.legend.jev.complexity')}</span>
           </li>
         ) : null}
       </ul>

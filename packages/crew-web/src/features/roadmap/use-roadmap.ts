@@ -4,8 +4,8 @@
 import type { CompactIssue } from '@paperclipai/shared';
 import { useQuery } from '@tanstack/react-query';
 import { useCallback, useMemo } from 'react';
-import { api, type IssueListFilters, type JevRequestMap, queryKeys } from '@/api';
-import { useCompanyAccess, useVisibleProjects } from '@/features/access';
+import { api, type IssueListFilters, queryKeys } from '@/api';
+import { useVisibleProjects } from '@/features/access';
 import { childrenIndex, descendantsOf, LIST_LIMIT, NO_PROJECT, projectRoots } from './roadmap-model';
 
 /** Danh sách đã lọc quyền, kèm cờ "server có thể đã cắt" (đủ trần dòng). */
@@ -23,17 +23,6 @@ export interface RoadmapDataParams {
   /** Trang docs đang mở popup. */
   doc: string | null;
 }
-
-/** Bản đồ Jev dùng được: Jev bật và đúng dạng; còn lại là `undefined` (không huy hiệu). */
-function usableJevMap(data: JevRequestMap): JevRequestMap | undefined {
-  const isRecord = (v: unknown) => typeof v === 'object' && v !== null && !Array.isArray(v);
-  if (!isRecord(data) || data.enabled !== true || !isRecord(data.byIssue) || !isRecord(data.shadowMismatch))
-    return undefined;
-  return data;
-}
-
-/** Chu kỳ làm tươi số liệu Jev trên bản đồ. */
-const JEV_MAP_REFRESH_MS = 30_000;
 
 export const companyFilters = (): IssueListFilters => ({ view: 'compact', limit: LIST_LIMIT });
 
@@ -110,18 +99,6 @@ export function useRoadmapData(companyId: string, p: RoadmapDataParams) {
     enabled: visible.ready && requestId !== null,
   });
 
-  // Huy hiệu Jev: chỉ owner, tải sau bản đồ (không chặn vẽ). Route bản đồ tự báo Jev bật hay tắt; tắt, lỗi hay sai dạng thì
-  // không có huy hiệu, bản đồ vẫn như cũ. Chỉ làm tươi định kỳ khi Jev đang bật.
-  const { isOwner } = useCompanyAccess();
-  const jev = useQuery({
-    queryKey: queryKeys.jev(companyId, 'map', requestId),
-    queryFn: () => api.jev.requestMap(companyId, requestId as string),
-    select: usableJevMap,
-    enabled: isOwner && requestId !== null && subtree.data !== undefined,
-    retry: false,
-    refetchInterval: (query) => (query.state.data?.enabled === true ? JEV_MAP_REFRESH_MS : false),
-  });
-
   const docsProjects = useQuery({
     queryKey: queryKeys.crew('crew.docs.projects', { companyId }),
     queryFn: () => api.crew.docsProjects(companyId),
@@ -150,7 +127,6 @@ export function useRoadmapData(companyId: string, p: RoadmapDataParams) {
     subtree,
     agents,
     runs,
-    jev,
     docsProjects,
     hasDocs,
     tree,

@@ -477,12 +477,7 @@ function Flow({ level, levelKey, direction, focusId, onOpen, labels, size = 'pag
         ) : null}
       </div>
       {/* Chú giải nằm dưới khung bản đồ nên không bao giờ che nút. */}
-      <RoadmapLegend
-        edges={legend?.edges}
-        current={legend?.current}
-        jev={Boolean(level.center.jev) || level.nodes.some((n) => n.jev)}
-        jevComplexity={Boolean(level.center.jevComplexity) || level.nodes.some((n) => n.jevComplexity)}
-      />
+      <RoadmapLegend edges={legend?.edges} current={legend?.current} />
     </div>
   );
 }

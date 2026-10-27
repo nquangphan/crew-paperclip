@@ -22,11 +22,8 @@ import {
   SelectValue,
   Skeleton,
 } from '@/ds';
-import { useCompanyAccess } from '@/features/access';
 import { useIssueOpener } from '@/features/issues';
 import { awaitingMyApproval } from '@/features/issues/detail/crew/gate-actions';
-import { InboxAttentionBadge } from '@/features/jev/inbox-attention-badge';
-import { useInboxAttention } from '@/features/jev/use-jev';
 import { useT } from '@/i18n';
 import { hasPendingUserInteraction, INBOX_TAB_IDS, type InboxTabId, inboxTabs, isMyExecutionStage } from './tabs';
 import { useInboxIssues } from './use-inbox-issues';
@@ -54,7 +51,6 @@ export function InboxPage() {
   const [group, setGroup] = useState(false);
   const [archivedNotice, setArchivedNotice] = useState<{ id: string; label: string } | null>(null);
 
-  const { isOwner } = useCompanyAccess();
   const list = useInboxIssues(company.id);
   const tabs = useMemo(() => inboxTabs(list.data ?? [], me), [list.data, me]);
 
@@ -76,13 +72,6 @@ export function InboxPage() {
       for (const id of op.ids) void qc.invalidateQueries({ queryKey: queryKeys.issue(id) });
     },
   });
-
-  // Huy hiệu "Cần Đại Ca để ý": chỉ owner hỏi, cho các mục của tab đang xem; lỗi hay tắt thì không có huy hiệu.
-  const attention = useInboxAttention(
-    company.id,
-    tabs[tab].map((issue) => issue.id),
-    isOwner,
-  );
 
   const needle = search.trim().toLowerCase();
   const rows = tabs[tab].filter(
@@ -116,7 +105,6 @@ export function InboxPage() {
               <>
                 {unread ? <Badge>{t('unreadMark')}</Badge> : null}
                 {reason ? <Badge variant="outline">{reason}</Badge> : null}
-                <InboxAttentionBadge reasons={attention.data?.map.get(issue.id.toLowerCase())} />
               </>
             }
             href={opener.href(ref)}

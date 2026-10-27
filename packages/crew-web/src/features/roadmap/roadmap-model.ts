@@ -3,16 +3,7 @@
 // nhánh Docs: bộ docs → thư mục → trang. Không gọi API, không đọc URL; trang lo phần đó.
 import { buildDocsTree, type DocsNode } from '@crew/paperclip-plugin/shared/docs-tree';
 import type { MapRuns } from '@crew/paperclip-plugin/shared/map';
-import type { JevRequestMap } from '@/api';
-import {
-  type RoadmapEdge,
-  type RoadmapJev,
-  type RoadmapJevComplexity,
-  type RoadmapLevel,
-  type RoadmapNode,
-  roadmapRuns,
-} from '@/ds';
-import { complexityFlagFor } from '@/features/jev/judge-adapter';
+import { type RoadmapEdge, type RoadmapLevel, type RoadmapNode, roadmapRuns } from '@/ds';
 
 /** Trần số nút vẽ mỗi tầng; vượt thì có nút "+N khác" mở dạng danh sách. */
 export const CAPS = { projects: 40, requests: 60, tickets: 150, docs: 60 } as const;
@@ -228,29 +219,8 @@ export interface RequestLevelInput {
   agentName?: (agentId: string) => string | undefined;
   /** Run tóm tắt của cây yêu cầu (chưa tải thì thẻ không có khối run). */
   runs?: MapRuns;
-  /** Số liệu Jev theo issue của cây (chỉ owner, khi Jev bật); chưa có thì thẻ không có huy hiệu. */
-  jev?: JevRequestMap;
   statusOf?: StatusOf;
   cap?: number;
-}
-
-/** Huy hiệu Jev của một issue; không có lệnh và không có ca lệch thì không có huy hiệu. */
-export function roadmapJev(map: JevRequestMap | undefined, issueId: string): RoadmapJev | undefined {
-  if (!map) return undefined;
-  const id = issueId.toLowerCase();
-  const gate = map.byIssue?.[id];
-  const mismatch = map.shadowMismatch?.[id] ?? 0;
-  if (!gate && mismatch === 0) return undefined;
-  return { ...(gate ?? { calls: 0, deny: 0, appliedDeny: 0, escalate: 0, error: 0 }), mismatch };
-}
-
-/** Cờ "Jev: nên là large" của một issue (chỉ có khi tính năng complexity bật `on`); thiếu hay sai dạng thì không có cờ. */
-export function roadmapJevComplexity(
-  map: JevRequestMap | undefined,
-  issueId: string,
-): RoadmapJevComplexity | undefined {
-  const flag = complexityFlagFor(map, issueId);
-  return flag ? { kind: flag.kind, declared: flag.declared, reason: flag.reason } : undefined;
 }
 
 /**
@@ -276,8 +246,6 @@ export function buildRequestLevel(input: RequestLevelInput): RoadmapLevel {
     children: index.get(t.id)?.length ?? 0,
     assignee: t.assigneeAgentId ? (input.agentName?.(t.assigneeAgentId) ?? null) : null,
     runs: roadmapRuns(runsOf(t.id)),
-    jev: roadmapJev(input.jev, t.id),
-    jevComplexity: roadmapJevComplexity(input.jev, t.id),
   }));
   const edges: RoadmapEdge[] = kept.map((t) => ({
     id: `${t.parentId}->${t.id}`,
@@ -303,8 +271,6 @@ export function buildRequestLevel(input: RequestLevelInput): RoadmapLevel {
     total: all.length,
     done: all.filter((d) => d.status === 'done').length,
     runs: input.runs ? roadmapRuns(runsOf(request.id), input.runs.tree) : undefined,
-    jev: roadmapJev(input.jev, request.id),
-    jevComplexity: roadmapJevComplexity(input.jev, request.id),
   };
   return { center, nodes, edges, overflow, layout: 'top-down' };
 }
