@@ -219,7 +219,7 @@ Bạn giao cho Trợ Lý
 
 #### Tổng kết của Trợ Lý
 
-Ngay dưới mô tả yêu cầu gốc có một khối riêng **Tổng kết của Trợ Lý**: chỉ cần đọc khối này là nắm được toàn bộ yêu cầu mà không phải mở từng việc con. Khối có từ lúc Trợ Lý lập kế hoạch và được cập nhật ở mỗi lần Trợ Lý chạy lại (tạo thêm việc con, việc con đổi trạng thái, bạn trả lời câu hỏi, có vòng sửa), nên luôn khớp với việc đã làm. Khối gồm: **Yêu cầu** (Trợ Lý hiểu yêu cầu là gì, làm gì và không làm gì), **Việc con** (mỗi việc kèm trạng thái), **Kết quả**, **Hình ảnh** (mockup và ảnh nghiệm thu chính lấy từ file đính kèm của các việc con), **Đã tự quyết định**, **Kế hoạch** (chỉ với yêu cầu lập kế hoạch) và **Cần owner quyết định**. Trợ Lý chưa lập kế hoạch (còn đang hỏi bạn) thì chưa có khối này.
+Ngay dưới mô tả yêu cầu gốc có một khối riêng **Tổng kết của Trợ Lý**: chỉ cần đọc khối này là nắm được toàn bộ yêu cầu mà không phải mở từng việc con. Khối có từ lúc Trợ Lý lập kế hoạch và được cập nhật ở mỗi lần Trợ Lý chạy lại (tạo thêm việc con, việc con đổi trạng thái, bạn trả lời câu hỏi, có vòng sửa), nên luôn khớp với việc đã làm. Khối gồm: **Yêu cầu** (Trợ Lý hiểu yêu cầu là gì, làm gì và không làm gì), **Việc con** (mỗi việc kèm trạng thái), **Kết quả**, **Hình ảnh** (mockup và ảnh nghiệm thu chính lấy từ file đính kèm của các việc con), **Đã tự quyết định**, **Kế hoạch** (chỉ với yêu cầu lập kế hoạch) và **Cần owner quyết định**. Trợ Lý chưa lập kế hoạch (còn đang hỏi bạn) thì chưa có khối này. Muốn viết thêm vào mô tả thì viết phía trên tổng kết; chữ viết sau tổng kết sẽ được Trợ Lý chuyển lên trên ở lần chạy sau.
 
 #### Pull request sau khi duyệt
 

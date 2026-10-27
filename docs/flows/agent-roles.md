@@ -29,6 +29,8 @@ Mục `## Tổng kết của Trợ Lý` ở cuối mô tả gốc là chỗ owne
 - Có từ run đầu có kế hoạch (chưa có kế hoạch thì chưa có tổng kết, kể cả khi run dừng sớm để hỏi owner). Mỗi run sau, nếu
   có gì đổi, Trợ Lý `GET` lại mô tả ngay trước lệnh ghi cuối, sửa mọi chỗ không còn khớp rồi gửi `description` mới trong chính
   `PATCH` ghi cuối của run (cùng `comment`, và `status` nếu có); không `PATCH` mô tả riêng.
+- Thu đủ dữ liệu (con, file đính kèm) và soạn xong tổng kết trước, rồi mới `GET` mô tả và ghi ngay, không gọi API nào
+  giữa hai bước, để không đè chữ owner vừa sửa. Chữ owner gõ sau tổng kết (ngoài khung) được chép nguyên văn lên trên tổng kết.
 - Thứ tự mục: `### Yêu cầu`, `### Việc con` (`- <identifier> · <việc> · <trạng thái tiếng Việt>`), `### Kết quả`,
   `### Hình ảnh`, `### Đã tự quyết định`, `### Kế hoạch` (chỉ yêu cầu lập kế hoạch), `### Cần owner quyết định`. Ảnh lấy từ
   `GET /api/issues/<id con>/attachments` (chỉ `image/*`, tối đa khoảng 8), chèn `![tên (identifier)](/api/attachments/<id>/content)`.

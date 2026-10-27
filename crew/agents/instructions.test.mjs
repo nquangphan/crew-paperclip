@@ -1084,7 +1084,9 @@ test("assistant: tổng kết có từ lúc lập kế hoạch, cập nhật m�
     "Chưa có kế hoạch (run còn ở \"Hiểu yêu cầu\", đang hỏi owner, chưa ghi comment `crew-plan`): chưa viết tổng kết",
     "Run đầu có kế hoạch",
     "Mỗi run sau, nếu có gì đổi",
-    "`GET /api/issues/<id gốc>` để đọc lại mô tả, rồi sửa **mọi** chỗ trong tổng kết không còn khớp",
+    "sửa **mọi** chỗ trong tổng kết không còn khớp",
+    "rồi mới `GET /api/issues/<id gốc>` đọc lại mô tả và gửi ngay lệnh ghi cuối; giữa lần `GET` đó và lệnh ghi không gọi API nào khác",
+    "là chữ owner gõ thêm: chép nguyên văn đoạn đó lên ngay phía trên dòng `## Tổng kết của Trợ Lý` trong mô tả mới, không xoá, không sửa",
     "Không đổi gì thì không gửi `description`",
     "Run dừng sớm",
     "Không `PATCH` mô tả riêng",
@@ -1106,6 +1108,7 @@ test("assistant: tổng kết có từ lúc lập kế hoạch, cập nhật m�
   assert.match(section(text, "## Đóng issue gốc"), /tổng kết cập nhật theo mục "Tổng kết trên mô tả gốc"/);
   assert.match(section(text, "## Chốt trạng thái gốc"), /`description` mới \(không `status`\) theo mục "Tổng kết trên mô tả gốc"/);
   assert.match(text, /Mọi run có ghi gì trên gốc sau khi đã có kế hoạch đều cập nhật mục tổng kết/);
+  assert.match(text, /chỉ ghi tình trạng mới \(comment cùng `description` có tổng kết, trong một `PATCH`/);
 });
 
 test("mọi instructions bắt dọn rác của run trước khi báo xong", () => {

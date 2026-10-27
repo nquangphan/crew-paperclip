@@ -49,7 +49,7 @@ Luật chính:
    của Trợ Lý (`InteractionsSlot`), thuộc tính và runtime (`PropertiesPanel`, `MachineSlot`, `RuntimeSlot`), bình luận, đính kèm,
    tài liệu, run, lịch sử. Mô tả được tách bằng `splitAssistantSummary` (`split-assistant-summary.ts`): mục `## Tổng kết của
    Trợ Lý` (lần đầu ở đầu dòng, ngoài code fence, tới hết mô tả) không hiện trong `DescriptionEditor` mà thành khối
-   `AssistantSummary` (`data-testid="assistant-summary"`, không thu gọn) ngay sau mô tả; sửa mô tả vẫn sửa nguyên chuỗi.
+   `AssistantSummary` (`data-testid="assistant-summary"`, không thu gọn, tiêu đề `###` nhỏ in hoa) ngay sau mô tả; sửa mô tả vẫn sửa nguyên chuỗi.
    Bình luận dài thu gọn bằng `ExpandableContent` (đáy mờ dần, nút "Hiện đủ (còn N dòng)" / "Thu gọn").
 4. `packages/crew-web/src/features/issues/detail/crew/gate-actions.ts` → `gateActionsFor`, `awaitingMyApproval`: tính
    nút Duyệt, Yêu cầu sửa, Hủy theo stage đang chờ; `actions-slot.tsx` gửi PATCH và làm mới mọi dữ liệu bị đổi. Trước khi gửi
