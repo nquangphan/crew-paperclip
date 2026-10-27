@@ -41,10 +41,15 @@ Luật chính:
 5. `packages/crew-web/src/ds/widgets/attachment-viewer-logic.ts` → `viewerKindFor`: chọn cách xem theo content type,
    thiếu hay chung chung thì theo đuôi; file chữ quá `TEXT_PREVIEW_MAX_BYTES` chỉ cho tải về.
 6. `packages/crew-web/src/ds/widgets/attachment-viewer.tsx` → `AttachmentViewer`: ảnh có trước/sau, PDF và video nhúng,
-   markdown và code, HTML trong iframe sandbox; file đã bị dọn thì báo "File không còn".
+   markdown và code, HTML trong iframe sandbox; file đã bị dọn thì báo "File không còn". Ảnh có zoom (xem bước 8).
 7. `packages/crew-web/src/ds/widgets/attachment-link-context.ts` → `AttachmentLinkContext`: cho markdown mở file bằng
    hộp xem (provider ở `packages/crew-web/src/features/issues/detail/attachment-viewer-provider.tsx`, flow `issues-web`).
-8. `packages/crew-web/src/ds/widgets/markdown-image-policy.ts`: phân loại `src` của ảnh markdown.
+8. `packages/crew-web/src/ds/widgets/image-zoom.ts` và `image-zoom-view.tsx` → `useImageZoom`, `ZoomableImage`,
+   `ImageZoomControls`: zoom ảnh trong hộp xem (chỉ ảnh hiện được). Mức 1 là vừa khung, tối đa 8; nút Thu nhỏ/Phóng
+   to nhân 1.25, nhãn % là nút về vừa khung; cuộn chuột và chụm trackpad (`ctrlKey`) zoom quanh con trỏ, bấm đúp
+   phóng 2.5 lần hoặc về vừa khung, kéo bằng pointer để di ảnh khi đã zoom (hai ngón chụm trên cảm ứng); phím `+`, `=`,
+   `-`, `0` khi hộp có focus. Chỉ đổi `transform`; đổi ảnh hay đóng hộp thì về vừa khung.
+9. `packages/crew-web/src/ds/widgets/markdown-image-policy.ts`: phân loại `src` của ảnh markdown.
 
 ## Files
 
@@ -56,6 +61,8 @@ Luật chính:
 | `packages/crew-web/src/ds/widgets/attachment-picker.tsx` | Chọn file kèm cảnh báo | `AttachmentPicker` |
 | `packages/crew-web/src/ds/widgets/attachment-viewer.tsx` | Hộp xem file | `AttachmentViewer` |
 | `packages/crew-web/src/ds/widgets/attachment-viewer-logic.ts` | Chọn cách xem, bước ảnh | `viewerKindFor`, `stepIndex`, `TEXT_PREVIEW_MAX_BYTES` |
+| `packages/crew-web/src/ds/widgets/image-zoom.ts` | Tính zoom: kẹp mức, zoom quanh điểm, giới hạn kéo | `clampScale`, `stepScale`, `zoomAt`, `panBy`, `wheelFactor` |
+| `packages/crew-web/src/ds/widgets/image-zoom-view.tsx` | Hook, vùng ảnh và thanh nút zoom | `useImageZoom`, `ZoomableImage`, `ImageZoomControls` |
 | `packages/crew-web/src/ds/widgets/attachment-link-context.ts` | Markdown mở hộp xem | `AttachmentLinkContext`, `useAttachmentLinks`, `isPlainClick` |
 | `packages/crew-web/src/ds/widgets/markdown-image-policy.ts` | Luật ảnh trong markdown | |
 
@@ -82,5 +89,8 @@ Luật chính:
 - `packages/crew-web/test/ds/attachment-picker.test.tsx`: cảnh báo trước khi gửi, vẫn cho gửi hoặc hủy.
 - `packages/crew-web/test/ds/attachment-viewer-logic.test.ts`: đoán theo đuôi, markdown và HTML lưu `text/plain`, HEIC,
   file chữ quá lớn, bước trước/sau.
+- `packages/crew-web/test/ds/image-zoom.test.ts`: kẹp mức, zoom giữ điểm dưới con trỏ, giới hạn kéo, hệ số wheel.
+- `packages/crew-web/test/ds/attachment-viewer-zoom.test.tsx`: nút, phím, wheel, bấm đúp, đổi ảnh về vừa khung, loại
+  khác ảnh không có điều khiển zoom.
 - `packages/crew-web/test/ds/markdown-image-policy.test.ts`: ảnh cùng origin, ngưỡng ảnh nhúng, chặn scheme lạ, ảnh host
   khác thành link.

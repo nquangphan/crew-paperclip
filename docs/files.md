@@ -371,6 +371,8 @@ File nào thuộc flow nào. Dùng `crew-docs where <file>` để tra từ dòng
 | `packages/crew-web/src/ds/widgets/floating-notice.tsx` | [design-system](flows/design-system.md) (file) |
 | `packages/crew-web/src/ds/widgets/heading-slug.ts` | [design-system](flows/design-system.md) (file) |
 | `packages/crew-web/src/ds/widgets/image-gallery.tsx` | [design-system](flows/design-system.md) (file) |
+| `packages/crew-web/src/ds/widgets/image-zoom-view.tsx` | [attachments](flows/attachments.md) (file) |
+| `packages/crew-web/src/ds/widgets/image-zoom.ts` | [attachments](flows/attachments.md) (file) |
 | `packages/crew-web/src/ds/widgets/issue-detail.tsx` | [design-system](flows/design-system.md) (file) |
 | `packages/crew-web/src/ds/widgets/issue-list.tsx` | [design-system](flows/design-system.md) (file) |
 | `packages/crew-web/src/ds/widgets/issue-row.tsx` | [design-system](flows/design-system.md) (file) |
@@ -642,6 +644,7 @@ File nào thuộc flow nào. Dùng `crew-docs where <file>` để tra từ dòng
 | `packages/crew-web/test/ds/alert-muted.test.tsx` | [design-system](flows/design-system.md) (test) |
 | `packages/crew-web/test/ds/attachment-picker.test.tsx` | [attachments](flows/attachments.md) (test) |
 | `packages/crew-web/test/ds/attachment-viewer-logic.test.ts` | [attachments](flows/attachments.md) (test) |
+| `packages/crew-web/test/ds/attachment-viewer-zoom.test.tsx` | [attachments](flows/attachments.md) (test) |
 | `packages/crew-web/test/ds/button.test.tsx` | [design-system](flows/design-system.md) (test) |
 | `packages/crew-web/test/ds/composer-dock.test.tsx` | [design-system](flows/design-system.md) (test) |
 | `packages/crew-web/test/ds/confirm-dialog.test.tsx` | [design-system](flows/design-system.md) (test) |
@@ -657,6 +660,7 @@ File nào thuộc flow nào. Dùng `crew-docs where <file>` để tra từ dòng
 | `packages/crew-web/test/ds/crew/roadmap-runs.test.tsx` | [roadmap-map](flows/roadmap-map.md) (test) |
 | `packages/crew-web/test/ds/default-labels.test.tsx` | [design-system](flows/design-system.md) (test) |
 | `packages/crew-web/test/ds/dialog.test.tsx` | [design-system](flows/design-system.md) (test) |
+| `packages/crew-web/test/ds/image-zoom.test.ts` | [attachments](flows/attachments.md) (test) |
 | `packages/crew-web/test/ds/markdown-image-policy.test.ts` | [attachments](flows/attachments.md) (test) |
 | `packages/crew-web/test/ds/markdown-view.test.tsx` | [design-system](flows/design-system.md) (test) |
 | `packages/crew-web/test/ds/rows.test.tsx` | [design-system](flows/design-system.md) (test) |

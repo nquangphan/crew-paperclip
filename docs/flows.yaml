@@ -739,12 +739,16 @@ flows:
       - packages/crew-web/src/ds/widgets/attachment-picker.tsx
       - packages/crew-web/src/ds/widgets/attachment-viewer-logic.ts
       - packages/crew-web/src/ds/widgets/attachment-viewer.tsx
+      - packages/crew-web/src/ds/widgets/image-zoom-view.tsx
+      - packages/crew-web/src/ds/widgets/image-zoom.ts
       - packages/crew-web/src/ds/widgets/markdown-image-policy.ts
     tests:
       - packages/crew-plugin/src/__tests__/attachments-audit.db.test.ts
       - packages/crew-plugin/src/__tests__/attachments-rules.test.ts
       - packages/crew-web/test/ds/attachment-picker.test.tsx
       - packages/crew-web/test/ds/attachment-viewer-logic.test.ts
+      - packages/crew-web/test/ds/attachment-viewer-zoom.test.tsx
+      - packages/crew-web/test/ds/image-zoom.test.ts
       - packages/crew-web/test/ds/markdown-image-policy.test.ts
   guide:
     title: "Trang Hướng dẫn"
