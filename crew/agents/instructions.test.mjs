@@ -293,50 +293,11 @@ const BUNDLE_RE = /^crew-bundle id=([a-z0-9][a-z0-9-]{0,39}) seq=([1-9][0-9]{0,2
 // Marker không có runtime= là claude_local.
 const MODEL_LINE_RE =
   /^crew-model complexity=(trivial|small|medium|large) model=(\S+) effort=(low|medium|high|default)(?: runtime=(claude_local|codex_local|opencode_local))? reason=(.+)$/m;
-// Chép nguyên văn CREW_RUNTIME_CATALOG / CREW_RUNTIME_ORDER của server (cùng literal với runtimes-catalog.test.ts của plugin).
-const RUNTIME_CATALOG = {
-  claude_local: {
-    effortKey: "effort",
-    models: { "claude-sonnet-5-5": { vision: true }, "claude-opus-5-5": { vision: true } },
-    byComplexity: {
-      trivial: { model: "claude-sonnet-5-5", effort: "low" },
-      small: { model: "claude-sonnet-5-5", effort: "medium" },
-      medium: { model: "claude-sonnet-5-5", effort: "high" },
-      large: { model: "claude-opus-5-5", effort: "high" },
-    },
-  },
-  codex_local: {
-    effortKey: "modelReasoningEffort",
-    models: { "gpt-6-luna": { vision: true }, "gpt-6-sol": { vision: true } },
-    byComplexity: {
-      trivial: { model: "gpt-6-luna", effort: "low" },
-      small: { model: "gpt-6-luna", effort: "medium" },
-      medium: { model: "gpt-6-sol", effort: "high" },
-    },
-  },
-  opencode_local: {
-    effortKey: null,
-    models: { "opencode-go/deepseek-v4-flash": { vision: false }, "opencode-go/kimi-k3": { vision: false }, "opencode-go/glm-5.3": { vision: false } },
-    byComplexity: {
-      trivial: { model: "opencode-go/deepseek-v4-flash", effort: null },
-      small: { model: "opencode-go/kimi-k3", effort: null },
-      medium: { model: "opencode-go/glm-5.3", effort: null },
-    },
-  },
-};
-// Server và plugin còn giữ hai id Claude cũ trong `models` chỉ để chấp nhận override/agent cũ (không có trong
-// byComplexity và không có trong bảng assistant.md); bỏ chúng trước khi so với bảng md.
-const LEGACY_CLAUDE_MODELS = ["claude-sonnet-5", "claude-opus-5"];
-const withoutLegacyModels = (catalog) => {
-  const copy = JSON.parse(JSON.stringify(catalog));
-  for (const id of LEGACY_CLAUDE_MODELS) delete copy.claude_local.models[id];
-  return copy;
-};
-const RUNTIME_ORDER = {
-  trivial: ["opencode_local", "claude_local", "codex_local"],
-  small: ["opencode_local", "claude_local", "codex_local"],
-  medium: ["claude_local", "codex_local", "opencode_local"],
-  large: ["claude_local"],
+// Bảng mẫu chỉ để điền các dòng mẫu của assistant.md; bảng thật do owner sửa và Trợ Lý đọc qua API lúc chạy.
+const SAMPLE_CATALOG = {
+  claude_local: { effortKey: "effort", byComplexity: { trivial: { model: "m-claude-a", effort: "low" }, large: { model: "m-claude-b", effort: "high" } } },
+  codex_local: { effortKey: "modelReasoningEffort", byComplexity: { small: { model: "m-codex-a", effort: "medium" } } },
+  opencode_local: { effortKey: null, byComplexity: { small: { model: "opencode-go/sample", effort: null } } },
 };
 const RUNTIMES = ["claude_local", "codex_local", "opencode_local"];
 const STACK_RE = /^crew-stack on=([A-Z][A-Z0-9]*-[0-9]+)$/;
@@ -370,7 +331,7 @@ test("assistant: marker crew-model đặt runtime= sau effort=, mọi ô của b
   // Parser cũ của crew-web (properties-panel.tsx) vẫn đọc được complexity/model/effort.
   const legacyWeb = /^crew-model complexity=(\S+) model=(\S+) effort=(\S+)/;
   for (const runtime of RUNTIMES) {
-    for (const [level, choice] of Object.entries(RUNTIME_CATALOG[runtime].byComplexity)) {
+    for (const [level, choice] of Object.entries(SAMPLE_CATALOG[runtime].byComplexity)) {
       const line = template.replaceAll("<mức>", level).replaceAll("<model>", choice.model)
         .replaceAll("<effort>", choice.effort ?? "default").replaceAll("<runtime>", runtime)
         .replaceAll("<một dòng lý do>", "lý do");
@@ -393,51 +354,34 @@ test("regex crew-model trong test trùng CREW_MODEL_LINE_RE của server", async
   assert.equal(server.CREW_MODEL_LINE_RE.flags, MODEL_LINE_RE.flags);
 });
 
-const parseRuntimeTables = (text) => {
+const MODEL_API_CURL = 'curl -fsS -H "Authorization: Bearer $PAPERCLIP_API_KEY" "$PAPERCLIP_API_URL/api/crew/model-settings"';
+
+test("assistant.md không còn id model nào: model, effort và ảnh đọc từ bảng qua API", () => {
+  assert.doesNotMatch(read("assistant"), /claude-|gpt-|opencode-go\//);
+});
+
+test("assistant: bước 0 đọc bảng model bằng đúng mẫu curl, nêu đủ đường dẫn JSON và đường lui khi lỗi", () => {
+  const text = read("assistant");
   const body = section(text, "## Chọn runtime và model");
-  const catalog = Object.fromEntries(RUNTIMES.map((r) => [r, { effortKey: undefined, models: {}, byComplexity: {} }]));
-  const order = {};
-  for (const m of body.matchAll(/^\| `(trivial|small|medium|large)` \| ([^|]+) \| ([^|]+) \| ([^|]+) \| ([^|]+) \|/gm)) {
-    order[m[1]] = [...m[2].matchAll(/`([^`]+)`/g)].map((x) => x[1]);
-    RUNTIMES.forEach((runtime, i) => {
-      const cell = m[3 + i].trim();
-      if (cell === "—") return;
-      const choice = /^`([^`]+)` \/ `([^`]+)`$/.exec(cell);
-      assert.ok(choice, `ô ${m[1]}/${runtime} sai dạng: ${cell}`);
-      catalog[runtime].byComplexity[m[1]] = { model: choice[1], effort: choice[2] === "default" ? null : choice[2] };
-    });
+  assert.ok(body.includes(MODEL_API_CURL), "thiếu lệnh curl đọc bảng model");
+  assert.ok(text.includes("/api/crew/model-settings"));
+  for (const needle of ["settings.order.<mức>", "settings.catalog.<runtime>.byComplexity.<mức>", "`vision`", "`effortKey`"]) {
+    assert.ok(body.includes(needle), `thiếu: ${needle}`);
   }
-  for (const m of body.matchAll(/^\| `(claude_local|codex_local|opencode_local)` \| `([^`]+)` \| (có|không) \| (?:`([^`]+)`|—) \|$/gm)) {
-    catalog[m[1]].models[m[2]] = { vision: m[3] === "có" };
-    const key = m[4] ?? null;
-    if (catalog[m[1]].effortKey !== undefined) assert.equal(key, catalog[m[1]].effortKey, `${m[1]}: key effort lệch giữa các dòng`);
-    catalog[m[1]].effortKey = key;
-  }
-  return { catalog, order };
-};
-
-test("assistant: bảng runtime/model chép nguyên I1 (thứ tự runtime, model/effort, ảnh, key effort)", () => {
-  const { catalog, order } = parseRuntimeTables(read("assistant"));
-  assert.deepEqual(order, RUNTIME_ORDER);
-  assert.deepEqual(catalog, RUNTIME_CATALOG);
+  assert.ok(body.indexOf("0. **Đọc bảng model**") < body.indexOf("1. **Mức `complexity`**"));
+  // Lệnh lỗi: không đoán, không tạo con, comment rồi dừng.
+  assert.ok(body.includes("Trợ Lý: không đọc được bảng model (<lỗi>)"));
+  assert.match(body, /không đoán model, không tạo con/);
+  assert.match(body, /dừng run/);
+  // Mọi lệnh curl giữ -f (đã có test chung), đọc nên không cần header run.
+  assert.ok(body.split("\n").filter((l) => l.includes("/api/crew/model-settings")).every((l) => !l.includes("-X ")));
 });
 
-test("bảng runtime/model trong assistant.md trùng catalog của server", async () => {
-  const server = await importServerPolicy();
-  const { catalog, order } = parseRuntimeTables(read("assistant"));
-  if (server.CREW_COMPLEXITY_MODEL) assert.deepEqual(catalog.claude_local.byComplexity, { ...server.CREW_COMPLEXITY_MODEL });
-  if (server.CREW_RUNTIME_CATALOG) {
-    assert.deepEqual(withoutLegacyModels(server.CREW_RUNTIME_CATALOG), catalog);
-    assert.deepEqual(JSON.parse(JSON.stringify(server.CREW_RUNTIME_ORDER)), order);
-  }
-});
-
-const PLUGIN_CATALOG_SOURCE = new URL("../../packages/crew-plugin/src/runtimes/catalog.ts", import.meta.url);
-test("bảng runtime/model trong assistant.md trùng catalog chép ở plugin", { skip: !existsSync(PLUGIN_CATALOG_SOURCE) && "catalog plugin chưa có trên nhánh này" }, async () => {
-  const plugin = await import(PLUGIN_CATALOG_SOURCE.href);
-  const { catalog, order } = parseRuntimeTables(read("assistant"));
-  assert.deepEqual(withoutLegacyModels(plugin.CREW_RUNTIME_CATALOG), catalog);
-  assert.deepEqual(JSON.parse(JSON.stringify(plugin.CREW_RUNTIME_ORDER)), order);
+test("assistant: crew_override_forbidden đọc lại bảng model rồi tạo lại con", () => {
+  const row = read("assistant").split("\n").find((l) => l.startsWith("| `crew_override_forbidden` |"));
+  assert.ok(row, "thiếu dòng crew_override_forbidden");
+  assert.match(row, /Đọc lại bảng model/);
+  assert.match(row, /tạo lại con/);
 });
 
 const parseOverrideTemplates = (text) => Object.fromEntries(
@@ -448,14 +392,12 @@ const parseOverrideTemplates = (text) => Object.fromEntries(
 test("assistant: override theo runtime chỉ có model và key effort của runtime", async () => {
   const templates = parseOverrideTemplates(read("assistant"));
   assert.deepEqual(Object.keys(templates).sort(), [...RUNTIMES].sort());
-  const server = await importServerPolicy();
   for (const runtime of RUNTIMES) {
-    const spec = RUNTIME_CATALOG[runtime];
+    const spec = SAMPLE_CATALOG[runtime];
     for (const choice of Object.values(spec.byComplexity)) {
       const value = JSON.parse(templates[runtime].replaceAll("<model>", choice.model).replaceAll("<effort>", choice.effort ?? ""));
       assert.deepEqual(Object.keys(value), ["adapterConfig"]);
       assert.deepEqual(value.adapterConfig, spec.effortKey ? { model: choice.model, [spec.effortKey]: choice.effort } : { model: choice.model });
-      if (server.CREW_RUNTIME_CATALOG) assert.deepEqual(server.checkAgentAdapterOverrides(value, runtime), [], `${runtime} ${choice.model}`);
     }
   }
 });
@@ -468,11 +410,11 @@ test("assistant: luật chọn runtime, không theo công tắc, không chọn r
     "Không chọn reviewer",
     "bảo mật/phân quyền, migration, hợp đồng công khai",
     "cùng gói một runtime và một model",
-    "runtime đầu tiên trong cột \"Thứ tự runtime\"",
+    "runtime đầu tiên trong `settings.order.<mức>`",
     "dòng không ghi runtime là `claude_local`",
     "`effort=default`",
   ]) assert.ok(body.includes(needle), `thiếu: ${needle}`);
-  assert.match(body, /ảnh[^\n]*`có`/);
+  assert.match(body, /ảnh[^\n]*`vision` là `true`/);
   assert.ok(text.indexOf("## Chọn runtime và model") > text.indexOf("## Tách việc"));
   assert.ok(text.indexOf("## Chọn runtime và model") < text.indexOf("## Ghi kế hoạch trước khi tạo con"));
   // Trợ Lý không giao việc cho reviewer Codex và không đặt participant review.
@@ -799,9 +741,10 @@ test("assistant: chọn workflow, con BMAD và tạo story từ BMAD", () => {
   assert.match(choose, /Agent BMAD của company/);
   assert.ok(choose.includes("child-key=bmad-1"));
   assert.ok(choose.includes("crew-bundle id=bmad seq=1"));
-  const modelLine = /`(crew-model complexity=large model=claude-opus-5-5 effort=high runtime=claude_local reason=[^`]+)`/.exec(choose);
+  const modelLine = /`(crew-model complexity=large model=<model> effort=<effort> runtime=claude_local reason=[^`]+)`/.exec(choose);
   assert.ok(modelLine, "thiếu crew-model của con BMAD");
-  assert.match(modelLine[1], MODEL_LINE_RE);
+  assert.match(modelLine[1].replace("<model>", "m-claude-b").replace("<effort>", "high"), MODEL_LINE_RE);
+  assert.ok(choose.includes("settings.catalog.claude_local.byComplexity.large"));
   const story = templateLine(text, "crew-bmad story=")
     .replace("<N>.<M>", "1.2").replace("<sha12>", "e".repeat(12)).replace("<file>", "_bmad-output/planning-artifacts/epics.md");
   assert.match(story, BMAD_STORY_RE);

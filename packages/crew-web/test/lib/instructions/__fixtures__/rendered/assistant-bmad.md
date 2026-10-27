@@ -96,7 +96,7 @@ Ghi lựa chọn ở dòng thứ ba của comment `crew-plan` (sau dòng `revisi
 
 Với BMAD, lô `v1` chỉ có đúng một con:
 - `child-key=bmad-1`, gói `bmad` seq 1, giao agent BMAD có ít issue đang mở nhất trong danh sách (hòa thì agent đứng trước).
-- Tiêu đề `BMAD: lập epic và story`. Mô tả: chép nguyên mô tả gốc dưới dòng `Yêu cầu của owner:`, rồi các marker mỗi dòng một: `crew-bundle id=bmad seq=1`, `crew-model complexity=large model=claude-opus-5-5 effort=high runtime=claude_local reason=lập epic/story cho toàn yêu cầu`, `crew-child key=bmad-1 revision=v1`, và dòng marker BMAD dưới đây. Dòng marker phải là **đúng một dòng riêng** trong `description`: chép nguyên văn từng ký tự, không backtick, không thụt đầu dòng, không khoảng trắng thừa, xuống dòng bằng LF (không CRLF). Server chỉ gắn bước owner duyệt khi dòng khớp đúng như vậy:
+- Tiêu đề `BMAD: lập epic và story`. Mô tả: chép nguyên mô tả gốc dưới dòng `Yêu cầu của owner:`, rồi các marker mỗi dòng một: `crew-bundle id=bmad seq=1`, `crew-model complexity=large model=<model> effort=<effort> runtime=claude_local reason=lập epic/story cho toàn yêu cầu` (`<model>` và `<effort>` lấy từ `settings.catalog.claude_local.byComplexity.large` của bảng đọc theo bước 0 mục "Chọn runtime và model"), `crew-child key=bmad-1 revision=v1`, và dòng marker BMAD dưới đây. Dòng marker phải là **đúng một dòng riêng** trong `description`: chép nguyên văn từng ký tự, không backtick, không thụt đầu dòng, không khoảng trắng thừa, xuống dòng bằng LF (không CRLF). Server chỉ gắn bước owner duyệt khi dòng khớp đúng như vậy:
 
 ```
 crew-kind bmad
@@ -107,7 +107,7 @@ crew-kind bmad
   `- Có file epic/story do skill BMAD chính thức ghi, lệnh crew-mac bmad stories thoát 0`
   `- Mỗi story có tiêu chí nghiệm thu Given/When/Then`
   `- Tối đa 30 story; story trong epic không phụ thuộc story sau`
-- `assigneeAdapterOverrides` `{"adapterConfig":{"model":"claude-opus-5-5","effort":"high"}}`.
+- `assigneeAdapterOverrides` `{"adapterConfig":{"model":"<model>","effort":"<effort>"}}`, cùng `<model>` và `<effort>` với dòng `crew-model` ở trên.
 Server gắn cho con này stage reviewer rồi owner duyệt. Không tạo con code nào trong lô `v1`.
 
 Ngay sau khi POST con BMAD, đọc lại con đó (`GET /api/issues/<id con>`) và kiểm `executionPolicy.stages` có **đúng 2 stage**, stage 2 là `approval` với participant là user (owner). Sai (thiếu policy, một stage, stage 2 không phải `approval`) thì **không tạo story**: comment trên gốc nêu rõ "Trợ Lý: con BMAD <identifier> không có bước owner duyệt (executionPolicy.stages: <tóm tắt>), cần owner xử lý", rồi xử lý con đó theo quy tắc hiện có (chưa có việc nào làm trên con thì `PATCH` con sang `cancelled`; không thì để nguyên và để owner quyết) và dừng. Không tạo con BMAD thay thế khi chưa có owner trả lời.
@@ -166,32 +166,33 @@ Dùng skill `superpowers:writing-plans` để ra danh sách việc, nhưng **kh�
 
 Executor có thể chạy Claude (`claude_local`), Codex (`codex_local`) hay OpenCode Go (`opencode_local`). Mỗi dòng trong mục "Executor của company" ghi runtime của executor đó; dòng không ghi runtime là `claude_local`.
 
-1. **Mức `complexity`** theo cột "Khi nào". Cân theo thứ việc chạm vào, không theo cảm giác khó. Gói chạm bảo mật/phân quyền, migration, hợp đồng công khai luôn là `large` (chỉ Claude).
-2. **Runtime:** lấy runtime đầu tiên trong cột "Thứ tự runtime" của mức đó mà mục "Executor của company" có executor chạy runtime ấy. Ô `—` là runtime đó không nhận mức này.
-3. **Ảnh:** gói có ảnh (ảnh đính kèm, ảnh chụp màn hình cần xem) chỉ dùng model có cột `ảnh` là `có`. Model `không` (mọi model OpenCode Go, kể cả `opencode-go/kimi-k3`) chưa được giao việc có ảnh: bỏ runtime đó, lấy runtime kế trong thứ tự.
-4. **Model và effort:** lấy đúng ô của runtime đã chọn ở dòng mức đó. OpenCode không có effort: marker ghi `effort=default`, override chỉ có `model`.
+0. **Đọc bảng model** (một lần mỗi run cần chọn model), đúng mẫu trong mục "Gọi API":
+   `curl -fsS -H "Authorization: Bearer $PAPERCLIP_API_KEY" "$PAPERCLIP_API_URL/api/crew/model-settings"`
+   Lấy từ JSON trả về (đều nằm trong `settings`):
+   - thứ tự runtime của mức: `settings.order.<mức>`;
+   - model và effort của runtime ở mức đó: `settings.catalog.<runtime>.byComplexity.<mức>` (`model`, `effort`);
+   - model có đọc được ảnh không: `settings.catalog.<runtime>.models.<id model>.vision`;
+   - key effort của runtime: `settings.catalog.<runtime>.effortKey` (`null` là runtime không có effort).
+
+   Lệnh lỗi (thoát khác 0, không có JSON, thiếu trường cần dùng) nghĩa là bạn chưa có bảng: không đoán model, không tạo con. Comment trên gốc `Trợ Lý: không đọc được bảng model (<lỗi>)` rồi dừng run; lần đánh thức sau thử lại từ bước 0. Bảng đã đọc trong run này dùng cho mọi con của run, không đọc lại giữa chừng.
+1. **Mức `complexity`** theo bảng "Khi nào" dưới đây. Cân theo thứ việc chạm vào, không theo cảm giác khó. Gói chạm bảo mật/phân quyền, migration, hợp đồng công khai luôn là `large` (chỉ Claude).
+2. **Runtime:** lấy runtime đầu tiên trong `settings.order.<mức>` mà mục "Executor của company" có executor chạy runtime ấy. Mức `large` chỉ có `claude_local`.
+3. **Ảnh:** gói có ảnh (ảnh đính kèm, ảnh chụp màn hình cần xem) chỉ dùng model có `vision` là `true`. Model `vision: false` chưa được giao việc có ảnh: bỏ runtime đó, lấy runtime kế trong `settings.order.<mức>`.
+4. **Model và effort:** lấy đúng `settings.catalog.<runtime>.byComplexity.<mức>` của runtime đã chọn. Runtime có `effortKey` là `null` (hiện là OpenCode) không có effort: marker ghi `effort=default`, override chỉ có `model`. Marker `crew-model` ghi `model` và `effort` đúng như bảng, không sửa.
 5. **Mỗi gói một lựa chọn:** cùng gói một runtime và một model. Lấy mức cao nhất của gói rồi chọn một lần cho cả gói.
 
 Không chọn runtime theo công tắc; Crew tự chuyển khi runtime tắt hoặc hỏng. Run bị giữ hay hỏng vì hết quota, mất đăng nhập, runtime tắt thì Crew giao lại cho executor runtime khác trên cùng máy và comment `Crew: chuyển từ …`; bạn không giao lại, không đổi model của con đó.
 
 Không chọn reviewer: server tự chọn reviewer Claude hay Codex khi tạo issue con, và tự chuyển về reviewer Claude khi reviewer Codex lỗi hoặc bị tắt. Bạn không gửi gì về reviewer.
 
-| complexity | Thứ tự runtime | `claude_local` | `codex_local` | `opencode_local` | Khi nào |
-|---|---|---|---|---|---|
-| `trivial` | `opencode_local` → `claude_local` → `codex_local` | `claude-sonnet-5-5` / `low` | `gpt-6-luna` / `low` | `opencode-go/deepseek-v4-flash` / `default` | Đổi chữ, fixture, sửa cơ học có mô tả đủ |
-| `small` | `opencode_local` → `claude_local` → `codex_local` | `claude-sonnet-5-5` / `medium` | `gpt-6-luna` / `medium` | `opencode-go/kimi-k3` / `default` | Bám khuôn có sẵn, một module |
-| `medium` | `claude_local` → `codex_local` → `opencode_local` | `claude-sonnet-5-5` / `high` | `gpt-6-sol` / `high` | `opencode-go/glm-5.3` / `default` | Nhiều file trong một module, logic mới cỡ vừa |
-| `large` | `claude_local` | `claude-opus-5-5` / `high` | — | — | Lõi, bảo mật/phân quyền, migration, scheduler, hợp đồng công khai |
+| complexity | Khi nào |
+|---|---|
+| `trivial` | Đổi chữ, fixture, sửa cơ học có mô tả đủ |
+| `small` | Bám khuôn có sẵn, một module |
+| `medium` | Nhiều file trong một module, logic mới cỡ vừa |
+| `large` | Lõi, bảo mật/phân quyền, migration, scheduler, hợp đồng công khai |
 
-| runtime | model | ảnh | key effort |
-|---|---|---|---|
-| `claude_local` | `claude-sonnet-5-5` | có | `effort` |
-| `claude_local` | `claude-opus-5-5` | có | `effort` |
-| `codex_local` | `gpt-6-luna` | có | `modelReasoningEffort` |
-| `codex_local` | `gpt-6-sol` | có | `modelReasoningEffort` |
-| `opencode_local` | `opencode-go/deepseek-v4-flash` | không | — |
-| `opencode_local` | `opencode-go/kimi-k3` | không | — |
-| `opencode_local` | `opencode-go/glm-5.3` | không | — |
+Model, effort, thứ tự runtime và cờ ảnh không nằm trong file này: owner đổi chúng trong Cài đặt model, nên bạn đọc bảng hiện hành ở bước 0 mỗi lần cần chọn model.
 
 Không có mức nào dùng fable hay haiku.
 
@@ -334,7 +335,7 @@ Server đánh thức bạn lại (`issue_blockers_resolved`) ngay khi gốc `blo
 
 | code | Nghĩa | Bạn làm |
 |---|---|---|
-| `crew_override_forbidden` | `assigneeAdapterOverrides` có key hoặc model/effort ngoài bảng, hay không đúng runtime của executor (`violations` ghi `adapterConfig.model:<id>@<runtime>`) | Tạo lại con với đúng override của runtime executor trong mục "Chọn runtime và model" |
+| `crew_override_forbidden` | `assigneeAdapterOverrides` có key hoặc model/effort ngoài bảng, hay không đúng runtime của executor (`violations` ghi `adapterConfig.model:<id>@<runtime>`) | Đọc lại bảng model (bước 0 mục "Chọn runtime và model", owner có thể vừa lưu bản mới) rồi tạo lại con với đúng override của runtime executor theo bảng vừa đọc |
 | `crew_role_assignee` | Giao con cho reviewer hoặc integrator | Giao cho executor trong danh sách |
 | `crew_agent_root_issue` | Tạo issue không có cha | Luôn `POST /api/companies/<companyId>/issues` với `"parentId":"<id gốc>"` |
 | `crew_gate_blocked` | Chưa đủ điều kiện (`done` khi stage chưa duyệt, tạo con ở `done`/`in_review`; `board_child_open`: còn việc con owner thêm chưa xong) | Không tự duyệt; chờ con xong. `board_child_open`: dừng, lần chạy sau nhận việc con đó theo mục "Việc con owner thêm" |

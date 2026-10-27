@@ -21,6 +21,17 @@ Có hai đường áp, cho cùng kết quả từng byte:
   Template được nhúng nguyên văn lúc build (`?raw`), và `render.ts` là bản port TypeScript của `render-instructions.mjs`;
   test chạy script gốc để so.
 
+## Bảng model của Trợ Lý
+
+`assistant.md` không nhúng id model, effort hay cờ ảnh. Owner sửa bảng trong Cài đặt model (flow `model-settings`), nên mỗi
+run cần chọn model thì Trợ Lý đọc bảng hiện hành bằng `curl -fsS -H "Authorization: Bearer $PAPERCLIP_API_KEY"
+"$PAPERCLIP_API_URL/api/crew/model-settings"` (bước 0 của mục "Chọn runtime và model"). Template chỉ giữ bảng "Khi nào"
+(mức `complexity` cho loại việc nào), luật chọn runtime và dạng override của từng runtime. Từ JSON trả về Trợ Lý lấy
+`settings.order.<mức>`, `settings.catalog.<runtime>.byComplexity.<mức>`, `…models.<id>.vision` và `…effortKey`. Lệnh đọc lỗi
+thì Trợ Lý comment `Trợ Lý: không đọc được bảng model (<lỗi>)` trên gốc rồi dừng, không đoán model và không tạo con; lần đánh
+thức sau thử lại. Khi server trả `crew_override_forbidden`, Trợ Lý đọc lại bảng (owner có thể vừa lưu) rồi tạo lại con. Vì
+`AGENTS.md` không còn chứa bảng, đổi bảng không cần render lại hay upload lại `AGENTS.md`.
+
 ## Tổng kết của Trợ Lý trên mô tả gốc
 
 Mục `## Tổng kết của Trợ Lý` ở cuối mô tả gốc là chỗ owner đọc để nắm cả yêu cầu. Luật nằm ở mục "Tổng kết trên mô tả gốc" của
@@ -137,6 +148,8 @@ Giống loại `docs`: loại chỉ là nhãn Paperclip `plan` trên issue gốc
   và ghi `- File kế hoạch:` trong tổng kết; executor, reviewer, integrator có luật tương ứng. Tổng kết của Trợ Lý: có từ lúc lập kế hoạch, đủ mục Yêu cầu/Việc con/Hình ảnh theo thứ tự, cập nhật mỗi run bằng `PATCH` ghi cuối, giữ `### Merge request`.
 - `crew/agents/integrator-pr.test.mjs`: script mở pull request của integrator: mở mới, dùng lại, đã merge, origin không
   ở GitHub, `gh` chưa đăng nhập, nhánh đã đi khác (không `--force`), lỗi tạo PR có credential bị che, đầu vào sai. Nội dung PR bỏ mục `### Hình ảnh` của tổng kết.
+- `crew/agents/instructions.test.mjs`: luật trong template; riêng bảng model, `assistant.md` không chứa id model nào, có đúng
+  lệnh `curl` đọc bảng cùng bốn đường dẫn JSON và đường lui khi lệnh lỗi.
 - `crew/agents/apply-roles.test.mjs`: thứ tự đọc → upload → PATCH, dừng trước khi ghi khi không đọc được, vai trò BMAD và
   ô runtime, sai `adapterType` hay thiếu `CODEX_HOME`.
 - `crew/agents/render-instructions.test.mjs`, `merge-agent-config.test.mjs`, `add-base.test.mjs`,
