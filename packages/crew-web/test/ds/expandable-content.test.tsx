@@ -31,6 +31,8 @@ describe('ExpandableContent', () => {
     const toggle = screen.getByRole('button', { name: 'Hiện đủ (còn 32 dòng)' });
     expect(toggle.getAttribute('aria-expanded')).toBe('false');
     expect(toggle.querySelector('svg')).not.toBeNull();
+    // Nằm trong bong bóng comment của người (chữ trắng) vẫn đọc được trên nền outline.
+    expect(toggle.className).toContain('text-foreground');
     expect(document.querySelector('[data-collapsed]')).not.toBeNull();
     expect(document.querySelector('[data-slot="expandable-fade"]')).not.toBeNull();
     fireEvent.click(toggle);

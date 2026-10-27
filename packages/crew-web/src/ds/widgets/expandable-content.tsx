@@ -70,7 +70,8 @@ function ExpandableContent({
           type="button"
           variant="outline"
           size="xs"
-          className="self-center"
+          // Chữ theo màu chữ thường, không kế thừa: bong bóng comment của người ép chữ trắng, nền nút outline trắng.
+          className="self-center text-foreground"
           aria-expanded={expanded}
           onClick={() => setExpanded((v) => !v)}
         >
