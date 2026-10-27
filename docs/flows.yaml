@@ -213,6 +213,7 @@ flows:
     files: []
     tests:
       - server/src/__tests__/crew-failed-run-deferred-review.db.test.ts
+      - server/src/__tests__/crew-handoff-rewake-blocked-root.db.test.ts
       - server/src/__tests__/crew-handoff-rewake-sweep.db.test.ts
       - server/src/__tests__/crew-handoff-rewake.test.ts
       - server/src/__tests__/crew-run-cancelled.test.ts

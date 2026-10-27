@@ -822,6 +822,7 @@ File nào thuộc flow nào. Dùng `crew-docs where <file>` để tra từ dòng
 | `server/src/__tests__/crew-docs-snapshot-body.test.ts` | [docs-snapshot](flows/docs-snapshot.md) (test) |
 | `server/src/__tests__/crew-draft-start-work.db.test.ts` | [issue-gate](flows/issue-gate.md) (test) |
 | `server/src/__tests__/crew-failed-run-deferred-review.db.test.ts` | [run-handoff](flows/run-handoff.md) (test) |
+| `server/src/__tests__/crew-handoff-rewake-blocked-root.db.test.ts` | [run-handoff](flows/run-handoff.md) (test) |
 | `server/src/__tests__/crew-handoff-rewake-sweep.db.test.ts` | [run-handoff](flows/run-handoff.md) (test) |
 | `server/src/__tests__/crew-handoff-rewake.test.ts` | [run-handoff](flows/run-handoff.md) (test) |
 | `server/src/__tests__/crew-issue-create-policy.test.ts` | [issue-gate](flows/issue-gate.md) (test) |
