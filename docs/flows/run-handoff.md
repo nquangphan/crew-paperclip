@@ -50,7 +50,9 @@ Mô tả và lý do chi tiết của từng vá: `crew/release/core-hooks.json` 
    chỗ của run chưa từng gọi adapter. Chỉ xét recovery action còn là giữ chỗ (`executionBlockerPredicate`), cause
    `legacy_execution_requires_reconciliation`, chưa có đối soát của người, không có dấu workspace hỏng, issue không
    `done`/`cancelled`; run nguồn đúng của issue đó, mã hủy `legacy_disposition_repair_suppressed`, `legacyRunNeverLaunched`
-   (flow `ssh-run-lifecycle`) chứng minh không có tiến trình adapter nào, và không còn lease chưa nhả. Gỡ theo đúng cách
+   (flow `ssh-run-lifecycle`) chứng minh không có tiến trình adapter nào, run chưa có bằng chứng `executionRecovery`
+   nào, chính `legacyExecutionNeedsReconciliation` của lõi chấp nhận bằng chứng bootstrap là đủ (run đã hết ngân sách
+   thử lại thì lõi vẫn giữ, Crew không gỡ để khỏi bị mở lại mỗi tick), và không còn lease chưa nhả. Gỡ theo đúng cách
    lõi gỡ bootstrap chưa khởi động provider (`settleInterruptedNativeBootstrap`): action thành `resolved` /
    `false_positive`, `automaticRecovery.replay = "allowed"`, thêm dấu `crewRecoveryHoldRelease`; run được ghi
    `executionRecovery.providerWorkStarted = false` để các vòng kiểm định kỳ của lõi không mở lại giữ chỗ. Không đổi
