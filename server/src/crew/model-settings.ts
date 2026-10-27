@@ -430,8 +430,12 @@ export async function readModelSettingsRow(db: CrewRolesDb): Promise<ModelSettin
 export const MODEL_SETTINGS_CACHE_TTL_MS = 60_000;
 let cache: { settings: Readonly<CrewModelSettings>; revision: number; loadedAt: number } | null = null;
 
-/** Ghi cache sau khi lưu thành công (server chỉ có một process). */
+/**
+ * Ghi cache sau khi lưu thành công (server chỉ có một process). Bản cũ hơn bản đang cache (một lần đọc bắt đầu trước khi
+ * lần lưu commit nhưng ghi cache sau nó) thì bỏ qua khi cache còn hạn, để H2/H4 không quay về bảng cũ tới hết TTL.
+ */
 export function rememberModelSettings(revision: number, settings: Readonly<CrewModelSettings>): void {
+  if (cache && revision < cache.revision && Date.now() - cache.loadedAt < MODEL_SETTINGS_CACHE_TTL_MS) return;
   cache = { settings, revision, loadedAt: Date.now() };
 }
 

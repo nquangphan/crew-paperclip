@@ -1,12 +1,15 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import { CREW_CODEX_REVIEWER_MODEL, CREW_RUNTIME_CATALOG, CREW_RUNTIME_ORDER } from "../crew/model-policy.ts";
 import {
   applyUpgradeToSettings,
+  clearModelSettingsCache,
   codexReviewerOverrides,
   CREW_MODEL_ROLE_RUNTIME,
   CREW_MODEL_ROLES,
   CREW_MODEL_SETTINGS_DEFAULT,
   type CrewModelSettings,
+  loadModelSettings,
+  rememberModelSettings,
   rootReviewerOverrides,
   validateModelSettings,
 } from "../crew/model-settings.ts";
@@ -213,5 +216,18 @@ describe("applyUpgradeToSettings", () => {
     expect(result.cells).toEqual([]);
     expect(result.roles).toEqual([]);
     expect(result.settings.catalog.codex_local).toEqual(CREW_MODEL_SETTINGS_DEFAULT.catalog.codex_local);
+  });
+});
+
+describe("cache bảng cài đặt model", () => {
+  afterEach(() => clearModelSettingsCache());
+
+  it("không để bản đọc cũ ghi đè bản vừa lưu khi cache còn hạn", async () => {
+    const saved = draft();
+    saved.roles.executor = { model: "claude-opus-5-5", effort: null };
+    rememberModelSettings(2, saved);
+    rememberModelSettings(1, CREW_MODEL_SETTINGS_DEFAULT);
+    // Cache còn hạn nên không đọc DB.
+    expect(await loadModelSettings({} as never)).toBe(saved);
   });
 });
