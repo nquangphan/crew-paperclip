@@ -36,7 +36,7 @@ Cấu trúc thư mục, luật và cách xem thử nằm ở `packages/crew-web/
    thành ngăn kéo.
 4. `packages/crew-web/src/ds/widgets/`: widget ghép từ component (danh sách và chi tiết issue, bảng Kanban, markdown,
    transcript, wizard, tài liệu...), không gọi API; dữ liệu do feature truyền vào.
-5. `packages/crew-web/src/ds/index.ts`: export mọi component và widget, gồm widget Crew và bản đồ Roadmap.
+5. `packages/crew-web/src/ds/index.ts`: export mọi component và widget, gồm widget Crew và bản đồ Roadmap. Widget zoom ảnh (`image-zoom`, `image-zoom-view`) cũng qua cổng này.
 
 ## Files
 
