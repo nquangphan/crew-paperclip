@@ -987,6 +987,7 @@ flows:
       - packages/crew-web/src/ds/widgets/doc-toc.tsx
       - packages/crew-web/src/ds/widgets/doc-tree.tsx
       - packages/crew-web/src/ds/widgets/expandable-content.tsx
+      - packages/crew-web/src/ds/widgets/summary-panel.tsx
       - packages/crew-web/src/ds/widgets/filter-bar.tsx
       - packages/crew-web/src/ds/widgets/floating-notice.tsx
       - packages/crew-web/src/ds/widgets/heading-slug.ts

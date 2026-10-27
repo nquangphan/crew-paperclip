@@ -79,5 +79,6 @@ export * from './widgets/stage-badge';
 export * from './widgets/status-badge';
 export * from './widgets/status-glyph';
 export * from './widgets/status-pill';
+export * from './widgets/summary-panel';
 export * from './widgets/transcript';
 export * from './widgets/wizard';
