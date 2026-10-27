@@ -72,9 +72,14 @@ import cuối file để merge upstream ít conflict), mô tả lý do và `upst
 - `ssh-run-lifecycle`: implementation của H3, vá P1, P8, C9.
 - `adapter-patches`: vá P2–P7, P9.
 - `run-handoff`: vá C10–C14.
-- `contributions`: vá C7 (router góp ý, route Phòng QC, router con quyền xem project và máy, bộ chờ plugin khởi động).
+- `contributions`: vá C7 (router góp ý, route Phòng QC, router con quyền xem project, máy và cài đặt model, bộ chờ plugin
+  khởi động).
 - `docs-snapshot`: vá C15 (parser JSON 16 MB cho webhook `docs-snapshot`).
 - `multi-machine`: vá C16.
+- `model-settings`: vá C17, một dòng `GET /api/crew/model-settings` trong allowlist cầu nối callback của run SSH
+  (`DEFAULT_SANDBOX_CALLBACK_BRIDGE_ROUTE_ALLOWLIST` trong `packages/adapter-utils/src/sandbox-callback-bridge.ts`, file
+  dùng chung với flow `model-settings`) để Trợ Lý đọc bảng model ở mỗi run. Không phải hook nên không tính vào
+  `HOOK_BUDGET`.
 - `ops-deploy`: build image từ cây đã qua `verify.sh`.
 
 ## Tests
@@ -91,3 +96,5 @@ import cuối file để merge upstream ít conflict), mô tả lý do và `upst
   implementation, và trả `null` khi implementation ném lỗi.
 - `server/src/__tests__/crew-run-environment.test.ts` (Postgres nhúng): C16: Crew trả environment thì heartbeat dùng nó,
   `null` hay lỗi thì giữ environment mặc định; run vẫn chạy khi Crew ném lỗi.
+- `server/src/__tests__/crew-bridge-allowlist.test.ts`: C17: cầu nối cho qua `GET /api/crew/model-settings`, chặn
+  `PUT`/`POST` cùng đường dẫn và mọi route `/api/crew` khác; allowlist chỉ có đúng một dòng Crew.

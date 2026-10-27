@@ -62,11 +62,15 @@ Luật áp theo company:
 6. `server/src/crew/issue-gate.ts` → phần sau verdict: mở lại issue Crew xóa `executionState` và trả việc cho executor
    (`reopenHandBack`); owner yêu cầu sửa ở stage owner thì chạy lại từ stage đầu (`restartAfterOwnerChanges`); board ép
    `done` xóa state treo; `routeAssigneeOverrides` đặt override theo vai trò khi đổi giữa executor và agent của stage
-   (reviewer Codex `CREW_CODEX_REVIEWER_OVERRIDES`, reviewer Claude trên gốc `CREW_ROOT_REVIEWER_OVERRIDES`, executor
-   lấy lại override để lại lần trước).
+   (reviewer Codex theo vai `reviewer-codex`, reviewer Claude trên gốc theo vai `reviewer-root` của cài đặt model,
+   dựng bằng `codexReviewerOverrides`/`rootReviewerOverrides`; executor lấy lại override để lại lần trước nếu còn hợp
+   với catalog hiện hành).
 7. `server/src/crew/model-policy.ts` → `checkAgentAdapterOverrides`, `CREW_RUNTIME_CATALOG`, `CREW_RUNTIME_ORDER`,
-   `CREW_MODEL_LINE_RE`: bảng model theo runtime và độ phức tạp, luật override của agent, marker `crew-model` Trợ Lý
-   ghi trong mô tả issue con. Bảng này có bản chép ở plugin và crew-web, mỗi bản có test so khớp.
+   `CREW_MODEL_LINE_RE`: luật override của agent (kiểm theo catalog truyền vào), bảng model mặc định theo runtime và độ
+   phức tạp, marker `crew-model` Trợ Lý ghi trong mô tả issue con. H2 và H4 truyền catalog hiện hành từ
+   `loadModelSettings` (flow `model-settings`, cache 60 giây, đọc trong savepoint; đọc lỗi thì dùng cache hoặc mặc
+   định, không làm hỏng lệnh ghi issue); chưa ai lưu bản nào thì catalog là bảng mặc định này. Plugin giữ bản chép mặc
+   định, có test so khớp.
 
 ## Files
 
@@ -75,7 +79,7 @@ Luật áp theo company:
 | `server/src/crew/issue-gate.ts` | H2: kiểm lệnh ghi issue | `crewBeforeIssueWrite`, `evaluateIssueGate`, `docsGateStages`, `pushGateStages`, `restartAfterOwnerChanges`, `CREW_CYCLE_RESET_ACTION` |
 | `server/src/crew/issue-create-policy.ts` | H4: chọn template, từ chối tạo sai luật | `crewBeforeIssueCreate`, `decideCreatePolicy`, `CREW_BMAD_KIND_RE`, `executorRuntimeOf`, `withProjectTag` |
 | `server/src/crew/issue-policy.ts` | File cấu hình, template policy, parser bằng chứng | `loadCrewCompanyConfig`, `buildCrewPolicy`, `parseCrewMergeEvidence`, `parseDocsCheckEvidence`, `CREW_HOUSEKEEPING_ORIGIN_KINDS` |
-| `server/src/crew/model-policy.ts` | Bảng runtime/model, luật override, chọn reviewer | `CREW_RUNTIME_CATALOG`, `checkAgentAdapterOverrides`, `chooseReviewer`, `CREW_CODEX_REVIEWER_MODEL` |
+| `server/src/crew/model-policy.ts` | Bảng runtime/model mặc định, luật override, chọn reviewer | `CREW_RUNTIME_CATALOG`, `CREW_RUNTIME_ORDER`, `checkAgentAdapterOverrides`, `chooseReviewer`, `CREW_CODEX_REVIEWER_MODEL` |
 | `server/src/services/issues.ts` | File upstream chứa H2, H4 | `issueService.create`, `issueService.update` |
 
 ## Dữ liệu
@@ -96,6 +100,7 @@ Luật áp theo company:
 ## Flow liên quan
 
 - `core-hooks`: đăng ký H2, H4.
+- `model-settings`: owner sửa catalog và mặc định vai; H2/H4 đọc catalog và override reviewer từ đó.
 - `project-roles`: owner đặt vai trò agent theo project; `server/src/crew/project-roles.ts` đọc bảng đó cho server
   (`loadCrewRoles`, `agentAssignmentAllowed`).
 - `runtime-switches`: công tắc `codex_local` quyết định có reviewer Codex.
@@ -116,9 +121,11 @@ Luật áp theo company:
 - `server/src/__tests__/crew-issue-gate.db.test.ts`: H2 trên DB thật: chặn override, xóa policy, cancel, giao cho
   reviewer; board override ghi activity; mở lại issue không tính approval cũ; bằng chứng docs/push; luồng gốc bốn stage
   với push thẳng và pull request; override opus của reviewer gốc.
+- `server/src/__tests__/crew-model-settings.db.test.ts` (flow `model-settings`): H2/H4 nhận model vừa thêm, chặn model
+  vừa gỡ, override reviewer Codex và reviewer gốc theo `roles`, đọc bảng lỗi không làm hỏng lệnh ghi.
 - `server/src/__tests__/crew-agent-assignment.db.test.ts`: luật giao việc ở H4 và H2 theo vai trò project, khóa
   project, 503 khi không đọc được vai trò, reviewer Codex và chuyển sang reviewer Claude đầu-cuối.
 - `server/src/__tests__/crew-board-child.db.test.ts`: Trợ Lý không nộp gốc khi việc con board thêm chưa xong.
 - `server/src/__tests__/crew-draft-start-work.db.test.ts`: chuyển `todo` lần hai không đánh thức thêm.
-- `server/src/__tests__/crew-model-policy.test.ts`: bảng runtime/model khớp nguyên văn, luật override theo runtime,
-  marker `crew-model`, `chooseReviewer`.
+- `server/src/__tests__/crew-model-policy.test.ts`: bảng runtime/model mặc định khớp nguyên văn, luật override theo
+  runtime và theo catalog truyền vào, marker `crew-model`, `chooseReviewer`.

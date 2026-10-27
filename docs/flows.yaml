@@ -23,6 +23,7 @@ source:
     - "server/src/services/issues.ts"
     - "server/src/services/plugin-worker-manager.ts"
     - "server/src/services/recovery/service.ts"
+    - "packages/adapter-utils/src/sandbox-callback-bridge.ts"
     - "packages/adapters/claude-local/src/server/execute.ts"
     - "packages/adapters/claude-local/src/server/index.ts"
     - "packages/adapters/claude-local/src/server/parse.ts"
@@ -89,6 +90,18 @@ flows:
       - server/src/__tests__/crew-issue-gate.db.test.ts
       - server/src/__tests__/crew-issue-gate.test.ts
       - server/src/__tests__/crew-model-policy.test.ts
+  model-settings:
+    title: "Cài đặt model của owner (catalog, bảng độ khó, mặc định vai, nâng hàng loạt)"
+    doc: docs/flows/model-settings.md
+    entrypoints:
+      - server/src/crew/model-settings-routes.ts
+    files:
+      - packages/crew-plugin/migrations/0023_model_settings.sql
+      - server/src/crew/model-settings.ts
+    tests:
+      - server/src/__tests__/crew-bridge-allowlist.test.ts
+      - server/src/__tests__/crew-model-settings.db.test.ts
+      - server/src/__tests__/crew-model-settings.test.ts
   agent-guards:
     title: "Chặn agent sửa cấu hình agent, project, workspace và xóa issue"
     doc: docs/flows/agent-guards.md
@@ -1156,6 +1169,7 @@ shared:
   server/src/app.ts: [crew-plugin, contributions]
   server/src/index.ts: [run-handoff]
   server/src/services/recovery/service.ts: [run-handoff]
+  packages/adapter-utils/src/sandbox-callback-bridge.ts: [core-hooks, model-settings]
   packages/adapters/claude-local/src/server/execute.ts: [adapter-patches, ssh-run-lifecycle]
   packages/adapters/opencode-local/src/server/execute.ts: [adapter-patches, ssh-run-lifecycle]
 unassigned: []

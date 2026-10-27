@@ -74,6 +74,7 @@ File nào thuộc flow nào. Dùng `crew-docs where <file>` để tra từ dòng
 | `crew/release/upgrade.sh` | [core-hooks](flows/core-hooks.md) (điểm vào) |
 | `crew/release/upgrade.test.mjs` | [core-hooks](flows/core-hooks.md) (test) |
 | `crew/release/verify.sh` | [core-hooks](flows/core-hooks.md) (file) |
+| `packages/adapter-utils/src/sandbox-callback-bridge.ts` | [core-hooks](flows/core-hooks.md) (dùng chung), [model-settings](flows/model-settings.md) (dùng chung) |
 | `packages/adapters/claude-local/src/server/execute.remote.crew.test.ts` | [adapter-patches](flows/adapter-patches.md) (test) |
 | `packages/adapters/claude-local/src/server/execute.ts` | [adapter-patches](flows/adapter-patches.md) (dùng chung), [ssh-run-lifecycle](flows/ssh-run-lifecycle.md) (dùng chung) |
 | `packages/adapters/claude-local/src/server/index.ts` | [adapter-patches](flows/adapter-patches.md) (file) |
@@ -107,6 +108,7 @@ File nào thuộc flow nào. Dùng `crew-docs where <file>` để tra từ dòng
 | `packages/crew-plugin/migrations/0018_contributor_department.sql` | [crew-plugin](flows/crew-plugin.md) (file) |
 | `packages/crew-plugin/migrations/0019_qc_verification.sql` | [crew-plugin](flows/crew-plugin.md) (file) |
 | `packages/crew-plugin/migrations/0022_multi_machine.sql` | [crew-plugin](flows/crew-plugin.md) (file) |
+| `packages/crew-plugin/migrations/0023_model_settings.sql` | [model-settings](flows/model-settings.md) (file) |
 | `packages/crew-plugin/src/__tests__/attachments-audit.db.test.ts` | [attachments](flows/attachments.md) (test) |
 | `packages/crew-plugin/src/__tests__/attachments-rules.test.ts` | [attachments](flows/attachments.md) (test) |
 | `packages/crew-plugin/src/__tests__/companies.db.test.ts` | [crew-plugin](flows/crew-plugin.md) (test) |
@@ -795,6 +797,7 @@ File nào thuộc flow nào. Dùng `crew-docs where <file>` để tra từ dòng
 | `server/src/__tests__/crew-agent-config.test.ts` | [agent-guards](flows/agent-guards.md) (test) |
 | `server/src/__tests__/crew-before-claim.test.ts` | [run-claim](flows/run-claim.md) (test) |
 | `server/src/__tests__/crew-board-child.db.test.ts` | [issue-gate](flows/issue-gate.md) (test) |
+| `server/src/__tests__/crew-bridge-allowlist.test.ts` | [model-settings](flows/model-settings.md) (test) |
 | `server/src/__tests__/crew-bundle-resume.test.ts` | [run-claim](flows/run-claim.md) (test) |
 | `server/src/__tests__/crew-claim-resume-contract.test.ts` | [run-claim](flows/run-claim.md) (test) |
 | `server/src/__tests__/crew-contributions-agent-blind.test.ts` | [contributions](flows/contributions.md) (test) |
@@ -818,6 +821,8 @@ File nào thuộc flow nào. Dùng `crew-docs where <file>` để tra từ dòng
 | `server/src/__tests__/crew-machine-routes.db.test.ts` | [multi-machine](flows/multi-machine.md) (test) |
 | `server/src/__tests__/crew-machine-select.test.ts` | [multi-machine](flows/multi-machine.md) (test) |
 | `server/src/__tests__/crew-model-policy.test.ts` | [issue-gate](flows/issue-gate.md) (test) |
+| `server/src/__tests__/crew-model-settings.db.test.ts` | [model-settings](flows/model-settings.md) (test) |
+| `server/src/__tests__/crew-model-settings.test.ts` | [model-settings](flows/model-settings.md) (test) |
 | `server/src/__tests__/crew-plugin-data-viewer.test.ts` | [crew-plugin](flows/crew-plugin.md) (test) |
 | `server/src/__tests__/crew-plugin-event-invocation-scope.test.ts` | [crew-plugin](flows/crew-plugin.md) (test) |
 | `server/src/__tests__/crew-plugin-manifest.test.ts` | [crew-plugin](flows/crew-plugin.md) (test) |
@@ -862,6 +867,8 @@ File nào thuộc flow nào. Dùng `crew-docs where <file>` để tra từ dòng
 | `server/src/crew/machine-routes.ts` | [multi-machine](flows/multi-machine.md) (điểm vào) |
 | `server/src/crew/machine-select.ts` | [multi-machine](flows/multi-machine.md) (file) |
 | `server/src/crew/model-policy.ts` | [issue-gate](flows/issue-gate.md) (file) |
+| `server/src/crew/model-settings-routes.ts` | [model-settings](flows/model-settings.md) (điểm vào) |
+| `server/src/crew/model-settings.ts` | [model-settings](flows/model-settings.md) (file) |
 | `server/src/crew/plugin-data-scope.ts` | [crew-plugin](flows/crew-plugin.md) (file) |
 | `server/src/crew/plugin-startup-wait.ts` | [crew-plugin](flows/crew-plugin.md) (file) |
 | `server/src/crew/project-access-routes.ts` | [project-access](flows/project-access.md) (điểm vào) |

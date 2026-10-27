@@ -25,8 +25,9 @@ Luật chính:
 ## Điểm vào
 
 - Vá C7 trong `server/src/app.ts`: `api.use(crewContributionRoutes(db))` ngay sau route approval, sau guard mutation của
-  board. Router này cũng gắn router quyền xem project (flow `project-access`), router máy (flow `multi-machine`)
-  và bộ chờ plugin khởi động.
+  board. Router này cũng gắn router quyền xem project (flow `project-access`), router máy (flow `multi-machine`),
+  router cài đặt model (flow `model-settings`, `/api/crew/model-settings`, toàn instance, luật người gọi riêng: owner là
+  instance admin) và bộ chờ plugin khởi động.
 - Route dưới `/api/crew/companies/:companyId`: `GET /access`, `GET /contributions`, `GET /contributions/summary`,
   `GET /contributions/:id`, `POST /contributions`, `POST /contributions/:id/approve`,
   `POST /contributions/:id/approve/complete`, `POST /contributions/:id/reject`, `GET /contributors`,
@@ -86,6 +87,7 @@ Luật chính:
 - `qc-department`: Phòng QC, góp ý `reopen` và route QC trong cùng router.
 - `project-access`: router quyền xem project gắn bên trong; người góp ý chỉ gửi vào project được cấp.
 - `multi-machine`: router máy (chọn máy cho yêu cầu gốc, máy và repo của project) gắn bên trong, cùng luật người gọi.
+- `model-settings`: router cài đặt model gắn bên trong (`crewModelSettingsRoutes`), không theo company.
 - `crew-plugin`: bộ chờ plugin khởi động gắn ở router này.
 - `issues-web`, `web-pages`: chi tiết issue, sidebar và trang thành viên dùng các component và `/access`.
 

@@ -57,6 +57,7 @@ Paperclip, không mô tả Crew. Phạm vi file nguồn của Crew là `source.i
 | [Issue trên UI Crew: danh sách, chi tiết, tạo yêu cầu, cổng duyệt, ép xong](flows/issues-web.md) | `issues-web` | `packages/crew-web/src/features/issues/routes.tsx`, `packages/crew-plugin/src/issues/force-done.ts` |
 | [Hàng đợi việc trên máy (machine jobs)](flows/machine-jobs.md) | `machine-jobs` | `packages/crew-plugin/src/jobs/api.ts` |
 | [Bản tin máy (machine-status) và ghép máy](flows/machine-status.md) | `machine-status` | `packages/crew-plugin/src/machines/webhook.ts`, `packages/crew-plugin/src/machines/pairing.ts`, `packages/crew-web/src/features/machines/routes.tsx` |
+| [Cài đặt model của owner (catalog, bảng độ khó, mặc định vai, nâng hàng loạt)](flows/model-settings.md) | `model-settings` | `server/src/crew/model-settings-routes.ts` |
 | [Một project chạy trên nhiều máy: ghim máy theo cây yêu cầu, tự chọn máy, dựng project trên máy](flows/multi-machine.md) | `multi-machine` | `server/src/crew/machine-gate.ts`, `server/src/crew/machine-routes.ts` |
 | [Sao lưu DB, kéo bản sao về Mac, diễn tập khôi phục, dọn log run](flows/ops-backup.md) | `ops-backup` | `crew/ops/backup.sh`, `crew/ops/pull-backup.sh` |
 | [Deploy overlay lên VPS, auto-deploy và rollback](flows/ops-deploy.md) | `ops-deploy` | `crew/ops/deploy.sh`, `crew/ops/auto-deploy.mjs`, `crew/ops/overlay-source.sh` |
