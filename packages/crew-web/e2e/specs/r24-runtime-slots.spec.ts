@@ -82,6 +82,9 @@ test('PW-R24-1 Ô runtime: roles nhận đúng adapter, tab Vai trò và wizard 
   company,
 }) => {
   const c = await setupProject(api, company.id);
+  // Danh sách model theo thứ tự server trả (jsonb của Postgres sắp khóa theo độ dài rồi chữ cái, không theo thứ tự nhập).
+  const settings = await loadModelSettings(api);
+  const reviewerCodex = settings.roles['reviewer-codex'];
   try {
     const base = {
       companyId: company.id,
@@ -125,30 +128,28 @@ test('PW-R24-1 Ô runtime: roles nhận đúng adapter, tab Vai trò và wizard 
       codexReviewerAgentId: null,
     });
 
-    // Wizard Tạo agent từ lối "Thêm reviewer Codex": model cố định gpt-6-sol.
+    // Wizard Tạo agent từ lối "Thêm reviewer Codex": model cố định của bảng cài đặt.
     await page.reload();
     await expect(page.getByRole('tabpanel').getByText(c.agents.opencode.name)).toBeVisible();
     await expect(page.getByRole('link', { name: 'Thêm executor OpenCode' })).toHaveCount(0);
     await page.getByRole('link', { name: 'Thêm reviewer Codex' }).click();
     await expect(page).toHaveURL(new RegExp(`agents/new\\?project=${c.projectId}&slot=reviewer-codex`));
-    await expect(page.getByText('Reviewer Codex chạy model cố định gpt-6-sol, effort high.')).toBeVisible();
+    await expect(
+      page.getByText(`Reviewer Codex chạy model cố định ${reviewerCodex.model}, effort ${reviewerCodex.effort}.`),
+    ).toBeVisible();
     await expect(page.getByRole('combobox', { name: 'Model' })).toBeDisabled();
-    await expect(page.getByRole('combobox', { name: 'Model' })).toContainText('gpt-6-sol');
+    await expect(page.getByRole('combobox', { name: 'Model' })).toContainText(reviewerCodex.model);
 
     // Ô executor OpenCode: chỉ model OpenCode Go.
     await page.goto(company.path(`agents/new?project=${c.projectId}&slot=executor-opencode`));
     await page.getByRole('combobox', { name: 'Model' }).click();
-    await expect(page.getByRole('option')).toHaveText([
-      'opencode-go/deepseek-v4-flash',
-      'opencode-go/kimi-k3',
-      'opencode-go/glm-5.3',
-    ]);
+    await expect(page.getByRole('option')).toHaveText(Object.keys(settings.catalog.opencode_local.models));
     await page.keyboard.press('Escape');
 
     // Trang agent Codex: chọn model trong bảng Codex.
     await page.goto(company.path(`agents/${c.agents.codex.id}?tab=runtime`));
     await page.getByRole('combobox', { name: 'Model mặc định' }).click();
-    await expect(page.getByRole('option')).toHaveText(['gpt-6-luna', 'gpt-6-sol']);
+    await expect(page.getByRole('option')).toHaveText(Object.keys(settings.catalog.codex_local.models));
   } finally {
     await cleanup(api, company.id, c);
   }

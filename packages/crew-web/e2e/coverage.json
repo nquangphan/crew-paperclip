@@ -238,6 +238,11 @@
     "tests": ["PW-S15-PAIR "],
     "tier": "T1"
   },
+  "S18.4": {
+    "spec": "e2e/specs/s18-model-settings.spec.ts",
+    "tests": ["PW-S18-M1 ", "PW-S18-M2 ", "PW-S18-M3 ", "PW-S18-M4 ", "PW-S18-M5 ", "PW-S18-M6 ", "PW-S18-M7 "],
+    "tier": "T1"
+  },
   "S19": {
     "spec": "e2e/specs/s19-search.spec.ts",
     "tests": ["PW-S19-1 "],
