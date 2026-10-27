@@ -50,7 +50,8 @@ Luật chính:
 8. `packages/crew-web/src/features/members/members-page.tsx` → `MembersPage`: thành viên và phòng góp ý
    (`MembersSection`), lời mời (`InvitesSection`, link trỏ trang nhận lời mời của UI stock), yêu cầu tham gia
    (`JoinRequestsSection`); thao tác qua `use-members.ts`.
-9. `packages/crew-web/src/features/settings/settings-page.tsx` → `SettingsPage`: hồ sơ (`ProfileForm`), ngôn ngữ, thông
+9. `packages/crew-web/src/features/settings/settings-page.tsx` → `SettingsPage`: hồ sơ (`ProfileForm`), ngôn ngữ, lối vào
+   "Cài đặt model" (chỉ khi `useModelSettings` trả `canEdit`; trang `settings/models` xem flow `model-settings`), thông
    tin hệ thống chỉ đọc từ `GET /api/health` (`SystemInfo`).
 
 ## Files
@@ -75,7 +76,7 @@ Luật chính:
 | `packages/crew-web/src/features/projects/detail/machines-tab.tsx` | Tab Máy: máy đã ghép kèm trạng thái dựng project (tự làm mới 10 giây khi còn máy đang dựng), owner bấm Thêm máy/Thử lại, sửa origin, nhánh, repo đi kèm (form đồng bộ lại theo dữ liệu server, hiện lời server khi 422) | `MachinesTab`, `PROJECT_MACHINES_REFRESH_MS` |
 | `packages/crew-web/src/features/projects/paths.ts`, `index.ts` | Đường dẫn, export | `projectRef`, `companyHref` |
 | `packages/crew-web/src/features/members/` | Thành viên, lời mời, yêu cầu tham gia | `MembersPage`, `useMembers`, `CONTRIBUTOR_DEPARTMENTS`, `inviteLink` |
-| `packages/crew-web/src/features/settings/` | Cài đặt | `SettingsPage`, `ProfileForm`, `SystemInfo` |
+| `packages/crew-web/src/features/settings/` | Cài đặt | `SettingsPage`, `ProfileForm`, `SystemInfo`, `ModelSettingsPage` (trong `models/`) |
 
 ## Dữ liệu
 
@@ -114,4 +115,4 @@ Luật chính:
   `project-roles`).
 - `packages/crew-web/test/features/members/`: link lời mời, phòng góp ý của thành viên.
 - `packages/crew-web/test/features/settings/settings-page.test.tsx`: lưu tên, ảnh đại diện, viewer và người góp ý chỉ
-  đổi tên.
+  đổi tên; mục Model chỉ hiện với owner.

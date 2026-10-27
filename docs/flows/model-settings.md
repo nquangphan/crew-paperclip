@@ -110,6 +110,23 @@ Luật:
   (`inUse: [{ runtime, model, agents, issues }]`), `409 crew_model_settings_stale` (`currentRevision`),
   `403 crew_model_settings_forbidden`, `503 crew_model_settings_unavailable` (plugin chưa áp `0023`).
 
+9. `packages/crew-web/src/features/settings/models/model-settings-page.tsx` → `ModelSettingsPage` (route `settings/models`,
+   lối vào là Section "Model" của `SettingsPage`, chỉ hiện khi `GET` trả `canEdit: true`; mở thẳng URL khi không phải
+   owner thì `ErrorState` "Chỉ owner sửa được"): giữ bản nháp `draft` tách khỏi bản đang lưu `base`, bốn phần
+   `CatalogSection` (model, cờ xem ảnh, key effort; nút Gỡ khóa khi model còn dùng ở ô hay vai), `ComplexitySection`
+   (thứ tự runtime lên/xuống và bật/tắt, model và effort từng ô; `large` khóa ở Claude), `RolesSection` (9 vai, runtime chỉ
+   đọc), nút mở `UpgradeDialog`. Các phép sửa thuần và cách khớp lỗi `path` với ô nằm ở `model-draft.ts`.
+10. Lưu: gọi `PUT` với `dryRun: true`; có agent bị đổi thì `ConfirmDialog` nêu số agent đổi và số giữ/bỏ qua, rồi `PUT` thật
+    (cùng body, `dryRun: false`). Sau khi lưu hiện kết quả (agent đã đổi) ở thanh Lưu và gọi `invalidateModelSettings`.
+    Lỗi: `422 invalid` viền đỏ đúng ô và tóm tắt "N lỗi" (bản nháp giữ nguyên), `422 in_use` báo tại runtime kèm nút
+    "Nâng model" điền sẵn model cũ, `409` (hoặc `GET` thấy bản mới hơn) banner có nút Tải lại, `503` và lỗi mạng hiện
+    thông báo. Rời trang khi còn thay đổi chưa lưu thì hỏi lại (`useBlocker`, `beforeunload`).
+11. `upgrade-dialog.tsx` → `UpgradeDialog`: chọn runtime, model cũ, model mới (id lạ thì hỏi cờ xem ảnh); "Xem trước" gọi
+    `POST /upgrade` `dryRun: true` và hiện catalog đổi tên hay gộp, số ô bảng độ khó, vai, agent (kèm company), issue đang
+    mở, agent bỏ qua kèm lý do; "Nâng N chỗ" gửi lại đúng body với `dryRun: false`. Số thật khác bản xem trước thì ghi
+    "khác xem trước vì dữ liệu vừa đổi". Nâng hàng loạt luôn áp trên bản đang lưu, nên bản nháp chưa lưu bị bỏ (hộp thoại cảnh
+    báo).
+
 ## Flow liên quan
 
 - `contributions`: router cha (vá C7).
@@ -132,3 +149,10 @@ Luật:
 - `packages/crew-web/test/api/model-settings.test.ts`: client gửi đúng method, đường dẫn và body (kể cả `dryRun`);
   `modelSettingsErrorOf` phân loại `422` sai luật, `422` đang dùng, `409`, `403`, `503` và lỗi mạng.
 - `server/src/__tests__/crew-bridge-allowlist.test.ts`: allowlist chỉ cho qua `GET /api/crew/model-settings`.
+- `packages/crew-web/test/features/settings/model-draft.test.ts`: các phép sửa bản nháp (thêm/gỡ model, bật/tắt và đổi chỗ
+  runtime, đổi key effort) và khớp lỗi `path` với ô.
+- `packages/crew-web/test/features/settings/model-settings-page.test.tsx`: bốn phần từ bảng của server, không phải owner,
+  lưu (dry-run rồi lưu thật, xác nhận khi có agent đổi), `422`/`409`/`503`, gỡ model đang dùng, khóa `large`, hoàn tác, hỏi
+  khi rời trang, nâng hàng loạt (xem trước, xác nhận, khác xem trước, bị từ chối).
+- `packages/crew-web/e2e/specs/s18-model-settings.spec.ts` (T1): mỗi phần (a) đến (d) kiểm tác dụng bằng `GET`, xung đột hai
+  tab, key agent đọc được bảng, người không phải owner; cuối spec trả lại bản `settings` ban đầu.

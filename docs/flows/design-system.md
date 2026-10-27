@@ -53,7 +53,7 @@ Cấu trúc thư mục, luật và cách xem thử nằm ở `packages/crew-web/
 | `packages/crew-web/src/ds/components/` (còn lại) | Component cơ bản (button, dialog, select, tabs, table...) | |
 | `packages/crew-web/src/ds/widgets/markdown-view.tsx`, `markdown-renderer.tsx` | Markdown tải lười | `MarkdownView` |
 | `packages/crew-web/src/ds/widgets/issue-detail.tsx` | Khung chi tiết issue, khung ô soạn bình luận | `ComposerDock` |
-| `packages/crew-web/src/ds/widgets/` (còn lại) | Widget dùng chung (danh sách, Kanban, transcript, wizard, tài liệu, trạng thái...) | `ExpandableContent` (thu gọn nội dung dài: đáy mờ về `fadeTo`, nút outline có icon, chữ `text-foreground` để đọc được cả trong bong bóng comment chữ trắng, nhãn nhận số dòng ẩn), `SummaryPanel` (khối tóm tắt nổi bật: viền và nền màu nhấn, tiêu đề có icon, `###` bên trong thu nhỏ in hoa; dùng cho Tổng kết của Trợ Lý) |
+| `packages/crew-web/src/ds/widgets/` (còn lại) | Widget dùng chung (danh sách, Kanban, transcript, wizard, tài liệu, trạng thái...) | `ExpandableContent` (thu gọn nội dung dài: đáy mờ về `fadeTo`, nút outline có icon, chữ `text-foreground` để đọc được cả trong bong bóng comment chữ trắng, nhãn nhận số dòng ẩn), `StickyActionBar` (thanh nút dính đáy vùng cuộn, có chỗ cho thông báo), `InlineError` (dòng lỗi nhỏ dưới ô sai), `HintTooltip` (tooltip giải thích nút bị khóa, gắn trên thẻ bao có focus bàn phím), `SummaryPanel` (khối tóm tắt nổi bật: viền và nền màu nhấn, tiêu đề có icon, `###` bên trong thu nhỏ in hoa; dùng cho Tổng kết của Trợ Lý) |
 | `packages/crew-web/src/dev/ds-page.tsx` | Trang `/ds` | `DsPage` |
 | `packages/crew-web/src/dev/crew-showcase.tsx` | Mẫu widget Crew cho `/ds` | |
 

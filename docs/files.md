@@ -373,9 +373,11 @@ File nào thuộc flow nào. Dùng `crew-docs where <file>` để tra từ dòng
 | `packages/crew-web/src/ds/widgets/filter-bar.tsx` | [design-system](flows/design-system.md) (file) |
 | `packages/crew-web/src/ds/widgets/floating-notice.tsx` | [design-system](flows/design-system.md) (file) |
 | `packages/crew-web/src/ds/widgets/heading-slug.ts` | [design-system](flows/design-system.md) (file) |
+| `packages/crew-web/src/ds/widgets/hint-tooltip.tsx` | [design-system](flows/design-system.md) (file) |
 | `packages/crew-web/src/ds/widgets/image-gallery.tsx` | [design-system](flows/design-system.md) (file) |
 | `packages/crew-web/src/ds/widgets/image-zoom-view.tsx` | [attachments](flows/attachments.md) (file) |
 | `packages/crew-web/src/ds/widgets/image-zoom.ts` | [attachments](flows/attachments.md) (file) |
+| `packages/crew-web/src/ds/widgets/inline-error.tsx` | [design-system](flows/design-system.md) (file) |
 | `packages/crew-web/src/ds/widgets/issue-detail.tsx` | [design-system](flows/design-system.md) (file) |
 | `packages/crew-web/src/ds/widgets/issue-list.tsx` | [design-system](flows/design-system.md) (file) |
 | `packages/crew-web/src/ds/widgets/issue-row.tsx` | [design-system](flows/design-system.md) (file) |
@@ -404,6 +406,7 @@ File nào thuộc flow nào. Dùng `crew-docs where <file>` để tra từ dòng
 | `packages/crew-web/src/ds/widgets/status-badge.tsx` | [design-system](flows/design-system.md) (file) |
 | `packages/crew-web/src/ds/widgets/status-glyph.tsx` | [design-system](flows/design-system.md) (file) |
 | `packages/crew-web/src/ds/widgets/status-pill.tsx` | [design-system](flows/design-system.md) (file) |
+| `packages/crew-web/src/ds/widgets/sticky-action-bar.tsx` | [design-system](flows/design-system.md) (file) |
 | `packages/crew-web/src/ds/widgets/summary-panel.tsx` | [design-system](flows/design-system.md) (file) |
 | `packages/crew-web/src/ds/widgets/transcript.tsx` | [design-system](flows/design-system.md) (file) |
 | `packages/crew-web/src/ds/widgets/wizard.tsx` | [design-system](flows/design-system.md) (file) |
@@ -570,6 +573,13 @@ File nào thuộc flow nào. Dùng `crew-docs where <file>` để tra từ dòng
 | `packages/crew-web/src/features/search/routes.tsx` | [web-pages](flows/web-pages.md) (file) |
 | `packages/crew-web/src/features/search/search-page.tsx` | [web-pages](flows/web-pages.md) (file) |
 | `packages/crew-web/src/features/settings/index.ts` | [web-pages](flows/web-pages.md) (file) |
+| `packages/crew-web/src/features/settings/models/catalog-section.tsx` | [model-settings](flows/model-settings.md) (file) |
+| `packages/crew-web/src/features/settings/models/complexity-section.tsx` | [model-settings](flows/model-settings.md) (file) |
+| `packages/crew-web/src/features/settings/models/fields.tsx` | [model-settings](flows/model-settings.md) (file) |
+| `packages/crew-web/src/features/settings/models/model-draft.ts` | [model-settings](flows/model-settings.md) (file) |
+| `packages/crew-web/src/features/settings/models/model-settings-page.tsx` | [model-settings](flows/model-settings.md) (file) |
+| `packages/crew-web/src/features/settings/models/roles-section.tsx` | [model-settings](flows/model-settings.md) (file) |
+| `packages/crew-web/src/features/settings/models/upgrade-dialog.tsx` | [model-settings](flows/model-settings.md) (file) |
 | `packages/crew-web/src/features/settings/profile-form.tsx` | [web-pages](flows/web-pages.md) (file) |
 | `packages/crew-web/src/features/settings/routes.tsx` | [web-pages](flows/web-pages.md) (file) |
 | `packages/crew-web/src/features/settings/settings-page.tsx` | [web-pages](flows/web-pages.md) (file) |
@@ -762,6 +772,8 @@ File nào thuộc flow nào. Dùng `crew-docs where <file>` để tra từ dòng
 | `packages/crew-web/test/features/runs/run-actions.test.ts` | [web-pages](flows/web-pages.md) (test) |
 | `packages/crew-web/test/features/runs/run-page.test.tsx` | [web-pages](flows/web-pages.md) (test) |
 | `packages/crew-web/test/features/search/search-page.test.tsx` | [web-pages](flows/web-pages.md) (test) |
+| `packages/crew-web/test/features/settings/model-draft.test.ts` | [model-settings](flows/model-settings.md) (test) |
+| `packages/crew-web/test/features/settings/model-settings-page.test.tsx` | [model-settings](flows/model-settings.md) (test) |
 | `packages/crew-web/test/features/settings/settings-page.test.tsx` | [web-pages](flows/web-pages.md) (test) |
 | `packages/crew-web/test/features/skills/add-skill-dialog.test.tsx` | [skills](flows/skills.md) (test) |
 | `packages/crew-web/test/features/skills/delete-skill.test.ts` | [skills](flows/skills.md) (test) |

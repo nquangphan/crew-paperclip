@@ -100,9 +100,18 @@ flows:
       - packages/crew-web/src/api/crew/model-settings.ts
       - packages/crew-web/src/features/model-settings/index.ts
       - packages/crew-web/src/features/model-settings/use-model-settings.ts
+      - packages/crew-web/src/features/settings/models/catalog-section.tsx
+      - packages/crew-web/src/features/settings/models/complexity-section.tsx
+      - packages/crew-web/src/features/settings/models/fields.tsx
+      - packages/crew-web/src/features/settings/models/model-draft.ts
+      - packages/crew-web/src/features/settings/models/model-settings-page.tsx
+      - packages/crew-web/src/features/settings/models/roles-section.tsx
+      - packages/crew-web/src/features/settings/models/upgrade-dialog.tsx
       - server/src/crew/model-settings.ts
     tests:
       - packages/crew-web/test/api/model-settings.test.ts
+      - packages/crew-web/test/features/settings/model-draft.test.ts
+      - packages/crew-web/test/features/settings/model-settings-page.test.tsx
       - server/src/__tests__/crew-bridge-allowlist.test.ts
       - server/src/__tests__/crew-model-settings.db.test.ts
       - server/src/__tests__/crew-model-settings.test.ts
@@ -956,8 +965,10 @@ flows:
       - packages/crew-web/src/ds/widgets/summary-panel.tsx
       - packages/crew-web/src/ds/widgets/filter-bar.tsx
       - packages/crew-web/src/ds/widgets/floating-notice.tsx
+      - packages/crew-web/src/ds/widgets/hint-tooltip.tsx
       - packages/crew-web/src/ds/widgets/heading-slug.ts
       - packages/crew-web/src/ds/widgets/image-gallery.tsx
+      - packages/crew-web/src/ds/widgets/inline-error.tsx
       - packages/crew-web/src/ds/widgets/issue-detail.tsx
       - packages/crew-web/src/ds/widgets/issue-list.tsx
       - packages/crew-web/src/ds/widgets/issue-row.tsx
@@ -975,6 +986,7 @@ flows:
       - packages/crew-web/src/ds/widgets/status-badge.tsx
       - packages/crew-web/src/ds/widgets/status-glyph.tsx
       - packages/crew-web/src/ds/widgets/status-pill.tsx
+      - packages/crew-web/src/ds/widgets/sticky-action-bar.tsx
       - packages/crew-web/src/ds/widgets/transcript.tsx
       - packages/crew-web/src/ds/widgets/wizard.tsx
     tests:
