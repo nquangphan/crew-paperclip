@@ -145,11 +145,9 @@ Giống loại `docs`: loại chỉ là nhãn Paperclip `plan` trên issue gốc
 - `crew/agents/instructions.test.mjs`: luật chung của mọi template (cấm xóa đệ quy ngoài thư mục tạm), dòng mẫu
   `crew-docs-check`, `crew-merge`, `crew-fix`, `crew-commit`, `crew-review` khớp định dạng và regex của server, cách
   integrator nhận diện stage. Loại yêu cầu Lập kế hoạch: Trợ Lý nhận bằng nhãn `plan`, hỏi owner trước khi tạo con, chỉ tạo con `crew-kind plan`
-  và ghi `- File kế hoạch:` trong tổng kết; executor, reviewer, integrator có luật tương ứng. Tổng kết của Trợ Lý: có từ lúc lập kế hoạch, đủ mục Yêu cầu/Việc con/Hình ảnh theo thứ tự, cập nhật mỗi run bằng `PATCH` ghi cuối, giữ `### Merge request`.
+  và ghi `- File kế hoạch:` trong tổng kết; executor, reviewer, integrator có luật tương ứng. Tổng kết của Trợ Lý: có từ lúc lập kế hoạch, đủ mục Yêu cầu/Việc con/Hình ảnh theo thứ tự, cập nhật mỗi run bằng `PATCH` ghi cuối, giữ `### Merge request`. Bảng model: `assistant.md` không chứa id model nào, có đúng lệnh `curl` đọc bảng cùng bốn đường dẫn JSON và đường lui khi lệnh lỗi.
 - `crew/agents/integrator-pr.test.mjs`: script mở pull request của integrator: mở mới, dùng lại, đã merge, origin không
   ở GitHub, `gh` chưa đăng nhập, nhánh đã đi khác (không `--force`), lỗi tạo PR có credential bị che, đầu vào sai. Nội dung PR bỏ mục `### Hình ảnh` của tổng kết.
-- `crew/agents/instructions.test.mjs`: luật trong template; riêng bảng model, `assistant.md` không chứa id model nào, có đúng
-  lệnh `curl` đọc bảng cùng bốn đường dẫn JSON và đường lui khi lệnh lỗi.
 - `crew/agents/apply-roles.test.mjs`: thứ tự đọc → upload → PATCH, dừng trước khi ghi khi không đọc được, vai trò BMAD và
   ô runtime, sai `adapterType` hay thiếu `CODEX_HOME`.
 - `crew/agents/render-instructions.test.mjs`, `merge-agent-config.test.mjs`, `add-base.test.mjs`,
