@@ -1,5 +1,9 @@
-// Trang Cài đặt (S18): hồ sơ, ngôn ngữ giao diện, thông tin hệ thống (chỉ đọc).
-import { Button, PageHeader, Section } from '@/ds';
+// Trang Cài đặt (S18): hồ sơ, ngôn ngữ giao diện, lối vào Cài đặt model (chỉ owner), thông tin hệ thống (chỉ đọc).
+import { Link } from 'react-router-dom';
+import { useCompany } from '@/app/hooks';
+import { companyPath } from '@/app/routes-util';
+import { Button, MutedText, PageHeader, Section } from '@/ds';
+import { useModelSettings } from '@/features/model-settings';
 import { type Lang, setLanguage, useT } from '@/i18n';
 import { ProfileForm } from './profile-form';
 import { SystemInfo } from './system-info';
@@ -8,6 +12,8 @@ const LANGS: readonly Lang[] = ['vi', 'en'];
 
 export function SettingsPage() {
   const { t, lang } = useT('settings');
+  const { company } = useCompany();
+  const modelSettings = useModelSettings();
   return (
     <>
       <PageHeader title={t('title')} description={t('description')} />
@@ -30,6 +36,16 @@ export function SettingsPage() {
             ))}
           </div>
         </Section>
+        {modelSettings.data?.canEdit ? (
+          <Section title={t('models.entry.title')}>
+            <MutedText>{t('models.entry.description')}</MutedText>
+            <div>
+              <Button asChild variant="outline">
+                <Link to={companyPath(company.issuePrefix, 'settings/models')}>{t('models.entry.open')}</Link>
+              </Button>
+            </div>
+          </Section>
+        ) : null}
         <Section title={t('system.title')}>
           <SystemInfo />
         </Section>

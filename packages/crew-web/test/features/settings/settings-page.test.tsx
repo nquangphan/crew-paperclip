@@ -7,6 +7,7 @@ import { CompanyContext, MeContext } from '@/app/hooks';
 import { SettingsPage } from '@/features/settings/settings-page';
 import { initI18n, setLanguage } from '@/i18n';
 import { accessRoute, mockServer } from '../../app/fetch-mock';
+import { SETTINGS_VIEW } from '../../lib/instructions/__fixtures__/model-settings';
 import { COMPANY } from '../agents/helpers';
 
 beforeAll(async () => {
@@ -163,5 +164,25 @@ describe('SettingsPage', () => {
     mount();
     const info = await screen.findByRole('region', { name: 'Thông tin hệ thống' });
     await waitFor(() => expect(within(info).getAllByText('Không rõ').length).toBe(3));
+  });
+
+  it('S18.4: owner thấy mục Model với lối vào trang Cài đặt model', async () => {
+    mockServer({
+      'GET /api/health': { body: HEALTH },
+      'GET /api/crew/model-settings': { body: { ...SETTINGS_VIEW, canEdit: true } },
+    });
+    mount();
+    const section = await screen.findByRole('region', { name: 'Model' });
+    const link = within(section).getByRole('link', { name: 'Mở cài đặt model' });
+    expect(link.getAttribute('href')).toBe('/TPS/settings/models');
+  });
+
+  it('S18.4: người không phải owner không thấy mục Model', async () => {
+    const s = mockServer({ 'GET /api/health': { body: HEALTH } });
+    mount();
+    await waitFor(() => expect(s.calls.some((c) => c.url === '/api/crew/model-settings')).toBe(true));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(screen.queryByRole('region', { name: 'Model' })).toBeNull();
+    expect(screen.queryByRole('link', { name: 'Mở cài đặt model' })).toBeNull();
   });
 });

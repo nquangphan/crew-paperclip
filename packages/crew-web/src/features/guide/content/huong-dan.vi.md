@@ -760,6 +760,8 @@ Trang [Cài đặt](/settings) có ba mục:
 - **Ngôn ngữ**: Tiếng Việt hoặc Tiếng Anh.
 - **Thông tin hệ thống**: bản server, commit đang chạy, sao lưu gần nhất. Chỉ để xem.
 
+Riêng **owner** thấy thêm mục **Model** với nút **Mở cài đặt model**. Trang này sửa được bốn thứ: danh sách model của từng runtime (kèm cờ **Xem ảnh**), bảng độ khó (thứ tự runtime, model và effort từng mức), model mặc định của từng vai, và **Nâng model hàng loạt** (thay model cũ bằng model mới ở mọi nơi, có bước **Xem trước** số chỗ sẽ đổi). Bấm **Lưu** là áp ngay, không cần deploy: agent đang chạy đúng model mặc định cũ của vai được đổi theo, agent đã chỉnh tay giữ nguyên, run đang chạy chạy xong với model cũ. Ô nào sai sẽ viền đỏ ngay tại ô; nếu người khác vừa lưu thì bấm **Tải lại**.
+
 ### Giao diện Paperclip gốc {#stock-ui roles=owner}
 
 {{shot:stock-ui}}

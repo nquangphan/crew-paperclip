@@ -760,6 +760,8 @@ The [Settings](/settings) page has three sections:
 - **Language**: Vietnamese or English.
 - **System information**: server version, running commit, latest backup. Read-only.
 
+Only the **owner** also sees a **Model** section with the **Open model settings** button. That page edits four things: the model list of each runtime (with the **Reads images** flag), the difficulty table (runtime order, model and effort per level), the default model of each role, and **Bulk model upgrade** (replace an old model with a new one everywhere, with a **Preview** of how many places change). **Save** applies at once, no deploy needed: agents still on the role's old default model follow the new one, hand-edited agents stay as they are, and runs already in progress finish on the old model. A wrong field gets a red border in place; if someone else just saved, press **Reload**.
+
 ### Original Paperclip UI {#stock-ui roles=owner}
 
 {{shot:stock-ui}}

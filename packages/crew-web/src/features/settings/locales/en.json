@@ -21,5 +21,143 @@
     "commit": "Running commit",
     "backup": "Latest backup",
     "unknown": "Unknown"
+  },
+  "models": {
+    "entry": {
+      "title": "Model",
+      "description": "The model list, difficulty table and default model of each role. Changes apply immediately, no deploy needed.",
+      "open": "Open model settings"
+    },
+    "title": "Model settings",
+    "loading": "Loading model settings",
+    "loadFailed": "Could not load the model settings",
+    "forbidden": {
+      "title": "Owner only",
+      "message": "This page is for the owner (instance administrator). You cannot view or edit the model table."
+    },
+    "header": {
+      "default": "Default table, nobody has saved yet",
+      "saved": "Revision r{{revision}}, saved {{time}} by {{who}}"
+    },
+    "stale": {
+      "title": "The table was just saved as revision r{{revision}}",
+      "body": "Reload to see the new one (unsaved changes are lost).",
+      "reload": "Reload"
+    },
+    "unavailable": "The plugin is not ready yet, try again later.",
+    "saveFailed": "Could not save",
+    "inUse": {
+      "title": "Cannot remove a model that is in use"
+    },
+    "errors": {
+      "summary": "{{count}} errors, fix the red-bordered fields and save again"
+    },
+    "undo": "Undo",
+    "save": "Save",
+    "confirmSave": {
+      "title": "Save and apply to agents?",
+      "body": "Saving changes the model of {{changed}} agents and keeps {{kept}} hand-edited or skipped agents.",
+      "confirm": "Save and apply"
+    },
+    "leave": {
+      "title": "Discard unsaved changes?",
+      "body": "You have unsaved changes on the Model settings page. Leaving loses them.",
+      "confirm": "Leave page"
+    },
+    "result": {
+      "saved": "Saved revision r{{revision}} and applied it",
+      "upgraded": "Models upgraded, revision r{{revision}}: {{n}} places",
+      "differs": "Differs from the preview because the data just changed.",
+      "upgradeCounts": "Difficulty cells: {{cells}}, roles: {{roles}}, open issues: {{issues}}.",
+      "agents": "Agents whose model changed: {{n}}",
+      "skipped": "Agents skipped: {{n}}"
+    },
+    "skipReason": {
+      "manual": "hand-edited, kept as is",
+      "pending_approval": "pending approval",
+      "multi_role": "holds several roles with different defaults"
+    },
+    "effort": {
+      "none": "Not set"
+    },
+    "catalog": {
+      "title": "Model list",
+      "hint": "The models each runtime may use, the image flag and the effort key. A model used in the difficulty table or a role cannot be removed yet.",
+      "effortKey": "Effort key",
+      "effortKeyOf": "Effort key of {{runtime}}",
+      "noEffortKey": "None",
+      "model": "Model",
+      "vision": "Reads images",
+      "actions": "Actions",
+      "visionOf": "Reads images: {{model}}",
+      "remove": "Remove {{model}}",
+      "inUseHint": "In use at: {{where}}",
+      "whereLevel": "difficulty table ({{level}})",
+      "whereRole": "role {{role}}",
+      "inUse": "{{model}} is still used by {{agents}} agents and {{issues}} open issues.",
+      "upgradeThis": "Upgrade model",
+      "newPlaceholder": "New model id",
+      "newLabel": "New model id for {{runtime}}",
+      "newVision": "New model of {{runtime}} reads images",
+      "add": "Add model",
+      "idInvalid": "The id may only contain letters, digits and . _ : / - , must start with a letter or digit, and is at most 100 characters.",
+      "idDuplicate": "The model is already in the list.",
+      "full": "Each runtime holds at most {{max}} models."
+    },
+    "complexity": {
+      "title": "Difficulty table",
+      "hint": "Each difficulty level has an order of runtimes to try and a model and effort per runtime. The runtime listed first is preferred.",
+      "claudeOnly": "Claude only",
+      "largeLocked": "The large level runs on Claude only: its fallback and retry-later flow is written for Claude.",
+      "lastRuntime": "Each level needs at least one runtime.",
+      "toggle": "Enable {{runtime}} at level {{level}}",
+      "position": "No. {{n}}",
+      "earlier": "Move {{runtime}} earlier at level {{level}}",
+      "later": "Move {{runtime}} later at level {{level}}",
+      "model": "Model",
+      "modelOf": "Model of {{runtime}} at level {{level}}",
+      "effort": "Effort",
+      "effortOf": "Effort of {{runtime}} at level {{level}}"
+    },
+    "roles": {
+      "title": "Default model per role",
+      "hint": "Changing a role default also changes every agent of that role that runs exactly the old model; hand-edited agents stay as they are.",
+      "role": "Role",
+      "runtime": "Runtime",
+      "model": "Model",
+      "effort": "Effort",
+      "modelOf": "Model of role {{role}}",
+      "effortOf": "Effort of role {{role}}",
+      "noEffort": "None",
+      "rootNote": "Override when a Claude reviewer reviews a root issue."
+    },
+    "upgrade": {
+      "sectionTitle": "Bulk model upgrade",
+      "sectionHint": "Replace an old model with a new one everywhere: the list, the difficulty table, roles, agents and open issues.",
+      "open": "Bulk model upgrade",
+      "title": "Bulk model upgrade",
+      "description": "Pick the runtime, the old model and the new model. Press Preview to see how many places change.",
+      "macWarning": "Check that the new model runs on the Mac first (try it on one agent on the agent page). If the Mac lacks it, runs fail in bulk; to go back, upgrade the other way round.",
+      "dirtyWarning": "Unsaved changes on the page are discarded by the upgrade.",
+      "runtime": "Runtime",
+      "from": "Old model",
+      "to": "New model",
+      "toHint": "Type a new id or pick an existing model of the runtime.",
+      "vision": "The new model reads images",
+      "preview": "Preview",
+      "previewHint": "Not previewed yet.",
+      "previewTitle": "Preview",
+      "catalogRenamed": "Model list: the old model is renamed to the new one.",
+      "catalogMerged": "Model list: the old model is merged into the new one (already listed) and removed.",
+      "cells": "Difficulty cells: {{n}}",
+      "roles": "Roles: {{n}}",
+      "agents": "Agents: {{n}}",
+      "issues": "Open issues: {{n}}",
+      "skipped": "Agents skipped: {{n}}",
+      "total": "Total: {{n}} places",
+      "apply": "Upgrade {{n}} places",
+      "toggleList": "List",
+      "failed": "Could not upgrade"
+    }
   }
 }

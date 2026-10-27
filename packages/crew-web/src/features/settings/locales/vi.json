@@ -21,5 +21,143 @@
     "commit": "Commit đang chạy",
     "backup": "Sao lưu gần nhất",
     "unknown": "Không rõ"
+  },
+  "models": {
+    "entry": {
+      "title": "Model",
+      "description": "Danh sách model, bảng độ khó và model mặc định của từng vai. Sửa ở đây là áp ngay, không cần deploy.",
+      "open": "Mở cài đặt model"
+    },
+    "title": "Cài đặt model",
+    "loading": "Đang tải cài đặt model",
+    "loadFailed": "Không tải được cài đặt model",
+    "forbidden": {
+      "title": "Chỉ owner sửa được",
+      "message": "Trang này chỉ dành cho owner (quản trị viên hệ thống). Bạn không có quyền xem hay sửa bảng model."
+    },
+    "header": {
+      "default": "Bản mặc định, chưa ai lưu",
+      "saved": "Bản r{{revision}}, lưu lúc {{time}} bởi {{who}}"
+    },
+    "stale": {
+      "title": "Bảng vừa được lưu ở bản r{{revision}}",
+      "body": "Tải lại để xem bản mới (mất thay đổi chưa lưu).",
+      "reload": "Tải lại"
+    },
+    "unavailable": "Plugin chưa sẵn sàng, thử lại sau.",
+    "saveFailed": "Không lưu được",
+    "inUse": {
+      "title": "Không gỡ được model đang dùng"
+    },
+    "errors": {
+      "summary": "{{count}} lỗi, sửa các ô viền đỏ rồi lưu lại"
+    },
+    "undo": "Hoàn tác",
+    "save": "Lưu",
+    "confirmSave": {
+      "title": "Lưu và áp cho agent?",
+      "body": "Lưu sẽ đổi model của {{changed}} agent, giữ {{kept}} agent chỉnh tay hoặc bỏ qua.",
+      "confirm": "Lưu và áp"
+    },
+    "leave": {
+      "title": "Bỏ thay đổi chưa lưu?",
+      "body": "Bạn có thay đổi chưa lưu ở trang Cài đặt model. Rời trang sẽ mất chúng.",
+      "confirm": "Rời trang"
+    },
+    "result": {
+      "saved": "Đã lưu bản r{{revision}} và áp ngay",
+      "upgraded": "Đã nâng model, bản r{{revision}}: {{n}} chỗ",
+      "differs": "Khác xem trước vì dữ liệu vừa đổi.",
+      "upgradeCounts": "Ô bảng độ khó: {{cells}}, vai: {{roles}}, issue đang mở: {{issues}}.",
+      "agents": "Agent đã đổi model: {{n}}",
+      "skipped": "Agent bỏ qua: {{n}}"
+    },
+    "skipReason": {
+      "manual": "chỉnh tay, giữ nguyên",
+      "pending_approval": "chờ duyệt",
+      "multi_role": "thuộc nhiều vai có mặc định khác nhau"
+    },
+    "effort": {
+      "none": "Không đặt"
+    },
+    "catalog": {
+      "title": "Danh sách model",
+      "hint": "Model mỗi runtime được phép dùng, cờ xem ảnh và key effort. Model đang dùng ở bảng độ khó hay vai thì chưa gỡ được.",
+      "effortKey": "Key effort",
+      "effortKeyOf": "Key effort của {{runtime}}",
+      "noEffortKey": "Không có",
+      "model": "Model",
+      "vision": "Xem ảnh",
+      "actions": "Thao tác",
+      "visionOf": "Xem ảnh: {{model}}",
+      "remove": "Gỡ {{model}}",
+      "inUseHint": "Đang dùng ở: {{where}}",
+      "whereLevel": "bảng độ khó ({{level}})",
+      "whereRole": "vai {{role}}",
+      "inUse": "{{model}} còn dùng ở {{agents}} agent và {{issues}} issue đang mở.",
+      "upgradeThis": "Nâng model",
+      "newPlaceholder": "Id model mới",
+      "newLabel": "Id model mới của {{runtime}}",
+      "newVision": "Model mới của {{runtime}} xem được ảnh",
+      "add": "Thêm model",
+      "idInvalid": "Id chỉ gồm chữ, số và . _ : / - , bắt đầu bằng chữ hoặc số, tối đa 100 ký tự.",
+      "idDuplicate": "Model đã có trong danh sách.",
+      "full": "Mỗi runtime tối đa {{max}} model."
+    },
+    "complexity": {
+      "title": "Bảng độ khó",
+      "hint": "Mỗi mức độ khó có thứ tự runtime thử trước và model, effort của từng runtime. Runtime đứng trước được ưu tiên.",
+      "claudeOnly": "Chỉ Claude",
+      "largeLocked": "Mức large chỉ chạy Claude: luồng fallback và hẹn chạy lại của large chỉ viết cho Claude.",
+      "lastRuntime": "Mỗi mức cần ít nhất một runtime.",
+      "toggle": "Bật {{runtime}} ở mức {{level}}",
+      "position": "Thứ {{n}}",
+      "earlier": "Đưa {{runtime}} lên trước ở mức {{level}}",
+      "later": "Đưa {{runtime}} xuống sau ở mức {{level}}",
+      "model": "Model",
+      "modelOf": "Model của {{runtime}} ở mức {{level}}",
+      "effort": "Effort",
+      "effortOf": "Effort của {{runtime}} ở mức {{level}}"
+    },
+    "roles": {
+      "title": "Model mặc định từng vai",
+      "hint": "Đổi mặc định của một vai thì mọi agent của vai đó đang chạy đúng model cũ được đổi theo; agent đã chỉnh tay giữ nguyên.",
+      "role": "Vai",
+      "runtime": "Runtime",
+      "model": "Model",
+      "effort": "Effort",
+      "modelOf": "Model của vai {{role}}",
+      "effortOf": "Effort của vai {{role}}",
+      "noEffort": "Không có",
+      "rootNote": "Override khi reviewer Claude duyệt issue gốc."
+    },
+    "upgrade": {
+      "sectionTitle": "Nâng model hàng loạt",
+      "sectionHint": "Thay một model cũ bằng model mới ở mọi nơi: danh sách, bảng độ khó, vai, agent và issue đang mở.",
+      "open": "Nâng model hàng loạt",
+      "title": "Nâng model hàng loạt",
+      "description": "Chọn runtime, model cũ và model mới. Bấm Xem trước để biết số chỗ sẽ đổi.",
+      "macWarning": "Kiểm model mới chạy được trên Mac trước (thử trên một agent ở trang agent). Nếu Mac chưa có, run sẽ hỏng hàng loạt; muốn trả lại thì nâng ngược.",
+      "dirtyWarning": "Thay đổi chưa lưu trên trang sẽ bị bỏ khi nâng.",
+      "runtime": "Runtime",
+      "from": "Model cũ",
+      "to": "Model mới",
+      "toHint": "Gõ id mới hoặc chọn một model có sẵn của runtime.",
+      "vision": "Model mới xem được ảnh",
+      "preview": "Xem trước",
+      "previewHint": "Chưa xem trước.",
+      "previewTitle": "Xem trước",
+      "catalogRenamed": "Danh sách model: đổi tên model cũ thành model mới.",
+      "catalogMerged": "Danh sách model: gộp model cũ vào model mới (đã có) và gỡ model cũ.",
+      "cells": "Ô bảng độ khó: {{n}}",
+      "roles": "Vai: {{n}}",
+      "agents": "Agent: {{n}}",
+      "issues": "Issue đang mở: {{n}}",
+      "skipped": "Agent bỏ qua: {{n}}",
+      "total": "Tổng: {{n}} chỗ",
+      "apply": "Nâng {{n}} chỗ",
+      "toggleList": "Danh sách",
+      "failed": "Không nâng được"
+    }
   }
 }
