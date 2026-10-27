@@ -467,6 +467,7 @@ File nào thuộc flow nào. Dùng `crew-docs where <file>` để tra từ dòng
 | `packages/crew-web/src/features/inbox/tabs.ts` | [web-pages](flows/web-pages.md) (file) |
 | `packages/crew-web/src/features/inbox/use-inbox-badge.ts` | [web-pages](flows/web-pages.md) (file) |
 | `packages/crew-web/src/features/inbox/use-inbox-issues.ts` | [web-pages](flows/web-pages.md) (file) |
+| `packages/crew-web/src/features/issues/detail/assistant-summary.tsx` | [issues-web](flows/issues-web.md) (file) |
 | `packages/crew-web/src/features/issues/detail/attachment-viewer-provider.tsx` | [issues-web](flows/issues-web.md) (file) |
 | `packages/crew-web/src/features/issues/detail/attachments.tsx` | [issues-web](flows/issues-web.md) (file) |
 | `packages/crew-web/src/features/issues/detail/comment-thread.ts` | [issues-web](flows/issues-web.md) (file) |
@@ -490,6 +491,7 @@ File nào thuộc flow nào. Dùng `crew-docs where <file>` để tra từ dòng
 | `packages/crew-web/src/features/issues/detail/issue-page.tsx` | [issues-web](flows/issues-web.md) (file) |
 | `packages/crew-web/src/features/issues/detail/issue-runs.tsx` | [issues-web](flows/issues-web.md) (file) |
 | `packages/crew-web/src/features/issues/detail/properties-panel.tsx` | [issues-web](flows/issues-web.md) (file) |
+| `packages/crew-web/src/features/issues/detail/split-assistant-summary.ts` | [issues-web](flows/issues-web.md) (file) |
 | `packages/crew-web/src/features/issues/detail/start-work.tsx` | [issues-web](flows/issues-web.md) (file) |
 | `packages/crew-web/src/features/issues/detail/title-editor.tsx` | [issues-web](flows/issues-web.md) (file) |
 | `packages/crew-web/src/features/issues/detail/use-issue.ts` | [issues-web](flows/issues-web.md) (file) |

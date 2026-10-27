@@ -680,6 +680,7 @@ flows:
     files:
       - packages/crew-web/src/api/crew/force-done.ts
       - packages/crew-web/src/features/issues/detail/attachment-viewer-provider.tsx
+      - packages/crew-web/src/features/issues/detail/assistant-summary.tsx
       - packages/crew-web/src/features/issues/detail/attachments.tsx
       - packages/crew-web/src/features/issues/detail/comment-thread.ts
       - packages/crew-web/src/features/issues/detail/comments.tsx
@@ -702,6 +703,7 @@ flows:
       - packages/crew-web/src/features/issues/detail/issue-page.tsx
       - packages/crew-web/src/features/issues/detail/issue-runs.tsx
       - packages/crew-web/src/features/issues/detail/properties-panel.tsx
+      - packages/crew-web/src/features/issues/detail/split-assistant-summary.ts
       - packages/crew-web/src/features/issues/detail/start-work.tsx
       - packages/crew-web/src/features/issues/detail/title-editor.tsx
       - packages/crew-web/src/features/issues/detail/use-issue.ts

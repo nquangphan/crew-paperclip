@@ -47,7 +47,10 @@ Luật chính:
 3. `packages/crew-web/src/features/issues/detail/issue-detail.tsx` → `IssueDetail`: dùng chung cho trang và popup; đọc
    dữ liệu qua `use-issue.ts` và gắn các khối: tóm tắt Crew (`SummarySlot`), thao tác cổng (`ActionsSlot`), câu hỏi
    của Trợ Lý (`InteractionsSlot`), thuộc tính và runtime (`PropertiesPanel`, `MachineSlot`, `RuntimeSlot`), bình luận, đính kèm,
-   tài liệu, run, lịch sử.
+   tài liệu, run, lịch sử. Mô tả được tách bằng `splitAssistantSummary` (`split-assistant-summary.ts`): mục `## Tổng kết của
+   Trợ Lý` (lần đầu ở đầu dòng, ngoài code fence, tới hết mô tả) không hiện trong `DescriptionEditor` mà thành khối
+   `AssistantSummary` (`data-testid="assistant-summary"`, không thu gọn) ngay sau mô tả; sửa mô tả vẫn sửa nguyên chuỗi.
+   Bình luận dài thu gọn bằng `ExpandableContent` (đáy mờ dần, nút "Hiện đủ (còn N dòng)" / "Thu gọn").
 4. `packages/crew-web/src/features/issues/detail/crew/gate-actions.ts` → `gateActionsFor`, `awaitingMyApproval`: tính
    nút Duyệt, Yêu cầu sửa, Hủy theo stage đang chờ; `actions-slot.tsx` gửi PATCH và làm mới mọi dữ liệu bị đổi. Trước khi gửi
    Duyệt / Yêu cầu sửa kèm lời nhắn, Jev đọc lời nhắn với hạn cứng 1500 ms và chỉ hỏi lại một lần khi lệch ý (flow
@@ -106,7 +109,7 @@ Luật chính:
 | `packages/crew-web/src/features/issues/detail/crew/machine-slot.tsx` | Dòng "Máy" ở cột Thuộc tính: máy của cả cây, cách chọn; owner đổi ở yêu cầu gốc khi cây chưa có run, ẩn dòng khi không đọc được | `MachineSlot`, `machineLine` |
 | `packages/crew-web/src/features/issues/detail/crew/runtime-slot.tsx` | Quyết định chọn runtime | `RuntimeSlot` |
 | `packages/crew-web/src/features/issues/detail/history-format.ts`, `history.tsx` | Khối Lịch sử | `History`, `FORCE_DONE_ACTION`, `BOARD_OVERRIDE_ACTION` |
-| `packages/crew-web/src/features/issues/detail/` (còn lại) | Bình luận, ô soạn, đính kèm, tài liệu, run, thuộc tính, sửa tiêu đề, Bắt đầu làm | `Comments`, `Composer`, `Attachments`, `IssueRuns`, `PropertiesPanel`, `TitleEditor` |
+| `packages/crew-web/src/features/issues/detail/` (còn lại) | Bình luận, ô soạn, đính kèm, tài liệu, run, thuộc tính, sửa tiêu đề, Bắt đầu làm | `Comments`, `Composer`, `Attachments`, `IssueRuns`, `PropertiesPanel`, `TitleEditor`, `AssistantSummary`, `splitAssistantSummary` |
 | `packages/crew-web/src/features/issues/popup/` | Popup chi tiết và link | `IssuePopupHost`, `IssueLink`, `issueHref` |
 
 ## Dữ liệu

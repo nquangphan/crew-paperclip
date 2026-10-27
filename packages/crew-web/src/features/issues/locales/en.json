@@ -159,6 +159,9 @@
       "failed": "Could not change the description",
       "creator": "Creator"
     },
+    "assistantSummary": {
+      "title": "Assistant summary"
+    },
     "props": {
       "heading": "Properties",
       "status": "Status",
@@ -197,7 +200,7 @@
       "qcUser": "QC reviewer"
     },
     "comments": {
-      "showMore": "Show more",
+      "showMore": "Show all ({{count}} more lines)",
       "showLess": "Show less",
       "heading": "Comments",
       "empty": "No comments yet",
