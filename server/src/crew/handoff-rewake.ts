@@ -263,6 +263,8 @@ const LEGACY_RECOVERY_CAUSE = "legacy_execution_requires_reconciliation";
 /** Cancellation codes stock writes inside the dispatch gate, right before the adapter would be called. */
 const PRE_DISPATCH_HOLD_CODES = ["legacy_disposition_repair_suppressed"];
 const RECOVERY_HOLD_RELEASE_PAGE_SIZE = 25;
+/** Bootstrap evidence stock reads in `legacyExecutionNeedsReconciliation` (no provider work started). */
+const NEVER_LAUNCHED_RECOVERY = { kind: "bootstrap", providerWorkStarted: false, crewProof: "never_started" };
 const RECOVERY_HOLD_RELEASE_NOTE =
   "Run sửa disposition bị chặn trước khi gọi adapter, không có hành động nào cần đối soát. Crew gỡ giữ chỗ.";
 
@@ -285,7 +287,9 @@ const RECOVERY_HOLD_RELEASE_NOTE =
  * - the action is a live hold (`executionBlockerPredicate`) of cause `legacy_execution_requires_reconciliation`, with no
  *   operator reconciliation and no unsafe-workspace evidence, on an issue that is not done or cancelled;
  * - its run is the issue's, was cancelled by the dispatch gate (PRE_DISPATCH_HOLD_CODES), and `legacyRunNeverLaunched`
- *   proves no adapter process was started; and none of its leases is still unreleased.
+ *   proves no adapter process was started; the run has no recovery evidence yet and stock
+ *   (`legacyExecutionNeedsReconciliation`) accepts the bootstrap evidence as clearing it (not with an exhausted failure
+ *   budget); and none of its leases is still unreleased.
  * The issue status, its blockers and every other hold stay as they are. Returns the number of holds released. Never
  * throws.
  */
@@ -320,6 +324,14 @@ export async function releaseNeverLaunchedRecoveryHolds(db: Db, now = new Date()
     for (const { action, runId, agentId, errorCode } of rows) {
       try {
         if (!(await legacyRunNeverLaunched(db, action.companyId, runId))) continue;
+        // Stock must agree the bootstrap evidence clears the run (an exhausted failure budget still holds it, as in
+        // `settleInterruptedNativeBootstrap`); otherwise its periodic checks would open the hold again every tick.
+        const [run] = await db.select().from(heartbeatRuns)
+          .where(and(eq(heartbeatRuns.id, runId), eq(heartbeatRuns.companyId, action.companyId))).limit(1);
+        if (!run || run.resultJson?.executionRecovery !== undefined) continue;
+        // Imported lazily: it pulls the issue service, which imports the Crew hooks.
+        const { legacyExecutionNeedsReconciliation } = await import("../services/legacy-execution-recovery.js");
+        if (legacyExecutionNeedsReconciliation({ ...run, resultJson: { ...run.resultJson, executionRecovery: NEVER_LAUNCHED_RECOVERY } })) continue;
         const [heldLease] = await db
           .select({ id: environmentLeases.id })
           .from(environmentLeases)
@@ -352,7 +364,7 @@ export async function releaseNeverLaunchedRecoveryHolds(db: Db, now = new Date()
             .update(heartbeatRuns)
             .set({
               resultJson: sql`coalesce(${heartbeatRuns.resultJson}, '{}'::jsonb) || ${JSON.stringify({
-                executionRecovery: { kind: "bootstrap", providerWorkStarted: false, crewProof: "never_started" },
+                executionRecovery: NEVER_LAUNCHED_RECOVERY,
               })}::jsonb`,
               updatedAt: now,
             })

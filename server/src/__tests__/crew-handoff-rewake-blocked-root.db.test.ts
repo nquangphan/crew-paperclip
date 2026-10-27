@@ -47,7 +47,7 @@ const support = await getEmbeddedPostgresTestSupport();
   });
 
   /** Root blocked by its children (as disposition repair leaves it); the repair run suppressed before dispatch. */
-  async function seed(opts: { childCount?: number; errorCode?: string } = {}) {
+  async function seed(opts: { childCount?: number; errorCode?: string; failureRetries?: number } = {}) {
     const companyId = randomUUID(), assistantId = randomUUID(), executorId = randomUUID();
     const rootId = randomUUID(), repairRunId = randomUUID();
     await db.insert(companies).values({ id: companyId, name: "Crew root", defaultResponsibleUserId: "owner",
@@ -72,7 +72,11 @@ const support = await getEmbeddedPostgresTestSupport();
     const startedAt = new Date(Date.now() - 5 * 60 * 60_000);
     const [repairRun] = await db.insert(heartbeatRuns).values({ id: repairRunId, companyId, agentId: assistantId,
       runtimeMode: "legacy", status: "running", invocationSource: "automation", responsibleUserId: "owner",
-      contextSnapshot: { issueId: rootId, wakeReason: "issue_disposition_repair" }, createdAt: startedAt, startedAt,
+      contextSnapshot: { issueId: rootId, wakeReason: "issue_disposition_repair",
+        ...(opts.failureRetries !== undefined
+          ? { executionRetryAccounting: { version: 1, failureRetries: opts.failureRetries, maxTurnContinuations: 0 } }
+          : {}) },
+      createdAt: startedAt, startedAt,
       runnerProfileJson: { adapterDispatch: { adapterType: "claude_local" } } }).returning();
     // Same write as the stock suppression (`setRunStatusIfRunning` routes a legacy run needing reconciliation here).
     await terminalizeLegacyExecution({ db, run: repairRun!, status: "cancelled", fromStatuses: ["running"], patch: {
@@ -177,16 +181,21 @@ const support = await getEmbeddedPostgresTestSupport();
     expect(await actions(f, "crew.handoff_rewake")).toHaveLength(0);
   }, 60_000);
 
-  it("không gỡ giữ chỗ khi run nguồn đã gọi adapter, hoặc bị hủy vì lý do khác", async () => {
+  it("không gỡ giữ chỗ khi run nguồn đã gọi adapter, bị hủy vì lý do khác, hoặc đã hết ngân sách thử lại", async () => {
     const invoked = await seed();
     await db.insert(heartbeatRunEvents).values({ companyId: invoked.companyId, runId: invoked.repairRunId,
       agentId: invoked.assistantId, seq: 100, eventType: "adapter.invoke", stream: "system", level: "info", message: "invoke" });
     const otherCause = await seed({ errorCode: "issue_reassigned" });
+    // Stock keeps holding a run whose failure budget is spent even with bootstrap evidence; releasing it would only
+    // make the periodic checks open the hold again.
+    const exhausted = await seed({ failureRetries: 2 });
     await strandRoot(invoked);
     await strandRoot(otherCause);
+    await strandRoot(exhausted);
 
     await replayStrandedSkippedWakes(db);
-    for (const f of [invoked, otherCause]) {
+    await heartbeatService(db).reconcileStrandedAssignedIssues();
+    for (const f of [invoked, otherCause, exhausted]) {
       expect(await holdOf(f)).toMatchObject({ outcome: "blocked" });
       expect(await getExecutionBlocker(db, f.companyId, f.rootId)).not.toBeNull();
       expect(await assistantRuns(f)).toHaveLength(0);
