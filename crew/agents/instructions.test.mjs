@@ -527,10 +527,10 @@ test("assistant: comment kế hoạch và đóng issue gốc", () => {
   assert.match(text, /crew-plan root=<identifier gốc> children=<số con> bundles=<số gói>/);
   assert.match(text, /"status":"done","description":"<mô tả mới>","comment":"crew-assistant done children=/);
   // Trước khi gốc sang chờ duyệt, mô tả có mục tổng kết đủ ba phần cho owner, gửi chung một PATCH.
-  for (const heading of ["## Tổng kết của Trợ Lý", "### Kết quả", "### Đã tự quyết định", "### Cần owner quyết định"]) {
+  for (const heading of ["## Tổng kết của Trợ Lý", "### Yêu cầu", "### Việc con", "### Kết quả", "### Hình ảnh", "### Đã tự quyết định", "### Kế hoạch", "### Cần owner quyết định"]) {
     assert.ok(text.includes(heading), heading);
   }
-  assert.match(text, /không `PATCH` mô tả riêng/);
+  assert.match(text, /[Kk]hông `PATCH` mô tả riêng/);
 });
 
 test("executor: research báo bằng crew-report; nhánh xếp chồng theo crew-stack", () => {
@@ -726,6 +726,8 @@ const section = (text, heading) => {
   const next = text.indexOf("\n## ", start + heading.length + 2);
   return text.slice(start + 1, next < 0 ? undefined : next);
 };
+// Mẫu tổng kết trong mục này có dòng `## Tổng kết của Trợ Lý` ở đầu dòng nên không dùng được section(): cắt tới mục Đóng issue gốc.
+const summarySection = (text) => text.slice(text.indexOf("\n## Tổng kết trên mô tả gốc\n") + 1, text.indexOf("\n## Đóng issue gốc\n"));
 const BMAD_RESULT_RE = /^crew-bmad-result sha=[0-9a-f]{40} file=\S+\.md epics=\d+ stories=\d+ digest=[0-9a-f]{64}$/;
 const fillBmad = (line) => fill(line)
   .replaceAll("<64 hex>", "d".repeat(64))
@@ -1070,9 +1072,40 @@ test("assistant: điểm cần owner chốt viết đủ ngay tại chỗ, đán
 test("assistant: không tự mở pull request, giữ mục con Merge request do integrator thêm", () => {
   const text = read("assistant");
   assert.match(text, /2\. Sửa file, commit hay push trong worktree, hay mở pull request \(`gh pr …`\)/);
-  const close = section(text, "## Đóng issue gốc");
-  assert.match(close, /Không tự viết mục con `### Merge request`: integrator thêm nó/);
-  assert.match(close, /bản cũ có mục con `### Merge request` thì chép nguyên mục con đó vào cuối bản mới/);
+  const summary = summarySection(text);
+  assert.match(summary, /Không tự viết mục con `### Merge request`: integrator thêm nó/);
+  assert.match(summary, /bản cũ có mục con `### Merge request` thì chép nguyên mục con đó vào cuối bản mới/);
+});
+
+test("assistant: tổng kết có từ lúc lập kế hoạch, cập nhật mỗi run, có Yêu cầu/Việc con/Hình ảnh theo thứ tự", () => {
+  const text = read("assistant");
+  const body = summarySection(text);
+  for (const needle of [
+    "Chưa có kế hoạch (run còn ở \"Hiểu yêu cầu\", đang hỏi owner, chưa ghi comment `crew-plan`): chưa viết tổng kết",
+    "Run đầu có kế hoạch",
+    "Mỗi run sau, nếu có gì đổi",
+    "`GET /api/issues/<id gốc>` để đọc lại mô tả, rồi sửa **mọi** chỗ trong tổng kết không còn khớp",
+    "Không đổi gì thì không gửi `description`",
+    "Run dừng sớm",
+    "Không `PATCH` mô tả riêng",
+    "giữ nguyên từng ký tự phần phía trên tổng kết",
+    "không thêm mục thứ hai",
+    "`GET /api/issues/<id con>/attachments`",
+    "`contentType` bắt đầu bằng `image/`",
+    "`![<tên ngắn> (<identifier con>)](/api/attachments/<id>/content)`",
+    "Tối đa khoảng 8 ảnh",
+    "Không bao giờ nhúng ảnh base64 `data:`",
+    "- <identifier> · <việc> · <trạng thái tiếng Việt>",
+    "`- Chưa có.`",
+    "`PATCH` trả 422 thì làm theo mục \"Khi server trả 422\"",
+  ]) assert.ok(body.includes(needle), `thiếu: ${needle}`);
+  const tpl = text.slice(text.indexOf("\n## Tổng kết của Trợ Lý\n"));
+  const order = ["### Yêu cầu", "### Việc con", "### Kết quả", "### Hình ảnh", "### Đã tự quyết định", "### Kế hoạch", "### Cần owner quyết định"].map((h) => tpl.indexOf(`\n${h}\n`));
+  assert.ok(order.every((i, n) => i >= 0 && (n === 0 || i > order[n - 1])), `thứ tự mục tổng kết sai: ${order}`);
+  // Lệnh ghi cuối của run mang description; đóng gốc và chốt trạng thái trỏ về mục này.
+  assert.match(section(text, "## Đóng issue gốc"), /tổng kết cập nhật theo mục "Tổng kết trên mô tả gốc"/);
+  assert.match(section(text, "## Chốt trạng thái gốc"), /`description` mới \(không `status`\) theo mục "Tổng kết trên mô tả gốc"/);
+  assert.match(text, /Mọi run có ghi gì trên gốc sau khi đã có kế hoạch đều cập nhật mục tổng kết/);
 });
 
 test("mọi instructions bắt dọn rác của run trước khi báo xong", () => {

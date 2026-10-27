@@ -100,7 +100,7 @@ Repo có `origin` ở GitHub: bạn **không** gộp vào nhánh mặc định v
 2. **Mở pull request.** `T` là `EVIDENCE` (commit owner đã duyệt). Không dựng lại nhánh, không merge `origin/$DEFAULT` vào, không chạy lại test: nhánh mặc định đi tiếp hay conflict thì GitHub hiện trên PR, owner xử lý ở đó.
    - Trong một shell: `D=$(mktemp -d) && echo "D=$D" && curl -fsS -H "Authorization: Bearer $PAPERCLIP_API_KEY" "$PAPERCLIP_API_URL/api/issues/<id>" > "$D/issue.json"`. Ghi nhớ đường dẫn `D` in ra; mỗi shell sau đặt lại `D=<đường dẫn đó>`.
    - Dùng công cụ Write chép **nguyên văn** khối script ở mục "Script mở pull request" cuối file này vào `$D/crew-pr.sh` (không sửa, không bỏ dòng nào), rồi chạy trong worktree của bạn: `T=<EVIDENCE 40 ký tự> DEFAULT=<nhánh mặc định> bash "$D/crew-pr.sh" "$D"; echo "rc=$?"`.
-   - Script kiểm `origin` có ở GitHub không (không in URL remote), kiểm `gh` đăng nhập được, đẩy `"${T}:refs/heads/crew/req/<identifier>"` bằng push thường, tìm PR của nhánh đó (`gh pr list --head`): PR đang mở thì dùng lại và cập nhật tiêu đề, nội dung; chưa có thì `gh pr create --base <nhánh mặc định> --head crew/req/<identifier> --title "<identifier>: <tiêu đề>" --body-file <tổng kết>`. Nội dung PR lấy từ mục `## Tổng kết của Trợ Lý` của mô tả issue gốc. Rồi đọc trạng thái gộp được của PR (`mergeable`) và viết ra `$D/pr-url.txt`, `$D/merge-comment.json`, `$D/done.json` (mô tả mới: thêm hoặc thay mục con `### Merge request` trong `## Tổng kết của Trợ Lý`, phần còn lại giữ nguyên từng ký tự).
+   - Script kiểm `origin` có ở GitHub không (không in URL remote), kiểm `gh` đăng nhập được, đẩy `"${T}:refs/heads/crew/req/<identifier>"` bằng push thường, tìm PR của nhánh đó (`gh pr list --head`): PR đang mở thì dùng lại và cập nhật tiêu đề, nội dung; chưa có thì `gh pr create --base <nhánh mặc định> --head crew/req/<identifier> --title "<identifier>: <tiêu đề>" --body-file <tổng kết>`. Nội dung PR lấy từ mục `## Tổng kết của Trợ Lý` của mô tả issue gốc, bỏ mục con `### Hình ảnh` (và `### Merge request`): link ảnh `/api/attachments/…` là đường dẫn tương đối của Crew, GitHub không mở được; owner xem ảnh trong tổng kết trên Crew. Rồi đọc trạng thái gộp được của PR (`mergeable`) và viết ra `$D/pr-url.txt`, `$D/merge-comment.json`, `$D/done.json` (mô tả mới: thêm hoặc thay mục con `### Merge request` trong `## Tổng kết của Trợ Lý`, phần còn lại giữ nguyên từng ký tự).
    - `rc=0`: `PUSHED=pr`, sang bước 7. Có conflict thì script đã ghi rõ trong comment và mục `### Merge request`: bạn **không** tự gộp, không sửa conflict, không tạo issue con sửa; owner quyết trên GitHub.
    - `rc=3`: `origin` không ở GitHub: làm bước 3–6 (push thẳng như trước), và ở comment bước 7 thêm một dòng `origin không ở GitHub nên push thẳng vào <nhánh mặc định>, không mở pull request`.
    - rc khác: `PUSHED=no`, sang bước 7 với các dòng của `$D/error.txt` (đã lọc credential) làm lý do. `rc=4` (`gh` không có hoặc chưa đăng nhập, keychain khóa): thêm dòng nhờ foreman kiểm `gh auth status` trên máy này hoặc cấp `GH_TOKEN` cho agent. `rc=5` (push nhánh bị từ chối): không push lại bằng `--force`.
@@ -193,6 +193,13 @@ if (cmd === "meta") {
   const loc = locate(desc);
   let summary = loc ? desc.slice(loc.start, loc.end) : `## Yêu cầu\n\n${desc}`;
   if (loc && loc.mrStart >= 0) summary = desc.slice(loc.start, loc.mrStart) + desc.slice(loc.mrEnd, loc.end);
+  // Mục con "### Hình ảnh" chỉ có link tương đối /api/attachments/… (GitHub không mở được): bỏ khỏi nội dung PR.
+  const img = /^### Hình ảnh[ \t]*$/m.exec(summary);
+  if (img) {
+    const imgLineEnd = summary.indexOf("\n", img.index);
+    const imgNext = imgLineEnd < 0 ? -1 : after(/^#{2,3} /gm, summary, imgLineEnd);
+    summary = summary.slice(0, img.index) + (imgNext < 0 ? "" : summary.slice(imgNext));
+  }
   const foot = `\n\n---\nYêu cầu Crew \`${ident}\`, nhánh \`${head}\`, commit owner đã duyệt \`${T}\`. Integrator không tự gộp vào \`${DEF}\`: owner bấm Merge trên GitHub.\n`;
   write("pr-body.md", summary.trim().slice(0, 60000) + foot);
   process.stdout.write(head);

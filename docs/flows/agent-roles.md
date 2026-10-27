@@ -21,6 +21,22 @@ Có hai đường áp, cho cùng kết quả từng byte:
   Template được nhúng nguyên văn lúc build (`?raw`), và `render.ts` là bản port TypeScript của `render-instructions.mjs`;
   test chạy script gốc để so.
 
+## Tổng kết của Trợ Lý trên mô tả gốc
+
+Mục `## Tổng kết của Trợ Lý` ở cuối mô tả gốc là chỗ owner đọc để nắm cả yêu cầu. Luật nằm ở mục "Tổng kết trên mô tả gốc" của
+`assistant.md`:
+
+- Có từ run đầu có kế hoạch (chưa có kế hoạch thì chưa có tổng kết, kể cả khi run dừng sớm để hỏi owner). Mỗi run sau, nếu
+  có gì đổi, Trợ Lý `GET` lại mô tả ngay trước lệnh ghi cuối, sửa mọi chỗ không còn khớp rồi gửi `description` mới trong chính
+  `PATCH` ghi cuối của run (cùng `comment`, và `status` nếu có); không `PATCH` mô tả riêng.
+- Thứ tự mục: `### Yêu cầu`, `### Việc con` (`- <identifier> · <việc> · <trạng thái tiếng Việt>`), `### Kết quả`,
+  `### Hình ảnh`, `### Đã tự quyết định`, `### Kế hoạch` (chỉ yêu cầu lập kế hoạch), `### Cần owner quyết định`. Ảnh lấy từ
+  `GET /api/issues/<id con>/attachments` (chỉ `image/*`, tối đa khoảng 8), chèn `![tên (identifier)](/api/attachments/<id>/content)`.
+- Phần phía trên tổng kết giữ nguyên từng ký tự; luôn thay cả mục, không thêm mục thứ hai; mục con `### Merge request` do
+  integrator thêm được chép lại vào cuối bản mới.
+- Integrator lấy tổng kết làm nội dung PR nhưng bỏ mục con `### Hình ảnh` (link ảnh là đường dẫn tương đối của Crew, GitHub không mở
+  được) và `### Merge request`; mô tả issue vẫn giữ nguyên mục Hình ảnh.
+
 ## Loại yêu cầu Lập kế hoạch (`plan`)
 
 Giống loại `docs`: loại chỉ là nhãn Paperclip `plan` trên issue gốc 4 stage, con mang dòng `crew-kind plan`; server không
@@ -116,9 +132,9 @@ Giống loại `docs`: loại chỉ là nhãn Paperclip `plan` trên issue gốc
 - `crew/agents/instructions.test.mjs`: luật chung của mọi template (cấm xóa đệ quy ngoài thư mục tạm), dòng mẫu
   `crew-docs-check`, `crew-merge`, `crew-fix`, `crew-commit`, `crew-review` khớp định dạng và regex của server, cách
   integrator nhận diện stage. Loại yêu cầu Lập kế hoạch: Trợ Lý nhận bằng nhãn `plan`, hỏi owner trước khi tạo con, chỉ tạo con `crew-kind plan`
-  và ghi `- File kế hoạch:` trong tổng kết; executor, reviewer, integrator có luật tương ứng.
+  và ghi `- File kế hoạch:` trong tổng kết; executor, reviewer, integrator có luật tương ứng. Tổng kết của Trợ Lý: có từ lúc lập kế hoạch, đủ mục Yêu cầu/Việc con/Hình ảnh theo thứ tự, cập nhật mỗi run bằng `PATCH` ghi cuối, giữ `### Merge request`.
 - `crew/agents/integrator-pr.test.mjs`: script mở pull request của integrator: mở mới, dùng lại, đã merge, origin không
-  ở GitHub, `gh` chưa đăng nhập, nhánh đã đi khác (không `--force`), lỗi tạo PR có credential bị che, đầu vào sai.
+  ở GitHub, `gh` chưa đăng nhập, nhánh đã đi khác (không `--force`), lỗi tạo PR có credential bị che, đầu vào sai. Nội dung PR bỏ mục `### Hình ảnh` của tổng kết.
 - `crew/agents/apply-roles.test.mjs`: thứ tự đọc → upload → PATCH, dừng trước khi ghi khi không đọc được, vai trò BMAD và
   ô runtime, sai `adapterType` hay thiếu `CODEX_HOME`.
 - `crew/agents/render-instructions.test.mjs`, `merge-agent-config.test.mjs`, `add-base.test.mjs`,
