@@ -158,3 +158,61 @@ test('PW-S6-6b popup ?issue= (hộp chồng hộp) và điện thoại 390px ph�
   await viewer.getByRole('button', { name: 'Đóng' }).click();
   await expect(viewer).toHaveCount(0);
 });
+
+test('PW-S6-6c zoom ảnh: nút, phím, cuộn chuột, bấm đúp, kéo; chuyển ảnh về vừa khung @t1', async ({
+  page,
+  company,
+  api,
+}, testInfo) => {
+  const { issue } = await issueWithFiles(api, company.id, `PW-S6-6c ${uniqueToken()}`);
+  await page.goto(company.path(`issues/${issue.identifier}`));
+  const viewer = viewerOf(page);
+  await page.getByRole('img', { name: 'agents.webp' }).click();
+  await expect(viewer).toBeVisible();
+  const img = viewer.getByRole('img', { name: 'agents.webp' });
+  await expect.poll(() => img.evaluate((el: HTMLImageElement) => el.naturalWidth)).toBeGreaterThan(0);
+  const level = viewer.getByRole('button', { name: 'Vừa khung' });
+  const stage = viewer.getByTestId('attachment-viewer-stage');
+  await expect(level).toHaveText('100%');
+  await expect(viewer.getByRole('button', { name: 'Thu nhỏ' })).toBeDisabled();
+  const shots = process.env.ZOOM_SHOTS_DIR;
+  if (shots) await viewer.screenshot({ path: path.join(shots, 'vua-khung.png') });
+
+  await viewer.getByRole('button', { name: 'Phóng to' }).click();
+  await expect(level).toHaveText('125%');
+  await page.keyboard.press('0');
+  await expect(level).toHaveText('100%');
+  await page.keyboard.press('+');
+  await expect(level).toHaveText('125%');
+  await page.keyboard.press('-');
+  await expect(level).toHaveText('100%');
+
+  // Cuộn chuột phóng quanh con trỏ.
+  const box = await stage.boundingBox();
+  if (!box) throw new Error('không đo được vùng ảnh');
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  for (let i = 0; i < 4; i++) await page.mouse.wheel(0, -300);
+  await expect(level).not.toHaveText('100%');
+
+  // Kéo ảnh khi đang zoom: transform đổi.
+  await viewer.getByRole('button', { name: 'Vừa khung' }).click();
+  await stage.dblclick({ position: { x: box.width / 2, y: box.height / 2 } });
+  await expect(level).toHaveText('250%');
+  const before = await img.evaluate((el: HTMLElement) => el.style.transform);
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(box.x + box.width / 2 + 60, box.y + box.height / 2 + 30, { steps: 5 });
+  await page.mouse.up();
+  await expect.poll(() => img.evaluate((el: HTMLElement) => el.style.transform)).not.toBe(before);
+  if (shots) await viewer.screenshot({ path: path.join(shots, 'dang-zoom.png') });
+
+  // Chuyển ảnh thì về vừa khung.
+  await page.keyboard.press('ArrowRight');
+  await expect(viewer.getByTestId('attachment-viewer-counter')).toHaveText('2 / 2');
+  await expect(level).toHaveText('100%');
+  testInfo.annotations.push({ type: 'zoom', description: shots ? 'đã chụp ảnh' : 'không chụp ảnh' });
+  await stage.dblclick();
+  await expect(level).toHaveText('250%');
+  await stage.dblclick();
+  await expect(level).toHaveText('100%');
+});

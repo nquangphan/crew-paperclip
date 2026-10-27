@@ -56,6 +56,8 @@ export * from './widgets/expandable-content';
 export * from './widgets/filter-bar';
 export * from './widgets/floating-notice';
 export * from './widgets/image-gallery';
+export * from './widgets/image-zoom';
+export * from './widgets/image-zoom-view';
 export * from './widgets/issue-detail';
 export * from './widgets/issue-list';
 export * from './widgets/issue-row';

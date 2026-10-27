@@ -71,7 +71,10 @@
       "previewFailed": "Không hiện được file này trong trang. Tải về để mở.",
       "unknownType": "Không rõ loại",
       "size": "Dung lượng",
-      "type": "Loại"
+      "type": "Loại",
+      "zoomIn": "Phóng to",
+      "zoomOut": "Thu nhỏ",
+      "zoomFit": "Vừa khung"
     }
   },
   "confirm": {

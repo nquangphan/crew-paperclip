@@ -71,7 +71,10 @@
       "previewFailed": "This file cannot be shown in the page. Download it to open.",
       "unknownType": "Unknown type",
       "size": "Size",
-      "type": "Type"
+      "type": "Type",
+      "zoomIn": "Zoom in",
+      "zoomOut": "Zoom out",
+      "zoomFit": "Fit to frame"
     }
   },
   "confirm": {

@@ -10,6 +10,7 @@ import { Dialog, DialogClose, DialogContent, DialogDescription, DialogTitle } fr
 import { ErrorState } from '../components/error-state';
 import { Spinner } from '../components/spinner';
 import { formatBytes, type ViewerKind, viewerKindFor } from './attachment-viewer-logic';
+import { type ImageZoom, ImageZoomControls, useImageZoom, ZoomableImage } from './image-zoom-view';
 import { MarkdownView } from './markdown-view';
 
 interface AttachmentViewerFile {
@@ -60,6 +61,7 @@ function ViewerBody({
   text,
   failed,
   missing,
+  zoom,
   onFail,
 }: {
   file: AttachmentViewerFile;
@@ -67,6 +69,7 @@ function ViewerBody({
   text?: AttachmentViewerText;
   failed: boolean;
   missing: boolean;
+  zoom: ImageZoom;
   onFail: () => void;
 }) {
   const { t, lang } = useT();
@@ -107,15 +110,20 @@ function ViewerBody({
   }
   if (kind === 'image') {
     return (
-      <div className="flex h-full items-center justify-center p-2 md:p-4">
+      <ZoomableImage zoom={zoom}>
         <img
           key={file.id}
+          ref={zoom.imgRef}
           src={file.url}
           alt={file.name}
+          draggable={false}
           onError={onFail}
-          className="max-h-full max-w-full rounded-sm object-contain"
+          style={{ transform: zoom.transform }}
+          className={`max-h-full max-w-full rounded-sm object-contain ${
+            zoom.smooth ? 'transition-transform duration-150 ease-out motion-reduce:transition-none' : ''
+          }`}
         />
-      </div>
+      </ZoomableImage>
     );
   }
   if (kind === 'video') {
@@ -190,6 +198,9 @@ function AttachmentViewer({ file, onClose, nav, text }: AttachmentViewerProps) {
   const missing = (failed && !inlineData) || (text?.status === 'error' && text.missing === true);
   // Nút đã mở hộp (ảnh trong bình luận đang thu gọn): đóng hộp thì trả focus về đó mà không cuộn khung thu gọn.
   const opener = useRef<HTMLElement | null>(null);
+  // Zoom chỉ có nghĩa với ảnh đang hiện được; đổi ảnh hay đóng hộp thì về vừa khung.
+  const zoom = useImageZoom(file ? file.id : null);
+  const canZoom = kind === 'image' && !failed && !missing;
 
   return (
     <Dialog
@@ -219,6 +230,23 @@ function AttachmentViewer({ file, onClose, nav, text }: AttachmentViewerProps) {
             el.focus({ preventScroll: true });
           }}
           onKeyDown={(e) => {
+            if (canZoom && !e.ctrlKey && !e.metaKey && !e.altKey) {
+              if (e.key === '+' || e.key === '=') {
+                e.preventDefault();
+                zoom.zoomIn();
+                return;
+              }
+              if (e.key === '-') {
+                e.preventDefault();
+                zoom.zoomOut();
+                return;
+              }
+              if (e.key === '0') {
+                e.preventDefault();
+                zoom.fit();
+                return;
+              }
+            }
             if (!hasNav || !nav) return;
             if (e.key === 'ArrowLeft') {
               e.preventDefault();
@@ -242,6 +270,7 @@ function AttachmentViewer({ file, onClose, nav, text }: AttachmentViewerProps) {
                 {t('attachment.viewer.counter', { n: nav.index + 1, total: nav.total })}
               </span>
             ) : null}
+            {canZoom ? <ImageZoomControls zoom={zoom} /> : null}
             {missing ? null : (
               <Button variant="ghost" size="sm" asChild>
                 <a href={file.downloadUrl} download={file.name} aria-label={t('attachment.viewer.download')}>
@@ -277,6 +306,7 @@ function AttachmentViewer({ file, onClose, nav, text }: AttachmentViewerProps) {
               text={text}
               failed={failed}
               missing={missing}
+              zoom={zoom}
               onFail={() => setFailedId(file.id)}
             />
             {hasNav && nav ? (
