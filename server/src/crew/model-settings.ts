@@ -179,6 +179,8 @@ export function validateModelSettings(value: unknown): ModelSettingsValidation {
   // Luật 1 và 3: catalog và ô bảng độ khó.
   checkKeys(catalogIn, CREW_RUNTIMES, "catalog", issues);
   const cleanCatalog = {} as Record<CrewRuntime, CrewRuntimeSpec>;
+  // Một id chỉ thuộc một runtime: nâng hàng loạt và luật chặn gỡ model tìm issue/agent theo id, không theo runtime.
+  const modelRuntime = new Map<string, CrewRuntime>();
   for (const runtime of CREW_RUNTIMES) {
     const spec = catalogIn[runtime];
     const base = join("catalog", runtime);
@@ -209,6 +211,12 @@ export function validateModelSettings(value: unknown): ModelSettingsValidation {
             issues.push({ path, message: "Id model không hợp lệ." });
             continue;
           }
+          const owner = modelRuntime.get(id);
+          if (owner) {
+            issues.push({ path, message: `Id model đã có ở ${owner}; mỗi id chỉ thuộc một runtime.` });
+            continue;
+          }
+          modelRuntime.set(id, runtime);
           if (!isRecord(entry)) {
             issues.push({ path, message: "Phải là object { vision }." });
             continue;

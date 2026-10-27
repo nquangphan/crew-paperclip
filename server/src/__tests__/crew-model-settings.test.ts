@@ -61,6 +61,14 @@ describe("CREW_MODEL_SETTINGS_DEFAULT", () => {
 });
 
 describe("validateModelSettings", () => {
+  it("một id model chỉ nằm ở một runtime", () => {
+    expect(
+      pathsOf((s) => {
+        s.catalog.codex_local.models["claude-sonnet-5-5"] = { vision: true };
+      }),
+    ).toEqual(["catalog.codex_local.models.claude-sonnet-5-5"]);
+  });
+
   it("dạng: không phải object, thiếu hay thừa runtime, key lạ", () => {
     expect(validateModelSettings("x")).toMatchObject({ ok: false, issues: [{ path: "" }] });
     expect(validateModelSettings([])).toMatchObject({ ok: false, issues: [{ path: "" }] });

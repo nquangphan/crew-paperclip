@@ -46,7 +46,8 @@ Luật:
    sonnet), `bmad` theo agent BMAD trên prod (`claude-opus-5-5`), executor Codex/OpenCode theo hàng `small`, reviewer gốc
    `claude-opus-5-5`/`high`.
 2. `server/src/crew/model-settings.ts` → `validateModelSettings`: luật dạng, thứ tự, ô bảng độ khó (có ô khi và chỉ khi
-   runtime nằm trong thứ tự của mức), `large` chỉ dùng model `vision: true`, đủ 9 vai và effort theo key của runtime
+   runtime nằm trong thứ tự của mức), `large` chỉ dùng model `vision: true`, một id model chỉ thuộc một runtime (nâng hàng loạt và
+   `crew_model_in_use` tìm theo id), đủ 9 vai và effort theo key của runtime
    (`executor-codex`, `reviewer-codex`, `reviewer-root` bắt buộc có effort). Trả bản sạch hoặc
    `issues: [{ path, message }]`; `path` nối bằng dấu chấm, id model giữ nguyên (có thể chứa `.` hay `/`).
 3. `server/src/crew/model-settings.ts` → `loadModelSettings`, `readModelSettingsRow`: đọc dòng revision lớn nhất bằng
