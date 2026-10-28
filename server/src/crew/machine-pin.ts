@@ -2,6 +2,7 @@ import { sql } from "drizzle-orm";
 import type { Db } from "@paperclipai/db";
 import { derivePluginDatabaseNamespace } from "../services/plugin-database.js";
 import { DEFAULT_MAX_LOAD1, type MachineCandidate, type ProjectMachineStatus } from "./machine-select.js";
+import { assistantCallTaskId } from "./assistant-call-routes.js";
 import { CREW_PLUGIN_KEY, rowsOf } from "./project-roles.js";
 
 /** `db` của server hoặc `tx` của một transaction: các hàm ở đây chỉ cần `execute`. */
@@ -205,9 +206,12 @@ export async function crewResolveRunEnvironment(input: {
   db: ExecDb;
   agent: { id: string; companyId: string };
   issueId: string | null;
+  run?: { contextSnapshot?: unknown } | null;
 }): Promise<string | null> {
-  if (!input.issueId) return null;
-  return resolvePinnedEnvironment(input.db, { companyId: input.agent.companyId, agentId: input.agent.id, issueId: input.issueId });
+  // Run gọi Trợ Lý bằng tag không mang issueId (xem `assistant-call-routes.ts`): máy theo issue ở `context.taskId`.
+  const issueId = input.issueId ?? assistantCallTaskId(input.run?.contextSnapshot);
+  if (!issueId) return null;
+  return resolvePinnedEnvironment(input.db, { companyId: input.agent.companyId, agentId: input.agent.id, issueId });
 }
 
 const PROJECT_STATUSES: readonly ProjectMachineStatus[] = ["ready", "provisioning", "failed"];
