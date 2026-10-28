@@ -210,8 +210,10 @@ flows:
     entrypoints:
       - server/src/crew/handoff-rewake.ts
       - packages/crew-plugin/src/run-cancelled.ts
+      - server/src/crew/assistant-call-routes.ts
     files: []
     tests:
+      - server/src/__tests__/crew-assistant-call.db.test.ts
       - server/src/__tests__/crew-failed-run-deferred-review.db.test.ts
       - server/src/__tests__/crew-handoff-rewake-blocked-root.db.test.ts
       - server/src/__tests__/crew-handoff-rewake-sweep.db.test.ts

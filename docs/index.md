@@ -67,7 +67,7 @@ Paperclip, không mô tả Crew. Phạm vi file nguồn của Crew là `source.i
 | [Phòng QC duyệt lại yêu cầu của mình](flows/qc-department.md) | `qc-department` | `server/src/crew/qc-verification.ts` |
 | [Bản đồ yêu cầu và Roadmap](flows/roadmap-map.md) | `roadmap-map` | `packages/crew-plugin/src/handlers/map.ts`, `packages/crew-web/src/features/roadmap/routes.tsx` |
 | [Giữ run khi máy quá tải, nhìn lại run trước và nối phiên trong gói](flows/run-claim.md) | `run-claim` | `server/src/crew/load-gate.ts` |
-| [Bàn giao giữa vai trò, đánh thức lại và run bị hủy](flows/run-handoff.md) | `run-handoff` | `server/src/crew/handoff-rewake.ts`, `packages/crew-plugin/src/run-cancelled.ts` |
+| [Bàn giao giữa vai trò, đánh thức lại và run bị hủy](flows/run-handoff.md) | `run-handoff` | `server/src/crew/handoff-rewake.ts`, `packages/crew-plugin/src/run-cancelled.ts`, `server/src/crew/assistant-call-routes.ts` |
 | [Chuyển runtime khi run hỏng và chờ Claude chạy lại](flows/runtime-fallback.md) | `runtime-fallback` | `packages/crew-plugin/src/runtimes/fallback.ts`, `packages/crew-plugin/src/runtimes/decisions.ts` |
 | [Công tắc runtime theo máy (Claude, Codex, OpenCode)](flows/runtime-switches.md) | `runtime-switches` | `packages/crew-plugin/src/runtimes/switches.ts`, `server/src/crew/runtime-gate.ts` |
 | [Wizard thêm agent, thêm project, gỡ và kiểm sẵn sàng](flows/setup-wizards.md) | `setup-wizards` | `packages/crew-plugin/src/setup/api.ts`, `packages/crew-web/src/features/wizards/routes.tsx` |

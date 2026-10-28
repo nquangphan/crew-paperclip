@@ -24,6 +24,11 @@ các chỗ Crew sửa cho bàn giao trơn tru:
   hệ thống sau đó, kể cả wake khi việc con cuối xong, bị bỏ (`execution_reconciliation_required`); trước đây chỉ comment
   của người mới gỡ được (TPS-508, TPS-495, TPS-264). Crew gỡ giữ chỗ đó khi chứng minh được run chưa từng gọi adapter, rồi
   phát lại wake bị bỏ nếu mọi blocker đã xong.
+- Owner gọi Trợ Lý bằng tag `@tro-ly` trong bình luận: mention `agent://` của lõi không đánh thức ai (`enqueueWakeup` bỏ
+  mọi wake `issue_comment_mentioned`), và lõi hủy trước khi chạy mọi run có `issueId` của agent không phải assignee
+  (`decideQueuedRunStaleness` → `issue_assignee_changed`), trừ wake tương tác của chính lõi. Crew có route
+  `assistant-call` đánh thức Trợ Lý bằng reason riêng `crew_assistant_called` với wake không mang `issueId`, và H1 tự
+  giữ run đó ở `queued` khi issue đang có run `running` của agent khác.
 - Board hủy một run đang chạy: lõi để issue `in_progress` không có run nào. Plugin chuyển issue sang `blocked` kèm
   comment (không chuyển `todo`, vì issue `todo` có agent sẽ bị lõi chạy lại ngay).
 
@@ -37,6 +42,9 @@ Mô tả và lý do chi tiết của từng vá: `crew/release/core-hooks.json` 
   `replayStrandedSkippedWakes`.
 - Vá C11 trong `server/src/routes/issues.ts` (`PATCH /issues/:id`, đoạn dừng run khi đổi assignee); C12, C14 trong
   `server/src/services/heartbeat.ts`; C13 trong `server/src/services/recovery/service.ts`.
+- `POST /api/crew/companies/:companyId/issues/:issueId/assistant-call` `{ commentId }` (router con trong router góp ý,
+  flow `contributions`) → `crewAssistantCallRoutes`; crew-web gọi ngay sau khi gửi bình luận có link tới Trợ Lý.
+- Hook H1 (`beforeClaim`) → `holdAssistantCallRun` trước cổng tải (flow `run-claim`).
 - Sự kiện plugin `agent.run.cancelled` → `registerRunCancelledHandler` (đăng ký trong
   `packages/crew-plugin/src/worker.ts`).
 
@@ -68,7 +76,24 @@ Mô tả và lý do chi tiết của từng vá: `crew/release/core-hooks.json` 
    owner chặn bằng tay (không có blocker) thì chờ owner. Wake phụ thuộc giữ nguyên lý do gốc (`issue_blockers_resolved`,
    `issue_children_completed`), ngữ cảnh việc con/blocker và idempotency key gốc, để vòng backstop phụ thuộc của lõi
    không đánh thức lần hai.
-4. `packages/crew-plugin/src/run-cancelled.ts` → `registerRunCancelledHandler`: chỉ xử lý run đã bắt đầu, bị hủy với mã
+4. `server/src/crew/assistant-call-routes.ts` → `crewAssistantCallRoutes`: owner (phiên trình duyệt, `requireOwner`);
+   issue thuộc company (`404`), chưa `done`/`cancelled` (`409 crew_assistant_call_closed`); bình luận chưa xóa trên issue
+   đó (`404`), của chính người gọi (`403 crew_assistant_call_not_author`); Trợ Lý của project theo `crew_project_roles`
+   (`409 crew_assistant_missing`); bình luận có link `agent://` tới Trợ Lý (`extractAgentMentionIds`, `422
+   crew_assistant_not_mentioned`). Chống gọi trùng bằng khóa trong process và wake có `idempotencyKey =
+   crew-assistant-call:<commentId>` (`200 { status: "already" }`). Rồi `heartbeat.wakeup` (nhập lười) với `source:
+   "automation"`, reason `crew_assistant_called`, người gọi là owner, context `{ taskId, wakeReason, wakeCommentId,
+   source: "crew.assistant_call", crewAssistantCall: { issueId, commentId } }`, không có `issueId` (lý do ở mục Mục
+   đích). Adapter vẫn đặt `PAPERCLIP_TASK_ID`, `PAPERCLIP_WAKE_REASON`, `PAPERCLIP_WAKE_COMMENT_ID`. Trả `202 { status:
+   "queued" | "deferred" | "skipped", runId, skipReason? }` (`deferred` khi issue đang có run `running` của agent khác) và
+   ghi activity `crew.assistant_called`.
+5. `server/src/crew/assistant-call-routes.ts` → `holdAssistantCallRun` (H1): chỉ xét run `queued` có `wakeReason =
+   crew_assistant_called`; giữ khi task (`taskId`) có run `running` của agent khác (theo `issueId` trong context,
+   `native_issue_id` hay `issues.execution_run_id`). Run `queued` của agent khác không tính, để không khóa chéo. Scheduler
+   thử claim lại mỗi tick (`resumeQueuedRuns`) nên Trợ Lý chạy ngay sau khi run kia xong. Giữ không giới hạn; không đổi
+   status issue, không comment. Đọc lỗi thì giữ. Mọi run khác đi đường cũ. Vì run không mang `issueId`, lõi không khóa
+   issue cho Trợ Lý: run của agent khác tới sau vẫn chạy song song với Trợ Lý.
+6. `packages/crew-plugin/src/run-cancelled.ts` → `registerRunCancelledHandler`: chỉ xử lý run đã bắt đầu, bị hủy với mã
    `cancelled` hoặc không mã (hủy tự động của lõi có mã riêng và kèm lệnh ghi chuyển issue, chen vào sẽ đua); issue còn
    `in_progress`, đúng assignee, không bị run khác giữ thì chuyển `blocked` và comment.
 
@@ -78,6 +103,7 @@ Mô tả và lý do chi tiết của từng vá: `crew/release/core-hooks.json` 
 |-----------|---------|--------------|
 | `server/src/crew/handoff-rewake.ts` | Phát lại wake bị bỏ khi lease nhả và theo tick; gỡ giữ chỗ của run chưa gọi adapter | `rewakeAfterLeaseRelease`, `replayStrandedSkippedWakes`, `releaseNeverLaunchedRecoveryHolds`, `stageWakeStillCurrent`, `HANDOFF_REWAKE_ACTION`, `RECOVERY_HOLD_RELEASED_ACTION` |
 | `packages/crew-plugin/src/run-cancelled.ts` | Issue sang `blocked` khi board hủy run | `registerRunCancelledHandler` |
+| `server/src/crew/assistant-call-routes.ts` | Owner gọi Trợ Lý bằng tag; giữ run gọi Trợ Lý khi issue đang có run của agent khác | `crewAssistantCallRoutes`, `holdAssistantCallRun`, `otherAgentRunHoldsTask`, `assistantCallTaskId`, `ASSISTANT_CALL_REASON`, `ASSISTANT_CALL_ACTION` |
 | `server/src/index.ts` | File upstream chứa C10 | tick scheduler heartbeat |
 | `server/src/routes/issues.ts` | File upstream chứa C11 | `PATCH /issues/:id` |
 | `server/src/services/heartbeat.ts` | File upstream chứa C12, C14 | `finalizeIssueCommentPolicy`, `executeRun` |
@@ -88,6 +114,9 @@ Mô tả và lý do chi tiết của từng vá: `crew/release/core-hooks.json` 
 - Bảng lõi: đọc `agent_wakeup_requests` (wake `skipped`), `heartbeat_runs`, `issues`, `issue_relations` (qua readiness
   của lõi), `environment_leases`; ghi wake mới qua `heartbeat.wakeup`; ghi `issue_recovery_actions` (gỡ giữ chỗ) và
   `heartbeat_runs.result_json.executionRecovery` của run chưa gọi adapter; plugin ghi `issues.status` và comment qua host.
+- Route gọi Trợ Lý đọc `issue_comments`, `crew_project_roles`, `agent_wakeup_requests` (theo `idempotency_key`) và
+  `heartbeat_runs` (run `running` của agent khác), ghi activity `crew.assistant_called` (entity là issue; `details` có
+  `commentId`, `assistantAgentId`, `status`).
 - Activity: `crew.handoff_rewake` (dấu đã phát lại), `crew.handoff_rewake.failed`, `crew.recovery_hold_released`
   (entity là issue; `details` có `recoveryActionId`, `runId`, `proof: "never_started"`).
 - Sự kiện plugin nghe: `agent.run.cancelled`.
@@ -103,6 +132,13 @@ Mô tả và lý do chi tiết của từng vá: `crew/release/core-hooks.json` 
   lệnh dừng và retry vì vậy luôn ở máy đó.
 
 ## Tests
+
+- `server/src/__tests__/crew-assistant-call.db.test.ts` (Postgres nhúng, `heartbeat.wakeup` thật, adapter mock): không
+  ai giữ issue thì Trợ Lý chạy ngay với `crew_assistant_called` và `wakeCommentId`, status và assignee của gốc không đổi;
+  integrator có run `running` thì route trả `deferred`, run của Trợ Lý ở `queued` qua nhiều tick rồi chạy sau khi run
+  integrator xong; run của agent khác không bị giữ (integrator chạy khi Trợ Lý đang chạy, run `queued` của agent khác
+  không giữ Trợ Lý); gọi lại cùng bình luận không tạo wake thứ hai; `403`/`404`/`422`/`409`/`400`; wake
+  `issue_comment_mentioned` của lõi trả `null`, không run, không wake hoãn.
 
 - `server/src/__tests__/crew-handoff-rewake.test.ts`: wake bị bỏ được phát lại đúng một lần sau khi lease nhả; wakeup
   lỗi thì ghi activity lỗi và lần sau thử lại; không đánh thức khi issue đã `blocked`, không có wake bị bỏ, hay agent

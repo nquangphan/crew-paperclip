@@ -811,6 +811,7 @@ File nào thuộc flow nào. Dùng `crew-docs where <file>` để tra từ dòng
 | `server/src/__tests__/crew-agent-assignment.db.test.ts` | [issue-gate](flows/issue-gate.md) (test) |
 | `server/src/__tests__/crew-agent-board-only-routes.test.ts` | [agent-guards](flows/agent-guards.md) (test) |
 | `server/src/__tests__/crew-agent-config.test.ts` | [agent-guards](flows/agent-guards.md) (test) |
+| `server/src/__tests__/crew-assistant-call.db.test.ts` | [run-handoff](flows/run-handoff.md) (test) |
 | `server/src/__tests__/crew-before-claim.test.ts` | [run-claim](flows/run-claim.md) (test) |
 | `server/src/__tests__/crew-board-child.db.test.ts` | [issue-gate](flows/issue-gate.md) (test) |
 | `server/src/__tests__/crew-bridge-allowlist.test.ts` | [model-settings](flows/model-settings.md) (test) |
@@ -866,6 +867,7 @@ File nào thuộc flow nào. Dùng `crew-docs where <file>` để tra từ dòng
 | `server/src/app.ts` | [crew-plugin](flows/crew-plugin.md) (dùng chung), [contributions](flows/contributions.md) (dùng chung) |
 | `server/src/crew/agent-config-gate.ts` | [agent-guards](flows/agent-guards.md) (điểm vào) |
 | `server/src/crew/agent-write-guard.ts` | [agent-guards](flows/agent-guards.md) (điểm vào) |
+| `server/src/crew/assistant-call-routes.ts` | [run-handoff](flows/run-handoff.md) (điểm vào) |
 | `server/src/crew/bundle-resume.ts` | [run-claim](flows/run-claim.md) (file) |
 | `server/src/crew/contribution-routes.ts` | [contributions](flows/contributions.md) (điểm vào) |
 | `server/src/crew/contributions.ts` | [contributions](flows/contributions.md) (file) |

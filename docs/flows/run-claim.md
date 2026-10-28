@@ -26,7 +26,9 @@ có cho chạy ngay không (hook H1):
 
 ## Các bước
 
-1. `server/src/crew/core-hooks.ts` → `beforeClaim`: gọi `crewBeforeClaim`; không giữ run thì `applyBundleResumeSafely`.
+1. `server/src/crew/core-hooks.ts` → `beforeClaim`: trước tiên `holdAssistantCallRun` (flow `run-handoff`) giữ run
+   `queued` có `wakeReason = crew_assistant_called` khi task đang có run `running` của agent khác; mọi run khác bỏ qua bước
+   này. Rồi gọi `crewBeforeClaim`; không giữ run thì `applyBundleResumeSafely`.
 2. `server/src/crew/load-gate.ts` → `crewBeforeClaim`, `evaluateBeforeClaim`, `decideBeforeClaim`:
    - run không ở `queued` thì không giữ;
    - trước mọi kiểm khác, hỏi cổng ghim máy (`machineGate`, flow `multi-machine`): `hold` thì giữ run (marker

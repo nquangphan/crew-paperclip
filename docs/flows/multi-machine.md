@@ -14,7 +14,9 @@ fallback) dựa vào kho git dùng chung trên một máy. Owner chọn máy lú
 - Cổng claim của heartbeat (H1: `crewCoreHooks.beforeClaim` → `crewBeforeClaim` → `evaluateBeforeClaim`) hỏi
   `machineGate` (`server/src/crew/machine-gate.ts` → `evaluateMachineGate`) trước mọi bước của cổng tải.
 - Lúc chạy run, heartbeat (`heartbeat.ts`, `executeRun`, C16) hỏi `crewCoreHooks.resolveRunEnvironment` →
-  `crewResolveRunEnvironment` environment của run trước luật stock (environment mặc định của agent).
+  `crewResolveRunEnvironment` environment của run trước luật stock (environment mặc định của agent). Run gọi Trợ Lý bằng
+  tag không mang `issueId` (flow `run-handoff`) nên máy được tính theo `run.contextSnapshot.taskId` khi `wakeReason =
+  crew_assistant_called`.
 - `server/src/crew/machine-routes.ts` → `crewMachineRoutes`, gắn trong router góp ý (flow `contributions`), chỉ phiên
   trình duyệt; đọc: mọi thành viên, ghi: chỉ owner. Đường dưới `/api/crew/companies/:c`:
 
@@ -170,7 +172,7 @@ lần mỗi run).
   `ready` đều bị loại và project dựng được, máy dựng hỏng, không máy nào đạt, không có máy online.
 - `server/src/__tests__/crew-machine-pin.db.test.ts` (Postgres nhúng): tìm issue gốc, cây có lease thì khóa, ghim tự động
   không đè ghim có sẵn và owner đổi được, environment của agent theo host của máy (archived thì bỏ), environment theo
-  ghim (máy đã gỡ thì `null`), ứng viên với số run `running` theo host, trạng thái project và `maxLoad1` của environment mẫu.
+  ghim (máy đã gỡ thì `null`), run gọi Trợ Lý bằng tag lấy máy theo `taskId` (run khác không có `issueId` thì `null`), ứng viên với số run `running` theo host, trạng thái project và `maxLoad1` của environment mẫu.
 - `server/src/__tests__/crew-machine-provision.db.test.ts` (Postgres nhúng): bố cục project, từ chối khi máy chưa ghép hay
   chưa có repo, xếp đúng một việc, việc xong tạo environment đúng host/secret/checkout rồi `ready` và gọi lại không tạo
   thêm, việc lỗi thì `failed`, việc chờ lâu vẫn `provisioning`, thiếu checkout của agent thêm sau thì xếp việc lại,
