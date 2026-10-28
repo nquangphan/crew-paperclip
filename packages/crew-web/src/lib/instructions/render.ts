@@ -31,7 +31,7 @@ function parseExecutor(entry: string): { id: string; runtime: InstructionRuntime
   return { id, runtime: runtime as InstructionRuntime };
 }
 
-/** Như `renderInstructions(role, text, agentId, executorIds, bmadIds, reviewerCodexId)` của script, với `text` cho sẵn. */
+/** Như `renderInstructions(role, text, agentId, executorIds, bmadIds, reviewerCodexId, designerIds)` của script, với `text` cho sẵn. */
 export function renderInstructionsText(
   role: InstructionRole,
   text: string,
@@ -39,12 +39,14 @@ export function renderInstructionsText(
   executorIds: readonly string[],
   bmadIds: readonly string[] = [],
   reviewerCodexId = '',
+  designerIds: readonly string[] = [],
 ): string {
   if (!Object.hasOwn(INSTRUCTION_TEMPLATES, role)) throw new Error(`unknown role: ${role}`);
   if (role !== 'assistant') {
     if (executorIds.length > 0) throw new Error('danh sách executor chỉ assistant nhận');
     if (bmadIds.length > 0) throw new Error('danh sách agent BMAD chỉ assistant nhận');
     if (reviewerCodexId !== '') throw new Error('reviewer Codex chỉ assistant nhận');
+    if (designerIds.length > 0) throw new Error('danh sách agent UIUX chỉ assistant nhận');
     return text;
   }
   if (!UUID_RE.test(agentId)) throw new Error(`assistant phải là uuid: ${agentId}`);
@@ -59,11 +61,19 @@ export function renderInstructionsText(
   const bmads = checkIds(bmadIds, 'agent BMAD', agentId, executors);
   const reviewer =
     reviewerCodexId === '' ? 'Không có. Server tự chọn reviewer, bạn không giao việc cho reviewer.' : null;
-  if (reviewer === null) checkIds([reviewerCodexId], 'reviewer Codex', agentId, new Set([...executors, ...bmads]));
+  const reviewers =
+    reviewer === null
+      ? checkIds([reviewerCodexId], 'reviewer Codex', agentId, new Set([...executors, ...bmads]))
+      : new Set<string>();
+  checkIds(designerIds, 'agent UIUX', agentId, new Set([...executors, ...bmads, ...reviewers]));
   const list = parsed.map((e) => `- \`${e.id}\` — runtime \`${e.runtime}\``).join('\n');
   const bmad = bmadIds.length > 0 ? bmadIds.map((id) => `- \`${id}\``).join('\n') : 'Không có. Luôn dùng Superpowers.';
+  const designer =
+    designerIds.length > 0
+      ? designerIds.map((id) => `- \`${id}\``).join('\n')
+      : 'Không có. Không tạo con thiết kế; làm như cũ.';
   const reviewerBlock = reviewer ?? `- \`${reviewerCodexId}\` — runtime \`codex_local\``;
-  return `${text.replace(/\n*$/, '\n')}\n## Executor của company\n\n${list}\n\n## Agent BMAD của company\n\n${bmad}\n\n## Reviewer Codex của company\n\n${reviewerBlock}\n`;
+  return `${text.replace(/\n*$/, '\n')}\n## Executor của company\n\n${list}\n\n## Agent BMAD của company\n\n${bmad}\n\n## Agent UIUX của company\n\n${designer}\n\n## Reviewer Codex của company\n\n${reviewerBlock}\n`;
 }
 
 export interface RenderVars {
@@ -75,6 +85,8 @@ export interface RenderVars {
   bmadIds?: readonly string[];
   /** Chỉ Trợ Lý: reviewer Codex của project; trống thì ghi "Không có. …". */
   reviewerCodexId?: string;
+  /** Chỉ Trợ Lý: id agent UIUX; rỗng thì ghi "Không có. Không tạo con thiết kế; làm như cũ.". */
+  designerIds?: readonly string[];
 }
 
 /** Render `AGENTS.md` của một vai trò từ template gốc của fork. */
@@ -87,11 +99,13 @@ export function renderInstructions(role: InstructionRole, vars: RenderVars): str
     vars.executorIds ?? [],
     vars.bmadIds ?? [],
     vars.reviewerCodexId ?? '',
+    vars.designerIds ?? [],
   );
 }
 
 const EXECUTOR_HEADING = '## Executor của company';
 const BMAD_HEADING = '## Agent BMAD của company';
+const DESIGNER_HEADING = '## Agent UIUX của company';
 const REVIEWER_CODEX_HEADING = '## Reviewer Codex của company';
 const UUID_GLOBAL_RE = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi;
 const EXECUTOR_LINE_RE =
@@ -116,6 +130,8 @@ export interface AssistantLists {
   /** Executor kèm runtime; dòng bản cũ không ghi runtime là `claude_local`. */
   executors: { id: string; runtime: InstructionRuntime }[];
   bmadIds: string[];
+  /** Agent UIUX; file bản cũ chưa có mục này là rỗng. */
+  designerIds: string[];
   reviewerCodexId: string | null;
 }
 
@@ -131,6 +147,7 @@ export function assistantListsOf(content: string): AssistantLists {
     executorIds: executors.map((e) => e.id),
     executors,
     bmadIds: sectionIds(content, BMAD_HEADING),
+    designerIds: sectionIds(content, DESIGNER_HEADING),
     reviewerCodexId: sectionIds(content, REVIEWER_CODEX_HEADING)[0] ?? null,
   };
 }
@@ -154,8 +171,8 @@ export function assistantEntriesOf(roles: AssistantRoles): string[] {
 }
 
 /**
- * AGENTS.md của Trợ Lý theo vai trò project. Agent BMAD lấy từ file hiện có (`current`, rỗng nếu chưa có), bỏ id đã
- * thành Trợ Lý, executor hay reviewer Codex.
+ * AGENTS.md của Trợ Lý theo vai trò project. Agent BMAD và agent UIUX lấy từ file hiện có (`current`, rỗng nếu chưa
+ * có), bỏ id đã thành Trợ Lý, executor hay reviewer Codex; agent UIUX còn bỏ id đang nằm trong danh sách BMAD.
  */
 export function renderAssistantFor(roles: AssistantRoles, current: string): string {
   const entries = assistantEntriesOf(roles);
@@ -164,11 +181,15 @@ export function renderAssistantFor(roles: AssistantRoles, current: string): stri
       id.toLowerCase(),
     ),
   );
+  const lists = assistantListsOf(current);
+  const bmadIds = lists.bmadIds.filter((id) => !taken.has(id.toLowerCase()));
+  for (const id of bmadIds) taken.add(id.toLowerCase());
   return renderInstructions('assistant', {
     agentId: roles.assistantAgentId,
     executorIds: entries,
-    bmadIds: assistantListsOf(current).bmadIds.filter((id) => !taken.has(id.toLowerCase())),
+    bmadIds,
     reviewerCodexId: roles.codexReviewerAgentId ?? '',
+    designerIds: lists.designerIds.filter((id) => !taken.has(id.toLowerCase())),
   });
 }
 

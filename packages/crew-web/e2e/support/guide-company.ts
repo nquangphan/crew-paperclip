@@ -302,12 +302,12 @@ async function ensureEnvironment(owner: Api, companyId: string, body: EnvBody): 
 }
 
 /** AGENTS.md theo template của fork (như wizard). Trợ Lý có thêm danh sách executor của project. */
-function instructionsOf(slot: CrewRoleSlot, executorIds: string[]): string {
+export function instructionsOf(slot: CrewRoleSlot, executorIds: string[]): string {
   const role = roleOfSlot(slot);
   const text = readFileSync(path.join(TEMPLATES, `${role}.md`), 'utf8');
   if (role !== 'assistant') return text;
   const list = executorIds.map((id) => `- \`${id}\` — runtime \`claude_local\``).join('\n');
-  return `${text.replace(/\n*$/, '\n')}\n## Executor của company\n\n${list}\n\n## Agent BMAD của company\n\nKhông có. Luôn dùng Superpowers.\n\n## Reviewer Codex của company\n\nKhông có. Server tự chọn reviewer, bạn không giao việc cho reviewer.\n`;
+  return `${text.replace(/\n*$/, '\n')}\n## Executor của company\n\n${list}\n\n## Agent BMAD của company\n\nKhông có. Luôn dùng Superpowers.\n\n## Agent UIUX của company\n\nKhông có. Không tạo con thiết kế; làm như cũ.\n\n## Reviewer Codex của company\n\nKhông có. Server tự chọn reviewer, bạn không giao việc cho reviewer.\n`;
 }
 
 interface ProjectSetup {

@@ -124,8 +124,10 @@ Giống loại `docs`: loại chỉ là nhãn Paperclip `plan` trên issue gốc
 ## Điểm vào
 
 - `crew/agents/apply-roles.sh agent <agentId> <vai trò> <thư mục ghim> [...]` với vai trò `assistant`, `executor`,
-  `reviewer`, `integrator`, `bmad`, `executor-codex`, `executor-opencode`, `reviewer-codex`. Trợ Lý nhận thêm danh sách
-  executor (`<uuid>[:runtime]`), danh sách agent BMAD và reviewer Codex.
+  `reviewer`, `integrator`, `bmad`, `designer`, `executor-codex`, `executor-opencode`, `reviewer-codex`. Vai `designer`
+  upload `designer.md`, runtime `claude_local`, ghim Superpowers như executor. Trợ Lý nhận thêm danh sách executor
+  (`<uuid>[:runtime]`), danh sách agent BMAD, reviewer Codex và (đối số thứ 7, bỏ trống được) danh sách agent UIUX; vai
+  khác truyền danh sách UIUX thì thoát 2. Thứ tự đối số cũ giữ nguyên.
 - `crew/agents/apply-roles.sh policy-config <companyId> <reviewer> <integrator> <ownerUserId> [file] [--tracking …]`:
   in hoặc gộp mục company vào file `CREW_POLICY_CONFIG` (server đọc lại file ở mỗi lệnh ghi được kiểm, không cần khởi
   động lại).
@@ -138,7 +140,10 @@ Giống loại `docs`: loại chỉ là nhãn Paperclip `plan` trên issue gốc
    `baseHash` (`add-base.mjs`); rồi PATCH `extraArgs` (`merge-agent-config.mjs`); kiểm phản hồi của cả hai lệnh ghi
    (`verify-result.mjs`), vì `api.sh` có thể thoát 0 khi HTTP lỗi. Ô runtime phải khớp `adapterType` của agent.
 2. `crew/agents/render-instructions.mjs` → `renderInstructions`: Trợ Lý được nối mục danh sách executor (kèm runtime),
-   agent BMAD và reviewer Codex; vai trò khác giữ nguyên văn template. Từ chối id sai, trùng nhau hay trùng chính Trợ Lý.
+   agent BMAD, agent UIUX (`## Agent UIUX của company`, ngay sau mục BMAD; rỗng thì "Không có. Không tạo con thiết kế;
+   làm như cũ.") và reviewer Codex; vai trò khác giữ nguyên văn template và từ chối mọi danh sách ("danh sách agent UIUX
+   chỉ assistant nhận"). Từ chối id sai, trùng nhau hay trùng chính Trợ Lý; agent UIUX còn không được trùng executor,
+   agent BMAD hay reviewer Codex.
 3. `crew/agents/merge-agent-config.mjs`: dựng body PATCH ghim Superpowers hay BMAD; chỉ Claude nhận `--plugin-dir`, Codex
    và OpenCode đọc bản ghim qua `CREW_SUPERPOWERS_DIR` do wrapper đặt. Agent Codex phải có `CODEX_HOME` ngoài thư mục
    company do server quản lý và không mang `OPENAI_API_KEY`.
@@ -148,6 +153,10 @@ Giống loại `docs`: loại chỉ là nhãn Paperclip `plan` trên issue gốc
    giữ company khác, từ chối file cũ hỏng thay vì ghi đè; `--tracking` đặt `trackingProjectIds`.
 6. `packages/crew-web/src/lib/instructions/render.ts` → `renderInstructions`, `renderAssistantFor`, `assistantListsOf`,
    `assistantListsMatch`: render và đọc lại danh sách trong `AGENTS.md` của Trợ Lý theo vai trò project.
+   `AssistantLists.designerIds` đọc mục UIUX (file bản cũ chưa có mục là rỗng). `renderAssistantFor` giữ agent BMAD và
+   agent UIUX của file hiện có, bỏ id đã thành Trợ Lý, executor hay reviewer Codex (agent UIUX còn bỏ id đang là agent
+   BMAD). Vai trò project không có ô `designer`: danh sách UIUX chỉ sống trong `AGENTS.md` của Trợ Lý như BMAD, nên mọi chỗ
+   render lại (lưu vai trò, thêm/gỡ agent, readiness) đều giữ nó.
 7. `packages/crew-web/src/lib/instructions/put.ts` → `putInstructions`: GET lấy `contentHash` rồi PUT với `baseHash`;
    server trả 409 thì báo xung đột, không ghi đè, không thử lại; nội dung không đổi thì không PUT.
 8. `packages/crew-web/src/lib/instructions/agent-config.ts` → `crewAgentCreateBody`, `crewRuntimeConfigOf`,
@@ -158,7 +167,8 @@ Giống loại `docs`: loại chỉ là nhãn Paperclip `plan` trên issue gốc
    và ghi effort của vai vào key effort của runtime. `crewModelsOf` trả id đã sắp tăng dần kiểu natural sort qua
    `sortModelIds` (`localeCompare` với `numeric: true`), vì thứ tự khóa `jsonb` của bảng đã lưu không ổn định; mọi danh
    sách model (wizard, ô chọn model, trang Cài đặt model) đi qua hàm này.
-9. `packages/crew-web/src/lib/instructions/templates.ts` → `INSTRUCTION_TEMPLATES`: năm template nhúng nguyên văn.
+9. `packages/crew-web/src/lib/instructions/templates.ts` → `INSTRUCTION_TEMPLATES`: sáu template nhúng nguyên văn
+   (`assistant`, `executor`, `reviewer`, `integrator`, `bmad`, `designer`).
 
 ## Files
 
@@ -208,13 +218,18 @@ Giống loại `docs`: loại chỉ là nhãn Paperclip `plan` trên issue gốc
 - `crew/agents/integrator-pr.test.mjs`: script mở pull request của integrator: mở mới, dùng lại, đã merge, origin không
   ở GitHub, `gh` chưa đăng nhập, nhánh đã đi khác (không `--force`), lỗi tạo PR có credential bị che, đầu vào sai. Nội dung PR bỏ mục `### Hình ảnh` của tổng kết.
 - `crew/agents/apply-roles.test.mjs`: thứ tự đọc → upload → PATCH, dừng trước khi ghi khi không đọc được, vai trò BMAD và
-  ô runtime, sai `adapterType` hay thiếu `CODEX_HOME`.
+  ô runtime, sai `adapterType` hay thiếu `CODEX_HOME`; vai `designer` upload `designer.md` với pin Superpowers, Trợ Lý nhận
+  danh sách UIUX ở đối số thứ 7, vai khác nhận thì thoát 2.
 - `crew/agents/render-instructions.test.mjs`, `merge-agent-config.test.mjs`, `add-base.test.mjs`,
   `policy-config.test.mjs`, `verify-result.test.mjs`: từng script phụ trợ.
 - `packages/crew-web/test/lib/instructions/render.test.ts`: bản port khớp từng byte với script gốc và template nhúng khớp
-  file trong `crew/agents/`.
+  file trong `crew/agents/` (fixture `assistant-designer.md` có mục UIUX, `designer.md` là template nguyên văn).
 - `packages/crew-web/test/lib/instructions/assistant-lists.test.ts`: đọc lại và render danh sách của Trợ Lý theo vai trò
-  project.
+  project, gồm danh sách UIUX (file cũ chưa có mục, giữ khi render lại, bỏ id đã thành vai khác).
+- `packages/crew-web/test/features/projects/use-save-roles.test.ts`, `test/features/wizards/add-agent.test.ts`,
+  `test/features/wizards/remove/remove-agent.test.ts`: lưu vai trò, thay Trợ Lý và gỡ agent giữ danh sách BMAD và UIUX.
+- `packages/crew-web/test/e2e-support.test.ts`: `AGENTS.md` mà dữ liệu mẫu e2e (`e2e/support/guide-company.ts`) dựng trùng
+  bản render của web.
 - `packages/crew-web/test/lib/instructions/put.test.ts`: `baseHash`, không PUT khi không đổi, 409 thành xung đột.
 - `packages/crew-web/test/lib/instructions/agent-config.test.ts`: wrapper, `extraArgs`, body tạo agent qua được schema của
   server, hằng số cùng giá trị với app và server, danh sách và model mặc định theo `settings`.

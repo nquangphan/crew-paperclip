@@ -12,10 +12,12 @@ E2=33333333-3333-4333-8333-333333333333
 B1=44444444-4444-4444-8444-444444444444
 E3=55555555-5555-4555-8555-555555555555
 R1=66666666-6666-4666-8666-666666666666
+D1=77777777-7777-4777-8777-777777777777
 D=packages/crew-web/test/lib/instructions/__fixtures__/rendered
 gen() { node crew/agents/render-instructions.mjs "$@" | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>process.stdout.write(JSON.parse(s).content))'; }
 gen assistant crew/agents/assistant.md $A "$E1,$E2" > $D/assistant.md
 gen assistant crew/agents/assistant.md $A "$E1" "$B1" > $D/assistant-bmad.md
 gen assistant crew/agents/assistant.md $A "${E1},${E2}:codex_local,${E3}:opencode_local" "$B1" "$R1" > $D/assistant-runtimes.md
-for r in executor reviewer integrator bmad; do gen $r crew/agents/$r.md $A > $D/$r.md; done
+gen assistant crew/agents/assistant.md $A "$E1" "$B1" "" "$D1" > $D/assistant-designer.md
+for r in executor reviewer integrator bmad designer; do gen $r crew/agents/$r.md $A > $D/$r.md; done
 ```

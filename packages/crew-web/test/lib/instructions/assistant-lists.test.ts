@@ -13,6 +13,7 @@ const E2 = '33333333-3333-4333-8333-333333333333';
 const B1 = '44444444-4444-4444-8444-444444444444';
 const E3 = '55555555-5555-4555-8555-555555555555';
 const R1 = '66666666-6666-4666-8666-666666666666';
+const D1 = '99999999-9999-4999-8999-999999999999';
 const claude = (id: string) => ({ id, runtime: 'claude_local' });
 const roles = {
   assistantAgentId: A,
@@ -31,6 +32,7 @@ describe('assistantListsOf', () => {
       executorIds: [E2, E1],
       executors: [claude(E2), claude(E1)],
       bmadIds: [B1],
+      designerIds: [],
       reviewerCodexId: null,
     });
   });
@@ -41,12 +43,13 @@ describe('assistantListsOf', () => {
       executorIds: [E1],
       executors: [claude(E1)],
       bmadIds: [],
+      designerIds: [],
       reviewerCodexId: null,
     });
   });
 
   it('file không có mục nào (agent khác vai trò, file trống) → rỗng', () => {
-    const empty = { executorIds: [], executors: [], bmadIds: [], reviewerCodexId: null };
+    const empty = { executorIds: [], executors: [], bmadIds: [], designerIds: [], reviewerCodexId: null };
     expect(assistantListsOf(renderInstructions('executor', { agentId: E1 }))).toEqual(empty);
     expect(assistantListsOf('')).toEqual(empty);
   });
@@ -56,12 +59,14 @@ describe('assistantListsOf', () => {
       agentId: A,
       executorIds: [E1, `${E2}:codex_local`, `${E3}:opencode_local`],
       bmadIds: [B1],
+      designerIds: [],
       reviewerCodexId: R1,
     });
     expect(assistantListsOf(content)).toEqual({
       executorIds: [E1, E2, E3],
       executors: [claude(E1), { id: E2, runtime: 'codex_local' }, { id: E3, runtime: 'opencode_local' }],
       bmadIds: [B1],
+      designerIds: [],
       reviewerCodexId: R1,
     });
   });
@@ -72,8 +77,52 @@ describe('assistantListsOf', () => {
       executorIds: [E1],
       executors: [claude(E1)],
       bmadIds: [],
+      designerIds: [],
       reviewerCodexId: null,
     });
+  });
+});
+
+describe('danh sách agent UIUX', () => {
+  it('đọc lại mục Agent UIUX đã render, giữ thứ tự; mục ghi Không có là rỗng', () => {
+    const content = renderInstructions('assistant', {
+      agentId: A,
+      executorIds: [E1],
+      bmadIds: [B1],
+      designerIds: [D1, E3],
+    });
+    expect(assistantListsOf(content)).toMatchObject({ bmadIds: [B1], designerIds: [D1, E3] });
+    expect(assistantListsOf(renderInstructions('assistant', { agentId: A, executorIds: [E1] })).designerIds).toEqual(
+      [],
+    );
+  });
+
+  it('AGENTS.md bản cũ chưa có mục UIUX: đọc ra rỗng, lần render sau thêm mục Không có', () => {
+    const old = `# Trợ Lý\n\n## Executor của company\n\n- \`${E1}\`\n\n## Agent BMAD của company\n\n- \`${B1}\`\n\n## Reviewer Codex của company\n\nKhông có.\n`;
+    expect(assistantListsOf(old)).toMatchObject({ bmadIds: [B1], designerIds: [] });
+    const plain = { assistantAgentId: A, executorAgentIds: [E1] };
+    expect(renderAssistantFor(plain, old)).toContain(
+      '\n## Agent UIUX của company\n\nKhông có. Không tạo con thiết kế; làm như cũ.\n',
+    );
+  });
+
+  it('renderAssistantFor giữ agent UIUX của file hiện có, bỏ id đã thành vai khác hay đang là agent BMAD', () => {
+    const current = renderInstructions('assistant', {
+      agentId: A,
+      executorIds: [E1],
+      bmadIds: [B1],
+      designerIds: [D1, E2],
+    });
+    const out = renderAssistantFor(roles, current);
+    expect(assistantListsOf(out)).toMatchObject({ bmadIds: [B1], designerIds: [D1] });
+    // Agent UIUX vừa thành Trợ Lý thì bị bỏ, không ném lỗi.
+    expect(() =>
+      renderAssistantFor({ ...roles, assistantAgentId: D1, opencodeExecutorAgentId: null }, current),
+    ).not.toThrow();
+    expect(
+      assistantListsOf(renderAssistantFor({ ...roles, assistantAgentId: D1, opencodeExecutorAgentId: null }, current))
+        .designerIds,
+    ).toEqual([]);
   });
 });
 

@@ -60,6 +60,15 @@ Trước khi sửa file, comment trên B một dòng `crew-stack-base sha=<40 he
 - Không sửa `executionPolicy`. Không tạo issue gốc. Chỉ tạo issue con khi issue yêu cầu, luôn dùng `POST /api/companies/<companyId>/issues` có `"parentId":"<id gốc>"`; không gửi `executionPolicy` (server tự gắn), không giao cho agent reviewer hoặc integrator, không gửi `assigneeAdapterOverrides`.
 - Không chuyển issue sang `cancelled`. Muốn bỏ việc: `PATCH /api/issues/<id>` `{"status":"blocked","comment":"Executor: dừng vì <lý do cụ thể>"}` rồi dừng.
 
+## Con code theo mockup (`crew-design on=<identifier>`)
+
+Mô tả có dòng `crew-design on=<identifier>`: con này làm giao diện theo mockup của con thiết kế `<identifier>` mà owner đã duyệt. Trước khi sửa file:
+
+1. `GET /api/issues/<identifier>` và `GET /api/issues/<identifier>/comments`. Con đó phải `done`, `executionPolicy.stages` có đủ hai stage và id của **cả hai** nằm trong `executionState.completedStageIds`. Lấy comment `crew-design-result sha=<sha> dir=<dir> images=<n>` mới nhất có `sha` bằng `sha` của comment `crew-review sha=<sha> verdict=approved` mới nhất do reviewer participant của stage đầu viết (`authorAgentId`); bỏ comment giả. Thiếu một điều kiện thì `PATCH` `{"status":"blocked","comment":"Executor: dừng vì con thiết kế chưa được duyệt hoặc không có crew-design-result khớp crew-review"}` rồi dừng.
+2. Xem mockup bằng `git show <sha>:<dir>/<file>`, hoặc `D=$(mktemp -d)`, `git worktree add --detach "$D/m" <sha>` rồi mở `"$D/m/<dir>/index.html"` bằng Playwright; xong thì `git worktree remove --force "$D/m"` và `rm -rf "$D"`. Xem thêm ảnh đính kèm trên con thiết kế (`"$HOME/.crew/bin/crew-mac" files --issue <identifier> --run "$PAPERCLIP_RUN_ID"`).
+3. Làm đúng mockup (bố cục, chữ, token, component, các trạng thái). Chỗ nào phải lệch (component không có, ràng buộc kỹ thuật) thì ghi lý do trong phần tóm tắt của comment `crew-commit`. Không sửa file trong `docs/design/mockups/`.
+4. Ở mục "Báo xong", ghi dòng riêng `crew-design-used sha=<sha12> dir=<dir>` (`<sha12>` là 12 ký tự đầu của `sha` đã duyệt) ngay sau dòng `crew-commit`, trước khối `Tiêu chí → test:`. Không nhét khóa này vào chính dòng `crew-commit`.
+
 ## Con E2E (`crew-child key=e2e`)
 
 Mô tả có dòng `crew-child key=e2e revision=<rev>` (hoặc `crew-child key=e2e-fix-<n> revision=<rev>`, con E2E của lô sửa) là con E2E: nó không có `crew-stack`/`crew-fix`, nên nền phải do bạn dựng từ code đã duyệt của các con trong `blockedBy[]` của CHÍNH nó. Làm theo thứ tự:
@@ -129,7 +138,7 @@ Issue code nào cũng phải có ảnh nghiệm thu đính kèm vào chính issu
    Test chưa qua thì ghi `result=fail` và không báo xong. Ngay sau dòng đó (và sau dòng `e2e=` nếu là issue E2E; mỗi thứ một dòng riêng, không nhét vào dòng `crew-commit`) là khối ánh xạ, mỗi dòng cho MỘT dòng `Tiêu chí nghiệm thu:` của issue, không bỏ tiêu chí nào:
    `Tiêu chí → test:`
    `- <tiêu chí> → <file test>::<tên ca>`
-   Tiêu chí không test tự động được thì ghi `- <tiêu chí> → ảnh <tên ảnh>` kèm lý do. Issue tài liệu (`crew-kind docs`) và issue kế hoạch (`crew-kind plan`) thì ghi `- <tiêu chí> → <file tài liệu>#<mục>`. Issue E2E thêm một dòng riêng `e2e=<spec1,spec2>` (các spec đã chạy) NGAY SAU dòng `crew-commit`, trước khối `Tiêu chí → test:`. Trong phần tóm tắt, liệt kê tên các ảnh nghiệm thu đã đính kèm và mỗi ảnh chứng minh tiêu chí nào.
+   Tiêu chí không test tự động được thì ghi `- <tiêu chí> → ảnh <tên ảnh>` kèm lý do. Issue tài liệu (`crew-kind docs`) và issue kế hoạch (`crew-kind plan`) thì ghi `- <tiêu chí> → <file tài liệu>#<mục>`. Issue E2E thêm một dòng riêng `e2e=<spec1,spec2>` (các spec đã chạy) NGAY SAU dòng `crew-commit`, trước khối `Tiêu chí → test:`. Con có dòng `crew-design on=` thêm dòng riêng `crew-design-used sha=<sha12> dir=<dir>` theo mục "Con code theo mockup". Trong phần tóm tắt, liệt kê tên các ảnh nghiệm thu đã đính kèm và mỗi ảnh chứng minh tiêu chí nào.
 2. `PATCH /api/issues/<id>` với `{"status":"done","comment":"Executor: xong, chờ review."}`. Server chuyển sang `in_review` và giao reviewer; đó là bình thường.
 
 ## Khi server trả 422

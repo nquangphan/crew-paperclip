@@ -15,6 +15,7 @@ const E2 = '33333333-3333-4333-8333-333333333333';
 const B1 = '44444444-4444-4444-8444-444444444444';
 const E3 = '55555555-5555-4555-8555-555555555555';
 const R1 = '66666666-6666-4666-8666-666666666666';
+const D1 = '77777777-7777-4777-8777-777777777777';
 
 /** Chạy script gốc của fork với đúng tham số CLI của nó, trả `content`. */
 function script(
@@ -23,6 +24,7 @@ function script(
   executors: string[] = [],
   bmad: string[] = [],
   reviewerCodex = '',
+  designers: string[] = [],
 ): string {
   const out = execFileSync(
     'node',
@@ -34,6 +36,7 @@ function script(
       executors.join(','),
       bmad.join(','),
       reviewerCodex,
+      designers.join(','),
     ],
     { encoding: 'utf8' },
   );
@@ -42,7 +45,14 @@ function script(
   return parsed.content;
 }
 
-const CASES: { name: string; role: InstructionRole; executors: string[]; bmad: string[]; reviewerCodex?: string }[] = [
+const CASES: {
+  name: string;
+  role: InstructionRole;
+  executors: string[];
+  bmad: string[];
+  reviewerCodex?: string;
+  designers?: string[];
+}[] = [
   { name: 'assistant', role: 'assistant', executors: [E1, E2], bmad: [] },
   { name: 'assistant-bmad', role: 'assistant', executors: [E1], bmad: [B1] },
   {
@@ -55,18 +65,28 @@ const CASES: { name: string; role: InstructionRole; executors: string[]; bmad: s
   { name: 'executor', role: 'executor', executors: [], bmad: [] },
   { name: 'reviewer', role: 'reviewer', executors: [], bmad: [] },
   { name: 'integrator', role: 'integrator', executors: [], bmad: [] },
+  { name: 'assistant-designer', role: 'assistant', executors: [E1], bmad: [B1], designers: [D1] },
   { name: 'bmad', role: 'bmad', executors: [], bmad: [] },
+  { name: 'designer', role: 'designer', executors: [], bmad: [] },
 ];
 
 describe('renderInstructions', () => {
   for (const c of CASES) {
-    const vars = { agentId: A, executorIds: c.executors, bmadIds: c.bmad, reviewerCodexId: c.reviewerCodex };
+    const vars = {
+      agentId: A,
+      executorIds: c.executors,
+      bmadIds: c.bmad,
+      reviewerCodexId: c.reviewerCodex,
+      designerIds: c.designers,
+    };
     it(`render ${c.name} khớp từng byte fixture sinh từ render-instructions.mjs`, () => {
       expect(renderInstructions(c.role, vars)).toBe(fixture(c.name));
     });
 
     it(`render ${c.name} khớp từng byte script gốc chạy trên template hiện tại`, () => {
-      expect(renderInstructions(c.role, vars)).toBe(script(c.role, A, c.executors, c.bmad, c.reviewerCodex));
+      expect(renderInstructions(c.role, vars)).toBe(
+        script(c.role, A, c.executors, c.bmad, c.reviewerCodex, c.designers),
+      );
     });
   }
 
@@ -81,8 +101,9 @@ describe('renderInstructions', () => {
     expect(text).toContain('## Chọn workflow');
     expect(text).toContain('## Chốt trạng thái gốc');
     expect(renderInstructions('assistant', { agentId: A, executorIds: [E1] })).toContain(
-      '\n## Agent BMAD của company\n\nKhông có. Luôn dùng Superpowers.\n',
+      '\n## Agent BMAD của company\n\nKhông có. Luôn dùng Superpowers.\n\n## Agent UIUX của company\n\nKhông có. Không tạo con thiết kế; làm như cũ.\n\n## Reviewer Codex',
     );
+    expect(text).toContain('## Được gọi bằng tag');
   });
 
   it('từ chối đầu vào sai với cùng câu lỗi như script', () => {
@@ -125,6 +146,21 @@ describe('renderInstructions', () => {
     );
     expect(() => renderInstructions('reviewer', { agentId: A, reviewerCodexId: R1 })).toThrow(
       'reviewer Codex chỉ assistant nhận',
+    );
+    expect(() => renderInstructions('designer', { agentId: A, designerIds: [D1] })).toThrow(
+      'danh sách agent UIUX chỉ assistant nhận',
+    );
+    expect(() => renderInstructions('assistant', { agentId: A, executorIds: [E1], designerIds: ['x'] })).toThrow(
+      'agent UIUX phải là uuid: x',
+    );
+    expect(() =>
+      renderInstructions('assistant', { agentId: A, executorIds: [E1], bmadIds: [B1], designerIds: [B1] }),
+    ).toThrow(`agent UIUX trùng: ${B1}`);
+    expect(() =>
+      renderInstructions('assistant', { agentId: A, executorIds: [E1], reviewerCodexId: R1, designerIds: [R1] }),
+    ).toThrow(`agent UIUX trùng: ${R1}`);
+    expect(() => renderInstructions('assistant', { agentId: A, executorIds: [E1], designerIds: [A] })).toThrow(
+      'Trợ Lý không được nằm trong danh sách agent UIUX của chính nó',
     );
   });
 

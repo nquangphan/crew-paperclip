@@ -5,7 +5,9 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { assertWriteAllowed } from '../e2e/support/api';
 import { formatSql } from '../e2e/support/db';
 import { CREW_E2E_PROD_COMPANY_ID, isProd, TPS_COMPANY_ID } from '../e2e/support/env';
+import { instructionsOf } from '../e2e/support/guide-company';
 import { agentsToTerminate, selectJunkProjects } from '../e2e/support/junk-projects';
+import { renderInstructions } from '../src/lib/instructions';
 
 describe('e2e/support/db formatSql', () => {
   it('nhận SELECT thường và tham số', () => {
@@ -134,15 +136,25 @@ describe('e2e/support/junk-projects', () => {
   });
   it('khớp chính xác vai trò wizard tạo, không terminate agent của khóa là phần mở rộng của khóa khác', () => {
     const agents = [
-      ...['assistant', 'executor', 'executor-2', 'executor-codex', 'executor-opencode', 'reviewer', 'reviewer-codex', 'integrator', 'bmad'].map(
-        (role, i) => ({ id: `ok${i}`, name: `e2e-base-${role}`, status: 'idle' }),
-      ),
+      ...[
+        'assistant',
+        'executor',
+        'executor-2',
+        'executor-codex',
+        'executor-opencode',
+        'reviewer',
+        'reviewer-codex',
+        'integrator',
+        'bmad',
+      ].map((role, i) => ({ id: `ok${i}`, name: `e2e-base-${role}`, status: 'idle' })),
       { id: 'v2a', name: 'e2e-base-v2-assistant', status: 'idle' },
       { id: 'v2e', name: 'e2e-base-v2-executor-2', status: 'idle' },
       { id: 'x', name: 'e2e-base-assistant-extra', status: 'idle' },
       { id: 'y', name: 'e2e-base-other', status: 'idle' },
     ];
-    expect(agentsToTerminate(agents, ['e2e-base']).map((a) => a.id)).toEqual(Array.from({ length: 9 }, (_, i) => `ok${i}`));
+    expect(agentsToTerminate(agents, ['e2e-base']).map((a) => a.id)).toEqual(
+      Array.from({ length: 9 }, (_, i) => `ok${i}`),
+    );
     expect(agentsToTerminate(agents, ['e2e-base-v2']).map((a) => a.id)).toEqual(['v2a', 'v2e']);
   });
   it('không dọn project tạo trong 60 phút gần nhất (lượt E2E khác có thể đang dùng)', () => {
@@ -155,5 +167,18 @@ describe('e2e/support/junk-projects', () => {
     ];
     const ids = selectJunkProjects(list, { baseKey: 'e2e-base', runs: [], now }).map((j) => j.project.id);
     expect(ids).toEqual(['edge', 'old', 'none']);
+  });
+});
+
+describe('e2e/support/guide-company instructionsOf', () => {
+  const A = '11111111-1111-4111-8111-111111111111';
+  const E1 = '22222222-2222-4222-8222-222222222222';
+  it('AGENTS.md của Trợ Lý trùng từng byte bản render của web (có mục UIUX rỗng)', () => {
+    const text = instructionsOf('assistant', [E1]);
+    expect(text).toBe(renderInstructions('assistant', { agentId: A, executorIds: [E1] }));
+    expect(text).toContain('\n## Agent UIUX của company\n\nKhông có. Không tạo con thiết kế; làm như cũ.\n');
+  });
+  it('vai khác là nguyên template', () => {
+    expect(instructionsOf('reviewer', [])).toBe(renderInstructions('reviewer', { agentId: A }));
   });
 });

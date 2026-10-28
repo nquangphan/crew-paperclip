@@ -139,7 +139,7 @@ test("assistant nhận danh sách BMAD ở đối số thứ năm", async () => 
   const result = await applyRoles(port, ["assistant", PIN, E1, B1]);
   server.close();
   assert.equal(result.code ?? 0, 0, result.stderr);
-  assert.match(puts[0].content, new RegExp(`## Agent BMAD của company\\n\\n- \`${B1}\`\\n\\n## Reviewer Codex`));
+  assert.match(puts[0].content, new RegExp(`## Agent BMAD của company\\n\\n- \`${B1}\`\\n\\n## Agent UIUX của company\\n\\nKhông có\\. Không tạo con thiết kế; làm như cũ\\.\\n\\n## Reviewer Codex`));
 });
 
 test("vai bmad (hay vai khác) nhận danh sách thì thoát 2", async () => {
@@ -228,6 +228,55 @@ test("assistant nhận executor kèm :runtime mà không gọi API đọc agent 
 test("vai khác assistant không nhận reviewer Codex", async () => {
   const { server, calls, port } = await startMock();
   const result = await applyRoles(port, ["executor", PIN, "", "", R1]);
+  server.close();
+  assert.equal(result.code, 2);
+  assert.equal(calls.length, 0);
+});
+
+const D1 = "77777777-7777-4777-8777-777777777777";
+
+test("vai designer upload designer.md và ghim Superpowers", async () => {
+  const { server, puts, port } = await startMock();
+  const result = await applyRoles(port, ["designer", PIN]);
+  server.close();
+  assert.equal(result.code ?? 0, 0, result.stderr);
+  assert.match(puts[0].content, /^# Agent UIUX \(Crew\)/);
+  assert.ok(!puts[0].content.includes("## Executor của company"), "designer.md không có mục danh sách của Trợ Lý");
+  assert.match(result.stdout, new RegExp(`role=designer extraArgs=\\["--setting-sources","project,local","--plugin-dir","${PIN}"\\]`));
+});
+
+test("vai designer cần pin Superpowers, pin BMAD thì thoát 2 và không ghi gì", async () => {
+  const { server, calls, port } = await startMock();
+  const result = await applyRoles(port, ["designer", BMAD_PIN]);
+  server.close();
+  assert.equal(result.code, 2);
+  assert.match(result.stderr, /role designer needs the pinned Superpowers dir/);
+  assert.equal(calls.length, 0);
+});
+
+test("assistant nhận danh sách UIUX ở đối số thứ bảy", async () => {
+  const { server, puts, port } = await startMock({ others: { [E1]: "claude_local" } });
+  const result = await applyRoles(port, ["assistant", PIN, E1, "", "", D1]);
+  server.close();
+  assert.equal(result.code ?? 0, 0, result.stderr);
+  assert.match(puts[0].content, new RegExp(`## Agent BMAD của company\\n\\nKhông có\\. Luôn dùng Superpowers\\.\\n\\n## Agent UIUX của company\\n\\n- \`${D1}\`\\n\\n## Reviewer Codex`));
+  assert.match(result.stdout, new RegExp(`designer=${D1}`));
+});
+
+test("vai khác assistant nhận danh sách UIUX thì thoát 2 và không ghi gì", async () => {
+  for (const role of ["designer", "executor"]) {
+    const { server, calls, port } = await startMock();
+    const result = await applyRoles(port, [role, PIN, "", "", "", D1]);
+    server.close();
+    assert.equal(result.code, 2, role);
+    assert.match(result.stderr, /only assistant takes a UIUX agent list/);
+    assert.equal(calls.length, 0, role);
+  }
+});
+
+test("quá 7 đối số thì thoát 2", async () => {
+  const { server, calls, port } = await startMock();
+  const result = await applyRoles(port, ["assistant", PIN, E1, "", "", D1, "thừa"]);
   server.close();
   assert.equal(result.code, 2);
   assert.equal(calls.length, 0);

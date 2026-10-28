@@ -29,6 +29,7 @@ const ID = {
   reviewer: 'b4444444-4444-4444-8444-444444444444',
   integrator: 'c5555555-5555-4555-8555-555555555555',
   bmad: 'f7777777-7777-4777-8777-777777777777',
+  designer: 'd8888888-8888-4888-8888-888888888888',
 };
 const PROJECT = 'p0000000-0000-4000-8000-000000000001';
 
@@ -57,6 +58,7 @@ const ASSISTANT_FILE = renderInstructions('assistant', {
   agentId: ID.assistant,
   executorIds: [ID.executor],
   bmadIds: [ID.bmad],
+  designerIds: [ID.designer],
 });
 
 function addAgentRun(slot: CrewRoleSlot, over: Partial<SetupRun> = {}) {
@@ -188,6 +190,7 @@ describe('runAddAgent', () => {
         agentId: ID.assistant,
         executorIds: [ID.executor, newId],
         bmadIds: [ID.bmad],
+        designerIds: [ID.designer],
       }),
       baseHash: 'hash-old',
     });
@@ -217,7 +220,7 @@ describe('runAddAgent', () => {
     expect(run.steps['assistant-instructions']?.status).toBe('done');
   });
 
-  it('thay Trợ Lý: chỉ Trợ Lý giữ quyền giao việc, AGENTS.md mới có executor và agent BMAD hiện có', async () => {
+  it('thay Trợ Lý: chỉ Trợ Lý giữ quyền giao việc, AGENTS.md mới có executor, agent BMAD và agent UIUX hiện có', async () => {
     const f = setup(addAgentRun('assistant'));
     await runAddAgent(ctxOf(f.api), f.state.run);
     const newId = f.state.agents.find((a) => a.name === 'demo-assistant-moi')?.id as string;
@@ -230,7 +233,12 @@ describe('runAddAgent', () => {
     const body = f.calls.find((c) => c.fn === 'agents.create')?.args[1] as { adapterConfig?: { model?: string } };
     expect(body.adapterConfig?.model).toBe('claude-sonnet-5-5');
     expect(savedContent(f.calls, newId)).toBe(
-      renderInstructions('assistant', { agentId: newId, executorIds: [ID.executor], bmadIds: [ID.bmad] }),
+      renderInstructions('assistant', {
+        agentId: newId,
+        executorIds: [ID.executor],
+        bmadIds: [ID.bmad],
+        designerIds: [ID.designer],
+      }),
     );
     expect(f.state.roles?.assistantAgentId).toBe(newId);
   });
@@ -548,6 +556,7 @@ describe('ô runtime Codex/OpenCode', () => {
         agentId: ID.assistant,
         executorIds: [ID.executor, `${created.id}:codex_local`],
         bmadIds: [ID.bmad],
+        designerIds: [ID.designer],
       }),
     );
     // Agent Codex không giao việc.

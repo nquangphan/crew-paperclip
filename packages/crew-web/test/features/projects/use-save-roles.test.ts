@@ -61,6 +61,24 @@ describe('saveRoles', () => {
     expect(body.content).toContain(`- \`${ID.spare}\``);
   });
 
+  it('thêm executor → AGENTS.md mới giữ danh sách agent UIUX của file hiện có', async () => {
+    const UIUX = 'd9999999-9999-4999-8999-999999999999';
+    s = server({
+      [FILE_URL]: {
+        body: {
+          content: `${RULES}- \`${ID.spare}\`\n\n## Agent UIUX của company\n\n- \`${UIUX}\`\n`,
+          contentHash: 'h-old',
+        },
+      },
+    });
+    const next = { ...ROLES, executorAgentIds: [ID.executor, ID.executor2] };
+    expect(await saveRoles(api, 'c-tps', 'p1', next, ROLES)).toEqual({ roles: 'ok', instructions: 'ok' });
+    const content = (lastBody(s) as { content: string }).content;
+    expect(content).toContain(
+      `## Agent BMAD của company\n\n- \`${ID.spare}\`\n\n## Agent UIUX của company\n\n- \`${UIUX}\`\n`,
+    );
+  });
+
   it('PUT trả 409 → instructions: conflict (vai trò vẫn lưu)', async () => {
     s = server({ [PUT_URL]: { status: 409, body: { error: 'conflict' } } });
     const next = { ...ROLES, executorAgentIds: [ID.executor, ID.executor2] };

@@ -3,20 +3,24 @@
 #
 #   apply-roles.sh agent <agentId> <executor|reviewer|integrator> <pinned plugin dir on the Mac>
 #   apply-roles.sh agent <agentId> bmad <pinned BMAD dir on the Mac>
+#   apply-roles.sh agent <agentId> designer <pinned plugin dir on the Mac>
+#       The UIUX agent (mockups before UI code). Uploads designer.md and pins Superpowers like an executor; the
+#       ui-ux-pro-max skill reaches it as a company skill, not through the pin.
 #   apply-roles.sh agent <agentId> <executor-codex|executor-opencode|reviewer-codex> <pinned plugin dir on the Mac>
 #       The three slots added by the Codex/OpenCode runtimes (crew_project_roles codex_executor_agent_id,
 #       opencode_executor_agent_id, codex_reviewer_agent_id). They upload executor.md or reviewer.md, and the agent's
 #       adapterType must be codex_local, opencode_local and codex_local respectively. Codex and OpenCode agents get no --plugin-dir:
 #       their wrapper exports CREW_SUPERPOWERS_DIR. A Codex agent needs env.CODEX_HOME outside companies/<companyId>
 #       and no OPENAI_API_KEY (merge-agent-config.mjs refuses otherwise).
-#   apply-roles.sh agent <agentId> assistant <pinned plugin dir on the Mac> <executorId[:runtime],...> [<bmadId,bmadId> [<codexReviewerId>]]
+#   apply-roles.sh agent <agentId> assistant <pinned plugin dir on the Mac> <executorId[:runtime],...> [<bmadId,bmadId> [<codexReviewerId> [<designerId,designerId>]]]
 #       An executor without ":runtime" has its runtime read from the agent's adapterType; the rendered list prints the
 #       runtime for every line. <codexReviewerId> is the project's reviewer-codex agent (leave the BMAD list empty
-#       with "" to pass only the reviewer).
+#       with "" to pass only the reviewer). <designerId,...> are the project's UIUX agents (leave earlier lists empty
+#       with "" to pass only them).
 #       Uploads the role's instructions as AGENTS.md (with the current file's hash as baseHash, which the server
 #       requires for the entry file), then pins Superpowers in adapterConfig.extraArgs. Upload goes first and the
 #       current file is read before anything is written, so a refused upload leaves the agent untouched.
-#       The assistant's AGENTS.md gets the executor list and the BMAD agent list appended by render-instructions.mjs.
+#       The assistant's AGENTS.md gets the executor, BMAD, UIUX and Codex reviewer lists appended by render-instructions.mjs.
 #       Exits non-zero when the server's answer to either write does not match what was sent.
 #   apply-roles.sh policy-config <companyId> <reviewerAgentId> <integratorAgentId> <ownerUserId> [config file] [--tracking <projectId,projectId>]
 #       Prints the CREW_POLICY_CONFIG JSON holding only that company (copying it over the live file drops the
@@ -63,20 +67,21 @@ cmd=${1:-}
 [ -n "$cmd" ] && shift
 case "$cmd" in
   agent)
-    [ $# -ge 3 ] && [ $# -le 6 ] || die "usage: agent <agentId> <executor|reviewer|integrator|assistant|bmad|executor-codex|executor-opencode|reviewer-codex> <pinned plugin dir> [executorId[:runtime],... [bmadId,bmadId [codexReviewerId]]: assistant only]"
-    AGENT=$1; ROLE=$2; PIN=$3; EXECUTORS=${4:-}; BMADS=${5:-}; REVIEWER_CODEX=${6:-}
+    [ $# -ge 3 ] && [ $# -le 7 ] || die "usage: agent <agentId> <executor|reviewer|integrator|assistant|bmad|designer|executor-codex|executor-opencode|reviewer-codex> <pinned plugin dir> [executorId[:runtime],... [bmadId,bmadId [codexReviewerId [designerId,designerId]]]: assistant only]"
+    AGENT=$1; ROLE=$2; PIN=$3; EXECUTORS=${4:-}; BMADS=${5:-}; REVIEWER_CODEX=${6:-}; DESIGNERS=${7:-}
     # TEMPLATE is the instructions file; RUNTIME is the adapterType the slot demands.
     case "$ROLE" in
-      executor|reviewer|integrator|assistant|bmad) TEMPLATE=$ROLE; RUNTIME=claude_local;;
+      executor|reviewer|integrator|assistant|bmad|designer) TEMPLATE=$ROLE; RUNTIME=claude_local;;
       executor-codex) TEMPLATE=executor; RUNTIME=codex_local;;
       executor-opencode) TEMPLATE=executor; RUNTIME=opencode_local;;
       reviewer-codex) TEMPLATE=reviewer; RUNTIME=codex_local;;
-      *) die "role must be executor, reviewer, integrator, assistant, bmad, executor-codex, executor-opencode or reviewer-codex";;
+      *) die "role must be executor, reviewer, integrator, assistant, bmad, designer, executor-codex, executor-opencode or reviewer-codex";;
     esac
     if [ "$ROLE" = assistant ] && [ -z "$EXECUTORS" ]; then die "assistant needs the executor agent ids (comma-separated)"; fi
     if [ "$ROLE" != assistant ] && [ -n "$EXECUTORS" ]; then die "only assistant takes an executor list"; fi
     if [ "$ROLE" != assistant ] && [ -n "$BMADS" ]; then die "only assistant takes a BMAD agent list"; fi
     if [ "$ROLE" != assistant ] && [ -n "$REVIEWER_CODEX" ]; then die "only assistant takes a Codex reviewer"; fi
+    if [ "$ROLE" != assistant ] && [ -n "$DESIGNERS" ]; then die "only assistant takes a UIUX agent list"; fi
     case "$PIN" in */..|*/../*|*/.) die "pin dir must not contain . or .. segments";; esac
     if [ "$ROLE" = bmad ]; then
       case "$PIN" in /*/.crew/workflows/bmad/*) ;; *) die "role bmad needs the pinned BMAD dir: <home>/.crew/workflows/bmad/<version>-<rev>";; esac
@@ -100,7 +105,7 @@ case "$cmd" in
         [ "$(agent_runtime "$REVIEWER_CODEX")" = codex_local ] || die "Codex reviewer $REVIEWER_CODEX must be a codex_local agent; nothing was written"
       fi
     fi
-    FILE=$(node "$HERE/render-instructions.mjs" "$ROLE" "$HERE/$TEMPLATE.md" "$AGENT" "$EXECUTORS" "$BMADS" "$REVIEWER_CODEX") || die "cannot render $TEMPLATE.md for agent $AGENT; nothing was uploaded"
+    FILE=$(node "$HERE/render-instructions.mjs" "$ROLE" "$HERE/$TEMPLATE.md" "$AGENT" "$EXECUTORS" "$BMADS" "$REVIEWER_CODEX" "$DESIGNERS") || die "cannot render $TEMPLATE.md for agent $AGENT; nothing was uploaded"
     CURRENT=$("$ROOT/api.sh" GET "/agents/$AGENT")
     BODY=$(printf '%s' "$CURRENT" | node "$HERE/merge-agent-config.mjs" "$PIN" "$RUNTIME") || die "refusing to patch agent $AGENT (see the message above); nothing was written"
     EXPECTED=$(printf '%s' "$BODY" | node -e 'process.stdout.write(JSON.stringify(JSON.parse(require("fs").readFileSync(0, "utf8")).adapterConfig.extraArgs))')
@@ -112,7 +117,7 @@ case "$cmd" in
     rm -f "$FILE_TMP"; trap - EXIT
     "$ROOT/api.sh" PUT "/agents/$AGENT/instructions-bundle/file" "$UPLOAD" | node "$HERE/verify-result.mjs" write || die "upload of $TEMPLATE.md for agent $AGENT failed; extraArgs were not changed"
     "$ROOT/api.sh" PATCH "/agents/$AGENT" "$BODY" | node "$HERE/verify-result.mjs" patch "$EXPECTED" || die "PATCH of agent $AGENT did not take effect (AGENTS.md was already uploaded; rerun is safe)"
-    echo "apply-roles: $AGENT role=$ROLE extraArgs=$EXPECTED${EXECUTORS:+ executors=$EXECUTORS}${BMADS:+ bmad=$BMADS}${REVIEWER_CODEX:+ reviewer-codex=$REVIEWER_CODEX}"
+    echo "apply-roles: $AGENT role=$ROLE extraArgs=$EXPECTED${EXECUTORS:+ executors=$EXECUTORS}${BMADS:+ bmad=$BMADS}${REVIEWER_CODEX:+ reviewer-codex=$REVIEWER_CODEX}${DESIGNERS:+ designer=$DESIGNERS}"
     ;;
   policy-config)
     USAGE="usage: policy-config <companyId> <reviewerAgentId> <integratorAgentId> <ownerUserId> [config file] [--tracking <projectId,projectId>]"

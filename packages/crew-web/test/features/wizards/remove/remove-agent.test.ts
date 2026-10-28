@@ -16,6 +16,7 @@ const ID = {
   integrator: 'c5555555-5555-4555-8555-555555555555',
   spare: 'd6666666-6666-4666-8666-666666666666',
   bmad: 'f7777777-7777-4777-8777-777777777777',
+  designer: 'd8888888-8888-4888-8888-888888888888',
 };
 
 const removeRun = (input: Partial<{ agentId: string; projectId: string | null; role: string | null }> = {}) => {
@@ -78,6 +79,7 @@ function setup(run: SetupRun) {
       agentId: ID.assistant,
       executorIds: [ID.executor, ID.executor2],
       bmadIds: [ID.bmad],
+      designerIds: [ID.designer],
     }),
     contentHash: 'hash-old',
   });
@@ -98,7 +100,7 @@ describe('removeAgentSteps', () => {
 });
 
 describe('runRemoveAgent', () => {
-  it('executor-2: vai trò mới bỏ agent, render lại AGENTS.md Trợ Lý, pause, archive environment, gỡ checkout', async () => {
+  it('executor-2: vai trò mới bỏ agent, render lại AGENTS.md Trợ Lý (giữ agent BMAD và UIUX), pause, archive environment, gỡ checkout', async () => {
     const f = setup(removeRun());
     const run = await runRemoveAgent(ctxOf(f.api), removeRun());
     expect(run.status).toBe('done');
@@ -106,7 +108,11 @@ describe('runRemoveAgent', () => {
 
     expect(f.state.roles?.executorAgentIds).toEqual([ID.executor]);
     const file = f.state.files.get(ID.assistant)?.content ?? '';
-    expect(assistantListsOf(file)).toMatchObject({ executorIds: [ID.executor], bmadIds: [ID.bmad] });
+    expect(assistantListsOf(file)).toMatchObject({
+      executorIds: [ID.executor],
+      bmadIds: [ID.bmad],
+      designerIds: [ID.designer],
+    });
     const save = f.calls.find((c) => c.fn === 'agents.saveInstructionsFile');
     expect(save?.args[1]).toMatchObject({ baseHash: 'hash-old' });
 

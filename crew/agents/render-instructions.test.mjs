@@ -8,7 +8,7 @@ const E2 = "33333333-3333-4333-8333-333333333333";
 
 test("assistant: nối mục Executor của company, giữ thứ tự", () => {
   const out = renderInstructions("assistant", "# Trợ Lý\n", A, [E1, E2]);
-  assert.equal(out, `# Trợ Lý\n\n## Executor của company\n\n- \`${E1}\` — runtime \`claude_local\`\n- \`${E2}\` — runtime \`claude_local\`\n\n## Agent BMAD của company\n\nKhông có. Luôn dùng Superpowers.\n\n## Reviewer Codex của company\n\nKhông có. Server tự chọn reviewer, bạn không giao việc cho reviewer.\n`);
+  assert.equal(out, `# Trợ Lý\n\n## Executor của company\n\n- \`${E1}\` — runtime \`claude_local\`\n- \`${E2}\` — runtime \`claude_local\`\n\n## Agent BMAD của company\n\nKhông có. Luôn dùng Superpowers.\n\n## Agent UIUX của company\n\nKhông có. Không tạo con thiết kế; làm như cũ.\n\n## Reviewer Codex của company\n\nKhông có. Server tự chọn reviewer, bạn không giao việc cho reviewer.\n`);
 });
 
 test("assistant: từ chối danh sách rỗng, id sai, trùng nhau hoặc trùng chính Trợ Lý", () => {
@@ -40,12 +40,12 @@ test("vai khác ngoài assistant không nhận bmadIds", () => {
 
 test("assistant không có bmadIds: mục Agent BMAD ghi Không có, sau mục executor", () => {
   const out = renderInstructions("assistant", "# Trợ Lý\n", A, [E1]);
-  assert.equal(out, `# Trợ Lý\n\n## Executor của company\n\n- \`${E1}\` — runtime \`claude_local\`\n\n## Agent BMAD của company\n\nKhông có. Luôn dùng Superpowers.\n\n## Reviewer Codex của company\n\nKhông có. Server tự chọn reviewer, bạn không giao việc cho reviewer.\n`);
+  assert.equal(out, `# Trợ Lý\n\n## Executor của company\n\n- \`${E1}\` — runtime \`claude_local\`\n\n## Agent BMAD của company\n\nKhông có. Luôn dùng Superpowers.\n\n## Agent UIUX của company\n\nKhông có. Không tạo con thiết kế; làm như cũ.\n\n## Reviewer Codex của company\n\nKhông có. Server tự chọn reviewer, bạn không giao việc cho reviewer.\n`);
 });
 
 test("assistant có bmadIds: mỗi dòng một uuid theo thứ tự", () => {
   const out = renderInstructions("assistant", "# Trợ Lý\n", A, [E1], [B1, B2]);
-  assert.ok(out.includes(`- \`${E1}\` — runtime \`claude_local\`\n\n## Agent BMAD của company\n\n- \`${B1}\`\n- \`${B2}\`\n\n## Reviewer Codex`), out);
+  assert.ok(out.includes(`- \`${E1}\` — runtime \`claude_local\`\n\n## Agent BMAD của company\n\n- \`${B1}\`\n- \`${B2}\`\n\n## Agent UIUX của company\n\nKhông có. Không tạo con thiết kế; làm như cũ.\n\n## Reviewer Codex`), out);
 });
 
 test("assistant: từ chối bmad uuid sai, trùng, trùng executor, trùng Trợ Lý", () => {
@@ -76,7 +76,7 @@ test("assistant: id trùng nhau dù khác runtime vẫn bị chặn", () => {
 
 test("assistant: mục Reviewer Codex liệt kê reviewer, nằm sau mục BMAD", () => {
   const out = renderInstructions("assistant", "# Trợ Lý\n", A, [E1], [], R1);
-  assert.ok(out.endsWith(`## Agent BMAD của company\n\nKhông có. Luôn dùng Superpowers.\n\n## Reviewer Codex của company\n\n- \`${R1}\` — runtime \`codex_local\`\n`), out);
+  assert.ok(out.endsWith(`## Agent BMAD của company\n\nKhông có. Luôn dùng Superpowers.\n\n## Agent UIUX của company\n\nKhông có. Không tạo con thiết kế; làm như cũ.\n\n## Reviewer Codex của company\n\n- \`${R1}\` — runtime \`codex_local\`\n`), out);
 });
 
 test("assistant: reviewer Codex phải là uuid, không trùng executor, BMAD hay Trợ Lý", () => {
@@ -95,5 +95,29 @@ test("vai khác assistant không nhận reviewer Codex", () => {
 test("ô executor-codex, executor-opencode, reviewer-codex trả nguyên văn như vai gốc", () => {
   for (const role of ["executor-codex", "executor-opencode", "reviewer-codex"]) {
     assert.equal(renderInstructions(role, "# Vai\n", A, []), "# Vai\n", role);
+  }
+});
+
+const D1 = "77777777-7777-4777-8777-777777777777";
+const D2 = "88888888-8888-4888-8888-888888888888";
+
+test("assistant có designerIds: mục Agent UIUX ngay sau mục BMAD, mỗi dòng một uuid theo thứ tự", () => {
+  const out = renderInstructions("assistant", "# Trợ Lý\n", A, [E1], [B1], "", [D1, D2]);
+  assert.ok(out.endsWith(`## Agent BMAD của company\n\n- \`${B1}\`\n\n## Agent UIUX của company\n\n- \`${D1}\`\n- \`${D2}\`\n\n## Reviewer Codex của company\n\nKhông có. Server tự chọn reviewer, bạn không giao việc cho reviewer.\n`), out);
+});
+
+test("assistant: từ chối agent UIUX uuid sai, trùng nhau, trùng executor, BMAD, reviewer Codex hay Trợ Lý", () => {
+  assert.throws(() => renderInstructions("assistant", "x", A, [E1], [], "", ["abc"]), /agent UIUX phải là uuid/);
+  assert.throws(() => renderInstructions("assistant", "x", A, [E1], [], "", [D1, D1.toUpperCase()]), /agent UIUX trùng/);
+  assert.throws(() => renderInstructions("assistant", "x", A, [E1], [], "", [E1]), /agent UIUX trùng/);
+  assert.throws(() => renderInstructions("assistant", "x", A, [E1], [B1], "", [B1]), /agent UIUX trùng/);
+  assert.throws(() => renderInstructions("assistant", "x", A, [E1], [], R1, [R1]), /agent UIUX trùng/);
+  assert.throws(() => renderInstructions("assistant", "x", A, [E1], [], "", [A]), /Trợ Lý không được nằm trong danh sách agent UIUX/);
+});
+
+test("vai designer trả nguyên văn; vai khác assistant không nhận danh sách agent UIUX", () => {
+  assert.equal(renderInstructions("designer", "# Agent UIUX\n", A, []), "# Agent UIUX\n");
+  for (const role of ["executor", "reviewer", "integrator", "bmad", "designer", "executor-codex", "executor-opencode", "reviewer-codex"]) {
+    assert.throws(() => renderInstructions(role, "x", A, [], [], "", [D1]), /danh sách agent UIUX chỉ assistant nhận/, role);
   }
 });
