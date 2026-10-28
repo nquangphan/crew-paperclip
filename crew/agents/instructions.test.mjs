@@ -1262,6 +1262,22 @@ test("assistant: được gọi bằng tag đọc đúng bình luận, lô call-
     "Trợ Lý trả lời bình luận <giờ VN> của <tên owner>:", "Asia/Ho_Chi_Minh", "không kèm `status`",
   ]) assert.ok(tag.includes(needle), `thiếu: ${needle}`);
   assert.doesNotMatch(tag, /issue_comment_mentioned/);
+  // Khóa ghi của assignee: con `in_progress` thì trả lời trên gốc, gốc bị khóa thì không ghi gì, không thử lại.
+  const steps = tag.split(/\n(?=\d+\. )/);
+  const check = steps.find((s) => s.startsWith("3. "));
+  const reply = steps.find((s) => s.startsWith("7. "));
+  assert.ok(check && reply, "thiếu bước 3 hay bước 7");
+  for (const needle of [
+    "`issue_write_assignee_run_lock`", "Gốc đang `in_progress` và giao agent khác: không ghi gì cả", "rồi dừng run",
+    "owner gọi lại khi gốc rời `in_progress`",
+  ]) assert.ok(check.includes(needle), `bước 3 thiếu: ${needle}`);
+  for (const needle of [
+    "Con đang `in_progress` và giao agent khác, hoặc `POST` trên con trả `issue_write_assignee_run_lock`",
+    "không `POST` (không thử lại) trên con", "làm comment của lệnh `PATCH /api/issues/<id gốc>` cuối, chung với `description`",
+    "(bình luận trên <identifier con>)", "`PATCH` cuối trên gốc trả `issue_write_assignee_run_lock`",
+    "không thử lại, không ghi nơi khác, không tự đánh thức lại",
+  ]) assert.ok(reply.includes(needle), `bước 7 thiếu: ${needle}`);
+  assert.ok(tag.indexOf("3. Kiểm chỗ ghi") < tag.indexOf("4. Làm đúng việc thuộc vai Trợ Lý"), "kiểm chỗ ghi trước khi làm việc");
   assert.ok(text.indexOf("## Được gọi bằng tag") > text.indexOf("## Sửa sau quyết định trên gốc"));
   assert.ok(text.indexOf("## Được gọi bằng tag") < text.indexOf("## Tổng kết trên mô tả gốc"));
 });
@@ -1292,6 +1308,13 @@ test("executor: con có crew-design on= đọc mockup đã duyệt và ghi crew-
     "crew-review sha=<sha> verdict=approved", "authorAgentId", "git show <sha>:<dir>/<file>", "mktemp -d", "ghi lý do",
     "`crew-design-used sha=<sha12> dir=<dir>`", "ngay sau dòng `crew-commit`", "Không nhét khóa này vào chính dòng `crew-commit`",
   ]) assert.ok(body.includes(needle), `thiếu: ${needle}`);
+  // Sha có thể chưa có trong kho của executor (checkout riêng): kiểm, fetch, rồi mới rơi về ảnh và giải thích.
+  const read2 = body.split(/\n(?=\d+\. )/).find((s) => s.startsWith("2. ")) ?? "";
+  const order = ["git cat-file -e <sha>^{commit}", "`git fetch origin` rồi kiểm lại", "ảnh đính kèm và phần giải thích",
+    "không đọc được file mockup <sha12> trong kho", "Không đoán nội dung file, không bỏ qua mockup", "git show <sha>:<dir>/<file>"];
+  for (const needle of order) assert.ok(read2.includes(needle), `bước 2 thiếu: ${needle}`);
+  for (let i = 1; i < order.length; i += 1) assert.ok(read2.indexOf(order[i - 1]) < read2.indexOf(order[i]), `sai thứ tự: ${order[i]}`);
+  assert.match(read2, /"status":"blocked","comment":"Executor: dừng vì không đọc được mockup/);
   assert.match(body, /"status":"blocked","comment":"Executor: dừng vì con thiết kế/);
   assert.match(section(text, "## Báo xong"), /crew-design-used sha=<sha12> dir=<dir>/);
   assert.match("crew-design-used sha=abcdef012345 dir=docs/design/mockups/tps-508-trang-home", /^crew-design-used sha=[0-9a-f]{12} dir=\S+$/);
