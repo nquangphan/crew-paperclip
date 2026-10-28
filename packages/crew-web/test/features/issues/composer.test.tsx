@@ -142,4 +142,23 @@ describe('Composer: gọi Trợ Lý bằng tag', () => {
     await waitFor(() => expect(calls(s, 'POST', '/comments')).toHaveLength(2));
     await waitFor(() => expect(screen.queryByRole('status')).toBeNull());
   });
+
+  it('Trợ Lý đang tạm dừng (409 crew_assistant_call_skipped): bình luận vẫn gửi, hiện lý do của server', async () => {
+    const s = mockServer({
+      [ROLES]: roles,
+      'POST /api/issues/i1/comments': { body: { id: 'cm5' } },
+      [CALL]: {
+        status: 409,
+        body: {
+          error: 'Trợ Lý đang tạm dừng hoặc không chạy được. Bình luận đã lưu; xử lý xong thì gọi lại.',
+          details: { code: 'crew_assistant_call_skipped', skipReason: 'agent.not_invokable' },
+        },
+      },
+    });
+    mount(<Composer issue={ISSUE as unknown as Issue} />);
+    submit('@tro-ly làm đi');
+    expect(await screen.findByText(/chưa gọi được Trợ Lý: .*Trợ Lý đang tạm dừng/)).toBeTruthy();
+    expect(calls(s, 'POST', '/comments')).toHaveLength(1);
+    expect(screen.queryByText('Không gửi được bình luận')).toBeNull();
+  });
 });

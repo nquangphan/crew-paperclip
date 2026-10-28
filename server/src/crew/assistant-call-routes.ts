@@ -1,9 +1,9 @@
 import { Router } from "express";
-import { and, desc, eq, sql } from "drizzle-orm";
+import { and, desc, eq, notInArray, sql } from "drizzle-orm";
 import { z } from "zod";
 import { agentWakeupRequests, type Db, type heartbeatRuns, issueComments, issues } from "@paperclipai/db";
 import { extractAgentMentionIds } from "@paperclipai/shared";
-import { badRequest, conflict, forbidden, notFound, unprocessable } from "../errors.js";
+import { badRequest, conflict, forbidden, HttpError, notFound, unprocessable } from "../errors.js";
 import { logger } from "../middleware/logger.js";
 import { logActivity } from "../services/activity-log.js";
 import { isUuid, requireOwner, resolveContributionActor } from "./contributions.js";
@@ -18,6 +18,10 @@ import { loadProjectAgentRoles, rowsOf } from "./project-roles.js";
  * không phải assignee trước khi chạy (`decideQueuedRunStaleness` → `issue_assignee_changed`), trừ wake tương tác của lõi.
  * Vì không có khóa issue của lõi, H1 (`holdAssistantCallRun`) tự giữ run `queued` khi task đang có run `running` của
  * agent khác; scheduler thử claim lại mỗi tick nên run chạy ngay sau khi run kia xong. Giữ không giới hạn, không đổi issue.
+ *
+ * Mỗi lần gọi có run riêng (`allowRunCoalescing: false`): lõi không gộp wake này vào run đang chờ cùng task, vì bản gộp chỉ
+ * giữ `wakeCommentId` mới nhất và adapter chỉ xuất biến đó, nên bình luận gọi trước sẽ mất. Wake của lõi có `issueId` đi
+ * nhánh issue và không bao giờ nhắm tới run này (run không có `issueId`), nên chiều ngược lại cũng không ghi đè.
  */
 
 export const ASSISTANT_CALL_REASON = "crew_assistant_called";
@@ -29,6 +33,7 @@ export const ASSISTANT_CALL_ERRORS = {
   notAuthor: "crew_assistant_call_not_author",
   missing: "crew_assistant_missing",
   notMentioned: "crew_assistant_not_mentioned",
+  skipped: "crew_assistant_call_skipped",
 } as const;
 
 const CLOSED_STATUSES = new Set(["done", "cancelled"]);
@@ -75,12 +80,26 @@ export async function holdAssistantCallRun(input: { db: Db; run: typeof heartbea
 
 export const assistantCallIdempotencyKey = (commentId: string) => `crew-assistant-call:${commentId.toLowerCase()}`;
 
-export type AssistantCallStatus = "queued" | "deferred" | "skipped";
+export type AssistantCallStatus = "queued" | "deferred";
 
-/** Dòng wake → kết quả trả cho web: không có dòng hay `skipped` là bị bỏ; còn lại là đã nhận (hoãn nếu đang bị giữ). */
-function statusOf(row: { status: string } | undefined, held: boolean): AssistantCallStatus {
-  if (!row || row.status === "skipped" || row.status === "cancelled") return "skipped";
-  return held ? "deferred" : "queued";
+/** Dòng wake lõi đã bỏ: không tính là đã gọi, lần gọi sau cùng bình luận thử lại được. */
+const DROPPED_WAKE_STATUSES = ["skipped", "cancelled"];
+
+const SKIP_LABELS: Record<string, string> = {
+  "budget.blocked": "Trợ Lý đã hết ngân sách",
+  "agent.not_invokable": "Trợ Lý đang tạm dừng hoặc không chạy được",
+  "heartbeat.wakeOnDemand.disabled": "Trợ Lý đang tắt đánh thức theo yêu cầu",
+  "heartbeat.daily_run_limit": "Trợ Lý đã chạm trần số run trong ngày",
+  "heartbeat.daily_cost_limit": "Trợ Lý đã chạm trần chi phí trong ngày",
+};
+
+/** Lỗi 409 khi lõi không nhận wake (Trợ Lý pause, hết ngân sách, chạm trần ngày…); web hiện `message`. */
+export function assistantCallSkipped(reason: string | null) {
+  const label = (reason && SKIP_LABELS[reason]) ?? "Máy chủ chưa nhận lời gọi";
+  return conflict(`${label}. Bình luận đã lưu; xử lý xong thì gọi lại.`, {
+    code: ASSISTANT_CALL_ERRORS.skipped,
+    skipReason: reason,
+  });
 }
 
 type HeartbeatWakeupOptions = NonNullable<
@@ -102,7 +121,26 @@ async function findWake(db: Db, agentId: string, idempotencyKey: string) {
       runId: agentWakeupRequests.runId,
     })
     .from(agentWakeupRequests)
-    .where(and(eq(agentWakeupRequests.agentId, agentId), eq(agentWakeupRequests.idempotencyKey, idempotencyKey)))
+    .where(and(
+      eq(agentWakeupRequests.agentId, agentId),
+      eq(agentWakeupRequests.idempotencyKey, idempotencyKey),
+      notInArray(agentWakeupRequests.status, DROPPED_WAKE_STATUSES),
+    ))
+    .orderBy(desc(agentWakeupRequests.requestedAt))
+    .limit(1);
+  return row;
+}
+
+/** Dòng wake `skipped` mới nhất cho khóa này (lõi ghi lý do bỏ vào cột `reason`). */
+async function findSkipped(db: Db, agentId: string, idempotencyKey: string) {
+  const [row] = await db
+    .select({ id: agentWakeupRequests.id, reason: agentWakeupRequests.reason })
+    .from(agentWakeupRequests)
+    .where(and(
+      eq(agentWakeupRequests.agentId, agentId),
+      eq(agentWakeupRequests.idempotencyKey, idempotencyKey),
+      eq(agentWakeupRequests.status, "skipped"),
+    ))
     .orderBy(desc(agentWakeupRequests.requestedAt))
     .limit(1);
   return row;
@@ -114,7 +152,8 @@ const inFlight = new Set<string>();
 /**
  * `POST /crew/companies/:companyId/issues/:issueId/assistant-call` `{ commentId }`. Chỉ owner (phiên trình duyệt), chỉ
  * bình luận chưa xóa của chính người gọi trên issue chưa đóng, bình luận phải có link `agent://` tới Trợ Lý của project.
- * Gọi lại cùng bình luận trả `200 { status: "already" }`; lần đầu trả `202 { status, runId, skipReason? }`.
+ * Gọi lại cùng bình luận trả `200 { status: "already" }`; lần đầu trả `202 { status, runId }`. Lõi không nhận wake thì trả
+ * `409 crew_assistant_call_skipped` và không khóa bình luận: gọi lại sau khi bật lại Trợ Lý sẽ đánh thức thật.
  */
 export function crewAssistantCallRoutes(db: Db): Router {
   const router = Router();
@@ -185,27 +224,44 @@ export function crewAssistantCallRoutes(db: Db): Router {
         res.status(200).json({ status: "already" });
         return;
       }
-      await stockWakeup(db, assistantAgentId, {
-        source: "automation",
-        triggerDetail: "system",
-        reason: ASSISTANT_CALL_REASON,
-        payload: { crewAssistantCall: { issueId: issue.id, commentId } },
-        idempotencyKey,
-        requestedByActorType: "user",
-        requestedByActorId: actor.userId,
-        contextSnapshot: {
-          taskId: issue.id,
-          wakeReason: ASSISTANT_CALL_REASON,
-          wakeCommentId: commentId,
-          source: "crew.assistant_call",
-          crewAssistantCall: { issueId: issue.id, commentId },
-        },
-      });
+      // Dòng `skipped` của lần gọi trước (nếu có) không phải lý do của lần này.
+      const skippedBefore = (await findSkipped(db, assistantAgentId, idempotencyKey))?.id ?? null;
+      const skippedNow = async () => {
+        const row = await findSkipped(db, assistantAgentId, idempotencyKey);
+        return row && row.id !== skippedBefore ? row.reason : null;
+      };
+      try {
+        await stockWakeup(db, assistantAgentId, {
+          source: "automation",
+          triggerDetail: "system",
+          reason: ASSISTANT_CALL_REASON,
+          payload: { crewAssistantCall: { issueId: issue.id, commentId } },
+          idempotencyKey,
+          requestedByActorType: "user",
+          requestedByActorId: actor.userId,
+          contextSnapshot: {
+            taskId: issue.id,
+            wakeReason: ASSISTANT_CALL_REASON,
+            wakeCommentId: commentId,
+            source: "crew.assistant_call",
+            crewAssistantCall: { issueId: issue.id, commentId },
+          },
+          allowRunCoalescing: false,
+        });
+      } catch (err) {
+        // Hết ngân sách (kèm dòng `skipped`, details có `scopeType`) hay Trợ Lý pause/không chạy được: lõi ném 409.
+        if (err instanceof HttpError && err.status === 409) {
+          const details = (err.details ?? {}) as { scopeType?: unknown };
+          throw assistantCallSkipped((await skippedNow()) ?? (details.scopeType ? "budget.blocked" : "agent.not_invokable"));
+        }
+        throw err;
+      }
       const wake = await findWake(db, assistantAgentId, idempotencyKey);
-      const held = wake?.status === "queued" || wake?.status === "claimed"
+      if (!wake) throw assistantCallSkipped(await skippedNow());
+      const held = wake.status === "queued" || wake.status === "claimed"
         ? await otherAgentRunHoldsTask(db, { companyId: actor.companyId, agentId: assistantAgentId, taskId: issue.id })
         : false;
-      const status = statusOf(wake, held);
+      const status: AssistantCallStatus = held ? "deferred" : "queued";
       await logActivity(db, {
         companyId: actor.companyId,
         actorType: "user",
@@ -218,11 +274,7 @@ export function crewAssistantCallRoutes(db: Db): Router {
         details: { commentId, assistantAgentId, status },
       });
       logger.info({ companyId: actor.companyId, issueId: issue.id, commentId, status }, "crew assistant called");
-      res.status(202).json({
-        status,
-        runId: wake?.runId ?? null,
-        ...(status === "skipped" ? { skipReason: wake?.reason ?? null } : {}),
-      });
+      res.status(202).json({ status, runId: wake.runId ?? null });
     } finally {
       inFlight.delete(idempotencyKey);
     }

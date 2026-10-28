@@ -66,8 +66,7 @@ function StockComposer({ issue }: { issue: Issue }) {
       const comment = await api.comments.add(issue.id, body);
       if (mentioned) {
         try {
-          const called = await api.assistantCall.call(issue.companyId, issue.id, comment.id);
-          if (called.status === 'skipped') next = { kind: 'failed', reason: called.skipReason ?? called.status };
+          await api.assistantCall.call(issue.companyId, issue.id, comment.id);
         } catch (error) {
           next = { kind: 'failed', reason: reasonOf(error) };
         }

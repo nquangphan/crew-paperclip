@@ -268,6 +268,104 @@ suite("Crew: owner gọi Trợ Lý bằng tag trong bình luận", () => {
     expect((await issueRow(seeded.issueId))).toMatchObject({ status: "in_review", assigneeAgentId: seeded.integrator });
   }, 120_000);
 
+  it("owner gọi hai lần liên tiếp khi run đang bị giữ: mỗi bình luận một run, Trợ Lý xử lý cả hai", async () => {
+    const seeded = await seed();
+    const { state, release } = blockingExecute(seeded, seeded.integrator);
+    const integratorRun = await wakeOnIssue(seeded, seeded.integrator);
+    await waitFor(() => state.started);
+
+    const first = await comment(seeded, tag(seeded, "việc A: làm lại icon"));
+    const second = await comment(seeded, tag(seeded, "việc B: mang bài đăng ra home"));
+    const resA = await call(seeded, first);
+    const resB = await call(seeded, second);
+    expect(resA.body).toMatchObject({ status: "deferred" });
+    expect(resB.body).toMatchObject({ status: "deferred" });
+    expect(resA.body.runId).not.toBe(resB.body.runId);
+    // Không gộp: run của bình luận A vẫn mang id của A.
+    expect((await readRun(resA.body.runId))?.contextSnapshot).toMatchObject({ wakeCommentId: first });
+    expect((await readRun(resB.body.runId))?.contextSnapshot).toMatchObject({ wakeCommentId: second });
+    expect((await wakesFor(seeded.assistant)).map((w) => w.status).sort()).toEqual(["queued", "queued"]);
+
+    release();
+    await waitFor(async () => (await readRun(integratorRun.id))?.status === "succeeded");
+    for (const runId of [resA.body.runId, resB.body.runId]) {
+      await waitFor(async () => {
+        await tick();
+        return (await readRun(runId))?.status === "succeeded";
+      });
+    }
+    const handled = contextsOf(state, seeded.assistant).map((c) => c.wakeCommentId).sort();
+    expect(handled).toEqual([first, second].sort());
+    expect(await runsFor(seeded.assistant)).toHaveLength(2);
+  }, 120_000);
+
+  it("wake thường của lõi tới Trợ Lý không ghi đè run gọi bằng tag đang chờ", async () => {
+    const seeded = await seed();
+    const { state, release } = blockingExecute(seeded, seeded.integrator);
+    const integratorRun = await wakeOnIssue(seeded, seeded.integrator);
+    await waitFor(() => state.started);
+    const commentId = await comment(seeded, tag(seeded));
+    const res = await call(seeded, commentId);
+    expect(res.body).toMatchObject({ status: "deferred" });
+    const before = (await readRun(res.body.runId))!.contextSnapshot;
+
+    // Wake bình luận của lõi trên cùng issue (có issueId) và wake không có task.
+    const otherComment = await comment(seeded, "owner nói thêm, không tag");
+    await heartbeatService(db).wakeup(seeded.assistant, {
+      source: "automation", triggerDetail: "system", reason: "issue_commented",
+      payload: { issueId: seeded.issueId, commentId: otherComment },
+      contextSnapshot: { issueId: seeded.issueId, taskId: seeded.issueId, wakeReason: "issue_commented", wakeCommentId: otherComment },
+      requestedByActorType: "user", requestedByActorId: OWNER,
+    });
+    await heartbeatService(db).wakeup(seeded.assistant, {
+      source: "on_demand", triggerDetail: "manual", reason: "manual",
+      contextSnapshot: { wakeReason: "manual" }, requestedByActorType: "user", requestedByActorId: OWNER,
+    });
+    const after = (await readRun(res.body.runId))!;
+    expect(after.status).toBe("queued");
+    expect(after.contextSnapshot).toEqual(before);
+
+    release();
+    await waitFor(async () => (await readRun(integratorRun.id))?.status === "succeeded");
+    await waitFor(async () => {
+      await tick();
+      return (await readRun(res.body.runId))?.status === "succeeded";
+    });
+    expect(contextsOf(state, seeded.assistant)).toContainEqual(expect.objectContaining({
+      wakeReason: "crew_assistant_called", wakeCommentId: commentId,
+    }));
+  }, 120_000);
+
+  it("Trợ Lý pause hay tắt đánh thức: 409 crew_assistant_call_skipped, không khóa bình luận, gọi lại sau khi bật thì chạy", async () => {
+    const seeded = await seed();
+    execute.mockImplementation(async () => ok);
+    const commentId = await comment(seeded, tag(seeded));
+
+    await db.update(agents).set({ status: "paused" }).where(eq(agents.id, seeded.assistant));
+    const paused = await call(seeded, commentId);
+    expect(paused.status, JSON.stringify(paused.body)).toBe(409);
+    expect(codeOf(paused.body)).toBe("crew_assistant_call_skipped");
+    expect(paused.body.error).toMatch(/Trợ Lý đang tạm dừng/);
+
+    await db.update(agents).set({
+      status: "idle", runtimeConfig: { heartbeat: { enabled: false, wakeOnDemand: false, maxConcurrentRuns: 1 } },
+    }).where(eq(agents.id, seeded.assistant));
+    const disabled = await call(seeded, commentId);
+    expect(disabled.status, JSON.stringify(disabled.body)).toBe(409);
+    expect(codeOf(disabled.body)).toBe("crew_assistant_call_skipped");
+    expect(disabled.body.details).toMatchObject({ skipReason: "heartbeat.wakeOnDemand.disabled" });
+    expect(await runsFor(seeded.assistant)).toHaveLength(0);
+
+    await db.update(agents).set({
+      runtimeConfig: { heartbeat: { enabled: false, wakeOnDemand: true, maxConcurrentRuns: 1 } },
+    }).where(eq(agents.id, seeded.assistant));
+    const retried = await call(seeded, commentId);
+    expect(retried.status, JSON.stringify(retried.body)).toBe(202);
+    expect(retried.body).toMatchObject({ status: "queued" });
+    await waitFor(async () => (await readRun(retried.body.runId))?.status === "succeeded");
+    expect((await call(seeded, commentId)).body).toEqual({ status: "already" });
+  }, 120_000);
+
   it("run của agent khác không bị giữ: integrator vẫn chạy khi Trợ Lý đang chạy trên cùng issue", async () => {
     const seeded = await seed();
     const { state, release } = blockingExecute(seeded, seeded.assistant);
