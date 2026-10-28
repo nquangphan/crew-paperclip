@@ -4,10 +4,12 @@ import type { Issue } from '@paperclipai/shared';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { type ClipboardEvent, useState } from 'react';
 import { api, queryKeys } from '@/api';
-import { AttachmentPicker, Button, ErrorState, Textarea } from '@/ds';
+import { AttachmentPicker, Button, ErrorState, MutedText, Textarea } from '@/ds';
 import { useCompanyAccess } from '@/features/access';
 import { ContributionComposer } from '@/features/contributions/contribution-composer';
+import { projectRolesOrNull } from '@/features/issues/new/use-create-request';
 import { useT } from '@/i18n';
+import { toAssistantMention } from './assistant-mention';
 
 const linkFor = (id: string, name: string) => `[${name.replace(/[[\]]/g, '')}](${api.attachments.contentUrl(id)})`;
 
@@ -17,7 +19,15 @@ export function Composer({ issue }: { issue: Issue }) {
   return isContributor ? <ContributionComposer issue={issue} /> : <StockComposer issue={issue} />;
 }
 
-/** Ô soạn bình luận (S6.5): gửi bình luận, đính kèm hoặc dán file thì upload rồi chèn link. Không có chọn model. */
+type AssistantNotice = { kind: 'missing' } | { kind: 'failed'; reason: string };
+
+const reasonOf = (error: unknown) => (error instanceof Error && error.message ? error.message : String(error));
+
+/**
+ * Ô soạn bình luận (S6.5): gửi bình luận, đính kèm hoặc dán file thì upload rồi chèn link. Không có chọn model.
+ * Tag `@tro-ly` / `@Trợ Lý` được đổi thành link tới Trợ Lý của project; gửi xong thì gọi route `assistant-call` để đánh
+ * thức Trợ Lý. Gọi không được (403/409/422/mạng) hay project không có Trợ Lý thì chỉ hiện thông báo nhẹ, bình luận vẫn gửi.
+ */
 function StockComposer({ issue }: { issue: Issue }) {
   const { t } = useT('issues');
   const qc = useQueryClient();
@@ -25,9 +35,47 @@ function StockComposer({ issue }: { issue: Issue }) {
   const [uploading, setUploading] = useState(false);
   const [failed, setFailed] = useState<string[]>([]);
   const [held, setHeld] = useState<{ files: File[]; warnings: string[] } | null>(null);
+  const [notice, setNotice] = useState<AssistantNotice | null>(null);
+
+  const assistantOf = async (): Promise<{ id: string } | null> => {
+    const projectId = issue.projectId;
+    if (!projectId) return null;
+    const roles = await qc.fetchQuery({
+      queryKey: queryKeys.roles(projectId),
+      queryFn: () => projectRolesOrNull(issue.companyId, projectId),
+    });
+    return roles?.assistantAgentId ? { id: roles.assistantAgentId } : null;
+  };
 
   const send = useMutation({
-    mutationFn: (body: string) => api.comments.add(issue.id, body),
+    mutationFn: async (raw: string) => {
+      let body = raw;
+      let next: AssistantNotice | null = null;
+      let mentioned = false;
+      // Chỉ đọc vai trò khi bình luận có tag; đọc lỗi thì gửi nguyên chữ và báo nhẹ.
+      if (toAssistantMention(raw, null).missing) {
+        try {
+          const result = toAssistantMention(raw, await assistantOf());
+          body = result.body;
+          mentioned = result.mentioned;
+          if (result.missing) next = { kind: 'missing' };
+        } catch (error) {
+          next = { kind: 'failed', reason: reasonOf(error) };
+        }
+      }
+      const comment = await api.comments.add(issue.id, body);
+      if (mentioned) {
+        try {
+          const called = await api.assistantCall.call(issue.companyId, issue.id, comment.id);
+          if (called.status === 'skipped') next = { kind: 'failed', reason: called.skipReason ?? called.status };
+        } catch (error) {
+          next = { kind: 'failed', reason: reasonOf(error) };
+        }
+      }
+      setNotice(next);
+      return comment;
+    },
+    onMutate: () => setNotice(null),
     onSuccess: () => {
       setText('');
       setFailed([]);
@@ -100,6 +148,13 @@ function StockComposer({ issue }: { issue: Issue }) {
       ) : null}
       {failed.length ? <ErrorState title={t('detail.composer.uploadFailed', { names: failed.join(', ') })} /> : null}
       {send.error ? <ErrorState title={t('detail.composer.sendFailed')} message={send.error.message} /> : null}
+      {notice ? (
+        <MutedText role="status">
+          {notice.kind === 'missing'
+            ? t('detail.composer.assistantMissing')
+            : t('detail.composer.assistantCallFailed', { reason: notice.reason })}
+        </MutedText>
+      ) : null}
       <div className="flex items-center gap-2">
         <AttachmentPicker onFiles={(files) => void upload(files)} warnFor={warnForAttachment} />
         <Button disabled={body === '' || send.isPending || uploading} onClick={() => send.mutate(body)}>

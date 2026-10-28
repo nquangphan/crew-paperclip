@@ -218,7 +218,9 @@
       "sending": "Sending",
       "uploading": "Uploading file",
       "sendFailed": "Could not send the comment",
-      "uploadFailed": "Could not attach: {{names}}"
+      "uploadFailed": "Could not attach: {{names}}",
+      "assistantMissing": "This project has no assistant yet",
+      "assistantCallFailed": "The comment was sent but the assistant could not be called: {{reason}}"
     },
     "attachments": {
       "heading": "Attachments",

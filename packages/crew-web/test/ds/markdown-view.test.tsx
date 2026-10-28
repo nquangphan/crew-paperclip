@@ -40,6 +40,28 @@ describe('MarkdownView', () => {
     const { container } = await render(<MarkdownView markdown="[x](/CRE/issues/CRE-1)" />);
     expect(container.querySelector('a')?.getAttribute('target')).toBeNull();
   });
+  it('link mention agent hiện thành chip @Trợ Lý, không phải link rỗng', async () => {
+    const id = '11111111-1111-4111-8111-111111111111';
+    const { container } = await render(<MarkdownView markdown={`[@Trợ Lý](agent://${id}) làm lại icon`} />);
+    const chip = container.querySelector('[data-agent-mention]');
+    expect(chip?.tagName).toBe('SPAN');
+    expect(chip?.textContent).toBe('@Trợ Lý');
+    expect(chip?.getAttribute('data-agent-id')).toBe(id);
+    expect(container.querySelector('a')).toBeNull();
+  });
+  it('agent:// sai dạng không thành chip; javascript: vẫn bị bỏ', async () => {
+    const { container } = await render(
+      <MarkdownView
+        markdown={
+          '[a](agent://khong-phai-uuid) [b](javascript:alert(1)) [c](agent://11111111-1111-4111-8111-111111111111/x)'
+        }
+      />,
+    );
+    expect(container.querySelector('[data-agent-mention]')).toBeNull();
+    for (const a of container.querySelectorAll('a')) {
+      expect(a.getAttribute('href') ?? '').not.toMatch(/^(javascript|agent):/i);
+    }
+  });
   it('link javascript: bị bỏ href', async () => {
     const { container } = await render(<MarkdownView markdown="[x](javascript:alert(1))" />);
     expect(container.querySelector('a')?.getAttribute('href') ?? '').not.toMatch(/^javascript:/i);

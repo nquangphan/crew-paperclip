@@ -1,4 +1,5 @@
 // Cổng vào lớp dữ liệu: feature chỉ import từ '@/api'.
+import { assistantCallApi } from './crew/assistant-call';
 import { contributionsApi } from './crew/contributions';
 import { crewDataApi } from './crew/data';
 import { forceDoneApi } from './crew/force-done';
@@ -69,6 +70,7 @@ export const api = {
   qc: qcApi,
   projectAccess: projectAccessApi,
   modelSettings: modelSettingsApi,
+  assistantCall: assistantCallApi,
   machinePins: machinePinsApi,
   members: membersApi,
   invites: invitesApi,
@@ -76,6 +78,7 @@ export const api = {
 };
 
 export type Api = typeof api;
+export type { AssistantCallResult } from './crew/assistant-call';
 export { CREW_DATA_KEYS, type CrewDataKey } from './crew/data';
 export type * from './crew/model-settings';
 export { modelSettingsErrorOf } from './crew/model-settings';

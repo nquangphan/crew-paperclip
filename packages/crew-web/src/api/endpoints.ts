@@ -270,6 +270,9 @@ export const ENDPOINTS = {
     path: `${CREW}/projects/:projectId/machines/provision`,
   },
 
+  // Owner gọi Trợ Lý bằng tag trong bình luận (S6.5): gửi sau `comments.add`, kèm id bình luận vừa tạo.
+  'assistantCall.call': { ids: ['S6.5'], method: 'POST', path: `${CREW}/issues/:issueId/assistant-call` },
+
   // Cài đặt model của owner (S18.4): router Crew của server, dùng chung toàn instance (không có :companyId).
   // `get` cũng là nguồn model mặc định và danh sách chọn của wizard tạo agent/project (S13) và ô chọn model (S11.5).
   'modelSettings.get': { ids: ['S18.4', 'S13.1', 'S11.5'], method: 'GET', path: '/api/crew/model-settings' },
