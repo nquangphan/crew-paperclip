@@ -36,6 +36,7 @@
     "heading": "Log",
     "empty": "This run has no log",
     "loadFailed": "Could not load the log",
+    "raw": "Raw log",
     "cleaned": "Log was cleaned up after 7 days"
   },
   "issues": {

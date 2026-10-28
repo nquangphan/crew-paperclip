@@ -39,7 +39,8 @@ Luật chính:
 3. `packages/crew-web/src/features/search/search-page.tsx` → `SearchPage`: tìm theo `q` trên URL, lọc bằng
    `resultVisible`, bấm kết quả mở popup issue.
 4. `packages/crew-web/src/features/runs/run-page.tsx` → `RunPage`: agent, trạng thái, nội dung chạy, log, yêu cầu liên
-   quan; thao tác từ `run-actions.ts` → `runActionsFor`, `wakeupOutcome`.
+   quan; thao tác từ `run-actions.ts` → `runActionsFor`, `wakeupOutcome`. Log mặc định hiện dạng dễ đọc
+   (`run-log.ts` → `readableRunLog`); công tắc "Log thô" hiện NDJSON đã ghép chunk (`formatRunLog`).
 5. `packages/crew-web/src/features/agents/list/agents-page.tsx` → `AgentsPage`: vai trò theo project
    (`use-agent-roles.ts` → `useAgentHoldings`), trạng thái, sẵn sàng, lọc (`useStatusFilter`), Tạm dừng/Tiếp tục.
 6. `packages/crew-web/src/features/agents/detail/agent-page.tsx` → `AgentPage`: các tab Tổng quan, Hướng dẫn
@@ -63,6 +64,7 @@ Luật chính:
 | `packages/crew-web/src/features/search/` | Tìm kiếm | `SearchPage`, `resultVisible` |
 | `packages/crew-web/src/features/runs/run-page.tsx` | Trang run | `RunPage` |
 | `packages/crew-web/src/features/runs/run-actions.ts` | Thao tác run, định dạng log | `runActionsFor`, `wakeupOutcome`, `formatRunLog` |
+| `packages/crew-web/src/features/runs/run-log.ts` | Log run dạng dễ đọc: sự kiện stream-json của Claude và `--json` của Codex thành dòng chữ có giờ (lời agent, công cụ kèm tham số, kết quả rút gọn, kết thúc), bỏ sự kiện nhiễu | `readableRunLog` |
 | `packages/crew-web/src/features/agents/list/` | Danh sách agent, bộ lọc | `AgentsPage`, `STATUS_FILTERS` |
 | `packages/crew-web/src/features/agents/detail/agent-page.tsx` | Chi tiết agent | `AgentPage` |
 | `packages/crew-web/src/features/agents/detail/instructions-tab.tsx` | AGENTS.md chỉ đọc, render lại | `InstructionsTab` |
@@ -105,7 +107,7 @@ Luật chính:
 - `packages/crew-web/test/features/dashboard/`: biểu đồ 14 ngày theo giờ Việt Nam, thẻ số, thẻ góp ý chỉ cho owner.
 - `packages/crew-web/test/features/inbox/`: luật tab "Chờ tôi duyệt" và các tab khác, số đếm.
 - `packages/crew-web/test/features/search/search-page.test.tsx`: ngưỡng ký tự, kết quả, mở popup giữ neo.
-- `packages/crew-web/test/features/runs/`: thao tác theo trạng thái run và body gửi đi, trang run, run không có log.
+- `packages/crew-web/test/features/runs/`: thao tác theo trạng thái run và body gửi đi, trang run, run không có log, log dễ đọc và log thô.
 - `packages/crew-web/test/features/agents/`: danh sách và lọc, tổng quan và "Làm tiếp", AGENTS.md chỉ đọc và render
   lại, đổi model chỉ gửi `model`, đổi tên, cấu hình chạy chỉ đọc, bật tắt skill.
 - `packages/crew-web/test/features/projects/project-page.test.tsx`, `projects-page.test.tsx`, `rename-dialog.test.tsx`:

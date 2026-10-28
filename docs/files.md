@@ -572,6 +572,7 @@ File nào thuộc flow nào. Dùng `crew-docs where <file>` để tra từ dòng
 | `packages/crew-web/src/features/roadmap/use-roadmap.ts` | [roadmap-map](flows/roadmap-map.md) (file) |
 | `packages/crew-web/src/features/runs/routes.tsx` | [web-pages](flows/web-pages.md) (file) |
 | `packages/crew-web/src/features/runs/run-actions.ts` | [web-pages](flows/web-pages.md) (file) |
+| `packages/crew-web/src/features/runs/run-log.ts` | [web-pages](flows/web-pages.md) (file) |
 | `packages/crew-web/src/features/runs/run-page.tsx` | [web-pages](flows/web-pages.md) (file) |
 | `packages/crew-web/src/features/search/routes.tsx` | [web-pages](flows/web-pages.md) (file) |
 | `packages/crew-web/src/features/search/search-page.tsx` | [web-pages](flows/web-pages.md) (file) |
@@ -774,6 +775,7 @@ File nào thuộc flow nào. Dùng `crew-docs where <file>` để tra từ dòng
 | `packages/crew-web/test/features/roadmap/roadmap-page.test.tsx` | [roadmap-map](flows/roadmap-map.md) (test) |
 | `packages/crew-web/test/features/roadmap/roadmap-url.test.ts` | [roadmap-map](flows/roadmap-map.md) (test) |
 | `packages/crew-web/test/features/runs/run-actions.test.ts` | [web-pages](flows/web-pages.md) (test) |
+| `packages/crew-web/test/features/runs/run-log.test.ts` | [web-pages](flows/web-pages.md) (test) |
 | `packages/crew-web/test/features/runs/run-page.test.tsx` | [web-pages](flows/web-pages.md) (test) |
 | `packages/crew-web/test/features/search/search-page.test.tsx` | [web-pages](flows/web-pages.md) (test) |
 | `packages/crew-web/test/features/settings/model-draft.test.ts` | [model-settings](flows/model-settings.md) (test) |

@@ -1059,6 +1059,7 @@ flows:
       - packages/crew-web/src/features/projects/paths.ts
       - packages/crew-web/src/features/runs/routes.tsx
       - packages/crew-web/src/features/runs/run-actions.ts
+      - packages/crew-web/src/features/runs/run-log.ts
       - packages/crew-web/src/features/runs/run-page.tsx
       - packages/crew-web/src/features/search/routes.tsx
       - packages/crew-web/src/features/search/search-page.tsx
@@ -1086,6 +1087,7 @@ flows:
       - packages/crew-web/test/features/projects/projects-page.test.tsx
       - packages/crew-web/test/features/projects/rename-dialog.test.tsx
       - packages/crew-web/test/features/runs/run-actions.test.ts
+      - packages/crew-web/test/features/runs/run-log.test.ts
       - packages/crew-web/test/features/runs/run-page.test.tsx
       - packages/crew-web/test/features/search/search-page.test.tsx
       - packages/crew-web/test/features/settings/settings-page.test.tsx

@@ -85,6 +85,22 @@ describe('RunPage (S12.1)', () => {
     expect(link.getAttribute('href')).toBe('/TPS/issues/TPS-2');
   });
 
+  it('log mặc định dễ đọc, bật "Log thô" thì hiện nguyên NDJSON đã ghép', async () => {
+    const event = JSON.stringify({ type: 'assistant', message: { content: [{ type: 'text', text: 'Đang làm' }] } });
+    server(
+      {},
+      {
+        [`GET /api/heartbeat-runs/${RUN_ID}/log`]: {
+          body: { content: `${JSON.stringify({ ts: 'x', stream: 'stdout', chunk: `${event}\n` })}\n`, nextOffset: 1 },
+        },
+      },
+    );
+    mount();
+    expect(await screen.findByText('Agent: Đang làm')).toBeTruthy();
+    fireEvent.click(screen.getByRole('switch', { name: 'Log thô' }));
+    expect(await screen.findByText(event)).toBeTruthy();
+  });
+
   it('cùng một trang cho đường agents/:agentRef/runs/:runId', async () => {
     server();
     mount(`/TPS/agents/executor-alpha/runs/${RUN_ID}`);

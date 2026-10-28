@@ -1,7 +1,7 @@
 // crew: tự dựng
 import type { HeartbeatRun } from '@paperclipai/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useState } from 'react';
+import { useId, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { ApiError, api, queryKeys } from '@/api';
 import { useCompany } from '@/app/hooks';
@@ -9,6 +9,7 @@ import {
   Alert,
   Button,
   Card,
+  CardAction,
   CardContent,
   CardHeader,
   CardTitle,
@@ -21,6 +22,7 @@ import {
   PropertyList,
   Skeleton,
   StatusBadge,
+  ToggleSwitch,
   Transcript,
   type TranscriptEntry,
 } from '@/ds';
@@ -28,6 +30,7 @@ import { useCompanyAccess, useVisibleProjects } from '@/features/access';
 import { useIssueOpener } from '@/features/issues';
 import { formatDateTime, useT } from '@/i18n';
 import { formatRunLog, type RunAction, type RunActionId, runActionsFor, wakeupOutcome } from './run-actions';
+import { readableRunLog } from './run-log';
 
 const ACTIVE = new Set(['queued', 'running']);
 
@@ -71,12 +74,20 @@ function RunLog({ runId, active }: { runId: string; active: boolean }) {
     queryFn: () => api.runs.log(runId),
     refetchInterval: active ? 5_000 : false,
   });
+  const [raw, setRaw] = useState(false);
+  const rawId = useId();
   const missing = log.error instanceof ApiError && log.error.status === 404;
-  const text = formatRunLog(log.data?.content);
+  const text = raw ? formatRunLog(log.data?.content) : readableRunLog(log.data?.content);
   return (
     <Card>
       <CardHeader>
         <CardTitle>{t('log.heading')}</CardTitle>
+        <CardAction>
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <ToggleSwitch id={rawId} checked={raw} onCheckedChange={setRaw} />
+            <label htmlFor={rawId}>{t('log.raw')}</label>
+          </div>
+        </CardAction>
       </CardHeader>
       <CardContent className="flex flex-col gap-2">
         {log.error && !missing ? <ErrorState title={t('log.loadFailed')} message={log.error.message} /> : null}
