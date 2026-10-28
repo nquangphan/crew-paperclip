@@ -4,7 +4,8 @@
  * luận hiện chip và server biết bình luận gọi Trợ Lý (route `assistant-call`). Hàm thuần.
  *
  * Luật khớp: không phân biệt hoa thường, so sau khi chuẩn hóa NFC; đứng riêng một từ (trước là đầu dòng, khoảng trắng
- * hay dấu mở ngoặc/nháy; sau là hết chuỗi, khoảng trắng hay dấu câu không dính chữ). Bỏ qua code block, inline code và
+ * hay dấu mở ngoặc/nháy; sau là hết chuỗi, khoảng trắng hay dấu câu không dính chữ). Ranh giới xét trên cả chuỗi, nên
+ * tag dính ngay sau inline code hay thẻ HTML không khớp. Bỏ qua code block có rào và thụt lề, inline code, thẻ HTML và
  * link đã có. Không có Trợ Lý thì giữ nguyên chữ và báo `missing`.
  */
 
@@ -18,78 +19,73 @@ export interface AssistantMentionResult {
   missing: boolean;
 }
 
-const TAG_RE = /(^|[\s([{"'“‘])@(?:tro-ly|trợ[  ]lý)(?=$|[\s)\]}>,;:!?…"'”’]|\.(?![\p{L}\p{N}]))/giu;
-/** Inline code (cùng độ dài dãy backtick), link/ảnh markdown và autolink `<…>`: giữ nguyên. */
-const PROTECTED_INLINE_RE = /(`+)[\s\S]*?\1|!?\[[^\]\n]*\]\([^)\n]*\)|<[^>\s]+>/g;
+const TAG_RE = /(^|[\s([{"'“‘])@(?:tro-ly|trợ[ {2}]lý)(?=$|[\s)\]}>,;:!?…"'”’]|\.(?![\p{L}\p{N}]))/giu;
+/** Inline code (cùng độ dài dãy backtick), link/ảnh markdown, comment và thẻ HTML, autolink `<…>`: giữ nguyên. */
+const PROTECTED_INLINE_RE = /(`+)[\s\S]*?\1|!?\[[^\]\n]*\]\([^)\n]*\)|<!--[\s\S]*?-->|<\/?[A-Za-z][^<>\n]*>|<[^>\s]+>/g;
 const FENCE_RE = /^ {0,3}(`{3,}|~{3,})/;
+const INDENTED_RE = /^(?: {4}|\t)/;
+const LIST_ITEM_RE = /^ {0,3}(?:[-+*]|\d{1,9}[.)])(?:[ \t]|$)/;
+/**
+ * Ký tự giữ chỗ cho vùng được bảo vệ: không phải khoảng trắng hay dấu câu, nên tag dính ngay trước hay sau vùng đó
+ * (`` `x`@tro-ly ``, `<b>@tro-ly</b>`) không khớp ranh giới từ của `TAG_RE`.
+ */
+const MASK = '\u0000';
+const maskText = (text: string) => text.replace(/[^\n]/g, MASK);
 
-/** Tách phần văn bản thường (`code: false`) và code block có rào (`code: true`), giữ đủ ký tự. */
-function splitFences(text: string): { text: string; code: boolean }[] {
-  const parts: { text: string; code: boolean }[] = [];
-  const lines = text.split(/(?<=\n)/);
+/**
+ * Che code block có rào và code block thụt ≥ 4 dấu cách (hay tab; chỉ khi mở sau dòng trống, không nằm trong list),
+ * giữ nguyên độ dài và ký tự xuống dòng.
+ */
+function maskCodeBlocks(text: string): string {
+  let out = '';
   let fence: string | null = null;
-  let buffer = '';
-  let bufferIsCode = false;
-  const flush = () => {
-    if (buffer) parts.push({ text: buffer, code: bufferIsCode });
-    buffer = '';
-  };
-  for (const line of lines) {
+  let indented = false;
+  let inList = false;
+  let prevBlank = true;
+  for (const line of text.split(/(?<=\n)/)) {
+    const blank = line.trim() === '';
     const marker = FENCE_RE.exec(line)?.[1] ?? null;
-    if (fence === null && marker) {
-      flush();
-      fence = marker;
-      bufferIsCode = true;
-      buffer = line;
-      continue;
-    }
     if (fence !== null) {
-      buffer += line;
-      if (marker && marker[0] === fence[0] && marker.length >= fence.length && line.trim() === marker) {
-        flush();
-        fence = null;
-        bufferIsCode = false;
-      }
+      out += maskText(line);
+      if (marker && marker[0] === fence[0] && marker.length >= fence.length && line.trim() === marker) fence = null;
+      prevBlank = false;
       continue;
     }
-    buffer += line;
+    if (indented && !blank && !INDENTED_RE.test(line)) indented = false;
+    if (!indented && !blank && !inList && prevBlank && INDENTED_RE.test(line)) indented = true;
+    if (indented) {
+      out += maskText(line);
+      prevBlank = blank;
+      continue;
+    }
+    if (marker) {
+      fence = marker;
+      out += maskText(line);
+      prevBlank = false;
+      continue;
+    }
+    if (LIST_ITEM_RE.test(line)) inList = true;
+    else if (!blank && prevBlank && !INDENTED_RE.test(line)) inList = false;
+    out += line;
+    prevBlank = blank;
   }
-  flush();
-  return parts;
-}
-
-function replaceTags(text: string, replacement: string | null): { text: string; count: number } {
-  let count = 0;
-  const out = text.replace(TAG_RE, (match, before: string) => {
-    count += 1;
-    return replacement === null ? match : `${before}${replacement}`;
-  });
-  return { text: out, count };
+  return out;
 }
 
 export function toAssistantMention(body: string, assistant: { id: string } | null): AssistantMentionResult {
   const normalized = body.normalize('NFC');
-  const replacement = assistant ? `[${ASSISTANT_MENTION_LABEL}](agent://${assistant.id})` : null;
-  let total = 0;
-  let out = '';
-  for (const part of splitFences(normalized)) {
-    if (part.code) {
-      out += part.text;
-      continue;
-    }
-    let last = 0;
-    for (const match of part.text.matchAll(PROTECTED_INLINE_RE)) {
-      const start = match.index ?? 0;
-      const gap = replaceTags(part.text.slice(last, start), replacement);
-      total += gap.count;
-      out += gap.text + match[0];
-      last = start + match[0].length;
-    }
-    const tail = replaceTags(part.text.slice(last), replacement);
-    total += tail.count;
-    out += tail.text;
-  }
-  if (total === 0) return { body, mentioned: false, missing: false };
+  // Tìm tag trên bản đã che (cùng độ dài), rồi thay đúng vị trí đó trên bản gốc.
+  const masked = maskCodeBlocks(normalized).replace(PROTECTED_INLINE_RE, maskText);
+  const matches = [...masked.matchAll(TAG_RE)];
+  if (matches.length === 0) return { body, mentioned: false, missing: false };
   if (!assistant) return { body, mentioned: false, missing: true };
-  return { body: out, mentioned: true, missing: false };
+  const replacement = `[${ASSISTANT_MENTION_LABEL}](agent://${assistant.id})`;
+  let out = '';
+  let last = 0;
+  for (const match of matches) {
+    const start = (match.index ?? 0) + match[1].length;
+    out += normalized.slice(last, start) + replacement;
+    last = (match.index ?? 0) + match[0].length;
+  }
+  return { body: out + normalized.slice(last), mentioned: true, missing: false };
 }

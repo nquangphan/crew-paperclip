@@ -16,6 +16,11 @@ describe('toAssistantMention', () => {
     ['dòng 1\n@tro-ly dòng 2', `dòng 1\n${LINK} dòng 2`],
     ['@tro-ly. Hết', `${LINK}. Hết`],
     ['@tro-ly và @Trợ Lý', `${LINK} và ${LINK}`],
+    ['`x` @tro-ly xem', `\`x\` ${LINK} xem`],
+    ['<b>đậm</b> @tro-ly xem', `<b>đậm</b> ${LINK} xem`],
+    ['- mục 1\n\n    @tro-ly trong list', `- mục 1\n\n    ${LINK} trong list`],
+    ['đoạn văn\n    @tro-ly tiếp đoạn', `đoạn văn\n    ${LINK} tiếp đoạn`],
+    ['    code\n\n@tro-ly sau code thụt lề', `    code\n\n${LINK} sau code thụt lề`],
   ])('%s → link tới Trợ Lý', (input, body) => {
     expect(toAssistantMention(input, A)).toEqual({ body, mentioned: true, missing: false });
   });
@@ -29,6 +34,13 @@ describe('toAssistantMention', () => {
     '`@tro-ly` trong inline code',
     '```\n@tro-ly trong code block\n```',
     '~~~js\nconst a = "@tro-ly";\n~~~',
+    '    @tro-ly in indented code',
+    'đoạn\n\n\t@tro-ly sau tab',
+    '    code\n\n    @tro-ly vẫn trong code thụt lề',
+    '`x`@tro-ly',
+    '<b>@tro-ly</b>',
+    '<span title="@tro-ly">x</span>',
+    '<!-- @tro-ly -->',
     'đã có [@tro-ly](https://example.com) rồi',
     `đã có ${LINK} rồi`,
     'không tag gì',
