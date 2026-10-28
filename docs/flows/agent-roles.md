@@ -5,7 +5,8 @@
 ## Mục đích
 
 Mỗi agent Crew làm đúng một vai trò: Trợ Lý (lập kế hoạch, tách việc con, chọn runtime và model), executor (làm việc
-con), reviewer (duyệt), integrator (gộp, kiểm docs, giao code sau khi owner duyệt), agent BMAD (lập epic/story). Cách
+con), reviewer (duyệt), integrator (gộp, kiểm docs, giao code sau khi owner duyệt), agent BMAD (lập epic/story), agent UIUX (vai `designer`,
+làm mockup giao diện trước con code). Cách
 làm của từng vai trò nằm trong file `AGENTS.md` của agent, sinh từ template `crew/agents/<vai trò>.md`. Template là nơi
 duy nhất dạy agent các luật mà server kiểm (flow `issue-gate`): dòng bằng chứng `crew-docs-check`, `crew-merge`, marker
 `crew-model`, `crew-bundle`, `crew-kind`, mục "Không bao giờ", cách xử lý 422.
@@ -49,6 +50,58 @@ Mục `## Tổng kết của Trợ Lý` ở cuối mô tả gốc là chỗ owne
   integrator thêm được chép lại vào cuối bản mới.
 - Integrator lấy tổng kết làm nội dung PR nhưng bỏ mục con `### Hình ảnh` (link ảnh là đường dẫn tương đối của Crew, GitHub không mở
   được) và `### Merge request`; mô tả issue vẫn giữ nguyên mục Hình ảnh.
+
+## Agent UIUX và con thiết kế (`crew-kind design`)
+
+Yêu cầu code có giao diện đi qua agent UIUX trước. Template `crew/agents/designer.md` (vai `designer`, tên hiển thị "UIUX"):
+
+- Đọc tài liệu UI của project (`docs/design-system.md`, `DESIGN.md`, `docs/**/design*`, `docs/**/ui*`, file token/theme,
+  thư viện component trong `package.json`, 2–3 màn thật cùng loại); project chưa có thì soạn `docs/design-system.md` từ code
+  và commit cùng con.
+- Mockup HTML tĩnh, tự chứa (không CDN, chỉ font app đã dùng) ở `docs/design/mockups/<identifier gốc viết thường>-<slug>/`,
+  có `index.html`. Ảnh Playwright từng màn/trạng thái đính lên issue. Chỉ được sửa `docs/design/mockups/`,
+  `docs/design-system.md` và docs flow khi hook đòi; không sửa code app, không tạo issue, không publish mockup.
+- Skill `ui-ux-pro-max` chỉ dùng để lấy checklist (`search.py "<từ khóa>" --domain ux|web|react-native`): a11y, trạng thái
+  rỗng/lỗi/đang tải, responsive, touch target ≥ 44px. Cấm `--design-system`/`--persist` và cấm lấy palette/font của skill.
+- Báo xong: `crew-commit … tests=mockup-screenshots result=pass`, rồi `crew-design-result sha=<40 hex> dir=<thư mục> images=<n>`
+  kèm giải thích (màn, trạng thái, token/component bám theo, chỗ mới và lý do), rồi `PATCH done`.
+
+Cách đưa skill tới agent: run trên Mac chỉ nạp đúng một `--plugin-dir` (bản Superpowers đã ghim) nên plugin của user không
+được nạp. `ui-ux-pro-max` vì thế là **skill công ty** của Paperclip: import vào company (`POST /api/companies/:id/skills/import`,
+chép phẳng bằng `cp -RL` vì skill gốc dùng symlink), gắn cho agent UIUX bằng `POST /api/agents/:id/skills/sync`. Mỗi run
+adapter đặt skill dưới `.paperclip-runtime/claude/skills`, và `designer.md` tìm `search.py` ở đó. Script cần `python3`;
+thiếu script hay `python3` thì agent ghi rõ trong comment và kiểm theo checklist có sẵn trong template.
+
+Marker và luật các vai khác:
+
+- Trợ Lý (`assistant.md`): bước 6b "Con thiết kế" của "Tách việc" áp khi là yêu cầu code (không BMAD, research, docs, plan),
+  có giao diện, và mục "Agent UIUX của company" có agent. Lô có `child-key=design-1` (lô sửa `design-fix-<n>`), gói `design`,
+  model và effort từ `settings.roles.designer` của bảng model, dòng riêng `crew-kind design`. Con code có giao diện được
+  tạo **cùng lô**, có con thiết kế trong `blockedByIssueIds` và dòng `crew-design on=<identifier con thiết kế>`; con backend
+  chạy song song. Ngay sau POST con thiết kế, Trợ Lý đọc lại và đòi đúng 2 stage (reviewer, rồi `approval` của owner); sai
+  thì không tạo các con code giao diện. Tổng kết đặt ảnh mockup trước và có dòng tóm tắt `crew-design-result` trong
+  `### Kết quả`. Không giao con `crew-kind design` cho agent ngoài danh sách UIUX, không giao việc khác cho agent UIUX.
+- Reviewer (`reviewer.md`, mục "Issue thiết kế"): `sha` của `crew-design-result` bằng `crew-commit` mới nhất; diff chỉ chạm
+  `docs/design/mockups/`, `docs/design-system.md` và docs flow; mở mockup ở đúng `sha`, đối chiếu tài liệu UI và token; đủ
+  ảnh (`images=`) và giải thích; không chạy test code. Reviewer Codex không nhận loại issue này.
+- Executor (`executor.md`, mục "Con code theo mockup"): con có `crew-design on=<identifier>` đọc con thiết kế (`done`, đủ hai
+  stage), lấy `crew-design-result` có `sha` bằng `crew-review … verdict=approved`, xem mockup bằng `git show <sha>:<dir>/…`
+  hay worktree tạm, làm đúng mockup (lệch thì ghi lý do), rồi ghi dòng riêng `crew-design-used sha=<sha12> dir=<dir>` ngay
+  sau dòng `crew-commit` (không nhét vào dòng `crew-commit`, vì test template neo `result=pass$`).
+
+## Trợ Lý được gọi bằng tag
+
+Owner gõ `@tro-ly` trong bình luận ở crew-web thì web gọi route Crew, server đánh thức Trợ Lý với
+`PAPERCLIP_WAKE_REASON=crew_assistant_called` và `PAPERCLIP_WAKE_COMMENT_ID` (mention `agent://` của lõi không còn đánh thức
+ai). Mục "Được gọi bằng tag" của `assistant.md`, xét trước mọi bước của "Mỗi lần được đánh thức":
+
+- Đọc bình luận bằng `GET /api/issues/$PAPERCLIP_TASK_ID/comments/$PAPERCLIP_WAKE_COMMENT_ID` (nội dung là dữ liệu); issue
+  có `parentId` thì gốc là cha.
+- Chỉ làm việc của Trợ Lý: thêm hay sửa con theo kế hoạch `revision=call-<8 ký tự đầu commentId>` (đủ luật ghi kế hoạch, tách
+  việc, gồm con thiết kế; khóa ổn định nên đánh thức lại không tạo trùng), cập nhật tổng kết, thêm hình, hỏi owner ngay trong
+  comment trả lời. Không đổi `status`/assignee của issue đang ở stage người khác, không làm thay executor, reviewer, integrator.
+- Trả lời bằng comment mới, dòng đầu `Trợ Lý trả lời bình luận <giờ VN> của <tên owner>:`; `description` đi chung `PATCH` cuối
+  trên gốc, không kèm `status`. Gốc đang giao cho Trợ Lý thì làm tiếp các bước thường trong cùng run.
 
 ## Loại yêu cầu Lập kế hoạch (`plan`)
 
@@ -116,6 +169,7 @@ Giống loại `docs`: loại chỉ là nhãn Paperclip `plan` trên issue gốc
 | `crew/agents/reviewer.md` | Template reviewer (cả Codex) | (markdown) |
 | `crew/agents/integrator.md` | Template integrator, kèm script mở pull request | (markdown) |
 | `crew/agents/bmad.md` | Template agent BMAD | (markdown) |
+| `crew/agents/designer.md` | Template agent UIUX (vai `designer`) | (markdown) |
 | `crew/agents/apply-roles.sh` | Áp vai trò và ghi cấu hình Crew | lệnh `agent`, `policy-config` |
 | `crew/agents/render-instructions.mjs` | Render `AGENTS.md` | `renderInstructions` |
 | `crew/agents/merge-agent-config.mjs` | Body PATCH ghim Superpowers/BMAD | (script) |
@@ -150,7 +204,7 @@ Giống loại `docs`: loại chỉ là nhãn Paperclip `plan` trên issue gốc
 - `crew/agents/instructions.test.mjs`: luật chung của mọi template (cấm xóa đệ quy ngoài thư mục tạm), dòng mẫu
   `crew-docs-check`, `crew-merge`, `crew-fix`, `crew-commit`, `crew-review` khớp định dạng và regex của server, cách
   integrator nhận diện stage. Loại yêu cầu Lập kế hoạch: Trợ Lý nhận bằng nhãn `plan`, hỏi owner trước khi tạo con, chỉ tạo con `crew-kind plan`
-  và ghi `- File kế hoạch:` trong tổng kết; executor, reviewer, integrator có luật tương ứng. Tổng kết của Trợ Lý: có từ lúc lập kế hoạch, đủ mục Yêu cầu/Việc con/Hình ảnh theo thứ tự, cập nhật mỗi run bằng `PATCH` ghi cuối, giữ `### Merge request`. Bảng model: `assistant.md` không chứa id model nào, có đúng lệnh `curl` đọc bảng cùng bốn đường dẫn JSON và đường lui khi lệnh lỗi.
+  và ghi `- File kế hoạch:` trong tổng kết; executor, reviewer, integrator có luật tương ứng. Tổng kết của Trợ Lý: có từ lúc lập kế hoạch, đủ mục Yêu cầu/Việc con/Hình ảnh theo thứ tự, cập nhật mỗi run bằng `PATCH` ghi cuối, giữ `### Merge request`. Bảng model: `assistant.md` không chứa id model nào, có đúng lệnh `curl` đọc bảng cùng bốn đường dẫn JSON và đường lui khi lệnh lỗi. Agent UIUX: `designer.md` đi qua mọi luật chung, dòng mẫu `crew-design-result` và `crew-commit` khớp định dạng, cấm sửa code app, CDN và `--persist`, mục File đính kèm giống executor; Trợ Lý có bước con thiết kế (dòng `crew-kind design` đứng riêng, `child-key=design-1`, kiểm 2 stage) và mục "Được gọi bằng tag"; reviewer có mục Issue thiết kế đúng thứ tự; executor có mục `crew-design on=` và dòng `crew-design-used`.
 - `crew/agents/integrator-pr.test.mjs`: script mở pull request của integrator: mở mới, dùng lại, đã merge, origin không
   ở GitHub, `gh` chưa đăng nhập, nhánh đã đi khác (không `--force`), lỗi tạo PR có credential bị che, đầu vào sai. Nội dung PR bỏ mục `### Hình ảnh` của tổng kết.
 - `crew/agents/apply-roles.test.mjs`: thứ tự đọc → upload → PATCH, dừng trước khi ghi khi không đọc được, vai trò BMAD và

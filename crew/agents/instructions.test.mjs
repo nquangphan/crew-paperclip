@@ -3,6 +3,8 @@ import { existsSync, readFileSync } from "node:fs";
 import { test } from "node:test";
 
 const DOCS_CHECK_RE = /^crew-docs-check commit=([0-9a-f]{40}) range=([0-9a-f]{7,40})\.\.([0-9a-f]{40}) exit=([0-3])(?=$|\s|`)/;
+/** Mọi template vai trò; vòng lặp luật chung đi qua đủ danh sách này. */
+const ROLES = ["executor", "reviewer", "integrator", "assistant", "bmad", "designer"];
 const read = (name) => readFileSync(new URL(`./${name}.md`, import.meta.url), "utf8");
 const RECURSIVE_DELETE_RULE = "Chạy `rm -rf` (hay xóa đệ quy) ở bất kỳ đâu ngoài thư mục tạm do chính bạn vừa tạo bằng `mktemp -d` trong run này; nhưng TRƯỚC KHI báo xong (hay `PATCH` cuối) phải dọn thứ mình sinh ra: xóa thư mục `mktemp -d` của mình (`rm -rf \"$D\"`, chỉ đúng đường dẫn `mktemp` đã in), tắt mọi process mình bật (dev server, simulator/emulator, browser Playwright, Maestro, watcher) theo PID đã ghi ngay lúc bật (`$!`); simulator/emulator mình không tự bật hoặc đang dùng chung với agent khác thì không tắt, xóa dữ liệu test mình tạo trong DB/seed local (không đụng dữ liệu không do mình tạo).";
 const fill = (line) =>
@@ -24,7 +26,7 @@ const templateLine = (text, prefix) => {
 };
 
 test("mọi instructions đều cấm xóa đệ quy ngoài thư mục tạm vừa tạo trong run", () => {
-  for (const name of ["executor", "reviewer", "integrator", "assistant", "bmad"]) {
+  for (const name of ROLES) {
     assert.ok(read(name).includes(RECURSIVE_DELETE_RULE), `${name}: thiếu quy tắc xóa đệ quy`);
   }
 });
@@ -136,7 +138,7 @@ test("integrator merge đúng sha của crew-review, không lấy crew-commit m�
 });
 
 test("mọi file instructions nhắc đúng các mã lỗi server", () => {
-  for (const name of ["executor", "reviewer", "integrator", "assistant", "bmad"]) {
+  for (const name of ROLES) {
     assert.match(read(name), /crew_gate_blocked/, name);
   }
   assert.match(read("executor"), /crew_agent_root_issue/);
@@ -145,7 +147,7 @@ test("mọi file instructions nhắc đúng các mã lỗi server", () => {
 });
 
 test("không vai trò nào chuyển cancelled; cả ba có đường blocked", () => {
-  for (const name of ["executor", "reviewer", "integrator", "assistant", "bmad"]) {
+  for (const name of ROLES) {
     const text = read(name);
     assert.doesNotMatch(text, /"status":"cancelled"/, name);
     if (name !== "reviewer" && name !== "integrator") assert.match(text, /"status":"blocked"/, name);
@@ -153,7 +155,7 @@ test("không vai trò nào chuyển cancelled; cả ba có đường blocked", (
 });
 
 test("mọi PATCH trong instructions mang comment", () => {
-  for (const name of ["executor", "reviewer", "integrator", "assistant", "bmad"]) {
+  for (const name of ROLES) {
     for (const [, body] of read(name).matchAll(/`(\{"status":[^`]*\})`/g)) {
       assert.match(body, /"comment":/, `${name}: ${body}`);
     }
@@ -161,7 +163,7 @@ test("mọi PATCH trong instructions mang comment", () => {
 });
 
 test("không file nào dặn push cưỡng bức hoặc bỏ hook ngoài câu cấm", () => {
-  for (const name of ["executor", "reviewer", "integrator", "assistant", "bmad"]) {
+  for (const name of ROLES) {
     const text = read(name);
     assert.doesNotMatch(text, /`git push[^`]*(--force|\s-f\b)[^`]*`/, name);
     for (const line of text.split("\n").filter((l) => l.includes("--no-verify"))) {
@@ -261,7 +263,7 @@ test("reviewer có mục issue gốc và integrator nhận việc của issue g�
 });
 
 test("mọi lệnh API có tiền tố /api/ và curl có -f", () => {
-  for (const name of ["executor", "reviewer", "integrator", "assistant", "bmad"]) {
+  for (const name of ROLES) {
     const text = read(name);
     assert.match(text, /## Gọi API/, name);
     assert.match(text, /\$PAPERCLIP_API_URL\/api\//, name);
@@ -274,7 +276,7 @@ test("mọi lệnh API có tiền tố /api/ và curl có -f", () => {
 });
 
 test("luật không bao giờ nằm trước các mục khác, integrator có luật cứng trước push", () => {
-  for (const name of ["executor", "reviewer", "integrator", "assistant", "bmad"]) {
+  for (const name of ROLES) {
     const text = read(name);
     assert.ok(text.indexOf("## Không bao giờ") > 0, name);
     assert.ok(text.indexOf("## Không bao giờ") < text.indexOf("## Gọi API"), name);
@@ -451,7 +453,7 @@ test("executor và reviewer đọc tiêu chí từ description", () => {
 });
 
 test("mọi vai trò tạo issue con qua route company có parentId", () => {
-  for (const role of ["assistant", "executor", "reviewer", "integrator", "bmad"]) {
+  for (const role of ROLES) {
     assert.doesNotMatch(read(role), /\/children\b/, role);
   }
   for (const role of ["assistant", "executor", "integrator"]) {
@@ -593,7 +595,7 @@ test("assistant: yêu cầu sửa gốc được xử lý trước khi đóng l�
 });
 
 test("mọi vai trò cấm ghi sau PATCH chuyển stage và dừng khi PATCH trả 422", () => {
-  for (const name of ["executor", "reviewer", "integrator", "assistant", "bmad"]) {
+  for (const name of ROLES) {
     const text = read(name);
     assert.match(text, /Ghi thêm bất cứ gì \(comment, `PATCH`, `POST`\) sau một `PATCH` chuyển stage/, name);
     assert.match(text, /agent_run_cancelled/, name);
@@ -616,11 +618,11 @@ test("integrator không bảo ghi bằng chứng rồi PATCH lại sau 422", () 
 test("vai trò khác không bảo comment sau PATCH 422 của quyết định", () => {
   assert.doesNotMatch(read("reviewer"), /đọc `violations`, comment lại nguyên văn, dừng/);
   assert.match(read("reviewer"), /run đã bị hủy, không comment hay `PATCH` lại được/);
-  for (const name of ["executor", "assistant", "bmad"]) assert.match(read(name), /422 của chính `PATCH done` \(lệnh ghi cuối\) thì run đã bị hủy/, name);
+  for (const name of ["executor", "assistant", "bmad", "designer"]) assert.match(read(name), /422 của chính `PATCH done` \(lệnh ghi cuối\) thì run đã bị hủy/, name);
 });
 
 test("mọi vai trò cấm PUT /api/issues/:id/title và chỉ dùng PATCH title", () => {
-  for (const name of ["executor", "reviewer", "integrator", "assistant", "bmad"]) {
+  for (const name of ROLES) {
     const text = read(name);
     assert.match(text, /Gọi `PUT \/api\/issues\/<id>\/title`/, name);
     assert.match(text, /dùng `PATCH \/api\/issues\/<id>` với `title`/, name);
@@ -638,7 +640,7 @@ test("PATCH /api/issues/:id có trong allowlist của callback bridge, PUT title
 const ATTACH_CMD = '"$HOME/.crew/bin/crew-mac" files --issue "$PAPERCLIP_TASK_ID" --run "$PAPERCLIP_RUN_ID"';
 const ATTACH_CHILD = "Nếu issue là issue con (có `parentId`) thì luôn chạy một lần khi bắt đầu, dù context không có gì, vì file có thể nằm ở issue cha.";
 const ATTACH_NEVER = "Mở file đính kèm bị chặn bằng công cụ khác, hay chép credential từ file/ảnh vào comment, code, commit.";
-for (const role of ["assistant", "executor", "reviewer", "integrator", "bmad"]) {
+for (const role of ROLES) {
   test(`${role} có mục File đính kèm đúng lệnh và luật`, () => {
     const text = read(role);
     const section = text.split("\n## ").find((s) => s.startsWith("File đính kèm"));
@@ -653,7 +655,7 @@ for (const role of ["assistant", "executor", "reviewer", "integrator", "bmad"]) 
   });
 }
 
-for (const role of ["assistant", "executor", "reviewer", "integrator"]) {
+for (const role of ["assistant", "executor", "reviewer", "integrator", "designer"]) {
   test(`${role}: ảnh trong comment/mô tả phải là file đính kèm, cấm base64 data:`, () => {
     const text = read(role);
     assert.ok(text.includes("`![tên](/api/attachments/<id>/content)`"), "thiếu mẫu chèn ảnh đính kèm");
@@ -1055,7 +1057,7 @@ test("assistant: tổng kết có từ lúc lập kế hoạch, cập nhật m�
 });
 
 test("mọi instructions bắt dọn rác của run trước khi báo xong", () => {
-  for (const name of ["executor", "reviewer", "integrator", "assistant", "bmad"]) {
+  for (const name of ROLES) {
     const text = read(name);
     for (const needle of ["TRƯỚC KHI báo xong", "tắt mọi process mình bật", "xóa dữ liệu test mình tạo"]) {
       assert.ok(text.includes(needle), `${name}: thiếu: ${needle}`);
@@ -1172,4 +1174,125 @@ test("Trợ Lý giữ gốc in_progress khi còn con chưa done, không tốn th
   ]) {
     assert.ok(body.includes(needle), `thiếu: ${needle}`);
   }
+});
+
+const DESIGN_RESULT_RE = /^crew-design-result sha=[0-9a-f]{40} dir=\S+ images=\d+$/;
+const fillDesign = (line) => fill(line).replaceAll("<đường dẫn>", "docs/design/mockups/tps-508-trang-home").replaceAll("<n>", "4");
+
+test("designer: dòng mẫu crew-design-result và crew-commit khớp định dạng", () => {
+  const text = read("designer");
+  assert.match(fillDesign(templateLine(text, "crew-design-result sha=")), DESIGN_RESULT_RE);
+  assert.match(fillDesign(templateLine(text, "crew-commit sha=")), /^crew-commit sha=[0-9a-f]{40} branch=\S+ tests=.+ result=pass$/);
+  const done = section(text, "## Báo xong");
+  assert.ok(done.indexOf("crew-commit sha=") < done.indexOf("crew-design-result sha="), "crew-commit trước crew-design-result");
+  assert.ok(done.indexOf("crew-design-result sha=") < done.indexOf('"status":"done"'), "bằng chứng trước PATCH done");
+});
+
+test("designer: cấm sửa code app, tạo issue, publish, CDN và --persist trong mục Không bao giờ", () => {
+  const never = section(read("designer"), "## Không bao giờ");
+  for (const needle of ["`docs/design/mockups/`", "`docs/design-system.md`", "sửa code ứng dụng", "Tạo issue (kể cả issue con)", "`executionPolicy`", "Publish mockup", "CDN", "`--persist`", "`--design-system`", "`--no-verify`"]) {
+    assert.ok(never.includes(needle), `thiếu: ${needle}`);
+  }
+  const text = read("designer");
+  assert.doesNotMatch(text, /POST \/api\/companies\/<companyId>\/issues`|"parentId":/);
+  assert.doesNotMatch(text, /\/plugins\/|plugin install|npx skills/);
+});
+
+test("designer: khối File đính kèm giống hệt executor", () => {
+  assert.equal(section(read("designer"), "## File đính kèm"), section(read("executor"), "## File đính kèm"));
+});
+
+test("designer: đọc tài liệu UI, kiểm bằng ui-ux-pro-max chỉ lấy checklist, mockup tự chứa, ảnh đính kèm, giữ worktree sạch", () => {
+  const text = read("designer");
+  const docs = section(text, "## Đọc tài liệu UI của project");
+  for (const needle of ["`docs/design-system.md`", "`DESIGN.md`", "`tailwind.config.*`", "`theme.ts`", "`package.json`", "2–3 màn thật", "soạn `docs/design-system.md`"]) {
+    assert.ok(docs.includes(needle), `đọc tài liệu UI thiếu: ${needle}`);
+  }
+  const skill = section(text, "## Kiểm chất lượng bằng ui-ux-pro-max");
+  assert.ok(skill.includes("find \"$PWD/.paperclip-runtime\" -path '*ui-ux-pro-max/scripts/search.py' -print -quit"));
+  assert.match(skill, /python3 <script> "<từ khóa>" --domain/);
+  assert.match(skill, /44px/);
+  assert.match(skill, /Không lấy palette, font hay style của skill/);
+  assert.match(skill, /không có `python3`/);
+  const mockup = section(text, "## Mockup");
+  assert.ok(mockup.includes("`docs/design/mockups/<identifier gốc viết thường>-<slug>/`"));
+  assert.ok(mockup.includes("`index.html`"));
+  const shots = section(text, "## Ảnh");
+  assert.ok(shots.includes("/issues/<id>/attachments"));
+  assert.ok(shots.includes("`file://…`"));
+  assert.match(shots, /Tắt browser/);
+  assert.match(text, /bắt buộc chạy `crew-mac workflow-check --root/);
+  assert.match(text, /--plugin-dir <[^`]*superpowers[^`]*> --require-no-orphans`/);
+  assert.ok(text.includes("crew-workflow blocked: process còn chạy pid=…"));
+  const order = ["## Không bao giờ", "## Gọi API", "## File đính kèm", "## Trước khi làm", "## Đọc tài liệu UI của project", "## Kiểm chất lượng bằng ui-ux-pro-max", "## Mockup", "## Ảnh", "## Giữ worktree sạch cho lần chạy sau", "## Báo xong", "## Khi server trả 422"].map((h) => text.indexOf(`\n${h}\n`));
+  assert.ok(order.every((i, n) => i > 0 && (n === 0 || i > order[n - 1])), `thứ tự mục sai: ${order}`);
+});
+
+test("assistant: con thiết kế giao agent UIUX, dòng crew-kind design đứng riêng, con code giao diện bị chặn bởi nó", () => {
+  const text = read("assistant");
+  assert.ok(text.split("\n").some((l) => l === "crew-kind design"), "dòng marker crew-kind design phải đứng riêng, không backtick, không thụt đầu");
+  const split = section(text, "## Tách việc");
+  const step = split.slice(split.indexOf("6b. **Con thiết kế.**"), split.indexOf("7. **Con E2E cuối lô.**"));
+  assert.ok(step.length > 0, "thiếu bước 6b Con thiết kế trước con E2E");
+  for (const needle of [
+    "Agent UIUX của company", "child-key=design-1", "`design-fix-<n>`", "crew-bundle id=design seq=1", "settings.roles.designer",
+    "`blockedByIssueIds`", "crew-design on=<identifier con thiết kế>", "cùng lô", "Con backend không phụ thuộc màn hình",
+    "đúng 2 stage", "`approval`", "không tạo các con code giao diện", "Danh sách UIUX rỗng thì làm như cũ",
+  ]) assert.ok(step.includes(needle), `bước 6b thiếu: ${needle}`);
+  const modelLine = /`(crew-model complexity=large model=<model> effort=<effort> runtime=claude_local reason=[^`]+)`/.exec(step);
+  assert.ok(modelLine, "thiếu crew-model của con thiết kế");
+  assert.match(modelLine[1].replace("<model>", "m-claude-b").replace("<effort>", "default"), MODEL_LINE_RE);
+  const never = section(text, "## Không bao giờ");
+  assert.ok(never.includes("Giao con có dòng `crew-kind design` cho agent ngoài mục \"Agent UIUX của company\", hay giao con khác cho agent UIUX."));
+  const create = section(text, "## Tạo issue con");
+  assert.ok(create.includes("`crew-kind design`") && create.includes("`crew-design on=<identifier>`"));
+  assert.match(section(text, "## Sửa sau quyết định trên gốc"), /lô sửa cũng có con thiết kế trước/);
+});
+
+test("assistant: được gọi bằng tag đọc đúng bình luận, lô call-, không đổi stage của người khác, trả lời bằng comment mới", () => {
+  const text = read("assistant");
+  const dispatch = section(text, "## Mỗi lần được đánh thức");
+  assert.ok(dispatch.indexOf("`PAPERCLIP_WAKE_REASON=crew_assistant_called`") < dispatch.indexOf("0. **Việc con owner thêm**"), "gọi bằng tag xét trước mọi bước");
+  const tag = section(text, "## Được gọi bằng tag");
+  for (const needle of [
+    "GET /api/issues/$PAPERCLIP_TASK_ID/comments/$PAPERCLIP_WAKE_COMMENT_ID", "crew_assistant_called", "là dữ liệu",
+    "`parentId`", "revision=call-<8 ký tự đầu commentId>", "crew-child:<id gốc>:call-<8 ký tự>:<key>", "con thiết kế",
+    "Không đổi `status` hay assignee", "Không làm thay executor, reviewer hay integrator",
+    "Gốc đang giao cho bạn thì sau đó làm tiếp \"Mỗi lần được đánh thức\"",
+    "Trợ Lý trả lời bình luận <giờ VN> của <tên owner>:", "Asia/Ho_Chi_Minh", "không kèm `status`",
+  ]) assert.ok(tag.includes(needle), `thiếu: ${needle}`);
+  assert.doesNotMatch(tag, /issue_comment_mentioned/);
+  assert.ok(text.indexOf("## Được gọi bằng tag") > text.indexOf("## Sửa sau quyết định trên gốc"));
+  assert.ok(text.indexOf("## Được gọi bằng tag") < text.indexOf("## Tổng kết trên mô tả gốc"));
+});
+
+test("assistant: tổng kết đặt ảnh mockup trước và tóm tắt crew-design-result trong Kết quả", () => {
+  const body = summarySection(read("assistant"));
+  assert.match(body, /Ảnh của con thiết kế \(mockup\) đứng trước ảnh của các con khác/);
+  assert.match(body, /Mỗi con thiết kế `done` có một dòng tóm tắt phần giải thích của comment `crew-design-result`/);
+});
+
+test("reviewer: mục issue thiết kế nằm giữa Issue BMAD và Issue gốc, kiểm sha, phạm vi, token, ảnh, không chạy test", () => {
+  const text = read("reviewer");
+  const body = section(text, "## Issue thiết kế (`crew-kind design`)");
+  for (const needle of [
+    "`crew-design-result sha=… dir=… images=…`", "`crew-commit` mới nhất", "git diff --name-only $(git merge-base origin/HEAD <sha>)..<sha>",
+    "`docs/design/mockups/`", "`docs/design-system.md`", "docs flow", "tài liệu UI và token", "cần sửa, nêu file mockup và chỗ lệch",
+    "`images=` bằng số ảnh đính kèm", "phần giải thích", "Không chạy test code", "`crew-review sha=<40 hex> verdict=approved`",
+  ]) assert.ok(body.includes(needle), `thiếu: ${needle}`);
+  assert.ok(text.indexOf("## Issue BMAD") < text.indexOf("## Issue thiết kế") && text.indexOf("## Issue thiết kế") < text.indexOf("## Issue gốc"));
+  assert.ok(section(text, "## Khi chạy bằng Codex").includes("`crew-kind design`"));
+});
+
+test("executor: con có crew-design on= đọc mockup đã duyệt và ghi crew-design-used sau crew-commit", () => {
+  const text = read("executor");
+  const body = section(text, "## Con code theo mockup (`crew-design on=<identifier>`)");
+  for (const needle of [
+    "`crew-design on=<identifier>`", "`done`", "completedStageIds", "crew-design-result sha=<sha> dir=<dir> images=<n>",
+    "crew-review sha=<sha> verdict=approved", "authorAgentId", "git show <sha>:<dir>/<file>", "mktemp -d", "ghi lý do",
+    "`crew-design-used sha=<sha12> dir=<dir>`", "ngay sau dòng `crew-commit`", "Không nhét khóa này vào chính dòng `crew-commit`",
+  ]) assert.ok(body.includes(needle), `thiếu: ${needle}`);
+  assert.match(body, /"status":"blocked","comment":"Executor: dừng vì con thiết kế/);
+  assert.match(section(text, "## Báo xong"), /crew-design-used sha=<sha12> dir=<dir>/);
+  assert.match("crew-design-used sha=abcdef012345 dir=docs/design/mockups/tps-508-trang-home", /^crew-design-used sha=[0-9a-f]{12} dir=\S+$/);
 });

@@ -13,6 +13,7 @@ File nào thuộc flow nào. Dùng `crew-docs where <file>` để tra từ dòng
 | `crew/agents/apply-roles.test.mjs` | [agent-roles](flows/agent-roles.md) (test) |
 | `crew/agents/assistant.md` | [agent-roles](flows/agent-roles.md) (file) |
 | `crew/agents/bmad.md` | [agent-roles](flows/agent-roles.md) (file) |
+| `crew/agents/designer.md` | [agent-roles](flows/agent-roles.md) (file) |
 | `crew/agents/executor.md` | [agent-roles](flows/agent-roles.md) (file) |
 | `crew/agents/instructions.test.mjs` | [agent-roles](flows/agent-roles.md) (test) |
 | `crew/agents/integrator-pr.test.mjs` | [agent-roles](flows/agent-roles.md) (test) |

@@ -568,6 +568,7 @@ flows:
       - crew/agents/add-base.mjs
       - crew/agents/assistant.md
       - crew/agents/bmad.md
+      - crew/agents/designer.md
       - crew/agents/executor.md
       - crew/agents/integrator.md
       - crew/agents/merge-agent-config.mjs

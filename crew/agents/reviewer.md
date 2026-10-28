@@ -82,6 +82,17 @@ Có `crew-commit` như issue code. Ngoài các bước thường:
 3. Đọc file epic/story: story bám yêu cầu trong mô tả gốc, tiêu chí kiểm được, không story nào phụ thuộc story sau.
 Đạt: quyết định như issue code (`crew-review sha=<40 hex> verdict=approved`). Sau bạn là owner duyệt; đó là bình thường.
 
+## Issue thiết kế (`crew-kind design`)
+
+Có `crew-commit` như issue code; đầu ra là mockup HTML của agent UIUX, không có code ứng dụng. Ngoài các bước thường:
+1. Lấy comment `crew-design-result sha=… dir=… images=…` mới nhất do agent UIUX viết (`authorAgentId` trùng tác giả của `crew-commit` mới nhất). `sha` của nó phải bằng `sha` của `crew-commit` mới nhất; thiếu hay lệch thì cần sửa.
+2. Phạm vi: `git diff --name-only $(git merge-base origin/HEAD <sha>)..<sha>` chỉ được chạm `docs/design/mockups/`, `docs/design-system.md` và docs flow (`docs/flows.yaml`, `docs/flows/**` và file `crew-docs generate` sinh lại). File khác (code ứng dụng, cấu hình, test, script): cần sửa.
+3. Mở mockup ở đúng `<sha>`: `D=$(mktemp -d)`, `git worktree add --detach "$D/m" <sha>`, mở file trong `"$D/m/<dir>"` bằng Playwright; xong thì `git worktree remove --force "$D/m"` rồi `rm -rf "$D"`. Mockup không được tải gì từ ngoài (`git grep -nE 'https?://' <sha> -- <dir>` chỉ được ra link chữ, không ra `src`/`href` của CSS, JS, font, ảnh).
+4. Đối chiếu với tài liệu UI và token của project (`docs/design-system.md`, `DESIGN.md`, file theme/token, component đang dùng) ở `<sha>`. Màu, chữ, khoảng cách, bo góc, icon hay component lệch với app mà phần giải thích không nêu lý do: cần sửa, nêu file mockup và chỗ lệch kèm token hay file nguồn đúng.
+5. Đủ ảnh: `images=` bằng số ảnh đính kèm của issue sau `crew-commit` mới nhất (đọc bằng mục "File đính kèm"), mỗi màn/trạng thái trong `index.html` có ảnh, và comment `crew-design-result` có phần giải thích (màn, trạng thái, token/component bám theo, chỗ mới và lý do). Thiếu thì cần sửa.
+6. Không chạy test code và không đòi agent UIUX chạy test code; `tests=mockup-screenshots` là đúng.
+Đạt: quyết định như issue code (`crew-review sha=<40 hex> verdict=approved`). Sau bạn là owner duyệt mockup; đó là bình thường.
+
 ## Issue gốc (không có `parentId`)
 
 - Issue gốc chỉ gồm issue con (không có `crew-commit` của chính nó): review tổng, không đòi `crew-commit` trên issue gốc.
@@ -99,7 +110,7 @@ Mục này áp dụng khi bạn là reviewer chạy bằng Codex (`codex_local`,
 - Skill: không có `--plugin-dir`, không dùng công cụ riêng của Claude Code (`Skill`, `Read`, `Task`…). Bước ghi `superpowers:requesting-code-review` thì đọc toàn bộ `"$CREW_SUPERPOWERS_DIR/skills/<tên>/SKILL.md"` (với `<tên>` là `requesting-code-review`) rồi dùng checklist trong đó. Đọc file bằng công cụ đọc file của Codex.
 - Mỗi lệnh shell là một shell mới: dùng nguyên mẫu `curl` ở mục "Gọi API", không giữ biến giữa các lệnh.
 - `PATCH` là lệnh ghi cuối: ghi mọi comment cần thiết trước, quyết định nằm trong đúng một `PATCH` như mục "Quyết định"; `PATCH` trả 422 thì dừng.
-- Reviewer Codex chỉ issue con code. Issue giao cho bạn mà là issue gốc (không có `parentId`), có dòng `crew-kind research` hay `crew-kind bmad`: không review, không đổi status; chỉ comment `Reviewer: reviewer Codex không review loại issue này, nhờ owner giao lại reviewer Claude` rồi dừng.
+- Reviewer Codex chỉ issue con code. Issue giao cho bạn mà là issue gốc (không có `parentId`), có dòng `crew-kind research`, `crew-kind bmad` hay `crew-kind design`: không review, không đổi status; chỉ comment `Reviewer: reviewer Codex không review loại issue này, nhờ owner giao lại reviewer Claude` rồi dừng.
 
 ## Quyết định (một request, có comment)
 
