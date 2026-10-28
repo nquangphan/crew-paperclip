@@ -652,7 +652,9 @@ flows:
       - packages/crew-web/src/features/issues/routes.tsx
       - packages/crew-plugin/src/issues/force-done.ts
     files:
+      - packages/crew-web/src/api/crew/assistant-call.ts
       - packages/crew-web/src/api/crew/force-done.ts
+      - packages/crew-web/src/features/issues/detail/assistant-mention.ts
       - packages/crew-web/src/features/issues/detail/attachment-viewer-provider.tsx
       - packages/crew-web/src/features/issues/detail/assistant-summary.tsx
       - packages/crew-web/src/features/issues/detail/attachments.tsx
@@ -704,6 +706,7 @@ flows:
       - packages/crew-plugin/src/__tests__/force-done.test.ts
       - packages/crew-web/test/features/issues/add-child-dialog.test.tsx
       - packages/crew-web/test/features/issues/add-child.test.ts
+      - packages/crew-web/test/features/issues/assistant-mention.test.ts
       - packages/crew-web/test/features/issues/attachment-viewer.test.tsx
       - packages/crew-web/test/features/issues/attachments.test.tsx
       - packages/crew-web/test/features/issues/comment-questions.test.ts

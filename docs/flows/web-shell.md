@@ -95,7 +95,8 @@ Luật chính:
 ## Tests
 
 - `packages/crew-web/test/api/endpoints.test.ts`, `r3x-client.test.ts`, `agents-permissions.test.ts`, `labels.test.ts`:
-  mỗi endpoint có mã BA, không trùng, không DELETE tới environment, project, agent; body và đường gửi đi.
+  mỗi endpoint có mã BA, không trùng, không DELETE tới environment, project, agent; body và đường gửi đi. Khóa
+  `assistantCall.call` (S6.5, router Crew) gọi Trợ Lý bằng tag sau khi gửi bình luận.
 - `packages/crew-web/test/api/http.test.ts`: 401 chuyển về đăng nhập, không chuyển vòng.
 - `packages/crew-web/test/api/crew-shared.test.ts`: import logic dùng chung từ plugin.
 - `packages/crew-web/test/app/router.test.tsx`, `routes-util.test.ts`, `login.test.tsx`, `cli-auth.test.tsx`: 404,

@@ -81,12 +81,25 @@ Luật chính:
 9. `packages/crew-web/src/features/issues/popup/issue-nav.tsx` → `IssueLink`, `useIssueOpener`: click thường mở popup,
    Cmd/Ctrl/Shift/chuột giữa mở trang đầy đủ ở tab mới; hợp đồng URL ở `issue-href.ts`.
 
+## Gọi Trợ Lý bằng tag
+
+`packages/crew-web/src/features/issues/detail/composer.tsx` → `StockComposer`: bình luận có `@tro-ly` hay `@Trợ Lý` thì
+lúc gửi đọc vai trò project (`queryClient.fetchQuery`, khóa `roles(projectId)`; issue không có project coi như không có
+Trợ Lý), `assistant-mention.ts` → `toAssistantMention` đổi tag thành `[@Trợ Lý](agent://<id>)` (không phân biệt hoa
+thường, so sau NFC, đứng riêng một từ, bỏ qua code block, inline code và link đã có). Gửi bình luận xong thì gọi
+`api.assistantCall.call` (`POST /api/crew/companies/:companyId/issues/:issueId/assistant-call` `{ commentId }`, route
+của flow `run-handoff`). Gọi lỗi (403/409/422/mạng, hay route trả `skipped`) hoặc project không có Trợ Lý thì chỉ hiện
+thông báo nhẹ dưới ô ("Đã gửi bình luận nhưng chưa gọi được Trợ Lý: …", "Project này chưa có Trợ Lý"); bình luận vẫn
+gửi, thông báo mất ở lần gửi sau. Bình luận không có tag không đọc vai trò.
+
 ## Files
 
 | Đường dẫn | Vai trò | Symbol chính |
 |-----------|---------|--------------|
 | `packages/crew-plugin/src/issues/force-done.ts` | Route Ép Done | `handleIssuesApi`, `ForceDoneWarning` |
 | `packages/crew-web/src/api/crew/force-done.ts` | Client `crew.forceDone` | `forceDoneApi` |
+| `packages/crew-web/src/api/crew/assistant-call.ts` | Client gọi Trợ Lý bằng tag | `assistantCallApi`, `AssistantCallResult` |
+| `packages/crew-web/src/features/issues/detail/assistant-mention.ts` | Đổi tag `@tro-ly` thành link tới Trợ Lý (hàm thuần) | `toAssistantMention`, `ASSISTANT_MENTION_LABEL` |
 | `packages/crew-web/src/features/issues/routes.tsx`, `index.ts` | Route `issues`, `issues/:ref` | `routes` |
 | `packages/crew-web/src/features/issues/list/issues-page.tsx` | Trang danh sách | `IssuesPage` |
 | `packages/crew-web/src/features/issues/list/issues-board.tsx` | Chế độ Bảng | `boardLayout` |
@@ -131,6 +144,12 @@ Luật chính:
 - `web-shell`: shell gắn popup, quyền ghi hay chỉ đọc.
 
 ## Tests
+
+- `packages/crew-web/test/features/issues/assistant-mention.test.ts`: bảng ca khớp và không khớp (hoa thường, dấu câu,
+  `email@tro-ly.vn`, code block, inline code, link có sẵn, NFD), không có Trợ Lý thì `missing`.
+- `packages/crew-web/test/features/issues/composer.test.tsx` (phần tag): đổi tag và gọi `assistant-call` với id bình
+  luận; không tag thì không đọc vai trò; không có Trợ Lý hay issue không project thì báo nhẹ; gọi lỗi 403 vẫn gửi bình
+  luận và thông báo mất ở lần gửi sau.
 
 - `packages/crew-plugin/src/__tests__/force-done.test.ts`: route chỉ cho board, chặn trước khi ghi, đóng issue kèm lý
   do và cảnh báo phụ.
