@@ -40,6 +40,11 @@ export const CREW_MODEL_SETTINGS_REVISION_SOURCE = "crew_model_settings";
 
 /** Đoạn đường dẫn trong `extraArgs` nhận ra agent BMAD (bản ghim workflow, như `apply-roles.sh`). */
 const BMAD_PIN_FRAGMENT = "/.crew/workflows/bmad/";
+/**
+ * Đoạn key skill trong `adapterConfig.paperclipSkillSync` nhận ra agent UIUX (vai `designer`): skill công ty
+ * `ui-ux-pro-max` được gắn qua `POST /api/agents/:id/skills/sync`. Chỉ xét agent `claude_local`.
+ */
+const DESIGNER_SKILL_FRAGMENT = "ui-ux-pro-max";
 const CLOSED_ISSUE_STATUSES = ["done", "cancelled"];
 
 /** Lỗi trả thẳng thành `{ error, code, ...extra }` (không lồng trong `details` như `HttpError`). */
@@ -187,7 +192,10 @@ async function crewCompanyIds(tx: Db): Promise<string[]> {
   return rows.map((row) => String(row.company_id));
 }
 
-/** Vai của từng agent theo `crew_project_roles` của mọi company, cộng agent BMAD (bản ghim workflow trong `extraArgs`). */
+/**
+ * Vai của từng agent theo `crew_project_roles` của mọi company, cộng agent BMAD (bản ghim workflow trong `extraArgs`) và
+ * agent UIUX (skill `ui-ux-pro-max` trong `paperclipSkillSync`).
+ */
 async function roleAgents(tx: Db): Promise<Map<string, Set<CrewModelRole>>> {
   const map = new Map<string, Set<CrewModelRole>>();
   const add = (agentId: unknown, role: CrewModelRole) => {
@@ -216,6 +224,17 @@ async function roleAgents(tx: Db): Promise<Map<string, Set<CrewModelRole>>> {
       ),
     );
   for (const { id } of bmad) add(id, "bmad");
+  const designers = await tx
+    .select({ id: agents.id })
+    .from(agents)
+    .where(
+      and(
+        inArray(agents.companyId, companyIds),
+        eq(agents.adapterType, "claude_local"),
+        sql`(${agents.adapterConfig}->'paperclipSkillSync')::text LIKE ${`%${DESIGNER_SKILL_FRAGMENT}%`}`,
+      ),
+    );
+  for (const { id } of designers) add(id, "designer");
   return map;
 }
 

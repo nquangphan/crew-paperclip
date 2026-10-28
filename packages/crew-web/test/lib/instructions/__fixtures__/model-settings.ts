@@ -54,6 +54,7 @@ export const SETTINGS: ModelSettings = {
     reviewer: { model: 'claude-sonnet-5-5', effort: null },
     integrator: { model: 'claude-sonnet-5-5', effort: null },
     bmad: { model: 'claude-opus-5-5', effort: null },
+    designer: { model: 'claude-opus-5-5', effort: null },
     'executor-codex': { model: 'gpt-6-luna', effort: 'medium' },
     'executor-opencode': { model: 'opencode-go/kimi-k3', effort: null },
     'reviewer-codex': { model: 'gpt-6-sol', effort: 'high' },

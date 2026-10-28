@@ -198,6 +198,7 @@ describe("chooseReviewer", () => {
     [{ template: "root" }, "rv-claude", "claude_local", "chỉ issue con được reviewer Codex"],
     [{ template: "research" }, "rv-claude", "claude_local", "chỉ issue con được reviewer Codex"],
     [{ template: "bmad" }, "rv-claude", "claude_local", "chỉ issue con được reviewer Codex"],
+    [{ template: "design" }, "rv-claude", "claude_local", "chỉ issue con được reviewer Codex"],
     [{ executorRuntime: "codex_local" }, "rv-claude", "claude_local", "executor đã là Codex"],
     [{ codexReviewer: null }, "rv-claude", "claude_local", "không có reviewer Codex"],
     [{ codexReviewer: { agentId: "rv-codex", status: "terminated" } }, "rv-claude", "claude_local", "không có reviewer Codex"],

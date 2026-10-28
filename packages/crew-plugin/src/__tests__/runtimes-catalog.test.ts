@@ -105,6 +105,16 @@ describe("bảng cài đặt model của plugin", () => {
     expect(plugin.parseModelSettings(JSON.stringify(settings))).toEqual(settings);
   });
 
+  it("parseModelSettings đọc dòng cũ thiếu hẳn vai designer: điền mặc định, giữ giá trị owner", () => {
+    const legacy = fresh();
+    delete legacy.roles.designer;
+    legacy.roles.executor = { model: "claude-opus-5-5", effort: "high" };
+    const parsed = plugin.parseModelSettings(JSON.stringify(legacy));
+    expect(parsed?.roles.designer).toEqual({ model: "claude-opus-5-5", effort: null });
+    expect(parsed?.roles.executor).toEqual({ model: "claude-opus-5-5", effort: "high" });
+    expect(Object.keys(parsed!.roles).sort()).toEqual([...plugin.CREW_MODEL_ROLES].sort());
+  });
+
   it("parseModelSettings từ chối bảng sai dạng", () => {
     const broken: [string, (s: any) => void][] = [
       ["thiếu runtime", (s) => { delete s.catalog.codex_local; }],
@@ -116,7 +126,7 @@ describe("bảng cài đặt model của plugin", () => {
       ["order rỗng", (s) => { s.order.small = []; }],
       ["order trùng runtime", (s) => { s.order.small = ["claude_local", "claude_local"]; }],
       ["order có runtime lạ", (s) => { s.order.small = ["process"]; }],
-      ["thiếu vai", (s) => { delete s.roles["reviewer-codex"]; }],
+      ["vai null", (s) => { s.roles["reviewer-codex"] = null; }],
       ["vai không có model", (s) => { s.roles.executor = { effort: null }; }],
     ];
     for (const [name, mutate] of broken) {

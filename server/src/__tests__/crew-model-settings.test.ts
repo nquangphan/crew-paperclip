@@ -11,6 +11,7 @@ import {
   loadModelSettings,
   rememberModelSettings,
   rootReviewerOverrides,
+  fillMissingRoles,
   validateModelSettings,
 } from "../crew/model-settings.ts";
 
@@ -29,6 +30,40 @@ function pathsOf(mutate: (settings: Loose) => void): string[] {
   return result.ok ? [] : result.issues.map((issue) => issue.path);
 }
 
+describe("fillMissingRoles", () => {
+  it("dòng cũ thiếu vai designer: điền mặc định, giữ nguyên giá trị owner đã sửa", () => {
+    const old = draft() as unknown as Loose;
+    delete old.roles.designer;
+    old.roles.executor = { model: "claude-opus-5-5", effort: "high" };
+    const filled = fillMissingRoles(old) as Loose;
+    expect(filled.roles.designer).toEqual({ model: "claude-opus-5-5", effort: null });
+    expect(filled.roles.executor).toEqual({ model: "claude-opus-5-5", effort: "high" });
+    expect(old.roles).not.toHaveProperty("designer");
+    expect(validateModelSettings(filled).ok).toBe(true);
+  });
+  it("model mặc định đã bị gỡ khỏi catalog: lấy model của vai đã lưu cùng runtime", () => {
+    const old = draft() as unknown as Loose;
+    delete old.roles.designer;
+    delete old.catalog.claude_local.models["claude-opus-5-5"];
+    old.catalog.claude_local.models["claude-opus-6"] = { vision: true };
+    old.catalog.claude_local.byComplexity.large.model = "claude-opus-6";
+    for (const role of ["assistant", "bmad", "reviewer-root"]) old.roles[role].model = "claude-opus-6";
+    const filled = fillMissingRoles(old) as Loose;
+    expect(filled.roles.designer).toEqual({ model: "claude-opus-6", effort: null });
+    expect(validateModelSettings(filled).ok).toBe(true);
+  });
+  it("chỉ điền khi thiếu hẳn khóa; giá trị sai vẫn bị luật báo; đủ vai thì trả nguyên đối tượng", () => {
+    const full = draft();
+    expect(fillMissingRoles(full)).toBe(full);
+    const wrong = draft() as unknown as Loose;
+    wrong.roles.designer = null;
+    expect(fillMissingRoles(wrong)).toBe(wrong);
+    expect(pathsOf((s) => { s.roles.designer = null; })).toEqual(["roles.designer"]);
+    expect(fillMissingRoles(null)).toBeNull();
+    expect(fillMissingRoles({ roles: [] })).toEqual({ roles: [] });
+  });
+});
+
 describe("CREW_MODEL_SETTINGS_DEFAULT", () => {
   it("bằng đúng các hằng số hôm nay", () => {
     expect(CREW_MODEL_SETTINGS_DEFAULT.catalog).toEqual(CREW_RUNTIME_CATALOG);
@@ -39,18 +74,20 @@ describe("CREW_MODEL_SETTINGS_DEFAULT", () => {
       reviewer: { model: "claude-sonnet-5-5", effort: null },
       integrator: { model: "claude-sonnet-5-5", effort: null },
       bmad: { model: "claude-opus-5-5", effort: null },
+      designer: { model: "claude-opus-5-5", effort: null },
       "executor-codex": { model: "gpt-6-luna", effort: "medium" },
       "executor-opencode": { model: "opencode-go/kimi-k3", effort: null },
       "reviewer-codex": { model: CREW_CODEX_REVIEWER_MODEL.model, effort: CREW_CODEX_REVIEWER_MODEL.effort },
       "reviewer-root": { model: "claude-opus-5-5", effort: "high" },
     });
-    expect(CREW_MODEL_ROLES).toHaveLength(9);
+    expect(CREW_MODEL_ROLES).toHaveLength(10);
     expect(CREW_MODEL_ROLE_RUNTIME).toMatchObject({
       "executor-codex": "codex_local",
       "reviewer-codex": "codex_local",
       "executor-opencode": "opencode_local",
       assistant: "claude_local",
       bmad: "claude_local",
+      designer: "claude_local",
       "reviewer-root": "claude_local",
     });
   });
@@ -142,7 +179,8 @@ describe("validateModelSettings", () => {
 
   it("vai: đủ 9 vai, model theo runtime của vai, effort theo key và vai bắt buộc effort", () => {
     expect(pathsOf((s) => { delete s.roles.bmad; })).toEqual(["roles.bmad"]);
-    expect(pathsOf((s) => { s.roles.designer = { model: "claude-opus-5-5", effort: null }; })).toEqual(["roles.designer"]);
+    expect(pathsOf((s) => { s.roles.painter = { model: "claude-opus-5-5", effort: null }; })).toEqual(["roles.painter"]);
+    expect(pathsOf((s) => { delete s.roles.designer; })).toEqual(["roles.designer"]);
     expect(pathsOf((s) => { s.roles["executor-codex"].model = "claude-opus-5-5"; })).toEqual(["roles.executor-codex.model"]);
     expect(pathsOf((s) => { s.roles["executor-opencode"].effort = "high"; })).toEqual(["roles.executor-opencode.effort"]);
     for (const role of ["executor-codex", "reviewer-codex", "reviewer-root"]) {

@@ -131,7 +131,7 @@ export function checkAgentAdapterOverrides(
 export const CREW_REVIEWER_RUNTIMES: readonly CrewRuntime[] = Object.freeze(["claude_local", "codex_local"]);
 /** Model mặc định của reviewer Codex (vai `reviewer-codex` của cài đặt model), không có override theo issue. */
 export const CREW_CODEX_REVIEWER_MODEL = Object.freeze({ model: "gpt-6-sol", effort: "high" } as const);
-export type CrewIssueTemplate = "child" | "root" | "research" | "bmad";
+export type CrewIssueTemplate = "child" | "root" | "research" | "bmad" | "design";
 export interface ReviewerChoice {
   agentId: string;
   runtime: "claude_local" | "codex_local";

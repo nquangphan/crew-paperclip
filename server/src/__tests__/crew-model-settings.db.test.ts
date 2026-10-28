@@ -524,4 +524,56 @@ suite("Crew: cài đặt model", () => {
     expect((await db.select().from(agentConfigRevisions).where(eq(agentConfigRevisions.agentId, crew.solAgent))).length).toBe(revisionsBefore);
     expect((await issueRow(open)).assigneeAdapterOverrides).toEqual({ adapterConfig: { model: "gpt-6-sol" } });
   });
+
+  it("dòng đã lưu trước khi có vai designer vẫn đọc được và giữ giá trị owner", async () => {
+    const saved = clone((await current()).settings);
+    const legacy = structuredClone(saved) as unknown as { roles: Record<string, unknown> };
+    delete legacy.roles.designer;
+    await db.execute(sql`INSERT INTO ${sql.raw(crewModelSettingsTable())} (revision, settings, change, created_by_user_id)
+      VALUES (6, ${JSON.stringify(legacy)}::jsonb, '{}'::jsonb, ${ADMIN})`);
+    clearModelSettingsCache();
+    const res = await get();
+    expect(res.status).toBe(200);
+    expect(res.body.revision).toBe(6);
+    expect(res.body.settings).toEqual({ ...saved, roles: { ...saved.roles, designer: { model: "claude-opus-5-5", effort: null } } });
+    // PUT vẫn đòi đủ vai.
+    const missing = await put({ baseRevision: 6, settings: legacy, dryRun: true });
+    expect(missing.status).toBe(422);
+    expect(missing.body.issues.map((i: { path: string }) => i.path)).toEqual(["roles.designer"]);
+  });
+
+  it("roleAgents nhận agent UIUX theo skill ui-ux-pro-max: đổi mặc định vai designer đổi model agent đó", async () => {
+    const designer = randomUUID();
+    const plain = randomUUID();
+    const codexWithSkill = randomUUID();
+    const skillSync = { desiredSkills: [`${crew.companyId}/ui-ux-pro-max`] };
+    await db.insert(agents).values([
+      {
+        id: designer, companyId: crew.companyId, name: "o-uiux", role: "engineer", status: "idle", adapterType: "claude_local",
+        adapterConfig: { model: "claude-opus-5-5", extraArgs: [], paperclipSkillSync: skillSync }, permissions: {}, runtimeConfig: {},
+      },
+      {
+        id: plain, companyId: crew.companyId, name: "p-plain", role: "engineer", status: "idle", adapterType: "claude_local",
+        adapterConfig: { model: "claude-opus-5-5", paperclipSkillSync: { desiredSkills: [] } }, permissions: {}, runtimeConfig: {},
+      },
+      {
+        id: codexWithSkill, companyId: crew.companyId, name: "q-codex-skill", role: "engineer", status: "idle",
+        adapterType: "codex_local", adapterConfig: { model: "gpt-6-sol", modelReasoningEffort: "high", paperclipSkillSync: skillSync },
+        permissions: {}, runtimeConfig: {},
+      },
+    ]);
+    const next = clone((await current()).settings);
+    next.roles.designer = { model: "claude-sonnet-5-5", effort: null };
+    const saved = await put({ baseRevision: 6, settings: next });
+    expect(saved.status).toBe(200);
+    expect(saved.body.applied.agents).toEqual([
+      {
+        agentId: designer, companyId: crew.companyId, name: "o-uiux", role: "designer",
+        from: { model: "claude-opus-5-5", effort: null }, to: { model: "claude-sonnet-5-5", effort: null },
+      },
+    ]);
+    expect(await configOf(designer)).toMatchObject({ model: "claude-sonnet-5-5", paperclipSkillSync: skillSync });
+    expect((await configOf(plain)).model).toBe("claude-opus-5-5");
+    expect((await configOf(codexWithSkill)).model).toBe("gpt-6-sol");
+  });
 });
