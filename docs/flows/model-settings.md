@@ -10,7 +10,7 @@ instance gồm ba phần:
 - `catalog`: model của `claude_local`, `codex_local`, `opencode_local` (cờ `vision`), key effort của runtime và ô bảng độ
   khó `byComplexity` (model, effort theo mức `trivial|small|medium|large`);
 - `order`: thứ tự runtime của từng mức (`large` chỉ `claude_local`);
-- `roles`: model và effort mặc định của 9 vai (`assistant`, `executor`, `reviewer`, `integrator`, `bmad`,
+- `roles`: model và effort mặc định của 10 vai (`assistant`, `executor`, `reviewer`, `integrator`, `bmad`, `designer`,
   `executor-codex`, `executor-opencode`, `reviewer-codex`, `reviewer-root`). `reviewer-root` không phải agent: đó là
   override server gắn khi giao issue gốc cho reviewer Claude.
 
@@ -43,18 +43,21 @@ Luật:
 
 1. `server/src/crew/model-settings.ts` → `CREW_MODEL_SETTINGS_DEFAULT`: dựng từ `CREW_RUNTIME_CATALOG`,
    `CREW_RUNTIME_ORDER`, `CREW_CODEX_REVIEWER_MODEL` của `model-policy.ts`; vai Claude theo crew-web (Trợ Lý opus, còn lại
-   sonnet), `bmad` theo agent BMAD trên prod (`claude-opus-5-5`), executor Codex/OpenCode theo hàng `small`, reviewer gốc
+   sonnet), `bmad` theo agent BMAD trên prod (`claude-opus-5-5`), `designer` (agent UIUX) `claude-opus-5-5` như BMAD, executor Codex/OpenCode theo hàng `small`, reviewer gốc
    `claude-opus-5-5`/`high`.
 2. `server/src/crew/model-settings.ts` → `validateModelSettings`: luật dạng, thứ tự, ô bảng độ khó (có ô khi và chỉ khi
    runtime nằm trong thứ tự của mức), `large` chỉ dùng model `vision: true`, một id model chỉ thuộc một runtime (nâng hàng loạt và
-   `crew_model_in_use` tìm theo id), đủ 9 vai và effort theo key của runtime
+   `crew_model_in_use` tìm theo id), đủ 10 vai và effort theo key của runtime
    (`executor-codex`, `reviewer-codex`, `reviewer-root` bắt buộc có effort). Trả bản sạch hoặc
    `issues: [{ path, message }]`; `path` nối bằng dấu chấm, id model giữ nguyên (có thể chứa `.` hay `/`).
 3. `server/src/crew/model-settings.ts` → `loadModelSettings`, `readModelSettingsRow`: đọc dòng revision lớn nhất bằng
    `readPluginRows` (savepoint, an toàn trong `tx` của H2/H4), cache 60 giây trong process; lưu thành công ghi đè cache
    ngay (`rememberModelSettings`; bản cũ hơn bản đang cache còn hạn thì bỏ qua, để một lần `GET` đọc trước khi lưu commit
    không đè bản vừa lưu). Bảng chưa có hay chưa có dòng: mặc định. Đọc lỗi hay dòng sai dạng: cache gần nhất,
-   chưa có thì mặc định, cảnh báo tối đa 1 lần/phút.
+   chưa có thì mặc định, cảnh báo tối đa 1 lần/phút. Trước khi kiểm luật, `fillMissingRoles` điền mặc định cho vai thiếu
+   hẳn khóa (dòng lưu trước khi có vai `designer`), nên bảng owner đã sửa không bị rơi về mặc định; model mặc định không
+   còn trong catalog của dòng thì lấy model của vai đã lưu đầu tiên cùng runtime. `PUT` không đi qua bước này, vẫn đòi
+   đủ vai; lần lưu sau ghi đủ 10 vai.
 4. `server/src/crew/model-settings.ts` → `codexReviewerOverrides`, `rootReviewerOverrides`: override reviewer Codex và
    reviewer gốc dựng từ `roles` và key effort của runtime; `issue-gate.ts` (`routeAssigneeOverrides`) dùng chúng, H2/H4
    truyền `settings.catalog` cho `checkAgentAdapterOverrides` (flow `issue-gate`).
@@ -63,7 +66,8 @@ Luật:
    company Crew (`422 crew_model_in_use`), thêm dòng `revision = baseRevision + 1` (trùng khóa chính cũng là `409`), rồi
    với mỗi vai có model hay effort đổi (trừ `reviewer-root`) đổi agent của vai:
    - nguồn vai: các cột của `crew_project_roles` trên mọi company, cộng agent BMAD (`extraArgs` có
-     `/.crew/workflows/bmad/`); chỉ agent đúng runtime của vai và chưa `terminated`;
+     `/.crew/workflows/bmad/`) và agent UIUX (`claude_local` có `adapterConfig.paperclipSkillSync` chứa
+     `ui-ux-pro-max`, hằng `DESIGNER_SKILL_FRAGMENT`); chỉ agent đúng runtime của vai và chưa `terminated`;
    - agent đúng model mặc định cũ thì đổi model; effort chỉ đổi khi effort mặc định đổi và effort của agent đúng bằng
      effort cũ (effort mới `null` thì xóa key);
    - bỏ qua có lý do: `manual` (khác model cũ, hay effort chỉnh tay khi chỉ effort đổi), `pending_approval`, `multi_role`
@@ -142,14 +146,16 @@ Luật:
 
 ## Tests
 
-- `server/src/__tests__/crew-model-settings.test.ts`: mặc định bằng hằng số cũ và hợp lệ; mỗi luật có ca lỗi kèm `path`;
+- `server/src/__tests__/crew-model-settings.test.ts`: mặc định bằng hằng số cũ và hợp lệ; `fillMissingRoles` điền vai
+  thiếu (dòng cũ, model mặc định đã gỡ khỏi catalog) và không đụng giá trị sai; mỗi luật có ca lỗi kèm `path`;
   override reviewer theo vai; `applyUpgradeToSettings` cho `renamed` và `merged`.
 - `server/src/__tests__/crew-model-settings.db.test.ts` (Postgres nhúng, migration plugin thật): chưa có bảng thì `GET`
   mặc định, `PUT`/`POST` `503`; quyền theo actor; `400`/`422`/`409`; dry-run không ghi gì và trả đúng kết quả lần thật;
   đổi mặc định vai (`manual`, `pending_approval`, `multi_role`, activity và revision cấu hình); `crew_model_in_use`; H2/H4
   nhận model vừa thêm và chặn model vừa gỡ; override reviewer theo `roles`; đọc bảng lỗi không làm hỏng lệnh ghi issue;
   nâng hàng loạt `renamed`/`merged`, issue `done` và company khác không đổi, `vision: false` ở `large` bị `422`, lỗi giữa
-  chừng rollback toàn bộ.
+  chừng rollback toàn bộ; dòng cũ thiếu `designer` vẫn đọc được và giữ giá trị owner, `PUT` thiếu vai bị `422`; agent
+  `claude_local` có skill `ui-ux-pro-max` nhận vai `designer` (agent không có skill hay khác runtime không đổi).
 - `packages/crew-web/test/api/model-settings.test.ts`: client gửi đúng method, đường dẫn và body (kể cả `dryRun`);
   `modelSettingsErrorOf` phân loại `422` sai luật, `422` đang dùng, `409`, `403`, `503` và lỗi mạng.
 - `server/src/__tests__/crew-bridge-allowlist.test.ts`: allowlist chỉ cho qua `GET /api/crew/model-settings`.

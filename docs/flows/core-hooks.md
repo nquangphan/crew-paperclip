@@ -66,7 +66,8 @@ import cuối file để merge upstream ít conflict), mô tả lý do và `upst
 
 ## Flow liên quan
 
-- `issue-gate`, `qc-department`: implementation của H2 và H4.
+- `issue-gate`, `qc-department`: implementation của H2 và H4 (mô tả H4 nhắc template owner duyệt cho con
+  `crew-kind bmad` và con mockup `crew-kind design`).
 - `agent-guards`: implementation của H5 và các vá route C1–C5.
 - `run-claim`, `runtime-switches`, `runtime-fallback`: implementation của H1.
 - `ssh-run-lifecycle`: implementation của H3, vá P1, P8, C9.

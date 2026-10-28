@@ -57,7 +57,8 @@ runtime khác, thay vì để issue nằm im. Luật chính:
    server. Model của dòng `select` reviewer Codex lấy từ vai `reviewer-codex` của bảng cài đặt model.
 6. `packages/crew-plugin/src/runtimes/catalog.ts` → `readModelSettings`, `parseModelSettings`: đọc dòng `revision` lớn nhất
    của `crew_model_settings` (chỉ server ghi). Chưa có dòng, đọc lỗi hoặc sai dạng thì dùng `CREW_MODEL_SETTINGS_DEFAULT`,
-   bản chép bảng mặc định của server có test so nguyên văn; không cache.
+   bản chép bảng mặc định của server có test so nguyên văn; không cache. Dòng lưu trước khi có một vai (vai `designer`)
+   thiếu hẳn khóa của vai đó thì vai được điền mặc định, như server đọc dòng cũ.
 7. `server/src/crew/runtime-fallback.ts` → `fallbackPreviousRunId`: H1 tìm run cũ cần kiểm theo quyết định `fallback`
    mới nhất (không theo lý do wake, vì recovery lõi có thể đánh thức đích trước plugin); `fallbackProgressComment`,
    `fallbackDirtyComment` dựng comment. Worktree cũ còn thay đổi chưa commit thì issue bị chặn chờ owner.
@@ -108,7 +109,8 @@ runtime khác, thay vì để issue nằm im. Luật chính:
 - `packages/crew-plugin/src/__tests__/runtime-machine-pin.db.test.ts`: máy ghim của cây thắng luật đường dẫn; cây chưa
   ghim giữ luật cũ; không đọc issue của company khác.
 - `packages/crew-plugin/src/__tests__/runtime-machine.test.ts`: workspace của environment lấy từ refs của wizard.
-- `packages/crew-plugin/src/__tests__/runtimes-catalog.test.ts`: bản chép khớp bảng chung và bản server.
+- `packages/crew-plugin/src/__tests__/runtimes-catalog.test.ts`: bản chép khớp bảng chung và bản server; dòng cũ thiếu
+  vai `designer` được điền mặc định.
 - `server/src/__tests__/crew-runtime-fallback-reconcile.test.ts`: lệnh tách nhánh, đọc kết quả tách, comment, H1 tìm và
   kiểm run cũ một lần.
 - `server/src/__tests__/crew-runtime-handoff.db.test.ts`: override của executor không theo sang reviewer; fallback theo
