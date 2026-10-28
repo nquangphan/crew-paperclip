@@ -81,18 +81,30 @@ Mô tả và lý do chi tiết của từng vá: `crew/release/core-hooks.json` 
    đó (`404`), của chính người gọi (`403 crew_assistant_call_not_author`); Trợ Lý của project theo `crew_project_roles`
    (`409 crew_assistant_missing`); bình luận có link `agent://` tới Trợ Lý (`extractAgentMentionIds`, `422
    crew_assistant_not_mentioned`). Chống gọi trùng bằng khóa trong process và wake có `idempotencyKey =
-   crew-assistant-call:<commentId>` (`200 { status: "already" }`). Rồi `heartbeat.wakeup` (nhập lười) với `source:
-   "automation"`, reason `crew_assistant_called`, người gọi là owner, context `{ taskId, wakeReason, wakeCommentId,
-   source: "crew.assistant_call", crewAssistantCall: { issueId, commentId } }`, không có `issueId` (lý do ở mục Mục
-   đích). Adapter vẫn đặt `PAPERCLIP_TASK_ID`, `PAPERCLIP_WAKE_REASON`, `PAPERCLIP_WAKE_COMMENT_ID`. Trả `202 { status:
-   "queued" | "deferred" | "skipped", runId, skipReason? }` (`deferred` khi issue đang có run `running` của agent khác) và
-   ghi activity `crew.assistant_called`.
+   crew-assistant-call:<commentId>` (`200 { status: "already" }`); dòng wake `skipped` hay `cancelled` không tính, nên
+   bình luận bị lõi bỏ gọi lại được. Rồi `heartbeat.wakeup` (nhập lười) với `source: "automation"`, reason
+   `crew_assistant_called`, người gọi là owner, context `{ taskId, wakeReason, wakeCommentId, source:
+   "crew.assistant_call", crewAssistantCall: { issueId, commentId } }`, không có `issueId` (lý do ở mục Mục đích), và
+   `allowRunCoalescing: false`. Không có cờ đó thì lời gọi thứ hai trên cùng issue gộp vào run đang bị giữ; bản gộp chỉ giữ
+   `wakeCommentId` mới nhất và adapter chỉ xuất biến đó, nên bình luận gọi trước bị mất. Chiều ngược lại an toàn sẵn: wake
+   của lõi có `issueId` đi nhánh issue, nhánh này chỉ nhắm run có `issueId` hay `execution_run_id` của issue. Adapter vẫn
+   đặt `PAPERCLIP_TASK_ID`, `PAPERCLIP_WAKE_REASON`, `PAPERCLIP_WAKE_COMMENT_ID`. Trả `202 { status: "queued" |
+   "deferred", runId }` (`deferred` khi issue đang có run `running` của agent khác) và ghi activity
+   `crew.assistant_called`. Lõi không nhận wake (Trợ Lý pause hay không chạy được, hết ngân sách, chạm trần ngày, tắt
+   đánh thức theo yêu cầu: lõi ném 409 hay ghi dòng `skipped`) thì trả `409 crew_assistant_call_skipped` với câu tiếng
+   Việt nêu lý do và `details.skipReason`; crew-web hiện câu đó.
 5. `server/src/crew/assistant-call-routes.ts` → `holdAssistantCallRun` (H1): chỉ xét run `queued` có `wakeReason =
    crew_assistant_called`; giữ khi task (`taskId`) có run `running` của agent khác (theo `issueId` trong context,
    `native_issue_id` hay `issues.execution_run_id`). Run `queued` của agent khác không tính, để không khóa chéo. Scheduler
    thử claim lại mỗi tick (`resumeQueuedRuns`) nên Trợ Lý chạy ngay sau khi run kia xong. Giữ không giới hạn; không đổi
    status issue, không comment. Đọc lỗi thì giữ. Mọi run khác đi đường cũ. Vì run không mang `issueId`, lõi không khóa
    issue cho Trợ Lý: run của agent khác tới sau vẫn chạy song song với Trợ Lý.
+
+   Hạn chế đã biết:
+   - Run gọi bằng tag không qua pause hold của cây (`claimQueuedRun` chỉ xét pause hold khi run có `issueId`), nên
+     `@tro-ly` gửi lúc cây đang pause vẫn chạy và có thể tạo con dưới cây đó.
+   - H1 kiểm rồi lõi mới claim, không nguyên tử, và chỉ đếm run `running`: run của agent khác đang `queued` mà được claim
+     cùng tick không chặn Trợ Lý, nên trong khe đó hai run có thể bắt đầu cùng lúc.
 6. `packages/crew-plugin/src/run-cancelled.ts` → `registerRunCancelledHandler`: chỉ xử lý run đã bắt đầu, bị hủy với mã
    `cancelled` hoặc không mã (hủy tự động của lõi có mã riêng và kèm lệnh ghi chuyển issue, chen vào sẽ đua); issue còn
    `in_progress`, đúng assignee, không bị run khác giữ thì chuyển `blocked` và comment.
@@ -137,7 +149,10 @@ Mô tả và lý do chi tiết của từng vá: `crew/release/core-hooks.json` 
   ai giữ issue thì Trợ Lý chạy ngay với `crew_assistant_called` và `wakeCommentId`, status và assignee của gốc không đổi;
   integrator có run `running` thì route trả `deferred`, run của Trợ Lý ở `queued` qua nhiều tick rồi chạy sau khi run
   integrator xong; run của agent khác không bị giữ (integrator chạy khi Trợ Lý đang chạy, run `queued` của agent khác
-  không giữ Trợ Lý); gọi lại cùng bình luận không tạo wake thứ hai; `403`/`404`/`422`/`409`/`400`; wake
+  không giữ Trợ Lý); owner gọi hai lần liên tiếp khi run đang bị giữ thì mỗi bình luận một run, Trợ Lý xử lý cả hai (bỏ
+  `allowRunCoalescing: false` là test hỏng); wake thường của lõi (có `issueId`, hay không có task) không đổi context của run
+  gọi bằng tag đang chờ; Trợ Lý pause hay tắt đánh thức thì `409 crew_assistant_call_skipped`, bình luận không bị khóa và
+  gọi lại sau khi bật thì chạy; gọi lại cùng bình luận không tạo wake thứ hai; `403`/`404`/`422`/`409`/`400`; wake
   `issue_comment_mentioned` của lõi trả `null`, không run, không wake hoãn.
 
 - `server/src/__tests__/crew-handoff-rewake.test.ts`: wake bị bỏ được phát lại đúng một lần sau khi lease nhả; wakeup

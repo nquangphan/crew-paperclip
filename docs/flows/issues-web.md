@@ -86,9 +86,12 @@ Luật chính:
 `packages/crew-web/src/features/issues/detail/composer.tsx` → `StockComposer`: bình luận có `@tro-ly` hay `@Trợ Lý` thì
 lúc gửi đọc vai trò project (`queryClient.fetchQuery`, khóa `roles(projectId)`; issue không có project coi như không có
 Trợ Lý), `assistant-mention.ts` → `toAssistantMention` đổi tag thành `[@Trợ Lý](agent://<id>)` (không phân biệt hoa
-thường, so sau NFC, đứng riêng một từ, bỏ qua code block, inline code và link đã có). Gửi bình luận xong thì gọi
-`api.assistantCall.call` (`POST /api/crew/companies/:companyId/issues/:issueId/assistant-call` `{ commentId }`, route
-của flow `run-handoff`). Gọi lỗi (403/409/422/mạng, hay route trả `skipped`) hoặc project không có Trợ Lý thì chỉ hiện
+thường, so sau NFC, đứng riêng một từ). Hàm che trước code block có rào và thụt lề (≥ 4 dấu cách hay tab, mở sau dòng
+trống, không nằm trong list), inline code, link đã có, thẻ và comment HTML bằng ký tự giữ chỗ cùng độ dài, rồi xét ranh
+giới từ trên cả chuỗi: tag dính ngay sau inline code hay thẻ HTML (`` `x`@tro-ly ``, `<b>@tro-ly</b>`) không khớp. Gửi
+bình luận xong thì gọi `api.assistantCall.call` (`POST /api/crew/companies/:companyId/issues/:issueId/assistant-call`
+`{ commentId }`, route của flow `run-handoff`). Gọi lỗi (403/409/422/mạng; Trợ Lý pause hay hết ngân sách thì server trả
+`409 crew_assistant_call_skipped` với câu nêu lý do) hoặc project không có Trợ Lý thì chỉ hiện
 thông báo nhẹ dưới ô ("Đã gửi bình luận nhưng chưa gọi được Trợ Lý: …", "Project này chưa có Trợ Lý"); bình luận vẫn
 gửi, thông báo mất ở lần gửi sau. Bình luận không có tag không đọc vai trò.
 
@@ -146,10 +149,11 @@ gửi, thông báo mất ở lần gửi sau. Bình luận không có tag không
 ## Tests
 
 - `packages/crew-web/test/features/issues/assistant-mention.test.ts`: bảng ca khớp và không khớp (hoa thường, dấu câu,
-  `email@tro-ly.vn`, code block, inline code, link có sẵn, NFD), không có Trợ Lý thì `missing`.
+  `email@tro-ly.vn`, code block có rào và thụt lề, inline code, tag dính sau inline code hay thẻ HTML, thuộc tính và
+  comment HTML, link có sẵn, NFD; dòng thụt lề trong list hay nối đoạn văn vẫn đổi), không có Trợ Lý thì `missing`.
 - `packages/crew-web/test/features/issues/composer.test.tsx` (phần tag): đổi tag và gọi `assistant-call` với id bình
   luận; không tag thì không đọc vai trò; không có Trợ Lý hay issue không project thì báo nhẹ; gọi lỗi 403 vẫn gửi bình
-  luận và thông báo mất ở lần gửi sau.
+  luận và thông báo mất ở lần gửi sau; `409 crew_assistant_call_skipped` hiện câu lý do của server.
 
 - `packages/crew-plugin/src/__tests__/force-done.test.ts`: route chỉ cho board, chặn trước khi ghi, đóng issue kèm lý
   do và cảnh báo phụ.

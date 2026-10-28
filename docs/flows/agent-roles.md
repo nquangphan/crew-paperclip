@@ -85,8 +85,10 @@ Marker và luật các vai khác:
   `docs/design/mockups/`, `docs/design-system.md` và docs flow; mở mockup ở đúng `sha`, đối chiếu tài liệu UI và token; đủ
   ảnh (`images=`) và giải thích; không chạy test code. Reviewer Codex không nhận loại issue này.
 - Executor (`executor.md`, mục "Con code theo mockup"): con có `crew-design on=<identifier>` đọc con thiết kế (`done`, đủ hai
-  stage), lấy `crew-design-result` có `sha` bằng `crew-review … verdict=approved`, xem mockup bằng `git show <sha>:<dir>/…`
-  hay worktree tạm, làm đúng mockup (lệch thì ghi lý do), rồi ghi dòng riêng `crew-design-used sha=<sha12> dir=<dir>` ngay
+  stage), lấy `crew-design-result` có `sha` bằng `crew-review … verdict=approved`, kiểm `git cat-file -e <sha>^{commit}`
+  (thiếu thì `git fetch origin` rồi kiểm lại; vẫn thiếu thì làm theo ảnh và giải thích của con thiết kế, ghi rõ trong
+  `crew-commit` là không đọc được file mockup, không đoán; không có cả ảnh lẫn giải thích thì `blocked`), xem mockup bằng
+  `git show <sha>:<dir>/…` hay worktree tạm, làm đúng mockup (lệch thì ghi lý do), rồi ghi dòng riêng `crew-design-used sha=<sha12> dir=<dir>` ngay
   sau dòng `crew-commit` (không nhét vào dòng `crew-commit`, vì test template neo `result=pass$`).
 
 ## Trợ Lý được gọi bằng tag
@@ -100,8 +102,14 @@ ai). Mục "Được gọi bằng tag" của `assistant.md`, xét trước mọi
 - Chỉ làm việc của Trợ Lý: thêm hay sửa con theo kế hoạch `revision=call-<8 ký tự đầu commentId>` (đủ luật ghi kế hoạch, tách
   việc, gồm con thiết kế; khóa ổn định nên đánh thức lại không tạo trùng), cập nhật tổng kết, thêm hình, hỏi owner ngay trong
   comment trả lời. Không đổi `status`/assignee của issue đang ở stage người khác, không làm thay executor, reviewer, integrator.
+- Kiểm chỗ ghi trước: server từ chối agent không phải assignee ghi lên issue `in_progress` (`issue_write_assignee_run_lock`).
+  Gốc đang `in_progress` và giao agent khác thì không ghi gì rồi dừng, vì kế hoạch, tổng kết và câu trả lời đều nằm trên
+  gốc; owner gọi lại khi gốc rời `in_progress`.
 - Trả lời bằng comment mới, dòng đầu `Trợ Lý trả lời bình luận <giờ VN> của <tên owner>:`; `description` đi chung `PATCH` cuối
-  trên gốc, không kèm `status`. Gốc đang giao cho Trợ Lý thì làm tiếp các bước thường trong cùng run.
+  trên gốc, không kèm `status`. Bình luận trên con mà con đang `in_progress` của agent khác (hay `POST` trên con trả mã khóa
+  đó) thì không thử lại trên con: câu trả lời thành comment của `PATCH` cuối trên gốc, dòng đầu thêm
+  `(bình luận trên <identifier con>)`. `PATCH` cuối trên gốc cũng bị khóa thì dừng, không thử lại, không ghi nơi khác. Gốc
+  đang giao cho Trợ Lý thì làm tiếp các bước thường trong cùng run.
 
 ## Loại yêu cầu Lập kế hoạch (`plan`)
 
@@ -214,7 +222,7 @@ Giống loại `docs`: loại chỉ là nhãn Paperclip `plan` trên issue gốc
 - `crew/agents/instructions.test.mjs`: luật chung của mọi template (cấm xóa đệ quy ngoài thư mục tạm), dòng mẫu
   `crew-docs-check`, `crew-merge`, `crew-fix`, `crew-commit`, `crew-review` khớp định dạng và regex của server, cách
   integrator nhận diện stage. Loại yêu cầu Lập kế hoạch: Trợ Lý nhận bằng nhãn `plan`, hỏi owner trước khi tạo con, chỉ tạo con `crew-kind plan`
-  và ghi `- File kế hoạch:` trong tổng kết; executor, reviewer, integrator có luật tương ứng. Tổng kết của Trợ Lý: có từ lúc lập kế hoạch, đủ mục Yêu cầu/Việc con/Hình ảnh theo thứ tự, cập nhật mỗi run bằng `PATCH` ghi cuối, giữ `### Merge request`. Bảng model: `assistant.md` không chứa id model nào, có đúng lệnh `curl` đọc bảng cùng bốn đường dẫn JSON và đường lui khi lệnh lỗi. Agent UIUX: `designer.md` đi qua mọi luật chung, dòng mẫu `crew-design-result` và `crew-commit` khớp định dạng, cấm sửa code app, CDN và `--persist`, mục File đính kèm giống executor; Trợ Lý có bước con thiết kế (dòng `crew-kind design` đứng riêng, `child-key=design-1`, kiểm 2 stage) và mục "Được gọi bằng tag"; reviewer có mục Issue thiết kế đúng thứ tự; executor có mục `crew-design on=` và dòng `crew-design-used`.
+  và ghi `- File kế hoạch:` trong tổng kết; executor, reviewer, integrator có luật tương ứng. Tổng kết của Trợ Lý: có từ lúc lập kế hoạch, đủ mục Yêu cầu/Việc con/Hình ảnh theo thứ tự, cập nhật mỗi run bằng `PATCH` ghi cuối, giữ `### Merge request`. Bảng model: `assistant.md` không chứa id model nào, có đúng lệnh `curl` đọc bảng cùng bốn đường dẫn JSON và đường lui khi lệnh lỗi. Agent UIUX: `designer.md` đi qua mọi luật chung, dòng mẫu `crew-design-result` và `crew-commit` khớp định dạng, cấm sửa code app, CDN và `--persist`, mục File đính kèm giống executor; Trợ Lý có bước con thiết kế (dòng `crew-kind design` đứng riêng, `child-key=design-1`, kiểm 2 stage) và mục "Được gọi bằng tag" (bước kiểm khóa ghi trên gốc đứng trước bước làm việc, con `in_progress` thì trả lời trên gốc, không thử lại lệnh bị khóa); reviewer có mục Issue thiết kế đúng thứ tự; executor có mục `crew-design on=` và dòng `crew-design-used`, bước đọc mockup kiểm sha bằng `git cat-file -e`, `git fetch origin` rồi mới rơi về ảnh và giải thích.
 - `crew/agents/integrator-pr.test.mjs`: script mở pull request của integrator: mở mới, dùng lại, đã merge, origin không
   ở GitHub, `gh` chưa đăng nhập, nhánh đã đi khác (không `--force`), lỗi tạo PR có credential bị che, đầu vào sai. Nội dung PR bỏ mục `### Hình ảnh` của tổng kết.
 - `crew/agents/apply-roles.test.mjs`: thứ tự đọc → upload → PATCH, dừng trước khi ghi khi không đọc được, vai trò BMAD và
