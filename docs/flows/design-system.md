@@ -35,7 +35,10 @@ Cấu trúc thư mục, luật và cách xem thử nằm ở `packages/crew-web/
 3. `packages/crew-web/src/ds/components/app-frame.tsx` → `AppFrame`: khung trang cho shell; dưới `md` ẩn sidebar và mở
    thành ngăn kéo.
 4. `packages/crew-web/src/ds/widgets/`: widget ghép từ component (danh sách và chi tiết issue, bảng Kanban, markdown,
-   transcript, wizard, tài liệu...), không gọi API; dữ liệu do feature truyền vào.
+   transcript, wizard, tài liệu...), không gọi API; dữ liệu do feature truyền vào. Trong markdown, link mention agent
+   đúng dạng `agent://<uuid>` được `urlTransformFor` giữ lại và `MarkdownLink` hiện thành chip
+   `<span data-agent-mention>` (chữ là nội dung link, ví dụ `@Trợ Lý`, màu theo nền quanh nó), không phải thẻ `<a>`;
+   `agent:` sai dạng và `javascript:` vẫn bị bỏ.
 5. `packages/crew-web/src/ds/index.ts`: export mọi component và widget, gồm widget Crew và bản đồ Roadmap. Widget zoom ảnh (`image-zoom`, `image-zoom-view`) cũng qua cổng này.
 
 ## Files
@@ -79,5 +82,5 @@ Widget Crew trong `ds/widgets/crew/` và `ds/widgets/roadmap/`, và widget đín
   thô, component ghi nguồn, không kéo markdown hay `@xyflow` vào chunk đầu, bộ quét không xanh vì quét rỗng.
 - `packages/crew-web/test/guards/i18n.test.ts`: hai locale cùng khóa, không chữ cứng.
 - `packages/crew-web/test/ds/`: hành vi từng component và widget (button, dialog, confirm, alert, nhãn mặc định, dòng
-  danh sách, section và code block, status badge, markdown, wizard, ô soạn). Test trong `test/ds/crew/` và các test đính
+  danh sách, section và code block, status badge, markdown kể cả chip mention agent, wizard, ô soạn). Test trong `test/ds/crew/` và các test đính
   kèm, markdown-image thuộc flow tính năng tương ứng.

@@ -88,7 +88,7 @@ const EFFORTS: readonly string[] = ["low", "medium", "high"];
 const EFFORT_KEYS: readonly unknown[] = ["effort", "modelReasoningEffort", null];
 
 export const CREW_MODEL_ROLES = Object.freeze([
-  "assistant", "executor", "reviewer", "integrator", "bmad", "executor-codex", "executor-opencode", "reviewer-codex", "reviewer-root",
+  "assistant", "executor", "reviewer", "integrator", "bmad", "designer", "executor-codex", "executor-opencode", "reviewer-codex", "reviewer-root",
 ] as const);
 export type CrewModelRole = (typeof CREW_MODEL_ROLES)[number];
 
@@ -108,6 +108,7 @@ export const CREW_MODEL_SETTINGS_DEFAULT: Readonly<CrewModelSettings> = Object.f
     reviewer: { model: "claude-sonnet-5-5", effort: null },
     integrator: { model: "claude-sonnet-5-5", effort: null },
     bmad: { model: "claude-opus-5-5", effort: null },
+    designer: { model: "claude-opus-5-5", effort: null },
     "executor-codex": { model: "gpt-6-luna", effort: "medium" },
     "executor-opencode": { model: "opencode-go/kimi-k3", effort: null },
     "reviewer-codex": CREW_CODEX_REVIEWER_MODEL,
@@ -117,7 +118,8 @@ export const CREW_MODEL_SETTINGS_DEFAULT: Readonly<CrewModelSettings> = Object.f
 
 /**
  * Kiểm dạng đủ để plugin dùng an toàn (server đã kiểm luật trước khi ghi): ba runtime, mỗi ô độ khó trỏ tới model có
- * trong runtime, thứ tự không rỗng/không trùng, đủ 9 vai. Trả `null` khi sai dạng.
+ * trong runtime, thứ tự không rỗng/không trùng, đủ vai. Dòng lưu trước khi có một vai (ví dụ `designer`) thiếu hẳn khóa
+ * của vai đó thì vai được điền mặc định, như server đọc dòng cũ. Trả `null` khi sai dạng.
  */
 export function parseModelSettings(value: unknown): CrewModelSettings | null {
   const root = jsonObject(value);
@@ -141,11 +143,16 @@ export function parseModelSettings(value: unknown): CrewModelSettings | null {
     const list = order[level];
     if (!Array.isArray(list) || list.length === 0 || !list.every(isCrewRuntime) || new Set(list).size !== list.length) return null;
   }
+  const missing = CREW_MODEL_ROLES.filter((role) => !Object.hasOwn(roles, role));
   for (const role of CREW_MODEL_ROLES) {
+    if (missing.includes(role)) continue;
     const entry = jsonObject(roles[role]);
     if (!entry || typeof entry.model !== "string" || !(entry.effort === null || EFFORTS.includes(entry.effort as string))) return null;
   }
-  return root as unknown as CrewModelSettings;
+  if (missing.length === 0) return root as unknown as CrewModelSettings;
+  const filled = { ...roles };
+  for (const role of missing) filled[role] = { ...CREW_MODEL_SETTINGS_DEFAULT.roles[role] };
+  return { ...root, roles: filled } as unknown as CrewModelSettings;
 }
 
 /**

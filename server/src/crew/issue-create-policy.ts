@@ -51,6 +51,8 @@ export interface IssueCreateFields {
 
 /** Dòng riêng trong mô tả issue con do agent tạo: issue lập epic/story bằng BMAD, cần owner duyệt sau reviewer. */
 export const CREW_BMAD_KIND_RE = /^crew-kind bmad[ \t]*$/m;
+/** Dòng riêng trong mô tả issue con do agent tạo: issue làm mockup giao diện, cần owner duyệt sau reviewer. */
+export const CREW_DESIGN_KIND_RE = /^crew-kind design[ \t]*$/m;
 
 export type CreatePolicyDecision =
   | { kind: "keep" }
@@ -68,7 +70,7 @@ export type CreatePolicyDecision =
       violations?: string[];
     }
   | { kind: "set"; template: "child" }
-  | { kind: "set"; template: "root" | "research" | "bmad"; ownerUserId: string };
+  | { kind: "set"; template: "root" | "research" | "bmad" | "design"; ownerUserId: string };
 
 /** Agent không được tạo issue ở trạng thái đã kết thúc hoặc đang review (bỏ qua gate). */
 const AGENT_CREATE_FORBIDDEN_STATUSES = new Set(["done", "cancelled", "in_review"]);
@@ -76,7 +78,7 @@ const AGENT_CREATE_FORBIDDEN_STATUSES = new Set(["done", "cancelled", "in_review
 /**
  * Chỉ gọi cho company có trong file cấu hình Crew (`roles` null = cấu hình lỗi).
  * Agent chỉ tạo được issue con và luôn nhận template con (mọi policy agent gửi bị thay), trừ con có dòng
- * `crew-kind bmad` trong mô tả: nhận template bmad (reviewer rồi owner duyệt). Board gửi policy riêng
+ * `crew-kind bmad` hay `crew-kind design` trong mô tả: nhận template bmad/design (reviewer rồi owner duyệt). Board gửi policy riêng
  * thì giữ; không gửi thì nhận template theo loại issue, owner của template gốc lấy từ file cấu hình.
  * Board tạo issue gốc có nhãn research nhận template reviewer rồi owner. Issue gốc trong project theo dõi
  * (`trackingProjectIds`) không nhận policy; policy chốt lúc tạo, đổi project sau đó không đổi gì.
@@ -137,6 +139,10 @@ export function decideCreatePolicy(input: {
     if (CREW_BMAD_KIND_RE.test(data.description ?? "")) {
       if (!input.ownerUserId) return { kind: "reject", code: "crew_roles_unconfigured" };
       return { kind: "set", template: "bmad", ownerUserId: input.ownerUserId };
+    }
+    if (CREW_DESIGN_KIND_RE.test(data.description ?? "")) {
+      if (!input.ownerUserId) return { kind: "reject", code: "crew_roles_unconfigured" };
+      return { kind: "set", template: "design", ownerUserId: input.ownerUserId };
     }
     return { kind: "set", template: "child" };
   }

@@ -31,7 +31,9 @@ Luật áp theo company:
 2. `server/src/crew/issue-create-policy.ts` → `crewBeforeIssueCreate`, `decideCreatePolicy` (H4):
    - Agent chỉ tạo được issue con, cùng project với cha, không ở `done`/`cancelled`/`in_review`, không giao cho
      reviewer/integrator, giao việc theo luật Trợ Lý/executor của project (`agentAssignmentAllowed`), override chỉ model
-     và effort. Mọi policy agent gửi bị thay bằng template con; con có dòng `crew-kind bmad` nhận template `bmad`.
+     và effort. Mọi policy agent gửi bị thay bằng template con; con có dòng `crew-kind bmad` nhận template `bmad`, con có dòng `crew-kind design`
+     (mockup giao diện của agent UIUX) nhận template `design`. Hai marker chỉ xét sau mọi luật từ chối; thiếu owner trong
+     cấu hình thì `crew_roles_unconfigured`.
    - Board gửi policy riêng thì giữ; không gửi thì nhận template theo loại: con, gốc, gốc có nhãn `research`. Issue
      gốc trong project theo dõi không nhận policy.
    - Hệ thống: issue watchdog/recovery giữ stock, trừ khi giao lại cho chính executor của issue nguồn; routine do agent
@@ -43,8 +45,8 @@ Luật áp theo company:
      đứng trước reviewer Claude trong stage review, khi công tắc `codex_local` trên máy reviewer Codex đang bật. Máy của
      reviewer Codex suy theo cây của issue cha (`issueId: data.parentId`) khi cây đã ghim máy (flow `multi-machine`).
 3. `server/src/crew/issue-policy.ts` → `buildCrewPolicy`: dựng template đã normalize, `maxReviewRounds` là
-   `CREW_MAX_REVIEW_ROUNDS` (5). Gốc: reviewer, integrator (merge + docs), owner, integrator (push). Research và bmad:
-   reviewer, owner. Con: reviewer.
+   `CREW_MAX_REVIEW_ROUNDS` (5). Gốc: reviewer, integrator (merge + docs), owner, integrator (push). Research, bmad và
+   design: reviewer, owner (owner duyệt mockup trước khi con code giao diện bị chặn bởi nó được chạy). Con: reviewer.
 4. `server/src/crew/issue-gate.ts` → `crewBeforeIssueWrite` (H2): kiểm override model trước, rồi khi patch chạm
    `status`, `executionPolicy`, `executionState`, `assigneeAgentId` hoặc `projectId` thì khóa dòng issue, đọc vai trò
    (agent mà không đọc được bảng vai trò thì 503, không rơi về vai trò file), decision, activity mốc vòng, bằng chứng
@@ -77,7 +79,7 @@ Luật áp theo company:
 | Đường dẫn | Vai trò | Symbol chính |
 |-----------|---------|--------------|
 | `server/src/crew/issue-gate.ts` | H2: kiểm lệnh ghi issue | `crewBeforeIssueWrite`, `evaluateIssueGate`, `docsGateStages`, `pushGateStages`, `restartAfterOwnerChanges`, `CREW_CYCLE_RESET_ACTION` |
-| `server/src/crew/issue-create-policy.ts` | H4: chọn template, từ chối tạo sai luật | `crewBeforeIssueCreate`, `decideCreatePolicy`, `CREW_BMAD_KIND_RE`, `executorRuntimeOf`, `withProjectTag` |
+| `server/src/crew/issue-create-policy.ts` | H4: chọn template, từ chối tạo sai luật | `crewBeforeIssueCreate`, `decideCreatePolicy`, `CREW_BMAD_KIND_RE`, `CREW_DESIGN_KIND_RE`, `executorRuntimeOf`, `withProjectTag` |
 | `server/src/crew/issue-policy.ts` | File cấu hình, template policy, parser bằng chứng | `loadCrewCompanyConfig`, `buildCrewPolicy`, `parseCrewMergeEvidence`, `parseDocsCheckEvidence`, `CREW_HOUSEKEEPING_ORIGIN_KINDS` |
 | `server/src/crew/model-policy.ts` | Bảng runtime/model mặc định, luật override, chọn reviewer | `CREW_RUNTIME_CATALOG`, `CREW_RUNTIME_ORDER`, `checkAgentAdapterOverrides`, `chooseReviewer`, `CREW_CODEX_REVIEWER_MODEL` |
 | `server/src/services/issues.ts` | File upstream chứa H2, H4 | `issueService.create`, `issueService.update` |
@@ -114,7 +116,7 @@ Luật áp theo company:
 ## Tests
 
 - `server/src/__tests__/crew-issue-create-policy.test.ts`: các nhánh của `decideCreatePolicy` (agent, board, hệ
-  thống, research, project theo dõi, bmad, override theo runtime, watchdog trả về executor), `withProjectTag` và tag
+  thống, research, project theo dõi, bmad, design, override theo runtime, watchdog trả về executor), `withProjectTag` và tag
   `[tên project]` trên title qua `issueService.create`.
 - `server/src/__tests__/crew-issue-gate.test.ts`: parse file cấu hình (absent, invalid, hoa thường), đọc lại file mỗi
   lần, cảnh báo lúc khởi động, template policy, fingerprint policy, các nhánh của `evaluateIssueGate`.

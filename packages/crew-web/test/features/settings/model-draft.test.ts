@@ -38,7 +38,7 @@ describe('model-draft', () => {
   it('modelUsage tìm ô bảng độ khó và vai đang dùng model', () => {
     const u = modelUsage(SETTINGS, 'claude_local', 'claude-opus-5-5');
     expect(u.levels).toEqual(['large']);
-    expect(u.roles).toEqual(['assistant', 'bmad', 'reviewer-root']);
+    expect(u.roles).toEqual(['assistant', 'bmad', 'designer', 'reviewer-root']);
     expect(isUsed(modelUsage(SETTINGS, 'claude_local', 'claude-sonnet-5'))).toBe(false);
   });
 

@@ -125,7 +125,7 @@ describe('ModelSettingsPage', () => {
     );
     expect(within(table).queryByRole('combobox', { name: 'Effort của opencode_local ở mức small' })).toBeNull();
     const roles = screen.getByRole('region', { name: 'Model mặc định từng vai' });
-    expect(within(roles).getAllByRole('row')).toHaveLength(10);
+    expect(within(roles).getAllByRole('row')).toHaveLength(11);
     expect(within(roles).getByText('Override khi reviewer Claude duyệt issue gốc.')).toBeTruthy();
     expect((screen.getByRole('button', { name: 'Lưu' }) as HTMLButtonElement).disabled).toBe(true);
   });

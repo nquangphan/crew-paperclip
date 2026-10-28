@@ -252,6 +252,7 @@ File nào thuộc flow nào. Dùng `crew-docs where <file>` để tra từ dòng
 | `packages/crew-plugin/src/usage/data.ts` | [usage-storage](flows/usage-storage.md) (điểm vào) |
 | `packages/crew-plugin/src/usage/rollup.ts` | [usage-storage](flows/usage-storage.md) (file) |
 | `packages/crew-plugin/src/worker.ts` | [crew-plugin](flows/crew-plugin.md) (điểm vào) |
+| `packages/crew-web/src/api/crew/assistant-call.ts` | [issues-web](flows/issues-web.md) (file) |
 | `packages/crew-web/src/api/crew/contributions.ts` | [contributions](flows/contributions.md) (file) |
 | `packages/crew-web/src/api/crew/data.ts` | [web-shell](flows/web-shell.md) (file) |
 | `packages/crew-web/src/api/crew/force-done.ts` | [issues-web](flows/issues-web.md) (file) |
@@ -471,6 +472,7 @@ File nào thuộc flow nào. Dùng `crew-docs where <file>` để tra từ dòng
 | `packages/crew-web/src/features/inbox/tabs.ts` | [web-pages](flows/web-pages.md) (file) |
 | `packages/crew-web/src/features/inbox/use-inbox-badge.ts` | [web-pages](flows/web-pages.md) (file) |
 | `packages/crew-web/src/features/inbox/use-inbox-issues.ts` | [web-pages](flows/web-pages.md) (file) |
+| `packages/crew-web/src/features/issues/detail/assistant-mention.ts` | [issues-web](flows/issues-web.md) (file) |
 | `packages/crew-web/src/features/issues/detail/assistant-summary.tsx` | [issues-web](flows/issues-web.md) (file) |
 | `packages/crew-web/src/features/issues/detail/attachment-viewer-provider.tsx` | [issues-web](flows/issues-web.md) (file) |
 | `packages/crew-web/src/features/issues/detail/attachments.tsx` | [issues-web](flows/issues-web.md) (file) |
@@ -717,6 +719,7 @@ File nào thuộc flow nào. Dùng `crew-docs where <file>` để tra từ dòng
 | `packages/crew-web/test/features/inbox/tabs.test.ts` | [web-pages](flows/web-pages.md) (test) |
 | `packages/crew-web/test/features/issues/add-child-dialog.test.tsx` | [issues-web](flows/issues-web.md) (test) |
 | `packages/crew-web/test/features/issues/add-child.test.ts` | [issues-web](flows/issues-web.md) (test) |
+| `packages/crew-web/test/features/issues/assistant-mention.test.ts` | [issues-web](flows/issues-web.md) (test) |
 | `packages/crew-web/test/features/issues/attachment-viewer.test.tsx` | [issues-web](flows/issues-web.md) (test) |
 | `packages/crew-web/test/features/issues/attachments.test.tsx` | [issues-web](flows/issues-web.md) (test) |
 | `packages/crew-web/test/features/issues/comment-questions.test.ts` | [issues-web](flows/issues-web.md) (test) |
@@ -812,6 +815,7 @@ File nào thuộc flow nào. Dùng `crew-docs where <file>` để tra từ dòng
 | `server/src/__tests__/crew-agent-assignment.db.test.ts` | [issue-gate](flows/issue-gate.md) (test) |
 | `server/src/__tests__/crew-agent-board-only-routes.test.ts` | [agent-guards](flows/agent-guards.md) (test) |
 | `server/src/__tests__/crew-agent-config.test.ts` | [agent-guards](flows/agent-guards.md) (test) |
+| `server/src/__tests__/crew-assistant-call.db.test.ts` | [run-handoff](flows/run-handoff.md) (test) |
 | `server/src/__tests__/crew-before-claim.test.ts` | [run-claim](flows/run-claim.md) (test) |
 | `server/src/__tests__/crew-board-child.db.test.ts` | [issue-gate](flows/issue-gate.md) (test) |
 | `server/src/__tests__/crew-bridge-allowlist.test.ts` | [model-settings](flows/model-settings.md) (test) |
@@ -867,6 +871,7 @@ File nào thuộc flow nào. Dùng `crew-docs where <file>` để tra từ dòng
 | `server/src/app.ts` | [crew-plugin](flows/crew-plugin.md) (dùng chung), [contributions](flows/contributions.md) (dùng chung) |
 | `server/src/crew/agent-config-gate.ts` | [agent-guards](flows/agent-guards.md) (điểm vào) |
 | `server/src/crew/agent-write-guard.ts` | [agent-guards](flows/agent-guards.md) (điểm vào) |
+| `server/src/crew/assistant-call-routes.ts` | [run-handoff](flows/run-handoff.md) (điểm vào) |
 | `server/src/crew/bundle-resume.ts` | [run-claim](flows/run-claim.md) (file) |
 | `server/src/crew/contribution-routes.ts` | [contributions](flows/contributions.md) (điểm vào) |
 | `server/src/crew/contributions.ts` | [contributions](flows/contributions.md) (file) |

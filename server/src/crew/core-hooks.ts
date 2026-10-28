@@ -4,6 +4,7 @@ import { logger } from "../middleware/logger.js";
 import type { EnvironmentDriverReleaseInput } from "../services/environment-runtime.js";
 import { crewBeforeIssueCreate } from "./issue-create-policy.js";
 import { crewBeforeIssueWrite } from "./issue-gate.js";
+import { holdAssistantCallRun } from "./assistant-call-routes.js";
 import { applyBundleResumeSafely } from "./bundle-resume.js";
 import { crewBeforeClaim } from "./load-gate.js";
 import { crewResolveRunEnvironment } from "./machine-pin.js";
@@ -104,6 +105,8 @@ export const CREW_RUN_LEASE_RELEASE_HOOK_TIMEOUT_MS = 15_000;
 const implementations: CrewCoreHooks = {
   beforeAgentMutation: crewBeforeAgentMutation,
   beforeClaim: async (input) => {
+    // Run gọi Trợ Lý bằng tag chờ run `running` của agent khác trên cùng task (route `assistant-call` không mang issueId).
+    if (await holdAssistantCallRun(input)) return true;
     if (await crewBeforeClaim(input)) return true;
     await applyBundleResumeSafely(input);
     return false;

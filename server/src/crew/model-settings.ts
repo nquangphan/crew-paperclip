@@ -27,6 +27,7 @@ export type CrewModelRole =
   | "reviewer"
   | "integrator"
   | "bmad"
+  | "designer"
   | "executor-codex"
   | "executor-opencode"
   | "reviewer-codex"
@@ -39,6 +40,7 @@ export const CREW_MODEL_ROLE_RUNTIME: Readonly<Record<CrewModelRole, CrewRuntime
   reviewer: "claude_local",
   integrator: "claude_local",
   bmad: "claude_local",
+  designer: "claude_local",
   "executor-codex": "codex_local",
   "executor-opencode": "opencode_local",
   "reviewer-codex": "codex_local",
@@ -75,7 +77,8 @@ const smallCell = (runtime: CrewRuntime): CrewRoleModel => {
 
 /**
  * Mặc định = đúng giá trị prod trước khi có cài đặt model. Catalog và thứ tự lấy từ `model-policy.ts`. Vai Claude theo
- * `ROLE_MODELS` của crew-web (Trợ Lý opus, còn lại sonnet), BMAD theo agent BMAD trên prod (opus, đọc 27/10/2026),
+ * `ROLE_MODELS` của crew-web (Trợ Lý opus, còn lại sonnet), BMAD theo agent BMAD trên prod (opus, đọc 27/10/2026), UIUX
+ * (`designer`) opus như BMAD,
  * executor Codex/OpenCode theo hàng `small` của bảng như wizard, reviewer Codex theo `CREW_CODEX_REVIEWER_MODEL`, reviewer
  * gốc theo override cũ của `issue-gate.ts` (opus, high).
  */
@@ -88,6 +91,7 @@ export const CREW_MODEL_SETTINGS_DEFAULT: Readonly<CrewModelSettings> = deepFree
     reviewer: { model: "claude-sonnet-5-5", effort: null },
     integrator: { model: "claude-sonnet-5-5", effort: null },
     bmad: { model: "claude-opus-5-5", effort: null },
+    designer: { model: "claude-opus-5-5", effort: null },
     "executor-codex": smallCell("codex_local"),
     "executor-opencode": smallCell("opencode_local"),
     "reviewer-codex": { model: CREW_CODEX_REVIEWER_MODEL.model, effort: CREW_CODEX_REVIEWER_MODEL.effort },
@@ -409,6 +413,37 @@ export interface ModelSettingsRow {
 const WARN_SCOPE = "instance";
 
 /**
+ * Dòng đã lưu trước khi có một vai (ví dụ `designer`) không có khóa của vai đó: điền giá trị mặc định để bảng owner đã
+ * sửa vẫn đọc được. Chỉ điền khi thiếu hẳn khóa; giá trị sai dạng vẫn để `validateModelSettings` báo. Model mặc định không
+ * còn trong catalog của dòng thì lấy model của vai đã lưu đầu tiên cùng runtime. `PUT` không đi qua hàm này nên vẫn đòi
+ * đủ vai.
+ */
+export function fillMissingRoles(value: unknown): unknown {
+  if (!isRecord(value) || !isRecord(value.roles)) return value;
+  const rolesIn = value.roles;
+  const missing = CREW_MODEL_ROLES.filter((role) => !Object.hasOwn(rolesIn, role));
+  if (missing.length === 0) return value;
+  const roles: Record<string, unknown> = { ...rolesIn };
+  const catalog = isRecord(value.catalog) ? value.catalog : {};
+  for (const role of missing) {
+    const runtime = CREW_MODEL_ROLE_RUNTIME[role];
+    const spec = catalog[runtime];
+    const models = isRecord(spec) && isRecord(spec.models) ? spec.models : {};
+    const fallback = { ...CREW_MODEL_SETTINGS_DEFAULT.roles[role] };
+    if (!Object.hasOwn(models, fallback.model)) {
+      const sibling = CREW_MODEL_ROLES.find((other) => {
+        const entry = rolesIn[other];
+        return CREW_MODEL_ROLE_RUNTIME[other] === runtime && isRecord(entry) && typeof entry.model === "string" &&
+          Object.hasOwn(models, entry.model);
+      });
+      if (sibling) fallback.model = (rolesIn[sibling] as { model: string }).model;
+    }
+    roles[role] = fallback;
+  }
+  return { ...value, roles };
+}
+
+/**
  * Dòng hiện hành (revision lớn nhất), đọc trong savepoint. `undefined` khi bảng chưa có (plugin chưa áp `0023`),
  * `null` khi chưa có dòng nào. Lỗi SQL được ném cho bên gọi.
  */
@@ -421,7 +456,9 @@ export async function readModelSettingsRow(db: CrewRolesDb): Promise<ModelSettin
   if (rows === null) return undefined;
   const row = rows[0];
   if (!row) return null;
-  const parsed = validateModelSettings(typeof row.settings === "string" ? JSON.parse(row.settings) : row.settings);
+  const parsed = validateModelSettings(
+    fillMissingRoles(typeof row.settings === "string" ? JSON.parse(row.settings) : row.settings),
+  );
   if (!parsed.ok) {
     warnOncePerMinute(WARN_SCOPE, "model-settings-invalid", { revision: row.revision, issues: parsed.issues.slice(0, 5) },
       "crew model settings row is invalid; using the last good settings");

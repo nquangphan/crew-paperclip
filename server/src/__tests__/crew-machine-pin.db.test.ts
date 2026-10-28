@@ -5,7 +5,7 @@ import { eq } from "drizzle-orm";
 import { getEmbeddedPostgresTestSupport, startEmbeddedPostgresTestDatabase } from "./helpers/embedded-postgres.js";
 import { applyCrewMachineTables, BOOK, MINI, seedCrewProject, seedPairing, seedReport, seedTemplate } from "./helpers/crew-machine-tables.js";
 import {
-  agentEnvironmentOnMachine, findRootIssueId, insertAutoPin, loadMachineCandidates, pairedMachine, readPin,
+  agentEnvironmentOnMachine, crewResolveRunEnvironment, findRootIssueId, insertAutoPin, loadMachineCandidates, pairedMachine, readPin,
   resolvePinnedEnvironment, setOwnerPin, treeStarted,
 } from "../crew/machine-pin.ts";
 
@@ -99,6 +99,20 @@ suite("ghim máy theo cây yêu cầu (Postgres)", () => {
     expect(await resolvePinnedEnvironment(db, input)).toBe(executor.environmentId);
     await db.execute(sql.raw(`UPDATE ${ns}.machine_pairings SET revoked_at = now() WHERE company_id = '${w.companyId}' AND machine_id = '${BOOK.machineId}'`));
     expect(await resolvePinnedEnvironment(db, input)).toBeNull();
+  });
+
+  it("crewResolveRunEnvironment: run gọi Trợ Lý bằng tag không có issueId thì lấy máy theo taskId; run khác thì không", async () => {
+    const w = await world();
+    const assistant = w.agents.assistant;
+    await insertAutoPin(db, { companyId: w.companyId, rootIssueId: w.root, machineId: BOOK.machineId, reason: {} });
+    const agent = { id: assistant.agentId, companyId: w.companyId };
+    const called = { contextSnapshot: { wakeReason: "crew_assistant_called", taskId: w.root } };
+    expect(await crewResolveRunEnvironment({ db, agent, issueId: null, run: called })).toBe(assistant.environmentId);
+    expect(await crewResolveRunEnvironment({ db, agent, issueId: w.leaf, run: null })).toBe(assistant.environmentId);
+    expect(await crewResolveRunEnvironment({
+      db, agent, issueId: null, run: { contextSnapshot: { wakeReason: "issue_assigned", taskId: w.root } },
+    })).toBeNull();
+    expect(await crewResolveRunEnvironment({ db, agent, issueId: null })).toBeNull();
   });
 
   it("ứng viên: run running theo host qua lease active, trạng thái project, maxLoad1 của environment mẫu", async () => {

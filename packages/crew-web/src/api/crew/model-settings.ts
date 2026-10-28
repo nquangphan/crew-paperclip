@@ -15,6 +15,7 @@ export type ModelRole =
   | 'reviewer'
   | 'integrator'
   | 'bmad'
+  | 'designer'
   | 'executor-codex'
   | 'executor-opencode'
   | 'reviewer-codex'

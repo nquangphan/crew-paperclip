@@ -909,6 +909,48 @@ describe("evaluateIssueGate", () => {
     });
   });
 
+  describe("template design (reviewer rồi owner duyệt mockup)", () => {
+    const design = buildCrewPolicy("design", roles, "owner-1");
+    const [dReview, dOwner] = design.stages.map((s) => s.id) as [string, string];
+    const ownerP = { type: "user", agentId: null, userId: "owner-1" };
+    const atOwner = {
+      status: "in_review",
+      executionPolicy: design,
+      executionState: pending(design, dOwner, ownerP, [dReview]),
+      assigneeAgentId: null,
+      assigneeUserId: "owner-1",
+    };
+
+    it("không có stage docs hay push", () => {
+      expect(design.stages.map((s) => [s.type, s.participants.map((p) => p.agentId ?? p.userId)])).toEqual([
+        ["review", [REVIEWER]],
+        ["approval", ["owner-1"]],
+      ]);
+      expect(docsGateStages(design)).toEqual([]);
+      expect(pushGateStages(design)).toEqual([]);
+    });
+
+    it("agent không duyệt mockup thay owner; owner duyệt thì done", () => {
+      for (const agentId of [REVIEWER, EXECUTOR]) {
+        expect(
+          evaluateIssueGate(
+            facts({ actor: { kind: "agent", agentId }, locked: atOwner, patch: { status: "done" }, approvals: [approval(dReview, REVIEWER)] }),
+          ),
+        ).toEqual({ kind: "block", code: "crew_gate_blocked", violations: [`stage_unapproved:${dOwner}`] });
+      }
+      expect(
+        evaluateIssueGate(
+          facts({
+            actor: { kind: "board", userId: "owner-1" },
+            locked: atOwner,
+            patch: { status: "done", executionState: completed([dReview, dOwner]) },
+            approvals: [approval(dReview, REVIEWER)],
+          }),
+        ),
+      ).toEqual({ kind: "allow", notes: [] });
+    });
+  });
+
   describe("reviewer Codex lỗi hoặc bị tắt: hệ thống chuyển participant đang chờ sang reviewer Claude", () => {
     const CODEX_REVIEWER = "66666666-6666-4666-8666-666666666666";
     const withCodex = { ...roles, codexReviewerAgentId: CODEX_REVIEWER };

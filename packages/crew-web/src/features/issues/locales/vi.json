@@ -218,7 +218,9 @@
       "sending": "Đang gửi",
       "uploading": "Đang tải file lên",
       "sendFailed": "Không gửi được bình luận",
-      "uploadFailed": "Không đính kèm được: {{names}}"
+      "uploadFailed": "Không đính kèm được: {{names}}",
+      "assistantMissing": "Project này chưa có Trợ Lý",
+      "assistantCallFailed": "Đã gửi bình luận nhưng chưa gọi được Trợ Lý: {{reason}}"
     },
     "attachments": {
       "heading": "Đính kèm",

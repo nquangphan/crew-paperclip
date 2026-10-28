@@ -58,7 +58,7 @@
       "head": "    create: async (",
       "anchor": "      data = await crewCoreHooks.beforeIssueCreate({ db, companyId, data });",
       "importLine": "import { crewCoreHooks } from \"../crew/core-hooks.js\";",
-      "description": "Attach the Crew execution-policy template to new issues (owner approval for agent-created BMAD epic/story children), refuse agent-created root issues, agent-created children outside the parent's project, issues from agent-authored routines, and agent-created children assigned outside the project's assistant/executor rule; check model/effort overrides against the assignee's runtime; code children whose executor does not run Codex get the project's Codex reviewer first and its Claude reviewer second in the review stage when Codex is switched on for the Codex reviewer's machine.",
+      "description": "Attach the Crew execution-policy template to new issues (owner approval for agent-created BMAD epic/story children and `crew-kind design` mockup children), refuse agent-created root issues, agent-created children outside the parent's project, issues from agent-authored routines, and agent-created children assigned outside the project's assistant/executor rule; check model/effort overrides against the assignee's runtime; code children whose executor does not run Codex get the project's Codex reviewer first and its Claude reviewer second in the review stage when Codex is switched on for the Codex reviewer's machine.",
       "upstreamPr": null,
       "tests": ["server/src/__tests__/crew-issue-create-policy.test.ts"]
     },

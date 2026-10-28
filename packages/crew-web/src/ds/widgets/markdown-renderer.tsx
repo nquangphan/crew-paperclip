@@ -78,11 +78,28 @@ type AnchorProps = ComponentProps<'a'> & ExtraProps;
 type ImageProps = ComponentProps<'img'> & ExtraProps;
 
 /**
- * Link trong markdown. Link tới file đính kèm (khi trang có hộp xem) mở hộp xem tại chỗ, Cmd/Ctrl+click vẫn theo link;
+ * Link mention agent (`[@Trợ Lý](agent://<uuid>)`): hiện thành chip, không phải thẻ `<a>`. Màu theo nền quanh nó (bong
+ * bóng xanh của người hay nền thường của agent), như ImageNote.
+ */
+const AGENT_MENTION_HREF_RE = /^agent:\/\/[0-9a-f-]{36}$/i;
+
+/**
+ * Link trong markdown. Link mention agent hiện thành chip. Link tới file đính kèm (khi trang có hộp xem) mở hộp xem tại chỗ, Cmd/Ctrl+click vẫn theo link;
  * link ngoài mở tab mới; link nội bộ khác giữ nguyên.
  */
 function MarkdownLink({ node: _node, href, children, ...rest }: AnchorProps) {
   const links = useAttachmentLinks();
+  if (href && AGENT_MENTION_HREF_RE.test(href)) {
+    return (
+      <span
+        data-agent-mention=""
+        data-agent-id={href.slice('agent://'.length)}
+        className="inline-flex items-center rounded-sm bg-current/10 px-1 font-medium"
+      >
+        {children}
+      </span>
+    );
+  }
   const attachmentId = href && links ? links.match(href) : null;
   if (href && links && attachmentId) {
     return (
@@ -262,14 +279,16 @@ function MarkdownImage({ node: _node, src, alt, title }: ImageProps) {
 }
 
 /**
- * URL trong markdown qua bộ lọc mặc định của react-markdown (bỏ `javascript:`, `data:`…), trừ `src` của ảnh là `data:`:
- * để MarkdownImage tự quyết theo luật ảnh (chỉ ảnh raster được hiện, SVG và loại khác bị chặn). `urls` là URL `data:`
+ * URL trong markdown qua bộ lọc mặc định của react-markdown (bỏ `javascript:`, `data:`…), trừ `src` của ảnh là `data:` và
+ * `href` của link mention agent đúng dạng `agent://<uuid>` (bộ lọc mặc định bỏ scheme `agent:`, link thành rỗng). Ảnh
+ * `data:` để MarkdownImage tự quyết theo luật ảnh (chỉ ảnh raster được hiện, SVG và loại khác bị chặn). `urls` là URL `data:`
  * dài đã tách ra trước khi phân tích, đặt lại vào đúng chỗ ở đây.
  */
 const urlTransformFor =
   (urls: readonly string[]): UrlTransform =>
   (raw, key, node) => {
     const url = restoreDataUrls(raw, urls);
+    if (key === 'href' && node.tagName === 'a' && AGENT_MENTION_HREF_RE.test(url)) return url;
     return key === 'src' && node.tagName === 'img' && /^data:/i.test(url) ? url : defaultUrlTransform(url);
   };
 
