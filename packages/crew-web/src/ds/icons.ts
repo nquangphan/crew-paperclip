@@ -29,6 +29,7 @@ export {
   ListChecks,
   Loader2,
   LogOut,
+  Minus,
   Monitor,
   Moon,
   MoreHorizontal,

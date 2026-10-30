@@ -12,6 +12,7 @@ import { qcApi } from './crew/qc';
 import { rolesApi } from './crew/roles';
 import { runtimesApi } from './crew/runtimes';
 import { setupApi } from './crew/setup';
+import { terminalApi } from './crew/terminal';
 import { activityApi } from './paperclip/activity';
 import { agentsApi } from './paperclip/agents';
 import { attachmentsApi } from './paperclip/attachments';
@@ -72,6 +73,7 @@ export const api = {
   modelSettings: modelSettingsApi,
   assistantCall: assistantCallApi,
   machinePins: machinePinsApi,
+  terminal: terminalApi,
   members: membersApi,
   invites: invitesApi,
   joinRequests: joinRequestsApi,
@@ -82,6 +84,7 @@ export type { AssistantCallResult } from './crew/assistant-call';
 export { CREW_DATA_KEYS, type CrewDataKey } from './crew/data';
 export type * from './crew/model-settings';
 export { modelSettingsErrorOf } from './crew/model-settings';
+export type { TerminalTarget, TerminalTicket, TerminalUnlockStatus } from './crew/terminal';
 export type * from './crew/types';
 export { ENDPOINTS, type EndpointKey } from './endpoints';
 export { ApiError } from './http';

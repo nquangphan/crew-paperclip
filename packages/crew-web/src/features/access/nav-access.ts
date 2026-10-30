@@ -40,7 +40,7 @@ export function navLabelKey(id: NavId, a: Access): string {
 /** Route (đường tương đối dưới /:companyPrefix, tách theo `/`) mà mọi người vào được hay không. Chưa tải xong thì cho qua. */
 export function routeAllowed(rel: readonly string[], a: Access): boolean {
   const [first = '', second = ''] = rel;
-  if (first === 'members') return a.isOwner;
+  if (first === 'members' || first === 'terminal') return a.isOwner;
   if (first === 'contributions') return a.isOwner || a.isContributor;
   if (!isViewer(a)) return true;
   if (VIEWER_HIDDEN_SEGMENTS.has(first)) return false;
@@ -52,6 +52,7 @@ export function routeNeedsAccess(rel: readonly string[]): boolean {
   const [first = '', second = ''] = rel;
   return (
     first === 'members' ||
+    first === 'terminal' ||
     first === 'contributions' ||
     VIEWER_HIDDEN_SEGMENTS.has(first) ||
     (first === 'projects' && VIEWER_HIDDEN_PROJECT_SUBPATHS.has(second))

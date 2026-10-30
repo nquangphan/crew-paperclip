@@ -270,6 +270,14 @@ export const ENDPOINTS = {
     path: `${CREW}/projects/:projectId/machines/provision`,
   },
 
+  // Terminal web của owner (S26): máy và project mở được, mở khoá bằng mật khẩu, vé dùng một lần cho WebSocket.
+  'terminal.targets': { ids: ['S26.1'], method: 'GET', path: `${CREW}/terminal/targets` },
+  'terminal.unlockStatus': { ids: ['S26.2'], method: 'GET', path: `${CREW}/terminal/unlock` },
+  'terminal.unlock': { ids: ['S26.2'], method: 'POST', path: `${CREW}/terminal/unlock` },
+  'terminal.ticket': { ids: ['S26.3'], method: 'POST', path: `${CREW}/terminal/tickets` },
+  // WebSocket, mở bằng new WebSocket kèm `?ticket=&cols=&rows=` chứ không qua call().
+  'terminal.ws': { ids: ['S26.3'], method: 'GET', path: `${CREW}/terminal/ws`, noCall: true },
+
   // Owner gọi Trợ Lý bằng tag trong bình luận (S6.5): gửi sau `comments.add`, kèm id bình luận vừa tạo.
   'assistantCall.call': { ids: ['S6.5'], method: 'POST', path: `${CREW}/issues/:issueId/assistant-call` },
 

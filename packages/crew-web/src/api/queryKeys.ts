@@ -84,6 +84,8 @@ export const queryKeys = {
     ['machines', companyId, 'candidates', projectId] as const,
   issueMachine: (issueId: string) => ['machines', 'issue', issueId] as const,
   projectMachines: (projectId: string) => ['machines', 'project', projectId] as const,
+  /** Máy và project owner mở terminal được. */
+  terminalTargets: (companyId: string) => ['terminal', companyId, 'targets'] as const,
   /** Bảng cài đặt model của owner (toàn instance, không theo company). */
   modelSettings: ['model-settings'] as const,
   members: (companyId: string) => ['members', companyId] as const,

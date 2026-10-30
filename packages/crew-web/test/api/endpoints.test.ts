@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { api } from '@/api';
 import { call, ENDPOINTS, type EndpointKey, endpointPath } from '@/api/endpoints';
 import { liveSocketUrl } from '@/app/live/live-events';
+import { terminalSocketUrl } from '@/features/terminal/use-terminal-socket';
 
 const list = (pattern: string) => globSync(pattern, { cwd: process.cwd() }).sort();
 const clientFiles = () => list('src/api/{paperclip,crew}/*.ts').filter((f) => !f.endsWith('/types.ts'));
@@ -78,13 +79,16 @@ describe('ENDPOINTS', () => {
       .filter(([, d]) => 'noCall' in d && d.noCall)
       .map(([k]) => k)
       .sort();
-    expect(noCall).toEqual(['attachments.content', 'live.events']);
+    expect(noCall).toEqual(['attachments.content', 'live.events', 'terminal.ws']);
     const src = list('src/**/*.{ts,tsx}')
       .map((f) => readFileSync(f, 'utf8'))
       .join('\n');
     for (const k of noCall) expect(src, k).toContain(`endpointPath('${k}'`);
     expect(api.attachments.contentUrl('a 1')).toBe('/api/attachments/a%201/content');
     expect(liveSocketUrl('c1', { protocol: 'http:', host: 'h' })).toBe('ws://h/api/companies/c1/events/ws');
+    expect(terminalSocketUrl('c1', 't 1', { cols: 80, rows: 24 }, { protocol: 'https:', host: 'h' })).toBe(
+      'wss://h/api/crew/companies/c1/terminal/ws?ticket=t+1&cols=80&rows=24',
+    );
   });
 
   it('call từ chối khóa không qua call', () => {

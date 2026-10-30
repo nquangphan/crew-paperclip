@@ -1,0 +1,30 @@
+{
+  "title": "Terminal",
+  "ownerOnly": "Only the owner can open the terminal",
+  "ownerOnlyHint": "The terminal runs real commands on the project's machine, so only the owner can use it.",
+  "accessFailed": "Could not load your role",
+  "targetsFailed": "Could not load the machine list",
+  "targetMissing": "This project is not ready on the selected machine",
+  "status": {
+    "connecting": "Connecting",
+    "open": "Connected",
+    "closed": "Closed",
+    "locked": "Locked"
+  },
+  "close": "Close",
+  "reconnect": "Reconnect",
+  "closedHint": "The terminal session has closed. The tmux session on the machine stays unless it exited.",
+  "fontSmaller": "Smaller text",
+  "fontLarger": "Larger text",
+  "pasteTooLarge": "Pasted content is too large (16 MiB max).",
+  "keysLabel": "Extra keys",
+  "unlock": {
+    "title": "Unlock terminal",
+    "description": "Enter your Crew sign-in password to open the terminal. Unlocking lasts 12 hours for this sign-in session.",
+    "password": "Password",
+    "submit": "Unlock",
+    "submitting": "Unlocking",
+    "cancel": "Go back",
+    "failed": "Could not unlock"
+  }
+}

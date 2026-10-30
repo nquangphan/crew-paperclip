@@ -1,0 +1,30 @@
+{
+  "title": "Terminal",
+  "ownerOnly": "Chỉ owner mở được terminal",
+  "ownerOnlyHint": "Terminal chạy lệnh thật trên máy của dự án nên chỉ owner dùng được.",
+  "accessFailed": "Không tải được vai trò của bạn",
+  "targetsFailed": "Không tải được danh sách máy",
+  "targetMissing": "Dự án này chưa sẵn sàng trên máy đã chọn",
+  "status": {
+    "connecting": "Đang kết nối",
+    "open": "Đã kết nối",
+    "closed": "Đã đóng",
+    "locked": "Đang khoá"
+  },
+  "close": "Đóng",
+  "reconnect": "Nối lại",
+  "closedHint": "Phiên terminal đã đóng. Phiên tmux trên máy vẫn giữ nếu chưa thoát.",
+  "fontSmaller": "Chữ nhỏ hơn",
+  "fontLarger": "Chữ to hơn",
+  "pasteTooLarge": "Nội dung dán quá lớn (tối đa 16 MiB).",
+  "keysLabel": "Phím phụ",
+  "unlock": {
+    "title": "Mở khoá terminal",
+    "description": "Nhập mật khẩu đăng nhập Crew để mở terminal. Mở khoá giữ 12 giờ cho phiên đăng nhập này.",
+    "password": "Mật khẩu",
+    "submit": "Mở khoá",
+    "submitting": "Đang mở khoá",
+    "cancel": "Quay lại",
+    "failed": "Không mở khoá được"
+  }
+}
