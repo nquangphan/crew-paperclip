@@ -35,6 +35,7 @@ import { crewAssistantCallRoutes } from "./assistant-call-routes.js";
 import { crewMachineRoutes } from "./machine-routes.js";
 import { crewModelSettingsRoutes } from "./model-settings-routes.js";
 import { crewProjectAccessRoutes } from "./project-access-routes.js";
+import { crewTerminalRoutes } from "./terminal/routes.js";
 
 const BASE = "/crew/companies/:companyId";
 const BODY_LOCAL = "crewContributionBody";
@@ -61,6 +62,7 @@ function conflictWith(res: Response, code: string, error: string, contribution: 
  * - Body không bao giờ nằm ở `req.body` khi handler chạy (xem {@link takeBody}), nên log và Sentry không có nội dung.
  * - Quyền xét theo role đọc từ DB (owner / viewer có dấu khách góp ý), không qua `assertCompanyAccess`.
  * - Không ghi `activity_log`, không phát live event hay event plugin; log chỉ ghi id.
+ * - Router terminal web (`…/terminal/targets|unlock|tickets`, chỉ owner) gắn cùng chỗ.
  * - Router quyền xem project (`…/project-access`), router máy
  *   (`…/machines`, `…/issues/:id/machine`, `…/projects/:id/machines|repo`) và router cài đặt model
  *   (`/crew/model-settings`, toàn instance, có luật người gọi riêng) và router gọi Trợ Lý bằng tag
@@ -77,6 +79,7 @@ export function crewContributionRoutes(db: Db): Router {
 
   router.use(crewProjectAccessRoutes(db));
   router.use(crewMachineRoutes(db));
+  router.use(crewTerminalRoutes(db));
   router.use(crewModelSettingsRoutes(db));
   router.use(crewAssistantCallRoutes(db));
   // Router này gắn trước route plugin stock: request `/plugins/...` lúc vừa khởi động chờ worker plugin đăng ký xong.
