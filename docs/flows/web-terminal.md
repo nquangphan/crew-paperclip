@@ -37,10 +37,12 @@ owner: route, vé, WebSocket và trang. Mở khoá bằng mật khẩu đăng nh
 2. `targets.ts` → `listTerminalTargets`, `resolveTerminalTarget`: project có `project_machines.status = 'ready'` trên
    máy còn ghép (`machine_pairings.revoked_at IS NULL`), kèm `project_repos.branch`. `projectKey` lấy từ đường dẫn checkout
    `…/crew-agents/<khóa>/repo`; dòng không khớp mẫu bị bỏ.
-3. Mở khoá (`unlock-dialog.tsx`, `unlock-store.ts`, `unlock-throttle.ts`, `password.ts`): trang kiểm `unlockStatus`; khoá
-   thì hỏi mật khẩu đăng nhập Crew (`verifyUserPassword` kiểm tài khoản `credential` của Better Auth). Đúng thì mở khoá
-   12 giờ theo phiên đăng nhập; trạng thái và bộ đếm nằm trong bộ nhớ nên khởi động lại server là phải nhập lại. Sai quá 5
-   lần trong 15 phút (đếm theo user, mọi phiên chung) thì 429; nhập đúng xoá bộ đếm. Không log mật khẩu.
+3. Mở khoá (`unlock-dialog.tsx`, `unlock-store.ts`, `unlock-throttle.ts`, `password.ts`): trang không đọc
+   `GET …/unlock` (route này có nhưng trang không dùng); trạng thái khoá lộ ra khi xin vé bị 423
+   (`use-terminal-socket.ts` đặt trạng thái `locked`) và trang hiện `UnlockDialog` hỏi mật khẩu đăng nhập Crew (`verifyUserPassword` kiểm tài khoản `credential` của Better Auth). Đúng thì mở khoá
+   12 giờ theo phiên đăng nhập; trạng thái và bộ đếm nằm trong bộ nhớ nên khởi động lại server là phải nhập lại. Sau 5
+   lần sai trong 15 phút (đếm theo user, mọi phiên chung), các lần nhập tiếp theo bị 429 cho tới khi cửa sổ 15 phút
+   qua đi; nhập đúng xoá bộ đếm. Không log mật khẩu.
 4. Vé (`ticket-store.ts`): `POST …/tickets` cần đã mở khoá và project vẫn `ready`; vé sống 60 giây, dùng một lần
    (`consume` xoá ngay), kho chỉ giữ sha256 của vé, ràng với company, user, phiên, máy và project.
 5. Nâng cấp WebSocket (`terminal-ws.ts` → `authorize`), mọi bước chạy trước khi tạo socket, hỏng thì 401/403 rồi huỷ
@@ -57,12 +59,14 @@ owner: route, vé, WebSocket và trang. Mở khoá bằng mật khẩu đăng nh
    `owner/<khóa>` nếu đã tồn tại), rồi `tmux -L crew new-session -A -s crew-owner-<khóa>` (kèm `-f ~/.crew-mac/tmux.conf`
    nếu có file đó): gắn lại phiên cũ hoặc tạo mới, nên đóng tab không giết phiên.
 8. Khung WebSocket: máy chủ gửi `ready`, `output`, `closed`, `error`; trình duyệt gửi `input` và `resize`. Lỗi gửi cho
-   trình duyệt là câu chung, không lộ lỗi SSH thô; log chỉ ghi user, máy, project và lý do đóng (không ghi vé, phím gõ hay
+   trình duyệt là câu chung, không lộ lỗi SSH thô, và trang chỉ hiện các lý do đóng/lỗi của server bằng câu tiếng Việt
+   i18n (`use-terminal-socket.ts` trả `notice`, không hiện chuỗi thô); log chỉ ghi user, máy, project và lý do đóng (không ghi vé, phím gõ hay
    output). Không có tự đóng khi rảnh: phiên chỉ đóng khi trình duyệt đóng, shell thoát, SSH lỗi hoặc server tắt.
 9. Trang terminal (`terminal-page.tsx`, `use-terminal-socket.ts`): chỉ owner; xin vé mới ở mỗi lần nối rồi mở WebSocket,
    rớt mạng thì nối lại (tmux vẽ lại màn hình khi gắn vào); chưa mở khoá (423) thì hiện hộp mật khẩu rồi tự nối; vé trả 4xx
    khác thì báo thiếu máy/project và không nối lại. `mount-xterm.ts` gắn xterm với addon fit, unicode11, web-links, search,
-   WebGL nạp sau cùng (mất context thì lùi về DOM). `xterm-options.ts`: tuỳ chọn, theo màu sáng/tối và bậc cỡ chữ (lưu
+   WebGL nạp sau cùng (mất context thì lùi về DOM). `xterm-options.ts`: `shiftEnterHandler` (gắn bằng `attachCustomKeyEventHandler` trong `mount-xterm.ts`) gửi ESC+CR khi
+   bấm Shift+Enter để xuống dòng trong Claude Code, chặn xterm gửi CR; tuỳ chọn, theo màu sáng/tối và bậc cỡ chữ (lưu
    `localStorage`). `paste.ts`: dán nhiều dòng bọc bracketed paste, chia khúc 16 KiB, tối đa 16 MiB.
    `accessory-keys.tsx`: hàng phím phụ (Esc, Tab, mũi tên, Ctrl+C...) cho màn hình cảm ứng, dựng bằng `TerminalKeyRow`.
 
@@ -127,3 +131,7 @@ owner: route, vé, WebSocket và trang. Mở khoá bằng mật khẩu đăng nh
 - `packages/crew-web/test/features/terminal/terminal-page.test.tsx`: trang chỉ owner, khoá thì hỏi mật khẩu rồi nối.
 - `packages/crew-web/test/features/terminal/xterm-options.test.ts`, `paste.test.ts`, `accessory-keys.test.tsx`: tuỳ chọn
   và cỡ chữ, bọc và chia khúc khi dán, hàng phím phụ.
+- `packages/crew-web/test/features/terminal/shift-enter.test.ts`: Shift+Enter gửi ESC+CR, Enter thường và tổ hợp khác
+  để xterm tự xử lý.
+- `packages/crew-web/test/features/terminal/use-terminal-socket.test.tsx`: 423 thành `locked`, 4xx khác báo thiếu
+  máy/project không nối lại, khung `closed`/`error` của server thành `notice` chung không lộ lý do thô.

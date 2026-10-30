@@ -802,7 +802,9 @@ File nào thuộc flow nào. Dùng `crew-docs where <file>` để tra từ dòng
 | `packages/crew-web/test/features/skills/sync-status.test.tsx` | [skills](flows/skills.md) (test) |
 | `packages/crew-web/test/features/terminal/accessory-keys.test.tsx` | [web-terminal](flows/web-terminal.md) (test) |
 | `packages/crew-web/test/features/terminal/paste.test.ts` | [web-terminal](flows/web-terminal.md) (test) |
+| `packages/crew-web/test/features/terminal/shift-enter.test.ts` | [web-terminal](flows/web-terminal.md) (test) |
 | `packages/crew-web/test/features/terminal/terminal-page.test.tsx` | [web-terminal](flows/web-terminal.md) (test) |
+| `packages/crew-web/test/features/terminal/use-terminal-socket.test.tsx` | [web-terminal](flows/web-terminal.md) (test) |
 | `packages/crew-web/test/features/terminal/xterm-options.test.ts` | [web-terminal](flows/web-terminal.md) (test) |
 | `packages/crew-web/test/features/wizards/add-agent-page.test.tsx` | [setup-wizards](flows/setup-wizards.md) (test) |
 | `packages/crew-web/test/features/wizards/add-agent.test.ts` | [setup-wizards](flows/setup-wizards.md) (test) |
