@@ -166,6 +166,42 @@ flows:
       - server/src/__tests__/crew-machine-routes.db.test.ts
       - server/src/__tests__/crew-machine-release.db.test.ts
       - server/src/__tests__/crew-machine-backfill.db.test.ts
+  web-terminal:
+    title: "Terminal web của owner: mở khoá bằng mật khẩu, vé WebSocket, SSH tới phiên tmux của project"
+    doc: docs/flows/web-terminal.md
+    entrypoints:
+      - server/src/crew/terminal/routes.ts
+      - server/src/crew/terminal/terminal-ws.ts
+      - packages/crew-web/src/features/terminal/routes.tsx
+    files:
+      - server/src/crew/terminal/password.ts
+      - server/src/crew/terminal/remote-command.ts
+      - server/src/crew/terminal/ssh-connector.ts
+      - server/src/crew/terminal/targets.ts
+      - server/src/crew/terminal/ticket-store.ts
+      - server/src/crew/terminal/unlock-store.ts
+      - server/src/crew/terminal/unlock-throttle.ts
+      - packages/crew-web/src/api/crew/terminal.ts
+      - packages/crew-web/src/ds/widgets/terminal-shell.tsx
+      - packages/crew-web/src/features/machines/terminal-targets-block.tsx
+      - packages/crew-web/src/features/terminal/accessory-keys.tsx
+      - packages/crew-web/src/features/terminal/mount-xterm.ts
+      - packages/crew-web/src/features/terminal/paste.ts
+      - packages/crew-web/src/features/terminal/terminal-page.tsx
+      - packages/crew-web/src/features/terminal/unlock-dialog.tsx
+      - packages/crew-web/src/features/terminal/use-terminal-socket.ts
+      - packages/crew-web/src/features/terminal/xterm-options.ts
+    tests:
+      - server/src/__tests__/crew-terminal-remote-command.test.ts
+      - server/src/__tests__/crew-terminal-routes.db.test.ts
+      - server/src/__tests__/crew-terminal-ssh-connector.test.ts
+      - server/src/__tests__/crew-terminal-stores.test.ts
+      - server/src/__tests__/crew-terminal-ws.test.ts
+      - packages/crew-web/test/features/machines/terminal-targets-block.test.tsx
+      - packages/crew-web/test/features/terminal/accessory-keys.test.tsx
+      - packages/crew-web/test/features/terminal/paste.test.ts
+      - packages/crew-web/test/features/terminal/terminal-page.test.tsx
+      - packages/crew-web/test/features/terminal/xterm-options.test.ts
   runtime-switches:
     title: "Công tắc runtime theo máy (Claude, Codex, OpenCode)"
     doc: docs/flows/runtime-switches.md

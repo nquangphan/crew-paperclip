@@ -74,6 +74,8 @@ Widget Crew trong `ds/widgets/crew/` và `ds/widgets/roadmap/`, và widget đín
 - `web-shell`: shell dùng `AppFrame`, sidebar và component.
 - `web-pages`, `issues-web`, `skills`, `setup-wizards`, `guide`: màn hình dùng component và widget.
 - `roadmap-map`, `docs-snapshot`, `machine-status`, `attachments`: sở hữu các widget Crew riêng trong `ds/widgets`.
+- `web-terminal`: sở hữu widget `TerminalShell` và `TerminalKeyRow` (`ds/widgets/terminal-shell.tsx`, export qua `ds/index.ts`);
+  `icons.ts` có thêm `Minus` cho nút chữ nhỏ hơn.
 - `core-hooks`: kéo upstream thì so lại các file `clone:`.
 
 ## Tests

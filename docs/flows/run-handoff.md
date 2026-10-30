@@ -39,7 +39,9 @@ Mô tả và lý do chi tiết của từng vá: `crew/release/core-hooks.json` 
 - Hook H3 (nhả lease SSH) → `startRemoteStopOnRelease` trong `server/src/crew/remote-stop.ts` gọi
   `rewakeAfterLeaseRelease` sau khi nhả lease.
 - Vá C10 trong `server/src/index.ts`: mỗi tick scheduler heartbeat, sau chuỗi recovery định kỳ của lõi, gọi
-  `replayStrandedSkippedWakes`.
+  `replayStrandedSkippedWakes`. Cùng file này còn đăng ký WebSocket terminal của owner (`setupCrewTerminalWebSocketServer`,
+  flow `web-terminal`) trước handler live-events, vì live-events huỷ mọi upgrade chưa có handler nhận; không liên quan
+  bàn giao.
 - Vá C11 trong `server/src/routes/issues.ts` (`PATCH /issues/:id`, đoạn dừng run khi đổi assignee); C12, C14 trong
   `server/src/services/heartbeat.ts`; C13 trong `server/src/services/recovery/service.ts`.
 - `POST /api/crew/companies/:companyId/issues/:issueId/assistant-call` `{ commentId }` (router con trong router góp ý,

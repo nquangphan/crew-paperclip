@@ -265,6 +265,7 @@ File nào thuộc flow nào. Dùng `crew-docs where <file>` để tra từ dòng
 | `packages/crew-web/src/api/crew/roles.ts` | [project-roles](flows/project-roles.md) (file) |
 | `packages/crew-web/src/api/crew/runtimes.ts` | [runtime-switches](flows/runtime-switches.md) (file) |
 | `packages/crew-web/src/api/crew/setup.ts` | [setup-wizards](flows/setup-wizards.md) (file) |
+| `packages/crew-web/src/api/crew/terminal.ts` | [web-terminal](flows/web-terminal.md) (file) |
 | `packages/crew-web/src/api/crew/types.ts` | [web-shell](flows/web-shell.md) (file) |
 | `packages/crew-web/src/api/endpoints.ts` | [web-shell](flows/web-shell.md) (file) |
 | `packages/crew-web/src/api/http.ts` | [web-shell](flows/web-shell.md) (file) |
@@ -410,6 +411,7 @@ File nào thuộc flow nào. Dùng `crew-docs where <file>` để tra từ dòng
 | `packages/crew-web/src/ds/widgets/status-pill.tsx` | [design-system](flows/design-system.md) (file) |
 | `packages/crew-web/src/ds/widgets/sticky-action-bar.tsx` | [design-system](flows/design-system.md) (file) |
 | `packages/crew-web/src/ds/widgets/summary-panel.tsx` | [design-system](flows/design-system.md) (file) |
+| `packages/crew-web/src/ds/widgets/terminal-shell.tsx` | [web-terminal](flows/web-terminal.md) (file) |
 | `packages/crew-web/src/ds/widgets/transcript.tsx` | [design-system](flows/design-system.md) (file) |
 | `packages/crew-web/src/ds/widgets/wizard.tsx` | [design-system](flows/design-system.md) (file) |
 | `packages/crew-web/src/features/access/access-guard.tsx` | [project-access](flows/project-access.md) (điểm vào) |
@@ -527,6 +529,7 @@ File nào thuộc flow nào. Dùng `crew-docs where <file>` để tra từ dòng
 | `packages/crew-web/src/features/machines/pairing-block.tsx` | [machine-status](flows/machine-status.md) (file) |
 | `packages/crew-web/src/features/machines/routes.tsx` | [machine-status](flows/machine-status.md) (điểm vào) |
 | `packages/crew-web/src/features/machines/runtime-block.tsx` | [runtime-switches](flows/runtime-switches.md) (file) |
+| `packages/crew-web/src/features/machines/terminal-targets-block.tsx` | [web-terminal](flows/web-terminal.md) (file) |
 | `packages/crew-web/src/features/machines/use-machines.ts` | [machine-status](flows/machine-status.md) (file) |
 | `packages/crew-web/src/features/members/index.ts` | [web-pages](flows/web-pages.md) (file) |
 | `packages/crew-web/src/features/members/invites-section.tsx` | [web-pages](flows/web-pages.md) (file) |
@@ -604,6 +607,14 @@ File nào thuộc flow nào. Dùng `crew-docs where <file>` để tra từ dòng
 | `packages/crew-web/src/features/skills/sync-status.tsx` | [skills](flows/skills.md) (file) |
 | `packages/crew-web/src/features/skills/update-from-source.tsx` | [skills](flows/skills.md) (file) |
 | `packages/crew-web/src/features/skills/use-skill-sync.ts` | [skills](flows/skills.md) (file) |
+| `packages/crew-web/src/features/terminal/accessory-keys.tsx` | [web-terminal](flows/web-terminal.md) (file) |
+| `packages/crew-web/src/features/terminal/mount-xterm.ts` | [web-terminal](flows/web-terminal.md) (file) |
+| `packages/crew-web/src/features/terminal/paste.ts` | [web-terminal](flows/web-terminal.md) (file) |
+| `packages/crew-web/src/features/terminal/routes.tsx` | [web-terminal](flows/web-terminal.md) (điểm vào) |
+| `packages/crew-web/src/features/terminal/terminal-page.tsx` | [web-terminal](flows/web-terminal.md) (file) |
+| `packages/crew-web/src/features/terminal/unlock-dialog.tsx` | [web-terminal](flows/web-terminal.md) (file) |
+| `packages/crew-web/src/features/terminal/use-terminal-socket.ts` | [web-terminal](flows/web-terminal.md) (file) |
+| `packages/crew-web/src/features/terminal/xterm-options.ts` | [web-terminal](flows/web-terminal.md) (file) |
 | `packages/crew-web/src/features/wizards/add-agent/add-agent-page.tsx` | [setup-wizards](flows/setup-wizards.md) (file) |
 | `packages/crew-web/src/features/wizards/add-agent/repo-root.ts` | [setup-wizards](flows/setup-wizards.md) (file) |
 | `packages/crew-web/src/features/wizards/add-agent/run-step.ts` | [setup-wizards](flows/setup-wizards.md) (file) |
@@ -758,6 +769,7 @@ File nào thuộc flow nào. Dùng `crew-docs where <file>` để tra từ dòng
 | `packages/crew-web/test/features/machines/machines-page.test.tsx` | [machine-status](flows/machine-status.md) (test) |
 | `packages/crew-web/test/features/machines/pairing-block.test.tsx` | [machine-status](flows/machine-status.md) (test) |
 | `packages/crew-web/test/features/machines/runtime-block.test.tsx` | [runtime-switches](flows/runtime-switches.md) (test) |
+| `packages/crew-web/test/features/machines/terminal-targets-block.test.tsx` | [web-terminal](flows/web-terminal.md) (test) |
 | `packages/crew-web/test/features/members/members-model.test.ts` | [web-pages](flows/web-pages.md) (test) |
 | `packages/crew-web/test/features/members/members-page.test.tsx` | [web-pages](flows/web-pages.md) (test) |
 | `packages/crew-web/test/features/projects/machines-tab.test.tsx` | [web-pages](flows/web-pages.md) (test) |
@@ -788,6 +800,10 @@ File nào thuộc flow nào. Dùng `crew-docs where <file>` để tra từ dòng
 | `packages/crew-web/test/features/skills/skill-edit.test.tsx` | [skills](flows/skills.md) (test) |
 | `packages/crew-web/test/features/skills/skills-page.test.tsx` | [skills](flows/skills.md) (test) |
 | `packages/crew-web/test/features/skills/sync-status.test.tsx` | [skills](flows/skills.md) (test) |
+| `packages/crew-web/test/features/terminal/accessory-keys.test.tsx` | [web-terminal](flows/web-terminal.md) (test) |
+| `packages/crew-web/test/features/terminal/paste.test.ts` | [web-terminal](flows/web-terminal.md) (test) |
+| `packages/crew-web/test/features/terminal/terminal-page.test.tsx` | [web-terminal](flows/web-terminal.md) (test) |
+| `packages/crew-web/test/features/terminal/xterm-options.test.ts` | [web-terminal](flows/web-terminal.md) (test) |
 | `packages/crew-web/test/features/wizards/add-agent-page.test.tsx` | [setup-wizards](flows/setup-wizards.md) (test) |
 | `packages/crew-web/test/features/wizards/add-agent.test.ts` | [setup-wizards](flows/setup-wizards.md) (test) |
 | `packages/crew-web/test/features/wizards/add-project-page.test.tsx` | [setup-wizards](flows/setup-wizards.md) (test) |
@@ -869,6 +885,11 @@ File nào thuộc flow nào. Dùng `crew-docs where <file>` để tra từ dòng
 | `server/src/__tests__/crew-self-handoff-run.db.test.ts` | [run-handoff](flows/run-handoff.md) (test) |
 | `server/src/__tests__/crew-ssh-in-place.test.ts` | [ssh-run-lifecycle](flows/ssh-run-lifecycle.md) (test) |
 | `server/src/__tests__/crew-ssh-pending-teardown.db.test.ts` | [ssh-run-lifecycle](flows/ssh-run-lifecycle.md) (test) |
+| `server/src/__tests__/crew-terminal-remote-command.test.ts` | [web-terminal](flows/web-terminal.md) (test) |
+| `server/src/__tests__/crew-terminal-routes.db.test.ts` | [web-terminal](flows/web-terminal.md) (test) |
+| `server/src/__tests__/crew-terminal-ssh-connector.test.ts` | [web-terminal](flows/web-terminal.md) (test) |
+| `server/src/__tests__/crew-terminal-stores.test.ts` | [web-terminal](flows/web-terminal.md) (test) |
+| `server/src/__tests__/crew-terminal-ws.test.ts` | [web-terminal](flows/web-terminal.md) (test) |
 | `server/src/__tests__/crew-viewer-write-matrix.test.ts` | [crew-plugin](flows/crew-plugin.md) (test) |
 | `server/src/app.ts` | [crew-plugin](flows/crew-plugin.md) (dùng chung), [contributions](flows/contributions.md) (dùng chung) |
 | `server/src/crew/agent-config-gate.ts` | [agent-guards](flows/agent-guards.md) (điểm vào) |
@@ -908,6 +929,15 @@ File nào thuộc flow nào. Dùng `crew-docs where <file>` để tra từ dòng
 | `server/src/crew/runtime-switch.ts` | [runtime-switches](flows/runtime-switches.md) (file) |
 | `server/src/crew/ssh-in-place.ts` | [ssh-run-lifecycle](flows/ssh-run-lifecycle.md) (file) |
 | `server/src/crew/ssh-pending-teardown.ts` | [ssh-run-lifecycle](flows/ssh-run-lifecycle.md) (file) |
+| `server/src/crew/terminal/password.ts` | [web-terminal](flows/web-terminal.md) (file) |
+| `server/src/crew/terminal/remote-command.ts` | [web-terminal](flows/web-terminal.md) (file) |
+| `server/src/crew/terminal/routes.ts` | [web-terminal](flows/web-terminal.md) (điểm vào) |
+| `server/src/crew/terminal/ssh-connector.ts` | [web-terminal](flows/web-terminal.md) (file) |
+| `server/src/crew/terminal/targets.ts` | [web-terminal](flows/web-terminal.md) (file) |
+| `server/src/crew/terminal/terminal-ws.ts` | [web-terminal](flows/web-terminal.md) (điểm vào) |
+| `server/src/crew/terminal/ticket-store.ts` | [web-terminal](flows/web-terminal.md) (file) |
+| `server/src/crew/terminal/unlock-store.ts` | [web-terminal](flows/web-terminal.md) (file) |
+| `server/src/crew/terminal/unlock-throttle.ts` | [web-terminal](flows/web-terminal.md) (file) |
 | `server/src/index.ts` | [run-handoff](flows/run-handoff.md) (dùng chung) |
 | `server/src/routes/agents.ts` | [agent-guards](flows/agent-guards.md) (dùng chung) |
 | `server/src/routes/execution-workspaces.ts` | [agent-guards](flows/agent-guards.md) (dùng chung) |

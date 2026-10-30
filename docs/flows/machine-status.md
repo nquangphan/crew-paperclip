@@ -42,7 +42,8 @@ secret company.
 6. `packages/crew-plugin/src/machines/data.ts` → `loadCrewMachines`: bản tin mới nhất, `online`, chuỗi tải 24 giờ
    (lấy mẫu thưa), thông tin ghép công khai. Nonce không bao giờ được chọn ra.
 7. `packages/crew-web/src/features/machines/machines-page.tsx` → `MachinesPage`: thẻ máy (`MachineCard`), khối ghép
-   (`PairingBlock`), công tắc runtime và hàng đợi việc; tự làm mới mỗi `MACHINE_REFRESH_MS` qua `useCrewMachines`.
+   (`PairingBlock`), công tắc runtime, hàng đợi việc và (chỉ owner) khối Terminal `TerminalTargetsBlock` (flow
+   `web-terminal`); tự làm mới mỗi `MACHINE_REFRESH_MS` qua `useCrewMachines`.
 8. `packages/crew-web/src/features/machines/pairing-block.tsx` → `PairingBlock`: owner gỡ máy. Máy đã ghép: đối chiếu
    environment với IP Tailscale đã ghép, archive environment bằng route lõi, rồi gọi `machines.unpair`. Máy chưa ghép:
    chỉ gọi `machines.unpair`.
@@ -82,6 +83,7 @@ secret company.
 - `machine-jobs`: hàng đợi việc hiện trên cùng trang Máy, gồm việc `ensure-project` (Dựng project trên máy) do server xếp.
 - `runtime-switches`: công tắc runtime theo máy trên thẻ máy.
 - `skills`: trang Skills đọc `useCrewMachines`.
+- `web-terminal`: khối Terminal dưới hàng đợi việc, chỉ owner thấy, liệt kê dự án `ready` theo máy để mở terminal.
 - `design-system`: `MachineCard` nằm trong `ds/widgets/crew`.
 
 ## Tests
