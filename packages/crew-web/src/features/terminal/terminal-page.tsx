@@ -165,7 +165,16 @@ function TerminalView({ machineId, projectId }: { machineId: string; projectId: 
             {targets.error ? <ErrorState title={t('targetsFailed')} message={targets.error.message} /> : null}
             {targets.data && !target ? <Alert variant="warning" title={t('targetMissing')} /> : null}
             {socket.status === 'closed' ? (
-              <Alert variant="info" title={socket.notice === 'targetMissing' ? t('targetMissing') : t('closedHint')}>
+              <Alert
+                variant="info"
+                title={
+                  socket.notice === 'targetMissing'
+                    ? t('targetMissing')
+                    : socket.notice === 'connectFailed'
+                      ? t('connectFailed')
+                      : t('closedHint')
+                }
+              >
                 <Button type="button" variant="outline" size="sm" onClick={socket.reconnect}>
                   {t('reconnect')}
                 </Button>

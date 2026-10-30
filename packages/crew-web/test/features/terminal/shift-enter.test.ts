@@ -36,4 +36,13 @@ describe('shiftEnterHandler', () => {
     }
     expect(send).not.toHaveBeenCalled();
   });
+
+  it('đang gõ dở bằng bộ gõ (Telex/VNI) thì không chặn, để bộ gõ chốt chữ trước', () => {
+    const send = vi.fn();
+    const composing = key({ isComposing: true });
+    expect(shiftEnterHandler(composing, send)).toBe(true);
+    expect(shiftEnterHandler(key({ keyCode: 229 }), send)).toBe(true);
+    expect(send).not.toHaveBeenCalled();
+    expect(composing.preventDefault).not.toHaveBeenCalled();
+  });
 });

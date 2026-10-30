@@ -111,4 +111,36 @@ describe('useTerminalSocket', () => {
     expect(ticketCalls(calls)).toBe(2);
     expect(FakeSocket.instances).toHaveLength(2);
   });
+
+  it('5 lần liền nối xong mà chưa từng ready thì đóng, báo không mở được và thôi nối lại', async () => {
+    const { calls } = mockServer({ [TICKETS]: { status: 201, body: { ticket: 't1', expiresAt: 'x' } } });
+    const { result } = renderHook(() => useTerminalSocket(ARGS));
+    await tick();
+    for (let i = 0; i < 5; i += 1) {
+      expect(FakeSocket.instances).toHaveLength(i + 1);
+      act(() => FakeSocket.instances[i].drop());
+      await tick(60_000);
+    }
+    expect(result.current.status).toBe('closed');
+    expect(result.current.notice).toBe('connectFailed');
+    expect(FakeSocket.instances).toHaveLength(5);
+    expect(ticketCalls(calls)).toBe(5);
+  });
+
+  it('ready giữa chừng thì đếm lại từ đầu', async () => {
+    mockServer({ [TICKETS]: { status: 201, body: { ticket: 't1', expiresAt: 'x' } } });
+    const { result } = renderHook(() => useTerminalSocket(ARGS));
+    await tick();
+    for (let i = 0; i < 4; i += 1) {
+      act(() => FakeSocket.instances[i].drop());
+      await tick(60_000);
+    }
+    act(() => FakeSocket.instances[4].frame({ type: 'ready' }));
+    for (let i = 4; i < 8; i += 1) {
+      act(() => FakeSocket.instances[i].drop());
+      await tick(60_000);
+    }
+    expect(result.current.status).toBe('connecting');
+    expect(FakeSocket.instances).toHaveLength(9);
+  });
 });

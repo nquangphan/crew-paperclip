@@ -15,8 +15,13 @@ type ServerFrame = { type: 'ready' } | { type: 'output'; data: string } | { type
  * trang dịch `notice` thành câu i18n.
  * - `targetMissing`: vé trả 4xx (máy/project không còn sẵn sàng, mất quyền): nối lại cũng vô ích.
  * - `error`: server báo lỗi trong phiên.
+ * - `connectFailed`: nhiều lần liền có vé mà WebSocket đóng trước khi `ready` (server từ chối, máy lỗi SSH…):
+ *   lỗi cố định nên thôi nối lại, chờ người dùng bấm Nối lại.
  */
-export type TerminalSocketNotice = 'targetMissing' | 'error';
+export type TerminalSocketNotice = 'targetMissing' | 'error' | 'connectFailed';
+
+/** Số lần liền WebSocket đóng trước khi `ready` thì thôi tự nối lại. */
+export const MAX_FAILED_CONNECTS = 5;
 
 /** Lưới mặc định trước khi khung terminal đo được kích thước. */
 const DEFAULT_SIZE: TerminalSize = { cols: 80, rows: 24 };
@@ -68,6 +73,7 @@ export function useTerminalSocket({
   useEffect(() => {
     let stopped = false;
     let attempt = 0;
+    let failedConnects = 0;
     let retryTimer: ReturnType<typeof setTimeout> | null = null;
 
     const scheduleRetry = () => {
@@ -78,6 +84,17 @@ export function useTerminalSocket({
         retryTimer = null;
         void connect();
       }, reconnectDelay(attempt));
+    };
+
+    /** WebSocket đóng trước khi `ready`: đếm, đủ số lần liền thì dừng hẳn thay vì nối lại mãi. */
+    const connectFailed = () => {
+      failedConnects += 1;
+      if (failedConnects >= MAX_FAILED_CONNECTS) {
+        setNotice('connectFailed');
+        setStatus('closed');
+        return;
+      }
+      scheduleRetry();
     };
 
     const connect = async () => {
@@ -104,11 +121,12 @@ export function useTerminalSocket({
       try {
         ws = new WebSocket(terminalSocketUrl(companyId, ticket, sizeRef.current));
       } catch {
-        scheduleRetry();
+        connectFailed();
         return;
       }
       socketRef.current = ws;
       let serverClosed = false;
+      let wasReady = false;
       ws.onmessage = (event) => {
         if (socketRef.current !== ws || typeof event.data !== 'string') return;
         let frame: ServerFrame;
@@ -120,6 +138,8 @@ export function useTerminalSocket({
         if (frame.type === 'output') onOutputRef.current(frame.data);
         else if (frame.type === 'ready') {
           attempt = 0;
+          failedConnects = 0;
+          wasReady = true;
           setNotice(null);
           setStatus('open');
           // Cỡ có thể đổi trong lúc chờ vé: báo lại cho chắc.
@@ -133,7 +153,8 @@ export function useTerminalSocket({
         socketRef.current = null;
         if (stopped) return;
         if (serverClosed) setStatus('closed');
-        else scheduleRetry();
+        else if (wasReady) scheduleRetry();
+        else connectFailed();
       };
     };
 

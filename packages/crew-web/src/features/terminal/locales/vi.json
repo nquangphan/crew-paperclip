@@ -5,6 +5,7 @@
   "accessFailed": "Không tải được vai trò của bạn",
   "targetsFailed": "Không tải được danh sách máy",
   "targetMissing": "Dự án này chưa sẵn sàng trên máy đã chọn",
+  "connectFailed": "Không mở được terminal trên máy này sau nhiều lần thử. Kiểm tra máy rồi bấm Nối lại.",
   "status": {
     "connecting": "Đang kết nối",
     "open": "Đã kết nối",

@@ -5,6 +5,7 @@
   "accessFailed": "Could not load your role",
   "targetsFailed": "Could not load the machine list",
   "targetMissing": "This project is not ready on the selected machine",
+  "connectFailed": "Could not open the terminal on this machine after several tries. Check the machine, then press Reconnect.",
   "status": {
     "connecting": "Connecting",
     "open": "Connected",
