@@ -2,9 +2,10 @@
 // Chỉ owner (server cũng chặn); khoá thì hỏi mật khẩu rồi tự nối.
 import { useQuery } from '@tanstack/react-query';
 import { useEffect, useRef, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { api, queryKeys } from '@/api';
 import { useCompany } from '@/app/hooks';
+import { companyPath } from '@/app/routes-util';
 import { Alert, Badge, Button, ErrorState, Spinner, TerminalShell } from '@/ds';
 import { Minus, Plus, X } from '@/ds/icons';
 import { useCompanyAccess } from '@/features/access/use-company-access';
@@ -46,6 +47,10 @@ function TerminalView({ machineId, projectId }: { machineId: string; projectId: 
   const { t } = useT('terminal');
   const { company } = useCompany();
   const navigate = useNavigate();
+  const location = useLocation();
+  // Mở thẳng ở tab mới thì không có trang trước trong app: về trang Máy thay vì rời app.
+  const goBack = () =>
+    location.key === 'default' ? navigate(companyPath(company.issuePrefix, 'machines')) : navigate(-1);
   const coarse = useCoarsePointer();
   const targets = useQuery({
     queryKey: queryKeys.terminalTargets(company.id),
@@ -118,7 +123,7 @@ function TerminalView({ machineId, projectId }: { machineId: string; projectId: 
   };
   const onClose = () => {
     socket.close();
-    navigate(-1);
+    goBack();
   };
 
   return (
@@ -160,13 +165,13 @@ function TerminalView({ machineId, projectId }: { machineId: string; projectId: 
             {targets.error ? <ErrorState title={t('targetsFailed')} message={targets.error.message} /> : null}
             {targets.data && !target ? <Alert variant="warning" title={t('targetMissing')} /> : null}
             {socket.status === 'closed' ? (
-              <Alert variant="info" title={socket.message ?? t('closedHint')}>
+              <Alert variant="info" title={socket.notice === 'targetMissing' ? t('targetMissing') : t('closedHint')}>
                 <Button type="button" variant="outline" size="sm" onClick={socket.reconnect}>
                   {t('reconnect')}
                 </Button>
               </Alert>
-            ) : socket.message ? (
-              <Alert variant="warning" title={socket.message} />
+            ) : socket.notice === 'error' ? (
+              <Alert variant="warning" title={t('serverError')} />
             ) : null}
             {pasteTooLarge ? <Alert variant="destructive" title={t('pasteTooLarge')} /> : null}
           </>
@@ -174,7 +179,7 @@ function TerminalView({ machineId, projectId }: { machineId: string; projectId: 
         screenRef={boxRef}
         footer={coarse ? <AccessoryKeys send={sendKey} /> : null}
       />
-      {socket.status === 'locked' ? <UnlockDialog onUnlocked={socket.reconnect} onCancel={() => navigate(-1)} /> : null}
+      {socket.status === 'locked' ? <UnlockDialog onUnlocked={socket.reconnect} onCancel={goBack} /> : null}
     </>
   );
 }

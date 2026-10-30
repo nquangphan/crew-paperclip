@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { cleanup, render, screen } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { createMemoryRouter, RouterProvider } from 'react-router-dom';
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { CompanyContext } from '@/app/hooks';
@@ -52,9 +52,13 @@ const TARGETS = {
 };
 
 const mount = () => {
-  const router = createMemoryRouter([{ path: '/terminal/:machineId/:projectId', element: <TerminalPage /> }], {
-    initialEntries: [`/terminal/${MACHINE}/${PROJECT}`],
-  });
+  const router = createMemoryRouter(
+    [
+      { path: '/:companyPrefix/terminal/:machineId/:projectId', element: <TerminalPage /> },
+      { path: '/:companyPrefix/machines', element: <p>Trang Máy</p> },
+    ],
+    { initialEntries: [`/TPS/terminal/${MACHINE}/${PROJECT}`] },
+  );
   return render(
     <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
       <CompanyContext.Provider value={{ company: COMPANY, companies: [COMPANY] }}>
@@ -89,5 +93,50 @@ describe('trang Terminal', () => {
     mount();
     expect(await screen.findByText('Chỉ owner mở được terminal')).toBeTruthy();
     expect(screen.queryByLabelText('Mật khẩu')).toBeNull();
+  });
+
+  it('server đóng phiên thì hiện câu hướng dẫn, không hiện lý do thô', async () => {
+    const sockets: { onmessage: ((e: { data: string }) => void) | null; onclose: (() => void) | null }[] = [];
+    vi.stubGlobal(
+      'WebSocket',
+      class {
+        static OPEN = 1;
+        readyState = 1;
+        onmessage: ((e: { data: string }) => void) | null = null;
+        onclose: (() => void) | null = null;
+        constructor() {
+          sockets.push(this);
+        }
+        send() {}
+        close() {}
+      },
+    );
+    mockServer({
+      ...TARGETS,
+      'POST /api/crew/companies/c1/terminal/tickets': { status: 201, body: { ticket: 't1', expiresAt: 'x' } },
+    });
+    mount();
+    await vi.waitFor(() => expect(sockets).toHaveLength(1));
+    act(() => {
+      sockets[0].onmessage?.({ data: JSON.stringify({ type: 'closed', reason: 'shell_closed' }) });
+      sockets[0].onclose?.();
+    });
+    expect(await screen.findByText(/Phiên terminal đã đóng/)).toBeTruthy();
+    expect(screen.queryByText(/shell_closed/)).toBeNull();
+  });
+
+  it('mở thẳng ở tab mới (không có trang trước) thì Đóng về trang Máy', async () => {
+    vi.stubGlobal('WebSocket', vi.fn());
+    mockServer({
+      ...TARGETS,
+      'POST /api/crew/companies/c1/terminal/tickets': {
+        status: 423,
+        body: { error: 'x', code: 'crew_terminal_locked' },
+      },
+    });
+    mount();
+    await screen.findByLabelText('Mật khẩu');
+    fireEvent.click(screen.getByRole('button', { name: 'Quay lại' }));
+    expect(await screen.findByText('Trang Máy')).toBeTruthy();
   });
 });

@@ -90,3 +90,16 @@ export function saveFontScale(scale: number): void {
     // trình duyệt chặn lưu trữ: cỡ chữ chỉ giữ trong phiên này
   }
 }
+
+/**
+ * Shift+Enter: xterm 6.0 gửi CR như Enter nên Claude Code gửi luôn tin nhắn. Gửi ESC+CR thay vào (Claude Code coi là
+ * xuống dòng, không cần tmux bật extended-keys) và chặn xterm tự gửi. Gửi ở keydown; chặn cả keypress để xterm không
+ * gửi thêm CR; keyup và phím khác cho qua.
+ */
+export function shiftEnterHandler(ev: KeyboardEvent, send: (data: string) => void): boolean {
+  if (ev.key !== 'Enter' || !ev.shiftKey || ev.ctrlKey || ev.altKey || ev.metaKey) return true;
+  if (ev.type === 'keyup') return true;
+  ev.preventDefault();
+  if (ev.type === 'keydown') send('\x1b\r');
+  return false;
+}

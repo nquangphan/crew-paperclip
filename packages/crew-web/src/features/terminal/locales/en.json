@@ -16,6 +16,7 @@
   "closedHint": "The terminal session has closed. The tmux session on the machine stays unless it exited.",
   "fontSmaller": "Smaller text",
   "fontLarger": "Larger text",
+  "serverError": "The terminal hit an error on the machine. Reconnect if the screen stops updating.",
   "pasteTooLarge": "Pasted content is too large (16 MiB max).",
   "keysLabel": "Extra keys",
   "unlock": {

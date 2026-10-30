@@ -8,11 +8,15 @@ import type { TerminalSize } from './mount-xterm';
 
 export type TerminalSocketStatus = 'connecting' | 'open' | 'closed' | 'locked';
 
-type ServerFrame =
-  | { type: 'ready' }
-  | { type: 'output'; data: string }
-  | { type: 'closed'; reason?: string }
-  | { type: 'error'; message?: string };
+type ServerFrame = { type: 'ready' } | { type: 'output'; data: string } | { type: 'closed' } | { type: 'error' };
+
+/**
+ * Điều trang cần báo thêm. Lý do và câu lỗi thô của server (`shell_closed`, lỗi ssh…) không hiện cho người dùng;
+ * trang dịch `notice` thành câu i18n.
+ * - `targetMissing`: vé trả 4xx (máy/project không còn sẵn sàng, mất quyền): nối lại cũng vô ích.
+ * - `error`: server báo lỗi trong phiên.
+ */
+export type TerminalSocketNotice = 'targetMissing' | 'error';
 
 /** Lưới mặc định trước khi khung terminal đo được kích thước. */
 const DEFAULT_SIZE: TerminalSize = { cols: 80, rows: 24 };
@@ -30,8 +34,7 @@ export function terminalSocketUrl(
 
 export interface TerminalSocket {
   status: TerminalSocketStatus;
-  /** Câu server hoặc API báo khi phiên đóng hay lỗi; null khi không có. */
-  message: string | null;
+  notice: TerminalSocketNotice | null;
   send(data: string): void;
   /** Ghi nhớ cỡ lưới (dùng cho lần nối sau) và báo server khi đang mở. */
   resize(cols: number, rows: number): void;
@@ -53,7 +56,7 @@ export function useTerminalSocket({
   onOutput: (data: string) => void;
 }): TerminalSocket {
   const [status, setStatus] = useState<TerminalSocketStatus>('connecting');
-  const [message, setMessage] = useState<string | null>(null);
+  const [notice, setNotice] = useState<TerminalSocketNotice | null>(null);
   const [generation, setGeneration] = useState(0);
   const socketRef = useRef<WebSocket | null>(null);
   const sizeRef = useRef<TerminalSize>(DEFAULT_SIZE);
@@ -89,7 +92,7 @@ export function useTerminalSocket({
           setStatus('locked');
         } else if (err instanceof ApiError && err.status >= 400 && err.status < 500) {
           // Máy/project không còn sẵn sàng hoặc mất quyền owner: nối lại cũng vô ích.
-          setMessage(err.message);
+          setNotice('targetMissing');
           setStatus('closed');
         } else {
           scheduleRetry();
@@ -117,14 +120,13 @@ export function useTerminalSocket({
         if (frame.type === 'output') onOutputRef.current(frame.data);
         else if (frame.type === 'ready') {
           attempt = 0;
-          setMessage(null);
+          setNotice(null);
           setStatus('open');
           // Cỡ có thể đổi trong lúc chờ vé: báo lại cho chắc.
           ws.send(JSON.stringify({ type: 'resize', ...sizeRef.current }));
         } else if (frame.type === 'closed') {
           serverClosed = true;
-          setMessage(frame.reason ?? null);
-        } else if (frame.type === 'error') setMessage(frame.message ?? null);
+        } else if (frame.type === 'error') setNotice('error');
       };
       ws.onclose = () => {
         if (socketRef.current !== ws) return;
@@ -157,7 +159,7 @@ export function useTerminalSocket({
 
   return {
     status,
-    message,
+    notice,
     send: useCallback((data: string) => sendFrame({ type: 'input', data }), [sendFrame]),
     resize: useCallback(
       (cols: number, rows: number) => {
@@ -171,7 +173,7 @@ export function useTerminalSocket({
       setStatus('closed');
     }, []),
     reconnect: useCallback(() => {
-      setMessage(null);
+      setNotice(null);
       setGeneration((g) => g + 1);
     }, []),
   };

@@ -16,6 +16,7 @@
   "closedHint": "Phiên terminal đã đóng. Phiên tmux trên máy vẫn giữ nếu chưa thoát.",
   "fontSmaller": "Chữ nhỏ hơn",
   "fontLarger": "Chữ to hơn",
+  "serverError": "Terminal gặp lỗi trên máy. Thử nối lại nếu màn hình không còn cập nhật.",
   "pasteTooLarge": "Nội dung dán quá lớn (tối đa 16 MiB).",
   "keysLabel": "Phím phụ",
   "unlock": {

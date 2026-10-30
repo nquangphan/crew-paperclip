@@ -6,6 +6,7 @@ import { Unicode11Addon } from '@xterm/addon-unicode11';
 import { WebLinksAddon } from '@xterm/addon-web-links';
 import { WebglAddon } from '@xterm/addon-webgl';
 import { type ITerminalOptions, Terminal } from '@xterm/xterm';
+import { shiftEnterHandler } from './xterm-options';
 
 export interface TerminalSize {
   cols: number;
@@ -37,6 +38,8 @@ export function mountXterm(
   term.loadAddon(new WebLinksAddon());
   term.loadAddon(new SearchAddon());
   term.open(el);
+  // Qua term.input để ESC+CR đi đường onData như phím gõ.
+  term.attachCustomKeyEventHandler((ev) => shiftEnterHandler(ev, (data) => term.input(data, true)));
   try {
     const webgl = new WebglAddon();
     webgl.onContextLoss(() => webgl.dispose());
