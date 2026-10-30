@@ -67,10 +67,13 @@ const SSH_TARGET: CrewTerminalSshTarget = {
   host: "mac.tailnet", port: 2222, username: "crew", privateKey: "KEY", knownHosts: null, strictHostKeyChecking: false,
 };
 
+/** Phiên đã bị thu hồi (đăng xuất, đổi mật khẩu): cookie của nó không còn ra phiên nữa. */
+const revokedSessions = new Set<string>();
+
 /** Cookie `sid=<id>` ứng với phiên `<id>` của USER. */
 async function sessionFromCookie(headers: Headers): Promise<BetterAuthSessionResult | null> {
   const sid = /sid=([^;]+)/.exec(headers.get("cookie") ?? "")?.[1];
-  return sid ? { session: { id: sid, userId: USER }, user: { id: USER } } : null;
+  return sid && !revokedSessions.has(sid) ? { session: { id: sid, userId: USER }, user: { id: USER } } : null;
 }
 
 async function listen(server: HttpServer) {
@@ -132,13 +135,16 @@ describe("crew terminal websocket", () => {
   let resolveSshTarget: ReturnType<typeof vi.fn>;
   let membershipRole: string | null;
   let db: { execute: ReturnType<typeof vi.fn> };
+  let nowMs: number;
 
   beforeEach(() => {
     vi.clearAllMocks();
     servers = [];
     closers = [];
+    revokedSessions.clear();
+    nowMs = Date.now();
     ticketStore = createTerminalTicketStore();
-    unlockStore = createTerminalUnlockStore();
+    unlockStore = createTerminalUnlockStore({ now: () => nowMs });
     unlockStore.unlock("sess-A");
     unlockStore.unlock("sess-B");
     shell = new FakeSshShell();
@@ -159,7 +165,7 @@ describe("crew terminal websocket", () => {
     })));
   });
 
-  async function startHarness(extra?: (server: HttpServer) => void) {
+  async function startHarness(extra?: (server: HttpServer) => void, pingIntervalMs?: number) {
     const server = createServer();
     servers.push(server);
     const handle = setupCrewTerminalWebSocketServer(server, db as never, {
@@ -168,6 +174,7 @@ describe("crew terminal websocket", () => {
       unlockStore,
       connector,
       resolveSshTarget: resolveSshTarget as never,
+      pingIntervalMs,
     });
     closers.push(() => handle.close());
     extra?.(server);
@@ -337,6 +344,50 @@ describe("crew terminal websocket", () => {
     const closed = waitForClose(ws);
     await closed;
     await waitFor(() => expect(shell.closeCalls).toBe(1));
+  });
+
+  describe("mất quyền khi terminal đang mở thì đóng 1008", () => {
+    async function openThenRevoke(revoke: () => void) {
+      const port = await startHarness(undefined, 30);
+      const ws = connect(port, issue());
+      await waitForFrame(ws, "ready");
+      const errorFrame = waitForFrame(ws, "error");
+      const closeCode = waitForClose(ws);
+      revoke();
+      await errorFrame;
+      await expect(closeCode).resolves.toBe(1008);
+      await waitFor(() => expect(shell.closeCalls).toBe(1));
+      return loggerMock.info.mock.calls.map((call) => call[0] as Record<string, unknown>);
+    }
+
+    it("phiên đăng nhập bị thu hồi", async () => {
+      const events = await openThenRevoke(() => revokedSessions.add("sess-A"));
+      expect(events).toContainEqual(expect.objectContaining({ event: "crew_terminal_close", reason: "session_revoked" }));
+    });
+
+    it("không còn là owner", async () => {
+      const events = await openThenRevoke(() => {
+        membershipRole = "member";
+      });
+      expect(events).toContainEqual(expect.objectContaining({ event: "crew_terminal_close", reason: "not_owner" }));
+    });
+
+    it("hết hạn mở khoá", async () => {
+      const events = await openThenRevoke(() => {
+        nowMs += 13 * 60 * 60_000;
+      });
+      expect(events).toContainEqual(expect.objectContaining({ event: "crew_terminal_close", reason: "unlock_expired" }));
+    });
+
+    it("còn đủ quyền thì vẫn mở qua nhiều chu kỳ ping", async () => {
+      const port = await startHarness(undefined, 30);
+      const ws = connect(port, issue());
+      await waitForFrame(ws, "ready");
+      await new Promise((resolve) => setTimeout(resolve, 150));
+      expect(ws.readyState).toBe(1);
+      expect(shell.closeCalls).toBe(0);
+      ws.close();
+    });
   });
 
   it("không đụng tới upgrade của path khác", () => {

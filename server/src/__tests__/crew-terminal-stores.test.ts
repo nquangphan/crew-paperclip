@@ -49,20 +49,24 @@ describe("giới hạn thử mật khẩu mở khoá", () => {
   it("5 lần sai trong 15 phút thì chặn, hết cửa sổ thì cho thử lại", () => {
     let now = 0;
     const throttle = createUnlockThrottle({ now: () => now });
-    for (let i = 0; i < 5; i++) {
-      expect(throttle.blocked("u1")).toBe(false);
-      throttle.fail("u1");
-    }
-    expect(throttle.blocked("u1")).toBe(true);
-    expect(throttle.blocked("u2")).toBe(false);
+    for (let i = 0; i < 5; i++) expect(throttle.reserve("u1")).toBe(true);
+    expect(throttle.reserve("u1")).toBe(false);
+    expect(throttle.reserve("u2")).toBe(true);
     now += 15 * 60_000 + 1;
-    expect(throttle.blocked("u1")).toBe(false);
+    expect(throttle.reserve("u1")).toBe(true);
+  });
+
+  it("giữ chỗ ngay khi thử: nhiều lần thử cùng lúc chưa xong vẫn không vượt quá 5", () => {
+    const throttle = createUnlockThrottle({ now: () => 0 });
+    // Mười yêu cầu cùng giữ chỗ trước khi kiểm mật khẩu xong.
+    const granted = Array.from({ length: 10 }, () => throttle.reserve("u1")).filter(Boolean);
+    expect(granted).toHaveLength(5);
   });
 
   it("mở khoá thành công xoá bộ đếm", () => {
     const throttle = createUnlockThrottle({ now: () => 0 });
-    for (let i = 0; i < 5; i++) throttle.fail("u1");
+    for (let i = 0; i < 5; i++) throttle.reserve("u1");
     throttle.clear("u1");
-    expect(throttle.blocked("u1")).toBe(false);
+    expect(throttle.reserve("u1")).toBe(true);
   });
 });

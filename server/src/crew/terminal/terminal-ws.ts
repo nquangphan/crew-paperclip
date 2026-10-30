@@ -42,6 +42,8 @@ interface UpgradeRequest extends IncomingMessage {
 /** Kết quả kiểm lúc nâng cấp: đủ để mở SSH mà không cần hỏi lại DB. */
 type AuthorizedTerminal = {
   claims: TerminalTicketClaims;
+  /** Header lúc nâng cấp (có cookie phiên), giữ lại để kiểm phiên định kỳ khi terminal đang mở. */
+  headers: Headers;
   target: TerminalTarget;
   sshTarget: CrewTerminalSshTarget;
   cols: number;
@@ -131,6 +133,7 @@ async function isActiveOwner(db: Db, companyId: string, userId: string): Promise
  * Mọi kiểm tra chạy trước khi tạo WebSocket; hỏng bước nào thì trả 401/403 rồi huỷ socket:
  * có phiên → vé dùng một lần → vé khớp company, người dùng, phiên → vẫn là owner → phiên còn mở khoá
  * → project còn `ready` trên máy → máy có thông tin SSH. Path khác thì để các handler `upgrade` khác lo.
+ * Khi đang mở, mỗi nhịp ping kiểm lại phiên, vai owner và hạn mở khoá; mất quyền thì gửi `error` rồi đóng 1008.
  * Không ghi vé, nội dung gõ hay output vào log.
  */
 export function setupCrewTerminalWebSocketServer(
@@ -152,6 +155,7 @@ export function setupCrewTerminalWebSocketServer(
   const resolveSshTarget = opts.resolveSshTarget ?? resolveMachineSshTarget;
   const alive = new Map<TerminalSocket, boolean>();
   const closers = new Set<(reason: string) => void>();
+  const rechecks = new Map<TerminalSocket, () => void>();
 
   const pingTimer = setInterval(() => {
     for (const [socket, ok] of alive) {
@@ -161,12 +165,14 @@ export function setupCrewTerminalWebSocketServer(
       }
       alive.set(socket, false);
       socket.ping();
+      rechecks.get(socket)?.();
     }
   }, opts.pingIntervalMs ?? PING_INTERVAL_MS);
   pingTimer.unref?.();
 
   const authorize = async (req: IncomingMessage, companyId: string, url: URL): Promise<AuthorizedTerminal> => {
-    const session = opts.resolveSessionFromHeaders ? await opts.resolveSessionFromHeaders(headersFromIncomingMessage(req)) : null;
+    const headers = headersFromIncomingMessage(req);
+    const session = opts.resolveSessionFromHeaders ? await opts.resolveSessionFromHeaders(headers) : null;
     const userId = session?.user?.id;
     const sessionId = session?.session?.id;
     if (!userId || !sessionId) throw new UpgradeRejected("401 Unauthorized");
@@ -187,11 +193,25 @@ export function setupCrewTerminalWebSocketServer(
 
     return {
       claims,
+      headers,
       target,
       sshTarget,
       cols: parseDimension(url.searchParams.get("cols"), COLS),
       rows: parseDimension(url.searchParams.get("rows"), ROWS),
     };
+  };
+
+  /**
+   * Lý do mất quyền khi terminal đang mở, `null` nếu vẫn đủ quyền: phiên còn (chưa đăng xuất, chưa thu hồi),
+   * vẫn là owner, phiên còn mở khoá.
+   */
+  const lostAuthorization = async (auth: AuthorizedTerminal): Promise<string | null> => {
+    const { companyId, userId, sessionId } = auth.claims;
+    const session = opts.resolveSessionFromHeaders ? await opts.resolveSessionFromHeaders(auth.headers) : null;
+    if (session?.session?.id !== sessionId || session?.user?.id !== userId) return "session_revoked";
+    if (!(await isActiveOwner(db, companyId, userId))) return "not_owner";
+    if (!unlockStore.status(sessionId).unlocked) return "unlock_expired";
+    return null;
   };
 
   const serve = (socket: TerminalSocket, auth: AuthorizedTerminal) => {
@@ -206,6 +226,7 @@ export function setupCrewTerminalWebSocketServer(
       if (finished) return;
       finished = true;
       alive.delete(socket);
+      rechecks.delete(socket);
       closers.delete(finish);
       shell?.close();
       shell = null;
@@ -216,6 +237,25 @@ export function setupCrewTerminalWebSocketServer(
       send({ type: "error", message: "Mất kết nối SSH tới máy." });
       finish(reason, 1011);
     };
+
+    // Kiểm lại quyền mỗi nhịp ping: đăng xuất, mất vai owner hay hết hạn mở khoá thì cắt shell (không phải đóng vì để không).
+    let checking = false;
+    rechecks.set(socket, () => {
+      if (checking || finished) return;
+      checking = true;
+      lostAuthorization(auth)
+        .then((reason) => {
+          if (!reason || finished) return;
+          send({ type: "error", message: "Phiên không còn quyền mở terminal." });
+          finish(reason, 1008);
+        })
+        .catch((err: unknown) => {
+          logger.warn({ errorName: err instanceof Error ? err.name : typeof err, userId, machineId, projectId }, "crew terminal recheck failed");
+        })
+        .finally(() => {
+          checking = false;
+        });
+    });
 
     alive.set(socket, true);
     closers.add(finish);

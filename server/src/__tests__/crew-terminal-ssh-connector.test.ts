@@ -116,6 +116,22 @@ describe("createSsh2CrewTerminalConnector", () => {
     expect((ssh2.state.client as { end: ReturnType<typeof vi.fn> }).end).toHaveBeenCalled();
   });
 
+  it("ký tự nhiều byte bị cắt giữa hai gói vẫn ra đúng chữ", async () => {
+    const shell = await open(target(line(hostKey)));
+    const data: string[] = [];
+    shell.onData((d) => data.push(d));
+    const bytes = Buffer.from("Dự án ─│", "utf8");
+    // Cắt giữa "ự" (3 byte) và giữa "─" (3 byte).
+    const cutVi = 2;
+    const cutBox = bytes.indexOf(Buffer.from("─", "utf8")) + 1;
+    const stream = ssh2.state.stream as EventEmitter;
+    stream.emit("data", bytes.subarray(0, cutVi));
+    stream.emit("data", bytes.subarray(cutVi, cutBox));
+    stream.emit("data", bytes.subarray(cutBox));
+    expect(data.join("")).toBe("Dự án ─│");
+    expect(data.join("")).not.toContain("�");
+  });
+
   it("knownHosts không khớp khoá của máy thì từ chối", async () => {
     await expect(open(target(line(Buffer.from("another-key"))))).rejects.toThrow();
   });

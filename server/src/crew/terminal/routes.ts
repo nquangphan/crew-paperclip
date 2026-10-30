@@ -59,11 +59,11 @@ export function crewTerminalRoutes(db: Db): Router {
   router.post(`${BASE}/terminal/unlock`, async (req, res) => {
     const actor = await ownerOf(req);
     const { password } = body(unlockBody, req.body, "Cần nhập mật khẩu.");
-    if (crewTerminalUnlockThrottle.blocked(actor.userId)) {
+    // Giữ chỗ trước khi kiểm mật khẩu: lần thử đang chạy đã tính là một lần sai.
+    if (!crewTerminalUnlockThrottle.reserve(actor.userId)) {
       throw new HttpError(429, "Nhập sai mật khẩu quá nhiều lần, hãy thử lại sau 15 phút.", { code: TERMINAL_ERRORS.throttled });
     }
     if (!(await verifyUserPassword(db, actor.userId, password))) {
-      crewTerminalUnlockThrottle.fail(actor.userId);
       throw new HttpError(403, "Mật khẩu không đúng.", { code: TERMINAL_ERRORS.badPassword });
     }
     crewTerminalUnlockThrottle.clear(actor.userId);

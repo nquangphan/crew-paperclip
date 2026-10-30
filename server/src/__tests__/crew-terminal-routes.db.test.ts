@@ -161,4 +161,15 @@ suite("route terminal của Crew", () => {
     expect(res.status).toBe(429);
     expect(codeOf(res.body)).toBe("crew_terminal_unlock_throttled");
   });
+
+  it("10 lần sai gửi cùng lúc thì nhiều nhất 5 lần được kiểm mật khẩu, còn lại 429", async () => {
+    const { crewTerminalUnlockThrottle } = await import("../crew/terminal/unlock-throttle.js");
+    crewTerminalUnlockThrottle.clear(OWNER);
+    const app = await as(OWNER);
+    const results = await Promise.all(Array.from({ length: 10 }, () => request(app).post(url("/unlock")).send({ password: "sai" })));
+    const statuses = results.map((r) => r.status);
+    expect(statuses.filter((s) => s === 403).length).toBeLessThanOrEqual(5);
+    expect(statuses.filter((s) => s === 429).length).toBeGreaterThanOrEqual(5);
+    crewTerminalUnlockThrottle.clear(OWNER);
+  });
 });

@@ -1,5 +1,6 @@
 // @ts-ignore ssh2 không đi kèm kiểu; chỉ dùng phần khai báo bên dưới.
 import { Client as Ssh2Client } from "ssh2";
+import { StringDecoder } from "node:string_decoder";
 import { eq } from "drizzle-orm";
 import { environments, type Db } from "@paperclipai/db";
 import type { EnvironmentCustomImageSshShell } from "../../realtime/environment-custom-image-terminal-ws.js";
@@ -120,7 +121,12 @@ class Ssh2PtyShell implements EnvironmentCustomImageSshShell {
   }
 
   onData(listener: (data: string) => void): void {
-    this.stream.on("data", (data: Buffer | string) => listener(typeof data === "string" ? data : data.toString("utf8")));
+    // Giải mã liên tục: ký tự UTF-8 nhiều byte có thể bị cắt giữa hai gói SSH, giải từng gói riêng sẽ ra `�`.
+    const decoder = new StringDecoder("utf8");
+    this.stream.on("data", (data: Buffer | string) => {
+      const text = typeof data === "string" ? data : decoder.write(data);
+      if (text) listener(text);
+    });
   }
 
   onClose(listener: () => void): void {
