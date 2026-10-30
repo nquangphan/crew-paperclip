@@ -5,7 +5,7 @@ import { getEmbeddedPostgresTestSupport, startEmbeddedPostgresTestDatabase } fro
 import { applyCrewMachineTables, BOOK, MINI, seedCrewProject, seedPairing, seedTemplate } from "./helpers/crew-machine-tables.js";
 
 const ssh2 = vi.hoisted(() => ({
-  state: { client: null as unknown, stream: null as unknown, execArgs: [] as unknown[], config: {} as Record<string, unknown> },
+  state: { client: null as unknown, stream: null as unknown, execArgs: [] as unknown[], closeBeforeReady: false, config: {} as Record<string, unknown> },
 }));
 
 const FAKE_KEY = "throwaway-test-key-material";
@@ -29,6 +29,10 @@ vi.mock("ssh2", async () => {
       ssh2.state.config = config;
       const verifier = config.hostVerifier as ((key: Buffer) => boolean) | undefined;
       const trusted = verifier ? verifier(Buffer.from("presented-host-key")) : true;
+      if (ssh2.state.closeBeforeReady) {
+        queueMicrotask(() => this.emit("close"));
+        return;
+      }
       queueMicrotask(() => (trusted ? this.emit("ready") : this.emit("error", new Error("host key rejected"))));
     }
     exec(command: string, options: unknown, callback: (err: Error | undefined, stream: unknown) => void) {
@@ -120,8 +124,47 @@ describe("createSsh2CrewTerminalConnector", () => {
     await expect(open(target("# trống\n"))).rejects.toThrow();
   });
 
-  it("không bật kiểm chặt hoặc không có knownHosts thì nhận khoá", async () => {
+  it("kiểm chặt mà không có knownHosts thì từ chối", async () => {
+    await expect(open(target(null))).rejects.toThrow(/known_hosts/);
+  });
+
+  it("không bật kiểm chặt thì nhận khoá", async () => {
     await expect(open(target(line(Buffer.from("another-key")), false))).resolves.toBeTruthy();
-    await expect(open(target(null))).resolves.toBeTruthy();
+    await expect(open(target(null, false))).resolves.toBeTruthy();
+  });
+
+  it("dòng @revoked khớp khoá thì từ chối dù có dòng thường khớp", async () => {
+    await expect(open(target(`${line(hostKey)}\n@revoked ${line(hostKey)}`))).rejects.toThrow();
+  });
+
+  it("dòng @cert-authority khớp khoá không được tính", async () => {
+    await expect(open(target(`@cert-authority ${line(hostKey)}`))).rejects.toThrow();
+  });
+
+  it("khớp ở dòng không phải đầu tiên thì nhận", async () => {
+    const hosts = `# ghi chú\n${line(Buffer.from("other"))}\n\n${line(hostKey)}\n`;
+    await expect(open(target(hosts))).resolves.toBeTruthy();
+  });
+
+  it("đóng kết nối trước khi sẵn sàng thì reject", async () => {
+    // client bị đóng ngay sau connect, trước ready
+    ssh2.state.closeBeforeReady = true;
+    await expect(open(target(null, false))).rejects.toThrow(/đóng/);
+    ssh2.state.closeBeforeReady = false;
+  });
+
+  it("onClose chỉ phát đúng một lần", async () => {
+    const shell = await open(target(line(hostKey)));
+    const onClose = vi.fn();
+    shell.onClose(onClose);
+    (ssh2.state.stream as EventEmitter).emit("exit", 0);
+    (ssh2.state.stream as EventEmitter).emit("close");
+    (ssh2.state.client as EventEmitter).emit("close");
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it("lỗi muộn của client không thành sự kiện không ai bắt", async () => {
+    await open(target(line(hostKey)));
+    expect(() => (ssh2.state.client as EventEmitter).emit("error", new Error("late"))).not.toThrow();
   });
 });

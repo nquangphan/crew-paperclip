@@ -35,17 +35,25 @@ export async function resolveMachineSshTarget(db: Db, companyId: string, machine
   return { host, port, username, privateKey, knownHosts, strictHostKeyChecking };
 }
 
-/** Khoá máy có nằm trong một dòng `host keytype base64` nào của known_hosts không. So theo khoá, không theo tên máy. */
-function knownHostsTrustKey(knownHosts: string, presented: Buffer): boolean {
+/**
+ * Khoá máy có được known_hosts tin không. So theo khoá, không theo tên máy.
+ * Dòng `@revoked` khớp khoá thì loại; dòng `@cert-authority` là khoá CA nên bỏ qua; dòng thường khớp thì nhận.
+ */
+function knownHostsTrustKey(knownHosts: string | null, presented: Buffer): boolean {
+  if (!knownHosts) return false;
+  let trusted = false;
   for (const raw of knownHosts.split(/\r?\n/)) {
     const line = raw.trim();
     if (!line || line.startsWith("#")) continue;
     const fields = line.split(/\s+/);
-    if (fields[0]?.startsWith("@")) fields.shift();
+    const marker = fields[0]?.startsWith("@") ? fields.shift() : null;
+    if (marker === "@cert-authority") continue;
     const blob = fields[2];
-    if (blob && Buffer.from(blob, "base64").equals(presented)) return true;
+    if (!blob || !Buffer.from(blob, "base64").equals(presented)) continue;
+    if (marker === "@revoked") return false;
+    if (!marker) trusted = true;
   }
-  return false;
+  return trusted;
 }
 
 interface ClientChannel {
@@ -76,7 +84,19 @@ interface Client {
 const Client = Ssh2Client as new () => Client;
 
 class Ssh2PtyShell implements EnvironmentCustomImageSshShell {
-  constructor(private readonly client: Client, private readonly stream: ClientChannel) {}
+  private closed = false;
+  private readonly closeListeners: Array<() => void> = [];
+
+  constructor(private readonly client: Client, private readonly stream: ClientChannel) {
+    const emitClose = () => {
+      if (this.closed) return;
+      this.closed = true;
+      for (const listener of this.closeListeners) listener();
+    };
+    stream.on("exit", emitClose);
+    stream.on("close", emitClose);
+    client.on("close", emitClose);
+  }
 
   write(data: string): void {
     this.stream.write(data);
@@ -104,9 +124,8 @@ class Ssh2PtyShell implements EnvironmentCustomImageSshShell {
   }
 
   onClose(listener: () => void): void {
-    this.stream.on("exit", listener);
-    this.stream.on("close", listener);
-    this.client.on("close", listener);
+    if (this.closed) listener();
+    else this.closeListeners.push(listener);
   }
 
   onError(listener: (err: Error) => void): void {
@@ -121,9 +140,11 @@ export function createSsh2CrewTerminalConnector(): CrewTerminalSshConnector {
       new Promise<EnvironmentCustomImageSshShell>((resolve, reject) => {
         const client = new Client();
         let settled = false;
-        const fail = (err: Error) => {
+        let hostKeyRejected = false;
+        const fail = (cause: Error) => {
           if (settled) return;
           settled = true;
+          const err = hostKeyRejected ? new Error("Khoá máy không khớp known_hosts, đã từ chối kết nối.") : cause;
           try {
             client.end();
           } catch {
@@ -143,9 +164,10 @@ export function createSsh2CrewTerminalConnector(): CrewTerminalSshConnector {
             resolve(new Ssh2PtyShell(client, stream));
           });
         });
-        client.once("error", fail);
+        // Giữ listener lỗi suốt đời client để lỗi muộn không thành sự kiện 'error' không ai bắt.
+        client.on("error", fail);
+        client.on("close", () => fail(new Error("Kết nối SSH đóng trước khi sẵn sàng.")));
 
-        const verify = target.strictHostKeyChecking && target.knownHosts !== null;
         client.connect({
           host: target.host,
           port: target.port,
@@ -154,8 +176,14 @@ export function createSsh2CrewTerminalConnector(): CrewTerminalSshConnector {
           readyTimeout: 20000,
           keepaliveInterval: 15000,
           keepaliveCountMax: 3,
-          ...(verify
-            ? { hostVerifier: (key: Buffer) => knownHostsTrustKey(target.knownHosts as string, key) }
+          ...(target.strictHostKeyChecking
+            ? {
+                hostVerifier: (key: Buffer) => {
+                  const ok = knownHostsTrustKey(target.knownHosts, key);
+                  hostKeyRejected = !ok;
+                  return ok;
+                },
+              }
             : {}),
         });
       }),
