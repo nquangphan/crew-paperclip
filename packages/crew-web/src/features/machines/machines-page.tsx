@@ -1,15 +1,18 @@
-// Trang Máy (S15): thẻ từng máy chạy agent (tự làm mới 30 giây) và hàng đợi việc trên máy.
+// Trang Máy (S15): thẻ từng máy chạy agent (tự làm mới 30 giây), hàng đợi việc trên máy và (owner) danh sách mở terminal.
 import { useCompany } from '@/app/hooks';
 import { EmptyState, ErrorState, MachineCard, PageHeader, Spinner } from '@/ds';
+import { useCompanyAccess } from '@/features/access';
 import { useT } from '@/i18n';
 import { JobsQueue } from './jobs-queue';
 import { PairingBlock } from './pairing-block';
 import { RuntimeBlock } from './runtime-block';
+import { TerminalTargetsBlock } from './terminal-targets-block';
 import { useCrewMachines, useMachineJobs, useRuntimeSwitches } from './use-machines';
 
 export function MachinesPage() {
   const { t } = useT('machines');
   const { company } = useCompany();
+  const { isOwner } = useCompanyAccess();
   const machines = useCrewMachines(company.id);
   const jobs = useMachineJobs(company.id);
   const switches = useRuntimeSwitches(company.id);
@@ -70,6 +73,7 @@ export function MachinesPage() {
         ) : (
           <JobsQueue companyId={company.id} jobs={jobs.data ?? []} machines={list} now={now} />
         )}
+        {isOwner ? <TerminalTargetsBlock companyId={company.id} companyPrefix={company.issuePrefix} /> : null}
       </div>
     </>
   );

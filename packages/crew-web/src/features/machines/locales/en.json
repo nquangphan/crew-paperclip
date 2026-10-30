@@ -90,5 +90,11 @@
     "confirmBodyUnpaired": "{{host}} is not paired: it sends status reports with the company's shared secret. Unpairing rejects all of its reports, including those signed with the shared secret, and it gets no new runs. To use it again, open the 2P Crew app on that machine and click \"Ghép lại\" (Re-pair). Other Macs are not affected; the machine's environment is not archived.",
     "confirmAction": "Unpair",
     "hostMismatch": "Environment {{environment}} points to {{actual}}, not this machine's {{expected}}. Nothing was unpaired, to avoid archiving another machine."
+  },
+  "terminal": {
+    "title": "Terminal",
+    "loadFailed": "Could not load the projects you can open a terminal in",
+    "empty": "No project is ready on any machine yet.",
+    "open": "Open terminal"
   }
 }
