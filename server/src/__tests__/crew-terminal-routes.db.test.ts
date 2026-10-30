@@ -135,4 +135,30 @@ suite("route terminal của Crew", () => {
     const res = await request(await as(OWNER, "sess-khac")).post(url("/tickets")).send({ machineId: BOOK.machineId, projectId: w.projectId });
     expect(res.status).toBe(423);
   });
+
+  it("viewer không mở khoá và không xin vé được (403)", async () => {
+    expect((await request(await as(VIEWER)).post(url("/unlock")).send({ password: PASSWORD })).status).toBe(403);
+    const res = await request(await as(VIEWER)).post(url("/tickets")).send({ machineId: BOOK.machineId, projectId: w.projectId });
+    expect(res.status).toBe(403);
+  });
+
+  it("máy đã gỡ ghép không còn trong targets và không cấp vé", async () => {
+    await db.execute(sql.raw(`UPDATE ${ns}.project_machines SET status = 'ready' WHERE machine_id = '${MINI.machineId}'`));
+    expect((await request(await as(OWNER)).get(url("/targets"))).body.items).toHaveLength(2);
+    await db.execute(sql.raw(`UPDATE ${ns}.machine_pairings SET revoked_at = now() WHERE machine_id = '${MINI.machineId}'`));
+    const targets = await request(await as(OWNER)).get(url("/targets"));
+    expect(targets.body.items.map((t: { machineId: string }) => t.machineId)).toEqual([BOOK.machineId]);
+    const res = await request(await as(OWNER)).post(url("/tickets")).send({ machineId: MINI.machineId, projectId: w.projectId });
+    expect(res.status).toBe(404);
+    expect(codeOf(res.body)).toBe("crew_terminal_target_missing");
+  });
+
+  it("5 lần sai mật khẩu thì lần 6 bị chặn 429 dù mật khẩu đúng", async () => {
+    for (let i = 0; i < 5; i++) {
+      expect((await request(await as(OWNER)).post(url("/unlock")).send({ password: "sai" })).status).toBe(403);
+    }
+    const res = await request(await as(OWNER, "sess-khac-nua")).post(url("/unlock")).send({ password: PASSWORD });
+    expect(res.status).toBe(429);
+    expect(codeOf(res.body)).toBe("crew_terminal_unlock_throttled");
+  });
 });

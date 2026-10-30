@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { createUnlockThrottle } from "../crew/terminal/unlock-throttle.js";
 import { createTerminalTicketStore } from "../crew/terminal/ticket-store.js";
 import { createTerminalUnlockStore } from "../crew/terminal/unlock-store.js";
 
@@ -41,5 +42,27 @@ describe("kho vé terminal", () => {
   it("mỗi vé khác nhau", () => {
     const store = createTerminalTicketStore();
     expect(store.issue(claims).ticket).not.toBe(store.issue(claims).ticket);
+  });
+});
+
+describe("giới hạn thử mật khẩu mở khoá", () => {
+  it("5 lần sai trong 15 phút thì chặn, hết cửa sổ thì cho thử lại", () => {
+    let now = 0;
+    const throttle = createUnlockThrottle({ now: () => now });
+    for (let i = 0; i < 5; i++) {
+      expect(throttle.blocked("u1")).toBe(false);
+      throttle.fail("u1");
+    }
+    expect(throttle.blocked("u1")).toBe(true);
+    expect(throttle.blocked("u2")).toBe(false);
+    now += 15 * 60_000 + 1;
+    expect(throttle.blocked("u1")).toBe(false);
+  });
+
+  it("mở khoá thành công xoá bộ đếm", () => {
+    const throttle = createUnlockThrottle({ now: () => 0 });
+    for (let i = 0; i < 5; i++) throttle.fail("u1");
+    throttle.clear("u1");
+    expect(throttle.blocked("u1")).toBe(false);
   });
 });

@@ -7,6 +7,7 @@ import { requireOwner, resolveContributionActor } from "../contributions.js";
 import { verifyUserPassword } from "./password.js";
 import { listTerminalTargets, resolveTerminalTarget } from "./targets.js";
 import { crewTerminalTicketStore } from "./ticket-store.js";
+import { crewTerminalUnlockThrottle } from "./unlock-throttle.js";
 import { crewTerminalUnlockStore } from "./unlock-store.js";
 
 const BASE = "/crew/companies/:companyId";
@@ -15,6 +16,7 @@ export const TERMINAL_ERRORS = {
   invalid: "crew_terminal_invalid",
   badPassword: "crew_terminal_bad_password",
   locked: "crew_terminal_locked",
+  throttled: "crew_terminal_unlock_throttled",
   targetMissing: "crew_terminal_target_missing",
 } as const;
 
@@ -57,9 +59,14 @@ export function crewTerminalRoutes(db: Db): Router {
   router.post(`${BASE}/terminal/unlock`, async (req, res) => {
     const actor = await ownerOf(req);
     const { password } = body(unlockBody, req.body, "Cần nhập mật khẩu.");
+    if (crewTerminalUnlockThrottle.blocked(actor.userId)) {
+      throw new HttpError(429, "Nhập sai mật khẩu quá nhiều lần, hãy thử lại sau 15 phút.", { code: TERMINAL_ERRORS.throttled });
+    }
     if (!(await verifyUserPassword(db, actor.userId, password))) {
+      crewTerminalUnlockThrottle.fail(actor.userId);
       throw new HttpError(403, "Mật khẩu không đúng.", { code: TERMINAL_ERRORS.badPassword });
     }
+    crewTerminalUnlockThrottle.clear(actor.userId);
     const { expiresAt } = crewTerminalUnlockStore.unlock(actor.sessionId);
     logger.info({ companyId: actor.companyId, userId: actor.userId }, "crew terminal unlocked");
     res.json({ expiresAt: expiresAt.toISOString() });
