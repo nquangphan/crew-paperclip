@@ -83,7 +83,7 @@ secret company.
 - `machine-jobs`: hàng đợi việc hiện trên cùng trang Máy, gồm việc `ensure-project` (Dựng project trên máy) do server xếp.
 - `runtime-switches`: công tắc runtime theo máy trên thẻ máy.
 - `skills`: trang Skills đọc `useCrewMachines`.
-- `web-terminal`: khối Terminal dưới hàng đợi việc, chỉ owner thấy, liệt kê dự án `ready` theo máy để mở terminal.
+- `web-terminal`: khối Terminal dưới hàng đợi việc, chỉ owner thấy, liệt kê dự án `ready` theo máy; nút Mở terminal mở khung nổi ở đúng dự án đó.
 - `design-system`: `MachineCard` nằm trong `ds/widgets/crew`.
 
 ## Tests

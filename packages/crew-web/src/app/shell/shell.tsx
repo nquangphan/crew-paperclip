@@ -1,9 +1,10 @@
 // Khung trong company: chọn company theo /:companyPrefix, sidebar, palette, cập nhật trực tiếp.
 import { type ReactNode, useState } from 'react';
-import { Navigate, Outlet, useMatches, useParams } from 'react-router-dom';
+import { Navigate, Outlet, useParams } from 'react-router-dom';
 import { AppFrame, CenteredPage, EmptyState, ErrorState, Spinner } from '@/ds';
 import { ContributionPopupHost } from '@/features/contributions/contribution-popup-host';
 import { IssuePopupHost } from '@/features/issues';
+import { TerminalDockProvider } from '@/features/terminal/terminal-dock';
 import { useT } from '@/i18n';
 import { CompanyContext, findCompany, useCompany, useCrewCompanies } from '../hooks';
 import { LiveEventsProvider } from '../live/live-events';
@@ -43,8 +44,6 @@ export function CompanyShell({ segments }: { segments: ReadonlySet<string> }) {
   const { companies, isLoading, error } = useCrewCompanies();
   const [paletteOpen, setPaletteOpen] = useState(false);
   const menu = useMobileMenu();
-  // Route khai `handle: { fullscreen: true }` (trang terminal) chiếm cả màn hình, không có sidebar.
-  const fullscreen = useMatches().some((m) => (m.handle as { fullscreen?: boolean } | undefined)?.fullscreen);
   if (isLoading || error) return <CompaniesState />;
   const company = findCompany(companies, companyPrefix);
   if (!company) {
@@ -57,31 +56,28 @@ export function CompanyShell({ segments }: { segments: ReadonlySet<string> }) {
   return (
     <CompanyContext.Provider value={{ company, companies }}>
       <LiveEventsProvider companyId={company.id}>
-        {fullscreen ? (
-          <Outlet />
-        ) : (
-          <>
-            <AppFrame
-              mobileTitle={company.name}
-              menuOpen={menu.open}
-              onMenuOpenChange={menu.setOpen}
-              sidebar={
-                <Sidebar
-                  segments={segments}
-                  onOpenPalette={() => {
-                    menu.setOpen(false);
-                    setPaletteOpen(true);
-                  }}
-                />
-              }
-            >
-              <Outlet />
-            </AppFrame>
-            <CommandPalette open={paletteOpen} onOpenChange={setPaletteOpen} segments={segments} />
-            <IssuePopupHost />
-            <ContributionPopupHost />
-          </>
-        )}
+        {/* Đổi company thì dựng lại khung nổi terminal: phiên của company cũ không sang company mới. */}
+        <TerminalDockProvider key={company.id}>
+          <AppFrame
+            mobileTitle={company.name}
+            menuOpen={menu.open}
+            onMenuOpenChange={menu.setOpen}
+            sidebar={
+              <Sidebar
+                segments={segments}
+                onOpenPalette={() => {
+                  menu.setOpen(false);
+                  setPaletteOpen(true);
+                }}
+              />
+            }
+          >
+            <Outlet />
+          </AppFrame>
+          <CommandPalette open={paletteOpen} onOpenChange={setPaletteOpen} segments={segments} />
+          <IssuePopupHost />
+          <ContributionPopupHost />
+        </TerminalDockProvider>
       </LiveEventsProvider>
     </CompanyContext.Provider>
   );

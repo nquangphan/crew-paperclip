@@ -1,24 +1,24 @@
 // Khối "Terminal" trên trang Máy (chỉ owner): dự án đã dựng xong (`ready`) trên từng máy, nhóm theo máy. Mỗi dự án có
-// link mở trang terminal ở tab mới để mở nhiều dự án cùng lúc; mật khẩu mở khoá hỏi ở trang terminal.
+// nút mở khung nổi terminal (góc dưới bên phải) ở đúng dự án đó; mật khẩu mở khoá hỏi trong khung.
 import { useQuery } from '@tanstack/react-query';
 import { terminalApi } from '@/api/crew/terminal';
 import { queryKeys } from '@/api/queryKeys';
-import { companyPath } from '@/app/routes-util';
 import { Alert, Button, MutedText, Section, SectionHeading, Spinner } from '@/ds';
 import { groupTargetsByMachine } from '@/features/terminal/target-switcher';
+import { useTerminalDock } from '@/features/terminal/terminal-dock';
 import { useT } from '@/i18n';
 
 interface TerminalTargetsBlockProps {
   companyId: string;
-  companyPrefix: string;
 }
 
-export function TerminalTargetsBlock({ companyId, companyPrefix }: TerminalTargetsBlockProps) {
+export function TerminalTargetsBlock({ companyId }: TerminalTargetsBlockProps) {
   const { t } = useT('machines');
   const targets = useQuery({
     queryKey: queryKeys.terminalTargets(companyId),
     queryFn: () => terminalApi.targets(companyId),
   });
+  const dock = useTerminalDock();
   const groups = groupTargetsByMachine(targets.data ?? []);
 
   return (
@@ -40,14 +40,14 @@ export function TerminalTargetsBlock({ companyId, companyPrefix }: TerminalTarge
                 <span className="truncate">{item.projectName}</span>
                 <MutedText>{item.projectKey}</MutedText>
               </div>
-              <Button asChild variant="outline" size="sm">
-                <a
-                  href={companyPath(companyPrefix, `terminal/${item.machineId}/${item.projectId}`)}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
-                  {t('terminal.open')}
-                </a>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={!dock}
+                onClick={() => dock?.open({ machineId: item.machineId, projectId: item.projectId })}
+              >
+                {t('terminal.open')}
               </Button>
             </div>
           ))}

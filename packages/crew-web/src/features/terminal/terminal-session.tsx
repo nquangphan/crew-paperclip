@@ -1,35 +1,28 @@
-// Trang terminal của owner: xterm nối WebSocket tới phiên tmux của một project trên một máy đã ghép.
-// Toàn màn hình (route có `handle.fullscreen`), luôn nền tối. Chỉ owner (server cũng chặn); khoá thì hỏi mật khẩu ngay
-// giữa khung rồi tự nối. Nút tiêu đề đổi sang dự án/máy khác tại chỗ.
-import { useQuery } from '@tanstack/react-query';
+// Một phiên terminal của owner trong khung nổi: xterm nối WebSocket tới phiên tmux của một project trên một máy đã ghép.
+// Luôn nền tối. Khoá thì hỏi mật khẩu ngay giữa khung rồi tự nối. Nút tiêu đề đổi sang dự án/máy khác tại chỗ.
+// Nạp lười từ `terminal-dock.tsx` để trang khác không phải tải xterm.
 import { type ReactNode, useEffect, useRef, useState } from 'react';
-import { useLocation, useNavigate, useParams } from 'react-router-dom';
-import { api, queryKeys } from '@/api';
+import type { TerminalTarget } from '@/api/crew/terminal';
 import { useCompany } from '@/app/hooks';
-import { companyPath } from '@/app/routes-util';
 import {
   Button,
-  CenteredPage,
-  ErrorState,
-  Spinner,
-  TerminalBackButton,
   TerminalBanner,
   TerminalConnecting,
   TerminalFontControl,
+  TerminalHideButton,
   TerminalPanel,
   TerminalPanelActions,
   TerminalShell,
   TerminalStatus,
 } from '@/ds';
 import { CircleAlert, RefreshCw } from '@/ds/icons';
-import { useCompanyAccess } from '@/features/access/use-company-access';
 import { useT } from '@/i18n';
 import { AccessoryKeys, useCoarsePointer } from './accessory-keys';
 import { type MountedXterm, mountXterm } from './mount-xterm';
 import { PasteTooLargeError, preparePaste } from './paste';
 import { TargetSwitcher } from './target-switcher';
 import { UnlockPanel } from './unlock-panel';
-import { type TerminalSocketNotice, useTerminalSocket } from './use-terminal-socket';
+import { type TerminalSocketNotice, type TerminalSocketStatus, useTerminalSocket } from './use-terminal-socket';
 import {
   buildTerminalOptions,
   FONT_SCALES,
@@ -41,34 +34,6 @@ import {
 
 /** Báo "dán quá lớn" tự ẩn sau chừng này mili giây. */
 const PASTE_NOTICE_MS = 5000;
-
-export function TerminalPage() {
-  const { t } = useT('terminal');
-  const access = useCompanyAccess();
-  const { machineId = '', projectId = '' } = useParams();
-  if (access.loading) {
-    return (
-      <CenteredPage>
-        <Spinner />
-      </CenteredPage>
-    );
-  }
-  if (access.error && !access.isOwner) {
-    return (
-      <CenteredPage>
-        <ErrorState title={t('accessFailed')} message={access.error.message} onRetry={access.retry} />
-      </CenteredPage>
-    );
-  }
-  if (!access.isOwner) {
-    return (
-      <CenteredPage>
-        <ErrorState title={t('ownerOnly')} message={t('ownerOnlyHint')} />
-      </CenteredPage>
-    );
-  }
-  return <TerminalView key={`${machineId}/${projectId}`} machineId={machineId} projectId={projectId} />;
-}
 
 const CLOSED_TITLE: Record<TerminalSocketNotice | 'none', string> = {
   none: 'closed.title',
@@ -86,20 +51,33 @@ const CLOSED_HINT: Record<TerminalSocketNotice | 'none', string> = {
   error: 'closed.hint',
 };
 
-function TerminalView({ machineId, projectId }: { machineId: string; projectId: string }) {
+export interface TerminalSessionProps {
+  machineId: string;
+  projectId: string;
+  /** Danh sách dự án mở được (đã tải ở khung nổi). */
+  targets: readonly TerminalTarget[];
+  /** Khung nổi đang hiện: hiện lại thì trả tiêu điểm cho terminal. */
+  visible: boolean;
+  onSelectTarget: (target: TerminalTarget) => void;
+  /** Ẩn khung nổi (phiên vẫn giữ). */
+  onHide: () => void;
+  /** Báo trạng thái kết nối cho nút tròn. */
+  onStatusChange?: (status: TerminalSocketStatus) => void;
+}
+
+export function TerminalSession({
+  machineId,
+  projectId,
+  targets,
+  visible,
+  onSelectTarget,
+  onHide,
+  onStatusChange,
+}: TerminalSessionProps) {
   const { t } = useT('terminal');
   const { company } = useCompany();
-  const navigate = useNavigate();
-  const location = useLocation();
-  const machinesPath = companyPath(company.issuePrefix, 'machines');
-  // Mở thẳng ở tab mới thì không có trang trước trong app: về trang Máy thay vì rời app.
-  const goBack = () => (location.key === 'default' ? navigate(machinesPath) : navigate(-1));
   const coarse = useCoarsePointer();
-  const targets = useQuery({
-    queryKey: queryKeys.terminalTargets(company.id),
-    queryFn: () => api.terminal.targets(company.id),
-  });
-  const target = targets.data?.find((x) => x.machineId === machineId && x.projectId === projectId);
+  const target = targets.find((x) => x.machineId === machineId && x.projectId === projectId);
   const boxRef = useRef<HTMLDivElement>(null);
   const xtermRef = useRef<MountedXterm | null>(null);
   const [fontScale, setFontScale] = useState(readFontScale);
@@ -160,8 +138,12 @@ function TerminalView({ machineId, projectId }: { machineId: string; projectId: 
 
   // Nối xong (sau mở khoá hay nối lại) thì trả tiêu điểm cho terminal để gõ được ngay.
   useEffect(() => {
-    if (socket.status === 'open') xtermRef.current?.term.focus();
-  }, [socket.status]);
+    if (socket.status === 'open' && visible) xtermRef.current?.term.focus();
+  }, [socket.status, visible]);
+
+  useEffect(() => {
+    onStatusChange?.(socket.status);
+  }, [socket.status, onStatusChange]);
 
   useEffect(() => {
     if (!pasteTooLarge) return;
@@ -173,16 +155,11 @@ function TerminalView({ machineId, projectId }: { machineId: string; projectId: 
     send(data);
     xtermRef.current?.term.focus();
   };
-  const onBack = () => {
-    socket.close();
-    goBack();
-  };
-
   const hostname = target?.hostname ?? '';
-  const missing = Boolean(targets.data && !target);
+  const missing = !target;
   let overlay: ReactNode = null;
   if (socket.status === 'locked') {
-    overlay = <UnlockPanel onUnlocked={socket.reconnect} onCancel={onBack} />;
+    overlay = <UnlockPanel onUnlocked={socket.reconnect} onCancel={onHide} />;
   } else if (socket.status === 'closed' || missing) {
     const notice = missing ? 'targetMissing' : (socket.notice ?? 'none');
     overlay = (
@@ -192,8 +169,8 @@ function TerminalView({ machineId, projectId }: { machineId: string; projectId: 
         description={t(CLOSED_HINT[notice], { host: hostname })}
       >
         <TerminalPanelActions>
-          <Button type="button" variant="ghost" onClick={onBack}>
-            {t('backToMachines')}
+          <Button type="button" variant="ghost" onClick={onHide}>
+            {t('hide')}
           </Button>
           {notice === 'forbidden' ? (
             <Button type="button" onClick={() => window.location.reload()}>
@@ -215,35 +192,25 @@ function TerminalView({ machineId, projectId }: { machineId: string; projectId: 
 
   return (
     <TerminalShell
-      back={<TerminalBackButton label={t('backToMachines')} shortLabel={t('machines')} onClick={onBack} />}
-      title={
-        <TargetSwitcher
-          targets={targets.data ?? []}
-          current={target}
-          fallbackTitle={t('title')}
-          onSelect={(next) =>
-            navigate(companyPath(company.issuePrefix, `terminal/${next.machineId}/${next.projectId}`), {
-              replace: true,
-            })
-          }
-        />
-      }
+      title={<TargetSwitcher targets={targets} current={target} fallbackTitle={t('title')} onSelect={onSelectTarget} />}
       status={<TerminalStatus tone={socket.status} label={t(`status.${socket.status}`)} />}
       actions={
-        <TerminalFontControl
-          size={fontSizeFor(fontScale)}
-          label={t('fontSize')}
-          smallerLabel={t('fontSmaller')}
-          largerLabel={t('fontLarger')}
-          canSmaller={fontScale !== FONT_SCALES[0]}
-          canLarger={fontScale !== FONT_SCALES[FONT_SCALES.length - 1]}
-          onSmaller={() => setFontScale((s) => nextFontScale(s, -1))}
-          onLarger={() => setFontScale((s) => nextFontScale(s, 1))}
-        />
+        <>
+          <TerminalFontControl
+            size={fontSizeFor(fontScale)}
+            label={t('fontSize')}
+            smallerLabel={t('fontSmaller')}
+            largerLabel={t('fontLarger')}
+            canSmaller={fontScale !== FONT_SCALES[0]}
+            canLarger={fontScale !== FONT_SCALES[FONT_SCALES.length - 1]}
+            onSmaller={() => setFontScale((s) => nextFontScale(s, -1))}
+            onLarger={() => setFontScale((s) => nextFontScale(s, 1))}
+          />
+          <TerminalHideButton label={t('hide')} onClick={onHide} />
+        </>
       }
       banner={
         <>
-          {targets.error ? <TerminalBanner tone="warning">{t('targetsFailed')}</TerminalBanner> : null}
           {socket.notice === 'error' && socket.status === 'open' ? (
             <TerminalBanner tone="warning">{t('serverError')}</TerminalBanner>
           ) : null}

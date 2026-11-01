@@ -1,9 +1,6 @@
 {
   "title": "Terminal",
-  "ownerOnly": "Chỉ owner mở được terminal",
-  "ownerOnlyHint": "Terminal chạy lệnh thật trên máy của dự án nên chỉ owner dùng được.",
-  "accessFailed": "Không tải được vai trò của bạn",
-  "targetsFailed": "Không tải được danh sách dự án; nút đổi dự án tạm trống.",
+  "targetsFailed": "Không tải được danh sách dự án. Ẩn rồi mở lại để thử lại.",
   "status": {
     "connecting": "Đang kết nối",
     "open": "Đã kết nối",
@@ -22,10 +19,8 @@
     "password": "Mật khẩu",
     "submit": "Mở khoá",
     "submitting": "Đang mở khoá",
-    "cancel": "Về trang Máy"
+    "cancel": "Ẩn terminal"
   },
-  "machines": "Máy",
-  "backToMachines": "Về trang Máy",
   "switchTarget": "Đổi dự án hoặc máy",
   "noTargets": "Chưa có dự án nào sẵn sàng",
   "connectingTo": "Đang nối tới {{host}}…",
@@ -40,5 +35,7 @@
     "forbiddenHint": "Phiên đăng nhập đã hết hạn hoặc tài khoản không còn quyền owner. Tải lại trang để đăng nhập lại.",
     "connectFailed": "Không mở được terminal",
     "connectFailedHint": "Thử nhiều lần không nối được tới {{host}}. Kiểm tra máy còn bật và còn trong Tailscale, rồi bấm Nối lại."
-  }
+  },
+  "show": "Mở terminal",
+  "hide": "Ẩn terminal"
 }

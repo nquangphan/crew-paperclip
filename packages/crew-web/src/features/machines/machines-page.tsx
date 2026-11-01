@@ -73,7 +73,7 @@ export function MachinesPage() {
         ) : (
           <JobsQueue companyId={company.id} jobs={jobs.data ?? []} machines={list} now={now} />
         )}
-        {isOwner ? <TerminalTargetsBlock companyId={company.id} companyPrefix={company.issuePrefix} /> : null}
+        {isOwner ? <TerminalTargetsBlock companyId={company.id} /> : null}
       </div>
     </>
   );

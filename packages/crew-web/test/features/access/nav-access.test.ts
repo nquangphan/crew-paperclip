@@ -76,12 +76,6 @@ describe('routeAllowed', () => {
     expect(routeAllowed(['contributions'], viewer)).toBe(false);
   });
 
-  it('Terminal chỉ owner', () => {
-    expect(routeAllowed(['terminal', 'm1', 'p1'], owner)).toBe(true);
-    for (const a of [contributor, viewer, operator]) expect(routeAllowed(['terminal', 'm1', 'p1'], a)).toBe(false);
-    expect(routeNeedsAccess(['terminal', 'm1', 'p1'])).toBe(true);
-  });
-
   it('chỉ trang phụ thuộc vai trò mới phải đợi tải xong vai trò', () => {
     expect(routeNeedsAccess(['inbox'])).toBe(true);
     expect(routeNeedsAccess(['members'])).toBe(true);

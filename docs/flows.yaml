@@ -172,7 +172,7 @@ flows:
     entrypoints:
       - server/src/crew/terminal/routes.ts
       - server/src/crew/terminal/terminal-ws.ts
-      - packages/crew-web/src/features/terminal/routes.tsx
+      - packages/crew-web/src/features/terminal/terminal-dock.tsx
     files:
       - server/src/crew/terminal/password.ts
       - server/src/crew/terminal/remote-command.ts
@@ -188,7 +188,7 @@ flows:
       - packages/crew-web/src/features/terminal/mount-xterm.ts
       - packages/crew-web/src/features/terminal/paste.ts
       - packages/crew-web/src/features/terminal/target-switcher.tsx
-      - packages/crew-web/src/features/terminal/terminal-page.tsx
+      - packages/crew-web/src/features/terminal/terminal-session.tsx
       - packages/crew-web/src/features/terminal/unlock-panel.tsx
       - packages/crew-web/src/features/terminal/use-terminal-socket.ts
       - packages/crew-web/src/features/terminal/xterm-options.ts
@@ -202,7 +202,7 @@ flows:
       - packages/crew-web/test/features/terminal/accessory-keys.test.tsx
       - packages/crew-web/test/features/terminal/paste.test.ts
       - packages/crew-web/test/features/terminal/shift-enter.test.ts
-      - packages/crew-web/test/features/terminal/terminal-page.test.tsx
+      - packages/crew-web/test/features/terminal/terminal-dock.test.tsx
       - packages/crew-web/test/features/terminal/use-terminal-socket.test.tsx
       - packages/crew-web/test/features/terminal/xterm-options.test.ts
   runtime-switches:

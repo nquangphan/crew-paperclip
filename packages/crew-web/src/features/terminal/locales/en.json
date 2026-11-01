@@ -1,9 +1,6 @@
 {
   "title": "Terminal",
-  "ownerOnly": "Only the owner can open the terminal",
-  "ownerOnlyHint": "The terminal runs real commands on the project's machine, so only the owner can use it.",
-  "accessFailed": "Could not load your role",
-  "targetsFailed": "Could not load the project list; the switcher is empty for now.",
+  "targetsFailed": "Could not load the project list. Hide and reopen to try again.",
   "status": {
     "connecting": "Connecting",
     "open": "Connected",
@@ -22,10 +19,8 @@
     "password": "Password",
     "submit": "Unlock",
     "submitting": "Unlocking",
-    "cancel": "Back to Machines"
+    "cancel": "Hide terminal"
   },
-  "machines": "Machines",
-  "backToMachines": "Back to Machines",
   "switchTarget": "Switch project or machine",
   "noTargets": "No project is ready yet",
   "connectingTo": "Connecting to {{host}}…",
@@ -40,5 +35,7 @@
     "forbiddenHint": "Your sign-in expired or the account is no longer an owner. Reload the page to sign in again.",
     "connectFailed": "Could not open the terminal",
     "connectFailedHint": "Several tries could not reach {{host}}. Check that the machine is on and in Tailscale, then press Reconnect."
-  }
+  },
+  "show": "Open terminal",
+  "hide": "Hide terminal"
 }

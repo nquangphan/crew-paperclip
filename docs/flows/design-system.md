@@ -76,11 +76,11 @@ Widget Crew trong `ds/widgets/crew/` và `ds/widgets/roadmap/`, và widget đín
 - `web-shell`: shell dùng `AppFrame`, sidebar và component.
 - `web-pages`, `issues-web`, `skills`, `setup-wizards`, `guide`: màn hình dùng component và widget.
 - `roadmap-map`, `docs-snapshot`, `machine-status`, `attachments`: sở hữu các widget Crew riêng trong `ds/widgets`.
-- `web-terminal`: sở hữu các widget `Terminal*` (`TerminalShell`, `TerminalBackButton`, `TerminalSwitcher`, `TerminalFontControl`,
-  `TerminalStatus`, `TerminalConnecting`, `TerminalPanel`, `TerminalPanelActions`, `TerminalFieldError`, `TerminalBanner`,
-  `TerminalKeyRow`)
-  (`ds/widgets/terminal-shell.tsx`, export qua `ds/index.ts`) cùng token `--terminal-*`; `icons.ts` có thêm `Minus`,
-  `Lock` và `SquareTerminal` cho trang terminal.
+- `web-terminal`: sở hữu các widget `Terminal*` (`TerminalShell`, `TerminalLauncher`, `TerminalDockPanel`, `TerminalDockEmpty`,
+  `TerminalHideButton`, `TerminalSwitcher`, `TerminalFontControl`, `TerminalStatus`, `TerminalConnecting`, `TerminalPanel`,
+  `TerminalPanelActions`, `TerminalFieldError`, `TerminalBanner`, `TerminalKeyRow`) (`ds/widgets/terminal-shell.tsx`, export
+  qua `ds/index.ts`) cùng token `--terminal-*`; `icons.ts` có thêm `Minus`, `Lock` và `SquareTerminal`. `FloatingNotice`
+  đứng cao hơn `--crew-dock-space` (khung nổi terminal đặt biến này) để không đè nút tròn.
 - `core-hooks`: kéo upstream thì so lại các file `clone:`.
 
 ## Tests

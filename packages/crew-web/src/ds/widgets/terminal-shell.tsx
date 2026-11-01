@@ -1,5 +1,5 @@
 // crew: tự dựng
-import { ArrowLeft, Check, ChevronsUpDown, Loader2, Minus, Plus, SquareTerminal } from 'lucide-react';
+import { Check, ChevronDown, ChevronsUpDown, Loader2, Minus, Plus, SquareTerminal } from 'lucide-react';
 import type * as React from 'react';
 import { cn } from '../cn';
 import { Button } from '../components/button';
@@ -14,8 +14,8 @@ import {
 } from '../components/dropdown-menu';
 
 interface TerminalShellProps {
-  /** Nút về, đầu thanh trên. */
-  back: React.ReactNode;
+  /** Nút về, đầu thanh trên (bỏ trống khi nằm trong khung nổi). */
+  back?: React.ReactNode;
   /** Tiêu đề: thường là nút chọn dự án/máy. */
   title: React.ReactNode;
   /** Trạng thái kết nối cạnh tiêu đề (`TerminalStatus`). */
@@ -33,14 +33,14 @@ interface TerminalShellProps {
 }
 
 /**
- * Trang terminal toàn màn hình, luôn nền tối (token `--terminal-*`, class `dark` cho component bên trong): thanh trên
+ * Terminal luôn nền tối (token `--terminal-*`, class `dark` cho component bên trong), cao bằng khung chứa: thanh trên
  * gọn, khung terminal giãn hết phần còn lại, thông báo phủ giữa khung thay vì đẩy khung xuống.
  */
 function TerminalShell({ back, title, status, actions, banner, overlay, screenRef, footer }: TerminalShellProps) {
   return (
-    <div data-slot="terminal-shell" className="dark flex h-dvh flex-col bg-terminal text-terminal-foreground">
+    <div data-slot="terminal-shell" className="dark flex h-full flex-col bg-terminal text-terminal-foreground">
       <header className="flex h-12 shrink-0 items-center gap-1 border-b border-terminal-border bg-terminal-surface px-2 sm:gap-2 sm:px-3">
-        {back}
+        {back ?? null}
         <div className="flex min-w-0 flex-1 items-center gap-2">
           {title}
           {status}
@@ -167,31 +167,6 @@ function TerminalKeyRow({
 
 /** Nút trên thanh tối: chữ phụ, sáng lên khi rê. */
 const TOOL = 'text-terminal-muted hover:bg-white/5 hover:text-terminal-foreground';
-
-/** Nút về đầu thanh trên; màn hẹp chỉ còn mũi tên (nhãn vẫn đọc được qua `aria-label`). */
-function TerminalBackButton({
-  label,
-  shortLabel,
-  onClick,
-}: {
-  label: string;
-  shortLabel: string;
-  onClick: () => void;
-}) {
-  return (
-    <Button
-      type="button"
-      variant="ghost"
-      size="sm"
-      aria-label={label}
-      className={cn('shrink-0', TOOL)}
-      onClick={onClick}
-    >
-      <ArrowLeft />
-      <span className="hidden md:inline">{shortLabel}</span>
-    </Button>
-  );
-}
 
 interface TerminalSwitcherGroup {
   id: string;
@@ -343,14 +318,115 @@ function TerminalFieldError({ id, children }: { id?: string; children: React.Rea
   );
 }
 
+/** Nút ẩn khung nổi (thanh trên của terminal). */
+function TerminalHideButton({ label, onClick }: { label: string; onClick: () => void }) {
+  return (
+    <Button
+      type="button"
+      variant="ghost"
+      size="icon-sm"
+      aria-label={label}
+      title={label}
+      className={TOOL}
+      onClick={onClick}
+    >
+      <ChevronDown />
+    </Button>
+  );
+}
+
+/**
+ * Nút tròn treo góc dưới bên phải để ẩn hiện khung terminal, như nút mở chat. Chấm nhỏ báo phiên đang nối khi khung
+ * đang ẩn.
+ */
+function TerminalLauncher({
+  label,
+  open,
+  live,
+  controls,
+  onToggle,
+}: {
+  label: string;
+  open: boolean;
+  /** Có phiên đang nối (khung ẩn vẫn giữ kết nối). */
+  live?: boolean;
+  /** id của khung nổi, cho `aria-controls`. */
+  controls: string;
+  onToggle: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      data-slot="terminal-launcher"
+      aria-label={label}
+      title={label}
+      aria-expanded={open}
+      aria-controls={controls}
+      onClick={onToggle}
+      className={cn(
+        'fixed right-4 bottom-4 z-50 flex size-14 cursor-pointer items-center justify-center rounded-full border border-terminal-border bg-terminal text-terminal-foreground shadow-xl transition-transform duration-200 hover:scale-105 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none active:scale-95 motion-reduce:transition-none [&_svg]:size-6',
+        open && 'max-md:hidden',
+      )}
+    >
+      {open ? <ChevronDown /> : <SquareTerminal />}
+      {live && !open ? (
+        <span
+          aria-hidden
+          className="absolute top-1 right-1 size-3 rounded-full border-2 border-terminal bg-emerald-400"
+        />
+      ) : null}
+    </button>
+  );
+}
+
+/**
+ * Khung nổi chứa terminal, mọc ở góc dưới bên phải trên nút tròn; điện thoại thì phủ cả màn hình. Ẩn bằng `hidden`
+ * chứ không gỡ, để phiên terminal giữ nguyên khi ẩn đi rồi mở lại.
+ */
+function TerminalDockPanel({
+  id,
+  label,
+  open,
+  children,
+}: {
+  id: string;
+  label: string;
+  open: boolean;
+  children: React.ReactNode;
+}) {
+  return (
+    <section
+      id={id}
+      aria-label={label}
+      hidden={!open}
+      data-slot="terminal-dock"
+      className="fixed inset-0 z-50 overflow-hidden bg-terminal md:inset-auto md:right-4 md:bottom-22 md:h-[min(36rem,calc(100dvh-7rem))] md:w-[min(56rem,calc(100vw-2rem))] md:rounded-xl md:border md:border-terminal-border md:shadow-2xl motion-safe:animate-in motion-safe:fade-in-0 motion-safe:slide-in-from-bottom-2"
+    >
+      {children}
+    </section>
+  );
+}
+
+/** Thẻ trống giữa khung nổi (chưa có dự án nào mở được). */
+function TerminalDockEmpty({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="dark flex h-full items-center justify-center p-6 text-center text-sm text-terminal-muted">
+      {children}
+    </div>
+  );
+}
+
 export type { TerminalShellProps, TerminalStatusTone, TerminalSwitcherGroup };
 export {
-  TerminalBackButton,
   TerminalBanner,
   TerminalConnecting,
+  TerminalDockEmpty,
+  TerminalDockPanel,
   TerminalFieldError,
   TerminalFontControl,
+  TerminalHideButton,
   TerminalKeyRow,
+  TerminalLauncher,
   TerminalPanel,
   TerminalPanelActions,
   TerminalShell,

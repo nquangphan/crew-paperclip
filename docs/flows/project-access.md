@@ -38,7 +38,7 @@ project owner cấp cho họ. Luật:
 5. `packages/crew-web/src/features/access/use-visible-projects.ts` → `useVisibleProjects`, `filterProjects`,
    `filterIssues`, `canSeeIssue`: lọc mọi danh sách theo `project-access/me`.
 6. `packages/crew-web/src/features/access/nav-access.ts` → `navItemVisible`, `navLabelKey`, `routeAllowed`,
-   `routeNeedsAccess`: mục sidebar và trang theo vai trò (chỉ là UI); mục Thành viên và trang `terminal/…` chỉ owner thấy (UI; server cũng chặn), Chờ duyệt
+   `routeNeedsAccess`: mục sidebar và trang theo vai trò (chỉ là UI); mục Thành viên chỉ owner thấy (UI; server cũng chặn; terminal không còn là trang mà là khung nổi chỉ owner có, flow `web-terminal`), Chờ duyệt
    cho owner và người góp ý.
 7. `packages/crew-web/src/features/access/access-guard.tsx` → `AccessGuard`: chờ vai trò và quyền xem tải xong, báo lỗi kèm
    Thử lại thay vì đoán, chuyển trang bị cấm về Tổng quan.

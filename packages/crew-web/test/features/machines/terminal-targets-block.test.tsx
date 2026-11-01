@@ -34,7 +34,7 @@ const base = (extra: Record<string, unknown> = {}) => ({
 const mount = () => renderPage(<MachinesPage />, { route: 'machines', at: '/TPS/machines' });
 
 describe('khối Terminal trên trang Máy', () => {
-  it('owner thấy dự án nhóm theo máy, link mở tab mới tới trang terminal', async () => {
+  it('owner thấy dự án nhóm theo máy, mỗi dự án một nút mở terminal', async () => {
     mockServer(
       base({
         [TARGETS]: {
@@ -52,17 +52,11 @@ describe('khối Terminal trên trang Máy', () => {
     const section = await screen.findByRole('region', { name: 'Terminal' });
     const mini = await within(section).findByRole('group', { name: 'mac-mini' });
     const studio = within(section).getByRole('group', { name: 'mac-studio' });
-    const links = within(mini).getAllByRole('link', { name: 'Mở terminal' });
-    expect(links.map((a) => a.getAttribute('href'))).toEqual([
-      `/TPS/terminal/${M1}/${P1}`,
-      `/TPS/terminal/${M1}/${P2}`,
-    ]);
-    for (const a of links) expect(a.getAttribute('target')).toBe('_blank');
+    // Ngoài shell (không có khung nổi) nút vẫn hiện nhưng bị khoá; mở khung nổi thử ở terminal-dock.test.tsx.
+    expect(within(mini).getAllByRole('button', { name: 'Mở terminal' })).toHaveLength(2);
     expect(within(mini).getByText('paperclip')).toBeTruthy();
     expect(within(mini).getByText('Kidy School')).toBeTruthy();
-    expect(within(studio).getByRole('link', { name: 'Mở terminal' }).getAttribute('href')).toBe(
-      `/TPS/terminal/${M2}/${P3}`,
-    );
+    expect(within(studio).getAllByRole('button', { name: 'Mở terminal' })).toHaveLength(1);
   });
 
   it('chưa có dự án nào dựng xong thì ghi rõ', async () => {

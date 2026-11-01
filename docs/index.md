@@ -77,7 +77,7 @@ Paperclip, không mô tả Crew. Phạm vi file nguồn của Crew là `source.i
 | [Chi phí (usage) và dung lượng lưu trữ](flows/usage-storage.md) | `usage-storage` | `packages/crew-plugin/src/usage/data.ts`, `packages/crew-plugin/src/storage/data.ts` |
 | [Trang tổng quan, hộp thư, tìm kiếm, run, agent, project, thành viên, cài đặt](flows/web-pages.md) | `web-pages` | `packages/crew-web/src/features/dashboard/routes.tsx`, `packages/crew-web/src/features/inbox/routes.tsx`, `packages/crew-web/src/features/agents/routes.tsx`, `packages/crew-web/src/features/projects/routes.tsx` |
 | [Khung UI Crew: router, phiên đăng nhập, shell, client API, i18n](flows/web-shell.md) | `web-shell` | `packages/crew-web/src/main.tsx`, `packages/crew-web/src/app/router.tsx` |
-| [Terminal web của owner: mở khoá bằng mật khẩu, vé WebSocket, SSH tới phiên tmux của project](flows/web-terminal.md) | `web-terminal` | `server/src/crew/terminal/routes.ts`, `server/src/crew/terminal/terminal-ws.ts`, `packages/crew-web/src/features/terminal/routes.tsx` |
+| [Terminal web của owner: mở khoá bằng mật khẩu, vé WebSocket, SSH tới phiên tmux của project](flows/web-terminal.md) | `web-terminal` | `server/src/crew/terminal/routes.ts`, `server/src/crew/terminal/terminal-ws.ts`, `packages/crew-web/src/features/terminal/terminal-dock.tsx` |
 <!-- crew-docs:flows:end -->
 
 ## Cách dùng docs
