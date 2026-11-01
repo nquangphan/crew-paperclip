@@ -35,8 +35,10 @@ owner: route, vé, WebSocket và trang. Mở khoá bằng mật khẩu đăng nh
    "Mở terminal" tới `/<tiền tố company>/terminal/:machineId/:projectId`, `target="_blank"` để mở nhiều project cùng lúc.
    Không có project nào thì ghi "Chưa có dự án nào dựng xong trên máy."
 2. `targets.ts` → `listTerminalTargets`, `resolveTerminalTarget`: project có `project_machines.status = 'ready'` trên
-   máy còn ghép (`machine_pairings.revoked_at IS NULL`), kèm `project_repos.branch`. `projectKey` lấy từ đường dẫn checkout
-   `…/crew-agents/<khóa>/repo`; dòng không khớp mẫu bị bỏ.
+   máy còn ghép (`machine_pairings.revoked_at IS NULL`), kèm `project_repos.branch` (`null` khi project chưa ghi origin).
+   `projectKey` lấy từ checkout `~/crew-agents/<khóa>/<vai>` của agent vai trò (`projectLayout`), nên đúng cả với project
+   dùng bản clone sẵn của owner (`repo_path` nằm ngoài `crew-agents`); không có thì từ `repo_path` dạng
+   `…/crew-agents/<khóa>/repo`; không ra khóa thì dòng bị bỏ.
 3. Mở khoá (`unlock-dialog.tsx`, `unlock-store.ts`, `unlock-throttle.ts`, `password.ts`): trang không đọc
    `GET …/unlock` (route này có nhưng trang không dùng); trạng thái khoá lộ ra khi xin vé bị 423
    (`use-terminal-socket.ts` đặt trạng thái `locked`) và trang hiện `UnlockDialog` hỏi mật khẩu đăng nhập Crew (`verifyUserPassword` kiểm tài khoản `credential` của Better Auth). Đúng thì mở khoá
@@ -62,8 +64,10 @@ owner: route, vé, WebSocket và trang. Mở khoá bằng mật khẩu đăng nh
    nhúng, rồi quote cả script. Chạy `unset PAPERCLIP_RUN_ID`; tìm tmux bằng `command -v tmux`, không thấy thì thử
    `/opt/homebrew/bin/tmux` rồi `/usr/local/bin/tmux` (như crew-mac dò) và chạy đúng đường dẫn tìm được; vẫn thiếu tmux hay
    project chưa dựng thì in lý do và thoát. Dựng worktree `~/crew-agents/<khóa>/owner` trên nhánh `owner/<khóa>` nếu chưa
-   có: trước hết `git worktree prune` (thư mục owner bị xoá tay thì bỏ đăng ký cũ để dựng lại được), fetch
-   `origin/<nhánh>`, dùng lại nhánh `owner/<khóa>` nếu đã tồn tại; rồi `tmux -L crew new-session -A -s crew-owner-<khóa>` (kèm `-f ~/.crew-mac/tmux.conf`
+   có. Repo gốc là `~/crew-agents/<khóa>/repo` nếu có, không thì repo chính của một worktree vai trong thư mục đó (dòng
+   đầu `git worktree list`; bỏ qua symlink companion). Trước hết `git worktree prune` (thư mục owner bị xoá tay thì bỏ đăng
+   ký cũ để dựng lại được), fetch `origin/<nhánh>` (không biết nhánh thì fetch `origin` và dựng từ `origin/HEAD`), dùng lại
+   nhánh `owner/<khóa>` nếu đã tồn tại; rồi `tmux -L crew new-session -A -s crew-owner-<khóa>` (kèm `-f ~/.crew-mac/tmux.conf`
    nếu có file đó): gắn lại phiên cũ hoặc tạo mới, nên đóng tab không giết phiên.
 8. Khung WebSocket: máy chủ gửi `ready`, `output`, `closed`, `error`; trình duyệt gửi `input` và `resize`. Lỗi gửi cho
    trình duyệt là câu chung, không lộ lỗi SSH thô, và trang chỉ hiện các lý do đóng/lỗi của server bằng câu tiếng Việt
@@ -131,14 +135,15 @@ owner: route, vé, WebSocket và trang. Mở khoá bằng mật khẩu đăng nh
   cùng lúc), vé một lần và hết hạn.
 - `server/src/__tests__/crew-terminal-routes.db.test.ts` (Postgres nhúng): chỉ owner, danh sách máy/project `ready`,
   mở khoá đúng/sai/bị chặn, 10 lần sai gửi cùng lúc chỉ tối đa 5 lần được kiểm, vé cần mở khoá, project không còn
-  `ready` thì 404.
+  `ready` thì 404, project dùng bản clone sẵn của owner vẫn có khóa (từ checkout agent) và nhánh `null`.
 - `server/src/__tests__/crew-terminal-ws.test.ts`: từng bước chặn lúc nâng cấp (phiên, vé, khớp phiên, owner, mở khoá,
   project, SSH), chuyển khung input/output/resize, đóng sạch, không lộ lỗi thô; đang mở mà phiên bị thu hồi, mất vai
   owner hay hết mở khoá thì đóng 1008.
 - `server/src/__tests__/crew-terminal-ssh-connector.test.ts`: luật `known_hosts` (khớp khoá, `@revoked`,
   `@cert-authority`, không có dòng), ký tự UTF-8 bị cắt giữa hai gói, và lấy thông tin SSH của máy.
 - `server/src/__tests__/crew-terminal-remote-command.test.ts`: từ chối khoá và nhánh lạ, script worktree owner và tmux,
-  thứ tự dò tmux; chạy thật với repo git và tmux giả: dựng worktree owner, dựng lại sau khi thư mục owner bị xoá tay.
+  thứ tự dò tmux, nhánh `null` dựng từ `origin/HEAD`; chạy thật với repo git và tmux giả: dựng worktree owner, dựng lại
+  sau khi thư mục owner bị xoá tay, và tìm repo gốc là bản clone ngoài `crew-agents` qua worktree vai (bỏ qua symlink).
   Ca thiếu tmux bỏ qua khi máy chạy test có tmux ở chỗ lệnh tự dò.
 - `packages/crew-web/test/features/machines/terminal-targets-block.test.tsx`: nhóm theo máy, href và `target="_blank"`,
   trạng thái trống, người không phải owner không thấy khối và không gọi API.

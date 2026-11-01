@@ -130,7 +130,7 @@ function TerminalView({ machineId, projectId }: { machineId: string; projectId: 
     <>
       <TerminalShell
         title={target?.projectName ?? t('title')}
-        detail={target ? `${target.hostname} · ${target.branch}` : undefined}
+        detail={target ? [target.hostname, target.branch].filter(Boolean).join(' · ') : undefined}
         status={<Badge variant={STATUS_VARIANT[socket.status]}>{t(`status.${socket.status}`)}</Badge>}
         actions={
           <>

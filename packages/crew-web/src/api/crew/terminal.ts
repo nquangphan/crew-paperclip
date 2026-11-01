@@ -8,7 +8,7 @@ export interface TerminalTarget {
   projectId: string;
   projectName: string;
   projectKey: string;
-  branch: string;
+  branch: string | null;
 }
 
 export interface TerminalUnlockStatus {

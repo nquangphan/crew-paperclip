@@ -1,5 +1,5 @@
 import { spawnSync } from "node:child_process";
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
@@ -35,13 +35,21 @@ describe("buildOwnerTerminalCommand", () => {
   });
 
   it("dựng lại worktree owner sau khi thư mục owner bị xoá tay", () => {
-    expect(buildOwnerTerminalCommand({ projectKey: "kidy-school", branch: "main" })).toContain('git -C "$root/repo" worktree prune');
+    expect(buildOwnerTerminalCommand({ projectKey: "kidy-school", branch: "main" })).toContain('git -C "$repo" worktree prune');
+  });
+
+  it("không biết nhánh thì dựng worktree owner từ origin/HEAD", () => {
+    const cmd = buildOwnerTerminalCommand({ projectKey: "kidy-school", branch: null });
+    expect(cmd).toContain("worktree add -b owner/kidy-school");
+    expect(cmd).toContain("origin/HEAD");
+    expect(cmd).not.toContain("origin null");
+    expect(cmd).not.toContain("origin/null");
   });
 });
 
 /** Chạy lệnh terminal như kênh SSH: `/bin/sh -c`, HOME và PATH tạm. */
-function runOwnerCommand(home: string, pathEnv: string) {
-  const cmd = buildOwnerTerminalCommand({ projectKey: "kidy-school", branch: "main" });
+function runOwnerCommand(home: string, pathEnv: string, branch: string | null = "main") {
+  const cmd = buildOwnerTerminalCommand({ projectKey: "kidy-school", branch });
   return spawnSync("/bin/sh", ["-c", cmd], { env: { HOME: home, PATH: pathEnv }, encoding: "utf8" });
 }
 
@@ -113,6 +121,55 @@ describe.skipIf(!hasZsh)("lệnh terminal owner chạy thật", () => {
       expect(second.status, second.stdout + second.stderr).toBe(0);
       expect(second.stdout).not.toContain("Không dựng được worktree owner.");
       expect(existsSync(path.join(root, "owner", "README.md"))).toBe(true);
+    } finally {
+      rmSync(home, { recursive: true, force: true });
+    }
+  });
+
+  it("repo gốc là bản clone của owner ngoài crew-agents: tìm qua worktree vai, bỏ qua symlink companion", (ctx) => {
+    const home = mkdtempSync(path.join(tmpdir(), "crew-term-"));
+    try {
+      const bin = path.join(home, "bin");
+      mkdirSync(bin);
+      const fakeTmux = path.join(bin, "tmux");
+      writeFileSync(fakeTmux, "#!/bin/sh\nexit 0\n");
+      chmodSync(fakeTmux, 0o755);
+      const pathEnv = `${bin}:/usr/bin:/bin`;
+      if (loginShellTmux(home, pathEnv) !== fakeTmux) ctx.skip();
+
+      const git = (args: string[], cwd = home) => {
+        const res = spawnSync("git", args, {
+          cwd, encoding: "utf8",
+          env: { HOME: home, PATH: "/usr/bin:/bin", GIT_AUTHOR_NAME: "t", GIT_AUTHOR_EMAIL: "t@t", GIT_COMMITTER_NAME: "t", GIT_COMMITTER_EMAIL: "t@t" },
+        });
+        if (res.status !== 0) throw new Error(res.stderr);
+        return res.stdout.trim();
+      };
+      const seedRepo = (dir: string, file: string) => {
+        git(["init", "-q", "-b", "main", dir]);
+        writeFileSync(path.join(dir, file), "x\n");
+        git(["add", "."], dir);
+        git(["commit", "-q", "-m", "init"], dir);
+      };
+      const origin = path.join(home, "origin.git");
+      const seed = path.join(home, "seed");
+      seedRepo(seed, "README.md");
+      git(["clone", "-q", "--bare", seed, origin]);
+      const clone = path.join(home, "Projects", "kidy_school");
+      git(["clone", "-q", origin, clone]);
+      const docs = path.join(home, "Projects", "docs");
+      seedRepo(docs, "DOCS.md");
+      const root = path.join(home, "crew-agents", "kidy-school");
+      mkdirSync(root, { recursive: true });
+      git(["worktree", "add", "-q", "-b", "agent/kidy-school-executor-1", path.join(root, "executor-1")], clone);
+      // Companion là symlink tới repo khác, đứng trước theo thứ tự chữ cái: không được lấy nhầm làm repo gốc.
+      symlinkSync(docs, path.join(root, "aaa-docs"));
+
+      const res = runOwnerCommand(home, pathEnv, null);
+      expect(res.status, res.stdout + res.stderr).toBe(0);
+      expect(existsSync(path.join(root, "owner", "README.md"))).toBe(true);
+      expect(git(["worktree", "list"], clone)).toContain(path.join(root, "owner"));
+      expect(git(["rev-parse", "--abbrev-ref", "HEAD"], path.join(root, "owner"))).toBe("owner/kidy-school");
     } finally {
       rmSync(home, { recursive: true, force: true });
     }

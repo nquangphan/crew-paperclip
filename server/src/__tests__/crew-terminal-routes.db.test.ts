@@ -172,4 +172,16 @@ suite("route terminal của Crew", () => {
     expect(statuses.filter((s) => s === 429).length).toBeGreaterThanOrEqual(5);
     crewTerminalUnlockThrottle.clear(OWNER);
   });
+
+  it("project dùng bản clone sẵn của owner (repo_path ngoài crew-agents, chưa có project_repos): khóa lấy từ checkout agent, nhánh null", async () => {
+    await db.execute(sql.raw(`UPDATE ${ns}.project_machines SET repo_path = '/Volumes/CORSAIR/Projects/kidy_school'
+      WHERE machine_id = '${BOOK.machineId}'`));
+    await db.execute(sql.raw(`DELETE FROM ${ns}.project_repos WHERE project_id = '${w.projectId}'`));
+    const res = await request(await as(OWNER)).get(url("/targets"));
+    expect(res.status).toBe(200);
+    expect(res.body.items).toEqual([{
+      machineId: BOOK.machineId, hostname: BOOK.hostname, projectId: w.projectId, projectName: "kidy-school",
+      projectKey: "kidy-school", branch: null,
+    }]);
+  });
 });
