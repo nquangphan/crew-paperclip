@@ -60,6 +60,12 @@
     "activity": "active {{when}}",
     "oldProject": "project no longer ready",
     "loading": "Asking the machines",
-    "failed": "Could not load sessions on machines."
+    "failed": "Could not load sessions on machines.",
+    "kill": "End session {{name}}",
+    "killTitle": "End this session?",
+    "killBody": "The tmux session of {{name}} on {{host}} ends for good and every program in it (Claude Code included) stops now. The owner worktree stays; opening it again starts a new session.",
+    "killConfirm": "End session",
+    "killLocked": "Unlock the terminal before ending a session: open any tab and enter your password.",
+    "killFailed": "Could not end the session: {{message}}"
   }
 }

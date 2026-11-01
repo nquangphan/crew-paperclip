@@ -5,7 +5,7 @@
 // Mở lần đầu mới tải danh sách dự án; tab đầu tiên mới nạp xterm (`terminal-session.tsx`). Chỉ owner (server cũng chặn).
 // Mục "Phiên trên máy" hỏi server các phiên tmux owner đang sống trên từng Mac (kể cả mở từ trình duyệt hay máy khác):
 // tải lại mỗi `SESSIONS_REFRESH_MS` khi khung đang hiện.
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery } from '@tanstack/react-query';
 import {
   createContext,
   type Dispatch,
@@ -20,11 +20,13 @@ import {
   useMemo,
   useState,
 } from 'react';
-import { api, queryKeys } from '@/api';
-import type { TerminalTarget } from '@/api/crew/terminal';
+import { ApiError, api, queryKeys } from '@/api';
+import type { TerminalMachineSession, TerminalTarget } from '@/api/crew/terminal';
 import { useCompany } from '@/app/hooks';
 import {
+  ConfirmDialog,
   Spinner,
+  TerminalBanner,
   TerminalDockEmpty,
   TerminalDockHeader,
   TerminalDockPanel,
@@ -126,6 +128,7 @@ function OwnerDock({
   const { company } = useCompany();
   const panelId = useId();
   const [view, setView] = useState<'tabs' | 'machines'>('tabs');
+  const [toKill, setToKill] = useState<TerminalMachineSession | null>(null);
   const [statuses, setStatuses] = useState<Record<string, TerminalSocketStatus>>({});
   const [fontScale, setFontScale] = useState(readFontScale);
   const [unlockGeneration, setUnlockGeneration] = useState(0);
@@ -178,6 +181,18 @@ function OwnerDock({
     setState((s) => removeTab(s, key));
     setStatuses(({ [key]: _, ...rest }) => rest);
   };
+  const kill = useMutation({
+    mutationFn: (session: TerminalMachineSession) =>
+      api.terminal.killSession(company.id, { machineId: session.machineId, projectKey: session.projectKey }),
+    onSuccess: (_result, session) => {
+      setToKill(null);
+      // Phiên đã tắt: tab đang mở cho nó chỉ còn báo đã ngắt, đóng luôn.
+      if (session.projectId) closeTab(targetKey({ machineId: session.machineId, projectId: session.projectId }));
+      void sessions.refetch();
+    },
+    onError: () => setToKill(null),
+  });
+
   const select = (machineId: string, projectId: string) => {
     setView('tabs');
     onShow({ machineId, projectId });
@@ -211,6 +226,8 @@ function OwnerDock({
           activityTitle: formatDateTime(x.activityAt, lang),
           openHere: x.projectId !== null && openKeys.has(targetKey({ machineId: x.machineId, projectId: x.projectId })),
           canOpen: x.projectId !== null,
+          killing:
+            kill.isPending && kill.variables?.machineId === x.machineId && kill.variables?.projectKey === x.projectKey,
         })),
     }));
     machinesBody = sessions.isLoading ? (
@@ -236,6 +253,20 @@ function OwnerDock({
           const session = live.find((x) => x.machineId === machineId && x.projectKey === projectKey);
           if (session?.projectId) select(machineId, session.projectId);
         }}
+        killLabel={(name) => t('machines.kill', { name })}
+        onKill={(machineId, projectKey) => {
+          kill.reset();
+          setToKill(live.find((x) => x.machineId === machineId && x.projectKey === projectKey) ?? null);
+        }}
+        notice={
+          kill.error ? (
+            <TerminalBanner tone="error">
+              {kill.error instanceof ApiError && kill.error.status === 423
+                ? t('machines.killLocked')
+                : t('machines.killFailed', { message: kill.error.message })}
+            </TerminalBanner>
+          ) : null
+        }
       />
     );
   }
@@ -342,6 +373,20 @@ function OwnerDock({
           <TerminalPane hidden={view === 'machines'}>{body}</TerminalPane>
         </TerminalDockPanel>
       ) : null}
+      <ConfirmDialog
+        open={toKill !== null}
+        onOpenChange={(open) => {
+          if (!open) setToKill(null);
+        }}
+        title={t('machines.killTitle')}
+        body={t('machines.killBody', {
+          name: toKill?.projectName ?? toKill?.projectKey ?? '',
+          host: toKill?.hostname ?? '',
+        })}
+        confirmLabel={t('machines.killConfirm')}
+        destructive
+        onConfirm={() => toKill && kill.mutate(toKill)}
+      />
       <TerminalLauncher
         label={state.open ? t('hide') : opened > 0 ? t('showWithCount', { opened, connected }) : t('show')}
         open={state.open}

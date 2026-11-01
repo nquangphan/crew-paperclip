@@ -111,3 +111,17 @@ export function parseOwnerSessions(output: string): OwnerTmuxSession[] {
   }
   return sessions;
 }
+
+/**
+ * Lệnh tắt hẳn phiên tmux `crew-owner-<khóa>` (khớp đúng tên bằng `=`), kể cả chương trình đang chạy trong đó. In `killed`
+ * khi tắt được, `missing` khi không có phiên hay Mac chưa có tmux; luôn thoát 0. Worktree owner giữ nguyên.
+ */
+export function buildKillOwnerSessionCommand(projectKey: string): string {
+  if (!KEY_RE.test(projectKey)) throw new Error("Khóa project không hợp lệ");
+  const script = [
+    ...FIND_TMUX,
+    `[ -n "$tmux" ] || { echo missing; exit 0; }`,
+    `if "$tmux" -L crew kill-session -t "=${OWNER_SESSION_PREFIX}${projectKey}" 2>/dev/null; then echo killed; else echo missing; fi`,
+  ].join("\n");
+  return `exec /bin/zsh -lc ${shellQuote(script)}`;
+}

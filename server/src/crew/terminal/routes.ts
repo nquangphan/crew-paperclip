@@ -5,7 +5,7 @@ import { badRequest, HttpError, unauthorized } from "../../errors.js";
 import { logger } from "../../middleware/logger.js";
 import { requireOwner, resolveContributionActor } from "../contributions.js";
 import { verifyUserPassword } from "./password.js";
-import { buildListOwnerSessionsCommand, parseOwnerSessions } from "./remote-command.js";
+import { buildKillOwnerSessionCommand, buildListOwnerSessionsCommand, parseOwnerSessions } from "./remote-command.js";
 import { type CrewTerminalSshConnector, createSsh2CrewTerminalConnector, resolveMachineSshTarget } from "./ssh-connector.js";
 import { listTerminalTargets, resolveTerminalTarget } from "./targets.js";
 import { crewTerminalTicketStore } from "./ticket-store.js";
@@ -27,6 +27,7 @@ const SESSIONS_TIMEOUT_MS = 10_000;
 
 const unlockBody = z.object({ password: z.string().min(1).max(500) }).strict();
 const ticketBody = z.object({ machineId: z.string().uuid(), projectId: z.string().uuid() }).strict();
+const killBody = z.object({ machineId: z.string().uuid(), projectKey: z.string().regex(/^[a-z][a-z0-9-]{1,30}$/) }).strict();
 
 /**
  * Router terminal web của Crew, gắn trong router góp ý. Chỉ owner đăng nhập bằng phiên trình duyệt.
@@ -36,6 +37,8 @@ const ticketBody = z.object({ machineId: z.string().uuid(), projectId: z.string(
  * - `POST …/terminal/tickets` `{ machineId, projectId }`: vé WebSocket dùng một lần (60 giây), cần đã mở khoá.
  * - `GET …/terminal/sessions`: phiên tmux owner đang sống trên từng máy có project `ready` (hỏi qua SSH, chỉ đọc), kể cả
  *   phiên mở từ trình duyệt hay máy khác; máy không hỏi được thì `ok: false`.
+ * - `POST …/terminal/sessions/kill` `{ machineId, projectKey }`: tắt hẳn phiên tmux `crew-owner-<khóa>` trên máy đã ghép
+ *   (giết cả chương trình đang chạy trong đó), cần đã mở khoá; `{ killed }` false khi phiên không còn.
  */
 export function crewTerminalRoutes(
   db: Db,
@@ -132,6 +135,22 @@ export function crewTerminalRoutes(
       }),
     );
     res.json({ items, machines: results.map(({ machineId, hostname, ok }) => ({ machineId, hostname, ok })) });
+  });
+
+  router.post(`${BASE}/terminal/sessions/kill`, async (req, res) => {
+    const actor = await ownerOf(req);
+    const { machineId, projectKey } = body(killBody, req.body, "machineId và projectKey không hợp lệ.");
+    if (!crewTerminalUnlockStore.status(actor.sessionId).unlocked) {
+      throw new HttpError(423, "Terminal đang khoá, hãy nhập mật khẩu để mở.", { code: TERMINAL_ERRORS.locked });
+    }
+    const target = await resolveSshTarget(db, actor.companyId, machineId);
+    if (!target) {
+      throw new HttpError(404, "Không tìm thấy máy đã ghép.", { code: TERMINAL_ERRORS.targetMissing });
+    }
+    const output = await connector.run({ target, command: buildKillOwnerSessionCommand(projectKey), timeoutMs: SESSIONS_TIMEOUT_MS });
+    const killed = output.trim().split(/\r?\n/).includes("killed");
+    logger.info({ companyId: actor.companyId, userId: actor.userId, machineId, projectKey, killed }, "crew terminal session killed");
+    res.json({ killed });
   });
 
   return router;

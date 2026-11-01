@@ -88,7 +88,7 @@ Luật chính:
 
 - `project-access`: `AccessGuard` bọc route trong company, lọc project được cấp.
 - `stock-ui`: nút mở UI Paperclip gốc trong sidebar và menu tài khoản.
-- `web-terminal`: thêm khóa endpoint `terminal.*` (`targets`, `unlockStatus`, `unlock`, `ticket`, `sessions`, `ws`), `api.terminal` và
+- `web-terminal`: thêm khóa endpoint `terminal.*` (`targets`, `unlockStatus`, `unlock`, `ticket`, `sessions`, `killSession`, `ws`), `api.terminal` và
   khóa query `terminalTargets`, `terminalSessions`.
 - `design-system`: component dùng trong shell.
 - `web-pages`, `issues-web`, `roadmap-map`, `docs-snapshot`, `machine-status`, `skills`, `setup-wizards`, `guide`:

@@ -3,7 +3,12 @@ import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, sy
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { buildListOwnerSessionsCommand, buildOwnerTerminalCommand, parseOwnerSessions } from "../crew/terminal/remote-command.js";
+import {
+  buildKillOwnerSessionCommand,
+  buildListOwnerSessionsCommand,
+  buildOwnerTerminalCommand,
+  parseOwnerSessions,
+} from "../crew/terminal/remote-command.js";
 
 describe("buildOwnerTerminalCommand", () => {
   it("dựng worktree owner và gắn phiên tmux", () => {
@@ -230,6 +235,46 @@ describe.skipIf(!hasZsh)("lệnh liệt kê phiên chạy thật", () => {
       const res = spawnSync("/bin/sh", ["-c", buildListOwnerSessionsCommand()], { env: { HOME: home, PATH: pathEnv }, encoding: "utf8" });
       expect(res.status).toBe(0);
       expect(parseOwnerSessions(res.stdout).map((x) => x.projectKey)).toEqual(["kidy-school"]);
+    } finally {
+      rmSync(home, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("tắt phiên tmux owner", () => {
+  it("tắt đúng phiên crew-owner-<khóa> (khớp tên chính xác) trên socket crew", () => {
+    const cmd = buildKillOwnerSessionCommand("kidy-school");
+    expect(cmd.startsWith("exec /bin/zsh -lc ")).toBe(true);
+    expect(cmd).toContain('-L crew kill-session -t "=crew-owner-kidy-school"');
+    expect(cmd).not.toContain("kill-server");
+  });
+
+  it.each(["Kidy", "a;rm -rf ~", "a", ""])("từ chối khóa project %j", (key) => {
+    expect(() => buildKillOwnerSessionCommand(key)).toThrow();
+  });
+});
+
+describe.skipIf(!hasZsh)("lệnh tắt phiên chạy thật", () => {
+  it("in killed khi tmux tắt được, missing khi không có phiên", (ctx) => {
+    const home = mkdtempSync(path.join(tmpdir(), "crew-term-kill-"));
+    try {
+      const bin = path.join(home, "bin");
+      mkdirSync(bin);
+      const log = path.join(home, "tmux.log");
+      const fakeTmux = path.join(bin, "tmux");
+      writeFileSync(fakeTmux, `#!/bin/sh\necho "$*" >> "${log}"\n[ "$5" = "=crew-owner-kidy-school" ]\n`);
+      chmodSync(fakeTmux, 0o755);
+      const pathEnv = `${bin}:/usr/bin:/bin`;
+      if (loginShellTmux(home, pathEnv) !== fakeTmux) ctx.skip();
+      const run = (key: string) =>
+        spawnSync("/bin/sh", ["-c", buildKillOwnerSessionCommand(key)], { env: { HOME: home, PATH: pathEnv }, encoding: "utf8" });
+      const killed = run("kidy-school");
+      expect(killed.status).toBe(0);
+      expect(killed.stdout.trim()).toBe("killed");
+      const missing = run("du-an-khac");
+      expect(missing.status).toBe(0);
+      expect(missing.stdout.trim()).toBe("missing");
+      expect(readFileSync(log, "utf8")).toContain("-L crew kill-session -t =crew-owner-kidy-school");
     } finally {
       rmSync(home, { recursive: true, force: true });
     }

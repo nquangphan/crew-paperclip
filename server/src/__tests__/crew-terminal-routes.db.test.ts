@@ -12,7 +12,7 @@ import { getEmbeddedPostgresTestSupport, startEmbeddedPostgresTestDatabase } fro
 import { applyCrewMachineTables, BOOK, MINI, type SeededProject, seedCrewProject, seedPairing, seedTemplate } from "./helpers/crew-machine-tables.js";
 
 // Route /sessions hỏi Mac qua SSH: thay connector bằng bản giả, máy nào có thông tin SSH do `sshMachines` quyết.
-const sshFake = vi.hoisted(() => ({ sshMachines: new Set<string>(), output: "", fail: false }));
+const sshFake = vi.hoisted(() => ({ sshMachines: new Set<string>(), output: "", fail: false, commands: [] as string[] }));
 vi.mock("../crew/terminal/ssh-connector.js", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../crew/terminal/ssh-connector.js")>()),
   resolveMachineSshTarget: async (_db: unknown, _companyId: string, machineId: string) =>
@@ -23,7 +23,8 @@ vi.mock("../crew/terminal/ssh-connector.js", async (importOriginal) => ({
     open: async () => {
       throw new Error("không dùng");
     },
-    run: async () => {
+    run: async ({ command }: { command: string }) => {
+      sshFake.commands.push(command);
       if (sshFake.fail) throw new Error("ssh lỗi");
       return sshFake.output;
     },
@@ -214,6 +215,27 @@ suite("route terminal của Crew", () => {
     const failed = await request(await as(OWNER)).get(url("/sessions"));
     expect(failed.body).toEqual({ items: [], machines: [{ machineId: BOOK.machineId, hostname: BOOK.hostname, ok: false }] });
     sshFake.fail = false;
+  });
+
+  it("sessions/kill: tắt đúng phiên trên máy khi đã mở khoá; khoá thì 423, khóa sai 400, viewer 403", async () => {
+    sshFake.sshMachines = new Set([BOOK.machineId]);
+    sshFake.commands = [];
+    sshFake.output = "killed\n";
+    const body = { machineId: BOOK.machineId, projectKey: "kidy-school" };
+    const locked = await request(await as(OWNER, "sess-chua-mo")).post(url("/sessions/kill")).send(body);
+    expect(locked.status).toBe(423);
+    expect((await request(await as(VIEWER)).post(url("/sessions/kill")).send(body)).status).toBe(403);
+    expect((await request(await as(OWNER)).post(url("/sessions/kill")).send({ ...body, projectKey: "a;rm" })).status).toBe(400);
+    expect(sshFake.commands).toEqual([]);
+
+    const ok = await request(await as(OWNER)).post(url("/sessions/kill")).send(body);
+    expect(ok.status, JSON.stringify(ok.body)).toBe(200);
+    expect(ok.body).toEqual({ killed: true });
+    expect(sshFake.commands).toHaveLength(1);
+    expect(sshFake.commands[0]).toContain("kill-session -t \"=crew-owner-kidy-school\"");
+
+    sshFake.output = "missing\n";
+    expect((await request(await as(OWNER)).post(url("/sessions/kill")).send(body)).body).toEqual({ killed: false });
   });
 
   it("viewer không xem được phiên trên máy (403)", async () => {

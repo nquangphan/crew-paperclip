@@ -1,5 +1,5 @@
 // crew: tự dựng
-import { Check, ChevronDown, Loader2, Minus, Monitor, Plus, RefreshCw, SquareTerminal, X } from 'lucide-react';
+import { Check, ChevronDown, Loader2, Minus, Monitor, Plus, Power, RefreshCw, SquareTerminal, X } from 'lucide-react';
 import type * as React from 'react';
 import { cn } from '../cn';
 import { Button } from '../components/button';
@@ -586,6 +586,8 @@ interface TerminalMachineSessionGroup {
     openHere: boolean;
     /** Mở được (khóa còn khớp dự án sẵn sàng). */
     canOpen: boolean;
+    /** Đang tắt phiên này. */
+    killing?: boolean;
   }[];
 }
 
@@ -606,6 +608,9 @@ function TerminalMachineSessions({
   refreshing,
   onRefresh,
   onOpen,
+  killLabel,
+  onKill,
+  notice,
 }: {
   title: string;
   description: string;
@@ -619,6 +624,11 @@ function TerminalMachineSessions({
   refreshing: boolean;
   onRefresh: () => void;
   onOpen: (groupId: string, itemId: string) => void;
+  /** Nhãn nút tắt phiên, nhận tên phiên. */
+  killLabel: (title: string) => string;
+  onKill: (groupId: string, itemId: string) => void;
+  /** Dải báo trên danh sách (lỗi tắt phiên). */
+  notice?: React.ReactNode;
 }) {
   const total = groups.reduce((n, g) => n + g.items.length, 0);
   return (
@@ -643,6 +653,7 @@ function TerminalMachineSessions({
             {updatedLabel ? <span className="text-xs">{updatedLabel}</span> : null}
           </Button>
         </div>
+        {notice}
         {total === 0 && groups.every((g) => g.ok) ? (
           <p className="text-center text-sm text-terminal-muted">{emptyLabel}</p>
         ) : null}
@@ -667,6 +678,18 @@ function TerminalMachineSessions({
                     <time title={item.activityTitle}>{item.activityLabel}</time>
                   </span>
                 </div>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-sm"
+                  aria-label={killLabel(item.title)}
+                  title={killLabel(item.title)}
+                  disabled={item.killing}
+                  className="shrink-0 text-terminal-muted hover:bg-red-500/10 hover:text-red-300"
+                  onClick={() => onKill(group.id, item.id)}
+                >
+                  {item.killing ? <Loader2 className="motion-safe:animate-spin" /> : <Power />}
+                </Button>
                 {item.openHere ? (
                   <span className="shrink-0 text-xs text-emerald-300">{openHereLabel}</span>
                 ) : (

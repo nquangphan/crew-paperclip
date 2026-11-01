@@ -20,6 +20,7 @@ owner: route, vé, WebSocket và trang. Mở khoá bằng mật khẩu đăng nh
 | `GET …/terminal/unlock` | — | `{ unlocked, expiresAt }` |
 | `POST …/terminal/unlock` | `{ password }` | `{ expiresAt }`; 403 `crew_terminal_bad_password`, 429 `crew_terminal_unlock_throttled` |
 | `POST …/terminal/tickets` | `{ machineId, projectId }` | 201 `{ ticket, expiresAt }`; 423 `crew_terminal_locked`, 404 `crew_terminal_target_missing` |
+| `POST …/terminal/sessions/kill` | `{ machineId, projectKey }` | `{ killed }`; 423 `crew_terminal_locked`, 404 khi máy chưa ghép |
 | `GET …/terminal/sessions` | — | `{ items: [{ machineId, hostname, projectKey, projectId, projectName, attached, createdAt, activityAt }], machines: [{ machineId, hostname, ok }] }` |
 
   Body sai dạng thì 400 `crew_terminal_invalid`; không phải owner thì lỗi quyền của `requireOwner`.
@@ -101,6 +102,11 @@ owner: route, vé, WebSocket và trang. Mở khoá bằng mật khẩu đăng nh
    (`tmux -L crew list-sessions`, dò tmux như lệnh mở; thiếu tmux thì rỗng); `parseOwnerSessions` chỉ giữ phiên
    `crew-owner-<khóa>` hợp lệ. Máy lỗi thì log `crew terminal sessions failed` và trả `ok: false`, không làm hỏng máy khác.
    Máy chưa có project `ready` nào thì không được hỏi.
+   Tắt phiên: mỗi dòng có nút tắt (biểu tượng nguồn) → hộp xác nhận (`ConfirmDialog`) → `POST …/terminal/sessions/kill`.
+   Server cần đã mở khoá (423 thì web báo mở một tab và nhập mật khẩu trước), lấy SSH của máy đã ghép rồi `connector.run`
+   lệnh `buildKillOwnerSessionCommand` (`tmux -L crew kill-session -t "=crew-owner-<khóa>"`, khớp đúng tên; in `killed`
+   hoặc `missing`, luôn thoát 0); log `crew terminal session killed`. Chương trình trong phiên dừng ngay; worktree owner giữ.
+   Tắt xong web đóng tab đang mở cho phiên đó và tải lại danh sách.
    Một tab (`terminal-session.tsx` → `TerminalSession`, vẽ bằng `TerminalScreen`; `use-terminal-socket.ts`): luôn nền tối
    (token `--terminal-*` trong `tokens.css`, class `dark` của khung). Thông báo nằm giữa khung (`TerminalPanel`) thay vì
    đẩy khung xuống: đang nối, khoá, đã ngắt (kèm Nối lại). Xin vé mới ở mỗi lần nối rồi mở WebSocket, rớt mạng thì nối lại (tmux vẽ lại
@@ -126,7 +132,7 @@ owner: route, vé, WebSocket và trang. Mở khoá bằng mật khẩu đăng nh
 | `server/src/crew/terminal/unlock-throttle.ts` | 5 lần sai / 15 phút theo user | `crewTerminalUnlockThrottle`, `createUnlockThrottle` |
 | `server/src/crew/terminal/ticket-store.ts` | Vé WebSocket một lần, 60 giây | `crewTerminalTicketStore`, `createTerminalTicketStore` |
 | `server/src/crew/terminal/ssh-connector.ts` | Thông tin SSH máy, kênh PTY, luật khoá máy | `resolveMachineSshTarget`, `createSsh2CrewTerminalConnector` (`open` PTY, `run` lệnh ngắn) |
-| `server/src/crew/terminal/remote-command.ts` | Lệnh worktree owner và phiên tmux; lệnh liệt kê phiên | `buildOwnerTerminalCommand`, `buildListOwnerSessionsCommand`, `parseOwnerSessions` |
+| `server/src/crew/terminal/remote-command.ts` | Lệnh worktree owner và phiên tmux; lệnh liệt kê phiên | `buildOwnerTerminalCommand`, `buildListOwnerSessionsCommand`, `parseOwnerSessions`, `buildKillOwnerSessionCommand` |
 | `server/src/crew/contribution-routes.ts` | File chứa router cha (flow `contributions`) | `crewContributionRoutes` |
 | `server/src/index.ts` | File upstream đăng ký WebSocket | `setupCrewTerminalWebSocketServer` |
 | `packages/crew-web/src/api/crew/terminal.ts` | Client API | `terminalApi` |

@@ -276,6 +276,7 @@ export const ENDPOINTS = {
   'terminal.unlock': { ids: ['S26.2'], method: 'POST', path: `${CREW}/terminal/unlock` },
   'terminal.ticket': { ids: ['S26.3'], method: 'POST', path: `${CREW}/terminal/tickets` },
   'terminal.sessions': { ids: ['S26.1'], method: 'GET', path: `${CREW}/terminal/sessions` },
+  'terminal.killSession': { ids: ['S26.1'], method: 'POST', path: `${CREW}/terminal/sessions/kill` },
   // WebSocket, mở bằng new WebSocket kèm `?ticket=&cols=&rows=` chứ không qua call().
   'terminal.ws': { ids: ['S26.3'], method: 'GET', path: `${CREW}/terminal/ws`, noCall: true },
 

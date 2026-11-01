@@ -55,6 +55,9 @@ export const terminalApi = {
     call('terminal.ticket', { companyId }, { body: target }),
   /** Hỏi từng máy qua SSH nên có thể mất vài giây. */
   sessions: (companyId: string): Promise<TerminalSessionsResult> => call('terminal.sessions', { companyId }),
+  /** Tắt hẳn phiên tmux trên máy; 423 `crew_terminal_locked` khi chưa mở khoá. `killed` false khi phiên đã không còn. */
+  killSession: (companyId: string, target: { machineId: string; projectKey: string }): Promise<{ killed: boolean }> =>
+    call('terminal.killSession', { companyId }, { body: target }),
 };
 
 export const __endpoints = [
@@ -63,4 +66,5 @@ export const __endpoints = [
   'terminal.unlock',
   'terminal.ticket',
   'terminal.sessions',
+  'terminal.killSession',
 ];

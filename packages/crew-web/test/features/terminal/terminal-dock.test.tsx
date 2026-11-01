@@ -328,6 +328,50 @@ describe('phiên trên máy', () => {
     expect(closed).not.toHaveBeenCalled();
     expect(tickets(s)).toBe(before);
   });
+
+  it('Tắt phiên: hỏi xác nhận, gọi tắt đúng phiên, đóng tab đang mở cho phiên đó', async () => {
+    vi.stubGlobal('WebSocket', vi.fn());
+    const s = mockServer({
+      ...TARGETS,
+      ...LOCKED,
+      ...SESSIONS,
+      'POST /api/crew/companies/c1/terminal/sessions/kill': { body: { killed: true } },
+    });
+    mount();
+    fireEvent.click(await launcher());
+    await openProject(/Kidy School/);
+    expect(await screen.findByRole('tab')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Phiên trên máy' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Tắt phiên Kidy School' }));
+    const dialog = await screen.findByRole('alertdialog');
+    expect(within(dialog).getByText(/Kidy School trên mac-mini sẽ tắt hẳn/)).toBeTruthy();
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Tắt phiên' }));
+    await vi.waitFor(() =>
+      expect(s.calls.find((c) => c.url.endsWith('/terminal/sessions/kill'))?.body).toEqual({
+        machineId: MACHINE,
+        projectKey: 'kidy-school',
+      }),
+    );
+    await vi.waitFor(() => expect(screen.queryByRole('tab')).toBeNull());
+  });
+
+  it('Tắt phiên khi terminal đang khoá thì báo cần mở khoá trước', async () => {
+    vi.stubGlobal('WebSocket', vi.fn());
+    mockServer({
+      ...TARGETS,
+      ...SESSIONS,
+      'POST /api/crew/companies/c1/terminal/sessions/kill': {
+        status: 423,
+        body: { error: 'Terminal đang khoá', code: 'crew_terminal_locked' },
+      },
+    });
+    mount();
+    fireEvent.click(await launcher());
+    fireEvent.click(await screen.findByRole('button', { name: 'Phiên trên máy' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Tắt phiên du-an-cu' }));
+    fireEvent.click(within(await screen.findByRole('alertdialog')).getByRole('button', { name: 'Tắt phiên' }));
+    expect(await screen.findByText(/Cần mở khoá terminal trước khi tắt phiên/)).toBeTruthy();
+  });
 });
 
 describe('addTab / removeTab', () => {

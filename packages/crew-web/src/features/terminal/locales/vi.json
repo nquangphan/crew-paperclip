@@ -60,6 +60,12 @@
     "activity": "hoạt động {{when}}",
     "oldProject": "dự án không còn sẵn sàng",
     "loading": "Đang hỏi các máy",
-    "failed": "Không tải được phiên trên máy."
+    "failed": "Không tải được phiên trên máy.",
+    "kill": "Tắt phiên {{name}}",
+    "killTitle": "Tắt hẳn phiên này?",
+    "killBody": "Phiên tmux của {{name}} trên {{host}} sẽ tắt hẳn, mọi chương trình đang chạy trong đó (kể cả Claude Code) dừng ngay. Worktree owner vẫn giữ, lần mở sau sẽ tạo phiên mới.",
+    "killConfirm": "Tắt phiên",
+    "killLocked": "Cần mở khoá terminal trước khi tắt phiên: mở một tab bất kỳ rồi nhập mật khẩu.",
+    "killFailed": "Không tắt được phiên: {{message}}"
   }
 }
