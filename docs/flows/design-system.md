@@ -29,7 +29,9 @@ Cấu trúc thư mục, luật và cách xem thử nằm ở `packages/crew-web/
 ## Các bước
 
 1. `packages/crew-web/src/ds/tokens.css`: biến màu, bán kính, chuyển động; theme sáng (`:root`) và tối (`.dark`), chép
-   từ `ui/src/index.css` và `ui/src/motion-tokens.css`.
+   từ `ui/src/index.css` và `ui/src/motion-tokens.css`. Cuối file có thêm bảng `--terminal-*` (nền, mặt, viền, chữ, chữ phụ,
+   vùng chọn) cố định cho cả hai theme, map sang màu Tailwind `terminal`, `terminal-surface`, `terminal-border`,
+   `terminal-foreground`, `terminal-muted`.
 2. `packages/crew-web/src/ds/components/`: component chép từ `ui/src/components/ui/*` và component tự dựng (bảng, field,
    trạng thái trống và lỗi, spinner, `ThemeScope`, `AppFrame`).
 3. `packages/crew-web/src/ds/components/app-frame.tsx` → `AppFrame`: khung trang cho shell; dưới `md` ẩn sidebar và mở
@@ -74,8 +76,11 @@ Widget Crew trong `ds/widgets/crew/` và `ds/widgets/roadmap/`, và widget đín
 - `web-shell`: shell dùng `AppFrame`, sidebar và component.
 - `web-pages`, `issues-web`, `skills`, `setup-wizards`, `guide`: màn hình dùng component và widget.
 - `roadmap-map`, `docs-snapshot`, `machine-status`, `attachments`: sở hữu các widget Crew riêng trong `ds/widgets`.
-- `web-terminal`: sở hữu widget `TerminalShell` và `TerminalKeyRow` (`ds/widgets/terminal-shell.tsx`, export qua `ds/index.ts`);
-  `icons.ts` có thêm `Minus` cho nút chữ nhỏ hơn.
+- `web-terminal`: sở hữu các widget `Terminal*` (`TerminalShell`, `TerminalBackButton`, `TerminalSwitcher`, `TerminalFontControl`,
+  `TerminalStatus`, `TerminalConnecting`, `TerminalPanel`, `TerminalPanelActions`, `TerminalFieldError`, `TerminalBanner`,
+  `TerminalKeyRow`)
+  (`ds/widgets/terminal-shell.tsx`, export qua `ds/index.ts`) cùng token `--terminal-*`; `icons.ts` có thêm `Minus`,
+  `Lock` và `SquareTerminal` cho trang terminal.
 - `core-hooks`: kéo upstream thì so lại các file `clone:`.
 
 ## Tests

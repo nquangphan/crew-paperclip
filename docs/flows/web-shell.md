@@ -36,7 +36,8 @@ Luật chính:
    `login-page.tsx` → `LoginPage`: đăng nhập email/mật khẩu, không có đăng ký. `cli-auth-page.tsx` → `CliAuthPage`:
    duyệt đăng nhập CLI để app 2P Crew lấy board key.
 3. `packages/crew-web/src/app/shell/shell.tsx` → `CompanyShell`: chọn company theo `/:companyPrefix`, gắn sidebar,
-   palette, cập nhật trực tiếp, popup issue; `RootRedirect`, `CompanyNotFound`.
+   palette, cập nhật trực tiếp, popup issue; `RootRedirect`, `CompanyNotFound`. Route khai `handle: { fullscreen: true }`
+   (`useMatches`, hiện chỉ trang terminal) thì render thẳng `Outlet`, không có `AppFrame`, sidebar, palette hay popup.
 4. `packages/crew-web/src/app/hooks.ts` → `useCompany`, `useMe`, `useSession`, `useCrewCompanies`.
 5. `packages/crew-web/src/app/shell/sidebar.tsx` → `Sidebar`: nhóm như Paperclip, badge Hộp thư, project gắn sao
    (`starred-projects.ts`); `company-switcher.tsx`, `command-palette.tsx` (Cmd/Ctrl+K, gõ mã mở issue),

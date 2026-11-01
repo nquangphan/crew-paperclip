@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { createMemoryRouter, RouterProvider } from 'react-router-dom';
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { CompanyContext } from '@/app/hooks';
@@ -34,6 +34,7 @@ afterEach(() => {
 const COMPANY = { id: 'c1', name: '2P', issuePrefix: 'TPS' };
 const MACHINE = '11111111-1111-4111-8111-111111111111';
 const PROJECT = '22222222-2222-4222-8222-222222222222';
+const OTHER_PROJECT = '33333333-3333-4333-8333-333333333333';
 const TARGETS = {
   'GET /api/crew/companies/c1/terminal/targets': {
     body: {
@@ -45,6 +46,14 @@ const TARGETS = {
           projectName: 'Paperclip',
           projectKey: 'paperclip',
           branch: 'main',
+        },
+        {
+          machineId: MACHINE,
+          hostname: 'mac-mini',
+          projectId: OTHER_PROJECT,
+          projectName: 'Kidy School',
+          projectKey: 'kidy-school',
+          branch: null,
         },
       ],
     },
@@ -121,11 +130,11 @@ describe('trang Terminal', () => {
       sockets[0].onmessage?.({ data: JSON.stringify({ type: 'closed', reason: 'shell_closed' }) });
       sockets[0].onclose?.();
     });
-    expect(await screen.findByText(/Phiên terminal đã đóng/)).toBeTruthy();
+    expect(await screen.findByText(/Phiên terminal đã ngắt/)).toBeTruthy();
     expect(screen.queryByText(/shell_closed/)).toBeNull();
   });
 
-  it('mở thẳng ở tab mới (không có trang trước) thì Đóng về trang Máy', async () => {
+  it('mở thẳng ở tab mới (không có trang trước) thì nút về của ô mật khẩu về trang Máy', async () => {
     vi.stubGlobal('WebSocket', vi.fn());
     mockServer({
       ...TARGETS,
@@ -135,8 +144,39 @@ describe('trang Terminal', () => {
       },
     });
     mount();
-    await screen.findByLabelText('Mật khẩu');
-    fireEvent.click(screen.getByRole('button', { name: 'Quay lại' }));
+    const panel = await screen.findByRole('region', { name: 'Mở khoá terminal' });
+    fireEvent.click(within(panel).getByRole('button', { name: 'Về trang Máy' }));
     expect(await screen.findByText('Trang Máy')).toBeTruthy();
+  });
+
+  it('vé trả 403 (hết phiên hoặc mất quyền owner) thì bảo tải lại trang, không bảo dự án chưa sẵn sàng', async () => {
+    vi.stubGlobal('WebSocket', vi.fn());
+    mockServer({
+      ...TARGETS,
+      'POST /api/crew/companies/c1/terminal/tickets': { status: 403, body: { error: 'x' } },
+    });
+    mount();
+    expect(await screen.findByText('Hết phiên đăng nhập')).toBeTruthy();
+    expect(screen.getByRole('button', { name: /Tải lại trang/ })).toBeTruthy();
+    expect(screen.queryByText('Dự án chưa sẵn sàng trên máy này')).toBeNull();
+  });
+
+  it('nút tiêu đề liệt kê dự án theo máy và đổi sang dự án khác tại chỗ', async () => {
+    vi.stubGlobal('WebSocket', vi.fn());
+    mockServer({
+      ...TARGETS,
+      'POST /api/crew/companies/c1/terminal/tickets': {
+        status: 423,
+        body: { error: 'x', code: 'crew_terminal_locked' },
+      },
+    });
+    mount();
+    const trigger = await screen.findByRole('button', { name: 'Đổi dự án hoặc máy' });
+    await screen.findByText('Paperclip');
+    fireEvent.pointerDown(trigger, { button: 0, ctrlKey: false, pointerType: 'mouse' });
+    fireEvent.click(await screen.findByRole('menuitem', { name: /Kidy School/ }));
+    await vi.waitFor(() =>
+      expect(screen.getByRole('button', { name: 'Đổi dự án hoặc máy' }).textContent).toMatch(/Kidy School/),
+    );
   });
 });

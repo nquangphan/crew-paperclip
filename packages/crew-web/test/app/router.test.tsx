@@ -62,6 +62,23 @@ describe('router', () => {
     expect(await screen.findByText('trang tổng quan')).toBeTruthy();
   });
 
+  it('route khai handle.fullscreen hiện không có sidebar, route thường vẫn trong khung', async () => {
+    server();
+    mount('/TPS/full', {
+      ...features,
+      '../features/terminal/routes.tsx': {
+        routes: [{ path: 'full', handle: { fullscreen: true }, element: <p>trang toàn màn hình</p> }],
+      },
+    });
+    expect(await screen.findByText('trang toàn màn hình')).toBeTruthy();
+    expect(document.querySelector('[data-slot="app-frame"]')).toBeNull();
+    cleanup();
+    server();
+    mount('/TPS/dashboard');
+    expect(await screen.findByText('trang tổng quan')).toBeTruthy();
+    expect(document.querySelector('[data-slot="app-frame"]')).not.toBeNull();
+  });
+
   it('/ chuyển tới tổng quan của company đầu tiên', async () => {
     server();
     const router = mount('/');

@@ -1361,3 +1361,21 @@
     display: none;
   }
 }
+
+/* crew: terminal web luôn nền tối, không theo theme trang: màu ANSI của CLI (Claude Code, git) viết cho nền tối. */
+:root {
+  --terminal-background: #0d1117;
+  --terminal-surface: #161b22;
+  --terminal-border: #30363d;
+  --terminal-foreground: #e6edf3;
+  --terminal-muted: #8b949e;
+  --terminal-selection: rgba(56, 139, 253, 0.35);
+}
+
+@theme inline {
+  --color-terminal: var(--terminal-background);
+  --color-terminal-surface: var(--terminal-surface);
+  --color-terminal-border: var(--terminal-border);
+  --color-terminal-foreground: var(--terminal-foreground);
+  --color-terminal-muted: var(--terminal-muted);
+}

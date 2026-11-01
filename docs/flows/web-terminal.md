@@ -26,12 +26,13 @@ owner: route, vé, WebSocket và trang. Mở khoá bằng mật khẩu đăng nh
   (`terminal-ws.ts`), đăng ký trong `server/src/index.ts` trước handler live-events (live-events huỷ mọi upgrade chưa có
   handler nhận). Path khác thì để handler upgrade khác lo.
 - UI: route `terminal/:machineId/:projectId` (`packages/crew-web/src/features/terminal/routes.tsx`), mở từ khối Terminal
-  trên trang Máy. Mục và trang chỉ owner thấy (`nav-access.ts`, flow `project-access`).
+  trên trang Máy. Route khai `handle: { fullscreen: true }` nên khung company không vẽ sidebar (flow `web-shell`). Mục và
+  trang chỉ owner thấy (`nav-access.ts`, flow `project-access`).
 
 ## Các bước
 
 1. Trang Máy (`terminal-targets-block.tsx` → `TerminalTargetsBlock`, chỉ render khi `useCompanyAccess().isOwner`, nên
-   người khác không gọi API): `terminal.targets` rồi nhóm theo máy; mỗi project một dòng (tên, `projectKey`) với link
+   người khác không gọi API): `terminal.targets` rồi nhóm theo máy (`groupTargetsByMachine` của `target-switcher.tsx`); mỗi project một dòng (tên, `projectKey`) với link
    "Mở terminal" tới `/<tiền tố company>/terminal/:machineId/:projectId`, `target="_blank"` để mở nhiều project cùng lúc.
    Không có project nào thì ghi "Chưa có dự án nào dựng xong trên máy."
 2. `targets.ts` → `listTerminalTargets`, `resolveTerminalTarget`: project có `project_machines.status = 'ready'` trên
@@ -39,9 +40,9 @@ owner: route, vé, WebSocket và trang. Mở khoá bằng mật khẩu đăng nh
    `projectKey` lấy từ checkout `~/crew-agents/<khóa>/<vai>` của agent vai trò (`projectLayout`), nên đúng cả với project
    dùng bản clone sẵn của owner (`repo_path` nằm ngoài `crew-agents`); không có thì từ `repo_path` dạng
    `…/crew-agents/<khóa>/repo`; không ra khóa thì dòng bị bỏ.
-3. Mở khoá (`unlock-dialog.tsx`, `unlock-store.ts`, `unlock-throttle.ts`, `password.ts`): trang không đọc
+3. Mở khoá (`unlock-panel.tsx`, `unlock-store.ts`, `unlock-throttle.ts`, `password.ts`): trang không đọc
    `GET …/unlock` (route này có nhưng trang không dùng); trạng thái khoá lộ ra khi xin vé bị 423
-   (`use-terminal-socket.ts` đặt trạng thái `locked`) và trang hiện `UnlockDialog` hỏi mật khẩu đăng nhập Crew (`verifyUserPassword` kiểm tài khoản `credential` của Better Auth). Đúng thì mở khoá
+   (`use-terminal-socket.ts` đặt trạng thái `locked`) và trang hiện `UnlockPanel` giữa khung terminal hỏi mật khẩu đăng nhập Crew (`verifyUserPassword` kiểm tài khoản `credential` của Better Auth). Đúng thì mở khoá
    12 giờ theo phiên đăng nhập; trạng thái và bộ đếm nằm trong bộ nhớ nên khởi động lại server là phải nhập lại. Sau 5
    lần sai trong 15 phút (đếm theo user, mọi phiên chung), các lần nhập tiếp theo bị 429 cho tới khi cửa sổ 15 phút
    qua đi; nhập đúng xoá bộ đếm. Mỗi lần thử được ghi (`reserve`) trước khi kiểm mật khẩu, nên gửi nhiều yêu cầu cùng lúc
@@ -75,14 +76,20 @@ owner: route, vé, WebSocket và trang. Mở khoá bằng mật khẩu đăng nh
    i18n (`use-terminal-socket.ts` trả `notice`, không hiện chuỗi thô); log chỉ ghi user, máy, project và lý do đóng (không ghi vé, phím gõ hay
    output). Không có tự đóng khi rảnh: phiên chỉ đóng khi trình duyệt đóng, shell thoát, SSH lỗi, mất quyền (bước 5) hoặc
    server tắt.
-9. Trang terminal (`terminal-page.tsx`, `use-terminal-socket.ts`): chỉ owner; xin vé mới ở mỗi lần nối rồi mở WebSocket,
-   rớt mạng thì nối lại (tmux vẽ lại màn hình khi gắn vào); chưa mở khoá (423) thì hiện hộp mật khẩu rồi tự nối; vé trả 4xx
-   khác thì báo thiếu máy/project và không nối lại. Có vé mà WebSocket đóng trước `ready` 5 lần liền (server từ chối, lỗi
+9. Trang terminal (`terminal-page.tsx`, `use-terminal-socket.ts`): chỉ owner; toàn màn hình, luôn nền tối (token
+   `--terminal-*` trong `tokens.css`, class `dark` cho component bên trong), thanh trên có nút về trang Máy, nút tiêu đề
+   (`TargetSwitcher`, vẽ bằng `TerminalSwitcher` của ds) liệt kê mọi dự án sẵn sàng theo máy để đổi terminal tại chỗ (`navigate` thay entry hiện tại), chấm
+   trạng thái và nhóm cỡ chữ A−/A+. Thông báo nằm giữa khung (`TerminalPanel`) thay vì đẩy khung xuống: đang nối, khoá,
+   đã ngắt (kèm Nối lại và Về trang Máy). Xin vé mới ở mỗi lần nối rồi mở WebSocket, rớt mạng thì nối lại (tmux vẽ lại
+   màn hình khi gắn vào); chưa mở khoá (423) thì hiện ô mật khẩu rồi tự nối và trả tiêu điểm cho terminal; vé trả 401/403
+   thì `notice` `forbidden` (hết phiên hoặc mất quyền owner, bảo tải lại trang); 4xx khác thì `targetMissing` và không
+   nối lại. Có vé mà WebSocket đóng trước `ready` 5 lần liền (server từ chối, lỗi
    SSH cố định) thì thôi nối lại, đóng với `notice` `connectFailed` chờ bấm Nối lại; nhận `ready` thì đếm lại từ đầu. `mount-xterm.ts` gắn xterm với addon fit, unicode11, web-links, search,
    WebGL nạp sau cùng (mất context thì lùi về DOM). `xterm-options.ts`: `shiftEnterHandler` (gắn bằng `attachCustomKeyEventHandler` trong `mount-xterm.ts`) gửi ESC+CR khi
-   bấm Shift+Enter để xuống dòng trong Claude Code, chặn xterm gửi CR (đang gõ dở bằng bộ gõ Telex/VNI thì cho qua); tuỳ chọn, theo màu sáng/tối và bậc cỡ chữ (lưu
-   `localStorage`). `paste.ts`: dán nhiều dòng bọc bracketed paste, chia khúc 16 KiB, tối đa 16 MiB.
-   `accessory-keys.tsx`: hàng phím phụ (Esc, Tab, mũi tên, Ctrl+C...) cho màn hình cảm ứng, dựng bằng `TerminalKeyRow`.
+   bấm Shift+Enter để xuống dòng trong Claude Code, chặn xterm gửi CR (đang gõ dở bằng bộ gõ Telex/VNI thì cho qua); tuỳ chọn (chữ thường, đậm 600, giãn dòng 1,15), bảng màu tối
+   cố định với 16 màu ANSI (`terminalTheme`, không theo theme trang) và bậc cỡ chữ (lưu `localStorage`). `paste.ts`: dán nhiều dòng bọc bracketed paste, chia khúc 16 KiB, tối đa 16 MiB.
+   `accessory-keys.tsx`: hàng phím phụ (Esc, Tab, mũi tên, Ctrl+C...) cho màn hình cảm ứng, dựng bằng `TerminalKeyRow`
+   (nút cao 40px, chừa vùng an toàn đáy màn hình), chỉ hiện khi đã kết nối. Báo dán quá lớn tự ẩn sau 5 giây.
 
 ## Files
 
@@ -104,12 +111,13 @@ owner: route, vé, WebSocket và trang. Mở khoá bằng mật khẩu đăng nh
 | `packages/crew-web/src/features/terminal/routes.tsx` | Route `terminal/:machineId/:projectId` | `routes` |
 | `packages/crew-web/src/features/terminal/terminal-page.tsx` | Trang terminal | `TerminalPage` |
 | `packages/crew-web/src/features/terminal/use-terminal-socket.ts` | Vé, nối, nối lại | `useTerminalSocket`, `terminalSocketUrl` |
-| `packages/crew-web/src/features/terminal/unlock-dialog.tsx` | Hộp mật khẩu | `UnlockDialog` |
+| `packages/crew-web/src/features/terminal/unlock-panel.tsx` | Ô mật khẩu giữa khung terminal | `UnlockPanel` |
+| `packages/crew-web/src/features/terminal/target-switcher.tsx` | Nút tiêu đề đổi dự án/máy | `TargetSwitcher`, `groupTargetsByMachine` |
 | `packages/crew-web/src/features/terminal/mount-xterm.ts` | Gắn xterm và addon | `mountXterm` |
 | `packages/crew-web/src/features/terminal/xterm-options.ts` | Tuỳ chọn, màu, cỡ chữ | `buildTerminalOptions`, `fontSizeFor` |
 | `packages/crew-web/src/features/terminal/paste.ts` | Chuẩn bị nội dung dán | `preparePaste`, `PasteTooLargeError` |
 | `packages/crew-web/src/features/terminal/accessory-keys.tsx` | Phím phụ cho cảm ứng | `AccessoryKeys`, `ACCESSORY_KEYS` |
-| `packages/crew-web/src/ds/widgets/terminal-shell.tsx` | Khung trang terminal và hàng phím | `TerminalShell`, `TerminalKeyRow` |
+| `packages/crew-web/src/ds/widgets/terminal-shell.tsx` | Khung trang terminal và mọi khối trang trí của nó (nút về, chọn dự án, cỡ chữ, trạng thái, thẻ giữa khung, dải báo, hàng phím) | `TerminalShell`, `TerminalStatus`, `TerminalSwitcher`, `TerminalFontControl`, `TerminalPanel`, `TerminalKeyRow` |
 
 ## Dữ liệu
 
@@ -126,8 +134,8 @@ owner: route, vé, WebSocket và trang. Mở khoá bằng mật khẩu đăng nh
 - `multi-machine`: `project_machines` (`ready`), `pairedMachine` và environment mẫu của máy.
 - `machine-status`: trang Máy chứa khối Terminal; máy ghép và `machine_pairings`.
 - `project-access`: `nav-access.ts` chỉ cho owner thấy trang terminal.
-- `web-shell`: `ENDPOINTS` có `terminal.*`, `queryKeys.terminalTargets`.
-- `design-system`: `TerminalShell` và `TerminalKeyRow` nằm trong `ds/widgets`.
+- `web-shell`: `ENDPOINTS` có `terminal.*`, `queryKeys.terminalTargets`; `CompanyShell` bỏ khung khi route có `handle.fullscreen`.
+- `design-system`: các khối `Terminal*` nằm trong `ds/widgets` (trang chỉ được dùng class bố cục, guard `design-system.test.ts`); token `--terminal-*` và icon `Lock`, `SquareTerminal`.
 - `run-handoff`: `server/src/index.ts` là file chung, đăng ký WebSocket terminal cạnh vá C10.
 
 ## Tests

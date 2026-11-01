@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 import { describe, expect, it } from 'vitest';
 import {
   buildTerminalOptions,
@@ -7,12 +8,13 @@ import {
 } from '@/features/terminal/xterm-options';
 
 describe('buildTerminalOptions', () => {
-  it('nền tối: thông số theo Orca, tương phản tối thiểu 3', () => {
-    const o = buildTerminalOptions('dark', 1);
+  it('thông số theo Orca, chữ thường, tương phản tối thiểu 3', () => {
+    const o = buildTerminalOptions(1);
     expect(o).toMatchObject({
       fontSize: 14,
-      fontWeight: '300',
-      fontWeightBold: '500',
+      fontWeight: 'normal',
+      fontWeightBold: '600',
+      lineHeight: 1.15,
       cursorBlink: true,
       cursorStyle: 'block',
       cursorInactiveStyle: 'outline',
@@ -26,13 +28,21 @@ describe('buildTerminalOptions', () => {
       minimumContrastRatio: 3,
       fontFamily: TERMINAL_FONT_FAMILY,
     });
-    expect(o.theme).toBeTypeOf('object');
   });
 
-  it('nền sáng cỡ 1,5: chữ 21 và tương phản 4,5', () => {
-    const o = buildTerminalOptions('light', 1.5);
-    expect(o.fontSize).toBe(21);
-    expect(o.minimumContrastRatio).toBe(4.5);
+  it('luôn nền tối với đủ 16 màu ANSI, không theo theme trang', () => {
+    document.documentElement.classList.remove('dark');
+    const theme = buildTerminalOptions(1).theme ?? {};
+    expect(theme.background).toBe('#0d1117');
+    expect(theme.foreground).toBe('#e6edf3');
+    for (const key of ['black', 'red', 'green', 'yellow', 'blue', 'magenta', 'cyan', 'white'] as const) {
+      expect(theme[key]).toMatch(/^#/);
+      expect(theme[`bright${key[0].toUpperCase()}${key.slice(1)}` as keyof typeof theme]).toMatch(/^#/);
+    }
+  });
+
+  it('cỡ 1,5: chữ 21', () => {
+    expect(buildTerminalOptions(1.5).fontSize).toBe(21);
   });
 
   it('font stack đúng thứ tự', () => {

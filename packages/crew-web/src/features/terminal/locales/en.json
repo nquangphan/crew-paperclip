@@ -3,18 +3,14 @@
   "ownerOnly": "Only the owner can open the terminal",
   "ownerOnlyHint": "The terminal runs real commands on the project's machine, so only the owner can use it.",
   "accessFailed": "Could not load your role",
-  "targetsFailed": "Could not load the machine list",
-  "targetMissing": "This project is not ready on the selected machine",
-  "connectFailed": "Could not open the terminal on this machine after several tries. Check the machine, then press Reconnect.",
+  "targetsFailed": "Could not load the project list; the switcher is empty for now.",
   "status": {
     "connecting": "Connecting",
     "open": "Connected",
-    "closed": "Closed",
+    "closed": "Disconnected",
     "locked": "Locked"
   },
-  "close": "Close",
   "reconnect": "Reconnect",
-  "closedHint": "The terminal session has closed. The tmux session on the machine stays unless it exited.",
   "fontSmaller": "Smaller text",
   "fontLarger": "Larger text",
   "serverError": "The terminal hit an error on the machine. Reconnect if the screen stops updating.",
@@ -22,11 +18,27 @@
   "keysLabel": "Extra keys",
   "unlock": {
     "title": "Unlock terminal",
-    "description": "Enter your Crew sign-in password to open the terminal. Unlocking lasts 12 hours for this sign-in session.",
+    "description": "Enter your Crew sign-in password. One unlock lasts 12 hours for this sign-in session.",
     "password": "Password",
     "submit": "Unlock",
     "submitting": "Unlocking",
-    "cancel": "Go back",
-    "failed": "Could not unlock"
+    "cancel": "Back to Machines"
+  },
+  "machines": "Machines",
+  "backToMachines": "Back to Machines",
+  "switchTarget": "Switch project or machine",
+  "noTargets": "No project is ready yet",
+  "connectingTo": "Connecting to {{host}}…",
+  "fontSize": "Text size",
+  "reload": "Reload page",
+  "closed": {
+    "title": "Terminal session disconnected",
+    "hint": "The tmux session on the machine stays unless it exited; reconnect to pick up where you left off.",
+    "targetMissing": "This project is not ready on this machine",
+    "targetMissingHint": "Pick another project from the title button, or set the project up again on the Machines page.",
+    "forbidden": "Signed out",
+    "forbiddenHint": "Your sign-in expired or the account is no longer an owner. Reload the page to sign in again.",
+    "connectFailed": "Could not open the terminal",
+    "connectFailedHint": "Several tries could not reach {{host}}. Check that the machine is on and in Tailscale, then press Reconnect."
   }
 }

@@ -611,8 +611,9 @@ File nào thuộc flow nào. Dùng `crew-docs where <file>` để tra từ dòng
 | `packages/crew-web/src/features/terminal/mount-xterm.ts` | [web-terminal](flows/web-terminal.md) (file) |
 | `packages/crew-web/src/features/terminal/paste.ts` | [web-terminal](flows/web-terminal.md) (file) |
 | `packages/crew-web/src/features/terminal/routes.tsx` | [web-terminal](flows/web-terminal.md) (điểm vào) |
+| `packages/crew-web/src/features/terminal/target-switcher.tsx` | [web-terminal](flows/web-terminal.md) (file) |
 | `packages/crew-web/src/features/terminal/terminal-page.tsx` | [web-terminal](flows/web-terminal.md) (file) |
-| `packages/crew-web/src/features/terminal/unlock-dialog.tsx` | [web-terminal](flows/web-terminal.md) (file) |
+| `packages/crew-web/src/features/terminal/unlock-panel.tsx` | [web-terminal](flows/web-terminal.md) (file) |
 | `packages/crew-web/src/features/terminal/use-terminal-socket.ts` | [web-terminal](flows/web-terminal.md) (file) |
 | `packages/crew-web/src/features/terminal/xterm-options.ts` | [web-terminal](flows/web-terminal.md) (file) |
 | `packages/crew-web/src/features/wizards/add-agent/add-agent-page.tsx` | [setup-wizards](flows/setup-wizards.md) (file) |

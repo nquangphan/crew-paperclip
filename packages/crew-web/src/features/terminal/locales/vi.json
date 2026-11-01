@@ -3,18 +3,14 @@
   "ownerOnly": "Chỉ owner mở được terminal",
   "ownerOnlyHint": "Terminal chạy lệnh thật trên máy của dự án nên chỉ owner dùng được.",
   "accessFailed": "Không tải được vai trò của bạn",
-  "targetsFailed": "Không tải được danh sách máy",
-  "targetMissing": "Dự án này chưa sẵn sàng trên máy đã chọn",
-  "connectFailed": "Không mở được terminal trên máy này sau nhiều lần thử. Kiểm tra máy rồi bấm Nối lại.",
+  "targetsFailed": "Không tải được danh sách dự án; nút đổi dự án tạm trống.",
   "status": {
     "connecting": "Đang kết nối",
     "open": "Đã kết nối",
-    "closed": "Đã đóng",
+    "closed": "Đã ngắt",
     "locked": "Đang khoá"
   },
-  "close": "Đóng",
   "reconnect": "Nối lại",
-  "closedHint": "Phiên terminal đã đóng. Phiên tmux trên máy vẫn giữ nếu chưa thoát.",
   "fontSmaller": "Chữ nhỏ hơn",
   "fontLarger": "Chữ to hơn",
   "serverError": "Terminal gặp lỗi trên máy. Thử nối lại nếu màn hình không còn cập nhật.",
@@ -22,11 +18,27 @@
   "keysLabel": "Phím phụ",
   "unlock": {
     "title": "Mở khoá terminal",
-    "description": "Nhập mật khẩu đăng nhập Crew để mở terminal. Mở khoá giữ 12 giờ cho phiên đăng nhập này.",
+    "description": "Nhập mật khẩu đăng nhập Crew. Mở một lần dùng được 12 giờ cho phiên đăng nhập này.",
     "password": "Mật khẩu",
     "submit": "Mở khoá",
     "submitting": "Đang mở khoá",
-    "cancel": "Quay lại",
-    "failed": "Không mở khoá được"
+    "cancel": "Về trang Máy"
+  },
+  "machines": "Máy",
+  "backToMachines": "Về trang Máy",
+  "switchTarget": "Đổi dự án hoặc máy",
+  "noTargets": "Chưa có dự án nào sẵn sàng",
+  "connectingTo": "Đang nối tới {{host}}…",
+  "fontSize": "Cỡ chữ",
+  "reload": "Tải lại trang",
+  "closed": {
+    "title": "Phiên terminal đã ngắt",
+    "hint": "Phiên tmux trên máy vẫn giữ nếu chưa thoát; nối lại để quay về đúng chỗ đang làm.",
+    "targetMissing": "Dự án chưa sẵn sàng trên máy này",
+    "targetMissingHint": "Chọn dự án khác ở nút tiêu đề, hoặc dựng lại dự án trên trang Máy.",
+    "forbidden": "Hết phiên đăng nhập",
+    "forbiddenHint": "Phiên đăng nhập đã hết hạn hoặc tài khoản không còn quyền owner. Tải lại trang để đăng nhập lại.",
+    "connectFailed": "Không mở được terminal",
+    "connectFailedHint": "Thử nhiều lần không nối được tới {{host}}. Kiểm tra máy còn bật và còn trong Tailscale, rồi bấm Nối lại."
   }
 }

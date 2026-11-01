@@ -187,8 +187,9 @@ flows:
       - packages/crew-web/src/features/terminal/accessory-keys.tsx
       - packages/crew-web/src/features/terminal/mount-xterm.ts
       - packages/crew-web/src/features/terminal/paste.ts
+      - packages/crew-web/src/features/terminal/target-switcher.tsx
       - packages/crew-web/src/features/terminal/terminal-page.tsx
-      - packages/crew-web/src/features/terminal/unlock-dialog.tsx
+      - packages/crew-web/src/features/terminal/unlock-panel.tsx
       - packages/crew-web/src/features/terminal/use-terminal-socket.ts
       - packages/crew-web/src/features/terminal/xterm-options.ts
     tests:

@@ -1,7 +1,5 @@
-// Tuỳ chọn xterm của trang terminal, theo số liệu của Orca (pane-terminal-options.ts) và token màu sáng/tối của crew-web.
+// Tuỳ chọn xterm của trang terminal, theo số liệu của Orca (pane-terminal-options.ts) và bảng màu tối `--terminal-*`.
 import type { ITerminalOptions, ITheme } from '@xterm/xterm';
-
-export type TerminalMode = 'light' | 'dark';
 
 export const TERMINAL_FONT_FAMILY =
   '"SF Mono", Menlo, Monaco, "Cascadia Mono", Consolas, "DejaVu Sans Mono", "Liberation Mono", monospace';
@@ -20,28 +18,45 @@ const FONT_SCALE_KEY = 'crew.terminal.fontScale';
  */
 export type CrewTerminalOptions = ITerminalOptions & { vtExtensions?: { kittyKeyboard?: boolean } };
 
-/** Đọc một CSS var của `src/ds/tokens.css` trên `<html>` (class `dark` quyết định bảng nào). */
-function cssVar(name: string): string | undefined {
-  if (typeof document === 'undefined') return undefined;
-  return getComputedStyle(document.documentElement).getPropertyValue(name).trim() || undefined;
+/** Đọc một CSS var của `src/ds/tokens.css` (bảng `--terminal-*` cố định, không đổi theo theme trang). */
+function cssVar(name: string, fallback: string): string {
+  if (typeof document === 'undefined') return fallback;
+  return getComputedStyle(document.documentElement).getPropertyValue(name).trim() || fallback;
 }
 
+/**
+ * Terminal luôn nền tối: màu ANSI của CLI viết cho nền tối, nền sáng làm chữ xám nhạt và màu vàng gần như mất.
+ * Nền, chữ, vùng chọn lấy từ token `--terminal-*`; 16 màu ANSI theo bảng tối của GitHub.
+ */
 export function terminalTheme(): ITheme {
+  const background = cssVar('--terminal-background', '#0d1117');
+  const foreground = cssVar('--terminal-foreground', '#e6edf3');
   return {
-    background: cssVar('--background'),
-    foreground: cssVar('--foreground'),
-    cursor: cssVar('--foreground'),
-    cursorAccent: cssVar('--background'),
-    selectionBackground: cssVar('--ring'),
+    background,
+    foreground,
+    cursor: foreground,
+    cursorAccent: background,
+    selectionBackground: cssVar('--terminal-selection', 'rgba(56, 139, 253, 0.35)'),
+    black: '#484f58',
+    red: '#ff7b72',
+    green: '#3fb950',
+    yellow: '#d29922',
+    blue: '#58a6ff',
+    magenta: '#bc8cff',
+    cyan: '#39c5cf',
+    white: '#b1bac4',
+    brightBlack: '#6e7681',
+    brightRed: '#ffa198',
+    brightGreen: '#56d364',
+    brightYellow: '#e3b341',
+    brightBlue: '#79c0ff',
+    brightMagenta: '#d2a8ff',
+    brightCyan: '#56d4dd',
+    brightWhite: '#ffffff',
   };
 }
 
-/** Theme hiện tại của trang (class `dark` trên `<html>`, đặt ở index.html). */
-export function currentMode(): TerminalMode {
-  return typeof document !== 'undefined' && document.documentElement.classList.contains('dark') ? 'dark' : 'light';
-}
-
-export function buildTerminalOptions(mode: TerminalMode, fontScale: number): CrewTerminalOptions {
+export function buildTerminalOptions(fontScale: number): CrewTerminalOptions {
   return {
     allowProposedApi: true,
     cursorBlink: true,
@@ -49,15 +64,16 @@ export function buildTerminalOptions(mode: TerminalMode, fontScale: number): Cre
     cursorInactiveStyle: 'outline',
     fontSize: fontSizeFor(fontScale),
     fontFamily: TERMINAL_FONT_FAMILY,
-    fontWeight: '300',
-    fontWeightBold: '500',
+    fontWeight: 'normal',
+    fontWeightBold: '600',
+    lineHeight: 1.15,
     scrollback: 5000,
     scrollSensitivity: 1.15,
     fastScrollSensitivity: 5,
     drawBoldTextInBrightColors: true,
     macOptionClickForcesSelection: true,
-    // Nền sáng cần tương phản cao hơn để màu ANSI nhạt vẫn đọc được.
-    minimumContrastRatio: mode === 'dark' ? 3 : 4.5,
+    // Chữ mờ (dim) của CLI vẫn phải đọc được trên nền tối.
+    minimumContrastRatio: 3,
     vtExtensions: { kittyKeyboard: true },
     theme: terminalTheme(),
   };

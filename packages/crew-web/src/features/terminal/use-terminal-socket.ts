@@ -13,12 +13,13 @@ type ServerFrame = { type: 'ready' } | { type: 'output'; data: string } | { type
 /**
  * Điều trang cần báo thêm. Lý do và câu lỗi thô của server (`shell_closed`, lỗi ssh…) không hiện cho người dùng;
  * trang dịch `notice` thành câu i18n.
- * - `targetMissing`: vé trả 4xx (máy/project không còn sẵn sàng, mất quyền): nối lại cũng vô ích.
+ * - `targetMissing`: vé trả 4xx khác (máy/project không còn sẵn sàng): nối lại cũng vô ích.
+ * - `forbidden`: vé trả 401/403 (hết phiên đăng nhập hoặc không còn là owner): phải tải lại trang để đăng nhập lại.
  * - `error`: server báo lỗi trong phiên.
  * - `connectFailed`: nhiều lần liền có vé mà WebSocket đóng trước khi `ready` (server từ chối, máy lỗi SSH…):
  *   lỗi cố định nên thôi nối lại, chờ người dùng bấm Nối lại.
  */
-export type TerminalSocketNotice = 'targetMissing' | 'error' | 'connectFailed';
+export type TerminalSocketNotice = 'targetMissing' | 'forbidden' | 'error' | 'connectFailed';
 
 /** Số lần liền WebSocket đóng trước khi `ready` thì thôi tự nối lại. */
 export const MAX_FAILED_CONNECTS = 5;
@@ -107,8 +108,11 @@ export function useTerminalSocket({
         if (stopped) return;
         if (err instanceof ApiError && err.status === 423) {
           setStatus('locked');
+        } else if (err instanceof ApiError && (err.status === 401 || err.status === 403)) {
+          setNotice('forbidden');
+          setStatus('closed');
         } else if (err instanceof ApiError && err.status >= 400 && err.status < 500) {
-          // Máy/project không còn sẵn sàng hoặc mất quyền owner: nối lại cũng vô ích.
+          // Máy/project không còn sẵn sàng: nối lại cũng vô ích.
           setNotice('targetMissing');
           setStatus('closed');
         } else {

@@ -1,28 +1,16 @@
 // Khối "Terminal" trên trang Máy (chỉ owner): dự án đã dựng xong (`ready`) trên từng máy, nhóm theo máy. Mỗi dự án có
 // link mở trang terminal ở tab mới để mở nhiều dự án cùng lúc; mật khẩu mở khoá hỏi ở trang terminal.
 import { useQuery } from '@tanstack/react-query';
-import { type TerminalTarget, terminalApi } from '@/api/crew/terminal';
+import { terminalApi } from '@/api/crew/terminal';
 import { queryKeys } from '@/api/queryKeys';
 import { companyPath } from '@/app/routes-util';
 import { Alert, Button, MutedText, Section, SectionHeading, Spinner } from '@/ds';
+import { groupTargetsByMachine } from '@/features/terminal/target-switcher';
 import { useT } from '@/i18n';
 
 interface TerminalTargetsBlockProps {
   companyId: string;
   companyPrefix: string;
-}
-
-/** Nhóm theo máy, giữ thứ tự server trả. */
-function groupByMachine(
-  targets: readonly TerminalTarget[],
-): { machineId: string; hostname: string; items: TerminalTarget[] }[] {
-  const groups = new Map<string, { machineId: string; hostname: string; items: TerminalTarget[] }>();
-  for (const target of targets) {
-    const group = groups.get(target.machineId) ?? { machineId: target.machineId, hostname: target.hostname, items: [] };
-    group.items.push(target);
-    groups.set(target.machineId, group);
-  }
-  return [...groups.values()];
 }
 
 export function TerminalTargetsBlock({ companyId, companyPrefix }: TerminalTargetsBlockProps) {
@@ -31,7 +19,7 @@ export function TerminalTargetsBlock({ companyId, companyPrefix }: TerminalTarge
     queryKey: queryKeys.terminalTargets(companyId),
     queryFn: () => terminalApi.targets(companyId),
   });
-  const groups = groupByMachine(targets.data ?? []);
+  const groups = groupTargetsByMachine(targets.data ?? []);
 
   return (
     <Section title={t('terminal.title')}>
