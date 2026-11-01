@@ -1,11 +1,15 @@
 // Terminal của owner dạng khung nổi như khung chat: nút tròn ở góc dưới bên phải mọi trang trong company để ẩn hiện.
-// Ẩn chỉ giấu khung, phiên vẫn nối; chuyển trang trong app cũng không mất phiên vì khung nằm ở shell. Mở lần đầu mới nạp
-// xterm (`terminal-session.tsx`). Nhớ dự án đang mở trong `localStorage`. Chỉ owner thấy (server cũng chặn).
+// Khung chứa nhiều tab, mỗi tab một dự án trên một máy, tự owner mở (không tự mở sẵn cái nào). Thanh trên đếm số
+// terminal đang mở và đang nối; mỗi tab hiện trạng thái riêng. Ẩn khung hay đổi tab chỉ giấu, phiên vẫn nối; chuyển
+// trang trong app cũng không mất phiên vì khung nằm ở shell. Đóng tab mới ngắt kết nối (phiên tmux trên máy vẫn giữ).
+// Mở lần đầu mới tải danh sách dự án; tab đầu tiên mới nạp xterm (`terminal-session.tsx`). Chỉ owner (server cũng chặn).
 import { useQuery } from '@tanstack/react-query';
 import {
   createContext,
+  type Dispatch,
   lazy,
   type ReactNode,
+  type SetStateAction,
   Suspense,
   useCallback,
   useContext,
@@ -17,21 +21,33 @@ import {
 import { api, queryKeys } from '@/api';
 import type { TerminalTarget } from '@/api/crew/terminal';
 import { useCompany } from '@/app/hooks';
-import { Spinner, TerminalDockEmpty, TerminalDockPanel, TerminalLauncher } from '@/ds';
+import {
+  Spinner,
+  TerminalDockEmpty,
+  TerminalDockHeader,
+  TerminalDockPanel,
+  TerminalFontControl,
+  TerminalHideButton,
+  TerminalLauncher,
+  TerminalPickerList,
+  TerminalPickerMenu,
+  TerminalTabs,
+} from '@/ds';
 import { useCompanyAccess } from '@/features/access/use-company-access';
 import { useT } from '@/i18n';
+import { pickerGroups, targetKey } from './target-picker';
 import type { TerminalSocketStatus } from './use-terminal-socket';
+import { FONT_SCALES, fontSizeFor, nextFontScale, readFontScale, saveFontScale } from './xterm-options';
 
 const TerminalSession = lazy(async () => ({ default: (await import('./terminal-session')).TerminalSession }));
 
-const TARGET_KEY = 'crew.terminal.dockTarget';
 /** Chỗ chừa cho nút tròn để khung nổi khác (`FloatingNotice`) đứng trên nó. */
 const DOCK_SPACE = '4.5rem';
 
 type TargetRef = Pick<TerminalTarget, 'machineId' | 'projectId'>;
 
 interface TerminalDockApi {
-  /** Mở khung nổi; truyền dự án thì chuyển sang dự án đó. */
+  /** Mở khung nổi; truyền dự án thì mở tab cho dự án đó (đã có thì chọn tab đó). */
   open: (target?: TargetRef) => void;
 }
 
@@ -42,24 +58,29 @@ export function useTerminalDock(): TerminalDockApi | null {
   return useContext(TerminalDockContext);
 }
 
-function readTarget(companyId: string): TargetRef | null {
-  try {
-    const raw = localStorage.getItem(`${TARGET_KEY}.${companyId}`);
-    const v = raw ? (JSON.parse(raw) as Partial<TargetRef>) : null;
-    return v && typeof v.machineId === 'string' && typeof v.projectId === 'string'
-      ? { machineId: v.machineId, projectId: v.projectId }
-      : null;
-  } catch {
-    return null;
-  }
+export interface DockState {
+  open: boolean;
+  /** Đã mở khung ít nhất một lần: từ đó mới tải danh sách dự án. */
+  started: boolean;
+  tabs: TargetRef[];
+  activeKey: string | null;
 }
 
-function saveTarget(companyId: string, target: TargetRef): void {
-  try {
-    localStorage.setItem(`${TARGET_KEY}.${companyId}`, JSON.stringify(target));
-  } catch {
-    // trình duyệt chặn lưu trữ: lần sau mở dự án đầu danh sách
-  }
+/** Thêm tab cho dự án (chưa có thì nối vào cuối) và chọn nó. */
+export function addTab(state: DockState, target: TargetRef): DockState {
+  const key = targetKey(target);
+  const tabs = state.tabs.some((x) => targetKey(x) === key) ? state.tabs : [...state.tabs, target];
+  return { ...state, tabs, activeKey: key };
+}
+
+/** Bỏ tab; tab đang chọn bị bỏ thì chọn tab bên cạnh (bên phải, hết thì bên trái). */
+export function removeTab(state: DockState, key: string): DockState {
+  const i = state.tabs.findIndex((x) => targetKey(x) === key);
+  if (i === -1) return state;
+  const tabs = state.tabs.filter((_, j) => j !== i);
+  const next = tabs[i] ?? tabs[i - 1];
+  const activeKey = state.activeKey === key ? (next ? targetKey(next) : null) : state.activeKey;
+  return { ...state, tabs, activeKey };
 }
 
 /**
@@ -67,59 +88,46 @@ function saveTarget(companyId: string, target: TargetRef): void {
  * dựng lại cả trang; owner có thêm nút tròn và khung nổi terminal.
  */
 export function TerminalDockProvider({ children }: { children: ReactNode }) {
-  const { company } = useCompany();
   const access = useCompanyAccess();
-  const [open, setOpen] = useState(false);
-  // Đã mở ít nhất một lần: từ đó giữ phiên kể cả khi ẩn.
-  const [started, setStarted] = useState(false);
-  const [chosen, setChosen] = useState<TargetRef | null>(() => readTarget(company.id));
-  const show = useCallback(
-    (target?: TargetRef) => {
-      if (target) {
-        setChosen(target);
-        saveTarget(company.id, target);
-      }
-      setStarted(true);
-      setOpen(true);
-    },
-    [company.id],
-  );
+  const [state, setState] = useState<DockState>({ open: false, started: false, tabs: [], activeKey: null });
+  const show = useCallback((target?: TargetRef) => {
+    setState((s) => {
+      const opened = { ...s, open: true, started: true };
+      return target ? addTab(opened, target) : opened;
+    });
+  }, []);
   const dock = useMemo<TerminalDockApi>(() => ({ open: show }), [show]);
   return (
     <TerminalDockContext.Provider value={access.isOwner ? dock : null}>
       {children}
-      {access.isOwner ? (
-        <OwnerDock open={open} started={started} chosen={chosen} onShow={show} onHide={() => setOpen(false)} />
-      ) : null}
+      {access.isOwner ? <OwnerDock state={state} setState={setState} onShow={show} /> : null}
     </TerminalDockContext.Provider>
   );
 }
 
 function OwnerDock({
-  open,
-  started,
-  chosen,
+  state,
+  setState,
   onShow,
-  onHide,
 }: {
-  open: boolean;
-  started: boolean;
-  chosen: TargetRef | null;
+  state: DockState;
+  setState: Dispatch<SetStateAction<DockState>>;
   onShow: (target?: TargetRef) => void;
-  onHide: () => void;
 }) {
   const { t } = useT('terminal');
   const { company } = useCompany();
   const panelId = useId();
-  const [status, setStatus] = useState<TerminalSocketStatus | null>(null);
+  const [statuses, setStatuses] = useState<Record<string, TerminalSocketStatus>>({});
+  const [fontScale, setFontScale] = useState(readFontScale);
+  const [unlockGeneration, setUnlockGeneration] = useState(0);
   const targets = useQuery({
     queryKey: queryKeys.terminalTargets(company.id),
     queryFn: () => api.terminal.targets(company.id),
-    enabled: started,
+    enabled: state.started,
   });
-  const list = targets.data ?? [];
-  const current =
-    list.find((x) => x.machineId === chosen?.machineId && x.projectId === chosen?.projectId) ?? list[0] ?? null;
+  const list = useMemo(() => targets.data ?? [], [targets.data]);
+  const openKeys = useMemo(() => new Set(state.tabs.map(targetKey)), [state.tabs]);
+  const groups = useMemo(() => pickerGroups(list, openKeys), [list, openKeys]);
 
   useEffect(() => {
     const root = document.documentElement;
@@ -129,45 +137,130 @@ function OwnerDock({
     };
   }, []);
 
+  useEffect(() => {
+    saveFontScale(fontScale);
+  }, [fontScale]);
+
+  // Callback ổn định theo khoá tab để `TerminalSession` không báo lại trạng thái mỗi lần khung vẽ lại.
+  const statusHandlers = useMemo(() => {
+    const handlers: Record<string, (status: TerminalSocketStatus) => void> = {};
+    for (const key of openKeys) {
+      handlers[key] = (status) => setStatuses((m) => (m[key] === status ? m : { ...m, [key]: status }));
+    }
+    return handlers;
+  }, [openKeys]);
+
+  const hide = () => setState((s) => ({ ...s, open: false }));
+  const closeTab = (key: string) => {
+    setState((s) => removeTab(s, key));
+    setStatuses(({ [key]: _, ...rest }) => rest);
+  };
+  const select = (machineId: string, projectId: string) => onShow({ machineId, projectId });
+
+  const opened = state.tabs.length;
+  const connected = state.tabs.filter((x) => statuses[targetKey(x)] === 'open').length;
+  const findTarget = (ref: TargetRef) =>
+    list.find((x) => x.machineId === ref.machineId && x.projectId === ref.projectId);
   const loading = (
     <TerminalDockEmpty>
       <Spinner />
     </TerminalDockEmpty>
   );
-  let body: ReactNode = null;
+
+  let body: ReactNode;
   if (targets.isLoading) body = loading;
   else if (targets.error) body = <TerminalDockEmpty>{t('targetsFailed')}</TerminalDockEmpty>;
-  else if (!current) body = <TerminalDockEmpty>{t('noTargets')}</TerminalDockEmpty>;
-  else {
+  else if (opened === 0) {
     body = (
-      <Suspense fallback={loading}>
-        <TerminalSession
-          key={`${current.machineId}/${current.projectId}`}
-          machineId={current.machineId}
-          projectId={current.projectId}
-          targets={list}
-          visible={open}
-          onSelectTarget={onShow}
-          onHide={onHide}
-          onStatusChange={setStatus}
+      <TerminalPickerList
+        title={t('emptyTitle')}
+        description={t('emptyHint')}
+        groups={groups}
+        emptyLabel={t('noTargets')}
+        onSelect={select}
+      />
+    );
+  } else {
+    body = (
+      <>
+        <TerminalTabs
+          label={t('tabsLabel')}
+          activeId={state.activeKey}
+          tabs={state.tabs.map((ref) => {
+            const key = targetKey(ref);
+            const target = findTarget(ref);
+            const status = statuses[key] ?? 'connecting';
+            return {
+              id: key,
+              title: target?.projectName ?? t('title'),
+              detail: target?.hostname,
+              tone: status,
+              statusLabel: t(`status.${status}`),
+            };
+          })}
+          closeLabel={(name) => t('closeTab', { name })}
+          onSelect={(key) => setState((s) => ({ ...s, activeKey: key }))}
+          onClose={closeTab}
+          add={<TerminalPickerMenu label={t('addTab')} groups={groups} emptyLabel={t('noTargets')} onSelect={select} />}
         />
-      </Suspense>
+        <Suspense fallback={loading}>
+          {state.tabs.map((ref) => {
+            const key = targetKey(ref);
+            const selected = key === state.activeKey;
+            return (
+              <TerminalSession
+                key={key}
+                machineId={ref.machineId}
+                projectId={ref.projectId}
+                target={findTarget(ref)}
+                selected={selected}
+                active={selected && state.open}
+                fontScale={fontScale}
+                unlockGeneration={unlockGeneration}
+                onUnlocked={() => setUnlockGeneration((g) => g + 1)}
+                onHide={hide}
+                onStatusChange={statusHandlers[key]}
+              />
+            );
+          })}
+        </Suspense>
+      </>
     );
   }
 
   return (
     <>
-      {started ? (
-        <TerminalDockPanel id={panelId} label={t('title')} open={open}>
+      {state.started ? (
+        <TerminalDockPanel id={panelId} label={t('title')} open={state.open}>
+          <TerminalDockHeader
+            title={t('title')}
+            summary={opened > 0 ? t('summary', { opened, connected }) : undefined}
+            actions={
+              <>
+                <TerminalFontControl
+                  size={fontSizeFor(fontScale)}
+                  label={t('fontSize')}
+                  smallerLabel={t('fontSmaller')}
+                  largerLabel={t('fontLarger')}
+                  canSmaller={fontScale !== FONT_SCALES[0]}
+                  canLarger={fontScale !== FONT_SCALES[FONT_SCALES.length - 1]}
+                  onSmaller={() => setFontScale((s) => nextFontScale(s, -1))}
+                  onLarger={() => setFontScale((s) => nextFontScale(s, 1))}
+                />
+                <TerminalHideButton label={t('hide')} onClick={hide} />
+              </>
+            }
+          />
           {body}
         </TerminalDockPanel>
       ) : null}
       <TerminalLauncher
-        label={open ? t('hide') : t('show')}
-        open={open}
-        live={status === 'open'}
+        label={state.open ? t('hide') : opened > 0 ? t('showWithCount', { opened, connected }) : t('show')}
+        open={state.open}
+        opened={opened}
+        connected={connected}
         controls={panelId}
-        onToggle={() => (open ? onHide() : onShow())}
+        onToggle={() => (state.open ? hide() : onShow())}
       />
     </>
   );

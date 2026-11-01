@@ -1,36 +1,18 @@
-// Một phiên terminal của owner trong khung nổi: xterm nối WebSocket tới phiên tmux của một project trên một máy đã ghép.
-// Luôn nền tối. Khoá thì hỏi mật khẩu ngay giữa khung rồi tự nối. Nút tiêu đề đổi sang dự án/máy khác tại chỗ.
+// Một tab terminal trong khung nổi: xterm nối WebSocket tới phiên tmux của một project trên một máy đã ghép. Luôn nền
+// tối. Khoá thì hỏi mật khẩu ngay giữa khung rồi tự nối. Tab không được chọn chỉ bị giấu, phiên vẫn nối.
 // Nạp lười từ `terminal-dock.tsx` để trang khác không phải tải xterm.
 import { type ReactNode, useEffect, useRef, useState } from 'react';
 import type { TerminalTarget } from '@/api/crew/terminal';
 import { useCompany } from '@/app/hooks';
-import {
-  Button,
-  TerminalBanner,
-  TerminalConnecting,
-  TerminalFontControl,
-  TerminalHideButton,
-  TerminalPanel,
-  TerminalPanelActions,
-  TerminalShell,
-  TerminalStatus,
-} from '@/ds';
+import { Button, TerminalBanner, TerminalConnecting, TerminalPanel, TerminalPanelActions, TerminalScreen } from '@/ds';
 import { CircleAlert, RefreshCw } from '@/ds/icons';
 import { useT } from '@/i18n';
 import { AccessoryKeys, useCoarsePointer } from './accessory-keys';
 import { type MountedXterm, mountXterm } from './mount-xterm';
 import { PasteTooLargeError, preparePaste } from './paste';
-import { TargetSwitcher } from './target-switcher';
 import { UnlockPanel } from './unlock-panel';
 import { type TerminalSocketNotice, type TerminalSocketStatus, useTerminalSocket } from './use-terminal-socket';
-import {
-  buildTerminalOptions,
-  FONT_SCALES,
-  fontSizeFor,
-  nextFontScale,
-  readFontScale,
-  saveFontScale,
-} from './xterm-options';
+import { buildTerminalOptions, fontSizeFor } from './xterm-options';
 
 /** Báo "dán quá lớn" tự ẩn sau chừng này mili giây. */
 const PASTE_NOTICE_MS = 5000;
@@ -54,33 +36,39 @@ const CLOSED_HINT: Record<TerminalSocketNotice | 'none', string> = {
 export interface TerminalSessionProps {
   machineId: string;
   projectId: string;
-  /** Danh sách dự án mở được (đã tải ở khung nổi). */
-  targets: readonly TerminalTarget[];
-  /** Khung nổi đang hiện: hiện lại thì trả tiêu điểm cho terminal. */
-  visible: boolean;
-  onSelectTarget: (target: TerminalTarget) => void;
-  /** Ẩn khung nổi (phiên vẫn giữ). */
+  /** Dự án trong danh sách mở được; undefined khi không còn sẵn sàng. */
+  target: TerminalTarget | undefined;
+  /** Tab đang được chọn và khung nổi đang hiện: trả tiêu điểm cho terminal. */
+  active: boolean;
+  /** Tab đang được chọn (khung nổi có thể đang ẩn). */
+  selected: boolean;
+  /** Bậc cỡ chữ chung của khung nổi. */
+  fontScale: number;
+  /** Tăng mỗi lần một tab mở khoá xong: mọi tab đang khoá (kể cả tab vừa mở) tự nối lại. */
+  unlockGeneration: number;
+  onUnlocked: () => void;
+  /** Ẩn khung nổi (mọi phiên vẫn giữ). */
   onHide: () => void;
-  /** Báo trạng thái kết nối cho nút tròn. */
-  onStatusChange?: (status: TerminalSocketStatus) => void;
+  onStatusChange: (status: TerminalSocketStatus) => void;
 }
 
 export function TerminalSession({
   machineId,
   projectId,
-  targets,
-  visible,
-  onSelectTarget,
+  target,
+  active,
+  selected,
+  fontScale,
+  unlockGeneration,
+  onUnlocked,
   onHide,
   onStatusChange,
 }: TerminalSessionProps) {
   const { t } = useT('terminal');
   const { company } = useCompany();
   const coarse = useCoarsePointer();
-  const target = targets.find((x) => x.machineId === machineId && x.projectId === projectId);
   const boxRef = useRef<HTMLDivElement>(null);
   const xtermRef = useRef<MountedXterm | null>(null);
-  const [fontScale, setFontScale] = useState(readFontScale);
   const fontScaleRef = useRef(fontScale);
   const [pasteTooLarge, setPasteTooLarge] = useState(false);
   const socket = useTerminalSocket({
@@ -89,7 +77,7 @@ export function TerminalSession({
     projectId,
     onOutput: (data) => xtermRef.current?.term.write(data),
   });
-  const { send, resize } = socket;
+  const { send, resize, status, reconnect } = socket;
 
   useEffect(() => {
     const el = boxRef.current;
@@ -115,7 +103,6 @@ export function TerminalSession({
       }
     };
     el.addEventListener('paste', onPaste, true);
-    xterm.term.focus();
     return () => {
       el.removeEventListener('paste', onPaste, true);
       input.dispose();
@@ -127,23 +114,30 @@ export function TerminalSession({
   useEffect(() => {
     if (fontScaleRef.current === fontScale) return;
     fontScaleRef.current = fontScale;
-    saveFontScale(fontScale);
     const xterm = xtermRef.current;
     if (!xterm) return;
-    // Khung không đổi cỡ nên ResizeObserver không báo: tự fit lại theo cỡ ô chữ mới.
+    // Tab đang giấu thì fit trả null; hiện lại thì ResizeObserver fit theo cỡ chữ mới.
     xterm.term.options.fontSize = fontSizeFor(fontScale);
     const size = xterm.fit();
     if (size) resize(size.cols, size.rows);
   }, [fontScale, resize]);
 
-  // Nối xong (sau mở khoá hay nối lại) thì trả tiêu điểm cho terminal để gõ được ngay.
+  // Hiện tab (chọn tab, mở khung, nối xong) thì trả tiêu điểm cho terminal để gõ được ngay.
   useEffect(() => {
-    if (socket.status === 'open' && visible) xtermRef.current?.term.focus();
-  }, [socket.status, visible]);
+    if (active && status === 'open') xtermRef.current?.term.focus();
+  }, [active, status]);
 
   useEffect(() => {
-    onStatusChange?.(socket.status);
-  }, [socket.status, onStatusChange]);
+    onStatusChange(status);
+  }, [status, onStatusChange]);
+
+  // Một tab vừa mở khoá (mở khoá theo phiên đăng nhập, chung mọi tab): tab nào đang khoá thì nối lại luôn.
+  const unlockSeen = useRef(unlockGeneration);
+  useEffect(() => {
+    if (unlockSeen.current === unlockGeneration) return;
+    unlockSeen.current = unlockGeneration;
+    if (status === 'locked') reconnect();
+  }, [unlockGeneration, status, reconnect]);
 
   useEffect(() => {
     if (!pasteTooLarge) return;
@@ -156,12 +150,11 @@ export function TerminalSession({
     xtermRef.current?.term.focus();
   };
   const hostname = target?.hostname ?? '';
-  const missing = !target;
   let overlay: ReactNode = null;
-  if (socket.status === 'locked') {
-    overlay = <UnlockPanel onUnlocked={socket.reconnect} onCancel={onHide} />;
-  } else if (socket.status === 'closed' || missing) {
-    const notice = missing ? 'targetMissing' : (socket.notice ?? 'none');
+  if (status === 'locked') {
+    overlay = <UnlockPanel onUnlocked={onUnlocked} onCancel={onHide} />;
+  } else if (status === 'closed' || !target) {
+    const notice = !target ? 'targetMissing' : (socket.notice ?? 'none');
     overlay = (
       <TerminalPanel
         icon={<CircleAlert />}
@@ -169,16 +162,13 @@ export function TerminalSession({
         description={t(CLOSED_HINT[notice], { host: hostname })}
       >
         <TerminalPanelActions>
-          <Button type="button" variant="ghost" onClick={onHide}>
-            {t('hide')}
-          </Button>
           {notice === 'forbidden' ? (
             <Button type="button" onClick={() => window.location.reload()}>
               <RefreshCw />
               {t('reload')}
             </Button>
           ) : (
-            <Button type="button" onClick={socket.reconnect}>
+            <Button type="button" onClick={reconnect}>
               <RefreshCw />
               {t('reconnect')}
             </Button>
@@ -186,32 +176,16 @@ export function TerminalSession({
         </TerminalPanelActions>
       </TerminalPanel>
     );
-  } else if (socket.status === 'connecting') {
+  } else if (status === 'connecting') {
     overlay = <TerminalConnecting label={hostname ? t('connectingTo', { host: hostname }) : t('status.connecting')} />;
   }
 
   return (
-    <TerminalShell
-      title={<TargetSwitcher targets={targets} current={target} fallbackTitle={t('title')} onSelect={onSelectTarget} />}
-      status={<TerminalStatus tone={socket.status} label={t(`status.${socket.status}`)} />}
-      actions={
-        <>
-          <TerminalFontControl
-            size={fontSizeFor(fontScale)}
-            label={t('fontSize')}
-            smallerLabel={t('fontSmaller')}
-            largerLabel={t('fontLarger')}
-            canSmaller={fontScale !== FONT_SCALES[0]}
-            canLarger={fontScale !== FONT_SCALES[FONT_SCALES.length - 1]}
-            onSmaller={() => setFontScale((s) => nextFontScale(s, -1))}
-            onLarger={() => setFontScale((s) => nextFontScale(s, 1))}
-          />
-          <TerminalHideButton label={t('hide')} onClick={onHide} />
-        </>
-      }
+    <TerminalScreen
+      hidden={!selected}
       banner={
         <>
-          {socket.notice === 'error' && socket.status === 'open' ? (
+          {socket.notice === 'error' && status === 'open' ? (
             <TerminalBanner tone="warning">{t('serverError')}</TerminalBanner>
           ) : null}
           {pasteTooLarge ? <TerminalBanner tone="error">{t('pasteTooLarge')}</TerminalBanner> : null}
@@ -219,7 +193,7 @@ export function TerminalSession({
       }
       overlay={overlay}
       screenRef={boxRef}
-      footer={coarse && socket.status === 'open' ? <AccessoryKeys send={sendKey} /> : null}
+      footer={coarse && status === 'open' ? <AccessoryKeys send={sendKey} /> : null}
     />
   );
 }

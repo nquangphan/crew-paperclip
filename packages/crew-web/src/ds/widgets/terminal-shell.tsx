@@ -1,5 +1,5 @@
 // crew: tự dựng
-import { Check, ChevronDown, ChevronsUpDown, Loader2, Minus, Plus, SquareTerminal } from 'lucide-react';
+import { Check, ChevronDown, Loader2, Minus, Plus, SquareTerminal, X } from 'lucide-react';
 import type * as React from 'react';
 import { cn } from '../cn';
 import { Button } from '../components/button';
@@ -13,16 +13,10 @@ import {
   DropdownMenuTrigger,
 } from '../components/dropdown-menu';
 
-interface TerminalShellProps {
-  /** Nút về, đầu thanh trên (bỏ trống khi nằm trong khung nổi). */
-  back?: React.ReactNode;
-  /** Tiêu đề: thường là nút chọn dự án/máy. */
-  title: React.ReactNode;
-  /** Trạng thái kết nối cạnh tiêu đề (`TerminalStatus`). */
-  status?: React.ReactNode;
-  /** Nút bên phải thanh trên (cỡ chữ). */
-  actions?: React.ReactNode;
-  /** Dải báo ngay dưới thanh trên (lỗi phiên, dán quá lớn). */
+interface TerminalScreenProps {
+  /** Tab không được chọn: giấu (không gỡ) để phiên giữ kết nối. */
+  hidden?: boolean;
+  /** Dải báo trên khung (lỗi phiên, dán quá lớn). */
   banner?: React.ReactNode;
   /** Phủ giữa khung terminal (đang khoá, đang nối, đã ngắt); màn hình cũ vẫn mờ phía sau. */
   overlay?: React.ReactNode;
@@ -33,20 +27,12 @@ interface TerminalShellProps {
 }
 
 /**
- * Terminal luôn nền tối (token `--terminal-*`, class `dark` cho component bên trong), cao bằng khung chứa: thanh trên
- * gọn, khung terminal giãn hết phần còn lại, thông báo phủ giữa khung thay vì đẩy khung xuống.
+ * Thân một phiên terminal trong khung nổi: khung xterm giãn hết chỗ còn lại, thông báo phủ giữa khung thay vì đẩy khung
+ * xuống. Luôn nền tối (token `--terminal-*`).
  */
-function TerminalShell({ back, title, status, actions, banner, overlay, screenRef, footer }: TerminalShellProps) {
+function TerminalScreen({ hidden, banner, overlay, screenRef, footer }: TerminalScreenProps) {
   return (
-    <div data-slot="terminal-shell" className="dark flex h-full flex-col bg-terminal text-terminal-foreground">
-      <header className="flex h-12 shrink-0 items-center gap-1 border-b border-terminal-border bg-terminal-surface px-2 sm:gap-2 sm:px-3">
-        {back ?? null}
-        <div className="flex min-w-0 flex-1 items-center gap-2">
-          {title}
-          {status}
-        </div>
-        {actions ? <div className="flex shrink-0 items-center gap-1">{actions}</div> : null}
-      </header>
+    <div data-slot="terminal-screen" hidden={hidden} className="flex min-h-0 flex-1 flex-col">
       {banner}
       <div className="relative min-h-0 flex-1">
         <div ref={screenRef} className="absolute inset-0 py-2 pr-1 pl-3" />
@@ -69,20 +55,6 @@ const DOT: Record<TerminalStatusTone, string> = {
   closed: 'bg-zinc-500',
   locked: 'bg-amber-400',
 };
-
-/** Chấm màu kèm chữ trạng thái; màn hẹp chỉ còn chấm, chữ vẫn đọc được bằng trình đọc màn hình. */
-function TerminalStatus({ tone, label }: { tone: TerminalStatusTone; label: string }) {
-  return (
-    <span
-      role="status"
-      data-tone={tone}
-      className="inline-flex shrink-0 items-center gap-1.5 text-xs text-terminal-muted"
-    >
-      <span aria-hidden className={cn('size-2 rounded-full', DOT[tone])} />
-      <span className="sr-only sm:not-sr-only">{label}</span>
-    </span>
-  );
-}
 
 /** Thẻ giữa khung terminal: biểu tượng, tiêu đề, mô tả, rồi nút hoặc form. */
 function TerminalPanel({
@@ -168,29 +140,21 @@ function TerminalKeyRow({
 /** Nút trên thanh tối: chữ phụ, sáng lên khi rê. */
 const TOOL = 'text-terminal-muted hover:bg-white/5 hover:text-terminal-foreground';
 
-interface TerminalSwitcherGroup {
+interface TerminalPickerGroup {
   id: string;
   label: string;
   items: { id: string; title: string; detail?: string; active?: boolean }[];
 }
 
-/**
- * Nút tiêu đề: tên mục đang mở kèm dòng phụ; bấm ra danh sách theo nhóm để đổi sang mục khác. Menu nằm trong portal
- * ngoài khung nên tự gắn class `dark`.
- */
-function TerminalSwitcher({
+/** Nút "+" mở menu chọn dự án theo nhóm máy; mục đã mở có dấu tick. Menu nằm trong portal nên tự gắn class `dark`. */
+function TerminalPickerMenu({
   label,
-  title,
-  detail,
   groups,
   emptyLabel,
   onSelect,
 }: {
-  /** Nhãn cho trình đọc màn hình của nút. */
   label: string;
-  title: string;
-  detail?: string;
-  groups: readonly TerminalSwitcherGroup[];
+  groups: readonly TerminalPickerGroup[];
   emptyLabel: string;
   onSelect: (groupId: string, itemId: string) => void;
 }) {
@@ -200,14 +164,12 @@ function TerminalSwitcher({
         <Button
           type="button"
           variant="ghost"
-          size="sm"
+          size="icon-sm"
           aria-label={label}
-          className="min-w-0 max-w-full justify-start gap-2 px-2 text-terminal-foreground hover:bg-white/5"
+          title={label}
+          className={cn('shrink-0', TOOL)}
         >
-          <SquareTerminal className="text-terminal-muted" />
-          <span className="truncate font-semibold">{title}</span>
-          {detail ? <span className="hidden truncate font-normal text-terminal-muted sm:inline">{detail}</span> : null}
-          <ChevronsUpDown className="text-terminal-muted" />
+          <Plus />
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" className="dark max-h-[70dvh] min-w-64 overflow-y-auto">
@@ -217,13 +179,7 @@ function TerminalSwitcher({
             {i > 0 ? <DropdownMenuSeparator /> : null}
             <DropdownMenuLabel className="text-xs font-medium text-muted-foreground">{group.label}</DropdownMenuLabel>
             {group.items.map((item) => (
-              <DropdownMenuItem
-                key={item.id}
-                aria-current={item.active ? 'page' : undefined}
-                onSelect={() => {
-                  if (!item.active) onSelect(group.id, item.id);
-                }}
-              >
+              <DropdownMenuItem key={item.id} onSelect={() => onSelect(group.id, item.id)}>
                 <span className="flex min-w-0 flex-1 flex-col">
                   <span className="truncate">{item.title}</span>
                   {item.detail ? (
@@ -237,6 +193,156 @@ function TerminalSwitcher({
         ))}
       </DropdownMenuContent>
     </DropdownMenu>
+  );
+}
+
+/** Danh sách chọn dự án ngay trong khung khi chưa mở terminal nào. */
+function TerminalPickerList({
+  title,
+  description,
+  groups,
+  emptyLabel,
+  onSelect,
+}: {
+  title: string;
+  description: string;
+  groups: readonly TerminalPickerGroup[];
+  emptyLabel: string;
+  onSelect: (groupId: string, itemId: string) => void;
+}) {
+  return (
+    <div className="flex min-h-0 flex-1 flex-col items-center overflow-y-auto p-6">
+      <div className="flex w-full max-w-md flex-col gap-4">
+        <div className="flex flex-col gap-1 text-center">
+          <h2 className="text-sm font-semibold">{title}</h2>
+          <p className="text-sm text-terminal-muted">{description}</p>
+        </div>
+        {groups.length === 0 ? <p className="text-center text-sm text-terminal-muted">{emptyLabel}</p> : null}
+        {groups.map((group) => (
+          <section key={group.id} aria-label={group.label} className="flex flex-col gap-1">
+            <h3 className="px-1 text-xs font-medium text-terminal-muted">{group.label}</h3>
+            {group.items.map((item) => (
+              <button
+                key={item.id}
+                type="button"
+                onClick={() => onSelect(group.id, item.id)}
+                className="flex min-h-11 cursor-pointer items-center gap-3 rounded-lg border border-terminal-border bg-terminal-surface px-3 py-2 text-left transition-colors hover:bg-white/5 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+              >
+                <SquareTerminal className="size-4 shrink-0 text-terminal-muted" />
+                <span className="flex min-w-0 flex-1 flex-col">
+                  <span className="truncate text-sm">{item.title}</span>
+                  {item.detail ? (
+                    <span className="truncate font-mono text-xs text-terminal-muted">{item.detail}</span>
+                  ) : null}
+                </span>
+              </button>
+            ))}
+          </section>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/** Thanh trên của khung nổi: tên, dòng tổng (bao nhiêu terminal, bao nhiêu đang nối), nút bên phải. */
+function TerminalDockHeader({
+  title,
+  summary,
+  actions,
+}: {
+  title: string;
+  summary?: string;
+  actions?: React.ReactNode;
+}) {
+  return (
+    <header className="flex h-12 shrink-0 items-center gap-2 border-b border-terminal-border bg-terminal-surface px-3">
+      <SquareTerminal className="size-4 shrink-0 text-terminal-muted" />
+      <h2 className="text-sm font-semibold">{title}</h2>
+      {summary ? (
+        <span role="status" className="min-w-0 truncate text-xs text-terminal-muted">
+          {summary}
+        </span>
+      ) : null}
+      {actions ? <div className="ml-auto flex shrink-0 items-center gap-1">{actions}</div> : null}
+    </header>
+  );
+}
+
+/** Một tab terminal: tên dự án, máy và trạng thái kết nối của riêng tab đó, nút đóng. */
+interface TerminalTabItem {
+  id: string;
+  title: string;
+  detail?: string;
+  tone: TerminalStatusTone;
+  statusLabel: string;
+}
+
+/** Dải tab các terminal đang mở, kèm nút "+" ở cuối; cuộn ngang khi chật. */
+function TerminalTabs({
+  label,
+  tabs,
+  activeId,
+  closeLabel,
+  onSelect,
+  onClose,
+  add,
+}: {
+  label: string;
+  tabs: readonly TerminalTabItem[];
+  activeId: string | null;
+  /** Nhãn nút đóng, nhận tên tab. */
+  closeLabel: (title: string) => string;
+  onSelect: (id: string) => void;
+  onClose: (id: string) => void;
+  /** Nút "+" (`TerminalPickerMenu`). */
+  add?: React.ReactNode;
+}) {
+  return (
+    <div className="flex shrink-0 items-stretch border-b border-terminal-border bg-terminal">
+      <div role="tablist" aria-label={label} className="flex min-w-0 overflow-x-auto [scrollbar-width:none]">
+        {tabs.map((tab) => {
+          const active = tab.id === activeId;
+          return (
+            <div
+              key={tab.id}
+              className={cn(
+                'group flex max-w-60 shrink-0 items-center border-r border-terminal-border',
+                active ? 'bg-terminal-surface' : 'hover:bg-white/5',
+              )}
+            >
+              <button
+                type="button"
+                role="tab"
+                aria-selected={active}
+                onClick={() => onSelect(tab.id)}
+                className={cn(
+                  'flex min-h-11 min-w-0 cursor-pointer flex-col justify-center py-1.5 pr-1 pl-3 text-left focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none focus-visible:ring-inset',
+                  active ? 'text-terminal-foreground' : 'text-terminal-muted',
+                )}
+              >
+                <span className="truncate text-sm font-medium">{tab.title}</span>
+                <span className="flex items-center gap-1.5 truncate text-xs text-terminal-muted">
+                  <span aria-hidden className={cn('size-2 shrink-0 rounded-full', DOT[tab.tone])} />
+                  <span className="truncate">{[tab.detail, tab.statusLabel].filter(Boolean).join(' · ')}</span>
+                </span>
+              </button>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-xs"
+                aria-label={closeLabel(tab.title)}
+                title={closeLabel(tab.title)}
+                className={cn('mr-1.5', TOOL)}
+                onClick={() => onClose(tab.id)}
+              >
+                <X />
+              </Button>
+            </div>
+          );
+        })}
+      </div>
+      {add ? <div className="flex shrink-0 items-center px-1.5">{add}</div> : null}
+    </div>
   );
 }
 
@@ -336,20 +442,23 @@ function TerminalHideButton({ label, onClick }: { label: string; onClick: () => 
 }
 
 /**
- * Nút tròn treo góc dưới bên phải để ẩn hiện khung terminal, như nút mở chat. Chấm nhỏ báo phiên đang nối khi khung
- * đang ẩn.
+ * Nút tròn treo góc dưới bên phải để ẩn hiện khung terminal, như nút mở chat. Có terminal đang mở thì gắn huy hiệu
+ * `đang nối/đã mở` (xanh khi có ít nhất một phiên đang nối).
  */
 function TerminalLauncher({
   label,
   open,
-  live,
+  opened,
+  connected,
   controls,
   onToggle,
 }: {
   label: string;
   open: boolean;
-  /** Có phiên đang nối (khung ẩn vẫn giữ kết nối). */
-  live?: boolean;
+  /** Số terminal đang mở; 0 thì không có huy hiệu. */
+  opened: number;
+  /** Số terminal đang nối. */
+  connected: number;
   /** id của khung nổi, cho `aria-controls`. */
   controls: string;
   onToggle: () => void;
@@ -369,11 +478,16 @@ function TerminalLauncher({
       )}
     >
       {open ? <ChevronDown /> : <SquareTerminal />}
-      {live && !open ? (
+      {opened > 0 ? (
         <span
           aria-hidden
-          className="absolute top-1 right-1 size-3 rounded-full border-2 border-terminal bg-emerald-400"
-        />
+          className={cn(
+            'absolute -top-1 -right-1 min-w-6 rounded-full border-2 border-background px-1.5 text-center font-mono text-[11px] leading-4 font-semibold tabular-nums',
+            connected > 0 ? 'bg-emerald-500 text-white' : 'bg-zinc-600 text-white',
+          )}
+        >
+          {connected}/{opened}
+        </span>
       ) : null}
     </button>
   );
@@ -400,27 +514,28 @@ function TerminalDockPanel({
       aria-label={label}
       hidden={!open}
       data-slot="terminal-dock"
-      className="fixed inset-0 z-50 overflow-hidden bg-terminal md:inset-auto md:right-4 md:bottom-22 md:h-[min(36rem,calc(100dvh-7rem))] md:w-[min(56rem,calc(100vw-2rem))] md:rounded-xl md:border md:border-terminal-border md:shadow-2xl motion-safe:animate-in motion-safe:fade-in-0 motion-safe:slide-in-from-bottom-2"
+      className="dark fixed inset-0 z-50 flex flex-col overflow-hidden bg-terminal text-terminal-foreground md:inset-auto md:right-4 md:bottom-22 md:h-[min(36rem,calc(100dvh-7rem))] md:w-[min(56rem,calc(100vw-2rem))] md:rounded-xl md:border md:border-terminal-border md:shadow-2xl motion-safe:animate-in motion-safe:fade-in-0 motion-safe:slide-in-from-bottom-2"
     >
       {children}
     </section>
   );
 }
 
-/** Thẻ trống giữa khung nổi (chưa có dự án nào mở được). */
+/** Chữ giữa khung nổi khi đang tải hay tải lỗi. */
 function TerminalDockEmpty({ children }: { children: React.ReactNode }) {
   return (
-    <div className="dark flex h-full items-center justify-center p-6 text-center text-sm text-terminal-muted">
+    <div className="flex min-h-0 flex-1 items-center justify-center p-6 text-center text-sm text-terminal-muted">
       {children}
     </div>
   );
 }
 
-export type { TerminalShellProps, TerminalStatusTone, TerminalSwitcherGroup };
+export type { TerminalPickerGroup, TerminalScreenProps, TerminalStatusTone, TerminalTabItem };
 export {
   TerminalBanner,
   TerminalConnecting,
   TerminalDockEmpty,
+  TerminalDockHeader,
   TerminalDockPanel,
   TerminalFieldError,
   TerminalFontControl,
@@ -429,7 +544,8 @@ export {
   TerminalLauncher,
   TerminalPanel,
   TerminalPanelActions,
-  TerminalShell,
-  TerminalStatus,
-  TerminalSwitcher,
+  TerminalPickerList,
+  TerminalPickerMenu,
+  TerminalScreen,
+  TerminalTabs,
 };

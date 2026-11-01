@@ -4,7 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 import { terminalApi } from '@/api/crew/terminal';
 import { queryKeys } from '@/api/queryKeys';
 import { Alert, Button, MutedText, Section, SectionHeading, Spinner } from '@/ds';
-import { groupTargetsByMachine } from '@/features/terminal/target-switcher';
+import { groupTargetsByMachine } from '@/features/terminal/target-picker';
 import { useTerminalDock } from '@/features/terminal/terminal-dock';
 import { useT } from '@/i18n';
 

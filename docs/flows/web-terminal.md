@@ -32,8 +32,9 @@ owner: route, vé, WebSocket và trang. Mở khoá bằng mật khẩu đăng nh
 ## Các bước
 
 1. Trang Máy (`terminal-targets-block.tsx` → `TerminalTargetsBlock`, chỉ render khi `useCompanyAccess().isOwner`, nên
-   người khác không gọi API): `terminal.targets` rồi nhóm theo máy (`groupTargetsByMachine` của `target-switcher.tsx`); mỗi project một dòng (tên, `projectKey`) với nút
-   "Mở terminal" mở khung nổi ở đúng project đó (nút bị khoá khi không có khung nổi, tức không phải owner).
+   người khác không gọi API): `terminal.targets` rồi nhóm theo máy (`groupTargetsByMachine` của `target-picker.ts`); mỗi project một dòng (tên, `projectKey`) với nút
+   "Mở terminal" mở khung nổi và mở tab cho project đó (đã có tab thì chọn tab đó; nút bị khoá khi không có khung nổi,
+   tức không phải owner).
    Không có project nào thì ghi "Chưa có dự án nào dựng xong trên máy."
 2. `targets.ts` → `listTerminalTargets`, `resolveTerminalTarget`: project có `project_machines.status = 'ready'` trên
    máy còn ghép (`machine_pairings.revoked_at IS NULL`), kèm `project_repos.branch` (`null` khi project chưa ghi origin).
@@ -77,16 +78,20 @@ owner: route, vé, WebSocket và trang. Mở khoá bằng mật khẩu đăng nh
    output). Không có tự đóng khi rảnh: phiên chỉ đóng khi trình duyệt đóng, shell thoát, SSH lỗi, mất quyền (bước 5) hoặc
    server tắt.
 9. Khung nổi (`terminal-dock.tsx`): `TerminalDockProvider` luôn bọc cây con ở cùng chỗ (tải xong vai trò không dựng lại
-   trang); chỉ owner có `TerminalLauncher` (nút tròn, chấm xanh khi đang nối mà khung ẩn) và `TerminalDockPanel` (desktop:
-   khung 56rem × 36rem trên nút tròn; điện thoại: phủ cả màn hình, nút tròn ẩn). Bấm lần đầu mới tải `terminal.targets` và
-   nạp lười `terminal-session.tsx` (xterm). Ẩn chỉ đặt `hidden`, không gỡ: phiên giữ nguyên khi ẩn, khi chuyển trang trong
-   app; đổi company thì dựng lại (`key`). Dự án đang mở nhớ ở `localStorage` `crew.terminal.dockTarget.<companyId>`; không
-   còn trong danh sách thì lấy dự án đầu. Khung đặt `--crew-dock-space` để `FloatingNotice` đứng trên nút tròn.
-   Phiên (`terminal-session.tsx` → `TerminalSession`, `use-terminal-socket.ts`): luôn nền tối (token `--terminal-*` trong
-   `tokens.css`, class `dark` cho component bên trong), thanh trên có nút tiêu đề (`TargetSwitcher`, vẽ bằng
-   `TerminalSwitcher` của ds) liệt kê mọi dự án sẵn sàng theo máy để đổi terminal tại chỗ, chấm trạng thái, nhóm cỡ chữ
-   A−/A+ và nút ẩn. Thông báo nằm giữa khung (`TerminalPanel`) thay vì đẩy khung xuống: đang nối, khoá, đã ngắt (kèm Nối
-   lại và Ẩn terminal). Xin vé mới ở mỗi lần nối rồi mở WebSocket, rớt mạng thì nối lại (tmux vẽ lại
+   trang); chỉ owner có `TerminalLauncher` (nút tròn; có tab thì gắn huy hiệu `đang nối/đã mở`, xanh khi có tab đang nối)
+   và `TerminalDockPanel` (desktop: khung 56rem × 36rem trên nút tròn; điện thoại: phủ cả màn hình, nút tròn ẩn). Không tự
+   mở terminal nào: khung chưa có tab thì hiện danh sách dự án theo máy (`TerminalPickerList`) để owner chọn. Mỗi dự án
+   trên một máy là một tab (`addTab`: mở lại dự án đã có thì chỉ chọn tab đó); `TerminalTabs` hiện tên, máy và trạng thái
+   kết nối của từng tab, nút đóng; nút "+" (`TerminalPickerMenu`) mở thêm tab. Thanh trên (`TerminalDockHeader`) ghi
+   "<n> terminal · <m> đang kết nối", nhóm cỡ chữ A−/A+ (chung mọi tab, lưu `localStorage`) và nút ẩn. Bấm lần đầu mới tải
+   `terminal.targets`; tab đầu tiên mới nạp lười `terminal-session.tsx` (xterm). Ẩn khung hay đổi tab chỉ đặt `hidden`,
+   không gỡ: mọi phiên giữ kết nối khi ẩn, khi đổi tab, khi chuyển trang trong app; đóng tab mới ngắt WebSocket (phiên
+   tmux trên máy vẫn còn); đổi company thì dựng lại (`key`). Danh sách tab không lưu qua lần tải lại trang. Mở khoá xong ở
+   một tab thì mọi tab đang khoá tự nối lại (`unlockGeneration`). Khung đặt `--crew-dock-space` để `FloatingNotice` đứng
+   trên nút tròn.
+   Một tab (`terminal-session.tsx` → `TerminalSession`, vẽ bằng `TerminalScreen`; `use-terminal-socket.ts`): luôn nền tối
+   (token `--terminal-*` trong `tokens.css`, class `dark` của khung). Thông báo nằm giữa khung (`TerminalPanel`) thay vì
+   đẩy khung xuống: đang nối, khoá, đã ngắt (kèm Nối lại). Xin vé mới ở mỗi lần nối rồi mở WebSocket, rớt mạng thì nối lại (tmux vẽ lại
    màn hình khi gắn vào); chưa mở khoá (423) thì hiện ô mật khẩu rồi tự nối và trả tiêu điểm cho terminal; vé trả 401/403
    thì `notice` `forbidden` (hết phiên hoặc mất quyền owner, bảo tải lại trang); 4xx khác thì `targetMissing` và không
    nối lại. Có vé mà WebSocket đóng trước `ready` 5 lần liền (server từ chối, lỗi
@@ -114,16 +119,16 @@ owner: route, vé, WebSocket và trang. Mở khoá bằng mật khẩu đăng nh
 | `server/src/index.ts` | File upstream đăng ký WebSocket | `setupCrewTerminalWebSocketServer` |
 | `packages/crew-web/src/api/crew/terminal.ts` | Client API | `terminalApi` |
 | `packages/crew-web/src/features/machines/terminal-targets-block.tsx` | Khối Terminal trên trang Máy | `TerminalTargetsBlock` |
-| `packages/crew-web/src/features/terminal/terminal-dock.tsx` | Nút tròn và khung nổi, nhớ dự án | `TerminalDockProvider`, `useTerminalDock` |
-| `packages/crew-web/src/features/terminal/terminal-session.tsx` | Một phiên terminal trong khung nổi | `TerminalSession` |
+| `packages/crew-web/src/features/terminal/terminal-dock.tsx` | Nút tròn, khung nổi, danh sách tab và trạng thái từng tab | `TerminalDockProvider`, `useTerminalDock`, `addTab`, `removeTab` |
+| `packages/crew-web/src/features/terminal/terminal-session.tsx` | Một tab terminal trong khung nổi | `TerminalSession` |
 | `packages/crew-web/src/features/terminal/use-terminal-socket.ts` | Vé, nối, nối lại | `useTerminalSocket`, `terminalSocketUrl` |
 | `packages/crew-web/src/features/terminal/unlock-panel.tsx` | Ô mật khẩu giữa khung terminal | `UnlockPanel` |
-| `packages/crew-web/src/features/terminal/target-switcher.tsx` | Nút tiêu đề đổi dự án/máy | `TargetSwitcher`, `groupTargetsByMachine` |
+| `packages/crew-web/src/features/terminal/target-picker.ts` | Nhóm dự án theo máy cho menu chọn, khoá tab | `groupTargetsByMachine`, `pickerGroups`, `targetKey` |
 | `packages/crew-web/src/features/terminal/mount-xterm.ts` | Gắn xterm và addon | `mountXterm` |
 | `packages/crew-web/src/features/terminal/xterm-options.ts` | Tuỳ chọn, màu, cỡ chữ | `buildTerminalOptions`, `fontSizeFor` |
 | `packages/crew-web/src/features/terminal/paste.ts` | Chuẩn bị nội dung dán | `preparePaste`, `PasteTooLargeError` |
 | `packages/crew-web/src/features/terminal/accessory-keys.tsx` | Phím phụ cho cảm ứng | `AccessoryKeys`, `ACCESSORY_KEYS` |
-| `packages/crew-web/src/ds/widgets/terminal-shell.tsx` | Khung terminal và mọi khối trang trí của nó (nút tròn, khung nổi, chọn dự án, cỡ chữ, trạng thái, thẻ giữa khung, dải báo, hàng phím) | `TerminalShell`, `TerminalLauncher`, `TerminalDockPanel`, `TerminalSwitcher`, `TerminalPanel`, `TerminalKeyRow` |
+| `packages/crew-web/src/ds/widgets/terminal-shell.tsx` | Khung terminal và mọi khối trang trí của nó (nút tròn, khung nổi, tab, chọn dự án, cỡ chữ, thẻ giữa khung, dải báo, hàng phím) | `TerminalScreen`, `TerminalLauncher`, `TerminalDockPanel`, `TerminalTabs`, `TerminalPickerMenu`, `TerminalPanel`, `TerminalKeyRow` |
 
 ## Dữ liệu
 
@@ -162,7 +167,7 @@ owner: route, vé, WebSocket và trang. Mở khoá bằng mật khẩu đăng nh
   Ca thiếu tmux bỏ qua khi máy chạy test có tmux ở chỗ lệnh tự dò.
 - `packages/crew-web/test/features/machines/terminal-targets-block.test.tsx`: nhóm theo máy, href và `target="_blank"`,
   trạng thái trống, người không phải owner không thấy khối và không gọi API.
-- `packages/crew-web/test/features/terminal/terminal-dock.test.tsx`: nút tròn chỉ owner, khoá thì hỏi mật khẩu trong khung, ẩn giữ phiên, đổi dự án và nhớ, nút trên trang Máy mở đúng dự án.
+- `packages/crew-web/test/features/terminal/terminal-dock.test.tsx`: nút tròn chỉ owner, không tự mở terminal, chọn dự án mở tab, đếm số đang mở/đang nối và trạng thái từng tab, ẩn và đổi tab giữ phiên, đóng tab, nút trên trang Máy mở đúng dự án; `addTab`/`removeTab`.
 - `packages/crew-web/test/features/terminal/xterm-options.test.ts`, `paste.test.ts`, `accessory-keys.test.tsx`: tuỳ chọn
   và cỡ chữ, bọc và chia khúc khi dán, hàng phím phụ.
 - `packages/crew-web/test/features/terminal/shift-enter.test.ts`: Shift+Enter gửi ESC+CR, Enter thường, tổ hợp khác và

@@ -610,7 +610,7 @@ File nào thuộc flow nào. Dùng `crew-docs where <file>` để tra từ dòng
 | `packages/crew-web/src/features/terminal/accessory-keys.tsx` | [web-terminal](flows/web-terminal.md) (file) |
 | `packages/crew-web/src/features/terminal/mount-xterm.ts` | [web-terminal](flows/web-terminal.md) (file) |
 | `packages/crew-web/src/features/terminal/paste.ts` | [web-terminal](flows/web-terminal.md) (file) |
-| `packages/crew-web/src/features/terminal/target-switcher.tsx` | [web-terminal](flows/web-terminal.md) (file) |
+| `packages/crew-web/src/features/terminal/target-picker.ts` | [web-terminal](flows/web-terminal.md) (file) |
 | `packages/crew-web/src/features/terminal/terminal-dock.tsx` | [web-terminal](flows/web-terminal.md) (điểm vào) |
 | `packages/crew-web/src/features/terminal/terminal-session.tsx` | [web-terminal](flows/web-terminal.md) (file) |
 | `packages/crew-web/src/features/terminal/unlock-panel.tsx` | [web-terminal](flows/web-terminal.md) (file) |

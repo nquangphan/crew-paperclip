@@ -21,7 +21,6 @@
     "submitting": "Đang mở khoá",
     "cancel": "Ẩn terminal"
   },
-  "switchTarget": "Đổi dự án hoặc máy",
   "noTargets": "Chưa có dự án nào sẵn sàng",
   "connectingTo": "Đang nối tới {{host}}…",
   "fontSize": "Cỡ chữ",
@@ -30,12 +29,19 @@
     "title": "Phiên terminal đã ngắt",
     "hint": "Phiên tmux trên máy vẫn giữ nếu chưa thoát; nối lại để quay về đúng chỗ đang làm.",
     "targetMissing": "Dự án chưa sẵn sàng trên máy này",
-    "targetMissingHint": "Chọn dự án khác ở nút tiêu đề, hoặc dựng lại dự án trên trang Máy.",
+    "targetMissingHint": "Đóng tab này rồi mở dự án khác, hoặc dựng lại dự án trên trang Máy.",
     "forbidden": "Hết phiên đăng nhập",
     "forbiddenHint": "Phiên đăng nhập đã hết hạn hoặc tài khoản không còn quyền owner. Tải lại trang để đăng nhập lại.",
     "connectFailed": "Không mở được terminal",
     "connectFailedHint": "Thử nhiều lần không nối được tới {{host}}. Kiểm tra máy còn bật và còn trong Tailscale, rồi bấm Nối lại."
   },
   "show": "Mở terminal",
-  "hide": "Ẩn terminal"
+  "hide": "Ẩn terminal",
+  "emptyTitle": "Chưa mở terminal nào",
+  "emptyHint": "Chọn dự án để mở terminal. Có thể mở nhiều dự án, mỗi dự án một tab.",
+  "tabsLabel": "Các terminal đang mở",
+  "closeTab": "Đóng terminal {{name}}",
+  "addTab": "Mở thêm terminal",
+  "summary": "{{opened}} terminal · {{connected}} đang kết nối",
+  "showWithCount": "Mở terminal ({{opened}} đang mở, {{connected}} đang kết nối)"
 }

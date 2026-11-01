@@ -2,10 +2,10 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
-import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { CompanyContext } from '@/app/hooks';
 import { TerminalTargetsBlock } from '@/features/machines/terminal-targets-block';
-import { TerminalDockProvider } from '@/features/terminal/terminal-dock';
+import { addTab, removeTab, TerminalDockProvider } from '@/features/terminal/terminal-dock';
 import { initI18n, setLanguage } from '@/i18n';
 import { accessRoute, mockServer } from '../../app/fetch-mock';
 
@@ -27,7 +27,6 @@ beforeAll(async () => {
   await initI18n();
   await setLanguage('vi');
 });
-beforeEach(() => localStorage.clear());
 afterEach(() => {
   cleanup();
   vi.unstubAllGlobals();
@@ -79,38 +78,113 @@ const mount = (children: React.ReactNode = <p>Trang đang xem</p>) =>
     </QueryClientProvider>,
   );
 
-const launcher = () => screen.findByRole('button', { name: /terminal$/ });
+const launcher = () => screen.findByRole('button', { name: /^(Mở|Ẩn) terminal/ });
 const panel = () => document.querySelector('[data-slot="terminal-dock"]') as HTMLElement | null;
+const tickets = (s: { calls: { url: string }[] }) => s.calls.filter((c) => c.url.includes('/terminal/tickets')).length;
+
+/** WebSocket giả: mỗi phiên tạo một socket; `ready` để phiên chuyển sang đã kết nối. */
+function fakeSockets() {
+  const sockets: { onmessage: ((e: { data: string }) => void) | null; onclose: (() => void) | null }[] = [];
+  vi.stubGlobal(
+    'WebSocket',
+    class {
+      static OPEN = 1;
+      readyState = 1;
+      onmessage: ((e: { data: string }) => void) | null = null;
+      onclose: (() => void) | null = null;
+      constructor() {
+        sockets.push(this);
+      }
+      send() {}
+      close() {}
+    },
+  );
+  return sockets;
+}
+const TICKET_OK = {
+  'POST /api/crew/companies/c1/terminal/tickets': { status: 201, body: { ticket: 't1', expiresAt: 'x' } },
+};
+
+async function openProject(name: RegExp) {
+  const list = await screen.findByRole('region', { name: 'mac-mini' });
+  fireEvent.click(within(list).getByRole('button', { name }));
+}
 
 describe('khung nổi terminal', () => {
-  it('owner có nút tròn; bấm mở khung, terminal khoá thì hỏi mật khẩu ngay trong khung', async () => {
+  it('bấm nút tròn lần đầu không tự mở terminal nào, chỉ hiện danh sách dự án để chọn', async () => {
     const ws = vi.fn();
     vi.stubGlobal('WebSocket', ws);
-    mockServer({ ...TARGETS, ...LOCKED });
+    const s = mockServer({ ...TARGETS, ...LOCKED });
     mount();
     const button = await launcher();
     expect(button.getAttribute('aria-expanded')).toBe('false');
     expect(panel()).toBeNull();
     fireEvent.click(button);
-    expect(await screen.findByLabelText('Mật khẩu')).toBeTruthy();
+    expect(await screen.findByText('Chưa mở terminal nào')).toBeTruthy();
     expect(screen.getByText('Trang đang xem')).toBeTruthy();
-    expect(button.getAttribute('aria-expanded')).toBe('true');
+    expect(screen.queryByRole('tablist')).toBeNull();
+    expect(tickets(s)).toBe(0);
     expect(ws).not.toHaveBeenCalled();
   });
 
-  it('ẩn chỉ giấu khung, không gỡ phiên; bấm nút tròn lại hiện đúng phiên cũ', async () => {
+  it('chọn dự án thì mở tab; terminal khoá thì hỏi mật khẩu ngay trong khung', async () => {
     vi.stubGlobal('WebSocket', vi.fn());
-    const s = mockServer({ ...TARGETS, ...LOCKED });
+    mockServer({ ...TARGETS, ...LOCKED });
     mount();
     fireEvent.click(await launcher());
-    const region = await screen.findByRole('region', { name: 'Mở khoá terminal' });
-    fireEvent.click(within(region).getByRole('button', { name: 'Ẩn terminal' }));
+    await openProject(/Paperclip/);
+    expect(await screen.findByLabelText('Mật khẩu')).toBeTruthy();
+    const tabs = within(screen.getByRole('tablist', { name: 'Các terminal đang mở' })).getAllByRole('tab');
+    expect(tabs).toHaveLength(1);
+    expect(tabs[0].textContent).toMatch(/Paperclip/);
+    await vi.waitFor(() => expect(tabs[0].textContent).toMatch(/Đang khoá/));
+    expect(screen.getByText('1 terminal · 0 đang kết nối')).toBeTruthy();
+  });
+
+  it('mở hai dự án: đếm số đang mở, số đang kết nối và trạng thái từng tab; nút tròn hiện số đó', async () => {
+    const sockets = fakeSockets();
+    mockServer({ ...TARGETS, ...TICKET_OK });
+    mount();
+    fireEvent.click(await launcher());
+    await openProject(/Paperclip/);
+    fireEvent.pointerDown(await screen.findByRole('button', { name: 'Mở thêm terminal' }), {
+      button: 0,
+      ctrlKey: false,
+      pointerType: 'mouse',
+    });
+    fireEvent.click(await screen.findByRole('menuitem', { name: /Kidy School/ }));
+    await vi.waitFor(() => expect(sockets).toHaveLength(2));
+    act(() => sockets[0].onmessage?.({ data: JSON.stringify({ type: 'ready' }) }));
+    expect(await screen.findByText('2 terminal · 1 đang kết nối')).toBeTruthy();
+    const tabs = within(screen.getByRole('tablist')).getAllByRole('tab');
+    expect(tabs.map((x) => x.textContent)).toEqual([
+      expect.stringMatching(/Paperclip.*mac-mini.*Đã kết nối/),
+      expect.stringMatching(/Kidy School.*mac-mini.*Đang kết nối/),
+    ]);
+    expect(tabs[1].getAttribute('aria-selected')).toBe('true');
+    fireEvent.click(within(panel() as HTMLElement).getByRole('button', { name: 'Ẩn terminal' }));
+    const button = await launcher();
+    expect(button.getAttribute('aria-label')).toBe('Mở terminal (2 đang mở, 1 đang kết nối)');
+    expect(button.textContent).toContain('1/2');
+  });
+
+  it('ẩn khung hay đổi tab chỉ giấu, không nối lại; đóng tab thì bỏ tab, hết tab thì về danh sách chọn', async () => {
+    const sockets = fakeSockets();
+    const s = mockServer({ ...TARGETS, ...TICKET_OK });
+    mount();
+    fireEvent.click(await launcher());
+    await openProject(/Paperclip/);
+    await vi.waitFor(() => expect(sockets).toHaveLength(1));
+    const before = tickets(s);
+    fireEvent.click(within(panel() as HTMLElement).getByRole('button', { name: 'Ẩn terminal' }));
     expect(panel()?.hidden).toBe(true);
-    const tickets = s.calls.filter((c) => c.url.includes('/terminal/tickets')).length;
     fireEvent.click(await launcher());
     expect(panel()?.hidden).toBe(false);
-    expect(screen.getByLabelText('Mật khẩu')).toBeTruthy();
-    expect(s.calls.filter((c) => c.url.includes('/terminal/tickets')).length).toBe(tickets);
+    expect(tickets(s)).toBe(before);
+    expect(sockets).toHaveLength(1);
+    fireEvent.click(screen.getByRole('button', { name: 'Đóng terminal Paperclip' }));
+    expect(await screen.findByText('Chưa mở terminal nào')).toBeTruthy();
+    expect(screen.queryByRole('tablist')).toBeNull();
   });
 
   it('không phải owner thì không có nút tròn', async () => {
@@ -123,37 +197,22 @@ describe('khung nổi terminal', () => {
     await act(async () => {
       await new Promise((r) => setTimeout(r, 50));
     });
-    expect(screen.queryByRole('button', { name: /terminal$/ })).toBeNull();
+    expect(screen.queryByRole('button', { name: /terminal/ })).toBeNull();
   });
 
-  it('server đóng phiên thì hiện câu hướng dẫn, không hiện lý do thô', async () => {
-    const sockets: { onmessage: ((e: { data: string }) => void) | null; onclose: (() => void) | null }[] = [];
-    vi.stubGlobal(
-      'WebSocket',
-      class {
-        static OPEN = 1;
-        readyState = 1;
-        onmessage: ((e: { data: string }) => void) | null = null;
-        onclose: (() => void) | null = null;
-        constructor() {
-          sockets.push(this);
-        }
-        send() {}
-        close() {}
-      },
-    );
-    mockServer({
-      ...TARGETS,
-      'POST /api/crew/companies/c1/terminal/tickets': { status: 201, body: { ticket: 't1', expiresAt: 'x' } },
-    });
+  it('server đóng phiên thì tab báo đã ngắt, không hiện lý do thô', async () => {
+    const sockets = fakeSockets();
+    mockServer({ ...TARGETS, ...TICKET_OK });
     mount();
     fireEvent.click(await launcher());
+    await openProject(/Paperclip/);
     await vi.waitFor(() => expect(sockets).toHaveLength(1));
     act(() => {
       sockets[0].onmessage?.({ data: JSON.stringify({ type: 'closed', reason: 'shell_closed' }) });
       sockets[0].onclose?.();
     });
     expect(await screen.findByText(/Phiên terminal đã ngắt/)).toBeTruthy();
+    expect(within(screen.getByRole('tablist')).getByRole('tab').textContent).toMatch(/Đã ngắt/);
     expect(screen.queryByText(/shell_closed/)).toBeNull();
   });
 
@@ -162,34 +221,49 @@ describe('khung nổi terminal', () => {
     mockServer({ ...TARGETS, 'POST /api/crew/companies/c1/terminal/tickets': { status: 403, body: { error: 'x' } } });
     mount();
     fireEvent.click(await launcher());
+    await openProject(/Paperclip/);
     expect(await screen.findByText('Hết phiên đăng nhập')).toBeTruthy();
     expect(screen.getByRole('button', { name: /Tải lại trang/ })).toBeTruthy();
   });
 
-  it('nút tiêu đề đổi sang dự án khác tại chỗ và nhớ lựa chọn', async () => {
-    vi.stubGlobal('WebSocket', vi.fn());
-    mockServer({ ...TARGETS, ...LOCKED });
-    mount();
-    fireEvent.click(await launcher());
-    const trigger = await screen.findByRole('button', { name: 'Đổi dự án hoặc máy' });
-    await vi.waitFor(() => expect(trigger.textContent).toMatch(/Paperclip/));
-    fireEvent.pointerDown(trigger, { button: 0, ctrlKey: false, pointerType: 'mouse' });
-    fireEvent.click(await screen.findByRole('menuitem', { name: /Kidy School/ }));
-    await vi.waitFor(() =>
-      expect(screen.getByRole('button', { name: 'Đổi dự án hoặc máy' }).textContent).toMatch(/Kidy School/),
-    );
-    expect(localStorage.getItem('crew.terminal.dockTarget.c1')).toContain(OTHER_PROJECT);
-  });
-
-  it('nút Mở terminal trên trang Máy mở khung nổi ở đúng dự án đó', async () => {
+  it('nút Mở terminal trên trang Máy mở tab ở đúng dự án đó', async () => {
     vi.stubGlobal('WebSocket', vi.fn());
     mockServer({ ...TARGETS, ...LOCKED });
     mount(<TerminalTargetsBlock companyId="c1" />);
     const section = await screen.findByRole('region', { name: 'Terminal' });
     const row = (await within(section).findByText('Kidy School')).closest('div')?.parentElement as HTMLElement;
     fireEvent.click(within(row).getByRole('button', { name: 'Mở terminal' }));
-    await vi.waitFor(() =>
-      expect(screen.getByRole('button', { name: 'Đổi dự án hoặc máy' }).textContent).toMatch(/Kidy School/),
-    );
+    const tab = await screen.findByRole('tab');
+    expect(tab.textContent).toMatch(/Kidy School/);
+    expect(tab.getAttribute('aria-selected')).toBe('true');
+  });
+});
+
+describe('addTab / removeTab', () => {
+  const base = { open: true, started: true, tabs: [], activeKey: null };
+  const a = { machineId: 'm', projectId: 'a' };
+  const b = { machineId: 'm', projectId: 'b' };
+  const c = { machineId: 'm', projectId: 'c' };
+
+  it('mở lại dự án đã có thì chỉ chọn tab đó, không thêm tab trùng', () => {
+    const s = addTab(addTab(addTab(base, a), b), a);
+    expect(s.tabs).toEqual([a, b]);
+    expect(s.activeKey).toBe('m/a');
+  });
+
+  it('đóng tab đang chọn thì chọn tab bên phải, hết thì bên trái, hết tab thì không chọn gì', () => {
+    let s = addTab(addTab(addTab(base, a), b), c);
+    s = { ...s, activeKey: 'm/b' };
+    s = removeTab(s, 'm/b');
+    expect(s.activeKey).toBe('m/c');
+    s = removeTab(s, 'm/c');
+    expect(s.activeKey).toBe('m/a');
+    s = removeTab(s, 'm/a');
+    expect(s).toMatchObject({ tabs: [], activeKey: null });
+  });
+
+  it('đóng tab khác không đổi tab đang chọn', () => {
+    const s = removeTab(addTab(addTab(base, a), b), 'm/a');
+    expect(s.activeKey).toBe('m/b');
   });
 });

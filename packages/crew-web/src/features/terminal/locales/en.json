@@ -21,7 +21,6 @@
     "submitting": "Unlocking",
     "cancel": "Hide terminal"
   },
-  "switchTarget": "Switch project or machine",
   "noTargets": "No project is ready yet",
   "connectingTo": "Connecting to {{host}}…",
   "fontSize": "Text size",
@@ -30,12 +29,19 @@
     "title": "Terminal session disconnected",
     "hint": "The tmux session on the machine stays unless it exited; reconnect to pick up where you left off.",
     "targetMissing": "This project is not ready on this machine",
-    "targetMissingHint": "Pick another project from the title button, or set the project up again on the Machines page.",
+    "targetMissingHint": "Close this tab and open another project, or set the project up again on the Machines page.",
     "forbidden": "Signed out",
     "forbiddenHint": "Your sign-in expired or the account is no longer an owner. Reload the page to sign in again.",
     "connectFailed": "Could not open the terminal",
     "connectFailedHint": "Several tries could not reach {{host}}. Check that the machine is on and in Tailscale, then press Reconnect."
   },
   "show": "Open terminal",
-  "hide": "Hide terminal"
+  "hide": "Hide terminal",
+  "emptyTitle": "No terminal open yet",
+  "emptyHint": "Pick a project to open a terminal. You can open several projects, one tab each.",
+  "tabsLabel": "Open terminals",
+  "closeTab": "Close terminal {{name}}",
+  "addTab": "Open another terminal",
+  "summary": "{{opened}} terminals · {{connected}} connected",
+  "showWithCount": "Open terminal ({{opened}} open, {{connected}} connected)"
 }
