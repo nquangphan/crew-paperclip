@@ -25,15 +25,22 @@ export function groupTargetsByMachine(targets: readonly TerminalTarget[]): Targe
   return [...groups.values()];
 }
 
-/** Nhóm cho menu chọn của ds; dự án đã mở (`openKeys`) có dấu tick. */
-export function pickerGroups(targets: readonly TerminalTarget[], openKeys: ReadonlySet<string>): TerminalPickerGroup[] {
+/**
+ * Nhóm cho menu chọn của ds; dự án đã mở (`openKeys`) có dấu tick. `note` thêm chữ vào dòng phụ (ví dụ "đang chạy trên
+ * máy").
+ */
+export function pickerGroups(
+  targets: readonly TerminalTarget[],
+  openKeys: ReadonlySet<string>,
+  note: (target: TerminalTarget) => string | undefined = () => undefined,
+): TerminalPickerGroup[] {
   return groupTargetsByMachine(targets).map((group) => ({
     id: group.machineId,
     label: group.hostname,
     items: group.items.map((item) => ({
       id: item.projectId,
       title: item.projectName,
-      detail: [item.projectKey, item.branch].filter(Boolean).join(' · '),
+      detail: [item.projectKey, item.branch, note(item)].filter(Boolean).join(' · '),
       active: openKeys.has(targetKey(item)),
     })),
   }));

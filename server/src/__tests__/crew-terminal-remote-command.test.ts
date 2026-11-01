@@ -3,7 +3,7 @@ import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, sy
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { buildOwnerTerminalCommand } from "../crew/terminal/remote-command.js";
+import { buildListOwnerSessionsCommand, buildOwnerTerminalCommand, parseOwnerSessions } from "../crew/terminal/remote-command.js";
 
 describe("buildOwnerTerminalCommand", () => {
   it("dựng worktree owner và gắn phiên tmux", () => {
@@ -178,6 +178,58 @@ describe.skipIf(!hasZsh)("lệnh terminal owner chạy thật", () => {
       expect(existsSync(path.join(root, "owner", "README.md"))).toBe(true);
       expect(git(["worktree", "list"], clone)).toContain(path.join(root, "owner"));
       expect(git(["rev-parse", "--abbrev-ref", "HEAD"], path.join(root, "owner"))).toBe("owner/kidy-school");
+    } finally {
+      rmSync(home, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("liệt kê phiên tmux owner", () => {
+  it("lệnh chỉ đọc, hỏi đúng socket crew và thoát 0 khi thiếu tmux", () => {
+    const cmd = buildListOwnerSessionsCommand();
+    expect(cmd.startsWith("exec /bin/zsh -lc ")).toBe(true);
+    expect(cmd).toContain('"$tmux" -L crew list-sessions -F');
+    expect(cmd).not.toContain("new-session");
+    expect(cmd).not.toContain("kill");
+  });
+
+  it("chỉ giữ phiên crew-owner-<khóa> hợp lệ, đổi giờ epoch sang ISO", () => {
+    const out = [
+      "crew-owner-kidy-school|2|1793540000|1793545000",
+      "crew-owner-reseach|0|1793500000|1793500100",
+      "agent-run-123|1|1793540000|1793545000",
+      "crew-owner-Bad;rm|1|1|1",
+      "crew-owner-thieu-gio|1|abc|1",
+      "",
+    ].join("\n");
+    expect(parseOwnerSessions(out)).toEqual([
+      { projectKey: "kidy-school", attached: 2, createdAt: new Date(1793540000_000).toISOString(), activityAt: new Date(1793545000_000).toISOString() },
+      { projectKey: "reseach", attached: 0, createdAt: new Date(1793500000_000).toISOString(), activityAt: new Date(1793500100_000).toISOString() },
+    ]);
+  });
+});
+
+describe.skipIf(!hasZsh)("lệnh liệt kê phiên chạy thật", () => {
+  it("in đúng output của tmux list-sessions; thiếu tmux thì rỗng và thoát 0", (ctx) => {
+    const home = mkdtempSync(path.join(tmpdir(), "crew-term-ls-"));
+    try {
+      if (!hostTmuxFallback) {
+        const empty = spawnSync("/bin/sh", ["-c", buildListOwnerSessionsCommand()], { env: { HOME: home, PATH: "/usr/bin:/bin" }, encoding: "utf8" });
+        if (loginShellTmux(home, "/usr/bin:/bin") === "") {
+          expect(empty.status).toBe(0);
+          expect(empty.stdout).toBe("");
+        }
+      }
+      const bin = path.join(home, "bin");
+      mkdirSync(bin);
+      const fakeTmux = path.join(bin, "tmux");
+      writeFileSync(fakeTmux, `#!/bin/sh\n[ "$1 $2 $3" = "-L crew list-sessions" ] && echo 'crew-owner-kidy-school|1|1793540000|1793545000'\nexit 0\n`);
+      chmodSync(fakeTmux, 0o755);
+      const pathEnv = `${bin}:/usr/bin:/bin`;
+      if (loginShellTmux(home, pathEnv) !== fakeTmux) ctx.skip();
+      const res = spawnSync("/bin/sh", ["-c", buildListOwnerSessionsCommand()], { env: { HOME: home, PATH: pathEnv }, encoding: "utf8" });
+      expect(res.status).toBe(0);
+      expect(parseOwnerSessions(res.stdout).map((x) => x.projectKey)).toEqual(["kidy-school"]);
     } finally {
       rmSync(home, { recursive: true, force: true });
     }

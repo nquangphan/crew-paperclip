@@ -1,6 +1,15 @@
 import { shellQuote } from "@paperclipai/adapter-utils/ssh";
 
 const KEY_RE = /^[a-z][a-z0-9-]{1,30}$/;
+
+/** Tiền tố tên phiên tmux của owner trên socket `crew`: `crew-owner-<khóa>`. */
+export const OWNER_SESSION_PREFIX = "crew-owner-";
+
+/** Tìm tmux như crew-mac dò (PATH của login shell có thể thiếu thư mục Homebrew); không thấy thì `$tmux` rỗng. */
+const FIND_TMUX = [
+  `tmux=$(command -v tmux 2>/dev/null) || tmux=""`,
+  `if [ -z "$tmux" ]; then for c in /opt/homebrew/bin/tmux /usr/local/bin/tmux; do [ -x "$c" ] && { tmux="$c"; break; }; done; fi`,
+];
 const BRANCH_RE = /^[A-Za-z0-9._/-]{1,100}$/;
 
 /**
@@ -27,9 +36,7 @@ export function buildOwnerTerminalCommand(input: { projectKey: string; branch: s
     "unset PAPERCLIP_RUN_ID",
     "setopt null_glob",
     `root="$HOME/crew-agents/${projectKey}"`,
-    // PATH của login shell có thể thiếu thư mục Homebrew: dò thêm đúng các chỗ crew-mac dò.
-    `tmux=$(command -v tmux 2>/dev/null) || tmux=""`,
-    `if [ -z "$tmux" ]; then for c in /opt/homebrew/bin/tmux /usr/local/bin/tmux; do [ -x "$c" ] && { tmux="$c"; break; }; done; fi`,
+    ...FIND_TMUX,
     `[ -n "$tmux" ] || { echo 'Mac này chưa có tmux. Chạy crew-mac setup trên Mac rồi mở lại.'; exit 127; }`,
     `if [ ! -e "$root/owner" ]; then`,
     `  repo=""`,
@@ -56,8 +63,51 @@ export function buildOwnerTerminalCommand(input: { projectKey: string; branch: s
     `  fi`,
     `fi`,
     `conf=""; [ -f "$HOME/.crew-mac/tmux.conf" ] && conf="$HOME/.crew-mac/tmux.conf"`,
-    `if [ -n "$conf" ]; then exec "$tmux" -L crew -f "$conf" new-session -A -s crew-owner-${projectKey} -c "$root/owner"; fi`,
-    `exec "$tmux" -L crew new-session -A -s crew-owner-${projectKey} -c "$root/owner"`,
+    `if [ -n "$conf" ]; then exec "$tmux" -L crew -f "$conf" new-session -A -s ${OWNER_SESSION_PREFIX}${projectKey} -c "$root/owner"; fi`,
+    `exec "$tmux" -L crew new-session -A -s ${OWNER_SESSION_PREFIX}${projectKey} -c "$root/owner"`,
   ].join("\n");
   return `exec /bin/zsh -lc ${shellQuote(script)}`;
+}
+
+/** Một phiên tmux owner đang sống trên Mac. */
+export type OwnerTmuxSession = {
+  projectKey: string;
+  /** Số cửa sổ terminal (client tmux) đang gắn vào phiên, từ mọi trình duyệt và máy. */
+  attached: number;
+  createdAt: string;
+  activityAt: string;
+};
+
+/**
+ * Lệnh chỉ đọc liệt kê phiên tmux trên socket `crew` (tên, số client gắn, giờ tạo, giờ hoạt động cuối). Mac chưa có tmux
+ * hay chưa có phiên nào thì in rỗng và thoát 0.
+ */
+export function buildListOwnerSessionsCommand(): string {
+  const script = [
+    ...FIND_TMUX,
+    `[ -n "$tmux" ] || exit 0`,
+    `"$tmux" -L crew list-sessions -F '#{session_name}|#{session_attached}|#{session_created}|#{session_activity}' 2>/dev/null`,
+    "exit 0",
+  ].join("\n");
+  return `exec /bin/zsh -lc ${shellQuote(script)}`;
+}
+
+/** Đọc output của `buildListOwnerSessionsCommand`, chỉ giữ phiên `crew-owner-<khóa>` có khóa hợp lệ. */
+export function parseOwnerSessions(output: string): OwnerTmuxSession[] {
+  const sessions: OwnerTmuxSession[] = [];
+  for (const line of output.split(/\r?\n/)) {
+    const [name, attached, created, activity] = line.trim().split("|");
+    if (!name?.startsWith(OWNER_SESSION_PREFIX)) continue;
+    const projectKey = name.slice(OWNER_SESSION_PREFIX.length);
+    const createdSec = Number(created);
+    const activitySec = Number(activity);
+    if (!KEY_RE.test(projectKey) || !Number.isFinite(createdSec) || !Number.isFinite(activitySec)) continue;
+    sessions.push({
+      projectKey,
+      attached: Math.max(0, Number(attached) || 0),
+      createdAt: new Date(createdSec * 1000).toISOString(),
+      activityAt: new Date(activitySec * 1000).toISOString(),
+    });
+  }
+  return sessions;
 }

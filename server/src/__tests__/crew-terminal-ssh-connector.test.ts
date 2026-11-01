@@ -132,6 +132,23 @@ describe("createSsh2CrewTerminalConnector", () => {
     expect(data.join("")).not.toContain("�");
   });
 
+  it("run chạy lệnh không PTY, gom stdout tới khi kênh đóng rồi đóng client", async () => {
+    const pending = createSsh2CrewTerminalConnector().run({ target: target(line(hostKey)), command: "tmux ls", timeoutMs: 1000 });
+    await vi.waitFor(() => expect(ssh2.state.execArgs).toEqual(["tmux ls", {}]));
+    const stream = ssh2.state.stream as EventEmitter;
+    stream.emit("data", Buffer.from("crew-owner-a|1|1|1\n"));
+    stream.emit("data", Buffer.from("crew-owner-b|0|1|1\n"));
+    stream.emit("close");
+    await expect(pending).resolves.toBe("crew-owner-a|1|1|1\ncrew-owner-b|0|1|1\n");
+    expect((ssh2.state.client as { end: ReturnType<typeof vi.fn> }).end).toHaveBeenCalled();
+  });
+
+  it("run quá giờ thì huỷ và báo lỗi", async () => {
+    await expect(
+      createSsh2CrewTerminalConnector().run({ target: target(line(hostKey)), command: "sleep 99", timeoutMs: 20 }),
+    ).rejects.toThrow("quá lâu");
+  });
+
   it("knownHosts không khớp khoá của máy thì từ chối", async () => {
     await expect(open(target(line(Buffer.from("another-key"))))).rejects.toThrow();
   });

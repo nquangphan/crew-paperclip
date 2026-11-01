@@ -148,7 +148,7 @@ describe("crew terminal websocket", () => {
     unlockStore.unlock("sess-A");
     unlockStore.unlock("sess-B");
     shell = new FakeSshShell();
-    connector = { open: vi.fn(async () => shell) };
+    connector = { open: vi.fn(async () => shell), run: vi.fn(async () => "") };
     resolveSshTarget = vi.fn(async () => SSH_TARGET);
     membershipRole = "owner";
     db = { execute: vi.fn(async () => (membershipRole ? [{ membership_role: membershipRole }] : [])) };

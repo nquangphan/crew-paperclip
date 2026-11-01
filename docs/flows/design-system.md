@@ -77,7 +77,7 @@ Widget Crew trong `ds/widgets/crew/` và `ds/widgets/roadmap/`, và widget đín
 - `web-pages`, `issues-web`, `skills`, `setup-wizards`, `guide`: màn hình dùng component và widget.
 - `roadmap-map`, `docs-snapshot`, `machine-status`, `attachments`: sở hữu các widget Crew riêng trong `ds/widgets`.
 - `web-terminal`: sở hữu các widget `Terminal*` (`TerminalScreen`, `TerminalLauncher`, `TerminalDockPanel`, `TerminalDockHeader`,
-  `TerminalDockEmpty`, `TerminalTabs`, `TerminalPickerMenu`, `TerminalPickerList`, `TerminalHideButton`,
+  `TerminalDockEmpty`, `TerminalTabs`, `TerminalPickerMenu`, `TerminalPickerList`, `TerminalHideButton`, `TerminalViewToggle`, `TerminalMachineSessions`, `TerminalPane`,
   `TerminalFontControl`, `TerminalConnecting`, `TerminalPanel`,
   `TerminalPanelActions`, `TerminalFieldError`, `TerminalBanner`, `TerminalKeyRow`) (`ds/widgets/terminal-shell.tsx`, export
   qua `ds/index.ts`) cùng token `--terminal-*`; `icons.ts` có thêm `Minus`, `Lock` và `SquareTerminal`. `FloatingNotice`

@@ -18,7 +18,12 @@ export type CrewTerminalSshTarget = {
 
 export interface CrewTerminalSshConnector {
   open(input: { target: CrewTerminalSshTarget; command: string; cols: number; rows: number }): Promise<EnvironmentCustomImageSshShell>;
+  /** Chạy một lệnh không PTY, trả stdout (cắt ở `RUN_MAX_OUTPUT`); quá `timeoutMs` thì huỷ và báo lỗi. */
+  run(input: { target: CrewTerminalSshTarget; command: string; timeoutMs: number }): Promise<string>;
 }
+
+/** Trần stdout của `run` (lệnh liệt kê phiên tmux chỉ in vài dòng). */
+const RUN_MAX_OUTPUT = 64 * 1024;
 
 /** Thông tin SSH của máy đã ghép, lấy từ environment mẫu `may-<máy>` (host, cổng, user, khoá riêng). */
 export async function resolveMachineSshTarget(db: Db, companyId: string, machineId: string): Promise<CrewTerminalSshTarget | null> {
@@ -75,7 +80,7 @@ interface Client {
   connect(config: Record<string, unknown>): void;
   exec(
     command: string,
-    options: { pty: { term: string; cols: number; rows: number } },
+    options: { pty?: { term: string; cols: number; rows: number } },
     callback: (err: Error | undefined, stream: ClientChannel | undefined) => void,
   ): void;
   end(): void;
@@ -140,58 +145,102 @@ class Ssh2PtyShell implements EnvironmentCustomImageSshShell {
   }
 }
 
+/**
+ * Nối SSH tới máy; xong bắt tay thì trả client. Khoá máy kiểm theo known_hosts khi `strictHostKeyChecking` bật.
+ * Lỗi hay đóng trước khi sẵn sàng thì từ chối; listener lỗi giữ suốt đời client để lỗi muộn không thành lỗi không ai bắt.
+ */
+function connectSsh(target: CrewTerminalSshTarget): Promise<Client> {
+  return new Promise<Client>((resolve, reject) => {
+    const client = new Client();
+    let settled = false;
+    let hostKeyRejected = false;
+    const fail = (cause: Error) => {
+      if (settled) return;
+      settled = true;
+      const err = hostKeyRejected ? new Error("Khoá máy không khớp known_hosts, đã từ chối kết nối.") : cause;
+      endClient(client);
+      reject(err);
+    };
+    client.once("ready", () => {
+      if (settled) return;
+      settled = true;
+      resolve(client);
+    });
+    client.on("error", fail);
+    client.on("close", () => fail(new Error("Kết nối SSH đóng trước khi sẵn sàng.")));
+    client.connect({
+      host: target.host,
+      port: target.port,
+      username: target.username,
+      privateKey: target.privateKey,
+      readyTimeout: 20000,
+      keepaliveInterval: 15000,
+      keepaliveCountMax: 3,
+      ...(target.strictHostKeyChecking
+        ? {
+            hostVerifier: (key: Buffer) => {
+              const ok = knownHostsTrustKey(target.knownHosts, key);
+              hostKeyRejected = !ok;
+              return ok;
+            },
+          }
+        : {}),
+    });
+  });
+}
+
+function endClient(client: Client): void {
+  try {
+    client.end();
+  } catch {
+    client.destroy();
+  }
+}
+
 export function createSsh2CrewTerminalConnector(): CrewTerminalSshConnector {
   return {
-    open: ({ target, command, cols, rows }) =>
-      new Promise<EnvironmentCustomImageSshShell>((resolve, reject) => {
-        const client = new Client();
-        let settled = false;
-        let hostKeyRejected = false;
-        const fail = (cause: Error) => {
-          if (settled) return;
-          settled = true;
-          const err = hostKeyRejected ? new Error("Khoá máy không khớp known_hosts, đã từ chối kết nối.") : cause;
-          try {
-            client.end();
-          } catch {
-            client.destroy();
+    open: async ({ target, command, cols, rows }) => {
+      const client = await connectSsh(target);
+      return new Promise<EnvironmentCustomImageSshShell>((resolve, reject) => {
+        client.exec(command, { pty: { term: "xterm-256color", cols, rows } }, (err, stream) => {
+          if (err || !stream) {
+            endClient(client);
+            reject(err ?? new Error("Không mở được kênh SSH."));
+            return;
           }
-          reject(err);
+          resolve(new Ssh2PtyShell(client, stream));
+        });
+      });
+    },
+    run: async ({ target, command, timeoutMs }) => {
+      const client = await connectSsh(target);
+      return new Promise<string>((resolve, reject) => {
+        let output = "";
+        let done = false;
+        const finish = (err: Error | null) => {
+          if (done) return;
+          done = true;
+          clearTimeout(timer);
+          endClient(client);
+          if (err) reject(err);
+          else resolve(output);
         };
-
-        client.once("ready", () => {
-          client.exec(command, { pty: { term: "xterm-256color", cols, rows } }, (err, stream) => {
-            if (err || !stream) {
-              fail(err ?? new Error("Không mở được kênh SSH."));
-              return;
-            }
-            if (settled) return;
-            settled = true;
-            resolve(new Ssh2PtyShell(client, stream));
+        const timer = setTimeout(() => finish(new Error("Lệnh SSH chạy quá lâu, đã huỷ.")), timeoutMs);
+        client.on("error", (err) => finish(err));
+        client.exec(command, {}, (err, stream) => {
+          if (err || !stream) {
+            finish(err ?? new Error("Không mở được kênh SSH."));
+            return;
+          }
+          const decoder = new StringDecoder("utf8");
+          stream.on("data", (data: Buffer | string) => {
+            if (output.length >= RUN_MAX_OUTPUT) return;
+            output += (typeof data === "string" ? data : decoder.write(data)).slice(0, RUN_MAX_OUTPUT - output.length);
           });
+          stream.on("error", (streamErr) => finish(streamErr));
+          stream.on("close", () => finish(null));
         });
-        // Giữ listener lỗi suốt đời client để lỗi muộn không thành sự kiện 'error' không ai bắt.
-        client.on("error", fail);
-        client.on("close", () => fail(new Error("Kết nối SSH đóng trước khi sẵn sàng.")));
-
-        client.connect({
-          host: target.host,
-          port: target.port,
-          username: target.username,
-          privateKey: target.privateKey,
-          readyTimeout: 20000,
-          keepaliveInterval: 15000,
-          keepaliveCountMax: 3,
-          ...(target.strictHostKeyChecking
-            ? {
-                hostVerifier: (key: Buffer) => {
-                  const ok = knownHostsTrustKey(target.knownHosts, key);
-                  hostKeyRejected = !ok;
-                  return ok;
-                },
-              }
-            : {}),
-        });
-      }),
+      });
+    },
   };
 }

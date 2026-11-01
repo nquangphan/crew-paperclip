@@ -3,6 +3,8 @@
 // terminal đang mở và đang nối; mỗi tab hiện trạng thái riêng. Ẩn khung hay đổi tab chỉ giấu, phiên vẫn nối; chuyển
 // trang trong app cũng không mất phiên vì khung nằm ở shell. Đóng tab mới ngắt kết nối (phiên tmux trên máy vẫn giữ).
 // Mở lần đầu mới tải danh sách dự án; tab đầu tiên mới nạp xterm (`terminal-session.tsx`). Chỉ owner (server cũng chặn).
+// Mục "Phiên trên máy" hỏi server các phiên tmux owner đang sống trên từng Mac (kể cả mở từ trình duyệt hay máy khác):
+// tải lại mỗi `SESSIONS_REFRESH_MS` khi khung đang hiện.
 import { useQuery } from '@tanstack/react-query';
 import {
   createContext,
@@ -29,17 +31,23 @@ import {
   TerminalFontControl,
   TerminalHideButton,
   TerminalLauncher,
+  TerminalMachineSessions,
+  TerminalPane,
   TerminalPickerList,
   TerminalPickerMenu,
   TerminalTabs,
+  TerminalViewToggle,
 } from '@/ds';
 import { useCompanyAccess } from '@/features/access/use-company-access';
-import { useT } from '@/i18n';
+import { formatDateTime, formatRelative, useT } from '@/i18n';
 import { pickerGroups, targetKey } from './target-picker';
 import type { TerminalSocketStatus } from './use-terminal-socket';
 import { FONT_SCALES, fontSizeFor, nextFontScale, readFontScale, saveFontScale } from './xterm-options';
 
 const TerminalSession = lazy(async () => ({ default: (await import('./terminal-session')).TerminalSession }));
+
+/** Khung đang hiện thì hỏi lại phiên trên máy sau chừng này mili giây (mỗi lần hỏi mở một kết nối SSH tới mỗi máy). */
+const SESSIONS_REFRESH_MS = 15_000;
 
 /** Chỗ chừa cho nút tròn để khung nổi khác (`FloatingNotice`) đứng trên nó. */
 const DOCK_SPACE = '4.5rem';
@@ -114,9 +122,10 @@ function OwnerDock({
   setState: Dispatch<SetStateAction<DockState>>;
   onShow: (target?: TargetRef) => void;
 }) {
-  const { t } = useT('terminal');
+  const { t, lang } = useT('terminal');
   const { company } = useCompany();
   const panelId = useId();
+  const [view, setView] = useState<'tabs' | 'machines'>('tabs');
   const [statuses, setStatuses] = useState<Record<string, TerminalSocketStatus>>({});
   const [fontScale, setFontScale] = useState(readFontScale);
   const [unlockGeneration, setUnlockGeneration] = useState(0);
@@ -125,9 +134,23 @@ function OwnerDock({
     queryFn: () => api.terminal.targets(company.id),
     enabled: state.started,
   });
+  const sessions = useQuery({
+    queryKey: queryKeys.terminalSessions(company.id),
+    queryFn: () => api.terminal.sessions(company.id),
+    enabled: state.started && state.open,
+    refetchInterval: state.open ? SESSIONS_REFRESH_MS : false,
+  });
   const list = useMemo(() => targets.data ?? [], [targets.data]);
+  const live = useMemo(() => sessions.data?.items ?? [], [sessions.data]);
   const openKeys = useMemo(() => new Set(state.tabs.map(targetKey)), [state.tabs]);
-  const groups = useMemo(() => pickerGroups(list, openKeys), [list, openKeys]);
+  const groups = useMemo(
+    () =>
+      pickerGroups(list, openKeys, (target) => {
+        const session = live.find((x) => x.machineId === target.machineId && x.projectKey === target.projectKey);
+        return session ? t('liveNote') : undefined;
+      }),
+    [list, openKeys, live, t],
+  );
 
   useEffect(() => {
     const root = document.documentElement;
@@ -155,7 +178,10 @@ function OwnerDock({
     setState((s) => removeTab(s, key));
     setStatuses(({ [key]: _, ...rest }) => rest);
   };
-  const select = (machineId: string, projectId: string) => onShow({ machineId, projectId });
+  const select = (machineId: string, projectId: string) => {
+    setView('tabs');
+    onShow({ machineId, projectId });
+  };
 
   const opened = state.tabs.length;
   const connected = state.tabs.filter((x) => statuses[targetKey(x)] === 'open').length;
@@ -166,6 +192,53 @@ function OwnerDock({
       <Spinner />
     </TerminalDockEmpty>
   );
+
+  let machinesBody: ReactNode = null;
+  if (view === 'machines') {
+    const machineGroups = (sessions.data?.machines ?? []).map((machine) => ({
+      id: machine.machineId,
+      label: machine.hostname,
+      ok: machine.ok,
+      items: live
+        .filter((x) => x.machineId === machine.machineId)
+        .map((x) => ({
+          id: x.projectKey,
+          title: x.projectName ?? x.projectKey,
+          detail: x.projectName ? x.projectKey : t('machines.oldProject'),
+          viewed: x.attached > 0,
+          viewersLabel: x.attached > 0 ? t('machines.viewers', { count: x.attached }) : t('machines.noViewers'),
+          activityLabel: t('machines.activity', { when: formatRelative(x.activityAt, lang) }),
+          activityTitle: formatDateTime(x.activityAt, lang),
+          openHere: x.projectId !== null && openKeys.has(targetKey({ machineId: x.machineId, projectId: x.projectId })),
+          canOpen: x.projectId !== null,
+        })),
+    }));
+    machinesBody = sessions.isLoading ? (
+      <TerminalDockEmpty>
+        <Spinner label={t('machines.loading')} />
+      </TerminalDockEmpty>
+    ) : sessions.error ? (
+      <TerminalDockEmpty>{t('machines.failed')}</TerminalDockEmpty>
+    ) : (
+      <TerminalMachineSessions
+        title={t('machines.title')}
+        description={t('machines.hint')}
+        groups={machineGroups}
+        emptyLabel={t('machines.empty')}
+        errorLabel={t('machines.unreachable')}
+        openLabel={t('machines.open')}
+        openHereLabel={t('machines.openHere')}
+        refreshLabel={t('machines.refresh')}
+        updatedLabel={sessions.dataUpdatedAt ? formatRelative(new Date(sessions.dataUpdatedAt), lang) : undefined}
+        refreshing={sessions.isFetching}
+        onRefresh={() => void sessions.refetch()}
+        onOpen={(machineId, projectKey) => {
+          const session = live.find((x) => x.machineId === machineId && x.projectKey === projectKey);
+          if (session?.projectId) select(machineId, session.projectId);
+        }}
+      />
+    );
+  }
 
   let body: ReactNode;
   if (targets.isLoading) body = loading;
@@ -234,9 +307,22 @@ function OwnerDock({
         <TerminalDockPanel id={panelId} label={t('title')} open={state.open}>
           <TerminalDockHeader
             title={t('title')}
-            summary={opened > 0 ? t('summary', { opened, connected }) : undefined}
+            summary={
+              [
+                opened > 0 ? t('summary', { opened, connected }) : null,
+                sessions.data ? t('summaryLive', { count: live.length }) : null,
+              ]
+                .filter(Boolean)
+                .join(' · ') || undefined
+            }
             actions={
               <>
+                <TerminalViewToggle
+                  label={t('machines.title')}
+                  pressed={view === 'machines'}
+                  count={sessions.data ? live.length : undefined}
+                  onClick={() => setView((v) => (v === 'machines' ? 'tabs' : 'machines'))}
+                />
                 <TerminalFontControl
                   size={fontSizeFor(fontScale)}
                   label={t('fontSize')}
@@ -251,7 +337,9 @@ function OwnerDock({
               </>
             }
           />
-          {body}
+          {machinesBody}
+          {/* Giấu chứ không gỡ phần tab khi xem phiên trên máy: các phiên vẫn giữ kết nối. */}
+          <TerminalPane hidden={view === 'machines'}>{body}</TerminalPane>
         </TerminalDockPanel>
       ) : null}
       <TerminalLauncher

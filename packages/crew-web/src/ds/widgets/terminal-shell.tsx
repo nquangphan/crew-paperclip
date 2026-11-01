@@ -1,5 +1,5 @@
 // crew: tự dựng
-import { Check, ChevronDown, Loader2, Minus, Plus, SquareTerminal, X } from 'lucide-react';
+import { Check, ChevronDown, Loader2, Minus, Monitor, Plus, RefreshCw, SquareTerminal, X } from 'lucide-react';
 import type * as React from 'react';
 import { cn } from '../cn';
 import { Button } from '../components/button';
@@ -530,7 +530,173 @@ function TerminalDockEmpty({ children }: { children: React.ReactNode }) {
   );
 }
 
-export type { TerminalPickerGroup, TerminalScreenProps, TerminalStatusTone, TerminalTabItem };
+/** Vùng thân khung nổi giãn hết chỗ còn lại; `hidden` giấu chứ không gỡ (phiên bên trong vẫn nối). */
+function TerminalPane({ hidden, children }: { hidden?: boolean; children: React.ReactNode }) {
+  return (
+    <div hidden={hidden} className="flex min-h-0 flex-1 flex-col">
+      {children}
+    </div>
+  );
+}
+
+/** Nút bật/tắt một chế độ xem trên thanh trên (ví dụ "Phiên trên máy"), có số đếm cạnh biểu tượng. */
+function TerminalViewToggle({
+  label,
+  pressed,
+  count,
+  onClick,
+}: {
+  label: string;
+  pressed: boolean;
+  count?: number;
+  onClick: () => void;
+}) {
+  return (
+    <Button
+      type="button"
+      variant="ghost"
+      size="sm"
+      aria-label={label}
+      title={label}
+      aria-pressed={pressed}
+      className={cn('gap-1.5 px-2', TOOL, pressed && 'bg-white/10 text-terminal-foreground')}
+      onClick={onClick}
+    >
+      <Monitor />
+      {count !== undefined ? <span className="font-mono text-xs tabular-nums">{count}</span> : null}
+    </Button>
+  );
+}
+
+interface TerminalMachineSessionGroup {
+  id: string;
+  label: string;
+  /** Không hỏi được máy: hiện `errorLabel` thay cho danh sách. */
+  ok: boolean;
+  items: {
+    id: string;
+    title: string;
+    detail?: string;
+    /** Có cửa sổ đang xem (chấm xanh) hay không (chấm xám). */
+    viewed: boolean;
+    viewersLabel: string;
+    activityLabel: string;
+    activityTitle?: string;
+    /** Đã có tab ở trình duyệt này. */
+    openHere: boolean;
+    /** Mở được (khóa còn khớp dự án sẵn sàng). */
+    canOpen: boolean;
+  }[];
+}
+
+/**
+ * Danh sách phiên tmux đang sống trên từng máy, kể cả phiên mở từ nơi khác: người đang xem, lần hoạt động cuối, nút mở
+ * tab cho phiên đó.
+ */
+function TerminalMachineSessions({
+  title,
+  description,
+  groups,
+  emptyLabel,
+  errorLabel,
+  openLabel,
+  openHereLabel,
+  refreshLabel,
+  updatedLabel,
+  refreshing,
+  onRefresh,
+  onOpen,
+}: {
+  title: string;
+  description: string;
+  groups: readonly TerminalMachineSessionGroup[];
+  emptyLabel: string;
+  errorLabel: string;
+  openLabel: string;
+  openHereLabel: string;
+  refreshLabel: string;
+  updatedLabel?: string;
+  refreshing: boolean;
+  onRefresh: () => void;
+  onOpen: (groupId: string, itemId: string) => void;
+}) {
+  const total = groups.reduce((n, g) => n + g.items.length, 0);
+  return (
+    <div className="flex min-h-0 flex-1 flex-col overflow-y-auto p-4">
+      <div className="mx-auto flex w-full max-w-2xl flex-col gap-4">
+        <div className="flex items-start gap-3">
+          <div className="flex min-w-0 flex-1 flex-col gap-1">
+            <h2 className="text-sm font-semibold">{title}</h2>
+            <p className="text-sm text-terminal-muted">{description}</p>
+          </div>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            aria-label={refreshLabel}
+            title={refreshLabel}
+            disabled={refreshing}
+            className={cn('shrink-0 gap-1.5', TOOL)}
+            onClick={onRefresh}
+          >
+            <RefreshCw className={cn(refreshing && 'motion-safe:animate-spin')} />
+            {updatedLabel ? <span className="text-xs">{updatedLabel}</span> : null}
+          </Button>
+        </div>
+        {total === 0 && groups.every((g) => g.ok) ? (
+          <p className="text-center text-sm text-terminal-muted">{emptyLabel}</p>
+        ) : null}
+        {groups.map((group) => (
+          <section key={group.id} aria-label={group.label} className="flex flex-col gap-1">
+            <h3 className="px-1 text-xs font-medium text-terminal-muted">{group.label}</h3>
+            {!group.ok ? <p className="px-1 text-sm text-amber-200">{errorLabel}</p> : null}
+            {group.items.map((item) => (
+              <div
+                key={item.id}
+                className="flex min-h-12 items-center gap-3 rounded-lg border border-terminal-border bg-terminal-surface px-3 py-2"
+              >
+                <span
+                  aria-hidden
+                  className={cn('size-2 shrink-0 rounded-full', item.viewed ? 'bg-emerald-400' : 'bg-zinc-500')}
+                />
+                <div className="flex min-w-0 flex-1 flex-col">
+                  <span className="truncate text-sm">{item.title}</span>
+                  <span className="truncate text-xs text-terminal-muted">
+                    {[item.detail, item.viewersLabel].filter(Boolean).join(' · ')}
+                    {' · '}
+                    <time title={item.activityTitle}>{item.activityLabel}</time>
+                  </span>
+                </div>
+                {item.openHere ? (
+                  <span className="shrink-0 text-xs text-emerald-300">{openHereLabel}</span>
+                ) : (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled={!item.canOpen}
+                    className="shrink-0 border-terminal-border bg-transparent text-terminal-foreground hover:bg-white/5"
+                    onClick={() => onOpen(group.id, item.id)}
+                  >
+                    {openLabel}
+                  </Button>
+                )}
+              </div>
+            ))}
+          </section>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+export type {
+  TerminalMachineSessionGroup,
+  TerminalPickerGroup,
+  TerminalScreenProps,
+  TerminalStatusTone,
+  TerminalTabItem,
+};
 export {
   TerminalBanner,
   TerminalConnecting,
@@ -542,10 +708,13 @@ export {
   TerminalHideButton,
   TerminalKeyRow,
   TerminalLauncher,
+  TerminalMachineSessions,
+  TerminalPane,
   TerminalPanel,
   TerminalPanelActions,
   TerminalPickerList,
   TerminalPickerMenu,
   TerminalScreen,
   TerminalTabs,
+  TerminalViewToggle,
 };

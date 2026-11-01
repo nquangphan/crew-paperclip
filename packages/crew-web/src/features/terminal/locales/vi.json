@@ -43,5 +43,23 @@
   "closeTab": "Đóng terminal {{name}}",
   "addTab": "Mở thêm terminal",
   "summary": "{{opened}} terminal · {{connected}} đang kết nối",
-  "showWithCount": "Mở terminal ({{opened}} đang mở, {{connected}} đang kết nối)"
+  "showWithCount": "Mở terminal ({{opened}} đang mở, {{connected}} đang kết nối)",
+  "liveNote": "đang chạy trên máy",
+  "summaryLive": "{{count}} phiên trên máy",
+  "machines": {
+    "title": "Phiên trên máy",
+    "hint": "Phiên tmux đang sống trên từng Mac, kể cả mở từ trình duyệt hay máy khác. Đóng tab không tắt phiên.",
+    "empty": "Không có phiên nào đang chạy trên máy.",
+    "unreachable": "Không hỏi được máy này (máy tắt hoặc lỗi SSH).",
+    "open": "Mở",
+    "openHere": "Đang mở ở đây",
+    "refresh": "Tải lại",
+    "viewers_one": "{{count}} cửa sổ đang xem",
+    "viewers_other": "{{count}} cửa sổ đang xem",
+    "noViewers": "không ai đang xem",
+    "activity": "hoạt động {{when}}",
+    "oldProject": "dự án không còn sẵn sàng",
+    "loading": "Đang hỏi các máy",
+    "failed": "Không tải được phiên trên máy."
+  }
 }

@@ -5,6 +5,8 @@ import { badRequest, HttpError, unauthorized } from "../../errors.js";
 import { logger } from "../../middleware/logger.js";
 import { requireOwner, resolveContributionActor } from "../contributions.js";
 import { verifyUserPassword } from "./password.js";
+import { buildListOwnerSessionsCommand, parseOwnerSessions } from "./remote-command.js";
+import { type CrewTerminalSshConnector, createSsh2CrewTerminalConnector, resolveMachineSshTarget } from "./ssh-connector.js";
 import { listTerminalTargets, resolveTerminalTarget } from "./targets.js";
 import { crewTerminalTicketStore } from "./ticket-store.js";
 import { crewTerminalUnlockThrottle } from "./unlock-throttle.js";
@@ -20,6 +22,9 @@ export const TERMINAL_ERRORS = {
   targetMissing: "crew_terminal_target_missing",
 } as const;
 
+/** Mỗi máy được hỏi danh sách phiên tmux tối đa chừng này mili giây. */
+const SESSIONS_TIMEOUT_MS = 10_000;
+
 const unlockBody = z.object({ password: z.string().min(1).max(500) }).strict();
 const ticketBody = z.object({ machineId: z.string().uuid(), projectId: z.string().uuid() }).strict();
 
@@ -29,8 +34,15 @@ const ticketBody = z.object({ machineId: z.string().uuid(), projectId: z.string(
  * - `GET …/terminal/targets`: máy và project `ready` để mở terminal.
  * - `GET|POST …/terminal/unlock`: trạng thái và mở khoá bằng mật khẩu đăng nhập; hạn 12 giờ theo phiên.
  * - `POST …/terminal/tickets` `{ machineId, projectId }`: vé WebSocket dùng một lần (60 giây), cần đã mở khoá.
+ * - `GET …/terminal/sessions`: phiên tmux owner đang sống trên từng máy có project `ready` (hỏi qua SSH, chỉ đọc), kể cả
+ *   phiên mở từ trình duyệt hay máy khác; máy không hỏi được thì `ok: false`.
  */
-export function crewTerminalRoutes(db: Db): Router {
+export function crewTerminalRoutes(
+  db: Db,
+  opts: { connector?: CrewTerminalSshConnector; resolveSshTarget?: typeof resolveMachineSshTarget } = {},
+): Router {
+  const connector = opts.connector ?? createSsh2CrewTerminalConnector();
+  const resolveSshTarget = opts.resolveSshTarget ?? resolveMachineSshTarget;
   const router = Router();
   const ownerOf = async (req: Request) => {
     const actor = await resolveContributionActor(db, req, req.params.companyId, { requireTables: false });
@@ -85,6 +97,41 @@ export function crewTerminalRoutes(db: Db): Router {
       companyId: actor.companyId, userId: actor.userId, sessionId: actor.sessionId, machineId, projectId,
     });
     res.status(201).json({ ticket, expiresAt: expiresAt.toISOString() });
+  });
+
+  router.get(`${BASE}/terminal/sessions`, async (req, res) => {
+    const actor = await ownerOf(req);
+    const targets = await listTerminalTargets(db, actor.companyId);
+    const machines = [...new Map(targets.map((t) => [t.machineId, t.hostname])).entries()];
+    const results = await Promise.all(
+      machines.map(async ([machineId, hostname]) => {
+        try {
+          const target = await resolveSshTarget(db, actor.companyId, machineId);
+          if (!target) return { machineId, hostname, ok: false, sessions: [] };
+          const output = await connector.run({ target, command: buildListOwnerSessionsCommand(), timeoutMs: SESSIONS_TIMEOUT_MS });
+          return { machineId, hostname, ok: true, sessions: parseOwnerSessions(output) };
+        } catch (err) {
+          logger.warn({ companyId: actor.companyId, machineId, err: (err as Error).message }, "crew terminal sessions failed");
+          return { machineId, hostname, ok: false, sessions: [] };
+        }
+      }),
+    );
+    const items = results.flatMap(({ machineId, hostname, sessions }) =>
+      sessions.map((session) => {
+        const project = targets.find((t) => t.machineId === machineId && t.projectKey === session.projectKey);
+        return {
+          machineId,
+          hostname,
+          projectKey: session.projectKey,
+          projectId: project?.projectId ?? null,
+          projectName: project?.projectName ?? null,
+          attached: session.attached,
+          createdAt: session.createdAt,
+          activityAt: session.activityAt,
+        };
+      }),
+    );
+    res.json({ items, machines: results.map(({ machineId, hostname, ok }) => ({ machineId, hostname, ok })) });
   });
 
   return router;

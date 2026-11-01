@@ -20,6 +20,7 @@ owner: route, vé, WebSocket và trang. Mở khoá bằng mật khẩu đăng nh
 | `GET …/terminal/unlock` | — | `{ unlocked, expiresAt }` |
 | `POST …/terminal/unlock` | `{ password }` | `{ expiresAt }`; 403 `crew_terminal_bad_password`, 429 `crew_terminal_unlock_throttled` |
 | `POST …/terminal/tickets` | `{ machineId, projectId }` | 201 `{ ticket, expiresAt }`; 423 `crew_terminal_locked`, 404 `crew_terminal_target_missing` |
+| `GET …/terminal/sessions` | — | `{ items: [{ machineId, hostname, projectKey, projectId, projectName, attached, createdAt, activityAt }], machines: [{ machineId, hostname, ok }] }` |
 
   Body sai dạng thì 400 `crew_terminal_invalid`; không phải owner thì lỗi quyền của `requireOwner`.
 - WebSocket `GET /api/crew/companies/:companyId/terminal/ws?ticket=&cols=&rows=`: `setupCrewTerminalWebSocketServer`
@@ -89,6 +90,17 @@ owner: route, vé, WebSocket và trang. Mở khoá bằng mật khẩu đăng nh
    tmux trên máy vẫn còn); đổi company thì dựng lại (`key`). Danh sách tab không lưu qua lần tải lại trang. Mở khoá xong ở
    một tab thì mọi tab đang khoá tự nối lại (`unlockGeneration`). Khung đặt `--crew-dock-space` để `FloatingNotice` đứng
    trên nút tròn.
+   Phiên trên máy: nút `TerminalViewToggle` (biểu tượng màn hình, kèm số) đổi sang `TerminalMachineSessions`, liệt kê
+   phiên tmux owner đang sống trên từng Mac (`GET …/terminal/sessions`, tải lại 15 giây một lần khi khung đang hiện):
+   tên dự án (hoặc khóa khi dự án không còn sẵn sàng), số cửa sổ đang xem (`attached`, tính cả tab của chính trình duyệt
+   này), hoạt động lần cuối; nút Mở mở tab cho phiên đó. Máy không hỏi được thì ghi rõ. Thanh trên ghi thêm
+   "<k> phiên trên máy"; danh sách chọn ghi "đang chạy trên máy" cạnh dự án đã có phiên. Phần tab chỉ bị giấu
+   (`TerminalPane`) khi xem mục này nên các phiên vẫn nối.
+   Server (`routes.ts`): với mỗi máy có project `ready`, lấy thông tin SSH (`resolveMachineSshTarget`) rồi
+   `connector.run` (kênh không PTY, tối đa 10 giây, stdout tối đa 64 KiB) lệnh chỉ đọc `buildListOwnerSessionsCommand`
+   (`tmux -L crew list-sessions`, dò tmux như lệnh mở; thiếu tmux thì rỗng); `parseOwnerSessions` chỉ giữ phiên
+   `crew-owner-<khóa>` hợp lệ. Máy lỗi thì log `crew terminal sessions failed` và trả `ok: false`, không làm hỏng máy khác.
+   Máy chưa có project `ready` nào thì không được hỏi.
    Một tab (`terminal-session.tsx` → `TerminalSession`, vẽ bằng `TerminalScreen`; `use-terminal-socket.ts`): luôn nền tối
    (token `--terminal-*` trong `tokens.css`, class `dark` của khung). Thông báo nằm giữa khung (`TerminalPanel`) thay vì
    đẩy khung xuống: đang nối, khoá, đã ngắt (kèm Nối lại). Xin vé mới ở mỗi lần nối rồi mở WebSocket, rớt mạng thì nối lại (tmux vẽ lại
@@ -113,8 +125,8 @@ owner: route, vé, WebSocket và trang. Mở khoá bằng mật khẩu đăng nh
 | `server/src/crew/terminal/unlock-store.ts` | Mở khoá 12 giờ theo phiên | `crewTerminalUnlockStore`, `createTerminalUnlockStore` |
 | `server/src/crew/terminal/unlock-throttle.ts` | 5 lần sai / 15 phút theo user | `crewTerminalUnlockThrottle`, `createUnlockThrottle` |
 | `server/src/crew/terminal/ticket-store.ts` | Vé WebSocket một lần, 60 giây | `crewTerminalTicketStore`, `createTerminalTicketStore` |
-| `server/src/crew/terminal/ssh-connector.ts` | Thông tin SSH máy, kênh PTY, luật khoá máy | `resolveMachineSshTarget`, `createSsh2CrewTerminalConnector` |
-| `server/src/crew/terminal/remote-command.ts` | Lệnh worktree owner và phiên tmux | `buildOwnerTerminalCommand` |
+| `server/src/crew/terminal/ssh-connector.ts` | Thông tin SSH máy, kênh PTY, luật khoá máy | `resolveMachineSshTarget`, `createSsh2CrewTerminalConnector` (`open` PTY, `run` lệnh ngắn) |
+| `server/src/crew/terminal/remote-command.ts` | Lệnh worktree owner và phiên tmux; lệnh liệt kê phiên | `buildOwnerTerminalCommand`, `buildListOwnerSessionsCommand`, `parseOwnerSessions` |
 | `server/src/crew/contribution-routes.ts` | File chứa router cha (flow `contributions`) | `crewContributionRoutes` |
 | `server/src/index.ts` | File upstream đăng ký WebSocket | `setupCrewTerminalWebSocketServer` |
 | `packages/crew-web/src/api/crew/terminal.ts` | Client API | `terminalApi` |

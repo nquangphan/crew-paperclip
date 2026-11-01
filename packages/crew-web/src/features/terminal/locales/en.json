@@ -43,5 +43,23 @@
   "closeTab": "Close terminal {{name}}",
   "addTab": "Open another terminal",
   "summary": "{{opened}} terminals · {{connected}} connected",
-  "showWithCount": "Open terminal ({{opened}} open, {{connected}} connected)"
+  "showWithCount": "Open terminal ({{opened}} open, {{connected}} connected)",
+  "liveNote": "running on the machine",
+  "summaryLive": "{{count}} on machines",
+  "machines": {
+    "title": "Sessions on machines",
+    "hint": "tmux sessions alive on each Mac, including ones opened from another browser or machine. Closing a tab does not end the session.",
+    "empty": "No session is running on the machines.",
+    "unreachable": "Could not reach this machine (off or SSH error).",
+    "open": "Open",
+    "openHere": "Open here",
+    "refresh": "Refresh",
+    "viewers_one": "{{count}} window viewing",
+    "viewers_other": "{{count}} windows viewing",
+    "noViewers": "nobody viewing",
+    "activity": "active {{when}}",
+    "oldProject": "project no longer ready",
+    "loading": "Asking the machines",
+    "failed": "Could not load sessions on machines."
+  }
 }

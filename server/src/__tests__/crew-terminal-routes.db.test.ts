@@ -5,11 +5,30 @@ import { hashPassword } from "better-auth/crypto";
 import express from "express";
 import request from "supertest";
 import { sql } from "drizzle-orm";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { authAccounts, authUsers, companyMemberships, createDb } from "@paperclipai/db";
 import { CREW_POLICY_CONFIG_ENV } from "../crew/issue-policy.js";
 import { getEmbeddedPostgresTestSupport, startEmbeddedPostgresTestDatabase } from "./helpers/embedded-postgres.js";
 import { applyCrewMachineTables, BOOK, MINI, type SeededProject, seedCrewProject, seedPairing, seedTemplate } from "./helpers/crew-machine-tables.js";
+
+// Route /sessions hỏi Mac qua SSH: thay connector bằng bản giả, máy nào có thông tin SSH do `sshMachines` quyết.
+const sshFake = vi.hoisted(() => ({ sshMachines: new Set<string>(), output: "", fail: false }));
+vi.mock("../crew/terminal/ssh-connector.js", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../crew/terminal/ssh-connector.js")>()),
+  resolveMachineSshTarget: async (_db: unknown, _companyId: string, machineId: string) =>
+    sshFake.sshMachines.has(machineId)
+      ? { host: "100.64.0.9", port: 2222, username: "owner", privateKey: "k", knownHosts: null, strictHostKeyChecking: false }
+      : null,
+  createSsh2CrewTerminalConnector: () => ({
+    open: async () => {
+      throw new Error("không dùng");
+    },
+    run: async () => {
+      if (sshFake.fail) throw new Error("ssh lỗi");
+      return sshFake.output;
+    },
+  }),
+}));
 
 const support = await getEmbeddedPostgresTestSupport();
 const suite = support.supported ? describe.sequential : describe.skip;
@@ -171,6 +190,34 @@ suite("route terminal của Crew", () => {
     expect(statuses.filter((s) => s === 403).length).toBeLessThanOrEqual(5);
     expect(statuses.filter((s) => s === 429).length).toBeGreaterThanOrEqual(5);
     crewTerminalUnlockThrottle.clear(OWNER);
+  });
+
+  it("sessions: liệt kê phiên tmux owner trên từng máy, gắn tên dự án; máy không hỏi được thì ok=false", async () => {
+    sshFake.sshMachines = new Set([BOOK.machineId]);
+    sshFake.output = "crew-owner-kidy-school|2|1793540000|1793545000\ncrew-owner-du-an-cu|0|1793500000|1793500100\n";
+    const res = await request(await as(OWNER)).get(url("/sessions"));
+    expect(res.status).toBe(200);
+    expect(res.body.items).toEqual([
+      {
+        machineId: BOOK.machineId, hostname: BOOK.hostname, projectKey: "kidy-school", projectId: w.projectId,
+        projectName: "kidy-school", attached: 2, createdAt: new Date(1793540000_000).toISOString(),
+        activityAt: new Date(1793545000_000).toISOString(),
+      },
+      {
+        machineId: BOOK.machineId, hostname: BOOK.hostname, projectKey: "du-an-cu", projectId: null, projectName: null,
+        attached: 0, createdAt: new Date(1793500000_000).toISOString(), activityAt: new Date(1793500100_000).toISOString(),
+      },
+    ]);
+    expect(res.body.machines).toEqual([{ machineId: BOOK.machineId, hostname: BOOK.hostname, ok: true }]);
+
+    sshFake.fail = true;
+    const failed = await request(await as(OWNER)).get(url("/sessions"));
+    expect(failed.body).toEqual({ items: [], machines: [{ machineId: BOOK.machineId, hostname: BOOK.hostname, ok: false }] });
+    sshFake.fail = false;
+  });
+
+  it("viewer không xem được phiên trên máy (403)", async () => {
+    expect((await request(await as(VIEWER)).get(url("/sessions"))).status).toBe(403);
   });
 
   it("project dùng bản clone sẵn của owner (repo_path ngoài crew-agents, chưa có project_repos): khóa lấy từ checkout agent, nhánh null", async () => {

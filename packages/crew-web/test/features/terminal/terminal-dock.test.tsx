@@ -239,6 +239,97 @@ describe('khung nổi terminal', () => {
   });
 });
 
+describe('phiên trên máy', () => {
+  const SESSIONS = {
+    'GET /api/crew/companies/c1/terminal/sessions': {
+      body: {
+        items: [
+          {
+            machineId: MACHINE,
+            hostname: 'mac-mini',
+            projectKey: 'kidy-school',
+            projectId: OTHER_PROJECT,
+            projectName: 'Kidy School',
+            attached: 2,
+            createdAt: '2026-11-01T00:25:08.000Z',
+            activityAt: '2026-11-01T14:51:23.000Z',
+          },
+          {
+            machineId: MACHINE,
+            hostname: 'mac-mini',
+            projectKey: 'du-an-cu',
+            projectId: null,
+            projectName: null,
+            attached: 0,
+            createdAt: '2026-11-01T00:25:08.000Z',
+            activityAt: '2026-11-01T14:51:23.000Z',
+          },
+        ],
+        machines: [
+          { machineId: MACHINE, hostname: 'mac-mini', ok: true },
+          { machineId: '44444444-4444-4444-8444-444444444444', hostname: 'macbook', ok: false },
+        ],
+      },
+    },
+  };
+
+  it('đếm phiên đang sống trên máy, hiện người đang xem, máy không hỏi được; Mở thì mở tab cho phiên đó', async () => {
+    vi.stubGlobal('WebSocket', vi.fn());
+    mockServer({ ...TARGETS, ...LOCKED, ...SESSIONS });
+    mount();
+    fireEvent.click(await launcher());
+    expect(await screen.findByText('2 phiên trên máy')).toBeTruthy();
+    // Danh sách chọn ghi chú dự án đang có phiên trên máy.
+    const list = await screen.findByRole('region', { name: 'mac-mini' });
+    expect(within(list).getByRole('button', { name: /Kidy School.*đang chạy trên máy/ })).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Phiên trên máy' }));
+    const mini = await screen.findByRole('region', { name: 'mac-mini' });
+    expect(within(mini).getByText(/2 cửa sổ đang xem/)).toBeTruthy();
+    expect(within(mini).getByText('du-an-cu')).toBeTruthy();
+    expect(within(mini).getByText(/dự án không còn sẵn sàng.*không ai đang xem/)).toBeTruthy();
+    const opens = within(mini).getAllByRole('button', { name: 'Mở' });
+    expect(opens[1].hasAttribute('disabled')).toBe(true);
+    expect(within(screen.getByRole('region', { name: 'macbook' })).getByText(/Không hỏi được máy này/)).toBeTruthy();
+    fireEvent.click(opens[0]);
+    const tab = await screen.findByRole('tab');
+    expect(tab.textContent).toMatch(/Kidy School/);
+    expect(screen.getByRole('button', { name: 'Phiên trên máy' }).getAttribute('aria-pressed')).toBe('false');
+  });
+
+  it('xem phiên trên máy không gỡ tab đang mở (không đóng socket, không xin vé mới)', async () => {
+    const closed = vi.fn();
+    const sockets: unknown[] = [];
+    vi.stubGlobal(
+      'WebSocket',
+      class {
+        static OPEN = 1;
+        readyState = 1;
+        onmessage = null;
+        onclose = null;
+        constructor() {
+          sockets.push(this);
+        }
+        send() {}
+        close() {
+          closed();
+        }
+      },
+    );
+    const s = mockServer({ ...TARGETS, ...TICKET_OK, ...SESSIONS });
+    mount();
+    fireEvent.click(await launcher());
+    await openProject(/Paperclip/);
+    await vi.waitFor(() => expect(sockets).toHaveLength(1));
+    const before = tickets(s);
+    fireEvent.click(screen.getByRole('button', { name: 'Phiên trên máy' }));
+    await screen.findByText(/2 cửa sổ đang xem/);
+    fireEvent.click(screen.getByRole('button', { name: 'Phiên trên máy' }));
+    expect(await screen.findByRole('tab')).toBeTruthy();
+    expect(closed).not.toHaveBeenCalled();
+    expect(tickets(s)).toBe(before);
+  });
+});
+
 describe('addTab / removeTab', () => {
   const base = { open: true, started: true, tabs: [], activeKey: null };
   const a = { machineId: 'm', projectId: 'a' };
