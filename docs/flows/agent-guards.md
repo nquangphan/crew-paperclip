@@ -55,7 +55,7 @@ này, và agent có thể tự nâng quyền hoặc tự bỏ pause. Flow này c
 | `packages/crew-plugin/src/security/guards.ts` | Pause agent và ghi log khi phát hiện | `onAgentCreated`, `onRunStarted`, `onProjectChanged`, `onGoalChanged`, `PROJECT_EVENTS`, `GOAL_EVENTS` |
 | `server/src/routes/agents.ts` | File upstream chứa H5 | middleware của `agentRoutes` |
 | `server/src/routes/projects.ts` | File upstream chứa C2 | middleware của `projectRoutes` |
-| `server/src/routes/issues.ts` | File upstream chứa C3, C4 | `DELETE /issues/:id`, `POST /issues/:id/checkout` |
+| `server/src/routes/issues.ts` | File upstream chứa C3, C4 (C11, C18 cùng file thuộc flow `run-handoff`) | `DELETE /issues/:id`, `POST /issues/:id/checkout` |
 | `server/src/routes/execution-workspaces.ts` | File upstream chứa C5 | `PATCH /execution-workspaces/:id` |
 | `server/src/routes/onboarding-seed.ts` | File upstream chứa C1 | `POST /companies/:companyId/onboarding-seed` |
 
