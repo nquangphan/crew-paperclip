@@ -189,6 +189,7 @@ flows:
       - packages/crew-web/src/features/terminal/paste.ts
       - packages/crew-web/src/features/terminal/target-picker.ts
       - packages/crew-web/src/features/terminal/terminal-session.tsx
+      - packages/crew-web/src/features/terminal/touch-scroll.ts
       - packages/crew-web/src/features/terminal/unlock-panel.tsx
       - packages/crew-web/src/features/terminal/use-terminal-socket.ts
       - packages/crew-web/src/features/terminal/xterm-options.ts
@@ -203,6 +204,7 @@ flows:
       - packages/crew-web/test/features/terminal/paste.test.ts
       - packages/crew-web/test/features/terminal/shift-enter.test.ts
       - packages/crew-web/test/features/terminal/terminal-dock.test.tsx
+      - packages/crew-web/test/features/terminal/touch-scroll.test.ts
       - packages/crew-web/test/features/terminal/use-terminal-socket.test.tsx
       - packages/crew-web/test/features/terminal/xterm-options.test.ts
   runtime-switches:

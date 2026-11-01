@@ -613,6 +613,7 @@ File nào thuộc flow nào. Dùng `crew-docs where <file>` để tra từ dòng
 | `packages/crew-web/src/features/terminal/target-picker.ts` | [web-terminal](flows/web-terminal.md) (file) |
 | `packages/crew-web/src/features/terminal/terminal-dock.tsx` | [web-terminal](flows/web-terminal.md) (điểm vào) |
 | `packages/crew-web/src/features/terminal/terminal-session.tsx` | [web-terminal](flows/web-terminal.md) (file) |
+| `packages/crew-web/src/features/terminal/touch-scroll.ts` | [web-terminal](flows/web-terminal.md) (file) |
 | `packages/crew-web/src/features/terminal/unlock-panel.tsx` | [web-terminal](flows/web-terminal.md) (file) |
 | `packages/crew-web/src/features/terminal/use-terminal-socket.ts` | [web-terminal](flows/web-terminal.md) (file) |
 | `packages/crew-web/src/features/terminal/xterm-options.ts` | [web-terminal](flows/web-terminal.md) (file) |
@@ -805,6 +806,7 @@ File nào thuộc flow nào. Dùng `crew-docs where <file>` để tra từ dòng
 | `packages/crew-web/test/features/terminal/paste.test.ts` | [web-terminal](flows/web-terminal.md) (test) |
 | `packages/crew-web/test/features/terminal/shift-enter.test.ts` | [web-terminal](flows/web-terminal.md) (test) |
 | `packages/crew-web/test/features/terminal/terminal-dock.test.tsx` | [web-terminal](flows/web-terminal.md) (test) |
+| `packages/crew-web/test/features/terminal/touch-scroll.test.ts` | [web-terminal](flows/web-terminal.md) (test) |
 | `packages/crew-web/test/features/terminal/use-terminal-socket.test.tsx` | [web-terminal](flows/web-terminal.md) (test) |
 | `packages/crew-web/test/features/terminal/xterm-options.test.ts` | [web-terminal](flows/web-terminal.md) (test) |
 | `packages/crew-web/test/features/wizards/add-agent-page.test.tsx` | [setup-wizards](flows/setup-wizards.md) (test) |

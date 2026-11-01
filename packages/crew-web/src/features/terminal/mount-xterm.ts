@@ -6,6 +6,7 @@ import { Unicode11Addon } from '@xterm/addon-unicode11';
 import { WebLinksAddon } from '@xterm/addon-web-links';
 import { WebglAddon } from '@xterm/addon-webgl';
 import { type ITerminalOptions, Terminal } from '@xterm/xterm';
+import { attachTouchScroll } from './touch-scroll';
 import { shiftEnterHandler } from './xterm-options';
 
 export interface TerminalSize {
@@ -38,6 +39,7 @@ export function mountXterm(
   term.loadAddon(new WebLinksAddon());
   term.loadAddon(new SearchAddon());
   term.open(el);
+  const detachTouchScroll = attachTouchScroll(el, term);
   // Qua term.input để ESC+CR đi đường onData như phím gõ.
   term.attachCustomKeyEventHandler((ev) => shiftEnterHandler(ev, (data) => term.input(data, true)));
   try {
@@ -88,6 +90,7 @@ export function mountXterm(
     },
     dispose: () => {
       observer.disconnect();
+      detachTouchScroll();
       if (frame) cancelAnimationFrame(frame);
       term.dispose();
     },
