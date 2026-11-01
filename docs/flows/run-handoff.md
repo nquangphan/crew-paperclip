@@ -29,10 +29,14 @@ các chỗ Crew sửa cho bàn giao trơn tru:
   (`decideQueuedRunStaleness` → `issue_assignee_changed`), trừ wake tương tác của chính lõi. Crew có route
   `assistant-call` đánh thức Trợ Lý bằng reason riêng `crew_assistant_called` với wake không mang `issueId`, và H1 tự
   giữ run đó ở `queued` khi issue đang có run `running` của agent khác.
+- Agent tự đặt issue của mình về `blocked` để chờ thứ khác (thẻ xác nhận của owner, xung đột merge owner phải quyết)
+  khi mọi blocker đã xong: lõi coi là "blocker đã xong" và đánh thức lại chính agent đó (`issue.blockers_restored`),
+  agent lại chặn, cứ thế mỗi phút (TPS-563: 46 run trong 38 phút). Vá C18: wake này chỉ phát khi người đặt `blocked` không
+  phải assignee (board, agent khác); blocker chuyển `done` vẫn đánh thức issue phụ thuộc như lõi.
 - Board hủy một run đang chạy: lõi để issue `in_progress` không có run nào. Plugin chuyển issue sang `blocked` kèm
   comment (không chuyển `todo`, vì issue `todo` có agent sẽ bị lõi chạy lại ngay).
 
-Mô tả và lý do chi tiết của từng vá: `crew/release/core-hooks.json` (C10–C14).
+Mô tả và lý do chi tiết của từng vá: `crew/release/core-hooks.json` (C10–C14, C18).
 
 ## Điểm vào
 
@@ -42,7 +46,8 @@ Mô tả và lý do chi tiết của từng vá: `crew/release/core-hooks.json` 
   `replayStrandedSkippedWakes`. Cùng file này còn đăng ký WebSocket terminal của owner (`setupCrewTerminalWebSocketServer`,
   flow `web-terminal`) trước handler live-events, vì live-events huỷ mọi upgrade chưa có handler nhận; không liên quan
   bàn giao.
-- Vá C11 trong `server/src/routes/issues.ts` (`PATCH /issues/:id`, đoạn dừng run khi đổi assignee); C12, C14 trong
+- Vá C11 trong `server/src/routes/issues.ts` (`PATCH /issues/:id`, đoạn dừng run khi đổi assignee) và C18 (cùng route,
+  đoạn `restoredBlockedReadyDependency`); C12, C14 trong
   `server/src/services/heartbeat.ts`; C13 trong `server/src/services/recovery/service.ts`.
 - `POST /api/crew/companies/:companyId/issues/:issueId/assistant-call` `{ commentId }` (router con trong router góp ý,
   flow `contributions`) → `crewAssistantCallRoutes`; crew-web gọi ngay sau khi gửi bình luận có link tới Trợ Lý.
@@ -119,7 +124,7 @@ Mô tả và lý do chi tiết của từng vá: `crew/release/core-hooks.json` 
 | `packages/crew-plugin/src/run-cancelled.ts` | Issue sang `blocked` khi board hủy run | `registerRunCancelledHandler` |
 | `server/src/crew/assistant-call-routes.ts` | Owner gọi Trợ Lý bằng tag; giữ run gọi Trợ Lý khi issue đang có run của agent khác | `crewAssistantCallRoutes`, `holdAssistantCallRun`, `otherAgentRunHoldsTask`, `assistantCallTaskId`, `ASSISTANT_CALL_REASON`, `ASSISTANT_CALL_ACTION` |
 | `server/src/index.ts` | File upstream chứa C10 | tick scheduler heartbeat |
-| `server/src/routes/issues.ts` | File upstream chứa C11 | `PATCH /issues/:id` |
+| `server/src/routes/issues.ts` | File upstream chứa C11, C18 | `PATCH /issues/:id` |
 | `server/src/services/heartbeat.ts` | File upstream chứa C12, C14 | `finalizeIssueCommentPolicy`, `executeRun` |
 | `server/src/services/recovery/service.ts` | File upstream chứa C13 | `decidePersistedLegacyContinuation`, `healthyOpenChildIssues` |
 
@@ -174,3 +179,5 @@ Mô tả và lý do chi tiết của từng vá: `crew/release/core-hooks.json` 
   thiếu comment cho agent đã bàn giao; board hay agent khác đổi assignee vẫn hủy run cũ.
 - `server/src/__tests__/crew-failed-run-deferred-review.db.test.ts`: run executor lỗi khi còn giữ lease thì reviewer
   được chạy sau khi dọn lease (vá C14).
+- `server/src/__tests__/issue-dependency-wakeups-routes.test.ts` (test lõi, thêm ca Crew): assignee tự đặt issue của mình
+  về `blocked` khi blocker đã xong thì không bị đánh thức lại (vá C18); board đặt `blocked` vẫn đánh thức như lõi.

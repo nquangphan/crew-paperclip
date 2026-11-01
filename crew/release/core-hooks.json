@@ -393,6 +393,16 @@
       "description": "Allow exactly one Crew route through the sandbox callback bridge of SSH runs: GET /api/crew/model-settings, so the Crew assistant reads the owner's model table (catalog, complexity table, role defaults) at the start of every run instead of an embedded copy in AGENTS.md. Read only: PUT and POST of the same path and every other /api/crew route stay denied, and the server still checks the actor on top of the allowlist. The allowlist is enforced on the server host (http2-bridge-server), so deploying the server is enough.",
       "upstreamPr": null,
       "tests": ["server/src/__tests__/crew-bridge-allowlist.test.ts"]
+    },
+    {
+      "id": "C18",
+      "kind": "core-patch",
+      "file": "server/src/routes/issues.ts",
+      "symbol": "issueRoutes PATCH /issues/:id (restored blocked dependency wake)",
+      "anchor": "          actor.agentId !== issue.assigneeAgentId &&",
+      "description": "When the assignee agent moves its own issue to blocked while every blocker is already done, stock emits an issue_blockers_resolved wake (source issue.blockers_restored) to the same agent. A Crew executor blocks itself to wait for something else (an owner confirmation card, a merge conflict the owner must decide), so the wake reran it, it blocked again and the cycle repeated every minute (46 runs in 38 minutes on one issue). The restored-dependency wake now fires only when someone other than the assignee sets the blocked state (board, another agent); a blocker reaching done still wakes dependents as stock does.",
+      "upstreamPr": null,
+      "tests": ["server/src/__tests__/issue-dependency-wakeups-routes.test.ts"]
     }
   ]
 }

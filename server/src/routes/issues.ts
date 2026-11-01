@@ -14727,6 +14727,8 @@ export function issueRoutes(
         const restoredBlockedReadyDependency =
           issue.status === "blocked" &&
           issue.assigneeAgentId &&
+          // crew: the assignee blocking its own issue waits on something else (owner answer, merge conflict); waking it loops.
+          actor.agentId !== issue.assigneeAgentId &&
           (existing.status !== "blocked" ||
             Array.isArray(req.body.blockedByIssueIds) ||
             existing.assigneeAgentId !== issue.assigneeAgentId);
