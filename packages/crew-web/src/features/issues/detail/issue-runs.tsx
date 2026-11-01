@@ -19,7 +19,10 @@ interface IssueRun {
 
 const ACTIVE = new Set(['running', 'queued']);
 
-/** Run của issue (S6.15): mở trang run, dừng run đang chạy/xếp hàng sau khi xác nhận. */
+/** Số run hiện sẵn (mới nhất trước); phần còn lại mở bằng nút Hiện thêm. Run đang chạy/xếp hàng luôn hiện. */
+export const RUNS_COLLAPSED = 5;
+
+/** Run của issue (S6.15): mở trang run, dừng run đang chạy/xếp hàng sau khi xác nhận; dài quá thì thu gọn còn 5. */
 export function IssueRuns({ issueId, agentNames }: { issueId: string; agentNames: Record<string, string> }) {
   const { t } = useT('issues');
   const { company } = useCompany();
@@ -27,6 +30,7 @@ export function IssueRuns({ issueId, agentNames }: { issueId: string; agentNames
   const { readOnly } = useCompanyAccess();
   const qc = useQueryClient();
   const [toStop, setToStop] = useState<IssueRun | null>(null);
+  const [expanded, setExpanded] = useState(false);
   const list = useQuery({
     queryKey: queryKeys.issueRuns(issueId),
     queryFn: async () => (await api.runs.forIssue(issueId)) as IssueRun[],
@@ -41,6 +45,10 @@ export function IssueRuns({ issueId, agentNames }: { issueId: string; agentNames
     },
   });
 
+  const runs = list.data ?? [];
+  const shown = expanded ? runs : runs.filter((run, i) => i < RUNS_COLLAPSED || ACTIVE.has(run.status));
+  const hidden = runs.length - shown.length;
+
   return (
     <DetailSection title={t('detail.runs.heading')} count={list.data?.length}>
       {list.isLoading ? <Skeleton /> : null}
@@ -52,7 +60,7 @@ export function IssueRuns({ issueId, agentNames }: { issueId: string; agentNames
         />
       ) : null}
       {list.data?.length === 0 ? <MutedText>{t('detail.runs.empty')}</MutedText> : null}
-      {(list.data ?? []).map((run) => {
+      {shown.map((run) => {
         const href = `/${company.issuePrefix}/runs/${run.runId}`;
         return (
           <div key={run.runId} data-testid="issue-run" className="flex items-center gap-2">
@@ -81,6 +89,13 @@ export function IssueRuns({ issueId, agentNames }: { issueId: string; agentNames
           </div>
         );
       })}
+      {hidden > 0 || (expanded && runs.length > RUNS_COLLAPSED) ? (
+        <div className="flex">
+          <Button variant="ghost" size="sm" aria-expanded={expanded} onClick={() => setExpanded((v) => !v)}>
+            {expanded ? t('detail.runs.showLess') : t('detail.runs.showMore', { count: hidden })}
+          </Button>
+        </div>
+      ) : null}
       {stop.error ? <ErrorState title={t('detail.runs.stopFailed')} message={stop.error.message} /> : null}
       <ConfirmDialog
         open={toStop !== null}

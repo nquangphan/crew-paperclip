@@ -249,7 +249,9 @@
       "stopTitle": "Stop this run?",
       "stopBody": "Run {{id}} will be stopped and its process on the work machine ends. The agent may have to redo unfinished work.",
       "stopFailed": "Could not stop the run",
-      "unknownAgent": "unknown agent"
+      "unknownAgent": "unknown agent",
+      "showMore": "Show {{count}} more runs",
+      "showLess": "Show less"
     },
     "root": "Requests",
     "back": "Back",

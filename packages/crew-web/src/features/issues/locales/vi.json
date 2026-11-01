@@ -249,7 +249,9 @@
       "stopTitle": "Dừng run này?",
       "stopBody": "Run {{id}} sẽ bị dừng, tiến trình trên máy chạy việc kết thúc. Agent có thể phải làm lại phần đang dở.",
       "stopFailed": "Không dừng được run",
-      "unknownAgent": "agent không rõ"
+      "unknownAgent": "agent không rõ",
+      "showMore": "Hiện thêm {{count}} run",
+      "showLess": "Thu gọn"
     },
     "root": "Yêu cầu",
     "back": "Quay lại",

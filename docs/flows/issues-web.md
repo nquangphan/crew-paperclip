@@ -51,6 +51,8 @@ Luật chính:
    Trợ Lý` (lần đầu ở đầu dòng, ngoài code fence, tới hết mô tả) không hiện trong `DescriptionEditor` mà thành khối
    `AssistantSummary` (`data-testid="assistant-summary"`, không thu gọn, tiêu đề `###` nhỏ in hoa) ngay sau mô tả; sửa mô tả vẫn sửa nguyên chuỗi.
    Bình luận dài thu gọn bằng `ExpandableContent` (đáy mờ dần, nút "Hiện đủ (còn N dòng)" / "Thu gọn").
+   Khối Run (`issue-runs.tsx` → `IssueRuns`) chỉ hiện `RUNS_COLLAPSED` (5) run mới nhất, cộng mọi run đang chạy hay
+   xếp hàng; nút "Hiện thêm N run" / "Thu gọn" mở hay gập phần còn lại.
 4. `packages/crew-web/src/features/issues/detail/crew/gate-actions.ts` → `gateActionsFor`, `awaitingMyApproval`: tính
    nút Duyệt, Yêu cầu sửa, Hủy theo stage đang chờ; `actions-slot.tsx` gửi PATCH và làm mới mọi dữ liệu bị đổi. Phần gửi (đọc lại issue, chặn khi owner không còn là người duyệt) nằm ở
    `useGateMutation`, dùng chung với thẻ câu hỏi ở bước 4b.
