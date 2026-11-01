@@ -17,7 +17,11 @@ export function buildOwnerTerminalCommand(input: { projectKey: string; branch: s
     throw new Error("Tên nhánh không hợp lệ");
 
   // Nhánh đã khớp regex nên không chứa ký tự đặc biệt của shell; chặn thêm dấu "-" đầu để khỏi thành cờ git.
-  const fetch = branch === null ? `git -C "$repo" fetch origin` : `git -C "$repo" fetch origin ${branch}`;
+  // Repo không clone bằng `git clone` có thể chưa có origin/HEAD: hỏi remote một lần.
+  const fetch =
+    branch === null
+      ? `git -C "$repo" fetch origin && { git -C "$repo" rev-parse -q --verify origin/HEAD >/dev/null || git -C "$repo" remote set-head origin -a >/dev/null; }`
+      : `git -C "$repo" fetch origin ${branch}`;
   const base = branch === null ? "origin/HEAD" : `origin/${branch}`;
   const script = [
     "unset PAPERCLIP_RUN_ID",
@@ -38,8 +42,8 @@ export function buildOwnerTerminalCommand(input: { projectKey: string; branch: s
     `    done`,
     `  fi`,
     `  [ -n "$repo" ] || { echo 'Dự án ${projectKey} chưa dựng trên máy này.'; exit 1; }`,
-    // Thư mục owner bị xoá tay thì git vẫn giữ đăng ký worktree cũ; prune chỉ bỏ đăng ký của thư mục đã mất.
-    `  git -C "$repo" worktree prune 2>/dev/null`,
+    // Thư mục owner bị xoá tay thì git vẫn giữ đăng ký worktree cũ: chỉ gỡ đúng đăng ký đó, không prune cả repo của owner.
+    `  git -C "$repo" worktree remove --force "$root/owner" >/dev/null 2>&1`,
     `  if ! out=$( {`,
     `    ${fetch} &&`,
     `    if git -C "$repo" show-ref --verify --quiet "refs/heads/owner/${projectKey}"; then`,

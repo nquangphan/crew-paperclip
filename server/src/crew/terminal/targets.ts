@@ -55,7 +55,11 @@ async function queryTargets(db: Db, companyId: string, only?: { machineId: strin
   const layoutKeys = new Map<string, Promise<string | null>>();
   const layoutKeyOf = (projectId: string) => {
     if (!layoutKeys.has(projectId))
-      layoutKeys.set(projectId, projectLayout(db, companyId, projectId).then((layout) => layout?.projectKey ?? null));
+      // Một project đọc lỗi thì chỉ project đó rơi về khóa theo `repo_path`, không làm hỏng cả danh sách.
+      layoutKeys.set(
+        projectId,
+        projectLayout(db, companyId, projectId).then((layout) => layout?.projectKey ?? null, () => null),
+      );
     return layoutKeys.get(projectId)!;
   };
   const targets = await Promise.all(

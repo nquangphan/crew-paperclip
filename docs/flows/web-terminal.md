@@ -65,9 +65,10 @@ owner: route, vé, WebSocket và trang. Mở khoá bằng mật khẩu đăng nh
    `/opt/homebrew/bin/tmux` rồi `/usr/local/bin/tmux` (như crew-mac dò) và chạy đúng đường dẫn tìm được; vẫn thiếu tmux hay
    project chưa dựng thì in lý do và thoát. Dựng worktree `~/crew-agents/<khóa>/owner` trên nhánh `owner/<khóa>` nếu chưa
    có. Repo gốc là `~/crew-agents/<khóa>/repo` nếu có, không thì repo chính của một worktree vai trong thư mục đó (dòng
-   đầu `git worktree list`; bỏ qua symlink companion). Trước hết `git worktree prune` (thư mục owner bị xoá tay thì bỏ đăng
-   ký cũ để dựng lại được), fetch `origin/<nhánh>` (không biết nhánh thì fetch `origin` và dựng từ `origin/HEAD`), dùng lại
-   nhánh `owner/<khóa>` nếu đã tồn tại; rồi `tmux -L crew new-session -A -s crew-owner-<khóa>` (kèm `-f ~/.crew-mac/tmux.conf`
+   đầu `git worktree list`; bỏ qua symlink companion). Trước hết gỡ đúng đăng ký worktree `owner` cũ
+   (`git worktree remove --force`; thư mục owner bị xoá tay thì dựng lại được; không prune cả repo vì repo có thể là bản
+   clone riêng của owner), fetch `origin/<nhánh>` (không biết nhánh thì fetch `origin`, thiếu `origin/HEAD` thì
+   `remote set-head origin -a`, rồi dựng từ `origin/HEAD`), dùng lại nhánh `owner/<khóa>` nếu đã tồn tại; rồi `tmux -L crew new-session -A -s crew-owner-<khóa>` (kèm `-f ~/.crew-mac/tmux.conf`
    nếu có file đó): gắn lại phiên cũ hoặc tạo mới, nên đóng tab không giết phiên.
 8. Khung WebSocket: máy chủ gửi `ready`, `output`, `closed`, `error`; trình duyệt gửi `input` và `resize`. Lỗi gửi cho
    trình duyệt là câu chung, không lộ lỗi SSH thô, và trang chỉ hiện các lý do đóng/lỗi của server bằng câu tiếng Việt
@@ -143,7 +144,7 @@ owner: route, vé, WebSocket và trang. Mở khoá bằng mật khẩu đăng nh
   `@cert-authority`, không có dòng), ký tự UTF-8 bị cắt giữa hai gói, và lấy thông tin SSH của máy.
 - `server/src/__tests__/crew-terminal-remote-command.test.ts`: từ chối khoá và nhánh lạ, script worktree owner và tmux,
   thứ tự dò tmux, nhánh `null` dựng từ `origin/HEAD`; chạy thật với repo git và tmux giả: dựng worktree owner, dựng lại
-  sau khi thư mục owner bị xoá tay, và tìm repo gốc là bản clone ngoài `crew-agents` qua worktree vai (bỏ qua symlink).
+  sau khi thư mục owner bị xoá tay mà không gỡ đăng ký worktree khác đang mất thư mục, và tìm repo gốc là bản clone ngoài `crew-agents` qua worktree vai (bỏ qua symlink).
   Ca thiếu tmux bỏ qua khi máy chạy test có tmux ở chỗ lệnh tự dò.
 - `packages/crew-web/test/features/machines/terminal-targets-block.test.tsx`: nhóm theo máy, href và `target="_blank"`,
   trạng thái trống, người không phải owner không thấy khối và không gọi API.

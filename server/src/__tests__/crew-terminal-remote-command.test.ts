@@ -35,7 +35,9 @@ describe("buildOwnerTerminalCommand", () => {
   });
 
   it("dựng lại worktree owner sau khi thư mục owner bị xoá tay", () => {
-    expect(buildOwnerTerminalCommand({ projectKey: "kidy-school", branch: "main" })).toContain('git -C "$repo" worktree prune');
+    const cmd = buildOwnerTerminalCommand({ projectKey: "kidy-school", branch: "main" });
+    expect(cmd).toContain('git -C "$repo" worktree remove --force "$root/owner"');
+    expect(cmd).not.toContain("worktree prune");
   });
 
   it("không biết nhánh thì dựng worktree owner từ origin/HEAD", () => {
@@ -115,12 +117,18 @@ describe.skipIf(!hasZsh)("lệnh terminal owner chạy thật", () => {
       expect(existsSync(path.join(root, "owner", "README.md"))).toBe(true);
       expect(readFileSync(log, "utf8")).toContain(`${fakeTmux} -L crew new-session -A -s crew-owner-kidy-school -c ${root}/owner`);
 
+      // Worktree khác của owner đang mất thư mục (ổ ngoài chưa gắn): không được gỡ đăng ký của nó.
+      const other = path.join(home, "other-wt");
+      git(["worktree", "add", "-q", "-b", "other", other], path.join(root, "repo"));
+      rmSync(other, { recursive: true, force: true });
       // Owner xoá tay thư mục owner (rm -rf / Finder): git vẫn giữ đăng ký worktree cũ.
       rmSync(path.join(root, "owner"), { recursive: true, force: true });
       const second = runOwnerCommand(home, pathEnv);
       expect(second.status, second.stdout + second.stderr).toBe(0);
       expect(second.stdout).not.toContain("Không dựng được worktree owner.");
       expect(existsSync(path.join(root, "owner", "README.md"))).toBe(true);
+      const list = spawnSync("git", ["worktree", "list"], { cwd: path.join(root, "repo"), encoding: "utf8" }).stdout;
+      expect(list).toContain(other);
     } finally {
       rmSync(home, { recursive: true, force: true });
     }
