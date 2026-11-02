@@ -403,6 +403,31 @@
       "description": "When the assignee agent moves its own issue to blocked while every blocker is already done, stock emits an issue_blockers_resolved wake (source issue.blockers_restored) to the same agent. A Crew executor blocks itself to wait for something else (an owner confirmation card, a merge conflict the owner must decide), so the wake reran it, it blocked again and the cycle repeated every minute (46 runs in 38 minutes on one issue). The restored-dependency wake now fires only when someone other than the assignee sets the blocked state (board, another agent); a blocker reaching done still wakes dependents as stock does.",
       "upstreamPr": null,
       "tests": ["server/src/__tests__/issue-dependency-wakeups-routes.test.ts"]
+    },
+    {
+      "id": "C19",
+      "kind": "core-patch",
+      "file": "server/src/services/recovery/service.ts",
+      "symbol": "recoveryService.terminalizeOrphanedRunningRun (process-death authority)",
+      "anchor": "    const continueConversation = authority === \"process_gone\" && run.runtimeMode === \"legacy\" &&",
+      "description": "When the stale-lock backstop terminalizes a legacy run whose process died (a server restart kills its SSH session), a run that used a conversation adapter now carries the continue_conversation_v1 policy, as when the server itself finalizes a lost process. Stock left it without the policy, so legacyExecutionNeedsReconciliation held it for operator reconciliation, no retry was scheduled and the issue sat in_progress/in_review with no run until someone commented (TPS-581/TPS-582, 6 hours). Stranded-work recovery now schedules a bounded conversation retry and escalates once the transient retry budget is spent.",
+      "upstreamPr": null,
+      "tests": [
+        "server/src/__tests__/recovery-stale-issue-lock-sweep.test.ts",
+        "server/src/__tests__/heartbeat-process-recovery.test.ts"
+      ]
+    },
+    {
+      "id": "C20",
+      "kind": "core-patch",
+      "file": "server/src/services/legacy-execution-recovery.ts",
+      "symbol": "terminalizeLegacyExecution (reconciled-hold lookup)",
+      "anchor": "            // Settlement already folded this run's hold into a conversation",
+      "description": "Stranded-work recovery called terminalizeLegacyExecution on the same interrupted conversation run every sweep; each call opened a new active_run_watchdog hold (fingerprint legacy-execution:<runId>) and settleUnrecoverableExecutions folded it to resolved/cancelled seconds later, about every 30 seconds (about 1,360 holds and 1,400 activity rows for two issues in 6 hours). A hold of that run already folded into a conversation continuation (outcome cancelled) now counts as the recorded decision, so no new hold is opened.",
+      "upstreamPr": null,
+      "tests": [
+        "server/src/__tests__/heartbeat-process-recovery.test.ts"
+      ]
     }
   ]
 }

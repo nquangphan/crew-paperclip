@@ -955,6 +955,7 @@ File nào thuộc flow nào. Dùng `crew-docs where <file>` để tra từ dòng
 | `server/src/services/environment-runtime.ts` | [ssh-run-lifecycle](flows/ssh-run-lifecycle.md) (dùng chung) |
 | `server/src/services/heartbeat.ts` | [run-claim](flows/run-claim.md) (dùng chung), [runtime-switches](flows/runtime-switches.md) (dùng chung), [run-handoff](flows/run-handoff.md) (dùng chung), [ssh-run-lifecycle](flows/ssh-run-lifecycle.md) (dùng chung) |
 | `server/src/services/issues.ts` | [issue-gate](flows/issue-gate.md) (dùng chung), [qc-department](flows/qc-department.md) (dùng chung) |
+| `server/src/services/legacy-execution-recovery.ts` | [run-handoff](flows/run-handoff.md) (dùng chung) |
 | `server/src/services/plugin-worker-manager.ts` | [crew-plugin](flows/crew-plugin.md) (dùng chung) |
 | `server/src/services/recovery/service.ts` | [run-handoff](flows/run-handoff.md) (dùng chung) |
 | `ui/src/components/ImageGalleryModal.tsx` | [stock-ui](flows/stock-ui.md) (file) |

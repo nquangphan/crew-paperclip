@@ -23,6 +23,7 @@ source:
     - "server/src/services/issues.ts"
     - "server/src/services/plugin-worker-manager.ts"
     - "server/src/services/recovery/service.ts"
+    - "server/src/services/legacy-execution-recovery.ts"
     - "packages/adapter-utils/src/sandbox-callback-bridge.ts"
     - "packages/adapters/claude-local/src/server/execute.ts"
     - "packages/adapters/claude-local/src/server/index.ts"
@@ -1237,6 +1238,7 @@ shared:
   server/src/app.ts: [crew-plugin, contributions]
   server/src/index.ts: [run-handoff]
   server/src/services/recovery/service.ts: [run-handoff]
+  server/src/services/legacy-execution-recovery.ts: [run-handoff]
   packages/adapter-utils/src/sandbox-callback-bridge.ts: [core-hooks, model-settings]
   packages/adapters/claude-local/src/server/execute.ts: [adapter-patches, ssh-run-lifecycle]
   packages/adapters/opencode-local/src/server/execute.ts: [adapter-patches, ssh-run-lifecycle]

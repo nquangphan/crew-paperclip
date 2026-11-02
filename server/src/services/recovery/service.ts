@@ -88,6 +88,7 @@ import { emitAgentTaskRun } from "../agent-task-run-telemetry.js";
 import { budgetService } from "../budgets.js";
 import { unadmittedChatWakeupCondition } from "../durable-chat-wakeup.js";
 import { issueRecoveryActionService } from "../issue-recovery-actions.js";
+import { CONVERSATION_CONTINUATION_POLICY, runUsedConversationAdapter } from "../conversation-continuation.js";
 import {
   legacyExecutionNeedsReconciliation,
   terminalizeLegacyExecution,
@@ -5943,6 +5944,12 @@ export function recoveryService(
         ? "run terminalized by recovery backstop: issue reached a terminal status while heartbeat_runs.status stayed live"
         : "run terminalized by recovery backstop: process and sandbox gone while heartbeat_runs.status stayed live";
 
+    // A legacy conversation run whose process died (typically a server restart
+    // killing its SSH session) resumes with a fresh conversation turn, as when
+    // the server itself finalizes a lost process. Without the policy the run
+    // is held for operator reconciliation and the issue waits for a comment.
+    const continueConversation = authority === "process_gone" && run.runtimeMode === "legacy" &&
+      await runUsedConversationAdapter(db, run);
     await deps.beforeOrphanedRunTerminalWrite?.(run.id);
     const now = new Date();
     const updated = await db
@@ -5954,6 +5961,7 @@ export function recoveryService(
         errorCode:
           run.errorCode ??
           (terminalStatus === "interrupted" ? errorCode : null),
+        ...(continueConversation ? { resultJson: sql`coalesce(${heartbeatRuns.resultJson}, '{}'::jsonb) || ${JSON.stringify({ conversationContinuation: CONVERSATION_CONTINUATION_POLICY })}::jsonb` } : {}),
         updatedAt: now,
       })
       .where(

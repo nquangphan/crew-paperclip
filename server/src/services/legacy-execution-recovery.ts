@@ -135,6 +135,13 @@ export async function terminalizeLegacyExecution(input: {
               sql`${issueRecoveryActions.evidence}->>'workspaceRestoreFailure' = 'restore_unsafe_archive'`,
               sql`${issueRecoveryActions.evidence}->'automaticRecovery'->>'replay' = 'blocked'`,
             ),
+            // Settlement already folded this run's hold into a conversation
+            // continuation ("send a new message"). Reopening it would only be
+            // folded again, once per stranded-work sweep.
+            and(
+              eq(issueRecoveryActions.fingerprint, `legacy-execution:${run.id}`),
+              eq(issueRecoveryActions.outcome, "cancelled"),
+            ),
           ),
         )).limit(1);
       if (reconciled) return updated;

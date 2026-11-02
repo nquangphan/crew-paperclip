@@ -25,6 +25,8 @@ vi.mock("../telemetry.ts", () => ({ getTelemetryClient: () => mockTelemetryClien
 
 import { heartbeatService } from "../services/heartbeat.ts";
 import { recoveryService } from "../services/recovery/service.ts";
+import { CONVERSATION_CONTINUATION_POLICY } from "../services/conversation-continuation.ts";
+import { legacyExecutionNeedsReconciliation } from "../services/legacy-execution-recovery.ts";
 
 const embeddedPostgresSupport = await getEmbeddedPostgresTestSupport();
 const describeEmbeddedPostgres = embeddedPostgresSupport.supported ? describe : describe.skip;
@@ -335,6 +337,33 @@ describeEmbeddedPostgres("recovery sweepStaleIssueLocks", () => {
       "agent.task_run",
       expect.objectContaining({ agent_id: agentId, state: "interrupted" }),
     );
+  });
+
+  it.each([
+    { adapterType: "claude_local", continued: true },
+    { adapterType: "process", continued: false },
+  ])("marks an orphaned legacy $adapterType run for conversation continuation: $continued", async ({ adapterType, continued }) => {
+    const { companyId, agentId, runningRunId } = await seed();
+    // A server restart kills the SSH run: the backstop finds its process gone.
+    // A conversation adapter resumes with a fresh turn, as when the server
+    // itself finalizes a lost process; other adapters keep the operator hold.
+    await db.update(heartbeatRuns).set({
+      runtimeMode: "legacy", processPid: 2_000_000_000,
+      runnerProfileJson: { adapterDispatch: { adapterType } },
+    }).where(eq(heartbeatRuns.id, runningRunId));
+    await db.insert(issues).values({
+      id: randomUUID(), companyId, title: "Run killed by a server restart", status: "in_progress",
+      assigneeAgentId: agentId, executionRunId: runningRunId, checkoutRunId: runningRunId,
+    });
+
+    const result = await recoveryService(db, { enqueueWakeup: vi.fn() }).sweepStaleIssueLocks();
+
+    expect(result.terminalizedRunIds).toEqual([runningRunId]);
+    const [run] = await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, runningRunId));
+    expect(run.status).toBe("interrupted");
+    expect(run.errorCode).toBe("orphaned_running_run");
+    expect(run.resultJson?.conversationContinuation).toBe(continued ? CONVERSATION_CONTINUATION_POLICY : undefined);
+    expect(legacyExecutionNeedsReconciliation(run)).toBe(!continued);
   });
 
   it.each(["in_progress", "done"])("preserves a live legacy controller lease when the issue is %s", async (status) => {

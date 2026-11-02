@@ -6194,6 +6194,64 @@ describeEmbeddedPostgres("heartbeat orphaned process recovery", () => {
     expect(sourceIssue?.status).toBe("in_progress");
   });
 
+  it("retries a conversation run the stale-lock backstop terminalized after its process died", async () => {
+    const { agentId, runId, issueId } = await seedStrandedIssueFixture({
+      status: "in_progress",
+      runStatus: "failed",
+    });
+    // A server restart killed the SSH session: the run row stayed "running"
+    // with a dead pid until the stale-lock backstop terminalized it.
+    await db.update(heartbeatRuns).set({
+      status: "running", finishedAt: null, error: null, errorCode: null, resultJson: null,
+      runtimeMode: "legacy", processPid: 2_000_000_000,
+      runnerProfileJson: { adapterDispatch: { adapterType: "claude_local" } },
+    }).where(eq(heartbeatRuns.id, runId));
+    await db.update(issues).set({ executionRunId: runId, checkoutRunId: runId }).where(eq(issues.id, issueId));
+
+    const heartbeat = heartbeatService(db);
+    expect((await heartbeat.sweepStaleIssueLocks()).terminalizedRunIds).toEqual([runId]);
+    const result = await heartbeat.reconcileStrandedAssignedIssues();
+
+    expect(result.continuationRequeued).toBe(1);
+    expect(result.escalated).toBe(0);
+    const successor = await db.select().from(heartbeatRuns)
+      .where(eq(heartbeatRuns.retryOfRunId, runId)).then((rows) => rows[0] ?? null);
+    expect(successor).toMatchObject({ agentId, status: "scheduled_retry" });
+    expect(successor?.resultJson).toMatchObject({ conversationContinuation: "continue_conversation_v1" });
+    // No operator hold that a later sweep would reopen every tick.
+    expect(await db.select({ id: issueRecoveryActions.id }).from(issueRecoveryActions)
+      .where(eq(issueRecoveryActions.sourceIssueId, issueId))).toEqual([]);
+  });
+
+  it("does not reopen a folded conversation hold on every stranded-work sweep", async () => {
+    const { runId, issueId } = await seedStrandedIssueFixture({
+      status: "in_progress",
+      runStatus: "failed",
+    });
+    // An interrupted conversation run without the continuation policy (rows
+    // written before the backstop recorded it): stranded-work recovery opens a
+    // reconciliation hold, and settlement folds it into "send a new message".
+    await db.update(heartbeatRuns).set({
+      status: "interrupted", errorCode: "orphaned_running_run", resultJson: null,
+      runtimeMode: "legacy",
+      runnerProfileJson: { adapterDispatch: { adapterType: "claude_local" } },
+    }).where(eq(heartbeatRuns.id, runId));
+
+    const { settleUnrecoverableExecutions } = await import("../services/execution-recovery-resolution.js");
+    const heartbeat = heartbeatService(db);
+    const holds = () => db.select().from(issueRecoveryActions).where(eq(issueRecoveryActions.sourceIssueId, issueId));
+    await heartbeat.reconcileStrandedAssignedIssues();
+    await settleUnrecoverableExecutions(db);
+    expect(await holds()).toMatchObject([{ status: "resolved", outcome: "cancelled" }]);
+
+    for (let tick = 0; tick < 3; tick += 1) {
+      await heartbeat.reconcileStrandedAssignedIssues();
+      await settleUnrecoverableExecutions(db);
+    }
+
+    expect(await holds()).toHaveLength(1);
+  });
+
   it("escalates an assigned todo issue whose lost dispatch has spent its transient retry budget", async () => {
     const { agentId, runId, issueId } = await seedStrandedIssueFixture({
       status: "todo",

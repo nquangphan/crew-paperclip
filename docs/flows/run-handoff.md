@@ -33,10 +33,20 @@ các chỗ Crew sửa cho bàn giao trơn tru:
   khi mọi blocker đã xong: lõi coi là "blocker đã xong" và đánh thức lại chính agent đó (`issue.blockers_restored`),
   agent lại chặn, cứ thế mỗi phút (TPS-563: 46 run trong 38 phút). Vá C18: wake này chỉ phát khi người đặt `blocked` không
   phải assignee (board, agent khác); blocker chuyển `done` vẫn đánh thức issue phụ thuộc như lõi.
+- Server khởi động lại giữa lúc agent đang chạy qua SSH: process của run mất, backstop của lõi
+  (`sweepStaleIssueLocks`) chốt run `interrupted` / `orphaned_running_run` nhưng không ghi chính sách
+  `continue_conversation_v1` như khi server tự chốt run mất process (`process_lost`). Lõi coi run đó cần đối soát, không
+  lên lịch chạy lại, issue đứng `in_progress`/`in_review` không run nào tới khi có người comment (TPS-581, TPS-582: 6
+  tiếng). Vá C19: run legacy dùng adapter hội thoại bị chốt vì mất process mang chính sách đó, nên vòng quét việc kẹt
+  của lõi lên lịch chạy lại có giới hạn (hết ngân sách thử lại thì leo thang như lõi).
+- Cùng run đó, vòng quét việc kẹt mỗi tick mở một recovery action `active_run_watchdog` mới (fingerprint
+  `legacy-execution:<runId>`), rồi `settleUnrecoverableExecutions` đóng nó thành `cancelled` ("gửi tin nhắn mới để tiếp
+  tục"), lặp mỗi khoảng 30 giây (khoảng 1.360 action cho hai issue). Vá C20: action đã đóng kiểu đó của chính run ấy được
+  coi là quyết định đã ghi, không mở action mới.
 - Board hủy một run đang chạy: lõi để issue `in_progress` không có run nào. Plugin chuyển issue sang `blocked` kèm
   comment (không chuyển `todo`, vì issue `todo` có agent sẽ bị lõi chạy lại ngay).
 
-Mô tả và lý do chi tiết của từng vá: `crew/release/core-hooks.json` (C10–C14, C18).
+Mô tả và lý do chi tiết của từng vá: `crew/release/core-hooks.json` (C10–C14, C18–C20).
 
 ## Điểm vào
 
@@ -48,7 +58,9 @@ Mô tả và lý do chi tiết của từng vá: `crew/release/core-hooks.json` 
   bàn giao.
 - Vá C11 trong `server/src/routes/issues.ts` (`PATCH /issues/:id`, đoạn dừng run khi đổi assignee) và C18 (cùng route,
   đoạn `restoredBlockedReadyDependency`); C12, C14 trong
-  `server/src/services/heartbeat.ts`; C13 trong `server/src/services/recovery/service.ts`.
+  `server/src/services/heartbeat.ts`; C13 và C19 (`sweepStaleIssueLocks`, đoạn chốt run mất process) trong
+  `server/src/services/recovery/service.ts`; C20 trong `server/src/services/legacy-execution-recovery.ts`
+  (`terminalizeLegacyExecution`, đoạn tìm quyết định đã ghi).
 - `POST /api/crew/companies/:companyId/issues/:issueId/assistant-call` `{ commentId }` (router con trong router góp ý,
   flow `contributions`) → `crewAssistantCallRoutes`; crew-web gọi ngay sau khi gửi bình luận có link tới Trợ Lý.
 - Hook H1 (`beforeClaim`) → `holdAssistantCallRun` trước cổng tải (flow `run-claim`).
@@ -126,13 +138,15 @@ Mô tả và lý do chi tiết của từng vá: `crew/release/core-hooks.json` 
 | `server/src/index.ts` | File upstream chứa C10 | tick scheduler heartbeat |
 | `server/src/routes/issues.ts` | File upstream chứa C11, C18 | `PATCH /issues/:id` |
 | `server/src/services/heartbeat.ts` | File upstream chứa C12, C14 | `finalizeIssueCommentPolicy`, `executeRun` |
-| `server/src/services/recovery/service.ts` | File upstream chứa C13 | `decidePersistedLegacyContinuation`, `healthyOpenChildIssues` |
+| `server/src/services/recovery/service.ts` | File upstream chứa C13, C19 | `decidePersistedLegacyContinuation`, `healthyOpenChildIssues`, `sweepStaleIssueLocks` |
+| `server/src/services/legacy-execution-recovery.ts` | File upstream chứa C20 | `terminalizeLegacyExecution` |
 
 ## Dữ liệu
 
 - Bảng lõi: đọc `agent_wakeup_requests` (wake `skipped`), `heartbeat_runs`, `issues`, `issue_relations` (qua readiness
   của lõi), `environment_leases`; ghi wake mới qua `heartbeat.wakeup`; ghi `issue_recovery_actions` (gỡ giữ chỗ) và
-  `heartbeat_runs.result_json.executionRecovery` của run chưa gọi adapter; plugin ghi `issues.status` và comment qua host.
+  `heartbeat_runs.result_json.executionRecovery` của run chưa gọi adapter; vá C19 ghi
+  `heartbeat_runs.result_json.conversationContinuation` của run hội thoại bị backstop chốt; plugin ghi `issues.status` và comment qua host.
 - Route gọi Trợ Lý đọc `issue_comments`, `crew_project_roles`, `agent_wakeup_requests` (theo `idempotency_key`) và
   `heartbeat_runs` (run `running` của agent khác), ghi activity `crew.assistant_called` (entity là issue; `details` có
   `commentId`, `assistantAgentId`, `status`).
@@ -142,7 +156,7 @@ Mô tả và lý do chi tiết của từng vá: `crew/release/core-hooks.json` 
 
 ## Flow liên quan
 
-- `core-hooks`: đăng ký H3 và các vá C10–C14.
+- `core-hooks`: đăng ký H3 và các vá C10–C14, C18–C20.
 - `ssh-run-lifecycle`: H3 và vá P8 là hai đường nhả lease dẫn tới việc phát lại wake; `legacyRunNeverLaunched` (bằng
   chứng run chưa gọi adapter) nằm ở `remote-termination.ts` của flow đó.
 - `issue-gate`: luật stage và assignee.
@@ -181,3 +195,9 @@ Mô tả và lý do chi tiết của từng vá: `crew/release/core-hooks.json` 
   được chạy sau khi dọn lease (vá C14).
 - `server/src/__tests__/issue-dependency-wakeups-routes.test.ts` (test lõi, thêm ca Crew): assignee tự đặt issue của mình
   về `blocked` khi blocker đã xong thì không bị đánh thức lại (vá C18); board đặt `blocked` vẫn đánh thức như lõi.
+- `server/src/__tests__/recovery-stale-issue-lock-sweep.test.ts` (test lõi, thêm ca Crew): backstop chốt run legacy mất
+  process thì run `claude_local` mang `continue_conversation_v1` và không còn cần đối soát; run adapter `process` giữ
+  nguyên như lõi (vá C19).
+- `server/src/__tests__/heartbeat-process-recovery.test.ts` (test lõi, thêm ca Crew): run hội thoại bị backstop chốt
+  được vòng quét việc kẹt lên lịch chạy lại đúng một lần, không mở recovery action (vá C19); run hội thoại cũ thiếu chính
+  sách thì sau khi action bị đóng, các vòng quét sau không mở action mới (vá C20).
