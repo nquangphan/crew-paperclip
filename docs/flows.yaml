@@ -186,6 +186,7 @@ flows:
       - packages/crew-web/src/features/machines/terminal-targets-block.tsx
       - packages/crew-web/src/features/terminal/accessory-keys.tsx
       - packages/crew-web/src/features/terminal/mount-xterm.ts
+      - packages/crew-web/src/features/terminal/osc52-clipboard.ts
       - packages/crew-web/src/features/terminal/paste.ts
       - packages/crew-web/src/features/terminal/target-picker.ts
       - packages/crew-web/src/features/terminal/terminal-session.tsx
@@ -201,6 +202,7 @@ flows:
       - server/src/__tests__/crew-terminal-ws.test.ts
       - packages/crew-web/test/features/machines/terminal-targets-block.test.tsx
       - packages/crew-web/test/features/terminal/accessory-keys.test.tsx
+      - packages/crew-web/test/features/terminal/osc52-clipboard.test.ts
       - packages/crew-web/test/features/terminal/paste.test.ts
       - packages/crew-web/test/features/terminal/shift-enter.test.ts
       - packages/crew-web/test/features/terminal/terminal-dock.test.tsx

@@ -114,9 +114,14 @@ owner: route, vé, WebSocket và trang. Mở khoá bằng mật khẩu đăng nh
    thì `notice` `forbidden` (hết phiên hoặc mất quyền owner, bảo tải lại trang); 4xx khác thì `targetMissing` và không
    nối lại. Có vé mà WebSocket đóng trước `ready` 5 lần liền (server từ chối, lỗi
    SSH cố định) thì thôi nối lại, đóng với `notice` `connectFailed` chờ bấm Nối lại; nhận `ready` thì đếm lại từ đầu. `mount-xterm.ts` gắn xterm với addon fit, unicode11, web-links, search,
-   WebGL nạp sau cùng (mất context thì lùi về DOM), rồi gắn `attachTouchScroll` (`touch-scroll.ts`): cử chỉ chạm sẵn có của xterm 6 không cuộn được trên điện thoại, nên vuốt dọc một ngón được đổi thành cuộn. Ở màn hình phụ (tmux) mỗi nhịp vuốt phát một `WheelEvent` theo pixel lên `.xterm-screen`, tọa độ kẹp vào trong lưới, để xterm gửi cuộn chuột cho tmux (`mouse on`). Ở màn hình thường thì cộng dồn pixel rồi `scrollLines`. `xterm-options.ts`: `shiftEnterHandler` (gắn bằng `attachCustomKeyEventHandler` trong `mount-xterm.ts`) gửi ESC+CR khi
+   clipboard, WebGL nạp sau cùng (mất context thì lùi về DOM), rồi gắn `attachTouchScroll` (`touch-scroll.ts`): cử chỉ chạm sẵn có của xterm 6 không cuộn được trên điện thoại, nên vuốt dọc một ngón được đổi thành cuộn. Ở màn hình phụ (tmux) mỗi nhịp vuốt phát một `WheelEvent` theo pixel lên `.xterm-screen`, tọa độ kẹp vào trong lưới, để xterm gửi cuộn chuột cho tmux (`mouse on`). Ở màn hình thường thì cộng dồn pixel rồi `scrollLines`. `xterm-options.ts`: `shiftEnterHandler` (gắn bằng `attachCustomKeyEventHandler` trong `mount-xterm.ts`) gửi ESC+CR khi
    bấm Shift+Enter để xuống dòng trong Claude Code, chặn xterm gửi CR (đang gõ dở bằng bộ gõ Telex/VNI thì cho qua); tuỳ chọn (chữ thường, đậm 600, giãn dòng 1,15), bảng màu tối
    cố định với 16 màu ANSI (`terminalTheme`, không theo theme trang) và bậc cỡ chữ (lưu `localStorage`). `paste.ts`: dán nhiều dòng bọc bracketed paste, chia khúc 16 KiB, tối đa 16 MiB.
+   Chép chữ: tmux bật `mouse on` nên kéo chuột là tmux chọn; thả chuột thì tmux gửi vùng chọn ra bằng OSC 52
+   (`]52;;<base64>`, vùng chọn rỗng). Addon clipboard nhận chuỗi đó và ghi vào clipboard trình duyệt qua
+   `writeOnlyClipboard` (`osc52-clipboard.ts`): nhận vùng chọn `c` hoặc rỗng, bỏ PRIMARY; không bao giờ trả clipboard cho
+   chương trình trên Mac hỏi đọc (`]52;c;?`); trình duyệt từ chối ghi (mất focus, không HTTPS) thì bỏ qua. Cách dự phòng:
+   Option+kéo (`macOptionClickForcesSelection`) để xterm tự chọn rồi Cmd+C.
    `accessory-keys.tsx`: hàng phím phụ (Esc, Tab, mũi tên, Ctrl+C...) cho màn hình cảm ứng, dựng bằng `TerminalKeyRow`
    (nút cao 40px, chừa vùng an toàn đáy màn hình), chỉ hiện khi đã kết nối. Báo dán quá lớn tự ẩn sau 5 giây.
 
@@ -143,6 +148,7 @@ owner: route, vé, WebSocket và trang. Mở khoá bằng mật khẩu đăng nh
 | `packages/crew-web/src/features/terminal/unlock-panel.tsx` | Ô mật khẩu giữa khung terminal | `UnlockPanel` |
 | `packages/crew-web/src/features/terminal/target-picker.ts` | Nhóm dự án theo máy cho menu chọn, khoá tab | `groupTargetsByMachine`, `pickerGroups`, `targetKey` |
 | `packages/crew-web/src/features/terminal/mount-xterm.ts` | Gắn xterm và addon | `mountXterm` |
+| `packages/crew-web/src/features/terminal/osc52-clipboard.ts` | Ghi chữ tmux chép (OSC 52) vào clipboard, không cho đọc | `writeOnlyClipboard` |
 | `packages/crew-web/src/features/terminal/touch-scroll.ts` | Vuốt trên điện thoại thành cuộn | `attachTouchScroll` |
 | `packages/crew-web/src/features/terminal/xterm-options.ts` | Tuỳ chọn, màu, cỡ chữ | `buildTerminalOptions`, `fontSizeFor` |
 | `packages/crew-web/src/features/terminal/paste.ts` | Chuẩn bị nội dung dán | `preparePaste`, `PasteTooLargeError` |
@@ -191,6 +197,8 @@ owner: route, vé, WebSocket và trang. Mở khoá bằng mật khẩu đăng nh
   màn hình thường cuộn theo dòng, bỏ qua hai ngón, gỡ listener khi dispose.
 - `packages/crew-web/test/features/terminal/xterm-options.test.ts`, `paste.test.ts`, `accessory-keys.test.tsx`: tuỳ chọn
   và cỡ chữ, bọc và chia khúc khi dán, hàng phím phụ.
+- `packages/crew-web/test/features/terminal/osc52-clipboard.test.ts`: vùng chọn `c` và rỗng ghi vào clipboard, bỏ PRIMARY,
+  hỏi đọc trả rỗng không gọi `readText`, trình duyệt từ chối ghi thì không ném lỗi.
 - `packages/crew-web/test/features/terminal/shift-enter.test.ts`: Shift+Enter gửi ESC+CR, Enter thường, tổ hợp khác và
   lúc bộ gõ đang soạn chữ thì để xterm tự xử lý.
 - `packages/crew-web/test/features/terminal/use-terminal-socket.test.tsx`: 423 thành `locked`, 4xx khác báo thiếu

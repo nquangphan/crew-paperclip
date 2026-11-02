@@ -1,11 +1,13 @@
-// Gắn xterm vào khung: addon fit, unicode11, web-links, search; WebGL nạp sau cùng, mất context thì lùi về DOM renderer.
+// Gắn xterm vào khung: addon fit, unicode11, web-links, search, clipboard (OSC 52, chỉ ghi); WebGL nạp sau cùng, mất context thì lùi về DOM renderer.
 import '@xterm/xterm/css/xterm.css';
+import { ClipboardAddon } from '@xterm/addon-clipboard';
 import { FitAddon } from '@xterm/addon-fit';
 import { SearchAddon } from '@xterm/addon-search';
 import { Unicode11Addon } from '@xterm/addon-unicode11';
 import { WebLinksAddon } from '@xterm/addon-web-links';
 import { WebglAddon } from '@xterm/addon-webgl';
 import { type ITerminalOptions, Terminal } from '@xterm/xterm';
+import { writeOnlyClipboard } from './osc52-clipboard';
 import { attachTouchScroll } from './touch-scroll';
 import { shiftEnterHandler } from './xterm-options';
 
@@ -38,6 +40,7 @@ export function mountXterm(
   term.unicode.activeVersion = '11';
   term.loadAddon(new WebLinksAddon());
   term.loadAddon(new SearchAddon());
+  term.loadAddon(new ClipboardAddon(undefined, writeOnlyClipboard));
   term.open(el);
   const detachTouchScroll = attachTouchScroll(el, term);
   // Qua term.input để ESC+CR đi đường onData như phím gõ.

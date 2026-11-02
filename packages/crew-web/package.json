@@ -20,6 +20,7 @@
     "@paperclipai/shared": "workspace:*",
     "@tailwindcss/typography": "^0.5.20",
     "@tanstack/react-query": "^5.102.8",
+    "@xterm/addon-clipboard": "^0.2.0",
     "@xterm/addon-fit": "^0.11.0",
     "@xterm/addon-search": "^0.16.0",
     "@xterm/addon-unicode11": "^0.9.0",

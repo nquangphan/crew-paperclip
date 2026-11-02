@@ -609,6 +609,7 @@ File nào thuộc flow nào. Dùng `crew-docs where <file>` để tra từ dòng
 | `packages/crew-web/src/features/skills/use-skill-sync.ts` | [skills](flows/skills.md) (file) |
 | `packages/crew-web/src/features/terminal/accessory-keys.tsx` | [web-terminal](flows/web-terminal.md) (file) |
 | `packages/crew-web/src/features/terminal/mount-xterm.ts` | [web-terminal](flows/web-terminal.md) (file) |
+| `packages/crew-web/src/features/terminal/osc52-clipboard.ts` | [web-terminal](flows/web-terminal.md) (file) |
 | `packages/crew-web/src/features/terminal/paste.ts` | [web-terminal](flows/web-terminal.md) (file) |
 | `packages/crew-web/src/features/terminal/target-picker.ts` | [web-terminal](flows/web-terminal.md) (file) |
 | `packages/crew-web/src/features/terminal/terminal-dock.tsx` | [web-terminal](flows/web-terminal.md) (điểm vào) |
@@ -803,6 +804,7 @@ File nào thuộc flow nào. Dùng `crew-docs where <file>` để tra từ dòng
 | `packages/crew-web/test/features/skills/skills-page.test.tsx` | [skills](flows/skills.md) (test) |
 | `packages/crew-web/test/features/skills/sync-status.test.tsx` | [skills](flows/skills.md) (test) |
 | `packages/crew-web/test/features/terminal/accessory-keys.test.tsx` | [web-terminal](flows/web-terminal.md) (test) |
+| `packages/crew-web/test/features/terminal/osc52-clipboard.test.ts` | [web-terminal](flows/web-terminal.md) (test) |
 | `packages/crew-web/test/features/terminal/paste.test.ts` | [web-terminal](flows/web-terminal.md) (test) |
 | `packages/crew-web/test/features/terminal/shift-enter.test.ts` | [web-terminal](flows/web-terminal.md) (test) |
 | `packages/crew-web/test/features/terminal/terminal-dock.test.tsx` | [web-terminal](flows/web-terminal.md) (test) |
