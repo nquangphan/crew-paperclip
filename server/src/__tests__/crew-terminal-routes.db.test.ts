@@ -141,8 +141,16 @@ suite("route terminal của Crew", () => {
     expect(typeof ticket.body.ticket).toBe("string");
     const { crewTerminalTicketStore } = await import("../crew/terminal/ticket-store.js");
     expect(crewTerminalTicketStore.consume(ticket.body.ticket)).toEqual({
-      companyId: w.companyId, userId: OWNER, sessionId: `sess-${OWNER}`, machineId: BOOK.machineId, projectId: w.projectId,
+      companyId: w.companyId, userId: OWNER, sessionId: `sess-${OWNER}`, machineId: BOOK.machineId, projectId: w.projectId, slot: 1,
     });
+
+    const slot2 = await request(await as(OWNER)).post(url("/tickets")).send({ machineId: BOOK.machineId, projectId: w.projectId, slot: 2 });
+    expect(slot2.status).toBe(201);
+    expect(crewTerminalTicketStore.consume(slot2.body.ticket)).toMatchObject({ projectId: w.projectId, slot: 2 });
+    for (const slot of [0, 10, 1.5, "2"]) {
+      const bad = await request(await as(OWNER)).post(url("/tickets")).send({ machineId: BOOK.machineId, projectId: w.projectId, slot });
+      expect(bad.status).toBe(400);
+    }
   });
 
   it("target không ready trên máy đó thì 404", async () => {
@@ -195,17 +203,23 @@ suite("route terminal của Crew", () => {
 
   it("sessions: liệt kê phiên tmux owner trên từng máy, gắn tên dự án; máy không hỏi được thì ok=false", async () => {
     sshFake.sshMachines = new Set([BOOK.machineId]);
-    sshFake.output = "crew-owner-kidy-school|2|1793540000|1793545000\ncrew-owner-du-an-cu|0|1793500000|1793500100\n";
+    sshFake.output =
+      "crew-owner-kidy-school|2|1793540000|1793545000\ncrew-owner-kidy-school_2|1|1793540000|1793545000\ncrew-owner-du-an-cu|0|1793500000|1793500100\n";
     const res = await request(await as(OWNER)).get(url("/sessions"));
     expect(res.status).toBe(200);
     expect(res.body.items).toEqual([
       {
-        machineId: BOOK.machineId, hostname: BOOK.hostname, projectKey: "kidy-school", projectId: w.projectId,
+        machineId: BOOK.machineId, hostname: BOOK.hostname, projectKey: "kidy-school", slot: 1, projectId: w.projectId,
         projectName: "kidy-school", attached: 2, createdAt: new Date(1793540000_000).toISOString(),
         activityAt: new Date(1793545000_000).toISOString(),
       },
       {
-        machineId: BOOK.machineId, hostname: BOOK.hostname, projectKey: "du-an-cu", projectId: null, projectName: null,
+        machineId: BOOK.machineId, hostname: BOOK.hostname, projectKey: "kidy-school", slot: 2, projectId: w.projectId,
+        projectName: "kidy-school", attached: 1, createdAt: new Date(1793540000_000).toISOString(),
+        activityAt: new Date(1793545000_000).toISOString(),
+      },
+      {
+        machineId: BOOK.machineId, hostname: BOOK.hostname, projectKey: "du-an-cu", slot: 1, projectId: null, projectName: null,
         attached: 0, createdAt: new Date(1793500000_000).toISOString(), activityAt: new Date(1793500100_000).toISOString(),
       },
     ]);
@@ -236,6 +250,15 @@ suite("route terminal của Crew", () => {
 
     sshFake.output = "missing\n";
     expect((await request(await as(OWNER)).post(url("/sessions/kill")).send(body)).body).toEqual({ killed: false });
+
+    sshFake.commands = [];
+    sshFake.output = "killed\n";
+    expect((await request(await as(OWNER)).post(url("/sessions/kill")).send({ ...body, slot: 10 })).status).toBe(400);
+    expect((await request(await as(OWNER)).post(url("/sessions/kill")).send({ ...body, slot: 0 })).status).toBe(400);
+    expect(sshFake.commands).toEqual([]);
+    const slot3 = await request(await as(OWNER)).post(url("/sessions/kill")).send({ ...body, slot: 3 });
+    expect(slot3.body).toEqual({ killed: true });
+    expect(sshFake.commands[0]).toContain("kill-session -t \"=crew-owner-kidy-school_3\"");
   });
 
   it("viewer không xem được phiên trên máy (403)", async () => {

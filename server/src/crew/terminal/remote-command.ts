@@ -5,6 +5,26 @@ const KEY_RE = /^[a-z][a-z0-9-]{1,30}$/;
 /** Tiền tố tên phiên tmux của owner trên socket `crew`: `crew-owner-<khóa>`. */
 export const OWNER_SESSION_PREFIX = "crew-owner-";
 
+/** Mỗi project trên mỗi máy mở được tối đa chừng này terminal (slot 1..9), dùng chung worktree `owner`. */
+export const MAX_OWNER_SLOTS = 9;
+
+/** Phần sau tiền tố: khóa project, rồi `_<2..9>` cho slot từ 2 (`_` không có trong khóa nên không nhập nhằng). */
+const SESSION_SUFFIX_RE = /^([a-z][a-z0-9-]{1,30})(?:_([2-9]))?$/;
+
+function assertSlot(slot: number): void {
+  if (!Number.isInteger(slot) || slot < 1 || slot > MAX_OWNER_SLOTS) throw new Error("Slot terminal không hợp lệ");
+}
+
+/**
+ * Tên phiên tmux của một terminal owner: slot 1 giữ tên cũ `crew-owner-<khóa>` (gắn lại được phiên đang sống từ trước),
+ * slot n ≥ 2 là `crew-owner-<khóa>_<n>`. tmux không cho `.` hay `:` trong tên phiên nên dùng `_`.
+ */
+export function ownerSessionName(projectKey: string, slot = 1): string {
+  if (!KEY_RE.test(projectKey)) throw new Error("Khóa project không hợp lệ");
+  assertSlot(slot);
+  return slot === 1 ? `${OWNER_SESSION_PREFIX}${projectKey}` : `${OWNER_SESSION_PREFIX}${projectKey}_${slot}`;
+}
+
 /** Tìm tmux như crew-mac dò (PATH của login shell có thể thiếu thư mục Homebrew); không thấy thì `$tmux` rỗng. */
 const FIND_TMUX = [
   `tmux=$(command -v tmux 2>/dev/null) || tmux=""`,
@@ -14,14 +34,15 @@ const BRANCH_RE = /^[A-Za-z0-9._/-]{1,100}$/;
 
 /**
  * Lệnh chạy trên Mac của owner qua kênh SSH PTY: dựng worktree `owner/<khóa>` (nếu chưa có)
- * rồi gắn hoặc tạo phiên tmux `crew-owner-<khóa>` trên socket riêng `crew`.
+ * rồi gắn hoặc tạo phiên tmux của slot (`ownerSessionName`, mặc định slot 1) trên socket riêng `crew`. Mọi slot cùng cwd
+ * là worktree owner.
  * Repo gốc là `~/crew-agents/<khóa>/repo` (project Crew tự clone) hoặc repo chính của một worktree vai trong thư mục đó
  * (project dùng bản clone sẵn của owner). Không biết nhánh thì dựng từ `origin/HEAD`.
  * Khóa và nhánh được kiểm chặt trước khi nhúng vào script, rồi cả script được quote một lần nữa.
  */
-export function buildOwnerTerminalCommand(input: { projectKey: string; branch: string | null }): string {
+export function buildOwnerTerminalCommand(input: { projectKey: string; branch: string | null; slot?: number }): string {
   const { projectKey, branch } = input;
-  if (!KEY_RE.test(projectKey)) throw new Error("Khóa project không hợp lệ");
+  const session = ownerSessionName(projectKey, input.slot ?? 1);
   if (branch !== null && (!BRANCH_RE.test(branch) || branch.includes("..") || branch.startsWith("-")))
     throw new Error("Tên nhánh không hợp lệ");
 
@@ -63,8 +84,8 @@ export function buildOwnerTerminalCommand(input: { projectKey: string; branch: s
     `  fi`,
     `fi`,
     `conf=""; [ -f "$HOME/.crew-mac/tmux.conf" ] && conf="$HOME/.crew-mac/tmux.conf"`,
-    `if [ -n "$conf" ]; then exec "$tmux" -L crew -f "$conf" new-session -A -s ${OWNER_SESSION_PREFIX}${projectKey} -c "$root/owner"; fi`,
-    `exec "$tmux" -L crew new-session -A -s ${OWNER_SESSION_PREFIX}${projectKey} -c "$root/owner"`,
+    `if [ -n "$conf" ]; then exec "$tmux" -L crew -f "$conf" new-session -A -s ${session} -c "$root/owner"; fi`,
+    `exec "$tmux" -L crew new-session -A -s ${session} -c "$root/owner"`,
   ].join("\n");
   return `exec /bin/zsh -lc ${shellQuote(script)}`;
 }
@@ -72,6 +93,8 @@ export function buildOwnerTerminalCommand(input: { projectKey: string; branch: s
 /** Một phiên tmux owner đang sống trên Mac. */
 export type OwnerTmuxSession = {
   projectKey: string;
+  /** 1..9; 1 là phiên tên cũ `crew-owner-<khóa>`. */
+  slot: number;
   /** Số cửa sổ terminal (client tmux) đang gắn vào phiên, từ mọi trình duyệt và máy. */
   attached: number;
   createdAt: string;
@@ -92,18 +115,22 @@ export function buildListOwnerSessionsCommand(): string {
   return `exec /bin/zsh -lc ${shellQuote(script)}`;
 }
 
-/** Đọc output của `buildListOwnerSessionsCommand`, chỉ giữ phiên `crew-owner-<khóa>` có khóa hợp lệ. */
+/**
+ * Đọc output của `buildListOwnerSessionsCommand`, chỉ giữ phiên `crew-owner-<khóa>` (slot 1) và `crew-owner-<khóa>_<2..9>`
+ * có khóa hợp lệ; hậu tố khác (`_1`, `_10`, `_x`…) bị bỏ.
+ */
 export function parseOwnerSessions(output: string): OwnerTmuxSession[] {
   const sessions: OwnerTmuxSession[] = [];
   for (const line of output.split(/\r?\n/)) {
     const [name, attached, created, activity] = line.trim().split("|");
     if (!name?.startsWith(OWNER_SESSION_PREFIX)) continue;
-    const projectKey = name.slice(OWNER_SESSION_PREFIX.length);
+    const match = SESSION_SUFFIX_RE.exec(name.slice(OWNER_SESSION_PREFIX.length));
     const createdSec = Number(created);
     const activitySec = Number(activity);
-    if (!KEY_RE.test(projectKey) || !Number.isFinite(createdSec) || !Number.isFinite(activitySec)) continue;
+    if (!match?.[1] || !Number.isFinite(createdSec) || !Number.isFinite(activitySec)) continue;
     sessions.push({
-      projectKey,
+      projectKey: match[1],
+      slot: match[2] ? Number(match[2]) : 1,
       attached: Math.max(0, Number(attached) || 0),
       createdAt: new Date(createdSec * 1000).toISOString(),
       activityAt: new Date(activitySec * 1000).toISOString(),
@@ -113,15 +140,16 @@ export function parseOwnerSessions(output: string): OwnerTmuxSession[] {
 }
 
 /**
- * Lệnh tắt hẳn phiên tmux `crew-owner-<khóa>` (khớp đúng tên bằng `=`), kể cả chương trình đang chạy trong đó. In `killed`
- * khi tắt được, `missing` khi không có phiên hay Mac chưa có tmux; luôn thoát 0. Worktree owner giữ nguyên.
+ * Lệnh tắt hẳn phiên tmux của một slot (`ownerSessionName`, khớp đúng tên bằng `=` nên slot 1 không đụng `_2`), kể cả
+ * chương trình đang chạy trong đó. In `killed` khi tắt được, `missing` khi không có phiên hay Mac chưa có tmux; luôn thoát
+ * 0. Worktree owner giữ nguyên.
  */
-export function buildKillOwnerSessionCommand(projectKey: string): string {
-  if (!KEY_RE.test(projectKey)) throw new Error("Khóa project không hợp lệ");
+export function buildKillOwnerSessionCommand(projectKey: string, slot = 1): string {
+  const session = ownerSessionName(projectKey, slot);
   const script = [
     ...FIND_TMUX,
     `[ -n "$tmux" ] || { echo missing; exit 0; }`,
-    `if "$tmux" -L crew kill-session -t "=${OWNER_SESSION_PREFIX}${projectKey}" 2>/dev/null; then echo killed; else echo missing; fi`,
+    `if "$tmux" -L crew kill-session -t "=${session}" 2>/dev/null; then echo killed; else echo missing; fi`,
   ].join("\n");
   return `exec /bin/zsh -lc ${shellQuote(script)}`;
 }

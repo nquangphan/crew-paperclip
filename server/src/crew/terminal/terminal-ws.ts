@@ -215,7 +215,7 @@ export function setupCrewTerminalWebSocketServer(
   };
 
   const serve = (socket: TerminalSocket, auth: AuthorizedTerminal) => {
-    const { userId, machineId, projectId } = auth.claims;
+    const { userId, machineId, projectId, slot } = auth.claims;
     let shell: EnvironmentCustomImageSshShell | null = null;
     let finished = false;
 
@@ -275,7 +275,7 @@ export function setupCrewTerminalWebSocketServer(
 
     let command: string;
     try {
-      command = buildOwnerTerminalCommand({ projectKey: auth.target.projectKey, branch: auth.target.branch });
+      command = buildOwnerTerminalCommand({ projectKey: auth.target.projectKey, branch: auth.target.branch, slot });
     } catch {
       fail("invalid_target");
       return;
@@ -300,7 +300,7 @@ export function setupCrewTerminalWebSocketServer(
           logger.warn({ errorName: err.name, userId, machineId, projectId }, "crew terminal ssh stream failed");
           fail("ssh_error");
         });
-        logger.info({ event: "crew_terminal_open", userId, machineId, projectId, reason: "opened" }, "crew terminal opened");
+        logger.info({ event: "crew_terminal_open", userId, machineId, projectId, slot, reason: "opened" }, "crew terminal opened");
         send({ type: "ready" });
       })
       .catch((err: unknown) => {

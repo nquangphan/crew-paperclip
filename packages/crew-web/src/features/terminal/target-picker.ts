@@ -9,9 +9,36 @@ export interface TargetGroup {
   items: TerminalTarget[];
 }
 
-/** Khoá một terminal: một dự án trên một máy. */
+/** Khoá một dự án trên một máy. */
 export function targetKey(target: Pick<TerminalTarget, 'machineId' | 'projectId'>): string {
   return `${target.machineId}/${target.projectId}`;
+}
+
+/** Mỗi dự án trên mỗi máy mở được tối đa chừng này terminal (slot 1..9, server cũng chặn). */
+export const MAX_SLOTS = 9;
+
+/** Một terminal: slot thứ mấy của một dự án trên một máy; mỗi slot là một phiên tmux riêng, chung worktree owner. */
+export interface TabRef {
+  machineId: string;
+  projectId: string;
+  slot: number;
+}
+
+/** Khoá một tab terminal. */
+export function tabKey(ref: TabRef): string {
+  return `${targetKey(ref)}/${ref.slot}`;
+}
+
+/** Slot nhỏ nhất trong 1..`MAX_SLOTS` chưa nằm trong `used`; hết thì null. */
+export function freeSlot(used: Iterable<number>): number | null {
+  const taken = new Set(used);
+  for (let slot = 1; slot <= MAX_SLOTS; slot++) if (!taken.has(slot)) return slot;
+  return null;
+}
+
+/** Tên hiển thị của một terminal: slot 1 là tên dự án, slot từ 2 thêm "(n)". */
+export function tabTitle(name: string, slot: number): string {
+  return slot > 1 ? `${name} (${slot})` : name;
 }
 
 /** Nhóm theo máy, giữ thứ tự server trả. */
@@ -26,7 +53,7 @@ export function groupTargetsByMachine(targets: readonly TerminalTarget[]): Targe
 }
 
 /**
- * Nhóm cho menu chọn của ds; dự án đã mở (`openKeys`) có dấu tick. `note` thêm chữ vào dòng phụ (ví dụ "đang chạy trên
+ * Nhóm cho menu chọn của ds; dự án đã có tab (`openKeys` theo `targetKey`) có dấu tick. `note` thêm chữ vào dòng phụ (ví dụ "đang chạy trên
  * máy").
  */
 export function pickerGroups(

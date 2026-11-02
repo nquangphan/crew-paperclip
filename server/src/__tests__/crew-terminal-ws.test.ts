@@ -181,8 +181,8 @@ describe("crew terminal websocket", () => {
     return listen(server);
   }
 
-  function issue(sessionId = "sess-A") {
-    return ticketStore.issue({ companyId: COMPANY, userId: USER, sessionId, machineId: MACHINE, projectId: PROJECT }).ticket;
+  function issue(sessionId = "sess-A", slot = 1) {
+    return ticketStore.issue({ companyId: COMPANY, userId: USER, sessionId, machineId: MACHINE, projectId: PROJECT, slot }).ticket;
   }
 
   function connect(port: number, ticket: string, cookieSession = "sess-A", query = "&cols=120&rows=40") {
@@ -227,6 +227,21 @@ describe("crew terminal websocket", () => {
     expect(events).toContainEqual(expect.objectContaining({ event: "crew_terminal_open", userId: USER, machineId: MACHINE, projectId: PROJECT }));
     expect(events).toContainEqual(expect.objectContaining({ event: "crew_terminal_close", userId: USER, reason: "client_closed" }));
     expect(JSON.stringify(loggerMock.info.mock.calls)).not.toContain("hello");
+  });
+
+  it("vé có slot 2 thì gắn phiên tmux crew-owner-<khóa>_2", async () => {
+    const port = await startHarness();
+    const ws = connect(port, issue("sess-A", 2));
+    const ready = waitForFrame(ws, "ready");
+    await waitForOpen(ws);
+    await ready;
+    const input = connector.open.mock.calls[0]?.[0] as { command: string };
+    expect(input.command).toContain("new-session -A -s crew-owner-paperclip_2 -c");
+    const events = loggerMock.info.mock.calls.map((call) => call[0] as Record<string, unknown>);
+    expect(events).toContainEqual(expect.objectContaining({ event: "crew_terminal_open", slot: 2 }));
+    const closed = waitForClose(ws);
+    ws.close();
+    await closed;
   });
 
   it("dùng kích thước mặc định 80×24 khi cols/rows ngoài khoảng", async () => {

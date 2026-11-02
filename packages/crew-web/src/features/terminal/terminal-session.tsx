@@ -36,6 +36,8 @@ const CLOSED_HINT: Record<TerminalSocketNotice | 'none', string> = {
 export interface TerminalSessionProps {
   machineId: string;
   projectId: string;
+  /** Terminal thứ mấy của dự án trên máy (1..9): mỗi slot một phiên tmux riêng. */
+  slot: number;
   /** Dự án trong danh sách mở được; undefined khi không còn sẵn sàng. */
   target: TerminalTarget | undefined;
   /** Tab đang được chọn và khung nổi đang hiện: trả tiêu điểm cho terminal. */
@@ -55,6 +57,7 @@ export interface TerminalSessionProps {
 export function TerminalSession({
   machineId,
   projectId,
+  slot,
   target,
   active,
   selected,
@@ -75,6 +78,7 @@ export function TerminalSession({
     companyId: company.id,
     machineId,
     projectId,
+    slot,
     onOutput: (data) => xtermRef.current?.term.write(data),
   });
   const { send, resize, status, reconnect } = socket;

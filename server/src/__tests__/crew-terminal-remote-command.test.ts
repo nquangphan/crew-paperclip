@@ -45,6 +45,20 @@ describe("buildOwnerTerminalCommand", () => {
     expect(cmd).not.toContain("worktree prune");
   });
 
+  it("slot 1 (mặc định) giữ tên phiên cũ; slot 2..9 thêm hậu tố _<slot>, cùng worktree owner", () => {
+    const one = buildOwnerTerminalCommand({ projectKey: "kidy-school", branch: "main", slot: 1 });
+    expect(one).toContain("new-session -A -s crew-owner-kidy-school -c");
+    expect(one).toBe(buildOwnerTerminalCommand({ projectKey: "kidy-school", branch: "main" }));
+    const three = buildOwnerTerminalCommand({ projectKey: "kidy-school", branch: "main", slot: 3 });
+    expect(three).toContain("new-session -A -s crew-owner-kidy-school_3 -c \"$root/owner\"");
+    expect(three).not.toContain("-s crew-owner-kidy-school -c");
+    expect(three).toContain('root="$HOME/crew-agents/kidy-school"');
+  });
+
+  it.each([0, 10, 1.5, -1, Number.NaN])("từ chối slot %j", (slot) => {
+    expect(() => buildOwnerTerminalCommand({ projectKey: "kidy-school", branch: "main", slot })).toThrow();
+  });
+
   it("không biết nhánh thì dựng worktree owner từ origin/HEAD", () => {
     const cmd = buildOwnerTerminalCommand({ projectKey: "kidy-school", branch: null });
     expect(cmd).toContain("worktree add -b owner/kidy-school");
@@ -208,8 +222,25 @@ describe("liệt kê phiên tmux owner", () => {
       "",
     ].join("\n");
     expect(parseOwnerSessions(out)).toEqual([
-      { projectKey: "kidy-school", attached: 2, createdAt: new Date(1793540000_000).toISOString(), activityAt: new Date(1793545000_000).toISOString() },
-      { projectKey: "reseach", attached: 0, createdAt: new Date(1793500000_000).toISOString(), activityAt: new Date(1793500100_000).toISOString() },
+      { projectKey: "kidy-school", slot: 1, attached: 2, createdAt: new Date(1793540000_000).toISOString(), activityAt: new Date(1793545000_000).toISOString() },
+      { projectKey: "reseach", slot: 1, attached: 0, createdAt: new Date(1793500000_000).toISOString(), activityAt: new Date(1793500100_000).toISOString() },
+    ]);
+  });
+
+  it("đọc slot từ hậu tố _<2..9>, bỏ hậu tố không hợp lệ", () => {
+    const out = [
+      "crew-owner-kidy-school_2|1|10|20",
+      "crew-owner-kidy-school_9|0|10|20",
+      "crew-owner-kidy-school_1|0|10|20",
+      "crew-owner-kidy-school_10|0|10|20",
+      "crew-owner-kidy-school_0|0|10|20",
+      "crew-owner-kidy-school_x|0|10|20",
+      "crew-owner-kidy-school_|0|10|20",
+      "crew-owner-kidy-school_2_3|0|10|20",
+    ].join("\n");
+    expect(parseOwnerSessions(out).map((x) => [x.projectKey, x.slot])).toEqual([
+      ["kidy-school", 2],
+      ["kidy-school", 9],
     ]);
   });
 });
@@ -249,8 +280,17 @@ describe("tắt phiên tmux owner", () => {
     expect(cmd).not.toContain("kill-server");
   });
 
+  it("tắt đúng slot: slot 2..9 khớp chính xác tên có hậu tố, slot 1 là tên cũ", () => {
+    expect(buildKillOwnerSessionCommand("kidy-school", 1)).toBe(buildKillOwnerSessionCommand("kidy-school"));
+    expect(buildKillOwnerSessionCommand("kidy-school", 4)).toContain('kill-session -t "=crew-owner-kidy-school_4"');
+  });
+
   it.each(["Kidy", "a;rm -rf ~", "a", ""])("từ chối khóa project %j", (key) => {
     expect(() => buildKillOwnerSessionCommand(key)).toThrow();
+  });
+
+  it.each([0, 10, 2.5])("từ chối slot %j", (slot) => {
+    expect(() => buildKillOwnerSessionCommand("kidy-school", slot)).toThrow();
   });
 });
 

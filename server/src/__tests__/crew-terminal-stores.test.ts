@@ -4,7 +4,7 @@ import { createTerminalTicketStore } from "../crew/terminal/ticket-store.js";
 import { createTerminalUnlockStore } from "../crew/terminal/unlock-store.js";
 
 const HOUR = 60 * 60_000;
-const claims = { companyId: "c1", userId: "u1", sessionId: "s1", machineId: "m1", projectId: "p1" };
+const claims = { companyId: "c1", userId: "u1", sessionId: "s1", machineId: "m1", projectId: "p1", slot: 3 };
 
 describe("kho mở khoá terminal", () => {
   it("mở khoá rồi thấy unlocked, quá 12 giờ thì khoá lại", () => {

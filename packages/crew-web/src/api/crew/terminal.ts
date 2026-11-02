@@ -21,6 +21,8 @@ export interface TerminalMachineSession {
   machineId: string;
   hostname: string;
   projectKey: string;
+  /** Terminal thứ mấy của dự án trên máy (1..9); 1 là phiên tên cũ `crew-owner-<khóa>`. */
+  slot: number;
   /** null khi khóa không khớp dự án `ready` nào trên máy đó (dự án cũ còn phiên). */
   projectId: string | null;
   projectName: string | null;
@@ -50,14 +52,21 @@ export const terminalApi = {
   /** 403 `crew_terminal_bad_password` khi sai mật khẩu, 429 `crew_terminal_unlock_throttled` khi sai quá nhiều lần. */
   unlock: (companyId: string, password: string): Promise<{ expiresAt: string }> =>
     call('terminal.unlock', { companyId }, { body: { password } }),
-  /** Vé WebSocket dùng một lần; 423 `crew_terminal_locked` khi chưa mở khoá, 404 khi máy/project không còn sẵn sàng. */
-  ticket: (companyId: string, target: { machineId: string; projectId: string }): Promise<TerminalTicket> =>
-    call('terminal.ticket', { companyId }, { body: target }),
+  /**
+   * Vé WebSocket dùng một lần cho slot `slot` (1..9) của dự án; 423 `crew_terminal_locked` khi chưa mở khoá, 404 khi
+   * máy/project không còn sẵn sàng.
+   */
+  ticket: (
+    companyId: string,
+    target: { machineId: string; projectId: string; slot: number },
+  ): Promise<TerminalTicket> => call('terminal.ticket', { companyId }, { body: target }),
   /** Hỏi từng máy qua SSH nên có thể mất vài giây. */
   sessions: (companyId: string): Promise<TerminalSessionsResult> => call('terminal.sessions', { companyId }),
-  /** Tắt hẳn phiên tmux trên máy; 423 `crew_terminal_locked` khi chưa mở khoá. `killed` false khi phiên đã không còn. */
-  killSession: (companyId: string, target: { machineId: string; projectKey: string }): Promise<{ killed: boolean }> =>
-    call('terminal.killSession', { companyId }, { body: target }),
+  /** Tắt hẳn phiên tmux của một slot trên máy; 423 `crew_terminal_locked` khi chưa mở khoá. `killed` false khi phiên đã không còn. */
+  killSession: (
+    companyId: string,
+    target: { machineId: string; projectKey: string; slot: number },
+  ): Promise<{ killed: boolean }> => call('terminal.killSession', { companyId }, { body: target }),
 };
 
 export const __endpoints = [

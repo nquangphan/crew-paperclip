@@ -1,5 +1,6 @@
 // Terminal của owner dạng khung nổi như khung chat: nút tròn ở góc dưới bên phải mọi trang trong company để ẩn hiện.
-// Khung chứa nhiều tab, mỗi tab một dự án trên một máy, tự owner mở (không tự mở sẵn cái nào). Thanh trên đếm số
+// Khung chứa nhiều tab, mỗi tab một terminal (slot 1..9) của một dự án trên một máy, tự owner mở (không tự mở sẵn cái
+// nào); chọn lại dự án đã có tab ở nút "+" thì mở thêm terminal cho dự án đó. Thanh trên đếm số
 // terminal đang mở và đang nối; mỗi tab hiện trạng thái riêng. Ẩn khung hay đổi tab chỉ giấu, phiên vẫn nối; chuyển
 // trang trong app cũng không mất phiên vì khung nằm ở shell. Đóng tab mới ngắt kết nối (phiên tmux trên máy vẫn giữ).
 // Mở lần đầu mới tải danh sách dự án; tab đầu tiên mới nạp xterm (`terminal-session.tsx`). Chỉ owner (server cũng chặn).
@@ -42,7 +43,7 @@ import {
 } from '@/ds';
 import { useCompanyAccess } from '@/features/access/use-company-access';
 import { formatDateTime, formatRelative, useT } from '@/i18n';
-import { pickerGroups, targetKey } from './target-picker';
+import { freeSlot, pickerGroups, type TabRef, tabKey, tabTitle, targetKey } from './target-picker';
 import type { TerminalSocketStatus } from './use-terminal-socket';
 import { FONT_SCALES, fontSizeFor, nextFontScale, readFontScale, saveFontScale } from './xterm-options';
 
@@ -51,13 +52,16 @@ const TerminalSession = lazy(async () => ({ default: (await import('./terminal-s
 /** Khung đang hiện thì hỏi lại phiên trên máy sau chừng này mili giây (mỗi lần hỏi mở một kết nối SSH tới mỗi máy). */
 const SESSIONS_REFRESH_MS = 15_000;
 
+/** Báo "đã mở đủ terminal" tự ẩn sau chừng này mili giây. */
+const SLOTS_FULL_NOTICE_MS = 5000;
+
 /** Chỗ chừa cho nút tròn để khung nổi khác (`FloatingNotice`) đứng trên nó. */
 const DOCK_SPACE = '4.5rem';
 
 type TargetRef = Pick<TerminalTarget, 'machineId' | 'projectId'>;
 
 interface TerminalDockApi {
-  /** Mở khung nổi; truyền dự án thì mở tab cho dự án đó (đã có thì chọn tab đó). */
+  /** Mở khung nổi; truyền dự án thì chọn tab đầu tiên của dự án đó (chưa có thì mở slot 1). */
   open: (target?: TargetRef) => void;
 }
 
@@ -72,24 +76,45 @@ export interface DockState {
   open: boolean;
   /** Đã mở khung ít nhất một lần: từ đó mới tải danh sách dự án. */
   started: boolean;
-  tabs: TargetRef[];
+  tabs: TabRef[];
   activeKey: string | null;
 }
 
-/** Thêm tab cho dự án (chưa có thì nối vào cuối) và chọn nó. */
-export function addTab(state: DockState, target: TargetRef): DockState {
-  const key = targetKey(target);
-  const tabs = state.tabs.some((x) => targetKey(x) === key) ? state.tabs : [...state.tabs, target];
+/** Chọn tab của đúng slot đó (chưa có thì nối vào cuối). */
+export function openTab(state: DockState, ref: TabRef): DockState {
+  const key = tabKey(ref);
+  const tabs = state.tabs.some((x) => tabKey(x) === key) ? state.tabs : [...state.tabs, ref];
   return { ...state, tabs, activeKey: key };
+}
+
+/** Chọn tab đầu tiên của dự án; chưa có tab nào thì mở slot 1. */
+export function focusTarget(state: DockState, target: TargetRef): DockState {
+  const key = targetKey(target);
+  const first = state.tabs.find((x) => targetKey(x) === key);
+  return first ? { ...state, activeKey: tabKey(first) } : openTab(state, { ...target, slot: 1 });
+}
+
+/**
+ * Mở thêm terminal cho dự án (chọn ở danh sách hay nút "+"). Chưa có tab nào thì mở slot 1 để gắn lại phiên tên cũ nếu
+ * còn sống. Đã có tab thì mở slot trống nhỏ nhất, bỏ qua cả slot đang mở ở tab lẫn phiên đang sống trên máy
+ * (`liveSlots`): mở thêm là muốn terminal mới, không gắn nhầm vào phiên đang dùng ở trình duyệt khác; muốn gắn lại phiên
+ * cũ thì mở từ "Phiên trên máy". Hết slot thì null.
+ */
+export function addTab(state: DockState, target: TargetRef, liveSlots: readonly number[] = []): DockState | null {
+  const key = targetKey(target);
+  const openSlots = state.tabs.filter((x) => targetKey(x) === key).map((x) => x.slot);
+  if (openSlots.length === 0) return openTab(state, { ...target, slot: 1 });
+  const slot = freeSlot([...openSlots, ...liveSlots]);
+  return slot === null ? null : openTab(state, { ...target, slot });
 }
 
 /** Bỏ tab; tab đang chọn bị bỏ thì chọn tab bên cạnh (bên phải, hết thì bên trái). */
 export function removeTab(state: DockState, key: string): DockState {
-  const i = state.tabs.findIndex((x) => targetKey(x) === key);
+  const i = state.tabs.findIndex((x) => tabKey(x) === key);
   if (i === -1) return state;
   const tabs = state.tabs.filter((_, j) => j !== i);
   const next = tabs[i] ?? tabs[i - 1];
-  const activeKey = state.activeKey === key ? (next ? targetKey(next) : null) : state.activeKey;
+  const activeKey = state.activeKey === key ? (next ? tabKey(next) : null) : state.activeKey;
   return { ...state, tabs, activeKey };
 }
 
@@ -103,7 +128,7 @@ export function TerminalDockProvider({ children }: { children: ReactNode }) {
   const show = useCallback((target?: TargetRef) => {
     setState((s) => {
       const opened = { ...s, open: true, started: true };
-      return target ? addTab(opened, target) : opened;
+      return target ? focusTarget(opened, target) : opened;
     });
   }, []);
   const dock = useMemo<TerminalDockApi>(() => ({ open: show }), [show]);
@@ -129,6 +154,8 @@ function OwnerDock({
   const panelId = useId();
   const [view, setView] = useState<'tabs' | 'machines'>('tabs');
   const [toKill, setToKill] = useState<TerminalMachineSession | null>(null);
+  /** Tên dự án vừa chọn mở thêm mà đã dùng hết slot (báo nhẹ, tự ẩn). */
+  const [slotsFull, setSlotsFull] = useState<{ name: string; host: string } | null>(null);
   const [statuses, setStatuses] = useState<Record<string, TerminalSocketStatus>>({});
   const [fontScale, setFontScale] = useState(readFontScale);
   const [unlockGeneration, setUnlockGeneration] = useState(0);
@@ -145,14 +172,15 @@ function OwnerDock({
   });
   const list = useMemo(() => targets.data ?? [], [targets.data]);
   const live = useMemo(() => sessions.data?.items ?? [], [sessions.data]);
-  const openKeys = useMemo(() => new Set(state.tabs.map(targetKey)), [state.tabs]);
+  const openKeys = useMemo(() => new Set(state.tabs.map(tabKey)), [state.tabs]);
+  const openTargets = useMemo(() => new Set(state.tabs.map(targetKey)), [state.tabs]);
   const groups = useMemo(
     () =>
-      pickerGroups(list, openKeys, (target) => {
+      pickerGroups(list, openTargets, (target) => {
         const session = live.find((x) => x.machineId === target.machineId && x.projectKey === target.projectKey);
         return session ? t('liveNote') : undefined;
       }),
-    [list, openKeys, live, t],
+    [list, openTargets, live, t],
   );
 
   useEffect(() => {
@@ -166,6 +194,12 @@ function OwnerDock({
   useEffect(() => {
     saveFontScale(fontScale);
   }, [fontScale]);
+
+  useEffect(() => {
+    if (!slotsFull) return;
+    const timer = setTimeout(() => setSlotsFull(null), SLOTS_FULL_NOTICE_MS);
+    return () => clearTimeout(timer);
+  }, [slotsFull]);
 
   // Callback ổn định theo khoá tab để `TerminalSession` không báo lại trạng thái mỗi lần khung vẽ lại.
   const statusHandlers = useMemo(() => {
@@ -183,23 +217,47 @@ function OwnerDock({
   };
   const kill = useMutation({
     mutationFn: (session: TerminalMachineSession) =>
-      api.terminal.killSession(company.id, { machineId: session.machineId, projectKey: session.projectKey }),
+      api.terminal.killSession(company.id, {
+        machineId: session.machineId,
+        projectKey: session.projectKey,
+        slot: session.slot,
+      }),
     onSuccess: (_result, session) => {
       setToKill(null);
-      // Phiên đã tắt: tab đang mở cho nó chỉ còn báo đã ngắt, đóng luôn.
-      if (session.projectId) closeTab(targetKey({ machineId: session.machineId, projectId: session.projectId }));
+      // Phiên đã tắt: tab đang mở cho đúng slot đó chỉ còn báo đã ngắt, đóng luôn.
+      if (session.projectId) {
+        closeTab(tabKey({ machineId: session.machineId, projectId: session.projectId, slot: session.slot }));
+      }
       void sessions.refetch();
     },
     onError: () => setToKill(null),
   });
 
+  /** Chọn dự án ở danh sách hay nút "+": mở thêm một terminal cho dự án đó (`addTab`). */
   const select = (machineId: string, projectId: string) => {
     setView('tabs');
-    onShow({ machineId, projectId });
+    const target = list.find((x) => x.machineId === machineId && x.projectId === projectId);
+    const liveSlots = live
+      .filter((x) => x.machineId === machineId && x.projectKey === target?.projectKey)
+      .map((x) => x.slot);
+    const next = addTab(state, { machineId, projectId }, liveSlots);
+    if (!next) {
+      setSlotsFull({ name: target?.projectName ?? t('title'), host: target?.hostname ?? '' });
+      return;
+    }
+    setSlotsFull(null);
+    setState(next);
   };
+  /** Mở tab cho đúng phiên trên máy (đúng slot). */
+  const openSession = (ref: TabRef) => {
+    setView('tabs');
+    setState((s) => openTab(s, ref));
+  };
+  const sessionId = (x: Pick<TerminalMachineSession, 'projectKey' | 'slot'>) => `${x.projectKey}/${x.slot}`;
+  const sessionTitle = (x: TerminalMachineSession) => tabTitle(x.projectName ?? x.projectKey, x.slot);
 
   const opened = state.tabs.length;
-  const connected = state.tabs.filter((x) => statuses[targetKey(x)] === 'open').length;
+  const connected = state.tabs.filter((x) => statuses[tabKey(x)] === 'open').length;
   const findTarget = (ref: TargetRef) =>
     list.find((x) => x.machineId === ref.machineId && x.projectId === ref.projectId);
   const loading = (
@@ -217,17 +275,19 @@ function OwnerDock({
       items: live
         .filter((x) => x.machineId === machine.machineId)
         .map((x) => ({
-          id: x.projectKey,
-          title: x.projectName ?? x.projectKey,
+          id: sessionId(x),
+          title: sessionTitle(x),
           detail: x.projectName ? x.projectKey : t('machines.oldProject'),
           viewed: x.attached > 0,
           viewersLabel: x.attached > 0 ? t('machines.viewers', { count: x.attached }) : t('machines.noViewers'),
           activityLabel: t('machines.activity', { when: formatRelative(x.activityAt, lang) }),
           activityTitle: formatDateTime(x.activityAt, lang),
-          openHere: x.projectId !== null && openKeys.has(targetKey({ machineId: x.machineId, projectId: x.projectId })),
+          openHere:
+            x.projectId !== null &&
+            openKeys.has(tabKey({ machineId: x.machineId, projectId: x.projectId, slot: x.slot })),
           canOpen: x.projectId !== null,
           killing:
-            kill.isPending && kill.variables?.machineId === x.machineId && kill.variables?.projectKey === x.projectKey,
+            kill.isPending && kill.variables?.machineId === x.machineId && sessionId(kill.variables) === sessionId(x),
         })),
     }));
     machinesBody = sessions.isLoading ? (
@@ -249,14 +309,14 @@ function OwnerDock({
         updatedLabel={sessions.dataUpdatedAt ? formatRelative(new Date(sessions.dataUpdatedAt), lang) : undefined}
         refreshing={sessions.isFetching}
         onRefresh={() => void sessions.refetch()}
-        onOpen={(machineId, projectKey) => {
-          const session = live.find((x) => x.machineId === machineId && x.projectKey === projectKey);
-          if (session?.projectId) select(machineId, session.projectId);
+        onOpen={(machineId, id) => {
+          const session = live.find((x) => x.machineId === machineId && sessionId(x) === id);
+          if (session?.projectId) openSession({ machineId, projectId: session.projectId, slot: session.slot });
         }}
         killLabel={(name) => t('machines.kill', { name })}
-        onKill={(machineId, projectKey) => {
+        onKill={(machineId, id) => {
           kill.reset();
-          setToKill(live.find((x) => x.machineId === machineId && x.projectKey === projectKey) ?? null);
+          setToKill(live.find((x) => x.machineId === machineId && sessionId(x) === id) ?? null);
         }}
         notice={
           kill.error ? (
@@ -291,12 +351,12 @@ function OwnerDock({
           label={t('tabsLabel')}
           activeId={state.activeKey}
           tabs={state.tabs.map((ref) => {
-            const key = targetKey(ref);
+            const key = tabKey(ref);
             const target = findTarget(ref);
             const status = statuses[key] ?? 'connecting';
             return {
               id: key,
-              title: target?.projectName ?? t('title'),
+              title: tabTitle(target?.projectName ?? t('title'), ref.slot),
               detail: target?.hostname,
               tone: status,
               statusLabel: t(`status.${status}`),
@@ -307,15 +367,17 @@ function OwnerDock({
           onClose={closeTab}
           add={<TerminalPickerMenu label={t('addTab')} groups={groups} emptyLabel={t('noTargets')} onSelect={select} />}
         />
+        {slotsFull ? <TerminalBanner tone="warning">{t('slotsFull', slotsFull)}</TerminalBanner> : null}
         <Suspense fallback={loading}>
           {state.tabs.map((ref) => {
-            const key = targetKey(ref);
+            const key = tabKey(ref);
             const selected = key === state.activeKey;
             return (
               <TerminalSession
                 key={key}
                 machineId={ref.machineId}
                 projectId={ref.projectId}
+                slot={ref.slot}
                 target={findTarget(ref)}
                 selected={selected}
                 active={selected && state.open}
@@ -380,7 +442,7 @@ function OwnerDock({
         }}
         title={t('machines.killTitle')}
         body={t('machines.killBody', {
-          name: toKill?.projectName ?? toKill?.projectKey ?? '',
+          name: toKill ? sessionTitle(toKill) : '',
           host: toKill?.hostname ?? '',
         })}
         confirmLabel={t('machines.killConfirm')}

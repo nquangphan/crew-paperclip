@@ -54,11 +54,14 @@ export function useTerminalSocket({
   companyId,
   machineId,
   projectId,
+  slot,
   onOutput,
 }: {
   companyId: string;
   machineId: string;
   projectId: string;
+  /** Terminal thứ mấy của dự án trên máy (1..9). */
+  slot: number;
   onOutput: (data: string) => void;
 }): TerminalSocket {
   const [status, setStatus] = useState<TerminalSocketStatus>('connecting');
@@ -103,7 +106,7 @@ export function useTerminalSocket({
       setStatus('connecting');
       let ticket: string;
       try {
-        ticket = (await api.terminal.ticket(companyId, { machineId, projectId })).ticket;
+        ticket = (await api.terminal.ticket(companyId, { machineId, projectId, slot })).ticket;
       } catch (err) {
         if (stopped) return;
         if (err instanceof ApiError && err.status === 423) {
@@ -175,7 +178,7 @@ export function useTerminalSocket({
       clearTimeout(startTimer);
       stopRef.current();
     };
-  }, [companyId, machineId, projectId, generation]);
+  }, [companyId, machineId, projectId, slot, generation]);
 
   const sendFrame = useCallback((frame: object) => {
     const ws = socketRef.current;

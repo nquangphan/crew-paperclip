@@ -32,7 +32,7 @@ class FakeSocket {
 }
 
 const TICKETS = 'POST /api/crew/companies/c1/terminal/tickets';
-const ARGS = { companyId: 'c1', machineId: 'm1', projectId: 'p1', onOutput: () => {} };
+const ARGS = { companyId: 'c1', machineId: 'm1', projectId: 'p1', slot: 1, onOutput: () => {} };
 
 /** Chạy hết timer đến hạn trong `ms` và các promise theo sau (xin vé là fetch giả). */
 const tick = (ms = 0) => act(() => vi.advanceTimersByTimeAsync(ms));
@@ -51,6 +51,17 @@ afterEach(() => {
 });
 
 describe('useTerminalSocket', () => {
+  it('xin vé cho đúng slot terminal của dự án', async () => {
+    const { calls } = mockServer({ [TICKETS]: { status: 201, body: { ticket: 't1', expiresAt: 'x' } } });
+    renderHook(() => useTerminalSocket({ ...ARGS, slot: 4 }));
+    await tick();
+    expect(calls.find((c) => c.url.endsWith('/terminal/tickets'))?.body).toEqual({
+      machineId: 'm1',
+      projectId: 'p1',
+      slot: 4,
+    });
+  });
+
   it('vé trả 423 thì khoá, không mở WebSocket', async () => {
     mockServer({ [TICKETS]: { status: 423, body: { error: 'x', code: 'crew_terminal_locked' } } });
     const { result } = renderHook(() => useTerminalSocket(ARGS));

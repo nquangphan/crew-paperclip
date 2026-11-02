@@ -38,7 +38,7 @@
   "show": "Mở terminal",
   "hide": "Ẩn terminal",
   "emptyTitle": "Chưa mở terminal nào",
-  "emptyHint": "Chọn dự án để mở terminal. Có thể mở nhiều dự án, mỗi dự án một tab.",
+  "emptyHint": "Chọn dự án để mở terminal. Có thể mở nhiều dự án; chọn lại dự án ở nút + để mở thêm terminal cho dự án đó (tối đa 9).",
   "tabsLabel": "Các terminal đang mở",
   "closeTab": "Đóng terminal {{name}}",
   "addTab": "Mở thêm terminal",
@@ -67,5 +67,6 @@
     "killConfirm": "Tắt phiên",
     "killLocked": "Cần mở khoá terminal trước khi tắt phiên: mở một tab bất kỳ rồi nhập mật khẩu.",
     "killFailed": "Không tắt được phiên: {{message}}"
-  }
+  },
+  "slotsFull": "{{name}} đã mở đủ 9 terminal trên {{host}}. Đóng bớt tab hoặc tắt bớt phiên trên máy để mở thêm."
 }

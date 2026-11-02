@@ -5,7 +5,8 @@ import { MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { CompanyContext } from '@/app/hooks';
 import { TerminalTargetsBlock } from '@/features/machines/terminal-targets-block';
-import { addTab, removeTab, TerminalDockProvider } from '@/features/terminal/terminal-dock';
+import { freeSlot, tabKey, tabTitle } from '@/features/terminal/target-picker';
+import { addTab, focusTarget, openTab, removeTab, TerminalDockProvider } from '@/features/terminal/terminal-dock';
 import { initI18n, setLanguage } from '@/i18n';
 import { accessRoute, mockServer } from '../../app/fetch-mock';
 
@@ -248,6 +249,7 @@ describe('phiên trên máy', () => {
             machineId: MACHINE,
             hostname: 'mac-mini',
             projectKey: 'kidy-school',
+            slot: 1,
             projectId: OTHER_PROJECT,
             projectName: 'Kidy School',
             attached: 2,
@@ -258,6 +260,7 @@ describe('phiên trên máy', () => {
             machineId: MACHINE,
             hostname: 'mac-mini',
             projectKey: 'du-an-cu',
+            slot: 1,
             projectId: null,
             projectName: null,
             attached: 0,
@@ -350,6 +353,7 @@ describe('phiên trên máy', () => {
       expect(s.calls.find((c) => c.url.endsWith('/terminal/sessions/kill'))?.body).toEqual({
         machineId: MACHINE,
         projectKey: 'kidy-school',
+        slot: 1,
       }),
     );
     await vi.waitFor(() => expect(screen.queryByRole('tab')).toBeNull());
@@ -374,31 +378,208 @@ describe('phiên trên máy', () => {
   });
 });
 
-describe('addTab / removeTab', () => {
+describe('nhiều terminal cho một dự án', () => {
+  const ticketBodies = (s: { calls: { url: string; body?: unknown }[] }) =>
+    s.calls.filter((c) => c.url.includes('/terminal/tickets')).map((c) => c.body);
+  const openMenu = async () =>
+    fireEvent.pointerDown(await screen.findByRole('button', { name: 'Mở thêm terminal' }), {
+      button: 0,
+      ctrlKey: false,
+      pointerType: 'mouse',
+    });
+  const liveSlots = (slots: number[]) => ({
+    'GET /api/crew/companies/c1/terminal/sessions': {
+      body: {
+        items: slots.map((slot) => ({
+          machineId: MACHINE,
+          hostname: 'mac-mini',
+          projectKey: 'paperclip',
+          slot,
+          projectId: PROJECT,
+          projectName: 'Paperclip',
+          attached: 0,
+          createdAt: '2026-11-01T00:25:08.000Z',
+          activityAt: '2026-11-01T14:51:23.000Z',
+        })),
+        machines: [{ machineId: MACHINE, hostname: 'mac-mini', ok: true }],
+      },
+    },
+  });
+
+  it('chọn lại dự án đã có tab ở nút + thì mở tab mới slot trống, tiêu đề có (n), vé xin đúng slot', async () => {
+    const sockets = fakeSockets();
+    const s = mockServer({ ...TARGETS, ...TICKET_OK, ...liveSlots([1, 2]) });
+    mount();
+    fireEvent.click(await launcher());
+    await screen.findByText('2 phiên trên máy');
+    await openProject(/Paperclip/);
+    await openMenu();
+    fireEvent.click(await screen.findByRole('menuitem', { name: /Paperclip/ }));
+    await vi.waitFor(() => expect(sockets).toHaveLength(2));
+    const tabs = within(screen.getByRole('tablist')).getAllByRole('tab');
+    expect(tabs.map((x) => x.textContent)).toEqual([
+      expect.stringMatching(/^Paperclip(?! \()/),
+      expect.stringMatching(/^Paperclip \(3\)/),
+    ]);
+    expect(tabs[1].getAttribute('aria-selected')).toBe('true');
+    expect(ticketBodies(s)).toEqual([
+      { machineId: MACHINE, projectId: PROJECT, slot: 1 },
+      { machineId: MACHINE, projectId: PROJECT, slot: 3 },
+    ]);
+    expect(screen.getByRole('button', { name: 'Đóng terminal Paperclip (3)' })).toBeTruthy();
+  });
+
+  it('dự án đã dùng đủ 9 slot thì không mở thêm, báo nhẹ', async () => {
+    const sockets = fakeSockets();
+    mockServer({ ...TARGETS, ...TICKET_OK, ...liveSlots([2, 3, 4, 5, 6, 7, 8, 9]) });
+    mount();
+    fireEvent.click(await launcher());
+    await screen.findByText('8 phiên trên máy');
+    await openProject(/Paperclip/);
+    await vi.waitFor(() => expect(sockets).toHaveLength(1));
+    await openMenu();
+    fireEvent.click(await screen.findByRole('menuitem', { name: /Paperclip/ }));
+    expect(await screen.findByText(/Paperclip đã mở đủ 9 terminal trên mac-mini/)).toBeTruthy();
+    expect(within(screen.getByRole('tablist')).getAllByRole('tab')).toHaveLength(1);
+    expect(sockets).toHaveLength(1);
+  });
+
+  it('phiên trên máy: mỗi slot một dòng; Mở mở đúng slot, Tắt tắt đúng slot và chỉ đóng tab slot đó', async () => {
+    vi.stubGlobal('WebSocket', vi.fn());
+    const s = mockServer({
+      ...TARGETS,
+      ...LOCKED,
+      ...liveSlots([1, 2]),
+      'POST /api/crew/companies/c1/terminal/sessions/kill': { body: { killed: true } },
+    });
+    mount();
+    fireEvent.click(await launcher());
+    fireEvent.click(await screen.findByRole('button', { name: 'Phiên trên máy' }));
+    const mini = await screen.findByRole('region', { name: 'mac-mini' });
+    expect(within(mini).getByText('Paperclip')).toBeTruthy();
+    expect(within(mini).getByText('Paperclip (2)')).toBeTruthy();
+    fireEvent.click(within(mini).getAllByRole('button', { name: 'Mở' })[1]);
+    expect((await screen.findByRole('tab')).textContent).toMatch(/Paperclip \(2\)/);
+    await vi.waitFor(() => expect(ticketBodies(s)[0]).toEqual({ machineId: MACHINE, projectId: PROJECT, slot: 2 }));
+    // Slot 1 đang sống trên máy (có thể đang dùng ở trình duyệt khác) nên mở thêm lấy slot 3.
+    await openMenu();
+    fireEvent.click(await screen.findByRole('menuitem', { name: /Paperclip/ }));
+    await vi.waitFor(() => expect(within(screen.getByRole('tablist')).getAllByRole('tab')).toHaveLength(2));
+
+    fireEvent.click(screen.getByRole('button', { name: 'Phiên trên máy' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Tắt phiên Paperclip (2)' }));
+    const dialog = await screen.findByRole('alertdialog');
+    expect(within(dialog).getByText(/Paperclip \(2\) trên mac-mini sẽ tắt hẳn/)).toBeTruthy();
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Tắt phiên' }));
+    await vi.waitFor(() =>
+      expect(s.calls.find((c) => c.url.endsWith('/terminal/sessions/kill'))?.body).toEqual({
+        machineId: MACHINE,
+        projectKey: 'paperclip',
+        slot: 2,
+      }),
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Phiên trên máy' }));
+    await vi.waitFor(() => {
+      const tabs = within(screen.getByRole('tablist')).getAllByRole('tab');
+      expect(tabs).toHaveLength(1);
+      expect(tabs[0].textContent).toMatch(/^Paperclip \(3\)/);
+    });
+  });
+});
+
+describe('slot terminal', () => {
+  it('khoá tab gồm máy, dự án và slot', () => {
+    expect(tabKey({ machineId: 'm', projectId: 'a', slot: 1 })).toBe('m/a/1');
+    expect(tabKey({ machineId: 'm', projectId: 'a', slot: 3 })).toBe('m/a/3');
+  });
+
+  it('slot trống nhỏ nhất 1..9, hết thì null', () => {
+    expect(freeSlot([])).toBe(1);
+    expect(freeSlot([1, 2, 4])).toBe(3);
+    expect(freeSlot([2, 1, 1])).toBe(3);
+    expect(freeSlot([1, 2, 3, 4, 5, 6, 7, 8, 9])).toBeNull();
+  });
+
+  it('tiêu đề tab: slot 1 giữ tên dự án, slot từ 2 thêm (n)', () => {
+    expect(tabTitle('Paperclip', 1)).toBe('Paperclip');
+    expect(tabTitle('Paperclip', 2)).toBe('Paperclip (2)');
+  });
+});
+
+describe('addTab / openTab / focusTarget / removeTab', () => {
   const base = { open: true, started: true, tabs: [], activeKey: null };
   const a = { machineId: 'm', projectId: 'a' };
   const b = { machineId: 'm', projectId: 'b' };
   const c = { machineId: 'm', projectId: 'c' };
+  const must = (s: ReturnType<typeof addTab>) => {
+    if (!s) throw new Error('hết slot');
+    return s;
+  };
 
-  it('mở lại dự án đã có thì chỉ chọn tab đó, không thêm tab trùng', () => {
-    const s = addTab(addTab(addTab(base, a), b), a);
-    expect(s.tabs).toEqual([a, b]);
-    expect(s.activeKey).toBe('m/a');
+  it('dự án chưa có tab thì mở slot 1 (gắn lại phiên tên cũ nếu còn sống)', () => {
+    const s = must(addTab(base, a, [1, 2]));
+    expect(s.tabs).toEqual([{ ...a, slot: 1 }]);
+    expect(s.activeKey).toBe('m/a/1');
+  });
+
+  it('dự án đã có tab thì mở tab mới ở slot trống nhỏ nhất, bỏ qua slot đang mở và phiên đang sống trên máy', () => {
+    let s = must(addTab(base, a));
+    s = must(addTab(s, b));
+    s = must(addTab(s, a, [2]));
+    expect(s.tabs).toEqual([
+      { ...a, slot: 1 },
+      { ...b, slot: 1 },
+      { ...a, slot: 3 },
+    ]);
+    expect(s.activeKey).toBe('m/a/3');
+    s = must(addTab(s, a));
+    expect(s.tabs.at(-1)).toEqual({ ...a, slot: 2 });
+  });
+
+  it('đủ 9 slot thì không mở thêm (null)', () => {
+    let s = must(addTab(base, a));
+    s = must(addTab(s, a, [2, 3, 4, 5, 6, 7, 8]));
+    expect(s.tabs.at(-1)).toEqual({ ...a, slot: 9 });
+    expect(addTab(s, a, [2, 3, 4, 5, 6, 7, 8])).toBeNull();
+    expect(must(addTab(s, b)).tabs).toHaveLength(3);
+  });
+
+  it('openTab mở đúng slot; đã có thì chỉ chọn tab đó', () => {
+    let s = openTab(base, { ...a, slot: 4 });
+    s = openTab(s, { ...b, slot: 1 });
+    s = openTab(s, { ...a, slot: 4 });
+    expect(s.tabs).toEqual([
+      { ...a, slot: 4 },
+      { ...b, slot: 1 },
+    ]);
+    expect(s.activeKey).toBe('m/a/4');
+  });
+
+  it('focusTarget chọn tab đầu tiên của dự án nếu đã có, chưa có thì mở slot 1', () => {
+    let s = openTab(openTab(base, { ...a, slot: 2 }), { ...a, slot: 1 });
+    s = focusTarget({ ...s, activeKey: null }, a);
+    expect(s.tabs).toHaveLength(2);
+    expect(s.activeKey).toBe('m/a/2');
+    s = focusTarget(s, b);
+    expect(s.tabs.at(-1)).toEqual({ ...b, slot: 1 });
+    expect(s.activeKey).toBe('m/b/1');
   });
 
   it('đóng tab đang chọn thì chọn tab bên phải, hết thì bên trái, hết tab thì không chọn gì', () => {
-    let s = addTab(addTab(addTab(base, a), b), c);
-    s = { ...s, activeKey: 'm/b' };
-    s = removeTab(s, 'm/b');
-    expect(s.activeKey).toBe('m/c');
-    s = removeTab(s, 'm/c');
-    expect(s.activeKey).toBe('m/a');
-    s = removeTab(s, 'm/a');
+    let s = must(addTab(must(addTab(must(addTab(base, a)), b)), c));
+    s = { ...s, activeKey: 'm/b/1' };
+    s = removeTab(s, 'm/b/1');
+    expect(s.activeKey).toBe('m/c/1');
+    s = removeTab(s, 'm/c/1');
+    expect(s.activeKey).toBe('m/a/1');
+    s = removeTab(s, 'm/a/1');
     expect(s).toMatchObject({ tabs: [], activeKey: null });
   });
 
-  it('đóng tab khác không đổi tab đang chọn', () => {
-    const s = removeTab(addTab(addTab(base, a), b), 'm/a');
-    expect(s.activeKey).toBe('m/b');
+  it('đóng tab khác không đổi tab đang chọn; đóng slot này không đụng slot khác của cùng dự án', () => {
+    let s = must(addTab(must(addTab(base, a)), a));
+    s = removeTab(s, 'm/a/1');
+    expect(s.tabs).toEqual([{ ...a, slot: 2 }]);
+    expect(s.activeKey).toBe('m/a/2');
   });
 });

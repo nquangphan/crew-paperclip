@@ -7,6 +7,8 @@
 Owner mở terminal thật trên Mac của một project ngay từ trình duyệt (kể cả điện thoại) để chạy Claude Code hay lệnh
 tay trong một worktree riêng, không đụng checkout của agent. Vì terminal chạy lệnh thật trên máy nên mọi lớp đều chỉ cho
 owner: route, vé, WebSocket và trang. Mở khoá bằng mật khẩu đăng nhập, vé WebSocket dùng một lần, khoá máy kiểm chặt.
+Một project trên một máy mở được tới 9 terminal cùng lúc (slot 1..9), mỗi slot một phiên tmux riêng, chung worktree
+owner.
 
 ## Điểm vào
 
@@ -19,9 +21,9 @@ owner: route, vé, WebSocket và trang. Mở khoá bằng mật khẩu đăng nh
 | `GET …/terminal/targets` | — | `{ items: [{ machineId, hostname, projectId, projectName, projectKey, branch }] }` |
 | `GET …/terminal/unlock` | — | `{ unlocked, expiresAt }` |
 | `POST …/terminal/unlock` | `{ password }` | `{ expiresAt }`; 403 `crew_terminal_bad_password`, 429 `crew_terminal_unlock_throttled` |
-| `POST …/terminal/tickets` | `{ machineId, projectId }` | 201 `{ ticket, expiresAt }`; 423 `crew_terminal_locked`, 404 `crew_terminal_target_missing` |
-| `POST …/terminal/sessions/kill` | `{ machineId, projectKey }` | `{ killed }`; 423 `crew_terminal_locked`, 404 khi máy chưa ghép |
-| `GET …/terminal/sessions` | — | `{ items: [{ machineId, hostname, projectKey, projectId, projectName, attached, createdAt, activityAt }], machines: [{ machineId, hostname, ok }] }` |
+| `POST …/terminal/tickets` | `{ machineId, projectId, slot? }` (`slot` số nguyên 1..9, mặc định 1) | 201 `{ ticket, expiresAt }`; 423 `crew_terminal_locked`, 404 `crew_terminal_target_missing` |
+| `POST …/terminal/sessions/kill` | `{ machineId, projectKey, slot? }` (mặc định 1) | `{ killed }`; 423 `crew_terminal_locked`, 404 khi máy chưa ghép |
+| `GET …/terminal/sessions` | — | `{ items: [{ machineId, hostname, projectKey, slot, projectId, projectName, attached, createdAt, activityAt }], machines: [{ machineId, hostname, ok }] }` |
 
   Body sai dạng thì 400 `crew_terminal_invalid`; không phải owner thì lỗi quyền của `requireOwner`.
 - WebSocket `GET /api/crew/companies/:companyId/terminal/ws?ticket=&cols=&rows=`: `setupCrewTerminalWebSocketServer`
@@ -35,8 +37,8 @@ owner: route, vé, WebSocket và trang. Mở khoá bằng mật khẩu đăng nh
 
 1. Trang Máy (`terminal-targets-block.tsx` → `TerminalTargetsBlock`, chỉ render khi `useCompanyAccess().isOwner`, nên
    người khác không gọi API): `terminal.targets` rồi nhóm theo máy (`groupTargetsByMachine` của `target-picker.ts`); mỗi project một dòng (tên, `projectKey`) với nút
-   "Mở terminal" mở khung nổi và mở tab cho project đó (đã có tab thì chọn tab đó; nút bị khoá khi không có khung nổi,
-   tức không phải owner).
+   "Mở terminal" mở khung nổi và mở tab cho project đó (`focusTarget`: đã có tab thì chọn tab đầu tiên của project, chưa
+   có thì mở slot 1; nút bị khoá khi không có khung nổi, tức không phải owner).
    Không có project nào thì ghi "Chưa có dự án nào dựng xong trên máy."
 2. `targets.ts` → `listTerminalTargets`, `resolveTerminalTarget`: project có `project_machines.status = 'ready'` trên
    máy còn ghép (`machine_pairings.revoked_at IS NULL`), kèm `project_repos.branch` (`null` khi project chưa ghi origin).
@@ -51,7 +53,8 @@ owner: route, vé, WebSocket và trang. Mở khoá bằng mật khẩu đăng nh
    qua đi; nhập đúng xoá bộ đếm. Mỗi lần thử được ghi (`reserve`) trước khi kiểm mật khẩu, nên gửi nhiều yêu cầu cùng lúc
    cũng không vượt 5 lần kiểm. Không log mật khẩu.
 4. Vé (`ticket-store.ts`): `POST …/tickets` cần đã mở khoá và project vẫn `ready`; vé sống 60 giây, dùng một lần
-   (`consume` xoá ngay), kho chỉ giữ sha256 của vé, ràng với company, user, phiên, máy và project.
+   (`consume` xoá ngay), kho chỉ giữ sha256 của vé, ràng với company, user, phiên, máy, project và `slot`
+   (`TerminalTicketClaims`). `slot` ngoài 1..9 hay không phải số nguyên thì 400.
 5. Nâng cấp WebSocket (`terminal-ws.ts` → `authorize`), mọi bước chạy trước khi tạo socket, hỏng thì 401/403 rồi huỷ
    socket: có phiên → tiêu thụ vé (401 nếu thiếu hay đã dùng) → vé khớp company, user, phiên → vẫn là owner đang hoạt động
    → phiên còn mở khoá → project còn `ready` trên máy → máy có thông tin SSH. `cols`/`rows` ngoài khoảng cho phép thì
@@ -64,16 +67,19 @@ owner: route, vé, WebSocket và trang. Mở khoá bằng mật khẩu đăng nh
    (`StringDecoder`) để ký tự nhiều byte (tiếng Việt, khung kẻ của TUI) bị cắt giữa hai gói SSH không thành `�`. Khoá máy: khi
    `strictHostKeyChecking` bật, so khoá do máy trình với `known_hosts` theo khoá (không theo tên máy), dòng `@revoked`
    khớp thì loại, dòng `@cert-authority` bỏ qua; không có dòng khớp thì từ chối ("Khoá máy không khớp known_hosts").
-7. Lệnh trên Mac (`remote-command.ts` → `buildOwnerTerminalCommand`): kiểm chặt `projectKey` và tên nhánh trước khi
-   nhúng, rồi quote cả script. Chạy `unset PAPERCLIP_RUN_ID`; tìm tmux bằng `command -v tmux`, không thấy thì thử
+7. Lệnh trên Mac (`remote-command.ts` → `buildOwnerTerminalCommand({ projectKey, branch, slot })`, `slot` lấy từ vé):
+   kiểm chặt `projectKey`, tên nhánh và slot trước khi nhúng, rồi quote cả script. Chạy `unset PAPERCLIP_RUN_ID`; tìm tmux bằng `command -v tmux`, không thấy thì thử
    `/opt/homebrew/bin/tmux` rồi `/usr/local/bin/tmux` (như crew-mac dò) và chạy đúng đường dẫn tìm được; vẫn thiếu tmux hay
    project chưa dựng thì in lý do và thoát. Dựng worktree `~/crew-agents/<khóa>/owner` trên nhánh `owner/<khóa>` nếu chưa
    có. Repo gốc là `~/crew-agents/<khóa>/repo` nếu có, không thì repo chính của một worktree vai trong thư mục đó (dòng
    đầu `git worktree list`; bỏ qua symlink companion). Trước hết gỡ đúng đăng ký worktree `owner` cũ
    (`git worktree remove --force`; thư mục owner bị xoá tay thì dựng lại được; không prune cả repo vì repo có thể là bản
    clone riêng của owner), fetch `origin/<nhánh>` (không biết nhánh thì fetch `origin`, thiếu `origin/HEAD` thì
-   `remote set-head origin -a`, rồi dựng từ `origin/HEAD`), dùng lại nhánh `owner/<khóa>` nếu đã tồn tại; rồi `tmux -L crew new-session -A -s crew-owner-<khóa>` (kèm `-f ~/.crew-mac/tmux.conf`
-   nếu có file đó): gắn lại phiên cũ hoặc tạo mới, nên đóng tab không giết phiên.
+   `remote set-head origin -a`, rồi dựng từ `origin/HEAD`), dùng lại nhánh `owner/<khóa>` nếu đã tồn tại; rồi `tmux -L crew new-session -A -s <tên phiên> -c ~/crew-agents/<khóa>/owner`
+   (kèm `-f ~/.crew-mac/tmux.conf` nếu có file đó): gắn lại phiên cũ hoặc tạo mới, nên đóng tab không giết phiên.
+   Tên phiên (`ownerSessionName`): slot 1 là `crew-owner-<khóa>` (tên cũ, nên phiên mở trước khi có slot vẫn gắn lại
+   được), slot n từ 2 là `crew-owner-<khóa>_<n>`. `_` không có trong khóa (`^[a-z][a-z0-9-]{1,30}$`) nên không nhập
+   nhằng; tmux không cho `.` hay `:` trong tên phiên. Mọi slot cùng cwd là worktree owner.
 8. Khung WebSocket: máy chủ gửi `ready`, `output`, `closed`, `error`; trình duyệt gửi `input` và `resize`. Lỗi gửi cho
    trình duyệt là câu chung, không lộ lỗi SSH thô, và trang chỉ hiện các lý do đóng/lỗi của server bằng câu tiếng Việt
    i18n (`use-terminal-socket.ts` trả `notice`, không hiện chuỗi thô); log chỉ ghi user, máy, project và lý do đóng (không ghi vé, phím gõ hay
@@ -82,9 +88,14 @@ owner: route, vé, WebSocket và trang. Mở khoá bằng mật khẩu đăng nh
 9. Khung nổi (`terminal-dock.tsx`): `TerminalDockProvider` luôn bọc cây con ở cùng chỗ (tải xong vai trò không dựng lại
    trang); chỉ owner có `TerminalLauncher` (nút tròn; có tab thì gắn huy hiệu `đang nối/đã mở`, xanh khi có tab đang nối)
    và `TerminalDockPanel` (desktop: khung 56rem × 36rem trên nút tròn; điện thoại: phủ cả màn hình, nút tròn ẩn). Không tự
-   mở terminal nào: khung chưa có tab thì hiện danh sách dự án theo máy (`TerminalPickerList`) để owner chọn. Mỗi dự án
-   trên một máy là một tab (`addTab`: mở lại dự án đã có thì chỉ chọn tab đó); `TerminalTabs` hiện tên, máy và trạng thái
-   kết nối của từng tab, nút đóng; nút "+" (`TerminalPickerMenu`) mở thêm tab. Thanh trên (`TerminalDockHeader`) ghi
+   mở terminal nào: khung chưa có tab thì hiện danh sách dự án theo máy (`TerminalPickerList`) để owner chọn. Mỗi tab là
+   một slot của một dự án trên một máy (`TabRef`, khoá `tabKey` = `<machineId>/<projectId>/<slot>`). Chọn dự án ở danh
+   sách hay nút "+" (`TerminalPickerMenu`) gọi `addTab`: dự án chưa có tab thì mở slot 1 (gắn lại phiên tên cũ nếu còn
+   sống); đã có tab thì mở tab mới ở slot trống nhỏ nhất (`freeSlot`), bỏ qua cả slot đang mở ở tab lẫn slot có phiên
+   đang sống trên máy (theo danh sách "Phiên trên máy" đã tải) để không gắn nhầm vào phiên đang dùng ở trình duyệt khác;
+   muốn gắn lại phiên cũ thì mở từ "Phiên trên máy". Đủ 9 slot thì không mở thêm, hiện dải báo vàng
+   "<tên> đã mở đủ 9 terminal trên <máy>…" tự ẩn sau 5 giây. Tiêu đề tab (`tabTitle`) là tên dự án, slot từ 2 thêm
+   " (n)". `TerminalTabs` hiện tên, máy và trạng thái kết nối của từng tab, nút đóng. Thanh trên (`TerminalDockHeader`) ghi
    "<n> terminal · <m> đang kết nối", nhóm cỡ chữ A−/A+ (chung mọi tab, lưu `localStorage`) và nút ẩn. Bấm lần đầu mới tải
    `terminal.targets`; tab đầu tiên mới nạp lười `terminal-session.tsx` (xterm). Ẩn khung hay đổi tab chỉ đặt `hidden`,
    không gỡ: mọi phiên giữ kết nối khi ẩn, khi đổi tab, khi chuyển trang trong app; đóng tab mới ngắt WebSocket (phiên
@@ -94,19 +105,21 @@ owner: route, vé, WebSocket và trang. Mở khoá bằng mật khẩu đăng nh
    Phiên trên máy: nút `TerminalViewToggle` (biểu tượng màn hình, kèm số) đổi sang `TerminalMachineSessions`, liệt kê
    phiên tmux owner đang sống trên từng Mac (`GET …/terminal/sessions`, tải lại 15 giây một lần khi khung đang hiện):
    tên dự án (hoặc khóa khi dự án không còn sẵn sàng), số cửa sổ đang xem (`attached`, tính cả tab của chính trình duyệt
-   này), hoạt động lần cuối; nút Mở mở tab cho phiên đó. Máy không hỏi được thì ghi rõ. Thanh trên ghi thêm
+   này), hoạt động lần cuối; mỗi slot một dòng (tên có " (n)" từ slot 2), nút Mở mở tab cho đúng slot đó (`openTab`). Máy không hỏi được thì ghi rõ. Thanh trên ghi thêm
    "<k> phiên trên máy"; danh sách chọn ghi "đang chạy trên máy" cạnh dự án đã có phiên. Phần tab chỉ bị giấu
    (`TerminalPane`) khi xem mục này nên các phiên vẫn nối.
    Server (`routes.ts`): với mỗi máy có project `ready`, lấy thông tin SSH (`resolveMachineSshTarget`) rồi
    `connector.run` (kênh không PTY, tối đa 10 giây, stdout tối đa 64 KiB) lệnh chỉ đọc `buildListOwnerSessionsCommand`
    (`tmux -L crew list-sessions`, dò tmux như lệnh mở; thiếu tmux thì rỗng); `parseOwnerSessions` chỉ giữ phiên
-   `crew-owner-<khóa>` hợp lệ. Máy lỗi thì log `crew terminal sessions failed` và trả `ok: false`, không làm hỏng máy khác.
+   `crew-owner-<khóa>` (slot 1) và `crew-owner-<khóa>_<2..9>` có khóa hợp lệ, trả kèm `slot`; hậu tố khác (`_1`, `_10`,
+   `_x`) bị bỏ. Máy lỗi thì log `crew terminal sessions failed` và trả `ok: false`, không làm hỏng máy khác.
    Máy chưa có project `ready` nào thì không được hỏi.
    Tắt phiên: mỗi dòng có nút tắt (biểu tượng nguồn) → hộp xác nhận (`ConfirmDialog`) → `POST …/terminal/sessions/kill`.
    Server cần đã mở khoá (423 thì web báo mở một tab và nhập mật khẩu trước), lấy SSH của máy đã ghép rồi `connector.run`
-   lệnh `buildKillOwnerSessionCommand` (`tmux -L crew kill-session -t "=crew-owner-<khóa>"`, khớp đúng tên; in `killed`
-   hoặc `missing`, luôn thoát 0); log `crew terminal session killed`. Chương trình trong phiên dừng ngay; worktree owner giữ.
-   Tắt xong web đóng tab đang mở cho phiên đó và tải lại danh sách.
+   lệnh `buildKillOwnerSessionCommand(projectKey, slot)` (`tmux -L crew kill-session -t "=<tên phiên của slot>"`, khớp
+   đúng tên nên tắt slot 1 không đụng `_2`; in `killed` hoặc `missing`, luôn thoát 0); log `crew terminal session killed`
+   kèm `slot`. Chương trình trong phiên dừng ngay; worktree owner giữ. Tắt xong web đóng đúng tab của slot đó và tải lại
+   danh sách.
    Một tab (`terminal-session.tsx` → `TerminalSession`, vẽ bằng `TerminalScreen`; `use-terminal-socket.ts`): luôn nền tối
    (token `--terminal-*` trong `tokens.css`, class `dark` của khung). Thông báo nằm giữa khung (`TerminalPanel`) thay vì
    đẩy khung xuống: đang nối, khoá, đã ngắt (kèm Nối lại). Xin vé mới ở mỗi lần nối rồi mở WebSocket, rớt mạng thì nối lại (tmux vẽ lại
@@ -137,16 +150,16 @@ owner: route, vé, WebSocket và trang. Mở khoá bằng mật khẩu đăng nh
 | `server/src/crew/terminal/unlock-throttle.ts` | 5 lần sai / 15 phút theo user | `crewTerminalUnlockThrottle`, `createUnlockThrottle` |
 | `server/src/crew/terminal/ticket-store.ts` | Vé WebSocket một lần, 60 giây | `crewTerminalTicketStore`, `createTerminalTicketStore` |
 | `server/src/crew/terminal/ssh-connector.ts` | Thông tin SSH máy, kênh PTY, luật khoá máy | `resolveMachineSshTarget`, `createSsh2CrewTerminalConnector` (`open` PTY, `run` lệnh ngắn) |
-| `server/src/crew/terminal/remote-command.ts` | Lệnh worktree owner và phiên tmux; lệnh liệt kê phiên | `buildOwnerTerminalCommand`, `buildListOwnerSessionsCommand`, `parseOwnerSessions`, `buildKillOwnerSessionCommand` |
+| `server/src/crew/terminal/remote-command.ts` | Lệnh worktree owner và phiên tmux; lệnh liệt kê phiên | `ownerSessionName`, `MAX_OWNER_SLOTS`, `buildOwnerTerminalCommand`, `buildListOwnerSessionsCommand`, `parseOwnerSessions`, `buildKillOwnerSessionCommand` |
 | `server/src/crew/contribution-routes.ts` | File chứa router cha (flow `contributions`) | `crewContributionRoutes` |
 | `server/src/index.ts` | File upstream đăng ký WebSocket | `setupCrewTerminalWebSocketServer` |
 | `packages/crew-web/src/api/crew/terminal.ts` | Client API | `terminalApi` |
 | `packages/crew-web/src/features/machines/terminal-targets-block.tsx` | Khối Terminal trên trang Máy | `TerminalTargetsBlock` |
-| `packages/crew-web/src/features/terminal/terminal-dock.tsx` | Nút tròn, khung nổi, danh sách tab và trạng thái từng tab | `TerminalDockProvider`, `useTerminalDock`, `addTab`, `removeTab` |
+| `packages/crew-web/src/features/terminal/terminal-dock.tsx` | Nút tròn, khung nổi, danh sách tab và trạng thái từng tab | `TerminalDockProvider`, `useTerminalDock`, `addTab`, `openTab`, `focusTarget`, `removeTab` |
 | `packages/crew-web/src/features/terminal/terminal-session.tsx` | Một tab terminal trong khung nổi | `TerminalSession` |
 | `packages/crew-web/src/features/terminal/use-terminal-socket.ts` | Vé, nối, nối lại | `useTerminalSocket`, `terminalSocketUrl` |
 | `packages/crew-web/src/features/terminal/unlock-panel.tsx` | Ô mật khẩu giữa khung terminal | `UnlockPanel` |
-| `packages/crew-web/src/features/terminal/target-picker.ts` | Nhóm dự án theo máy cho menu chọn, khoá tab | `groupTargetsByMachine`, `pickerGroups`, `targetKey` |
+| `packages/crew-web/src/features/terminal/target-picker.ts` | Nhóm dự án theo máy cho menu chọn, khoá tab, slot | `groupTargetsByMachine`, `pickerGroups`, `targetKey`, `tabKey`, `freeSlot`, `tabTitle`, `MAX_SLOTS` |
 | `packages/crew-web/src/features/terminal/mount-xterm.ts` | Gắn xterm và addon | `mountXterm` |
 | `packages/crew-web/src/features/terminal/osc52-clipboard.ts` | Ghi chữ tmux chép (OSC 52) vào clipboard, không cho đọc | `writeOnlyClipboard` |
 | `packages/crew-web/src/features/terminal/touch-scroll.ts` | Vuốt trên điện thoại thành cuộn | `attachTouchScroll` |
@@ -160,8 +173,8 @@ owner: route, vé, WebSocket và trang. Mở khoá bằng mật khẩu đăng nh
 - Không có bảng mới. Đọc `project_machines`, `machine_pairings`, `project_repos` (bảng plugin), `projects`,
   `company_memberships`, tài khoản đăng nhập Better Auth và environment mẫu của máy.
 - Trạng thái mở khoá, bộ đếm sai và kho vé nằm trong bộ nhớ tiến trình server.
-- Trên Mac: worktree `~/crew-agents/<khóa>/owner` (nhánh `owner/<khóa>`), phiên tmux `crew-owner-<khóa>` trên socket
-  `-L crew`.
+- Trên Mac: worktree `~/crew-agents/<khóa>/owner` (nhánh `owner/<khóa>`), phiên tmux `crew-owner-<khóa>` (slot 1) và
+  `crew-owner-<khóa>_<2..9>` trên socket `-L crew`.
 - Trình duyệt: `localStorage` khóa `crew.terminal.fontScale`.
 
 ## Flow liên quan
@@ -177,22 +190,26 @@ owner: route, vé, WebSocket và trang. Mở khoá bằng mật khẩu đăng nh
 ## Tests
 
 - `server/src/__tests__/crew-terminal-stores.test.ts`: hạn mở khoá 12 giờ, 5 lần sai / 15 phút (kể cả nhiều lần thử
-  cùng lúc), vé một lần và hết hạn.
+  cùng lúc), vé một lần (giữ cả `slot`) và hết hạn.
 - `server/src/__tests__/crew-terminal-routes.db.test.ts` (Postgres nhúng): chỉ owner, danh sách máy/project `ready`,
   mở khoá đúng/sai/bị chặn, 10 lần sai gửi cùng lúc chỉ tối đa 5 lần được kiểm, vé cần mở khoá, project không còn
-  `ready` thì 404, project dùng bản clone sẵn của owner vẫn có khóa (từ checkout agent) và nhánh `null`.
+  `ready` thì 404, vé nhận `slot` 1..9 (mặc định 1, ngoài khoảng thì 400), danh sách phiên trả `slot`, tắt phiên đúng
+  slot (`_3`) và từ chối slot lạ, project dùng bản clone sẵn của owner vẫn có khóa (từ checkout agent) và nhánh `null`.
 - `server/src/__tests__/crew-terminal-ws.test.ts`: từng bước chặn lúc nâng cấp (phiên, vé, khớp phiên, owner, mở khoá,
   project, SSH), chuyển khung input/output/resize, đóng sạch, không lộ lỗi thô; đang mở mà phiên bị thu hồi, mất vai
-  owner hay hết mở khoá thì đóng 1008.
+  owner hay hết mở khoá thì đóng 1008; vé slot 2 gắn phiên `crew-owner-<khóa>_2`.
 - `server/src/__tests__/crew-terminal-ssh-connector.test.ts`: luật `known_hosts` (khớp khoá, `@revoked`,
   `@cert-authority`, không có dòng), ký tự UTF-8 bị cắt giữa hai gói, và lấy thông tin SSH của máy.
 - `server/src/__tests__/crew-terminal-remote-command.test.ts`: từ chối khoá và nhánh lạ, script worktree owner và tmux,
-  thứ tự dò tmux, nhánh `null` dựng từ `origin/HEAD`; chạy thật với repo git và tmux giả: dựng worktree owner, dựng lại
+  thứ tự dò tmux, nhánh `null` dựng từ `origin/HEAD`, tên phiên theo slot (slot 1 tên cũ, `_n` từ 2, từ chối slot lạ),
+  `parseOwnerSessions` đọc slot và bỏ hậu tố lạ, lệnh tắt đúng slot; chạy thật với repo git và tmux giả: dựng worktree owner, dựng lại
   sau khi thư mục owner bị xoá tay mà không gỡ đăng ký worktree khác đang mất thư mục, và tìm repo gốc là bản clone ngoài `crew-agents` qua worktree vai (bỏ qua symlink).
   Ca thiếu tmux bỏ qua khi máy chạy test có tmux ở chỗ lệnh tự dò.
 - `packages/crew-web/test/features/machines/terminal-targets-block.test.tsx`: nhóm theo máy, href và `target="_blank"`,
   trạng thái trống, người không phải owner không thấy khối và không gọi API.
-- `packages/crew-web/test/features/terminal/terminal-dock.test.tsx`: nút tròn chỉ owner, không tự mở terminal, chọn dự án mở tab, đếm số đang mở/đang nối và trạng thái từng tab, ẩn và đổi tab giữ phiên, đóng tab, nút trên trang Máy mở đúng dự án; `addTab`/`removeTab`.
+- `packages/crew-web/test/features/terminal/terminal-dock.test.tsx`: nút tròn chỉ owner, không tự mở terminal, chọn dự án mở tab, đếm số đang mở/đang nối và trạng thái từng tab, ẩn và đổi tab giữ phiên, đóng tab, nút trên trang Máy mở đúng dự án; chọn lại dự án ở nút "+" mở tab slot trống kèm " (n)" và xin vé đúng slot, đủ 9 slot
+  thì báo không mở thêm, "Phiên trên máy" mỗi slot một dòng, mở/tắt đúng slot và chỉ đóng tab slot đó; `tabKey`,
+  `freeSlot`, `tabTitle`, `addTab`/`openTab`/`focusTarget`/`removeTab`.
 - `packages/crew-web/test/features/terminal/touch-scroll.test.ts`: vuốt ở màn hình phụ phát wheel đúng chiều và kẹp tọa độ,
   màn hình thường cuộn theo dòng, bỏ qua hai ngón, gỡ listener khi dispose.
 - `packages/crew-web/test/features/terminal/xterm-options.test.ts`, `paste.test.ts`, `accessory-keys.test.tsx`: tuỳ chọn
@@ -201,6 +218,6 @@ owner: route, vé, WebSocket và trang. Mở khoá bằng mật khẩu đăng nh
   hỏi đọc trả rỗng không gọi `readText`, trình duyệt từ chối ghi thì không ném lỗi.
 - `packages/crew-web/test/features/terminal/shift-enter.test.ts`: Shift+Enter gửi ESC+CR, Enter thường, tổ hợp khác và
   lúc bộ gõ đang soạn chữ thì để xterm tự xử lý.
-- `packages/crew-web/test/features/terminal/use-terminal-socket.test.tsx`: 423 thành `locked`, 4xx khác báo thiếu
+- `packages/crew-web/test/features/terminal/use-terminal-socket.test.tsx`: xin vé đúng `slot`, 423 thành `locked`, 4xx khác báo thiếu
   máy/project không nối lại, khung `closed`/`error` của server thành `notice` chung không lộ lý do thô, 5 lần liền đóng
   trước `ready` thì dừng với `connectFailed`, `ready` đếm lại.

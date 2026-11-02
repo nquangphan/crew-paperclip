@@ -9,6 +9,8 @@ export type TerminalTicketClaims = {
   sessionId: string;
   machineId: string;
   projectId: string;
+  /** Terminal thứ mấy của project trên máy đó (1..9), quyết định tên phiên tmux. */
+  slot: number;
 };
 
 export interface TerminalTicketStore {
