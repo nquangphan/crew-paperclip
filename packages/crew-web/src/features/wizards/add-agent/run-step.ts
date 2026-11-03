@@ -18,6 +18,7 @@ import {
   crewExtraArgsOf,
   crewRuntimeConfigOf,
   crewWrapperCommand,
+  executorIndex,
   INSTRUCTIONS_PATH,
   isRuntimeSlot,
   putInstructions,
@@ -129,12 +130,12 @@ async function rolesOf(ctx: AddAgentContext, run: SetupRun): Promise<ProjectRole
   return roles;
 }
 
-/** Vai trò mới khi đặt `agentId` vào `slot` (thay agent cũ của ô, executor-2 chưa có thì thêm). */
+/** Vai trò mới khi đặt `agentId` vào `slot` (thay agent cũ của ô; ô executor chưa có thì thêm vào cuối danh sách). */
 export function withSlot(roles: ProjectRoles, slot: CrewRoleSlot, agentId: string): ProjectRoles {
   if (isRuntimeSlot(slot)) return { ...roles, [RUNTIME_SLOT_KEYS[slot]]: agentId };
   const executors = [...roles.executorAgentIds];
-  if (slot === 'executor') executors[0] = agentId;
-  if (slot === 'executor-2') executors[executors.length >= 2 ? 1 : executors.length] = agentId;
+  const index = executorIndex(slot);
+  if (index >= 0) executors[Math.min(index, executors.length)] = agentId;
   return {
     ...roles,
     assistantAgentId: slot === 'assistant' ? agentId : roles.assistantAgentId,

@@ -2,8 +2,13 @@
 export type MachineJobKind = "inspect-folder" | "prepare-checkouts" | "agent-workspace" | "skill-sync" | "check"
   | "remove-checkouts" | "skill-remove" | "runtimes-setup" | "ensure-project";
 export type MachineJobStatus = "queued" | "claimed" | "done" | "failed" | "cancelled";
+/** Số executor Claude tối đa của một project (ô `executor`, `executor-2` … `executor-5`). */
+export const MAX_EXECUTORS = 5;
+/** Ô executor Claude theo thứ tự trong `executorAgentIds`: phần tử đầu là `executor`, phần tử thứ N là `executor-N`. */
+export const EXECUTOR_SLOTS = ["executor", "executor-2", "executor-3", "executor-4", "executor-5"] as const;
+export type ExecutorSlot = (typeof EXECUTOR_SLOTS)[number];
 /** `executor-codex`, `executor-opencode`, `reviewer-codex`: agent chạy runtime ngoài Claude, mỗi ô một agent. */
-export type CrewRoleSlot = "assistant" | "executor" | "executor-2" | "reviewer" | "integrator"
+export type CrewRoleSlot = "assistant" | ExecutorSlot | "reviewer" | "integrator"
   | "executor-codex" | "executor-opencode" | "reviewer-codex";
 
 export const MACHINE_JOB_KINDS: readonly MachineJobKind[] = [
@@ -12,7 +17,7 @@ export const MACHINE_JOB_KINDS: readonly MachineJobKind[] = [
 ];
 export const MACHINE_JOB_STATUSES: readonly MachineJobStatus[] = ["queued", "claimed", "done", "failed", "cancelled"];
 export const CREW_ROLE_SLOTS: readonly CrewRoleSlot[] = [
-  "assistant", "executor", "executor-2", "reviewer", "integrator", "executor-codex", "executor-opencode", "reviewer-codex",
+  "assistant", ...EXECUTOR_SLOTS, "reviewer", "integrator", "executor-codex", "executor-opencode", "reviewer-codex",
 ];
 
 /** `result` is set when a job is `done`, and also when a `check` job is `failed` (the doctor items the board lists). */

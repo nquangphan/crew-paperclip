@@ -82,7 +82,8 @@ Luật chính:
 - WebSocket `/api/companies/:companyId/events/ws`.
 - Trình duyệt: `localStorage` khóa `crew.lang`; `sessionStorage` cho chống lặp tải lại.
 - Kiểu dữ liệu plugin: `api/crew/types.ts` là bản chép, bản gốc ở `packages/crew-plugin/src/jobs/types.ts` và
-  `packages/crew-plugin/src/setup/`; plugin đổi thì sửa cùng lúc. Logic dùng chung lấy qua subpath `shared/*` của plugin.
+  `packages/crew-plugin/src/setup/`; plugin đổi thì sửa cùng lúc (ví dụ `AddProjectInput.executors` là số 1–5, cùng
+  `MAX_EXECUTORS` của plugin). Logic dùng chung lấy qua subpath `shared/*` của plugin.
 
 ## Flow liên quan
 

@@ -169,7 +169,9 @@ Giống loại `docs`: loại chỉ là nhãn Paperclip `plan` trên issue gốc
    server trả 409 thì báo xung đột, không ghi đè, không thử lại; nội dung không đổi thì không PUT.
 8. `packages/crew-web/src/lib/instructions/agent-config.ts` → `crewAgentCreateBody`, `crewRuntimeConfigOf`,
    `crewExtraArgsOf`, `crewWrapperCommand`, `CREW_ROLE_SLOTS`: cấu hình agent Crew tạo từ web, cùng dạng với app Mac và
-   với `merge-agent-config.mjs`. Danh sách model chọn được, model và effort mặc định của ô (`crewModelsOf`, `slotModels`,
+   với `merge-agent-config.mjs`. Ô executor Claude là `EXECUTOR_SLOTS` (`executor`, `executor-2` … `executor-5`,
+   `MAX_EXECUTORS`); mọi ô đó dùng template và vai model `executor` (`roleOfSlot`, `modelRoleOfSlot`), `agentOfSlot`
+   đọc theo vị trí trong `executorAgentIds` (`executorIndex`). Danh sách model chọn được, model và effort mặc định của ô (`crewModelsOf`, `slotModels`,
    `defaultModelOf`, `defaultEffortOf`, `isCrewModel`) lấy từ `settings` của bảng cài đặt model (flow `model-settings`),
    không còn bản chép model nào trong file này; `crewAgentCreateBody` nhận `settings`, từ chối model ngoài catalog của ô
    và ghi effort của vai vào key effort của runtime. `crewModelsOf` trả id đã sắp tăng dần kiểu natural sort qua

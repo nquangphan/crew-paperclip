@@ -111,7 +111,8 @@ Luật chính:
 - `packages/crew-web/test/features/agents/`: danh sách và lọc, tổng quan và "Làm tiếp", AGENTS.md chỉ đọc và render
   lại, đổi model chỉ gửi `model`, đổi tên, cấu hình chạy chỉ đọc, bật tắt skill.
 - `packages/crew-web/test/features/projects/project-page.test.tsx`, `projects-page.test.tsx`, `rename-dialog.test.tsx`:
-  tải theo `urlKey`, các tab, "Làm tiếp", đổi tên chỉ gửi trường cho phép.
+  tải theo `urlKey`, các tab, "Làm tiếp", đổi tên chỉ gửi trường cho phép; nút "Thêm executor" mở ô kế tiếp và ẩn khi
+  đủ 5 executor.
 - `packages/crew-web/test/features/projects/machines-tab.test.tsx`: tab Máy của project (trạng thái dựng, Thêm máy/Thử lại, repo đi kèm).
 - `packages/crew-web/test/features/projects/roles-form.test.tsx`, `use-save-roles.test.ts`: tab Vai trò (xem flow
   `project-roles`).

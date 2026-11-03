@@ -90,7 +90,9 @@ it("stores project roles for a company, validates every id against the company a
   const migration = await readFile(new URL("../../migrations/0004_project_roles.sql", import.meta.url), "utf8");
   const runtimeColumns = (await readFile(new URL("../../migrations/0012_runtimes.sql", import.meta.url), "utf8"))
     .split(";").map((part) => part.trim()).filter((part) => part.includes("crew_project_roles"));
-  for (const statement of [...migration.split(";").map((part) => part.trim()).filter(Boolean), ...runtimeColumns]) {
+  const maxExecutors = (await readFile(new URL("../../migrations/0024_max_five_executors.sql", import.meta.url), "utf8"))
+    .split(";").map((part) => part.trim()).filter(Boolean);
+  for (const statement of [...migration.split(";").map((part) => part.trim()).filter(Boolean), ...runtimeColumns, ...maxExecutors]) {
     validatePluginMigrationStatement(statement, ns, manifest.database!.coreReadTables);
     await sql.unsafe(statement);
   }
@@ -156,7 +158,7 @@ it("stores project roles for a company, validates every id against the company a
   for (const body of [
     validBody({ integratorAgentId: reviewer }),
     validBody({ executorAgentIds: [] }),
-    validBody({ executorAgentIds: [executorA, executorB, spare] }),
+    validBody({ executorAgentIds: [executorA, executorB, spare, retired, fresh, executorA] }),
     validBody({ executorAgentIds: [executorA, executorA] }),
     validBody({ assistantAgentId: executorA }),
     validBody({ reviewerAgentId: executorB }),
@@ -293,13 +295,15 @@ describe("ô runtime: executor Codex/OpenCode và reviewer Codex", () => {
   it("lưu, giữ khi không gửi, xóa bằng null, kiểm adapterType của ô, không trùng và không chéo vai trò giữa project", async () => {
     host = await startPluginHost("crew-roles-runtime-");
     const { sql, ctx, ns } = host;
-    const [codexExec, opencodeExec, codexReview, codexOther, claudeSpare] = [21, 22, 23, 24, 25].map((n) => `40000000-0000-4000-8000-0000000000${n}`);
+    const [codexExec, opencodeExec, codexReview, codexOther, claudeSpare, executorC, executorD, executorE] = [21, 22, 23, 24, 25, 26, 27, 28]
+      .map((n) => `40000000-0000-4000-8000-0000000000${n}`);
     await sql`INSERT INTO companies (id,name,issue_prefix) VALUES (${companyId},'Crew','CRE')`;
     await sql`INSERT INTO projects (id,company_id,name) VALUES (${projectId},${companyId},'Repo A'),(${thirdProject},${companyId},'Repo C')`;
     for (const [id, adapterType] of [
       [assistant, "claude_local"], [executorA, "claude_local"], [executorB, "claude_local"], [reviewer, "claude_local"],
       [integrator, "claude_local"], [claudeSpare, "claude_local"], [codexExec, "codex_local"], [opencodeExec, "opencode_local"],
-      [codexReview, "codex_local"], [codexOther, "codex_local"],
+      [codexReview, "codex_local"], [codexOther, "codex_local"], [executorC, "claude_local"], [executorD, "claude_local"],
+      [executorE, "claude_local"],
     ] as const) {
       await sql`INSERT INTO agents (id,company_id,name,adapter_type) VALUES (${id},${companyId},${`Agent ${id.slice(-2)}`},${adapterType})`;
     }
@@ -315,6 +319,11 @@ describe("ô runtime: executor Codex/OpenCode và reviewer Codex", () => {
 
     // Client cũ không gửi ba trường: giữ nguyên ô runtime; null thì xóa ô.
     expect(await roles({ executorAgentIds: [executorA, executorB] })).toEqual({ status: 200, body: { roles: { ...saved, executorAgentIds: [executorA, executorB] } } });
+    // Tối đa 5 executor Claude; ô thứ 5 mang nhãn executor-5 khi báo sai runtime.
+    const five = [executorA, executorB, executorC, executorD, executorE];
+    expect(await roles({ executorAgentIds: five })).toEqual({ status: 200, body: { roles: { ...saved, executorAgentIds: five } } });
+    expect(await roles({ executorAgentIds: [...five.slice(0, 4), codexOther] }))
+      .toEqual({ status: 400, body: { error: `agent ${codexOther} chạy codex_local, ô executor-5 không nhận runtime ngoài Claude` } });
     expect(await roles({ ...base, opencodeExecutorAgentId: null })).toEqual({ status: 200, body: { roles: { ...saved, opencodeExecutorAgentId: null } } });
     const snapshot = JSON.stringify(await sql.unsafe(`SELECT * FROM ${ns}.crew_project_roles`));
     const unchanged = async () => expect(JSON.stringify(await sql.unsafe(`SELECT * FROM ${ns}.crew_project_roles`))).toBe(snapshot);

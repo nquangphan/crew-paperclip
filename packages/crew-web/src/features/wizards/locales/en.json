@@ -49,7 +49,7 @@
   },
   "addAgent": {
     "title": "Create agent",
-    "description": "Add a second executor or replace the agent of a role in a Crew project: create the agent, pin Superpowers, environment, checkout on the machine, record the role.",
+    "description": "Add another executor (up to 5) or replace the agent of a role in a Crew project: create the agent, pin Superpowers, environment, checkout on the machine, record the role.",
     "form": {
       "project": "Project",
       "projectPlaceholder": "Choose a project",
@@ -93,6 +93,9 @@
       "assistant": "Assistant",
       "executor": "Executor",
       "executor-2": "Second executor",
+      "executor-3": "Third executor",
+      "executor-4": "Fourth executor",
+      "executor-5": "Fifth executor",
       "reviewer": "Reviewer",
       "integrator": "Integrator",
       "executor-codex": "Codex executor",
@@ -127,7 +130,7 @@
     "keyRemoved": "This key was used by a removed project, choose another key",
     "keyEnvTaken": "An environment named after this key (<key>-<role>) already exists, choose another key",
     "name": "Project name must not be empty (at most 120 characters)",
-    "executors": "Executors must be 1 or 2",
+    "executors": "Executors must be between 1 and 5",
     "project": "Choose a project",
     "projectNoRoles": "The project has no role row yet: record roles on the project page first",
     "slot": "Choose a role slot",

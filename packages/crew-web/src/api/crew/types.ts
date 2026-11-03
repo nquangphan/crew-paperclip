@@ -165,7 +165,7 @@ export interface AddProjectInput {
   name: string;
   key: string;
   folder: string;
-  executors: 1 | 2;
+  executors: number;
 }
 export interface AddAgentInput {
   projectId: string;

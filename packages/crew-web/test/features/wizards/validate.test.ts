@@ -58,10 +58,12 @@ describe('validateAddProject', () => {
     expect(validateAddProject(FORM, ctx(env('demo', 'active'))).key).toBeUndefined();
   });
 
-  it('số executor chỉ 1 hoặc 2', () => {
+  it('số executor từ 1 đến 5', () => {
     expect(validateAddProject({ ...FORM, executors: 0 }, ctx()).executors).toBe('validate.executors');
-    expect(validateAddProject({ ...FORM, executors: 3 }, ctx()).executors).toBe('validate.executors');
+    expect(validateAddProject({ ...FORM, executors: 6 }, ctx()).executors).toBe('validate.executors');
+    expect(validateAddProject({ ...FORM, executors: 2.5 }, ctx()).executors).toBe('validate.executors');
     expect(validateAddProject({ ...FORM, executors: 2 }, ctx()).executors).toBeUndefined();
+    expect(validateAddProject({ ...FORM, executors: 5 }, ctx()).executors).toBeUndefined();
   });
 
   it('tên 1–120 ký tự', () => {

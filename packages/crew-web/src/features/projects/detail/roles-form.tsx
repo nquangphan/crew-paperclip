@@ -38,6 +38,9 @@ type SlotKey =
   | 'assistant'
   | 'executor1'
   | 'executor2'
+  | 'executor3'
+  | 'executor4'
+  | 'executor5'
   | 'reviewer'
   | 'integrator'
   | 'executorCodex'
@@ -49,6 +52,9 @@ const SLOTS: { key: SlotKey; optional?: boolean; runtime?: CrewRuntime }[] = [
   { key: 'assistant' },
   { key: 'executor1' },
   { key: 'executor2', optional: true },
+  { key: 'executor3', optional: true },
+  { key: 'executor4', optional: true },
+  { key: 'executor5', optional: true },
   { key: 'reviewer' },
   { key: 'integrator' },
   { key: 'executorCodex', optional: true, runtime: 'codex_local' },
@@ -60,6 +66,9 @@ const valuesOf = (roles: ProjectRoles | null): Values => ({
   assistant: roles?.assistantAgentId ?? '',
   executor1: roles?.executorAgentIds[0] ?? '',
   executor2: roles?.executorAgentIds[1] ?? '',
+  executor3: roles?.executorAgentIds[2] ?? '',
+  executor4: roles?.executorAgentIds[3] ?? '',
+  executor5: roles?.executorAgentIds[4] ?? '',
   reviewer: roles?.reviewerAgentId ?? '',
   integrator: roles?.integratorAgentId ?? '',
   executorCodex: roles?.codexExecutorAgentId ?? '',
@@ -71,7 +80,9 @@ const valuesOf = (roles: ProjectRoles | null): Values => ({
 export function rolesOf(values: Values): ProjectRoles {
   return {
     assistantAgentId: values.assistant,
-    executorAgentIds: [values.executor1, values.executor2].filter(Boolean),
+    executorAgentIds: [values.executor1, values.executor2, values.executor3, values.executor4, values.executor5].filter(
+      Boolean,
+    ),
     reviewerAgentId: values.reviewer,
     integratorAgentId: values.integrator,
     codexExecutorAgentId: values.executorCodex || null,

@@ -37,7 +37,7 @@ export interface SetupRun {
   status: SetupRunStatus; runningStep: SetupStepId | null; createdAt: string; updatedAt: string;
 }
 
-export interface AddProjectInput { name: string; key: string; folder: string; executors: 1 | 2 }
+export interface AddProjectInput { name: string; key: string; folder: string; executors: number }
 export interface AddAgentInput { projectId: string; slot: CrewRoleSlot; name: string; model: string }
 export interface RemoveProjectInput { projectId: string; projectName: string }
 /** `projectId` and `role` are both set (the agent holds that role) or both null. */

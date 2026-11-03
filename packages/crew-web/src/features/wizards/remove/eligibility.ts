@@ -23,7 +23,7 @@ export function blockOf(roles: ProjectRoles, slot: CrewRoleSlot): RemoveAgentBlo
   return roles.executorAgentIds.length < 2 ? 'onlyExecutor' : null;
 }
 
-/** Vai trò mới bỏ agent (executor-2 → bỏ; executor-1 → executor-2 lên executor-1; ô runtime → null). */
+/** Vai trò mới bỏ agent (executor bị bỏ khỏi danh sách, các executor sau dồn lên; ô runtime → null). */
 export function rolesWithout(roles: ProjectRoles, agentId: string): ProjectRoles {
   const next: ProjectRoles = { ...roles, executorAgentIds: roles.executorAgentIds.filter((id) => !same(id, agentId)) };
   for (const key of Object.values(RUNTIME_SLOT_KEYS)) {

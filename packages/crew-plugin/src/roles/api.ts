@@ -4,6 +4,7 @@ import {
   agentAdapterTypes, deleteProjectRoles, firstUnusableAgent, otherProjectRoles, projectInCompany, type ProjectRoles, readProjectRoles,
   RUNTIME_SLOT_KEYS, type RuntimeSlotKey, upsertProjectRoles,
 } from "./data.js";
+import { EXECUTOR_SLOTS, MAX_EXECUTORS } from "../jobs/types.js";
 
 const BODY_KEYS = ["companyId", "assistantAgentId", "executorAgentIds", "reviewerAgentId", "integratorAgentId", ...RUNTIME_SLOT_KEYS];
 /** Ô runtime và adapter mà agent của ô phải chạy. */
@@ -33,7 +34,7 @@ function parseRolesBody(body: unknown, companyId: string): RolesInput | string {
   }
   const executors = value.executorAgentIds;
   if (!Array.isArray(executors) || !executors.every(uuid)) return "executorAgentIds phải là mảng uuid";
-  if (executors.length < 1 || executors.length > 2) return "executorAgentIds phải có 1 hoặc 2 agent";
+  if (executors.length < 1 || executors.length > MAX_EXECUTORS) return `executorAgentIds phải có 1 đến ${MAX_EXECUTORS} agent`;
   const roles: RolesInput = {
     assistantAgentId: String(value.assistantAgentId).toLowerCase(),
     executorAgentIds: executors.map((id) => id.toLowerCase()),
@@ -75,7 +76,7 @@ function adapterError(roles: ProjectRoles, adapters: Map<string, string>): strin
     if (actual !== adapterType) return `agent ${id} chạy ${actual}, ô ${slot} cần ${adapterType}`;
   }
   const claudeSlots: [string, string][] = [
-    ["assistant", roles.assistantAgentId], ...roles.executorAgentIds.map((id, i): [string, string] => [i === 0 ? "executor" : "executor-2", id]),
+    ["assistant", roles.assistantAgentId], ...roles.executorAgentIds.map((id, i): [string, string] => [EXECUTOR_SLOTS[i]!, id]),
     ["reviewer", roles.reviewerAgentId], ["integrator", roles.integratorAgentId],
   ];
   for (const [slot, id] of claudeSlots) {

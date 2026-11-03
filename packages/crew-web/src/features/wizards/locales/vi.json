@@ -49,7 +49,7 @@
   },
   "addAgent": {
     "title": "Tạo agent",
-    "description": "Thêm executor thứ 2 hoặc thay agent của một vai trò trong project Crew: tạo agent, ghim Superpowers, environment, checkout trên máy, ghi vai trò.",
+    "description": "Thêm executor (tối đa 5) hoặc thay agent của một vai trò trong project Crew: tạo agent, ghim Superpowers, environment, checkout trên máy, ghi vai trò.",
     "form": {
       "project": "Project",
       "projectPlaceholder": "Chọn project",
@@ -93,6 +93,9 @@
       "assistant": "Trợ Lý",
       "executor": "Executor",
       "executor-2": "Executor thứ 2",
+      "executor-3": "Executor thứ 3",
+      "executor-4": "Executor thứ 4",
+      "executor-5": "Executor thứ 5",
       "reviewer": "Reviewer",
       "integrator": "Integrator",
       "executor-codex": "Executor Codex",
@@ -127,7 +130,7 @@
     "keyRemoved": "Khóa này đã dùng cho project đã gỡ, chọn khóa khác",
     "keyEnvTaken": "Đã có environment mang tên theo khóa này (<khóa>-<vai trò>), chọn khóa khác",
     "name": "Tên project không được trống (tối đa 120 ký tự)",
-    "executors": "Số executor phải là 1 hoặc 2",
+    "executors": "Số executor phải từ 1 đến 5",
     "project": "Chọn project",
     "projectNoRoles": "Project chưa có dòng vai trò: ghi vai trò ở trang project trước",
     "slot": "Chọn ô vai trò",

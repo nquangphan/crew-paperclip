@@ -23,6 +23,7 @@ import {
   Spinner,
 } from '@/ds';
 import { useT } from '@/i18n';
+import { EXECUTOR_SLOTS } from '@/lib/instructions';
 import { companyHref } from '../resume';
 import { type RunHooks, SetupProgress } from '../setup-progress';
 import { runAddProject } from './run-step';
@@ -121,7 +122,7 @@ function AddProjectFormView() {
       name: form.name.trim(),
       key: form.key,
       folder: form.folder,
-      executors: form.executors === 2 ? 2 : 1,
+      executors: form.executors,
     });
   };
 
@@ -215,8 +216,11 @@ function AddProjectFormView() {
                 <SelectValue />
               </SelectTrigger>
               <SelectContent position="popper">
-                <SelectItem value="1">1</SelectItem>
-                <SelectItem value="2">2</SelectItem>
+                {EXECUTOR_SLOTS.map((slot, i) => (
+                  <SelectItem key={slot} value={String(i + 1)}>
+                    {i + 1}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
           </Field>

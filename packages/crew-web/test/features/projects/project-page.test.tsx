@@ -86,6 +86,23 @@ describe('ProjectPage', () => {
     expect(link.getAttribute('href')).toBe('/TPS/agents/new?project=p1&slot=executor-2');
   });
 
+  it('tab Vai trò: "Thêm executor" mở ô kế tiếp, đủ 5 executor thì ẩn nút', async () => {
+    readiness.value = [];
+    const withExecutors = (ids: string[]) =>
+      server({
+        'GET /api/plugins/crew.core/api/projects/p1/roles': { body: { roles: { ...ROLES, executorAgentIds: ids } } },
+      });
+    withExecutors(['e1', 'e2', 'e3', 'e4'].map((n) => `${n}000000-0000-4000-8000-000000000000`));
+    mount('?tab=roles');
+    const link = await screen.findByRole('link', { name: 'Thêm executor' });
+    expect(link.getAttribute('href')).toBe('/TPS/agents/new?project=p1&slot=executor-5');
+    cleanup();
+    withExecutors(['e1', 'e2', 'e3', 'e4', 'e5'].map((n) => `${n}000000-0000-4000-8000-000000000000`));
+    mount('?tab=roles');
+    await screen.findByRole('button', { name: 'Sửa vai trò' });
+    expect(screen.queryByRole('link', { name: 'Thêm executor' })).toBeNull();
+  });
+
   it('tab Vai trò: ô runtime hiện tên agent đang giữ; ô trống có lối thêm bằng wizard', async () => {
     readiness.value = [];
     server({

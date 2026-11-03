@@ -1,4 +1,5 @@
 // Kiểm form bước 1 của wizard thêm project. Trả khóa dịch (namespace wizards), nơi hiện lỗi tự dịch.
+import { MAX_EXECUTORS } from '@/lib/instructions';
 import { ROLE_SLOTS } from '../add-agent/steps';
 import { slotName } from './steps';
 
@@ -75,6 +76,8 @@ export function validateAddProject(form: AddProjectForm, ctx: ValidateContext): 
 
   const name = form.name.trim();
   if (name === '' || form.name.length > NAME_MAX) errors.name = 'validate.name';
-  if (form.executors !== 1 && form.executors !== 2) errors.executors = 'validate.executors';
+  if (!Number.isInteger(form.executors) || form.executors < 1 || form.executors > MAX_EXECUTORS) {
+    errors.executors = 'validate.executors';
+  }
   return errors;
 }

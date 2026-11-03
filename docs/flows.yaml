@@ -573,6 +573,7 @@ flows:
       - packages/crew-web/test/features/wizards/add-agent.test.ts
       - packages/crew-web/test/features/wizards/add-project-page.test.tsx
       - packages/crew-web/test/features/wizards/add-project.test.ts
+      - packages/crew-web/test/features/wizards/executor-slots.test.ts
       - packages/crew-web/test/features/wizards/machine-host.test.ts
       - packages/crew-web/test/features/wizards/remove/eligibility.test.ts
       - packages/crew-web/test/features/wizards/remove/exclusive-environments.test.ts
@@ -592,6 +593,7 @@ flows:
       - packages/crew-plugin/src/roles/api.ts
       - packages/crew-web/src/features/projects/detail/roles-tab.tsx
     files:
+      - packages/crew-plugin/migrations/0024_max_five_executors.sql
       - packages/crew-plugin/src/roles/data.ts
       - packages/crew-web/src/api/crew/roles.ts
       - packages/crew-web/src/features/projects/detail/roles-form.tsx

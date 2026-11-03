@@ -1,7 +1,7 @@
 import type { PluginApiRequestInput, PluginApiResponse, PluginContext } from "@paperclipai/plugin-sdk";
 import { UUID } from "../shared/db.js";
 import { sanitizeJobError } from "../jobs/sanitize.js";
-import { CREW_ROLE_SLOTS, type CrewRoleSlot } from "../jobs/types.js";
+import { CREW_ROLE_SLOTS, type CrewRoleSlot, MAX_EXECUTORS } from "../jobs/types.js";
 import { folderError, unknownKeyError } from "../jobs/validate.js";
 import { abandonSetupRun, activeProjectRun, activeRemovalRun, beginStep, finishStep, getSetupRun, insertSetupRun, projectKeyOwners } from "./data.js";
 import {
@@ -66,8 +66,10 @@ function parseInput(kind: SetupRunKind, projectKey: string, input: unknown): Set
     if (input.key !== projectKey) return "input.key phải trùng projectKey";
     const folder = folderError(input.folder);
     if (folder) return folder;
-    if (input.executors !== 1 && input.executors !== 2) return "executors phải là 1 hoặc 2";
-    return { name: input.name, key: projectKey, folder: input.folder as string, executors: input.executors };
+    if (!Number.isInteger(input.executors) || (input.executors as number) < 1 || (input.executors as number) > MAX_EXECUTORS) {
+      return `executors phải từ 1 đến ${MAX_EXECUTORS}`;
+    }
+    return { name: input.name, key: projectKey, folder: input.folder as string, executors: input.executors as number };
   }
   const unknown = unknownKeyError(input, ["projectId", "slot", "name", "model"]);
   if (unknown) return unknown;

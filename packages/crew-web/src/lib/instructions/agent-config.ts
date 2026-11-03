@@ -8,13 +8,32 @@ import type { ModelEffort, ModelRole, ModelSettings } from '../../api/crew/model
 export type CrewRole = 'assistant' | 'executor' | 'reviewer' | 'integrator';
 export type CrewRuntime = 'claude_local' | 'codex_local' | 'opencode_local';
 export type CrewRuntimeSlot = 'executor-codex' | 'executor-opencode' | 'reviewer-codex';
-export type CrewRoleSlot = 'assistant' | 'executor' | 'executor-2' | 'reviewer' | 'integrator' | CrewRuntimeSlot;
+/** Số executor Claude tối đa của một project, cùng MAX_EXECUTORS của plugin (`src/jobs/types.ts`). */
+export const MAX_EXECUTORS = 5;
+/** Ô executor Claude theo thứ tự trong `executorAgentIds`: phần tử đầu là `executor`, phần tử thứ N là `executor-N`. */
+export const EXECUTOR_SLOTS = Object.freeze([
+  'executor',
+  'executor-2',
+  'executor-3',
+  'executor-4',
+  'executor-5',
+] as const);
+export type ExecutorSlot = (typeof EXECUTOR_SLOTS)[number];
+export type CrewRoleSlot = 'assistant' | ExecutorSlot | 'reviewer' | 'integrator' | CrewRuntimeSlot;
+
+/** Vị trí của ô executor Claude trong `executorAgentIds`; ô khác là -1. */
+export function executorIndex(slot: string): number {
+  return (EXECUTOR_SLOTS as readonly string[]).indexOf(slot);
+}
+
+export function isExecutorSlot(slot: string): slot is ExecutorSlot {
+  return executorIndex(slot) >= 0;
+}
 
 /** Mọi ô vai trò, cùng thứ tự CREW_ROLE_SLOTS của plugin (`src/jobs/types.ts`). */
 export const CREW_ROLE_SLOTS: readonly CrewRoleSlot[] = Object.freeze([
   'assistant',
-  'executor',
-  'executor-2',
+  ...EXECUTOR_SLOTS,
   'reviewer',
   'integrator',
   'executor-codex',
@@ -45,16 +64,16 @@ export function runtimeOfSlot(slot: CrewRoleSlot): CrewRuntime {
   return isRuntimeSlot(slot) ? SLOT_RUNTIME[slot] : 'claude_local';
 }
 
-/** Template AGENTS.md của ô: executor-2 và executor runtime dùng executor, reviewer Codex dùng reviewer. */
+/** Template AGENTS.md của ô: mọi ô executor (Claude và runtime) dùng executor, reviewer Codex dùng reviewer. */
 export function roleOfSlot(slot: CrewRoleSlot): CrewRole {
-  if (slot === 'executor-2' || slot === 'executor-codex' || slot === 'executor-opencode') return 'executor';
+  if (isExecutorSlot(slot) || slot === 'executor-codex' || slot === 'executor-opencode') return 'executor';
   if (slot === 'reviewer-codex') return 'reviewer';
   return slot;
 }
 
-/** Vai trong bảng cài đặt model của từng ô: `executor-2` dùng vai `executor`, các ô khác dùng vai cùng tên. */
+/** Vai trong bảng cài đặt model của từng ô: mọi ô executor Claude dùng vai `executor`, các ô khác dùng vai cùng tên. */
 export function modelRoleOfSlot(slot: CrewRoleSlot): ModelRole {
-  return slot === 'executor-2' ? 'executor' : slot;
+  return isExecutorSlot(slot) ? 'executor' : slot;
 }
 
 /**
@@ -297,8 +316,8 @@ export interface CrewSlotRoles {
 export function agentOfSlot(roles: CrewSlotRoles, slot: CrewRoleSlot): string | null {
   if (isRuntimeSlot(slot)) return roles[RUNTIME_SLOT_KEYS[slot]] || null;
   if (slot === 'assistant') return roles.assistantAgentId || null;
-  if (slot === 'executor') return roles.executorAgentIds[0] || null;
-  if (slot === 'executor-2') return roles.executorAgentIds[1] || null;
+  const index = executorIndex(slot);
+  if (index >= 0) return roles.executorAgentIds[index] || null;
   if (slot === 'reviewer') return roles.reviewerAgentId || null;
   return roles.integratorAgentId || null;
 }

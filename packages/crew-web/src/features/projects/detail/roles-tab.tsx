@@ -18,7 +18,7 @@ import {
 import { useCompanyAccess } from '@/features/access';
 import { useSelectableAgents } from '@/features/wizards';
 import { useT } from '@/i18n';
-import { agentOfSlot, type CrewRuntimeSlot, slotAgents } from '@/lib/instructions';
+import { agentOfSlot, type CrewRuntimeSlot, EXECUTOR_SLOTS, slotAgents } from '@/lib/instructions';
 import { companyHref } from '../paths';
 import { RolesForm } from './roles-form';
 import { useRoleAgents } from './use-role-agents';
@@ -29,6 +29,9 @@ const SLOTS = [
   ['assistant', 'assistant'],
   ['executor1', 'executor'],
   ['executor2', 'executor-2'],
+  ['executor3', 'executor-3'],
+  ['executor4', 'executor-4'],
+  ['executor5', 'executor-5'],
   ['reviewer', 'reviewer'],
   ['integrator', 'integrator'],
   ['executorCodex', 'executor-codex'],
@@ -80,6 +83,8 @@ export function RolesTab({ projectId }: { projectId: string }) {
     );
   }
   const roles = rolesQuery.data ?? null;
+  /** Ô executor kế tiếp còn trống; đủ MAX_EXECUTORS thì không còn. */
+  const nextExecutor = roles ? (EXECUTOR_SLOTS[roles.executorAgentIds.length] ?? null) : null;
   const nameOf = new Map((agentsQuery.data ?? []).map((a) => [a.id, a.name]));
 
   const retryAgain = (saved: ProjectRoles) =>
@@ -149,12 +154,12 @@ export function RolesTab({ projectId }: { projectId: string }) {
           ) : null}
           <div className="flex flex-wrap gap-2">
             {readOnly ? null : <Button onClick={() => setEditing(true)}>{t('roles.edit')}</Button>}
-            {!readOnly && roles && roles.executorAgentIds.length < 2 ? (
+            {!readOnly && nextExecutor ? (
               <Button asChild variant="outline">
                 <Link
                   to={companyHref(
                     company.issuePrefix,
-                    `agents/new?${new URLSearchParams({ project: projectId, slot: 'executor-2' })}`,
+                    `agents/new?${new URLSearchParams({ project: projectId, slot: nextExecutor })}`,
                   )}
                 >
                   {t('roles.addExecutor')}

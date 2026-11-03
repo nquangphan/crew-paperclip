@@ -1,0 +1,2 @@
+ALTER TABLE plugin_crew_core_0433ea20b6.crew_project_roles DROP CONSTRAINT crew_project_roles_executor_agent_ids_check;
+ALTER TABLE plugin_crew_core_0433ea20b6.crew_project_roles ADD CONSTRAINT crew_project_roles_executor_agent_ids_check CHECK (cardinality(executor_agent_ids) BETWEEN 1 AND 5);

@@ -4,8 +4,8 @@
 
 ## Mục đích
 
-Mỗi project có bộ vai trò riêng: Trợ Lý (assistant), một hoặc hai executor, reviewer, integrator, và ba ô runtime tùy
-chọn (executor Codex, executor OpenCode, reviewer Codex). Gate issue của server đọc bộ này để biết ai được giao việc và
+Mỗi project có bộ vai trò riêng: Trợ Lý (assistant), từ một đến năm executor Claude (ô `executor`, `executor-2` …
+`executor-5`, `MAX_EXECUTORS`), reviewer, integrator, và ba ô runtime tùy chọn (executor Codex, executor OpenCode, reviewer Codex). Gate issue của server đọc bộ này để biết ai được giao việc và
 ai duyệt. Owner xem và sửa ở tab Vai trò của project; đổi người làm thì AGENTS.md của Trợ Lý (chứa danh sách executor và
 reviewer Codex) được render lại.
 
@@ -30,7 +30,8 @@ Luật chính:
 ## Các bước
 
 1. `packages/crew-web/src/features/projects/detail/roles-tab.tsx` → `RolesTab`: đọc vai trò (`rolesApi.get`), hiện
-   bốn vai trò và ba ô runtime; ô runtime trống có lối sang wizard Tạo agent.
+   các vai trò (tối đa năm ô executor) và ba ô runtime; ô runtime trống có lối sang wizard Tạo agent. Nút **Thêm
+   executor** mở wizard Tạo agent ở ô executor kế tiếp còn trống (`executor-N`) và ẩn khi project đủ năm executor.
 2. `packages/crew-web/src/features/projects/detail/use-role-agents.ts` → `useRoleAgents`: danh sách agent kèm trạng
    thái sẵn sàng (dùng chung `loadProjectReadiness`).
 3. `packages/crew-web/src/features/projects/detail/roles-form.tsx` → `roleOptions`, `RolesForm`: hộp chọn chỉ có
@@ -39,7 +40,8 @@ Luật chính:
    executor hay reviewer Codex đổi thì `syncAssistantInstructions` render lại AGENTS.md của Trợ Lý và PUT kèm
    `baseHash` (xung đột thì không ghi đè, báo riêng bằng `InstructionsStepError`).
 5. `packages/crew-plugin/src/roles/api.ts` → `handleRolesApi`: chặn actor không phải user, kiểm body và luật vai trò
-   (không chạm DB), kiểm agent thuộc company và adapter của ô, kiểm xung đột với project khác, rồi ghi.
+   (không chạm DB; `executorAgentIds` có 1 đến `MAX_EXECUTORS` agent, báo lỗi theo tên ô `executor-N`), kiểm agent
+   thuộc company và adapter của ô, kiểm xung đột với project khác, rồi ghi.
 6. `packages/crew-plugin/src/roles/data.ts` → `readProjectRoles`, `upsertProjectRoles`, `deleteProjectRoles`,
    `firstUnusableAgent`, `otherProjectRoles` (bỏ dòng của project đã xóa).
 7. `server/src/crew/project-roles.ts` → `loadCrewRoles`: gate issue (flow `issue-gate`) đọc reviewer/integrator theo
@@ -61,8 +63,8 @@ Luật chính:
 
 ## Dữ liệu
 
-- Bảng plugin `crew_project_roles` (`0004_project_roles.sql`; ba cột ô runtime ở `0012_runtimes.sql`). Không có FK
-  tới `projects`.
+- Bảng plugin `crew_project_roles` (`0004_project_roles.sql`; ba cột ô runtime ở `0012_runtimes.sql`; CHECK
+  `executor_agent_ids` có 1–5 phần tử từ `0024_max_five_executors.sql`, trước đó 1–2). Không có FK tới `projects`.
 - Bảng lõi đọc: `agents` (company, trạng thái, `adapter_type`), `projects`.
 - Server đọc bảng này qua `loadCrewRoles` (`server/src/crew/project-roles.ts`).
 - Log: `crew project roles changed`, `crew project roles request failed`.
@@ -79,7 +81,7 @@ Luật chính:
 ## Tests
 
 - `packages/crew-plugin/src/__tests__/roles.db.test.ts`: route chỉ cho board, kiểm mọi id theo company, không ghi input
-  sai, ô runtime (lưu, giữ khi không gửi, xóa bằng `null`, đúng adapter), không chéo vai trò giữa project.
+  sai (kể cả 6 executor), lưu được 5 executor qua migration thật, ô runtime (lưu, giữ khi không gửi, xóa bằng `null`, đúng adapter), không chéo vai trò giữa project.
 - `packages/crew-web/test/features/projects/roles-form.test.tsx`: lựa chọn trong hộp chọn, nút Lưu, lỗi server nguyên
   văn, gửi `null` khi bỏ ô runtime.
 - `packages/crew-web/test/features/projects/use-save-roles.test.ts`: khi nào render lại AGENTS.md Trợ Lý, giữ danh sách

@@ -2,6 +2,7 @@ import { createAgentSchema } from '@paperclipai/shared';
 import { describe, expect, it } from 'vitest';
 import {
   ASSISTANT_GRANTS,
+  agentOfSlot,
   CREW_AGENT_PERMISSIONS,
   CREW_ROLE_SLOTS,
   CREW_RUNTIME_CONFIG,
@@ -13,6 +14,7 @@ import {
   defaultModelOf,
   isCrewModel,
   isUnmanagedCodexHome,
+  modelRoleOfSlot,
   RUNTIME_SLOT_KEYS,
   roleOfSlot,
   runtimeOfSlot,
@@ -21,6 +23,13 @@ import {
   wrapperReOf,
 } from '@/lib/instructions';
 import { SETTINGS } from './__fixtures__/model-settings';
+
+const ROLES_FIVE = {
+  assistantAgentId: 'a',
+  executorAgentIds: ['e1', 'e2', 'e3', 'e4', 'e5'],
+  reviewerAgentId: 'r',
+  integratorAgentId: 'i',
+};
 
 const PIN = '/Users/owner/.crew/workflows/superpowers/6.4.1-5bf4e7801107';
 const ENV = '55555555-5555-4555-8555-555555555555';
@@ -157,6 +166,10 @@ describe('cấu hình agent Crew', () => {
 
   it('ô vai trò executor-2 dùng template executor', () => {
     expect(roleOfSlot('executor-2')).toBe('executor');
+    expect(roleOfSlot('executor-5')).toBe('executor');
+    expect(modelRoleOfSlot('executor-5')).toBe('executor');
+    expect(agentOfSlot({ ...ROLES_FIVE }, 'executor-5')).toBe('e5');
+    expect(agentOfSlot({ ...ROLES_FIVE, executorAgentIds: ['e1'] }, 'executor-3')).toBeNull();
     expect(roleOfSlot('assistant')).toBe('assistant');
   });
 });
@@ -167,6 +180,9 @@ describe('ô runtime Codex/OpenCode', () => {
       'assistant',
       'executor',
       'executor-2',
+      'executor-3',
+      'executor-4',
+      'executor-5',
       'reviewer',
       'integrator',
       'executor-codex',

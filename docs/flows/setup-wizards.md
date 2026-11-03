@@ -23,6 +23,9 @@ Luật chính:
 - Lỗi giữa chừng thì pause agent do chính wizard tạo; agent có sẵn không bị đụng.
 - Agent giữ vai trò bắt buộc (Trợ Lý, reviewer, integrator, executor duy nhất) không gỡ được vì project sẽ fail
   closed; ô runtime là tùy chọn.
+- Thêm project chọn 1–5 executor (mặc định 1; `MAX_EXECUTORS`), tạo đủ ô `executor`, `executor-2` … theo số đã chọn
+  (`projectSlots`). Thêm agent vào ô `executor-N` thay agent đang giữ ô đó, ô chưa có thì thêm vào cuối danh sách
+  executor (`withSlot`).
 - Việc trên máy (soi thư mục, tạo hay gỡ checkout) đi qua hàng đợi machine jobs; khóa project dùng cùng luật với app
   Mac (`PROJECT_KEY_RE`), khóa `e2e-` chỉ dùng ở company Crew E2E.
 
@@ -119,8 +122,10 @@ Luật chính:
 
 ## Tests
 
-- `packages/crew-plugin/src/__tests__/setup-runs.db.test.ts`: chặn run dở cùng khóa, chặn agent, một bước một lúc,
-  khóa hết hạn, bỏ lần dở.
+- `packages/crew-plugin/src/__tests__/setup-runs.db.test.ts`: chặn run dở cùng khóa, chặn agent, input sai (kể cả số
+  executor ngoài 1–5), một bước một lúc, khóa hết hạn, bỏ lần dở.
+- `packages/crew-web/test/features/wizards/executor-slots.test.ts`: số ô executor theo lựa chọn 1–5, đặt agent vào ô
+  `executor-N`.
 - `packages/crew-web/test/api/setup-abandon.test.ts`: client gọi abandon đúng body.
 - `packages/crew-web/test/features/wizards/add-project.test.ts`, `add-project-page.test.tsx`, `validate.test.ts`,
   `wait-job.test.ts`: đủ bước theo thứ tự, lỗi giữa chừng pause agent đã tạo và chạy tiếp không tạo lại, kiểm khóa

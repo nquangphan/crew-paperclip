@@ -110,6 +110,7 @@ File nào thuộc flow nào. Dùng `crew-docs where <file>` để tra từ dòng
 | `packages/crew-plugin/migrations/0019_qc_verification.sql` | [crew-plugin](flows/crew-plugin.md) (file) |
 | `packages/crew-plugin/migrations/0022_multi_machine.sql` | [crew-plugin](flows/crew-plugin.md) (file) |
 | `packages/crew-plugin/migrations/0023_model_settings.sql` | [model-settings](flows/model-settings.md) (file) |
+| `packages/crew-plugin/migrations/0024_max_five_executors.sql` | [project-roles](flows/project-roles.md) (file) |
 | `packages/crew-plugin/src/__tests__/attachments-audit.db.test.ts` | [attachments](flows/attachments.md) (test) |
 | `packages/crew-plugin/src/__tests__/attachments-rules.test.ts` | [attachments](flows/attachments.md) (test) |
 | `packages/crew-plugin/src/__tests__/companies.db.test.ts` | [crew-plugin](flows/crew-plugin.md) (test) |
@@ -815,6 +816,7 @@ File nào thuộc flow nào. Dùng `crew-docs where <file>` để tra từ dòng
 | `packages/crew-web/test/features/wizards/add-agent.test.ts` | [setup-wizards](flows/setup-wizards.md) (test) |
 | `packages/crew-web/test/features/wizards/add-project-page.test.tsx` | [setup-wizards](flows/setup-wizards.md) (test) |
 | `packages/crew-web/test/features/wizards/add-project.test.ts` | [setup-wizards](flows/setup-wizards.md) (test) |
+| `packages/crew-web/test/features/wizards/executor-slots.test.ts` | [setup-wizards](flows/setup-wizards.md) (test) |
 | `packages/crew-web/test/features/wizards/machine-host.test.ts` | [setup-wizards](flows/setup-wizards.md) (test) |
 | `packages/crew-web/test/features/wizards/remove/eligibility.test.ts` | [setup-wizards](flows/setup-wizards.md) (test) |
 | `packages/crew-web/test/features/wizards/remove/exclusive-environments.test.ts` | [setup-wizards](flows/setup-wizards.md) (test) |
