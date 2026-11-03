@@ -62,13 +62,14 @@ Luật chính:
   `runtimes-setup` ở `0012_runtimes.sql`).
 - Loại việc, trạng thái, ô vai trò và mã lỗi: hằng trong `packages/crew-plugin/src/jobs/types.ts`.
 - Việc `ensure-project` do server Crew xếp (không qua wizard): payload `projectKey`, `projectId`, `originUrl`, `branch`,
-  `roles[]` (`role`, `branch`; tới số ô vai trò, 11 ô), `companions[]` (`name`, `originUrl`); result `repoPath`, `cloned`, `checkouts[]`,
+  `roles[]` (`role`, `branch`; 1–12 thư mục checkout: 11 ô vai trò cộng agent UIUX `designer`, `MAX_CHECKOUTS`),
+  `companions[]` (`name`, `originUrl`); result `repoPath`, `cloned`, `checkouts[]`,
   `companions[]`. Clone thiếu quyền báo mã lỗi `clone_auth_failed`.
 - Ô vai trò (`CREW_ROLE_SLOTS`, 11 ô): `assistant`, `executor`, `executor-2` … `executor-5` (`MAX_EXECUTORS = 5`),
   `reviewer`, `integrator` và ba ô runtime. Việc `prepare-checkouts` nhận 4–8 ô (bốn vai trò bắt buộc cộng tối đa bốn
   executor thêm).
-- Việc `remove-checkouts`: `roles` là 1–11 tên thư mục checkout (mười một ô của wizard hoặc tên thư mục của app như
-  `executor-1`), khác `repo`; server Crew xếp việc này cho máy khác khi gỡ agent/project (flow `multi-machine`).
+- Việc `remove-checkouts`: `roles` là 1–12 tên thư mục checkout (`MAX_CHECKOUTS`: mười một ô của wizard, `designer`, hoặc
+  tên thư mục của app như `executor-1`), khác `repo`; server Crew xếp việc này cho máy khác khi gỡ agent/project (flow `multi-machine`).
 - Log: `crew machine job changed` (hành động, job, company, user).
 - Bên nhận việc: app 2P Crew trên Mac (repo `crew`).
 

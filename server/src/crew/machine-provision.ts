@@ -9,7 +9,7 @@ import {
   agentEnvironmentOnMachine, crewTableSql, type ExecDb, jsonRecord, type PairedMachine, pairedMachine,
 } from "./machine-pin.js";
 import type { ProjectMachineStatus } from "./machine-select.js";
-import { rowsOf } from "./project-roles.js";
+import { DESIGNER_SKILL_FRAGMENT, rowsOf } from "./project-roles.js";
 
 /**
  * Run của cây đã ghim chờ máy dựng project quá chừng này thì cổng H1 hủy run (máy tắt, app không chạy). Việc dựng vẫn nằm
@@ -113,8 +113,10 @@ export async function projectRoleAgentIds(db: ExecDb, companyId: string, project
 }
 
 /**
- * Agent vai trò của project (Trợ Lý, executor, reviewer, integrator, các ô runtime) cùng tên thư mục checkout của từng
- * agent, đọc từ environment mặc định. Agent không có checkout `~/crew-agents/<khóa>/<tên>` hay khác khóa thì bị bỏ.
+ * Agent của project mà Crew dựng trên máy khác, cùng tên thư mục checkout của từng agent (đọc từ environment mặc định):
+ * agent vai trò (Trợ Lý, executor, reviewer, integrator, các ô runtime) rồi agent UIUX của project. Agent UIUX không nằm
+ * trong dòng vai trò; nó thuộc project khi checkout mặc định nằm dưới `~/crew-agents/<khóa>/` của project (khóa lấy từ agent
+ * vai trò). Agent không có checkout `~/crew-agents/<khóa>/<tên>`, khác khóa hay trùng tên checkout thì bị bỏ.
  */
 export async function projectLayout(db: ExecDb, companyId: string, projectId: string): Promise<ProjectLayout | null> {
   const ids = (await projectRoleAgentIds(db, companyId, projectId)) ?? [];
@@ -125,17 +127,34 @@ export async function projectLayout(db: ExecDb, companyId: string, projectId: st
     WHERE a.company_id = ${companyId} AND a.status <> 'terminated'
       AND a.id = ANY(string_to_array(${ids.join(",")}, ',')::uuid[])`));
   const byId = new Map(rows.map((row) => [String(row.id).toLowerCase(), row] as const));
-  let projectKey: string | null = null;
-  const agents: ProjectRoleAgent[] = [];
+  const layout: { projectKey: string | null; agents: ProjectRoleAgent[] } = { projectKey: null, agents: [] };
+  const add = (id: string, row: Row) => {
+    const match = CHECKOUT_RE.exec(String(row.path ?? ""));
+    if (!match || match[2] === "repo") return;
+    layout.projectKey ??= match[1]!;
+    if (match[1] !== layout.projectKey) return;
+    if (layout.agents.some((agent) => agent.agentId === id || agent.checkoutName === match[2])) return;
+    layout.agents.push({ agentId: id, checkoutName: match[2]!, environmentName: String(row.env_name), crewLoadGate: row.gate ?? null });
+  };
   for (const id of ids) {
     const row = byId.get(id);
-    const match = row ? CHECKOUT_RE.exec(String(row.path ?? "")) : null;
-    if (!row || !match || match[2] === "repo") continue;
-    projectKey ??= match[1]!;
-    if (match[1] !== projectKey || agents.some((agent) => agent.checkoutName === match[2])) continue;
-    agents.push({ agentId: id, checkoutName: match[2]!, environmentName: String(row.env_name), crewLoadGate: row.gate ?? null });
+    if (row) add(id, row);
   }
-  return projectKey && agents.length > 0 ? { projectKey, agents } : null;
+  const projectKey = layout.projectKey;
+  if (!projectKey) return null;
+  for (const row of await designerCheckouts(db, companyId, projectKey)) add(String(row.id).toLowerCase(), row);
+  return { projectKey, agents: layout.agents };
+}
+
+/** Agent UIUX của company (skill `ui-ux-pro-max`, `claude_local`, chưa terminated) có checkout mặc định dưới khóa này. */
+async function designerCheckouts(db: ExecDb, companyId: string, projectKey: string): Promise<Row[]> {
+  return rowsOf(await db.execute(sql`SELECT a.id::text AS id, e.name AS env_name,
+      e.config->>'remoteWorkspacePath' AS path, e.metadata->'crewLoadGate' AS gate
+    FROM agents a JOIN environments e ON e.id = a.default_environment_id
+    WHERE a.company_id = ${companyId} AND a.status <> 'terminated' AND a.adapter_type = 'claude_local'
+      AND (a.adapter_config->'paperclipSkillSync')::text LIKE ${`%${DESIGNER_SKILL_FRAGMENT}%`}
+      AND e.config->>'remoteWorkspacePath' LIKE ${`%/crew-agents/${projectKey}/%`}
+    ORDER BY a.created_at, a.id`));
 }
 
 /** Project dựng được trên máy khác: có origin trong `project_repos` và ít nhất một checkout agent vai trò. */

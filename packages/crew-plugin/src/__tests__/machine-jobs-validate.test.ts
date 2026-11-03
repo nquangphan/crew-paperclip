@@ -52,13 +52,13 @@ describe("validateJobPayload", () => {
     ["reboot", { projectKey: "demo" }, "kind không hợp lệ"],
     ["remove-checkouts", { ...removeCheckouts, projectId: "x" }, "projectId phải là uuid"],
     ["remove-checkouts", { ...removeCheckouts, projectKey: "../x" }, "projectKey không hợp lệ"],
-    ["remove-checkouts", { ...removeCheckouts, roles: [] }, "roles phải có 1 đến 11 vai trò"],
+    ["remove-checkouts", { ...removeCheckouts, roles: [] }, "roles phải có 1 đến 12 vai trò"],
     ["remove-checkouts", { ...removeCheckouts, roles: "executor" }, "roles phải là mảng"],
     ["remove-checkouts", { ...removeCheckouts, roles: ["executor", "executor"] }, "role executor bị trùng"],
     ["remove-checkouts", { ...removeCheckouts, roles: ["Boss"] }, "role không hợp lệ"],
     ["remove-checkouts", { ...removeCheckouts, roles: ["repo"] }, "role không hợp lệ"],
     ["remove-checkouts", { ...removeCheckouts, roles: [{ role: "executor" }] }, "role không hợp lệ"],
-    ["remove-checkouts", { ...removeCheckouts, roles: [...allSlots, "executor"] }, "roles phải có 1 đến 11 vai trò"],
+    ["remove-checkouts", { ...removeCheckouts, roles: [...allSlots, "designer", "executor"] }, "roles phải có 1 đến 12 vai trò"],
     ["remove-checkouts", { ...removeCheckouts, roles: ["executor-codex", "executor-codex"] }, "role executor-codex bị trùng"],
     ["agent-workspace", { projectKey: "demo", folder: "/x", role: "reviewer-claude", branch: "x" }, "role không hợp lệ"],
     ["runtimes-setup", { force: true }, "trường force không được hỗ trợ"],
@@ -77,7 +77,7 @@ describe("validateJobPayload", () => {
     ["ensure-project", { ...ensureProject, originUrl: "git@github.com:a/b c" }, "originUrl không hợp lệ"],
     ["ensure-project", { ...ensureProject, originUrl: `https://github.com/${"a".repeat(500)}` }, "originUrl không hợp lệ"],
     ["ensure-project", { ...ensureProject, branch: "-main" }, "branch không hợp lệ"],
-    ["ensure-project", { ...ensureProject, roles: [] }, "roles phải có 1 đến 11 vai trò"],
+    ["ensure-project", { ...ensureProject, roles: [] }, "roles phải có 1 đến 12 vai trò"],
     ["ensure-project", { ...ensureProject, roles: [{ role: "repo", branch: "x" }] }, "role không hợp lệ"],
     ["ensure-project", { ...ensureProject, roles: [{ role: "Executor", branch: "x" }] }, "role không hợp lệ"],
     ["ensure-project", { ...ensureProject, roles: [{ role: "assistant", branch: "x" }, { role: "assistant", branch: "y" }] }, "role assistant bị trùng"],
@@ -123,6 +123,8 @@ describe("validateJobPayload", () => {
         .toEqual({ kind: "agent-workspace", projectKey: "demo", folder: "/Users/a/repo", role, branch: `crew/demo/${role}` });
     }
     expect(validateJobPayload("remove-checkouts", { ...removeCheckouts, roles: allSlots })).toEqual({ kind: "remove-checkouts", ...removeCheckouts, roles: allSlots });
+    const withDesigner = [...allSlots, "designer"];
+    expect(validateJobPayload("remove-checkouts", { ...removeCheckouts, roles: withDesigner })).toEqual({ kind: "remove-checkouts", ...removeCheckouts, roles: withDesigner });
     const fiveExecutors = [...fullRoles, ...["executor-2", "executor-3", "executor-4", "executor-5"].map((role) => ({ role, branch: `crew/demo/${role}` }))];
     expect(validateJobPayload("prepare-checkouts", { projectKey: "demo", folder: "/x", roles: fiveExecutors }))
       .toEqual({ kind: "prepare-checkouts", projectKey: "demo", folder: "/x", roles: fiveExecutors });

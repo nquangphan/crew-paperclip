@@ -21,7 +21,7 @@ import {
   rememberModelSettings,
   validateModelSettings,
 } from "./model-settings.js";
-import { crewRolesTable, rowsOf } from "./project-roles.js";
+import { crewRolesTable, DESIGNER_SKILL_FRAGMENT, rowsOf } from "./project-roles.js";
 
 export const MODEL_SETTINGS_ERRORS = {
   invalid: "crew_model_settings_invalid",
@@ -40,11 +40,6 @@ export const CREW_MODEL_SETTINGS_REVISION_SOURCE = "crew_model_settings";
 
 /** Đoạn đường dẫn trong `extraArgs` nhận ra agent BMAD (bản ghim workflow, như `apply-roles.sh`). */
 const BMAD_PIN_FRAGMENT = "/.crew/workflows/bmad/";
-/**
- * Đoạn key skill trong `adapterConfig.paperclipSkillSync` nhận ra agent UIUX (vai `designer`): skill công ty
- * `ui-ux-pro-max` được gắn qua `POST /api/agents/:id/skills/sync`. Chỉ xét agent `claude_local`.
- */
-const DESIGNER_SKILL_FRAGMENT = "ui-ux-pro-max";
 const CLOSED_ISSUE_STATUSES = ["done", "cancelled"];
 
 /** Lỗi trả thẳng thành `{ error, code, ...extra }` (không lồng trong `details` như `HttpError`). */

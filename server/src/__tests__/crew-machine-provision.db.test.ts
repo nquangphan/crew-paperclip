@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { eq, sql } from "drizzle-orm";
 import { agents, createDb, environments, projects } from "@paperclipai/db";
@@ -60,6 +61,25 @@ suite("dựng project trên máy (Postgres)", () => {
       ],
     });
   });
+
+  /** Agent có checkout mặc định `~/crew-agents/<key>/<checkout>`; `designer` gắn skill UIUX như agent UIUX thật. */
+  async function seedAgent(companyId: string, opts: { key: string; checkout: string; designer: boolean; status?: string }) {
+    const environmentId = randomUUID();
+    const environmentName = `${opts.key}-${opts.checkout}-${environmentId.slice(0, 6)}`;
+    await db.insert(environments).values({
+      id: environmentId, name: environmentName, driver: "ssh", status: "active",
+      config: { host: BOOK.ip, port: 2222, username: "owner", remoteWorkspacePath: `/Users/owner/crew-agents/${opts.key}/${opts.checkout}` },
+      metadata: { workspaceRealizationMode: "in_place", crewLoadGate: { maxLoad1: 8, maxWaitMinutes: 60 } },
+    });
+    const agentId = randomUUID();
+    const skills = opts.designer ? { paperclipSkillSync: { desiredSkills: [`company/${companyId}/ui-ux-pro-max`] } } : {};
+    await db.insert(agents).values({
+      id: agentId, companyId, name: `${opts.key} ${opts.checkout} ${agentId.slice(0, 4)}`, role: "engineer",
+      status: opts.status ?? "idle", adapterType: "claude_local", adapterConfig: skills, permissions: {}, runtimeConfig: {},
+      defaultEnvironmentId: environmentId,
+    });
+    return { agentId, environmentName };
+  }
 
   it("bắt đầu dựng: máy chưa ghép, chưa có repo thì từ chối; có repo thì xếp đúng một việc ensure-project", async () => {
     const w = await world();
@@ -315,5 +335,35 @@ suite("dựng project trên máy (Postgres)", () => {
       originUrl: "ssh://git@github.com/nquangphan/kidy_school.git", branch: "main",
       companions: [{ name: "docs", originUrl: "ssh://git@github.com:22/x/y.git" }],
     })).toMatchObject({ originUrl: "ssh://git@github.com/nquangphan/kidy_school.git" });
+  });
+
+  it("agent UIUX của project (checkout dưới khóa project) được dựng trên máy cùng agent vai trò; agent khác thì không", async () => {
+    const w = await world();
+    const designer = await seedAgent(w.companyId, { key: "kidy-school", checkout: "designer", designer: true });
+    await seedAgent(w.companyId, { key: "other-app", checkout: "designer", designer: true });
+    await seedAgent(w.companyId, { key: "kidy-school", checkout: "designer-old", designer: true, status: "terminated" });
+    await seedAgent(w.companyId, { key: "kidy-school", checkout: "helper", designer: false });
+    const layout = await projectLayout(db, w.companyId, w.projectId);
+    expect(layout?.agents.map((agent) => agent.checkoutName)).toEqual(["assistant", "executor-1", "reviewer", "integrator", "designer"]);
+    expect(layout?.agents.at(-1)).toMatchObject({ agentId: designer.agentId, environmentName: designer.environmentName });
+
+    await writeProjectRepo(db, { companyId: w.companyId, projectId: w.projectId, userId: "owner", repo: { originUrl: ORIGIN, branch: "main", companions: [] } });
+    const started = await startProvisioning(db, { companyId: w.companyId, projectId: w.projectId, machineId: MINI.machineId, createdBy: "crew:auto" });
+    if (!started.ok) throw new Error("không xếp được việc");
+    const queued = rows(await jobs(w.companyId)).find((job) => job.id === started.jobId);
+    expect((queued?.payload as { roles: { role: string; branch: string }[] }).roles.at(-1))
+      .toEqual({ role: "designer", branch: "agent/kidy-school-designer" });
+    const result = {
+      kind: "ensure-project", repoPath: "/Volumes/CORSAIR/Projects/kidy_school", cloned: false, companions: [],
+      checkouts: ["assistant", "executor-1", "reviewer", "integrator", "designer"]
+        .map((role) => ({ role, path: `/Users/owner/crew-agents/kidy-school/${role}`, head: "a".repeat(40) })),
+    };
+    await db.execute(sql.raw(`UPDATE ${ns}.crew_machine_jobs SET status = 'done', result = '${JSON.stringify(result)}'::jsonb WHERE id = '${started.jobId}'`));
+    expect(await reconcileProjectMachine(db, { companyId: w.companyId, projectId: w.projectId, machineId: MINI.machineId }))
+      .toMatchObject({ status: "ready" });
+    const [env] = await db.select().from(environments)
+      .where(sql`${environments.metadata}->>'crewMachineId' = ${MINI.machineId} AND ${environments.metadata}->>'crewAgentId' = ${designer.agentId}`);
+    expect(env?.name).toBe(machineEnvironmentName(designer.environmentName, MINI.hostname));
+    expect(env?.config).toMatchObject({ host: MINI.ip, remoteWorkspacePath: "/Users/owner/crew-agents/kidy-school/designer" });
   });
 });

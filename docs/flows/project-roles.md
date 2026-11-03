@@ -54,7 +54,7 @@ Luật chính:
 |-----------|---------|--------------|
 | `packages/crew-plugin/src/roles/api.ts` | Route vai trò, luật vai trò | `handleRolesApi` |
 | `packages/crew-plugin/src/roles/data.ts` | SQL bảng vai trò | `ProjectRoles`, `upsertProjectRoles`, `firstUnusableAgent`, `RUNTIME_SLOT_KEYS` |
-| `server/src/crew/project-roles.ts` | Server đọc vai trò theo project (gate issue); `CREW_PLUGIN_KEY`, `rowsOf` dùng chung cho module server Crew | `loadCrewRoles`, `crewRolesTable`, `CREW_ROLES_UNAVAILABLE` |
+| `server/src/crew/project-roles.ts` | Server đọc vai trò theo project (gate issue); `CREW_PLUGIN_KEY`, `rowsOf`, `DESIGNER_SKILL_FRAGMENT` (nhận ra agent UIUX) dùng chung cho module server Crew | `loadCrewRoles`, `crewRolesTable`, `CREW_ROLES_UNAVAILABLE` |
 | `packages/crew-web/src/api/crew/roles.ts` | Client `roles.get`/`set`/`delete` | `rolesApi` |
 | `packages/crew-web/src/features/projects/detail/roles-tab.tsx` | Tab Vai trò | `RolesTab` |
 | `packages/crew-web/src/features/projects/detail/roles-form.tsx` | Form sửa vai trò | `RolesForm`, `roleOptions`, `rolesOf` |

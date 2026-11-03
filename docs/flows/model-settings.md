@@ -67,7 +67,7 @@ Luật:
    với mỗi vai có model hay effort đổi (trừ `reviewer-root`) đổi agent của vai:
    - nguồn vai: các cột của `crew_project_roles` trên mọi company, cộng agent BMAD (`extraArgs` có
      `/.crew/workflows/bmad/`) và agent UIUX (`claude_local` có `adapterConfig.paperclipSkillSync` chứa
-     `ui-ux-pro-max`, hằng `DESIGNER_SKILL_FRAGMENT`); chỉ agent đúng runtime của vai và chưa `terminated`;
+     `ui-ux-pro-max`, hằng `DESIGNER_SKILL_FRAGMENT` ở `server/src/crew/project-roles.ts`, dùng chung với bố cục project của flow `multi-machine`); chỉ agent đúng runtime của vai và chưa `terminated`;
    - agent đúng model mặc định cũ thì đổi model; effort chỉ đổi khi effort mặc định đổi và effort của agent đúng bằng
      effort cũ (effort mới `null` thì xóa key);
    - bỏ qua có lý do: `manual` (khác model cũ, hay effort chỉnh tay khi chỉ effort đổi), `pending_approval`, `multi_role`

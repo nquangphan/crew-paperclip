@@ -29,16 +29,21 @@ const checkoutRank = (name: string) =>
 const byRank = (a: string, b: string) => checkoutRank(a) - checkoutRank(b) || a.localeCompare(b);
 
 /**
- * Id lạ của `agentIds`: không nằm trong dòng `crew_project_roles` của project (kể cả agent của project khác cùng company).
- * Đường gỡ chỉ được đụng agent của chính project, nên có id lạ thì bên gọi từ chối cả lệnh. Agent trong dòng vai trò mà
- * ngoài `projectLayout` (terminated, không có environment SSH, checkout lạ) vẫn hợp lệ: không có checkout nào để gỡ.
+ * Id lạ của `agentIds`: không nằm trong dòng `crew_project_roles` của project và không phải agent UIUX của project trong
+ * `projectLayout` (kể cả agent của project khác cùng company). Đường gỡ chỉ được đụng agent của chính project, nên có id
+ * lạ thì bên gọi từ chối cả lệnh. Agent trong dòng vai trò mà ngoài `projectLayout` (terminated, không có environment
+ * SSH, checkout lạ) vẫn hợp lệ: không có checkout nào để gỡ.
  */
 export async function scopeReleaseAgents(
   db: ExecDb, input: { companyId: string; projectId: string; agentIds: readonly string[] },
 ): Promise<{ layout: ProjectLayout | null; unknown: string[] }> {
-  const known = new Set((await projectRoleAgentIds(db, input.companyId, input.projectId)) ?? []);
+  const layout = await projectLayout(db, input.companyId, input.projectId);
+  const known = new Set([
+    ...((await projectRoleAgentIds(db, input.companyId, input.projectId)) ?? []),
+    ...(layout?.agents.map((agent) => agent.agentId) ?? []),
+  ]);
   const unknown = [...new Set(input.agentIds.map((id) => id.toLowerCase()))].filter((id) => !known.has(id));
-  return { layout: await projectLayout(db, input.companyId, input.projectId), unknown };
+  return { layout, unknown };
 }
 
 /**
@@ -126,11 +131,15 @@ export async function releaseProjectMachines(
   const scope = await scopeReleaseAgents(db, input);
   if (scope.unknown.length > 0) return { ok: false, reason: "unknown_agents", agentIds: scope.unknown };
   const layout = scope.layout;
+  // Gỡ cả project còn dọn agent UIUX của project: nó không nằm trong dòng vai trò mà web gửi lên.
+  const agentIds = input.wholeProject
+    ? [...new Set([...input.agentIds.map((id) => id.toLowerCase()), ...(layout?.agents.map((agent) => agent.agentId) ?? [])])]
+    : input.agentIds;
   const blockers = await machineReleaseBlockers(db, {
     companyId: input.companyId, projectId: input.projectId, agentIds: input.wholeProject ? null : input.agentIds,
   });
   if (blockers.length > 0) return { ok: false, reason: "busy", blockers };
-  const ids = idList(input.agentIds);
+  const ids = idList(agentIds);
   const envRows = rowsOf(await db.execute(sql`SELECT e.id::text AS id, e.status, e.metadata->>'crewMachineId' AS machine_id
     FROM environments e JOIN agents a ON a.id::text = e.metadata->>'crewAgentId' AND a.company_id = ${input.companyId}
     WHERE e.driver = 'ssh' AND e.metadata->>'crewAgentId' = ANY(string_to_array(${ids}, ','))
@@ -142,7 +151,7 @@ export async function releaseProjectMachines(
     await envs.update(String(row.id), { status: "archived" });
     archivedEnvironmentIds.push(String(row.id));
   }
-  const wanted = new Set(input.agentIds.map((id) => id.toLowerCase()));
+  const wanted = new Set(agentIds.map((id) => id.toLowerCase()));
   const names = (layout?.agents ?? []).filter((agent) => wanted.has(agent.agentId)).map((agent) => agent.checkoutName).sort(byRank);
   const machines = new Set(envRows.map((row) => row.machine_id).filter((id): id is string => typeof id === "string"));
   if (input.wholeProject) {

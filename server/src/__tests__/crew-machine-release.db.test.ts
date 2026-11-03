@@ -212,6 +212,33 @@ suite("dọn máy khác khi gỡ, dựng sẵn máy khác khi thêm", () => {
     expect(await jobs(w.companyId)).toHaveLength(1);
   });
 
+  it("gỡ cả project dọn cả agent UIUX của project (không nằm trong dòng vai trò web gửi lên)", async () => {
+    const w = await world();
+    const [base] = await db.insert(environments).values({
+      name: `kidy-school-designer-${w.companyId.slice(0, 6)}`, driver: "ssh", status: "active",
+      config: { host: BOOK.ip, port: 2222, username: "owner", remoteWorkspacePath: "/Users/owner/crew-agents/kidy-school/designer" },
+      metadata: { workspaceRealizationMode: "in_place" },
+    }).returning();
+    const [designer] = await db.insert(agents).values({
+      companyId: w.companyId, name: "UIUX kidy-school", role: "engineer", status: "idle", adapterType: "claude_local",
+      adapterConfig: { paperclipSkillSync: { desiredSkills: [`company/${w.companyId}/ui-ux-pro-max`] } }, permissions: {},
+      runtimeConfig: {}, defaultEnvironmentId: base!.id,
+    }).returning();
+    const [mini] = await db.insert(environments).values({
+      name: `${base!.name}@phans-mac-mini`, driver: "ssh", status: "active",
+      config: { host: MINI.ip, port: 2222, username: "owner", remoteWorkspacePath: "/Users/owner/crew-agents/kidy-school/designer" },
+      metadata: { workspaceRealizationMode: "in_place", crewAgentId: designer!.id, crewMachineId: MINI.machineId },
+    }).returning();
+    const all = Object.values(w.agents).map((a) => a.agentId);
+    const released = await releaseProjectMachines(db, {
+      companyId: w.companyId, projectId: w.projectId, agentIds: all, wholeProject: true, primaryMachineId: BOOK.machineId, createdBy: "owner",
+    });
+    expect(released.ok && released.result.archivedEnvironmentIds.sort()).toEqual([...Object.values(w.miniEnvs), mini!.id].sort());
+    expect((await jobs(w.companyId)).map((j) => (j.payload as { roles: string[] }).roles)).toEqual([
+      ["assistant", "executor-1", "reviewer", "integrator", "designer"],
+    ]);
+  });
+
   it("dựng sẵn mọi máy khác: ghi repo khi chưa có, máy ready bỏ qua (trừ includeReady), máy chính bỏ qua", async () => {
     const w = await world();
     await db.execute(sql.raw(`DELETE FROM ${ns}.project_machines WHERE project_id = '${w.projectId}' AND machine_id = '${MINI.machineId}'`));

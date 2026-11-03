@@ -62,7 +62,9 @@ fallback) dựa vào kho git dùng chung trên một máy. Owner chọn máy lú
 3. `server/src/crew/machine-provision.ts`: origin và repo đi kèm của project (`project_repos`; `writeProjectRepo` từ chối
    origin mang credential, `originHasCredential`: userinfo của `http(s)://`, mật khẩu `user:…@` của mọi scheme kể cả
    `ssh://`; `ssh://git@host/…` và `git@host:…` hợp lệ), agent trong dòng vai trò (`projectRoleAgentIds`), bố cục project (`projectLayout`: khóa project và tên thư mục checkout của từng agent vai
-   trò, đọc từ environment mặc định), `projectProvisionable` (có repo và ít nhất một checkout vai trò, cờ `provisionable`
+   trò, đọc từ environment mặc định, rồi agent UIUX của project: agent `claude_local` có skill `ui-ux-pro-max`
+   (`DESIGNER_SKILL_FRAGMENT`), chưa terminated, checkout mặc định dưới `~/crew-agents/<khóa>/`; agent UIUX không nằm trong
+   dòng vai trò nên trước đây không được dựng trên máy khác và run của nó bị cổng H1 hủy sau 60 phút), `projectProvisionable` (có repo và ít nhất một checkout vai trò, cờ `provisionable`
    của bước 1), `startProvisioning` đặt `project_machines` sang `provisioning` và xếp đúng một việc `ensure-project`
    (`ensureProjectPayload`, nhánh agent `agent/<khóa>-<tên>`), `reconcileProjectMachine` đọc kết quả việc: xong thì
    `createMachineEnvironment` cho agent còn thiếu (tên `<environment mặc định>@<tên máy>`, cấu hình SSH và secret từ
@@ -108,7 +110,8 @@ fallback) dựa vào kho git dùng chung trên một máy. Owner chọn máy lú
    khi archive environment mặc định; mọi đường thêm (wizard thêm project/agent, app thêm project) gọi
    `…/machines/provision` sau khi máy chính xong, lỗi không làm hỏng wizard. Luật:
    - Chỉ agent của chính project: mọi id trong `agentIds` phải nằm trong dòng `crew_project_roles` của project
-     (`projectRoleAgentIds`), nên đường gỡ gọi `release` trước khi xóa vai trò; có id lạ (kể cả agent project khác cùng
+     (`projectRoleAgentIds`) hoặc là agent UIUX trong `projectLayout`; gỡ cả project tự thêm agent trong `projectLayout`
+     (agent UIUX) vào phạm vi gỡ vì web chỉ gửi agent trong dòng vai trò, nên đường gỡ gọi `release` trước khi xóa vai trò; có id lạ (kể cả agent project khác cùng
      company) thì từ chối cả lệnh. Khóa project và tên checkout lấy từ `projectLayout`; agent trong dòng vai trò mà ngoài
      bố cục (terminated, không có environment SSH, checkout lạ) không có checkout để gỡ, chỉ environment `@máy` còn active
      của nó bị archive, nên gỡ không kẹt 422 mãi. Bên gọi chỉ gửi id đang trong dòng vai trò: wizard gỡ project đọc lại dòng
@@ -176,7 +179,8 @@ lần mỗi run).
 - `server/src/__tests__/crew-machine-provision.db.test.ts` (Postgres nhúng): bố cục project, từ chối khi máy chưa ghép hay
   chưa có repo, xếp đúng một việc, việc xong tạo environment đúng host/secret/checkout rồi `ready` và gọi lại không tạo
   thêm, việc lỗi thì `failed`, việc chờ lâu vẫn `provisioning`, thiếu checkout của agent thêm sau thì xếp việc lại,
-  thiếu checkout đã yêu cầu thì `failed` không xếp việc, environment mẫu không active thì `failed` và gọi lại không ném,
+  thiếu checkout đã yêu cầu thì `failed` không xếp việc, agent UIUX của project được thêm vào bố cục và việc
+  `ensure-project` rồi có environment `@máy` (agent UIUX project khác, agent terminated hay agent thường thì không), environment mẫu không active thì `failed` và gọi lại không ném,
   bật lại environment đã archive, thay agent của ô thì agent mới nhận lại environment `@máy` đã archive của agent cũ và máy
   `ready`, environment cùng tên còn active/của agent vai trò hiện tại/của company khác thì `failed` và không đổi chủ,
   `projectProvisionable`, từ chối origin có userinfo `https` hay mật khẩu `ssh://user:…@` (kể cả repo đi kèm), nhận
@@ -202,7 +206,7 @@ lần mỗi run).
   vai trò mà ngoài bố cục (terminated, không có environment SSH) vẫn được nhận và chỉ bỏ checkout của nó, project không
   còn agent nào trong bố cục thì gỡ cả project vẫn chạy, gỡ A rồi B gộp
   vai trò vào việc `queued` còn việc `claimed` thì xếp việc mới, gỡ một agent archive environment máy khác (không xóa) và xếp `remove-checkouts` đúng tên checkout, gỡ cả project xóa dòng
-  máy và gọi lại không xếp thêm, dựng sẵn máy khác (ghi repo khi chưa có, bỏ máy `provisioning`/`ready` trừ
+  máy và gọi lại không xếp thêm, gỡ cả project dọn cả environment và checkout của agent UIUX, dựng sẵn máy khác (ghi repo khi chưa có, bỏ máy `provisioning`/`ready` trừ
   `includeReady`), máy chính được ghi `ready`, chưa có repo thì `skipped`; route: owner bằng board key, viewer 403,
   `blockers` thiếu `agentIds` là cả project, `blockers` của agent terminated trong dòng vai trò 200, `release` bận 409,
   agent project khác hay quá 20 id thì 422, origin có userinfo 400.

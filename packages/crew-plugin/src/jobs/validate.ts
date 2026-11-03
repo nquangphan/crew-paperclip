@@ -19,6 +19,8 @@ const ORIGIN = /^(?:(?:https|ssh|file):\/\/\S+|[A-Za-z0-9._-]+@[A-Za-z0-9.-]+:\S
 const CHECKOUT_NAME = /^[a-z][a-z0-9-]{0,30}$/;
 const COMPANION_NAME = /^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/;
 const MAX_COMPANIONS = 5;
+/** Thư mục checkout tối đa của một project trên máy: mọi ô vai trò cộng agent UIUX (`designer`). */
+const MAX_CHECKOUTS = CREW_ROLE_SLOTS.length + 1;
 
 const KEYS: Record<MachineJobKind, readonly string[]> = {
   "inspect-folder": ["folder"],
@@ -75,13 +77,13 @@ function rolesError(roles: unknown): string | null {
 const checkoutNameOk = (value: unknown): value is string =>
   typeof value === "string" && CHECKOUT_NAME.test(value) && value !== "repo";
 
-/** Tên thư mục checkout cần gỡ: tới số ô của wizard, không trùng (tên ô hay tên thư mục của app như `executor-1`). */
+/** Tên thư mục checkout cần gỡ: tới `MAX_CHECKOUTS`, không trùng (tên ô, `designer` hay tên thư mục của app như `executor-1`). */
 function roleListError(roles: unknown): string | null {
   if (!Array.isArray(roles)) return "roles phải là mảng";
   for (const role of roles) {
     if (!checkoutNameOk(role)) return "role không hợp lệ";
   }
-  if (roles.length < 1 || roles.length > CREW_ROLE_SLOTS.length) return `roles phải có 1 đến ${CREW_ROLE_SLOTS.length} vai trò`;
+  if (roles.length < 1 || roles.length > MAX_CHECKOUTS) return `roles phải có 1 đến ${MAX_CHECKOUTS} vai trò`;
   const seen = new Set<string>();
   for (const role of roles as string[]) {
     if (seen.has(role)) return `role ${role} bị trùng`;
@@ -93,7 +95,7 @@ function roleListError(roles: unknown): string | null {
 const originError = (value: unknown) =>
   typeof value === "string" && value.length <= 500 && !CONTROL.test(value) && ORIGIN.test(value) ? null : "originUrl không hợp lệ";
 
-/** Vai trò của `ensure-project`: tới số ô của wizard, thư mục checkout không trùng, mỗi cái một nhánh. */
+/** Vai trò của `ensure-project`: tới `MAX_CHECKOUTS` thư mục checkout không trùng, mỗi cái một nhánh. */
 function ensureRolesError(roles: unknown): string | null {
   if (!Array.isArray(roles)) return "roles phải là mảng";
   for (const item of roles) {
@@ -101,7 +103,7 @@ function ensureRolesError(roles: unknown): string | null {
     const error = unknownKeyError(item, ["role", "branch"]) ?? (checkoutNameOk(item.role) ? null : "role không hợp lệ") ?? branchError(item.branch);
     if (error) return error;
   }
-  if (roles.length < 1 || roles.length > CREW_ROLE_SLOTS.length) return `roles phải có 1 đến ${CREW_ROLE_SLOTS.length} vai trò`;
+  if (roles.length < 1 || roles.length > MAX_CHECKOUTS) return `roles phải có 1 đến ${MAX_CHECKOUTS} vai trò`;
   const seen = new Set<string>();
   for (const { role } of roles as { role: string }[]) {
     if (seen.has(role)) return `role ${role} bị trùng`;

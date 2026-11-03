@@ -7,6 +7,11 @@ import { type CrewCompanyConfig, loadCrewCompanyConfig } from "./issue-policy.js
 
 /** Plugin sở hữu bảng vai trò theo project (migration `0004_project_roles.sql` của plugin). */
 export const CREW_PLUGIN_KEY = "crew.core";
+/**
+ * Đoạn key skill trong `adapterConfig.paperclipSkillSync` nhận ra agent UIUX (vai `designer`): skill công ty
+ * `ui-ux-pro-max` được gắn qua `POST /api/agents/:id/skills/sync`. Chỉ xét agent `claude_local`.
+ */
+export const DESIGNER_SKILL_FRAGMENT = "ui-ux-pro-max";
 
 export function crewRolesTable(): string {
   return `${derivePluginDatabaseNamespace(CREW_PLUGIN_KEY)}.crew_project_roles`;
