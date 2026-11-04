@@ -69,6 +69,15 @@ Mô tả có dòng `crew-design on=<identifier>`: con này làm giao diện theo
 3. Làm đúng mockup (bố cục, chữ, token, component, các trạng thái). Chỗ nào phải lệch (component không có, ràng buộc kỹ thuật) thì ghi lý do trong phần tóm tắt của comment `crew-commit`. Không sửa file trong `docs/design/mockups/`.
 4. Ở mục "Báo xong", ghi dòng riêng `crew-design-used sha=<sha12> dir=<dir>` (`<sha12>` là 12 ký tự đầu của `sha` đã duyệt) ngay sau dòng `crew-commit`, trước khối `Tiêu chí → test:`. Không nhét khóa này vào chính dòng `crew-commit`.
 
+## Con sửa finding Bug Finding (`crew-bf finding=`)
+
+Mô tả có dòng `crew-bf finding=<F-xx> run=<n>` (có thể nhiều id cách nhau dấu phẩy): con sửa finding mà app Bug Finding tìm thấy trên pull request của ticket tổng `code-bf`. Mô tả luôn có dòng `crew-fix base=<40 hex>` là head pull request đã được review. Làm như issue sửa lỗi `crew-fix`, cộng:
+
+1. Nhánh từ đúng `<base>`: `git fetch origin`, rồi `git switch -c crew/<identifier> <base>`. `git cat-file -e <base>^{commit}` lỗi thì `git fetch origin "refs/heads/crew/req/<identifier gốc>"` rồi kiểm lại; vẫn lỗi thì `PATCH` `{"status":"blocked","comment":"Executor: dừng vì không có commit nền của pull request trong kho"}` rồi dừng.
+2. Tiêu chí là `accept` của từng finding (Trợ Lý đã chép vào `Tiêu chí nghiệm thu:`). `fix` là đề xuất, không bắt buộc làm đúng từng chữ. Chỉ sửa đúng finding được nêu: không sửa finding khác, không đổi hành vi sản phẩm ngoài phạm vi, không đổi hợp đồng API công khai.
+3. Test chứng minh: từ `test` của finding (mô tả chép từ báo cáo Bug Finding), viết test tự động tái hiện đúng lỗi, chạy thấy **đỏ trên `<base>`** trước khi sửa rồi xanh sau khi sửa (`superpowers:test-driven-development`). Finding `TEST_FIX` (thiếu test) thì test mới là phần chính. Không tái hiện được (test xanh ngay trên `<base>`, hay lỗi không có ở vị trí nêu): không sửa code đoán mò; `PATCH` `{"status":"blocked","comment":"Executor: dừng vì không tái hiện được finding <F-xx>: <bằng chứng file:dòng và test đã chạy>"}` rồi dừng; Trợ Lý đưa điểm đó cho owner quyết.
+4. Báo xong như mục "Báo xong": khối `Tiêu chí → test:` ánh xạ mỗi `accept` tới test chứng minh, phần tóm tắt nêu từng finding đã sửa (`<F-xx>: <file:dòng>`). Reviewer duyệt `git diff <base>..<sha>` như mọi con `crew-fix`.
+
 ## Con E2E (`crew-child key=e2e`)
 
 Mô tả có dòng `crew-child key=e2e revision=<rev>` (hoặc `crew-child key=e2e-fix-<n> revision=<rev>`, con E2E của lô sửa) là con E2E: nó không có `crew-stack`/`crew-fix`, nên nền phải do bạn dựng từ code đã duyệt của các con trong `blockedBy[]` của CHÍNH nó. Làm theo thứ tự:

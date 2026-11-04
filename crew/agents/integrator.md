@@ -113,13 +113,14 @@ Khi `executionState.currentStageId` là id stage 1 và `executionState.currentPa
 
 1. **Xác minh qua API** như Stage 4 bước 1 (ME, issue gốc, `executionState.currentStageId` là id stage 4, id stage `approval` nằm trong `completedStageIds`, `EVIDENCE` là `commit=` của bằng chứng `crew-docs-check` mới nhất của bạn). `T` là `EVIDENCE`. Lấy comment `crew-pr sha=<T> pr=<URL>` mới nhất của bạn; không có comment nào với `sha` bằng `T` thì comment `Integrator: không merge — không có crew-pr cho commit owner duyệt <T>` rồi dừng. Không dựng lại nhánh, không push, không chạy lại test: merge đúng commit owner đã duyệt.
    Đã giao rồi: có comment của bạn dòng đầu `crew-merge sha=<T> … pushed=merged pr=<URL> merge=<sha>` mới hơn quyết định của owner thì vẫn chạy bước 3 (pull request đã merge nên script không merge lại) để có `done.json`, **không** đăng lại comment, rồi sang bước 4 và 5.
-2. **`HEAD_OK`** bỏ trống, trừ khi: bạn đã comment `Integrator: chưa merge được — conflict` sau quyết định của owner, sau đó owner (`authorUserId` là user participant của stage `approval`) comment báo đã xử lý, và head pull request hiện tại (`gh pr view <URL> --json headRefOid`) khác `T`. Khi đó `HEAD_OK=<head đó>`; script chỉ merge khi head đó chứa `T`.
+2. **`HEAD_OK`** bỏ trống, trừ khi: bạn đã comment `Integrator: chưa merge được — conflict` sau quyết định của owner, sau đó owner (`authorUserId` là user participant của stage `approval`) comment báo đã xử lý, và head pull request hiện tại (`gh pr view <URL> --json headRefOid`) khác `T`. Khi đó `HEAD_OK=<head đó>`; script chỉ merge khi head đó chứa `T` và mọi commit trong `T..HEAD_OK` chưa có trên `origin/<nhánh mặc định>` đều là merge commit gộp nhánh mặc định vào (không có commit nào khác chưa qua owner duyệt).
 3. Tạo `D`, `$D/issue.json`, chép script vào `$D/crew-pr.sh` như Stage 4 bước 2, rồi chạy:
    `MODE=merge T=<T> DEFAULT=<nhánh mặc định> HEAD_OK=<rỗng hoặc sha> bash "$D/crew-pr.sh" "$D"; echo "rc=$?"`
    Script kiểm head pull request đúng `T` (hoặc `HEAD_OK`), chọn `--merge` (giữ commit của từng con) hay `--squash` khi repo cấm merge commit (`gh repo view --json mergeCommitAllowed`), chạy `gh pr merge <URL> --merge --match-head-commit <T>`, đọc merge commit, rồi viết `$D/merge-comment.json` (dòng đầu `crew-merge sha=<T> branch=<nhánh mặc định> pushed=merged pr=<URL pull request> merge=<sha merge>`) và `$D/done.json`.
    - `rc=0`: `POST /api/issues/<id>/comments` với `-d @"$D/merge-comment.json"` (không sửa nội dung), rồi bước 4.
    - `rc=7` (conflict): comment `Integrator: chưa merge được — conflict`, dòng sau là nội dung `$D/error.txt`, rồi một dòng nhờ owner xử lý conflict trên GitHub (hoặc comment yêu cầu sửa) và comment lại trên issue để đánh thức bạn. Không tự gộp, không sửa conflict, không đổi status; dừng.
    - `rc=8` (head pull request khác commit owner duyệt, hay không còn pull request của nhánh): comment `Integrator: không merge — <các dòng của $D/error.txt>`, không đổi status, dừng.
+   - `rc=9` (`HEAD_OK` có commit ngoài merge nhánh mặc định, tức code chưa được owner duyệt): comment `Integrator: không merge — head pull request có commit chưa được owner duyệt`, dòng sau là nội dung `$D/error.txt`, rồi một dòng nhờ owner chỉ gộp nhánh mặc định vào nhánh (không thêm commit khác) hoặc duyệt lại commit mới trên Crew. Không đổi status; dừng.
    - rc khác: comment `Integrator: chưa merge được — <các dòng của $D/error.txt>` (nhánh bảo vệ đòi review hay check, thiếu quyền, `gh` chưa đăng nhập: nhờ owner xử lý rồi comment lại), không đổi status, dừng. Lần chạy sau bắt đầu lại từ bước 1.
 4. **Deploy tự động** như Stage 4 bước 7b, thêm `--pr <URL pull request>` vào cuối lệnh `enqueue` (pull request đã merge nên job deploy ngay merge commit trên nhánh cấu hình).
 5. Lệnh ghi cuối: `PATCH /api/issues/<id>` với `-d @"$D/done.json"` (không sửa nội dung). Trước khi gửi, comment `crew-merge … pushed=merged` mới nhất của bạn phải là dòng mới nhất (sau nó chỉ được có comment `crew-deploy`). Server chặn `done` khi thiếu `crew-merge … pushed=merged pr=<URL> merge=<sha>` mới hơn quyết định của owner (`merge_missing`) hoặc `sha` khác `commit=` của bằng chứng (`push_sha_mismatch`). 422: run đã bị hủy, dừng.
@@ -180,12 +181,14 @@ Dùng ở bước 2 của stage 4 (policy cũ, `MODE` bỏ trống), ở stage g
 # Dùng: T=<40 hex> DEFAULT=<nhánh mặc định> [MODE=owner|bf|merge] [NOTE=<một dòng>] [HEAD_OK=<40 hex>] bash "$D/crew-pr.sh" "$D"
 #   (chạy trong worktree integrator). MODE=owner (mặc định): stage giao code sau khi owner duyệt, owner bấm Merge.
 #   MODE=bf: stage gộp của ticket tổng code-bf, mở/cập nhật PR trước Bug Finding và owner, không đòi quyết định owner.
-#   MODE=merge: stage merge của ticket tổng code-bf, merge PR đúng head T (hoặc HEAD_OK chứa T khi owner đã xử lý conflict).
+#   MODE=merge: stage merge của ticket tổng code-bf, merge PR đúng head T (hoặc HEAD_OK chứa T khi owner đã xử lý conflict;
+#   mọi commit trong T..HEAD_OK chưa có trên origin/DEFAULT phải là merge commit có cha thứ hai nằm trên origin/DEFAULT).
 # Vào: "$D/issue.json" = JSON của GET /api/issues/<id gốc>.
 # Ra (thoát 0): "$D/pr-url.txt", "$D/done.json" (PATCH done kèm mô tả mới), và "$D/merge-comment.json" ({"body":…},
 #   MODE=owner|merge) hoặc "$D/pr-comment.json" ({"body":…}, MODE=bf).
 # Thoát: 0 xong; 3 origin không ở GitHub (dùng push thẳng); 2 thiếu dữ liệu; 4 gh không dùng được; 5 push nhánh bị từ chối;
-# 6 gh lỗi khi tìm/tạo/đọc/merge PR; 7 PR có conflict (MODE=bf|merge); 8 không có PR đúng commit T (MODE=merge).
+# 6 gh lỗi khi tìm/tạo/đọc/merge PR; 7 PR có conflict (MODE=bf|merge); 8 không có PR đúng commit T (MODE=merge);
+# 9 HEAD_OK có commit ngoài merge nhánh mặc định (MODE=merge).
 # Khác 0 và khác 3: lý do đã lọc ở "$D/error.txt".
 # Không bao giờ: push vào nhánh mặc định, --force, --no-verify, --admin, in URL remote hay token.
 set -u
@@ -354,6 +357,15 @@ branch=$(node "$D/crew-pr.cjs" meta "$D" "$T" "$DEFAULT") || fail 2 "không đ�
 if [ -n "$HEAD_OK" ] && [ "$HEAD_OK" != "$T" ]; then
   git cat-file -e "${HEAD_OK}^{commit}" 2>/dev/null || git fetch origin "refs/heads/${branch}" > "$D/out.txt" 2>&1 || fail 6 "không fetch được nhánh $branch"
   git merge-base --is-ancestor "$T" "$HEAD_OK" 2>/dev/null || fail 8 "commit $HEAD_OK không chứa commit đã duyệt $T"
+  # Chỉ cho phép thêm merge commit gộp nhánh mặc định (owner xử lý conflict): mọi commit chưa có ở T hay origin/DEFAULT
+  # phải có đúng hai cha và cha thứ hai nằm trên origin/DEFAULT. Commit thường (của bất kỳ ai) thì từ chối.
+  git fetch origin "+refs/heads/${DEFAULT}:refs/remotes/origin/${DEFAULT}" > "$D/out.txt" 2>&1 || fail 6 "không fetch được nhánh $DEFAULT"
+  base="refs/remotes/origin/${DEFAULT}"
+  git rev-list "$HEAD_OK" "^$T" "^$base" > "$D/extra.txt" 2> "$D/out.txt" || fail 6 "không liệt kê được commit sau $T"
+  while read -r c; do
+    set -- $(git rev-list --parents -n 1 "$c")
+    [ "$#" = 3 ] && git merge-base --is-ancestor "$3" "$base" 2>/dev/null || { : > "$D/out.txt"; fail 9 "head $HEAD_OK có commit $c không phải merge nhánh $DEFAULT: không merge code chưa được owner duyệt"; }
+  done < "$D/extra.txt"
 fi
 gh pr list --repo "$repo" --head "$branch" --base "$DEFAULT" --state all --limit 20 --json url,state,headRefOid > "$D/prs.json" 2> "$D/out.txt" || fail 6 "gh pr list lỗi"
 picked=$(node "$D/crew-pr.cjs" pick "$D" "$T" "$DEFAULT") || fail 6 "không đọc được danh sách PR"

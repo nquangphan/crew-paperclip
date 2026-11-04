@@ -72,7 +72,7 @@ describe("route công tắc runtime theo máy", () => {
         ["runtimes.switches.set", "POST", "/runtime-switches", "board", { from: "body", key: "companyId" }],
       ]);
     expect(parsed.capabilities).toEqual(expect.arrayContaining(["api.routes.register", "activity.log.write"]));
-    expect(parsed.capabilities).toHaveLength(28);
+    expect(parsed.capabilities).toHaveLength(30);
   });
 
   it("GET trả mọi máy có bản tin của company, chưa có dòng thì mặc định (claude bật, codex/opencode tắt, opencode bị khóa khi thiếu vá)", async () => {

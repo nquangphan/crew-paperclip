@@ -141,13 +141,16 @@ là integrator, stage 2 là reviewer, stage 3 là `approval` của owner); polic
   chạy lại dựng tiếp trên head PR của `crew-pr` trước (bỏ `sha` đã có, gộp `origin/<mặc định>` khi nhánh mặc định đi tiếp)
   để push thường vẫn đi được; kiểm, ghi `crew-docs-check`, rồi chạy script PR với `MODE=bf` (không đọc quyết định owner),
   đăng `crew-pr sha=<merged commit> pr=<URL>` và `PATCH done`. Stage merge (stage 4) chạy script với `MODE=merge`: head PR
-  phải đúng `T` (hoặc `HEAD_OK` chứa `T` sau khi owner tự xử lý conflict), `gh pr merge --merge --match-head-commit`
+  phải đúng `T` (hoặc `HEAD_OK` sau khi owner tự xử lý conflict: script fetch nhánh mặc định và chỉ nhận khi mọi commit
+  trong `T..HEAD_OK` chưa có trên nhánh đó là merge commit hai cha, cha thứ hai nằm trên nhánh mặc định), `gh pr merge --merge --match-head-commit`
   (`--squash` khi repo cấm merge commit), đăng `crew-merge … pushed=merged pr=<URL> merge=<sha>`, deploy với `--pr`, rồi
   `PATCH done`. Conflict thì comment `Integrator: chưa merge được — conflict` và dừng, không đổi status.
 - Script PR (`## Script mở pull request` của `integrator.md`): `MODE` mặc định `owner` giữ nguyên luồng cũ; `MODE=bf` ra
   `pr-comment.json` và `done.json`, chân PR ghi Bug Finding review và integrator merge sau khi owner duyệt, conflict thì thoát
   7; `MODE=merge` không push, ra `merge-comment.json` và `done.json` (mục `### Merge request` ghi merge commit), thoát 7
-  khi conflict, 8 khi head PR khác commit đã duyệt hay không có PR.
+  khi conflict, 8 khi head PR khác commit đã duyệt hay không có PR, 9 khi `HEAD_OK` có commit chưa được owner duyệt (commit
+  thường sau `T`, hay mang vào qua merge nhánh khác); integrator comment `Integrator: không merge — head pull request có commit
+  chưa được owner duyệt` và dừng. Test `integrator-pr.test.mjs` dựng repo bare cục bộ cho `git fetch origin`.
 - Reviewer (`reviewer.md`, mục "Ticket tổng `code-bf`: cầu nối Bug Finding"): không đọc code; đọc
   `GET /api/plugins/crew.core/api/issues/<id>/bug-finding` (flow `bug-finding`), không tin comment. Chưa có lượt cho head
   hiện tại thì xếp (`bug-finding/request`); lượt hỏng lần đầu xếp lại, lần hai hỏi owner bằng `request_confirmation` khóa

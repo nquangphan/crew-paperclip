@@ -461,13 +461,26 @@ test("MODE=merge chạy lại khi PR đã merge đúng T: không gọi gh pr mer
   assert.equal(w.json("merge-comment.json").body.split("\n")[0], `crew-merge sha=${w.T} branch=main pushed=merged pr=${url} merge=${"f".repeat(40)}`);
 });
 
-test("MODE=merge với HEAD_OK: owner xử lý conflict trên GitHub, head mới chứa T thì merge đúng head đó; head không chứa T thì thoát 8", () => {
+/** `git fetch origin …` đi tới repo bare cục bộ (origin trong test là URL GitHub giả, chỉ push được nhờ pushInsteadOf). */
+function fetchFromBare(w) {
+  const realGit = spawnSync("bash", ["-c", "command -v git"], { encoding: "utf8" }).stdout.trim();
+  const file = path.join(w.root, "bin", "git");
+  writeFileSync(file, `#!/bin/bash\nif [ "$1" = fetch ] && [ "$2" = origin ]; then shift 2; exec "${realGit}" fetch "${w.bare}" "$@"; fi\nexec "${realGit}" "$@"\n`);
+  chmodSync(file, 0o755);
+}
+
+test("MODE=merge với HEAD_OK: head = T + merge nhánh mặc định thì merge đúng head đó; head có commit thường sau T thì thoát 9; head không chứa T thì thoát 8", () => {
   const w = world();
-  writeFileSync(path.join(w.work, "resolve.txt"), "owner\n");
+  w.git(w.work, "switch", "-q", "main");
+  writeFileSync(path.join(w.work, "m.txt"), "main đi tiếp\n");
   w.git(w.work, "add", ".");
-  w.git(w.work, "commit", "-qm", "Merge main vào crew/req/TPS-145 (owner sửa conflict)");
+  w.git(w.work, "commit", "-qm", "main đi tiếp");
+  w.git(w.work, "push", "-q", "origin", "main");
+  w.git(w.work, "switch", "-q", "crew/req/TPS-145");
+  w.git(w.work, "merge", "-q", "--no-ff", "-m", "Merge main vào crew/req/TPS-145 (owner sửa conflict)", "main");
   const H = w.git(w.work, "rev-parse", "HEAD");
   w.git(w.work, "push", "-q", "origin", `${H}:refs/heads/crew/req/TPS-145`);
+  fetchFromBare(w);
   const url = openPr(w, { headRefOid: H });
   const r = w.run({ MODE: "merge", HEAD_OK: H });
   assert.equal(r.status, 0, r.stdout + r.stderr);
@@ -475,6 +488,18 @@ test("MODE=merge với HEAD_OK: owner xử lý conflict trên GitHub, head mới
   const body = w.json("merge-comment.json").body;
   assert.equal(body.split("\n")[0].split(" pushed=")[0], `crew-merge sha=${w.T} branch=main`, "sha vẫn là commit owner duyệt");
   assert.match(body, new RegExp(`Head PR khi merge: \`${H}\``));
+
+  const w1 = world();
+  writeFileSync(path.join(w1.work, "lạ.txt"), "chưa duyệt\n");
+  w1.git(w1.work, "add", ".");
+  w1.git(w1.work, "commit", "-qm", "commit chưa được owner duyệt");
+  const Y = w1.git(w1.work, "rev-parse", "HEAD");
+  w1.git(w1.work, "push", "-q", "origin", `${Y}:refs/heads/crew/req/TPS-145`);
+  openPr(w1, { headRefOid: Y });
+  fetchFromBare(w1);
+  const r1 = w1.run({ MODE: "merge", HEAD_OK: Y });
+  assert.equal(r1.status, 9, r1.stdout + r1.stderr);
+  assert.doesNotMatch(w1.calls(), /pr merge/);
 
   const w2 = world();
   w2.git(w2.work, "switch", "-q", "-c", "other", w2.base);
@@ -484,6 +509,7 @@ test("MODE=merge với HEAD_OK: owner xử lý conflict trên GitHub, head mới
   const X = w2.git(w2.work, "rev-parse", "HEAD");
   w2.git(w2.work, "push", "-q", "origin", `${X}:refs/heads/crew/req/TPS-145`);
   openPr(w2, { headRefOid: X });
+  fetchFromBare(w2);
   const r2 = w2.run({ MODE: "merge", HEAD_OK: X });
   assert.equal(r2.status, 8, r2.stdout + r2.stderr);
   assert.doesNotMatch(w2.calls(), /pr merge/);
