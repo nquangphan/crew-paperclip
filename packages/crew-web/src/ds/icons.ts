@@ -40,6 +40,7 @@ export {
   Play,
   Plus,
   RefreshCw,
+  Scan,
   Search,
   Settings,
   ShieldCheck,
