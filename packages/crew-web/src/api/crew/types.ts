@@ -6,6 +6,8 @@ import type { CrewRoleSlot } from '@/lib/instructions/agent-config';
 
 /** Ô vai trò (cùng CrewRoleSlot của plugin `src/jobs/types.ts`), gồm ba ô runtime `executor-codex`, `executor-opencode`, `reviewer-codex`. */
 export type { CrewRoleSlot };
+/** Checkout của agent UIUX (vai `designer`, không phải ô vai trò): chỉ việc `agent-workspace` nhận, như plugin. */
+export type WorkspaceRole = CrewRoleSlot | 'designer';
 
 // I1. Hàng đợi việc trên máy
 export type MachineJobKind =
@@ -22,7 +24,7 @@ export type MachineJobStatus = 'queued' | 'claimed' | 'done' | 'failed' | 'cance
 export type JobPayload =
   | { kind: 'inspect-folder'; folder: string }
   | { kind: 'prepare-checkouts'; projectKey: string; folder: string; roles: { role: CrewRoleSlot; branch: string }[] }
-  | { kind: 'agent-workspace'; projectKey: string; folder: string; role: CrewRoleSlot; branch: string }
+  | { kind: 'agent-workspace'; projectKey: string; folder: string; role: WorkspaceRole; branch: string }
   | { kind: 'skill-sync'; skillId: string; slug: string; version: string }
   | { kind: 'check'; projectKey: string }
   | {
@@ -53,7 +55,7 @@ export type JobResult =
       clean: boolean;
     }
   | { kind: 'prepare-checkouts'; checkouts: { role: CrewRoleSlot; path: string; head: string }[] }
-  | { kind: 'agent-workspace'; role: CrewRoleSlot; path: string; head: string }
+  | { kind: 'agent-workspace'; role: WorkspaceRole; path: string; head: string }
   | { kind: 'skill-sync'; sha256: string; files: number }
   | { kind: 'check'; items: { id: string; status: 'ok' | 'warn' | 'error'; title: string }[] }
   | {

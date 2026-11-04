@@ -70,7 +70,7 @@ Luật chính:
 | `packages/crew-web/src/api/queryKeys.ts` | Khóa TanStack Query (kèm `modelSettings` cho bảng cài đặt model) | `queryKeys` |
 | `packages/crew-web/src/api/crew/data.ts` | Data plugin `crew.core` | `CREW_DATA_KEYS` |
 | `packages/crew-web/src/api/crew/machine-pins.ts` | Client router Crew của server cho chạy nhiều máy (ứng viên, máy ghim của yêu cầu, máy của project, chặn/gỡ/dựng máy khác) | `machinePinsApi` |
-| `packages/crew-web/src/api/crew/types.ts` | Kiểu dữ liệu plugin dùng ở web | |
+| `packages/crew-web/src/api/crew/types.ts` | Kiểu dữ liệu plugin dùng ở web | `WorkspaceRole` (ô vai trò hay `designer`) |
 | `packages/crew-web/src/api/paperclip/` | Client route lõi Paperclip (issue, agent, project, environment, skill...) | |
 | `packages/crew-web/src/i18n/index.ts`, `format.ts` | i18n và định dạng giờ, tiền | `useT`, `formatDateTime` |
 | `packages/crew-web/src/lib/stale-chunk-reload.ts` | Tải lại khi chunk cũ mất | `installStaleChunkReload` |

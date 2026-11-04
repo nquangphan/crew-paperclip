@@ -1,8 +1,8 @@
 import { UUID } from "../shared/db.js";
 import { maskUrlUserinfo, sanitizeJobError } from "./sanitize.js";
 import {
-  CREW_ROLE_SLOTS, type CrewRoleSlot, MAX_EXECUTORS, type JobPayload, type JobResult, KEPT_CHECKOUT_REASONS, type KeptCheckoutReason, MACHINE_JOB_KINDS,
-  type MachineJobKind,
+  CREW_ROLE_SLOTS, type CrewRoleSlot, DESIGNER_CHECKOUT, MAX_EXECUTORS, type JobPayload, type JobResult, KEPT_CHECKOUT_REASONS, type KeptCheckoutReason, MACHINE_JOB_KINDS,
+  type MachineJobKind, type WorkspaceRole,
 } from "./types.js";
 
 /** Same rule as the app's project key. */
@@ -53,6 +53,8 @@ export function folderError(folder: unknown): string | null {
 
 const projectKeyError = (key: unknown) => typeof key === "string" && PROJECT_KEY.test(key) ? null : "projectKey không hợp lệ";
 const roleError = (role: unknown) => CREW_ROLE_SLOTS.includes(role as CrewRoleSlot) ? null : "role không hợp lệ";
+/** Role của `agent-workspace`: ô vai trò hay checkout `designer` của agent UIUX. */
+const workspaceRoleError = (role: unknown) => role === DESIGNER_CHECKOUT ? null : roleError(role);
 const branchError = (branch: unknown) =>
   typeof branch === "string" && BRANCH.test(branch) && !branch.startsWith("-") ? null : "branch không hợp lệ";
 
@@ -150,8 +152,8 @@ export function validateJobPayload(kind: MachineJobKind, payload: unknown): JobP
         roles: (p.roles as { role: CrewRoleSlot; branch: string }[]).map(({ role, branch }) => ({ role, branch })),
       };
     case "agent-workspace":
-      return projectKeyError(p.projectKey) ?? folderError(p.folder) ?? roleError(p.role) ?? branchError(p.branch) ?? {
-        kind, projectKey: p.projectKey as string, folder: p.folder as string, role: p.role as CrewRoleSlot, branch: p.branch as string,
+      return projectKeyError(p.projectKey) ?? folderError(p.folder) ?? workspaceRoleError(p.role) ?? branchError(p.branch) ?? {
+        kind, projectKey: p.projectKey as string, folder: p.folder as string, role: p.role as WorkspaceRole, branch: p.branch as string,
       };
     case "skill-sync":
       if (typeof p.skillId !== "string" || !UUID.test(p.skillId)) return "skillId phải là uuid";
@@ -225,7 +227,9 @@ export function validateJobResult(kind: MachineJobKind, result: Record<string, u
       if (!Array.isArray(r.checkouts) || !r.checkouts.every(checkout)) return RESULT_ERROR;
       return { kind, checkouts: r.checkouts.map(({ role, path, head }) => ({ role, path, head })) };
     case "agent-workspace":
-      return checkout(r) ? { kind, role: r.role, path: r.path, head: r.head } : RESULT_ERROR;
+      return workspaceRoleError(r.role) === null && str(r.path) && str(r.head)
+        ? { kind, role: r.role as WorkspaceRole, path: r.path, head: r.head }
+        : RESULT_ERROR;
     case "skill-sync":
       if (!str(r.sha256) || !Number.isInteger(r.files) || (r.files as number) < 0) return RESULT_ERROR;
       return { kind, sha256: r.sha256, files: r.files as number };

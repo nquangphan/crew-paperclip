@@ -122,6 +122,10 @@ describe("validateJobPayload", () => {
       expect(validateJobPayload("agent-workspace", { projectKey: "demo", folder: "/Users/a/repo", role, branch: `crew/demo/${role}` }))
         .toEqual({ kind: "agent-workspace", projectKey: "demo", folder: "/Users/a/repo", role, branch: `crew/demo/${role}` });
     }
+    expect(validateJobPayload("agent-workspace", { projectKey: "demo", folder: "/Users/a/repo", role: "designer", branch: "crew/demo/designer" }))
+      .toEqual({ kind: "agent-workspace", projectKey: "demo", folder: "/Users/a/repo", role: "designer", branch: "crew/demo/designer" });
+    expect(validateJobPayload("prepare-checkouts", { projectKey: "demo", folder: "/x", roles: [...fullRoles, { role: "designer", branch: "x" }] }))
+      .toBe("role không hợp lệ");
     expect(validateJobPayload("remove-checkouts", { ...removeCheckouts, roles: allSlots })).toEqual({ kind: "remove-checkouts", ...removeCheckouts, roles: allSlots });
     const withDesigner = [...allSlots, "designer"];
     expect(validateJobPayload("remove-checkouts", { ...removeCheckouts, roles: withDesigner })).toEqual({ kind: "remove-checkouts", ...removeCheckouts, roles: withDesigner });
@@ -197,6 +201,9 @@ describe("validateJobResult", () => {
     const checkouts = [{ role: "executor-2", path: "/Users/a/crew-agents/demo/executor-2", head: "abc123" }];
     expect(validateJobResult("prepare-checkouts", { kind: "prepare-checkouts", checkouts })).toEqual({ kind: "prepare-checkouts", checkouts });
     expect(validateJobResult("agent-workspace", { kind: "agent-workspace", ...checkouts[0] })).toEqual({ kind: "agent-workspace", ...checkouts[0] });
+    const designer = { role: "designer", path: "/Users/a/crew-agents/demo/designer", head: "abc" };
+    expect(validateJobResult("agent-workspace", { kind: "agent-workspace", ...designer })).toEqual({ kind: "agent-workspace", ...designer });
+    expect(validateJobResult("prepare-checkouts", { kind: "prepare-checkouts", checkouts: [designer] })).toBe("result không hợp lệ");
     expect(validateJobResult("skill-sync", { kind: "skill-sync", sha256: "ab", files: 0 })).toEqual({ kind: "skill-sync", sha256: "ab", files: 0 });
     const items = [{ id: "git", status: "warn", title: "Git" }];
     expect(validateJobResult("check", { kind: "check", items })).toEqual({ kind: "check", items });

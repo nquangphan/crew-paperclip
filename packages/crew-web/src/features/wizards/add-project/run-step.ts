@@ -24,7 +24,16 @@ import {
   roleOfSlot,
 } from '@/lib/instructions';
 import { type HostMachine, machineHost } from '../machine-host';
-import { ADD_PROJECT_STEPS, type AddProjectStepId, projectSlots, slotBranch, slotName } from './steps';
+import {
+  ADD_PROJECT_STEPS,
+  type AddProjectStepId,
+  DESIGNER,
+  designerName,
+  type ProjectCheckout,
+  projectSlots,
+  slotBranch,
+  slotName,
+} from './steps';
 import { JobFailedError, JobTimeoutError, waitJob } from './wait-job';
 
 export type Dateish = string | Date;
@@ -86,6 +95,7 @@ export interface AddProjectApi extends InstructionsApi {
     create(companyId: string, body: Record<string, unknown>): Promise<{ id: string }>;
   };
   secrets: { list(companyId: string): Promise<{ id: string }[]> };
+  skills: { list(companyId: string): Promise<{ key: string }[]> };
   environments: {
     list(companyId: string): Promise<EnvironmentRow[]>;
     create(companyId: string, body: Record<string, unknown>): Promise<{ id: string }>;
@@ -95,6 +105,8 @@ export interface AddProjectApi extends InstructionsApi {
     create(companyId: string, body: Record<string, unknown>): Promise<{ id: string }>;
     pause(id: string, companyId?: string): Promise<unknown>;
     resume(id: string, companyId?: string): Promise<unknown>;
+    /** `POST /agents/:id/skills/sync`: gắn skill công ty `ui-ux-pro-max` cho agent UIUX. */
+    syncSkills(id: string, desiredSkills: unknown[], mode: string, companyId?: string): Promise<unknown>;
     /**
      * `PATCH /agents/:id/permissions`. Paperclip tự cấp `tasks:assign` cho mọi agent mới tạo; route này đặt lại để
      * chỉ Trợ Lý giữ quyền giao việc. Lớp `src/api` chưa có hàm này thì bỏ qua bước đặt quyền.
@@ -411,6 +423,21 @@ export function environmentBody(template: EnvironmentRow, name: string, checkout
   };
 }
 
+/** Đuôi key của skill công ty mà agent UIUX dùng (`local/<hash>/ui-ux-pro-max`). */
+export const DESIGNER_SKILL_SUFFIX = '/ui-ux-pro-max';
+
+/** Key skill công ty `ui-ux-pro-max`; company chưa có skill này thì null (project không có agent UIUX, như trước). */
+export async function designerSkillOf(api: Pick<AddProjectApi, 'skills'>, companyId: string): Promise<string | null> {
+  const skills = await api.skills.list(companyId);
+  return skills.find((skill) => skill.key.endsWith(DESIGNER_SKILL_SUFFIX))?.key ?? null;
+}
+
+/** Các checkout của project: ô vai trò, cộng `designer` khi bước checkouts đã dựng checkout cho agent UIUX. */
+function projectCheckouts(input: AddProjectInput, refs: Record<string, string>): ProjectCheckout[] {
+  const slots: ProjectCheckout[] = projectSlots(input.executors);
+  return refs[`checkout_${DESIGNER}`] ? [...slots, DESIGNER] : slots;
+}
+
 /** Bản ghim Superpowers mà máy của run báo (`superpowers.pinDir`). */
 export async function pinDirOf(
   api: { crew: { machines(companyId: string): Promise<unknown> } },
@@ -476,6 +503,19 @@ const STEPS: Record<AddProjectStepId, StepWork> = {
       if (!path) throw new StepError('errors.checkoutMissing', { role: slot });
       refs[`checkout_${slot}`] = path;
     }
+    // Agent UIUX: chỉ khi company có skill `ui-ux-pro-max`. Bước sau nhận ra UIUX nhờ `checkout_designer`.
+    const skill = refs.designer_skill ?? (await designerSkillOf(ctx.api, run.companyId));
+    if (skill) {
+      const workspace: WizardJobPayload = {
+        kind: 'agent-workspace',
+        projectKey: input.key,
+        folder: payload.folder,
+        role: DESIGNER,
+        branch: slotBranch(input.key, DESIGNER),
+      };
+      refs[`checkout_${DESIGNER}`] = resultOf(await runJob(ctx, run, workspace, true), 'agent-workspace').path;
+      refs.designer_skill = skill;
+    }
     return {};
   },
 
@@ -484,7 +524,7 @@ const STEPS: Record<AddProjectStepId, StepWork> = {
     const all = { ...runRefs(run), ...refs };
     const envs = await ctx.api.environments.list(run.companyId);
     let target: MachineTarget | null = null;
-    for (const slot of projectSlots(input.executors)) {
+    for (const slot of projectCheckouts(input, all)) {
       const key = `environment_${slot}`;
       if (refs[key] ?? all[key]) {
         refs[key] = refs[key] ?? all[key];
@@ -549,11 +589,21 @@ const STEPS: Record<AddProjectStepId, StepWork> = {
       );
     }
 
+    const designer = all[`checkout_${DESIGNER}`]
+      ? await ensureDesigner(ctx, run, refs, { all, existing, settings, pinDir })
+      : null;
+
     const executorIds = slots.filter((s) => roleOfSlot(s) === 'executor').map((s) => refs[`agent_${s}`]);
-    for (const slot of slots) {
-      const agentId = refs[`agent_${slot}`];
-      const role = roleOfSlot(slot);
-      const content = renderInstructions(role, { agentId, ...(role === 'assistant' ? { executorIds } : {}) });
+    const designerIds = designer ? [designer] : [];
+    const files: { slot: ProjectCheckout; role: Parameters<typeof renderInstructions>[0]; agentId: string }[] = [
+      ...slots.map((slot) => ({ slot, role: roleOfSlot(slot), agentId: refs[`agent_${slot}`] })),
+      ...(designer ? [{ slot: DESIGNER, role: DESIGNER, agentId: designer } as const] : []),
+    ];
+    for (const { slot, role, agentId } of files) {
+      const content = renderInstructions(role, {
+        agentId,
+        ...(role === 'assistant' ? { executorIds, designerIds } : {}),
+      });
       const saved = await putInstructions(api, agentId, content, { companyId });
       if (!saved.ok) throw new StepError('errors.instructionsConflict', { name: slotName(input.key, slot) });
       refs[`instructions_${slot}`] = saved.hash;
@@ -595,6 +645,57 @@ const STEPS: Record<AddProjectStepId, StepWork> = {
     return {};
   },
 };
+
+/**
+ * Agent UIUX của project: tạo (hay nhận lại agent đã tạo mà mất response) trên environment `designer`, model và effort
+ * của vai `designer` trong bảng model, quyền như executor, gắn skill `ui-ux-pro-max` (thay toàn bộ danh sách skill).
+ */
+async function ensureDesigner(
+  ctx: AddProjectContext,
+  run: SetupRun,
+  refs: Record<string, string>,
+  input: {
+    all: Record<string, string>;
+    existing: AgentRow[];
+    settings: Pick<ModelSettingsView, 'settings'>['settings'];
+    pinDir: string;
+  },
+): Promise<string> {
+  const { api } = ctx;
+  const { key } = inputOf(run);
+  const companyId = run.companyId;
+  const ref = `agent_${DESIGNER}`;
+  if (!refs[ref] && input.all[ref]) refs[ref] = input.all[ref];
+  if (!refs[ref]) {
+    const environmentId = required(input.all, `environment_${DESIGNER}`);
+    const name = designerName(key);
+    const lost = input.existing.find(
+      (a) => a.name === name && a.defaultEnvironmentId === environmentId && a.status !== 'terminated',
+    );
+    refs[ref] = lost?.id ?? (await api.agents.create(companyId, designerBody(name, environmentId, input))).id;
+  }
+  await api.agents.setPermissions?.(refs[ref], { ...CREW_AGENT_PERMISSIONS, canAssignTasks: false }, companyId);
+  await api.agents.syncSkills(refs[ref], [required(input.all, 'designer_skill')], 'replace', companyId);
+  return refs[ref];
+}
+
+/** Body agent UIUX: như executor Claude (wrapper, ghim Superpowers), model và effort theo vai `designer`. */
+function designerBody(
+  name: string,
+  environmentId: string,
+  input: { settings: Pick<ModelSettingsView, 'settings'>['settings']; pinDir: string },
+) {
+  const { settings, pinDir } = input;
+  const role = settings.roles.designer;
+  const body = crewAgentCreateBody({ name, slot: 'executor', model: role.model, settings, pinDir, environmentId });
+  const config: Record<string, unknown> = { ...body.adapterConfig };
+  const effortKey = settings.catalog.claude_local.effortKey;
+  if (effortKey) {
+    delete config[effortKey];
+    if (role.effort) config[effortKey] = role.effort;
+  }
+  return { ...body, adapterConfig: config };
+}
 
 const agentIdsOf = (refs: Record<string, string>) =>
   new Set(Object.entries(refs).flatMap(([k, v]) => (k.startsWith('agent_') ? [v] : [])));
