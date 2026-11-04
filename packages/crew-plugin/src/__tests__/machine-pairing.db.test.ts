@@ -103,7 +103,7 @@ describe("manifest ghép máy", () => {
         ["machines.pair", "POST", "/machines/pair", "board", { from: "body", key: "companyId" }],
         ["machines.unpair", "POST", "/machines/:machineId/unpair", "board", { from: "body", key: "companyId" }],
       ]);
-    expect(parsed.capabilities).toHaveLength(28);
+    expect(parsed.capabilities).toHaveLength(30);
   });
 });
 

@@ -47,6 +47,7 @@ Paperclip, không mô tả Crew. Phạm vi file nguồn của Crew là `source.i
 | [Chặn agent sửa cấu hình agent, project, workspace và xóa issue](flows/agent-guards.md) | `agent-guards` | `server/src/crew/agent-config-gate.ts`, `server/src/crew/agent-write-guard.ts`, `packages/crew-plugin/src/security/index.ts` |
 | [Template vai trò agent (AGENTS.md) và áp vai trò](flows/agent-roles.md) | `agent-roles` | `crew/agents/apply-roles.sh`, `packages/crew-web/src/lib/instructions/index.ts` |
 | [File đính kèm: luật loại file, kiểm định kỳ, xem file](flows/attachments.md) | `attachments` | `packages/crew-plugin/src/attachments/audit.ts` |
+| [Lượt Bug Finding của ticket tổng](flows/bug-finding.md) | `bug-finding` | `packages/crew-plugin/src/bug-finding/api.ts` |
 | [Góp ý chờ owner duyệt (Phòng Marketing, Phòng QC)](flows/contributions.md) | `contributions` | `server/src/crew/contribution-routes.ts`, `packages/crew-web/src/features/contributions/routes.tsx` |
 | [Móc Crew vào lõi Paperclip và nâng bản upstream](flows/core-hooks.md) | `core-hooks` | `server/src/crew/core-hooks.ts`, `crew/release/upgrade.sh` |
 | [Plugin crew.core: worker, manifest, bảng plugin, cầu nối với server](flows/crew-plugin.md) | `crew-plugin` | `packages/crew-plugin/src/worker.ts`, `packages/crew-plugin/src/manifest.ts` |

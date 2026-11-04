@@ -244,6 +244,14 @@ describe("khóa mới của bản tin máy: checkouts, superpowers.pinDir/skills
     }
   });
 
+  it("jobsAgent nhận capabilities (loại việc máy app làm được); capabilities sai dạng thì bỏ riêng trường đó", () => {
+    const withCaps = parseMachineReport({ ...full, jobsAgent: { ...full.jobsAgent, capabilities: ["bug-finding-review"] } });
+    expect(withCaps.jobsAgent).toEqual({ ...full.jobsAgent, capabilities: ["bug-finding-review"] });
+    for (const bad of ["bug-finding-review", [1], ["x".repeat(65)], Array.from({ length: 33 }, (_, n) => `kind-${n}`)]) {
+      expect(parseMachineReport({ ...full, jobsAgent: { ...full.jobsAgent, capabilities: bad } }).jobsAgent).toEqual(full.jobsAgent);
+    }
+  });
+
   it("bỏ riêng jobsAgent sai dạng", () => {
     for (const bad of [{ version: "0.3.0", lastPollAt: "hôm qua" }, { version: "abc", lastPollAt: full.jobsAgent.lastPollAt },
       { version: "0.3.0" }, { ...full.jobsAgent, extra: 1 }, null, "x"]) {

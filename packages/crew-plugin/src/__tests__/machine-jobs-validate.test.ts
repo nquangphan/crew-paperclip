@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { MachineJobKind } from "../jobs/types.js";
+import { JOB_ERROR_CODES, MACHINE_JOB_KINDS, type MachineJobKind } from "../jobs/types.js";
 import { validateJobPayload, validateJobResult } from "../jobs/validate.js";
 
 const fullRoles = [
@@ -248,5 +248,74 @@ describe("validateJobResult", () => {
       expect(validateJobResult("remove-checkouts", { kind: "remove-checkouts", removed: [], kept: [{ role: "executor", path, reason }], absent: [] }))
         .toMatchObject({ kept: [{ reason }] });
     }
+  });
+});
+
+const bugFindingReview = {
+  requestId: "70000000-0000-4000-8000-000000000001",
+  issueId: "30000000-0000-4000-8000-000000000002",
+  identifier: "TPS-643",
+  run: 1,
+  projectId: "30000000-0000-4000-8000-000000000001",
+  projectKey: "my-crew",
+  repoPath: "/Users/a/crew-agents/my-crew/repo",
+  provider: "github",
+  prNumber: 87,
+  prUrl: "https://github.com/nquangphan/my-crew/pull/87",
+  headSha: "a".repeat(40),
+  baseBranch: "main",
+};
+
+describe("bug-finding-review", () => {
+  it("payload hợp lệ: gắn kind, id chữ thường, reviewerInputText không bắt buộc", () => {
+    expect(validateJobPayload("bug-finding-review", bugFindingReview)).toEqual({ kind: "bug-finding-review", ...bugFindingReview });
+    const upper = { ...bugFindingReview, requestId: bugFindingReview.requestId.toUpperCase(), issueId: bugFindingReview.issueId.toUpperCase() };
+    expect(validateJobPayload("bug-finding-review", { ...upper, reviewerInputText: "F-04: owner chọn không sửa" }))
+      .toEqual({ kind: "bug-finding-review", ...bugFindingReview, reviewerInputText: "F-04: owner chọn không sửa" });
+    expect(validateJobPayload("bug-finding-review", { ...bugFindingReview, run: 3, reviewerInputText: "x".repeat(20_000) }))
+      .toMatchObject({ run: 3 });
+  });
+
+  it.each([
+    [{ requestId: "x" }, "requestId phải là uuid"],
+    [{ issueId: "x" }, "issueId phải là uuid"],
+    [{ identifier: "tps 643" }, "identifier không hợp lệ"],
+    [{ run: 0 }, "run phải là số nguyên 1 đến 3"],
+    [{ run: 4 }, "run phải là số nguyên 1 đến 3"],
+    [{ run: 1.5 }, "run phải là số nguyên 1 đến 3"],
+    [{ projectId: "x" }, "projectId phải là uuid"],
+    [{ projectKey: "My_Crew" }, "projectKey không hợp lệ"],
+    [{ repoPath: "crew-agents/my-crew/repo" }, "repoPath phải là đường tuyệt đối"],
+    [{ repoPath: "/Users/a/../b" }, "repoPath không được chứa .."],
+    [{ provider: "gitlab" }, "provider chỉ nhận github"],
+    [{ prNumber: 0 }, "prNumber phải là số nguyên dương"],
+    [{ prNumber: "87" }, "prNumber phải là số nguyên dương"],
+    [{ prUrl: "https://gitlab.com/a/b/-/merge_requests/87" }, "prUrl không hợp lệ"],
+    [{ prUrl: "https://github.com/nquangphan/my-crew/pull/88" }, "prUrl không khớp prNumber"],
+    [{ headSha: "A".repeat(40) }, "headSha phải là 40 ký tự hex"],
+    [{ headSha: "a".repeat(39) }, "headSha phải là 40 ký tự hex"],
+    [{ baseBranch: "-main" }, "baseBranch không hợp lệ"],
+    [{ reviewerInputText: "x".repeat(20_001) }, "reviewerInputText quá 20000 ký tự"],
+    [{ reviewerInputText: 5 }, "reviewerInputText phải là chuỗi"],
+    [{ extra: 1 }, "trường extra không được hỗ trợ"],
+  ])("từ chối %j", (patch, error) => {
+    expect(validateJobPayload("bug-finding-review", { ...bugFindingReview, ...patch })).toBe(error);
+  });
+
+  it("thiếu trường bắt buộc thì từ chối", () => {
+    const { headSha: _, ...missing } = bugFindingReview;
+    expect(validateJobPayload("bug-finding-review", missing)).toBe("headSha phải là 40 ký tự hex");
+  });
+
+  it("kết quả chỉ nhận accepted: true", () => {
+    expect(validateJobResult("bug-finding-review", { kind: "bug-finding-review", accepted: true, extra: 1 }))
+      .toEqual({ kind: "bug-finding-review", accepted: true });
+    expect(validateJobResult("bug-finding-review", { kind: "bug-finding-review", accepted: false })).toBe("result không hợp lệ");
+    expect(validateJobResult("bug-finding-review", { kind: "bug-finding-review" })).toBe("result không hợp lệ");
+  });
+
+  it("mã lỗi riêng của Bug Finding nằm trong hợp đồng", () => {
+    expect(JOB_ERROR_CODES).toEqual(expect.arrayContaining(["project_missing", "bug_finding_missing", "standalone_running"]));
+    expect(MACHINE_JOB_KINDS).toContain("bug-finding-review");
   });
 });

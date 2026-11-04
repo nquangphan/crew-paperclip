@@ -526,6 +526,19 @@ flows:
       - packages/crew-plugin/src/__tests__/machine-jobs-sanitize.test.ts
       - packages/crew-plugin/src/__tests__/machine-jobs-validate.test.ts
       - packages/crew-plugin/src/__tests__/machine-jobs.db.test.ts
+  bug-finding:
+    title: "Lượt Bug Finding của ticket tổng"
+    doc: docs/flows/bug-finding.md
+    entrypoints:
+      - packages/crew-plugin/src/bug-finding/api.ts
+    files:
+      - packages/crew-plugin/migrations/0025_bug_finding.sql
+      - packages/crew-plugin/src/bug-finding/enqueue.ts
+      - packages/crew-plugin/src/bug-finding/runs.ts
+      - packages/crew-plugin/src/bug-finding/watchdog.ts
+      - server/src/crew/bug-finding-runs.ts
+    tests:
+      - packages/crew-plugin/src/__tests__/bug-finding.db.test.ts
   setup-wizards:
     title: "Wizard thêm agent, thêm project, gỡ và kiểm sẵn sàng"
     doc: docs/flows/setup-wizards.md

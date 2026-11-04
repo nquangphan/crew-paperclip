@@ -1,6 +1,6 @@
 /** Work the board queues for a Mac; the 2P Crew app claims it with a board key and reports the result. */
 export type MachineJobKind = "inspect-folder" | "prepare-checkouts" | "agent-workspace" | "skill-sync" | "check"
-  | "remove-checkouts" | "skill-remove" | "runtimes-setup" | "ensure-project";
+  | "remove-checkouts" | "skill-remove" | "runtimes-setup" | "ensure-project" | "bug-finding-review";
 export type MachineJobStatus = "queued" | "claimed" | "done" | "failed" | "cancelled";
 /** Số executor Claude tối đa của một project (ô `executor`, `executor-2` … `executor-5`). */
 export const MAX_EXECUTORS = 5;
@@ -13,7 +13,7 @@ export type CrewRoleSlot = "assistant" | ExecutorSlot | "reviewer" | "integrator
 
 export const MACHINE_JOB_KINDS: readonly MachineJobKind[] = [
   "inspect-folder", "prepare-checkouts", "agent-workspace", "skill-sync", "check", "remove-checkouts", "skill-remove",
-  "runtimes-setup", "ensure-project",
+  "runtimes-setup", "ensure-project", "bug-finding-review",
 ];
 export const MACHINE_JOB_STATUSES: readonly MachineJobStatus[] = ["queued", "claimed", "done", "failed", "cancelled"];
 export const CREW_ROLE_SLOTS: readonly CrewRoleSlot[] = [
@@ -46,7 +46,20 @@ export type JobPayload =
   | {
     kind: "ensure-project"; projectKey: string; projectId: string; originUrl: string; branch: string;
     roles: { role: string; branch: string }[]; companions: { name: string; originUrl: string }[];
-  };
+  }
+  /**
+   * Xếp một lượt review PR vào hàng đợi app Bug Finding trên Mac (flow `bug-finding`, plugin xếp khi ticket tổng vào stage
+   * cầu nối). App ghi yêu cầu vào thư mục cầu nối rồi trả `accepted` ngay; tiến độ và kết quả đi qua `POST /bug-finding/results`.
+   */
+  | ({ kind: "bug-finding-review" } & BugFindingReviewPayload);
+
+export interface BugFindingReviewPayload {
+  requestId: string; issueId: string; identifier: string; run: number; projectId: string; projectKey: string;
+  repoPath: string; provider: "github"; prNumber: number; prUrl: string; headSha: string; baseBranch: string;
+  reviewerInputText?: string;
+}
+/** Phản hồi người review gửi kèm lượt chạy lại (khối `crew-bf-feedback` của Trợ Lý), tối đa chừng này ký tự. */
+export const BUG_FINDING_INPUT_MAX = 20_000;
 
 /** Why a checkout was kept by `remove-checkouts`; keeping one is a `done` result, never a failure. */
 export type KeptCheckoutReason = "dirty" | "busy" | "not_worktree" | "git_failed";
@@ -74,15 +87,19 @@ export type JobResult =
   | {
     kind: "ensure-project"; repoPath: string; cloned: boolean;
     checkouts: { role: string; path: string; head: string }[]; companions: { name: string; path: string }[];
-  };
+  }
+  | { kind: "bug-finding-review"; accepted: true };
 
 export type JobErrorCode =
   | "folder_not_git" | "folder_forbidden" | "folder_missing" | "checkout_exists" | "git_failed" | "clone_auth_failed"
-  | "skill_fetch_failed" | "check_failed" | "lease_expired" | "app_error";
+  | "skill_fetch_failed" | "check_failed" | "lease_expired" | "app_error"
+  /** `bug-finding-review`: máy không có repo của project, không thấy app Bug Finding nhúng, bản cài riêng cũ đang chạy. */
+  | "project_missing" | "bug_finding_missing" | "standalone_running";
 
 export const JOB_ERROR_CODES: readonly JobErrorCode[] = [
   "folder_not_git", "folder_forbidden", "folder_missing", "checkout_exists", "git_failed", "clone_auth_failed",
-  "skill_fetch_failed", "check_failed", "lease_expired", "app_error",
+  "skill_fetch_failed", "check_failed", "lease_expired", "app_error", "project_missing", "bug_finding_missing",
+  "standalone_running",
 ];
 
 /** A claimed job the app has not reported within this window goes back to the queue (always longer than the app's 15 minutes). */

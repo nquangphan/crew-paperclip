@@ -10,6 +10,8 @@ import { handleRolesApi } from "./roles/api.js";
 import { handleRuntimeSwitchesApi } from "./runtimes/switches.js";
 import { handleSetupApi } from "./setup/api.js";
 import { registerAttachmentsAudit } from "./attachments/audit.js";
+import { handleBugFindingApi } from "./bug-finding/api.js";
+import { registerBugFinding } from "./bug-finding/enqueue.js";
 import { registerRuntimeDecisions } from "./runtimes/decisions.js";
 import { registerRuntimeFallback } from "./runtimes/fallback.js";
 
@@ -26,6 +28,7 @@ const plugin = definePlugin({
     registerAttachmentsAudit(ctx);
     registerRuntimeDecisions(ctx);
     registerRuntimeFallback(ctx);
+    registerBugFinding(ctx);
   },
   onWebhook: dispatchCrewWebhook,
   onApiRequest: async (input) => {
@@ -36,6 +39,7 @@ const plugin = definePlugin({
     if (input.routeKey.startsWith("issues.")) return handleIssuesApi(pluginCtx, input);
     if (input.routeKey.startsWith("runtimes.")) return handleRuntimeSwitchesApi(pluginCtx, input);
     if (input.routeKey.startsWith("machines.")) return handleMachinesApi(pluginCtx, input);
+    if (input.routeKey.startsWith("bug-finding.")) return handleBugFindingApi(pluginCtx, input);
     return (await handleDocsApi(pluginCtx, input)) ?? { status: 404, body: { error: "Route không tồn tại" } };
   },
 });

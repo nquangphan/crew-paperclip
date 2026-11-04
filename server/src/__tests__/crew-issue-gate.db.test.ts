@@ -3,7 +3,7 @@ import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
-import { and, eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import {
   activityLog,
   agents,
@@ -32,6 +32,7 @@ import {
   normalizeIssueExecutionPolicy,
 } from "../services/issue-execution-policy.js";
 import { issueService } from "../services/issues.js";
+import { crewTable } from "../crew/machine-pin.js";
 
 // Hook H2 (first line of runUpdate) through the real issue service: every caller of
 // issueService(db).update goes through the Crew gate, not only the REST route.
@@ -1401,6 +1402,57 @@ suite("crew issue gate in issueService.update", () => {
       const c = await company();
       const issueId = await rootBfAtBridge(c);
       await expect(act(c, issueId, { agentId: c.reviewerId }, "done")).rejects.toMatchObject(blocked(["bf_missing"]));
+    });
+
+    it("reader mặc định đọc bảng crew_bug_finding_runs của plugin: chỉ lượt succeeded/skipped đúng head PR mới qua", async () => {
+      const table = crewTable("crew_bug_finding_runs");
+      const schema = table.split(".")[0]!;
+      await db.execute(sql.raw(`CREATE SCHEMA IF NOT EXISTS ${schema}`));
+      await db.execute(sql.raw(`CREATE TABLE IF NOT EXISTS ${table} (company_id uuid NOT NULL, issue_id uuid NOT NULL,
+        head_sha text NOT NULL, state text NOT NULL, created_at timestamptz NOT NULL DEFAULT now())`));
+      try {
+        const c = await company();
+        const issueId = await rootBfAtBridge(c);
+        const insert = (head: string, state: string, companyId = c.companyId) =>
+          db.execute(sql`INSERT INTO ${sql.raw(table)} (company_id, issue_id, head_sha, state) VALUES (${companyId}, ${issueId}, ${head}, ${state})`);
+        await insert(SHA_HEAD, "running");
+        await insert(SHA_BASE, "succeeded");
+        await insert(SHA_HEAD, "succeeded", randomUUID());
+        await expect(act(c, issueId, { agentId: c.reviewerId }, "done")).rejects.toMatchObject(blocked(["bf_missing"]));
+        await insert(SHA_HEAD, "succeeded");
+        expect(await act(c, issueId, { agentId: c.reviewerId }, "done")).toMatchObject({ status: "in_review" });
+      } finally {
+        await db.execute(sql.raw(`DROP TABLE IF EXISTS ${table}`));
+      }
+    });
+
+    it("owner yêu cầu sửa ticket tổng Bug Finding: tăng vòng trong crew_bug_finding_rounds; reviewer cầu nối yêu cầu sửa thì không", async () => {
+      useRuns();
+      const table = crewTable("crew_bug_finding_rounds");
+      await db.execute(sql.raw(`CREATE SCHEMA IF NOT EXISTS ${table.split(".")[0]!}`));
+      await db.execute(sql.raw(`CREATE TABLE IF NOT EXISTS ${table} (company_id uuid NOT NULL, issue_id uuid NOT NULL,
+        round integer NOT NULL, updated_at timestamptz NOT NULL DEFAULT now(), PRIMARY KEY (company_id, issue_id))`));
+      const round = async (issueId: string) => {
+        const rows = (await db.execute(sql`SELECT round FROM ${sql.raw(table)} WHERE issue_id = ${issueId}`)) as unknown as { round: number }[];
+        return [...rows][0]?.round ?? null;
+      };
+      try {
+        const c = await company();
+        const issueId = await rootBfAtBridge(c);
+        runs.set(issueId, [{ headSha: SHA_HEAD, state: "succeeded" }]);
+        await act(c, issueId, { agentId: c.reviewerId }, "in_progress");
+        expect(await round(issueId)).toBeNull();
+
+        const second = await rootBfAtBridge(c);
+        runs.set(second, [{ headSha: SHA_HEAD, state: "succeeded" }]);
+        await act(c, second, { agentId: c.reviewerId }, "done");
+        expect(await act(c, second, { userId: "owner-1" }, "in_progress")).toMatchObject({
+          executionState: { status: "changes_requested", currentStageId: null, completedStageIds: [] },
+        });
+        expect(await round(second)).toBe(1);
+      } finally {
+        await db.execute(sql.raw(`DROP TABLE IF EXISTS ${table}`));
+      }
     });
 
     it("reviewer cần sửa ở stage cầu nối: Trợ Lý chờ hết lô bf-fix và thẻ hỏi crew-bf, rồi nộp lại từ stage gộp với docs và PR mới", async () => {

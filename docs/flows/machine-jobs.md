@@ -59,12 +59,19 @@ Luật chính:
 ## Dữ liệu
 
 - Bảng plugin `crew_machine_jobs` (`0006_machine_jobs.sql`; thêm loại việc gỡ ở `0011_removal_kinds.sql`, loại
-  `runtimes-setup` ở `0012_runtimes.sql`).
+  `runtimes-setup` ở `0012_runtimes.sql`, `ensure-project` ở `0022_multi_machine.sql`, `bug-finding-review` ở
+  `0025_bug_finding.sql`).
 - Loại việc, trạng thái, ô vai trò và mã lỗi: hằng trong `packages/crew-plugin/src/jobs/types.ts`.
 - Việc `ensure-project` do server Crew xếp (không qua wizard): payload `projectKey`, `projectId`, `originUrl`, `branch`,
   `roles[]` (`role`, `branch`; 1–12 thư mục checkout: 11 ô vai trò cộng agent UIUX `designer`, `MAX_CHECKOUTS`),
   `companions[]` (`name`, `originUrl`); result `repoPath`, `cloned`, `checkouts[]`,
   `companions[]`. Clone thiếu quyền báo mã lỗi `clone_auth_failed`.
+- Việc `bug-finding-review` do plugin xếp khi ticket tổng Bug Finding vào stage cầu nối (flow `bug-finding`, người tạo
+  `crew:bug-finding`): payload `requestId` (uuid), `issueId`, `identifier`, `run` (1–3), `projectId`, `projectKey`,
+  `repoPath` (tuyệt đối), `provider` (`github`), `prNumber` (nguyên dương, khớp số trong `prUrl`), `prUrl` (URL pull
+  request GitHub), `headSha` (40 hex), `baseBranch`, `reviewerInputText` (không bắt buộc, tối đa
+  `BUG_FINDING_INPUT_MAX` 20 000 ký tự); result `{ accepted: true }` (app nhận yêu cầu là xong việc, tiến độ và kết quả
+  đi route `bug-finding.results`). Mã lỗi riêng: `project_missing`, `bug_finding_missing`, `standalone_running`.
 - Ô vai trò (`CREW_ROLE_SLOTS`, 11 ô): `assistant`, `executor`, `executor-2` … `executor-5` (`MAX_EXECUTORS = 5`),
   `reviewer`, `integrator` và ba ô runtime. Việc `prepare-checkouts` nhận 4–8 ô (bốn vai trò bắt buộc cộng tối đa bốn
   executor thêm).
@@ -80,6 +87,7 @@ Luật chính:
 - `skills`: việc `skill-sync`, `skill-remove`.
 - `runtime-switches`: việc `runtimes-setup`.
 - `multi-machine`: việc `ensure-project`.
+- `bug-finding`: việc `bug-finding-review` và đối chiếu lượt Bug Finding với việc máy.
 - `crew-plugin`: worker chia `routeKey` tiền tố `jobs.`.
 
 ## Tests
@@ -88,7 +96,8 @@ Luật chính:
   nhận, lease hết hạn và `lease_expired`, kết quả đúng máy và đúng lần nhận, việc `check` lỗi giữ mục kiểm, khóa
   project của lần cài đặt.
 - `packages/crew-plugin/src/__tests__/machine-jobs-validate.test.ts`: payload hợp lệ, kết quả chỉ giữ trường của hợp
-  đồng và che user:pass; `ensure-project`: bảng ca payload (chép sang app), result giữ trường đã biết.
+  đồng và che user:pass; `ensure-project`: bảng ca payload (chép sang app), result giữ trường đã biết;
+  `bug-finding-review`: ca hợp lệ, ca sai từng trường, result chỉ nhận `accepted: true`, mã lỗi riêng.
 - `packages/crew-plugin/src/__tests__/machine-jobs-sanitize.test.ts`: bỏ mã điều khiển, che token và userinfo URL, cắt
   độ dài không làm vỡ ký tự.
 - Hàng đợi trên web được kiểm trong `packages/crew-web/test/features/machines/machines-page.test.tsx` (flow

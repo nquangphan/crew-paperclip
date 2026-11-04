@@ -135,7 +135,7 @@ describe("khai báo", () => {
     const parsed = pluginManifestV1Schema.parse(manifest);
     expect(parsed.jobs).toContainEqual({ jobKey: "runtime-fallback", displayName: "Chuyển runtime",
       description: "Chuyển run đang chờ vì runtime tắt sang runtime khác cùng máy", schedule: "* * * * *" });
-    expect(parsed.capabilities).toHaveLength(28);
+    expect(parsed.capabilities).toHaveLength(30);
     const events: string[] = [];
     const jobs: string[] = [];
     registerRuntimeFallback({ ...ctx, events: { on: (name: string) => { events.push(name); } }, jobs: { register: (key: string) => { jobs.push(key); } } } as unknown as PluginContext);

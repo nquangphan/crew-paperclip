@@ -111,8 +111,10 @@ File nào thuộc flow nào. Dùng `crew-docs where <file>` để tra từ dòng
 | `packages/crew-plugin/migrations/0022_multi_machine.sql` | [crew-plugin](flows/crew-plugin.md) (file) |
 | `packages/crew-plugin/migrations/0023_model_settings.sql` | [model-settings](flows/model-settings.md) (file) |
 | `packages/crew-plugin/migrations/0024_max_five_executors.sql` | [project-roles](flows/project-roles.md) (file) |
+| `packages/crew-plugin/migrations/0025_bug_finding.sql` | [bug-finding](flows/bug-finding.md) (file) |
 | `packages/crew-plugin/src/__tests__/attachments-audit.db.test.ts` | [attachments](flows/attachments.md) (test) |
 | `packages/crew-plugin/src/__tests__/attachments-rules.test.ts` | [attachments](flows/attachments.md) (test) |
+| `packages/crew-plugin/src/__tests__/bug-finding.db.test.ts` | [bug-finding](flows/bug-finding.md) (test) |
 | `packages/crew-plugin/src/__tests__/companies.db.test.ts` | [crew-plugin](flows/crew-plugin.md) (test) |
 | `packages/crew-plugin/src/__tests__/companies.test.ts` | [crew-plugin](flows/crew-plugin.md) (test) |
 | `packages/crew-plugin/src/__tests__/contributions-isolation.test.ts` | [contributions](flows/contributions.md) (test) |
@@ -164,6 +166,10 @@ File nào thuộc flow nào. Dùng `crew-docs where <file>` để tra từ dòng
 | `packages/crew-plugin/src/__tests__/worker-definition.test.ts` | [crew-plugin](flows/crew-plugin.md) (test) |
 | `packages/crew-plugin/src/attachments/audit.ts` | [attachments](flows/attachments.md) (điểm vào) |
 | `packages/crew-plugin/src/attachments/rules.ts` | [attachments](flows/attachments.md) (file) |
+| `packages/crew-plugin/src/bug-finding/api.ts` | [bug-finding](flows/bug-finding.md) (điểm vào) |
+| `packages/crew-plugin/src/bug-finding/enqueue.ts` | [bug-finding](flows/bug-finding.md) (file) |
+| `packages/crew-plugin/src/bug-finding/runs.ts` | [bug-finding](flows/bug-finding.md) (file) |
+| `packages/crew-plugin/src/bug-finding/watchdog.ts` | [bug-finding](flows/bug-finding.md) (file) |
 | `packages/crew-plugin/src/companies/data.ts` | [crew-plugin](flows/crew-plugin.md) (file) |
 | `packages/crew-plugin/src/docs/api.ts` | [docs-snapshot](flows/docs-snapshot.md) (điểm vào) |
 | `packages/crew-plugin/src/docs/content-key.ts` | [docs-snapshot](flows/docs-snapshot.md) (file) |
@@ -906,6 +912,7 @@ File nào thuộc flow nào. Dùng `crew-docs where <file>` để tra từ dòng
 | `server/src/crew/agent-config-gate.ts` | [agent-guards](flows/agent-guards.md) (điểm vào) |
 | `server/src/crew/agent-write-guard.ts` | [agent-guards](flows/agent-guards.md) (điểm vào) |
 | `server/src/crew/assistant-call-routes.ts` | [run-handoff](flows/run-handoff.md) (điểm vào) |
+| `server/src/crew/bug-finding-runs.ts` | [bug-finding](flows/bug-finding.md) (file) |
 | `server/src/crew/bundle-resume.ts` | [run-claim](flows/run-claim.md) (file) |
 | `server/src/crew/contribution-routes.ts` | [contributions](flows/contributions.md) (điểm vào) |
 | `server/src/crew/contributions.ts` | [contributions](flows/contributions.md) (file) |

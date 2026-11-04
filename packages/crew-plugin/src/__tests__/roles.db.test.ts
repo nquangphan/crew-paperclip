@@ -73,6 +73,10 @@ it("declares the role, machine job, setup run and force done routes as board-onl
     ["machines.pair-info", "GET", "/machines/pair-info", "board", { from: "query", key: "companyId" }],
     ["machines.pair", "POST", "/machines/pair", "board", { from: "body", key: "companyId" }],
     ["machines.unpair", "POST", "/machines/:machineId/unpair", "board", { from: "body", key: "companyId" }],
+    ["bug-finding.request", "POST", "/bug-finding/request", "agent", undefined],
+    ["bug-finding.skip", "POST", "/bug-finding/skip", "agent", undefined],
+    ["bug-finding.results", "POST", "/bug-finding/results", "board", { from: "body", key: "companyId" }],
+    ["bug-finding.get", "GET", "/issues/:issueId/bug-finding", "board-or-agent", { from: "issue", param: "issueId" }],
   ]);
 });
 

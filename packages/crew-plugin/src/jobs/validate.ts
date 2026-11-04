@@ -1,7 +1,7 @@
 import { UUID } from "../shared/db.js";
 import { maskUrlUserinfo, sanitizeJobError } from "./sanitize.js";
 import {
-  CREW_ROLE_SLOTS, type CrewRoleSlot, MAX_EXECUTORS, type JobPayload, type JobResult, KEPT_CHECKOUT_REASONS, type KeptCheckoutReason, MACHINE_JOB_KINDS,
+  BUG_FINDING_INPUT_MAX, CREW_ROLE_SLOTS, type CrewRoleSlot, MAX_EXECUTORS, type JobPayload, type JobResult, KEPT_CHECKOUT_REASONS, type KeptCheckoutReason, MACHINE_JOB_KINDS,
   type MachineJobKind,
 } from "./types.js";
 
@@ -32,7 +32,15 @@ const KEYS: Record<MachineJobKind, readonly string[]> = {
   "skill-remove": ["skillId", "slug"],
   "runtimes-setup": [],
   "ensure-project": ["projectKey", "projectId", "originUrl", "branch", "roles", "companions"],
+  "bug-finding-review": [
+    "requestId", "issueId", "identifier", "run", "projectId", "projectKey", "repoPath", "provider", "prNumber", "prUrl",
+    "headSha", "baseBranch", "reviewerInputText",
+  ],
 };
+const IDENTIFIER = /^[A-Z][A-Z0-9]{0,9}-[1-9][0-9]{0,8}$/;
+const HEAD_SHA = /^[0-9a-f]{40}$/;
+/** URL pull request GitHub, giống `GITHUB_PR_URL` của server (`server/src/crew/issue-policy.ts`). */
+export const GITHUB_PR_URL = /^https:\/\/github\.com\/[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+\/pull\/([1-9][0-9]*)$/;
 
 const isObject = (value: unknown): value is Record<string, unknown> =>
   !!value && typeof value === "object" && !Array.isArray(value);
@@ -187,7 +195,35 @@ export function validateJobPayload(kind: MachineJobKind, payload: unknown): JobP
     }
     case "runtimes-setup":
       return { kind };
+    case "bug-finding-review":
+      return bugFindingReviewPayload(p);
   }
+}
+
+const uuidError = (value: unknown, name: string) => typeof value === "string" && UUID.test(value) ? null : `${name} phải là uuid`;
+
+function bugFindingReviewPayload(p: Record<string, unknown>): JobPayload | string {
+  const pr = typeof p.prUrl === "string" ? GITHUB_PR_URL.exec(p.prUrl) : null;
+  const error = uuidError(p.requestId, "requestId") ?? uuidError(p.issueId, "issueId")
+    ?? (typeof p.identifier === "string" && IDENTIFIER.test(p.identifier) ? null : "identifier không hợp lệ")
+    ?? (Number.isInteger(p.run) && (p.run as number) >= 1 && (p.run as number) <= 3 ? null : "run phải là số nguyên 1 đến 3")
+    ?? uuidError(p.projectId, "projectId") ?? projectKeyError(p.projectKey)
+    ?? (folderError(p.repoPath)?.replace("folder", "repoPath") || null)
+    ?? (p.provider === "github" ? null : "provider chỉ nhận github")
+    ?? (Number.isInteger(p.prNumber) && (p.prNumber as number) > 0 ? null : "prNumber phải là số nguyên dương")
+    ?? (pr ? null : "prUrl không hợp lệ") ?? (Number(pr![1]) === p.prNumber ? null : "prUrl không khớp prNumber")
+    ?? (typeof p.headSha === "string" && HEAD_SHA.test(p.headSha) ? null : "headSha phải là 40 ký tự hex")
+    ?? (branchError(p.baseBranch) ? "baseBranch không hợp lệ" : null)
+    ?? (p.reviewerInputText === undefined ? null : typeof p.reviewerInputText !== "string" ? "reviewerInputText phải là chuỗi"
+      : p.reviewerInputText.length > BUG_FINDING_INPUT_MAX ? `reviewerInputText quá ${BUG_FINDING_INPUT_MAX} ký tự` : null);
+  if (error) return error;
+  return {
+    kind: "bug-finding-review", requestId: (p.requestId as string).toLowerCase(), issueId: (p.issueId as string).toLowerCase(),
+    identifier: p.identifier as string, run: p.run as number, projectId: (p.projectId as string).toLowerCase(),
+    projectKey: p.projectKey as string, repoPath: p.repoPath as string, provider: "github", prNumber: p.prNumber as number,
+    prUrl: p.prUrl as string, headSha: p.headSha as string, baseBranch: p.baseBranch as string,
+    ...(typeof p.reviewerInputText === "string" ? { reviewerInputText: p.reviewerInputText } : {}),
+  };
 }
 
 const RESULT_ERROR = "result không hợp lệ";
@@ -281,6 +317,8 @@ export function validateJobResult(kind: MachineJobKind, result: Record<string, u
         companions: (companions as { name: string; path: string }[]).map(({ name, path }) => ({ name, path })),
       };
     }
+    case "bug-finding-review":
+      return r.accepted === true ? { kind, accepted: true } : RESULT_ERROR;
   }
   return RESULT_ERROR;
 }

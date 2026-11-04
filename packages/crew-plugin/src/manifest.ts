@@ -32,6 +32,8 @@ const manifest: PaperclipPluginManifestV1 = {
     "api.routes.register",
     "companies.read",
     "issue.attachments.read",
+    "issue.documents.write",
+    "issue.interactions.read",
     "jobs.schedule",
     "authorization.audit.read",
     "agents.read",
@@ -88,6 +90,11 @@ const manifest: PaperclipPluginManifestV1 = {
     displayName: "Chuyển runtime",
     description: "Chuyển run đang chờ vì runtime tắt sang runtime khác cùng máy",
     schedule: "* * * * *",
+  }, {
+    jobKey: "bug-finding-watchdog",
+    displayName: "Hết giờ Bug Finding",
+    description: "Đánh dấu lượt Bug Finding không có máy nhận sau 30 phút hay không có kết quả sau 8 giờ, rồi báo reviewer",
+    schedule: "* * * * *",
   }],
   webhooks: [
     { endpointKey: "machine-status", displayName: "Crew machine status" },
@@ -136,6 +143,13 @@ const manifest: PaperclipPluginManifestV1 = {
       capability: "api.routes.register", companyResolution: { from: "body", key: "companyId" } },
     { routeKey: "machines.unpair", method: "POST", path: "/machines/:machineId/unpair", auth: "board",
       capability: "api.routes.register", companyResolution: { from: "body", key: "companyId" } },
+    // Agent: company lấy từ chính agent gọi (host), body chỉ cần `issueId`.
+    { routeKey: "bug-finding.request", method: "POST", path: "/bug-finding/request", auth: "agent", capability: "api.routes.register" },
+    { routeKey: "bug-finding.skip", method: "POST", path: "/bug-finding/skip", auth: "agent", capability: "api.routes.register" },
+    { routeKey: "bug-finding.results", method: "POST", path: "/bug-finding/results", auth: "board",
+      capability: "api.routes.register", companyResolution: { from: "body", key: "companyId" } },
+    { routeKey: "bug-finding.get", method: "GET", path: "/issues/:issueId/bug-finding", auth: "board-or-agent",
+      capability: "api.routes.register", companyResolution: { from: "issue", param: "issueId" } },
   ],
   database: {
     migrationsDir: "migrations",

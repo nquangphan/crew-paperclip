@@ -33,6 +33,7 @@ import {
   parseDocsCheckEvidence,
   policyGateFingerprint,
 } from "./issue-policy.js";
+import { bumpBugFindingRound, readBugFindingRuns } from "./bug-finding-runs.js";
 import {
   agentAssignmentAllowed,
   loadCompanyRoleAgentIds,
@@ -258,15 +259,14 @@ export interface BugFindingRunFact {
 
 export type BugFindingRunReader = (input: { db: Db; companyId: string; issueId: string }) => Promise<BugFindingRunFact[]>;
 
-const noBugFindingRuns: BugFindingRunReader = async () => [];
-let bugFindingRunReader: BugFindingRunReader = noBugFindingRuns;
+let bugFindingRunReader: BugFindingRunReader = readBugFindingRuns;
 
 /**
- * Nơi H2 đọc lượt Bug Finding (plugin đặt lúc nạp; `null` trả về mặc định). Chưa đặt thì coi như chưa có lượt nào, nên
- * stage cầu nối của ticket tổng Bug Finding không qua được khi chưa có bảng lượt.
+ * Thay nơi H2 đọc lượt Bug Finding (test); `null` trả về mặc định là bảng `crew_bug_finding_runs` của plugin
+ * (`readBugFindingRuns`). Bảng chưa có thì như chưa có lượt nào, nên stage cầu nối không qua được.
  */
 export function setBugFindingRunReader(reader: BugFindingRunReader | null): void {
-  bugFindingRunReader = reader ?? noBugFindingRuns;
+  bugFindingRunReader = reader ?? readBugFindingRuns;
 }
 
 const BUG_FINDING_PASSED_STATES = new Set(["succeeded", "skipped"]);
@@ -890,6 +890,7 @@ export async function crewBeforeIssueWrite(input: IssueWriteHookInput): Promise<
       decisionId: restarted.lastDecisionId ?? null,
       clearedStageIds: lockedState?.completedStageIds ?? [],
     });
+    if (!bugFindingStage && isBugFindingRootPolicy(pinnedPolicy)) await bumpBugFindingRound(tx, locked.companyId, issueId);
   }
   if (verdict.kind === "override") {
     // Board ép vào `done` mà không qua transition stock (ví dụ plugin gọi thẳng service): không để stage `pending`

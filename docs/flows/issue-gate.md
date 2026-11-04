@@ -52,8 +52,9 @@ Luật áp theo company:
 3. `server/src/crew/issue-policy.ts` → `buildCrewPolicy`: dựng template đã normalize, `maxReviewRounds` là
    `CREW_MAX_REVIEW_ROUNDS` (5). Gốc: reviewer, integrator (merge + docs), owner, integrator (push). Gốc Bug Finding
    (`root-bf`): integrator (gộp + docs + PR), reviewer (cầu nối Bug Finding, không review code), owner, integrator
-   (merge PR); gate của các stage này ở bước 5 (lượt Bug Finding đọc qua `setBugFindingRunReader`, chưa nối bảng lượt
-   thì stage cầu nối không qua được, nên chỉ bật `bugFinding.enabled` khi bảng lượt đã lên bản). Research, bmad và
+   (merge PR); gate của các stage này ở bước 5 (lượt Bug Finding đọc từ bảng `crew_bug_finding_runs` của plugin qua
+   `readBugFindingRuns`, flow `bug-finding`; bảng chưa có thì stage cầu nối không qua được, nên chỉ bật
+   `bugFinding.enabled` khi plugin có migration `0025` đã lên bản). Research, bmad và
    design: reviewer, owner (owner duyệt mockup trước khi con code giao diện bị chặn bởi nó được chạy). Con: reviewer.
 4. `server/src/crew/issue-gate.ts` → `crewBeforeIssueWrite` (H2): kiểm override model trước, rồi khi patch chạm
    `status`, `executionPolicy`, `executionState`, `assigneeAgentId` hoặc `projectId` thì khóa dòng issue, đọc vai trò
@@ -83,7 +84,9 @@ Luật áp theo company:
 6. `server/src/crew/issue-gate.ts` → phần sau verdict: mở lại issue Crew xóa `executionState` và trả việc cho executor
    (`reopenHandBack`); owner yêu cầu sửa ở stage owner, hay reviewer cầu nối yêu cầu sửa ở stage Bug Finding
    (`bugFindingRestartStages`), thì chạy lại từ stage đầu (`restartAfterOwnerChanges`; activity
-   `crew.gate.owner_changes_restart` hoặc `crew.gate.bug_finding_restart`, cả hai làm bằng chứng docs cũ đi); board ép
+   `crew.gate.owner_changes_restart` hoặc `crew.gate.bug_finding_restart`, cả hai làm bằng chứng docs cũ đi; owner yêu
+   cầu sửa ticket tổng Bug Finding thì `bumpBugFindingRound` tăng vòng trong `crew_bug_finding_rounds` để plugin đếm lại
+   lượt và lô sửa từ đầu); board ép
    `done` xóa state treo; `routeAssigneeOverrides` đặt override theo vai trò khi đổi giữa executor và agent của stage
    (reviewer Codex theo vai `reviewer-codex`, reviewer Claude trên gốc theo vai `reviewer-root` của cài đặt model,
    dựng bằng `codexReviewerOverrides`/`rootReviewerOverrides`; executor lấy lại override để lại lần trước nếu còn hợp

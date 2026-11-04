@@ -34,11 +34,12 @@ Luật chính:
 
 1. `packages/crew-plugin/src/worker.ts` → `setup`: lưu `ctx` (vì `onApiRequest` không nhận context), gọi
    `registerRunCancelledHandler`, `registerFeatures`, `registerAttachmentsAudit`, `registerRuntimeDecisions`,
-   `registerRuntimeFallback`.
+   `registerRuntimeFallback`, `registerBugFinding` (sự kiện `issue.updated` và job `bug-finding-watchdog`, flow
+   `bug-finding`).
 2. `packages/crew-plugin/src/features.ts` → `registerFeatures`: đăng ký data key và handler của từng tính năng (map,
    roots, runs, docs, máy, job máy, wizard, skill sync, companies, dung lượng, chi phí, security guard).
 3. `packages/crew-plugin/src/worker.ts` → `onApiRequest`: chia theo tiền tố `routeKey` (`jobs.`, `roles.`, `setup.`,
-   `issues.`, `runtimes.`, `machines.`), còn lại là route docs; không khớp trả 404.
+   `issues.`, `runtimes.`, `machines.`, `bug-finding.`), còn lại là route docs; không khớp trả 404.
 4. `packages/crew-plugin/src/companies/data.ts` → `allCrewCompanies`, `storedVerifiedCrewCompanies`,
    `registerCompaniesData`: tìm company Crew (kiểm từng company theo cấu hình của chính nó), đồng bộ bảng
    `crew_companies`, dùng danh sách đã lưu khi host từ chối (`isScopeDenied`). Data key `crew.companies`.
@@ -100,9 +101,11 @@ sự kiện plugin dạng call để xóa invocation scope khi handler xong).
   - `0022_multi_machine.sql`: `project_machines` (trạng thái dựng project trên từng máy), `project_repos` (origin, nhánh,
     repo đi kèm của project), `issue_machine_pins` (máy ghim theo issue gốc) và kind `ensure-project`. Server Crew ghi ba
     bảng này (flow `multi-machine`).
+  - `0025_bug_finding.sql`: `crew_bug_finding_runs` (lượt Bug Finding), `crew_bug_finding_rounds` (vòng duyệt owner,
+    server ghi) và kind `bug-finding-review` (flow `bug-finding`).
 - Bảng lõi plugin được đọc: `database.coreReadTables` trong manifest.
 - Cấu hình instance: `companies[].webhookSecretRef`, `paperclipSshPublicKey`, `opencodeInPlacePatch`.
-- Job định kỳ: `attachments-audit`, `runtime-fallback` (mỗi phút). Webhook: `machine-status`, `docs-snapshot`.
+- Job định kỳ: `attachments-audit`, `runtime-fallback`, `bug-finding-watchdog` (mỗi phút). Webhook: `machine-status`, `docs-snapshot`.
 - Route API plugin: khai trong `apiRoutes` của manifest, mỗi tiền tố thuộc một flow (bên dưới).
 
 ## Flow liên quan

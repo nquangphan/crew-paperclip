@@ -33,7 +33,10 @@ secret company.
    (`resolveCompanyWebhookSecret`), chọn secret ký theo dòng ghép máy, rồi `verifyCrewSignature`
    (`packages/crew-plugin/src/shared/signature.ts`). Body chỉ đến handler khi HMAC đúng và `version` là 1.
 3. `packages/crew-plugin/src/machines/webhook.ts` → `parseMachineReport`: kiểm schema. Trường tùy chọn sai dạng bị bỏ
-   riêng (crew-mac cũ hay mới hơn không mất cả bản tin); khóa lạ hay khóa bắt buộc sai thì từ chối.
+   riêng (crew-mac cũ hay mới hơn không mất cả bản tin); khóa lạ hay khóa bắt buộc sai thì từ chối. `jobsAgent` nhận
+   thêm `capabilities` (tối đa 32 tên loại việc máy app làm được ngoài bộ gốc, vd. `bug-finding-review`); sai dạng thì bỏ
+   riêng `capabilities`, giữ phần còn lại của `jobsAgent`. Plugin chỉ xếp Bug Finding cho máy báo khả năng này (flow
+   `bug-finding`).
 4. `packages/crew-plugin/src/machines/webhook.ts` → `handleMachineStatus`: ghi `machine_reports`, upsert
    `machine_latest` (chỉ khi mới hơn), xóa lịch sử cũ hơn 24 giờ ngay trong lượt nhận.
 5. `packages/crew-plugin/src/machines/pairing.ts` → `handleMachinesApi`: chặn actor không phải board; `pair` ghi

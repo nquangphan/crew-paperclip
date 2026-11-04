@@ -30,7 +30,8 @@ export interface RuntimesReport {
 /** `pinDir` is the pinned copy agents load with `--plugin-dir` (null before pinning); `skills` lists its skill folders. */
 export interface SuperpowersReport { pinned: string | null; ownerInstalled: string | null; pinDir?: string | null; skills?: string[] }
 export interface CheckoutReport { path: string; head: string | null; clean: boolean | null }
-export interface JobsAgentReport { version: string; lastPollAt: string }
+/** `capabilities`: loại việc máy app làm được ngoài bộ gốc (vd. `bug-finding-review`); app cũ không gửi. */
+export interface JobsAgentReport { version: string; lastPollAt: string; capabilities?: string[] }
 
 /** crew-mac caps a report at 64 KiB. */
 export const MACHINE_REPORT_MAX_BYTES = 65_536;
@@ -122,9 +123,19 @@ function sanitizeRuntimes(value: unknown): RuntimesReport | undefined {
   };
 }
 
-function jobsAgentReport(value: unknown): value is JobsAgentReport {
-  return fields(value, ["version", "lastPollAt"])
-    && typeof value.version === "string" && value.version.length <= 32 && SEMVER.test(value.version) && iso(value.lastPollAt);
+const CAPABILITY = /^[a-z][a-z0-9-]{0,63}$/;
+const MAX_CAPABILITIES = 32;
+
+/** jobsAgent sạch: `capabilities` sai dạng thì bỏ riêng trường đó, phần còn lại vẫn nhận. */
+function jobsAgentReport(value: unknown): JobsAgentReport | null {
+  if (!object(value)) return null;
+  const { capabilities, ...rest } = value;
+  if (!fields(rest, ["version", "lastPollAt"]) || typeof rest.version !== "string" || rest.version.length > 32
+    || !SEMVER.test(rest.version) || !iso(rest.lastPollAt)) return null;
+  const report: JobsAgentReport = { version: rest.version, lastPollAt: rest.lastPollAt };
+  if (Array.isArray(capabilities) && capabilities.length <= MAX_CAPABILITIES
+    && capabilities.every((item) => typeof item === "string" && CAPABILITY.test(item))) report.capabilities = [...capabilities as string[]];
+  return report;
 }
 
 /**
@@ -145,7 +156,8 @@ export function parseMachineReport(input: unknown): MachineReport {
         runs: attachmentCache.runs, limitBytes: attachmentCache.limitBytes, measuredAt: attachmentCache.measuredAt };
     }
     if (checkoutsReport(checkouts)) optional.checkouts = checkouts.map(({ path, head, clean }) => ({ path, head, clean }));
-    if (jobsAgentReport(jobsAgent)) optional.jobsAgent = { version: jobsAgent.version, lastPollAt: jobsAgent.lastPollAt };
+    const cleanJobsAgent = jobsAgentReport(jobsAgent);
+    if (cleanJobsAgent) optional.jobsAgent = cleanJobsAgent;
     const cleanRuntimes = sanitizeRuntimes(runtimes);
     if (cleanRuntimes) optional.runtimes = cleanRuntimes;
     if (object(rest.superpowers)) {
