@@ -35,7 +35,7 @@ export interface JobsAgentReport { version: string; lastPollAt: string; capabili
 
 /** crew-mac caps a report at 64 KiB. */
 export const MACHINE_REPORT_MAX_BYTES = 65_536;
-const MAX_CHECKOUTS = 64;
+const MAX_CHECKOUTS = 256;
 const MAX_SKILLS = 100;
 
 /** Cache file đính kèm trên Mac: `bytes` là mọi file dưới gốc cache, `blobBytes` là phần blobs/ mà GC so với trần. */

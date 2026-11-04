@@ -36,7 +36,8 @@ secret company.
    riêng (crew-mac cũ hay mới hơn không mất cả bản tin); khóa lạ hay khóa bắt buộc sai thì từ chối. `jobsAgent` nhận
    thêm `capabilities` (tối đa 32 tên loại việc máy app làm được ngoài bộ gốc, vd. `bug-finding-review`); sai dạng thì bỏ
    riêng `capabilities`, giữ phần còn lại của `jobsAgent`. Plugin chỉ xếp Bug Finding cho máy báo khả năng này (flow
-   `bug-finding`).
+   `bug-finding`). `checkouts` nhận tới 256 checkout (một Mac nhiều project có thể vượt 64; thiếu checkout trong bản tin
+   làm crew-web báo agent chưa sẵn sàng, mục A5); bản tin vẫn chịu trần `MACHINE_REPORT_MAX_BYTES` (64 KiB).
 4. `packages/crew-plugin/src/machines/webhook.ts` → `handleMachineStatus`: ghi `machine_reports`, upsert
    `machine_latest` (chỉ khi mới hơn), xóa lịch sử cũ hơn 24 giờ ngay trong lượt nhận.
 5. `packages/crew-plugin/src/machines/pairing.ts` → `handleMachinesApi`: chặn actor không phải board; `pair` ghi
