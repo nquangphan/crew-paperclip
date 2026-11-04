@@ -1,0 +1,144 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Roadmap một trang · mockup TPS-696</title>
+<link rel="stylesheet" href="./tokens.css">
+<link rel="stylesheet" href="./roadmap.css">
+</head>
+<body>
+<div class="shell">
+  <!-- Thanh trên của màn hẹp (AppFrame dưới md) -->
+  <div class="topbar"><button type="button" class="ctl" aria-label="Mở menu"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 12h16"/><path d="M4 6h16"/><path d="M4 18h16"/></svg></button>2P Crew</div>
+
+  <!-- Sidebar (AppFrame, SidebarItem) -->
+  <nav class="sidebar" aria-label="Điều hướng">
+    <div class="brand">2P Crew</div>
+    <a class="side-item" href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="7" height="9" x="3" y="3" rx="1"/><rect width="7" height="5" x="14" y="3" rx="1"/><rect width="7" height="9" x="14" y="12" rx="1"/><rect width="7" height="5" x="3" y="16" rx="1"/></svg>Bảng điều khiển</a>
+    <a class="side-item" href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 5h8"/><path d="M13 12h8"/><path d="M13 19h8"/><path d="m3 17 2 2 4-4"/><rect x="3" y="4" width="6" height="6" rx="1"/></svg>Việc</a>
+    <a class="side-item" href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>Crew</a>
+    <a class="side-item" href="#" aria-current="page"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.106 5.553a2 2 0 0 0 1.788 0l3.659-1.83A1 1 0 0 1 21 4.619v12.764a1 1 0 0 1-.553.894l-4.553 2.277a2 2 0 0 1-1.788 0l-4.212-2.106a2 2 0 0 0-1.788 0l-3.659 1.83A1 1 0 0 1 3 19.381V6.618a1 1 0 0 1 .553-.894l4.553-2.277a2 2 0 0 1 1.788 0z"/><path d="M15 5.764v15"/><path d="M9 3.236v15"/></svg>Roadmap</a>
+    <div class="group">Project</div>
+    <a class="side-item" href="#"><span class="side-dot" style="background:#8b5cf6"></span>paperclip</a>
+    <a class="side-item" href="#"><span class="side-dot" style="background:#22c55e"></span>my-money</a>
+    <a class="side-item" href="#"><span class="side-dot" style="background:#f59e0b"></span>nha_moi_platform</a>
+    <a class="side-item" href="#"><span class="side-dot" style="background:#06b6d4"></span>crew-docs</a>
+  </nav>
+
+  <main class="main" id="main">
+    <header class="page-header">
+      <nav aria-label="Vị trí trên bản đồ" class="crumbs" id="crumbs"><span aria-current="page">2P Crew</span></nav>
+      <div>
+        <h1>Roadmap</h1>
+        <p>Toàn bộ công ty trên một bản đồ: project, yêu cầu, việc con và docs. Bấm một mục để phóng tới.</p>
+      </div>
+    </header>
+    <div class="filter-bar">
+      <button type="button" class="btn" id="btn-up" disabled aria-label="Ra ngoài" title="Ra một mức (Esc)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 19-7-7 7-7"/><path d="M19 12H5"/></svg><span class="lbl">Ra ngoài</span> <kbd class="label-wide">Esc</kbd></button>
+      <button type="button" class="btn" id="btn-all" disabled aria-label="Toàn cảnh" title="Về toàn cảnh (0)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7V5a2 2 0 0 1 2-2h2"/><path d="M17 3h2a2 2 0 0 1 2 2v2"/><path d="M21 17v2a2 2 0 0 1-2 2h-2"/><path d="M7 21H5a2 2 0 0 1-2-2v-2"/></svg><span class="lbl">Toàn cảnh</span></button>
+      <span class="spacer"></span>
+      <a class="btn" id="view-map" aria-pressed="true" href="#">Bản đồ</a>
+      <a class="btn" id="view-list" aria-pressed="false" href="#">Danh sách</a>
+    </div>
+
+    <div id="alert-slot"></div>
+
+    <div class="roadmap-canvas" id="canvas" data-lod="0" role="application" aria-label="Bản đồ công ty" aria-roledescription="bản đồ">
+      <div class="dots" id="dots"></div>
+      <div class="world" id="world"></div>
+      <div class="overlay" id="overlay"></div>
+      <p class="hint" id="hint"></p>
+      <div class="focus-card" id="focus-card" hidden></div>
+      <div class="minimap" id="minimap" hidden aria-hidden="true" title="Bản đồ thu nhỏ: bấm để nhảy tới"><svg></svg></div>
+      <span class="zoom-chip" id="zoom-chip" aria-hidden="true"></span>
+      <div class="controls" role="group" aria-label="Điều khiển bản đồ">
+        <button type="button" class="ctl" id="zoom-in" aria-label="Phóng to"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 12h14"/><path d="M12 5v14"/></svg></button>
+        <button type="button" class="ctl" id="zoom-out" aria-label="Thu nhỏ"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 12h14"/></svg></button>
+        <button type="button" class="ctl" id="zoom-fit" aria-label="Toàn cảnh"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 7V5a2 2 0 0 1 2-2h2"/><path d="M17 3h2a2 2 0 0 1 2 2v2"/><path d="M21 17v2a2 2 0 0 1-2 2h-2"/><path d="M7 21H5a2 2 0 0 1-2-2v-2"/></svg></button>
+      </div>
+    </div>
+    <div class="list" id="list" hidden></div>
+
+    <!-- Chú giải (RoadmapLegend): trạng thái, cạnh cha-con / chặn / vòng sửa, dây đang chạy, việc đang xem -->
+    <section class="legend" aria-label="Chú thích" id="legend"></section>
+  </main>
+</div>
+<div class="toast" id="toast" role="status"></div>
+<p class="sr-only" aria-live="polite" id="live"></p>
+
+<script src="./data.js"></script>
+<script src="./map.js"></script>
+<script>
+// Chú giải, chuyển dạng bản đồ/danh sách, các trạng thái tải/rỗng/lỗi.
+(function () {
+  const icon = window.ICON;
+  const q = new URLSearchParams(location.search);
+  const S = { backlog: 'Nháp', todo: 'Cần làm', in_progress: 'Đang làm', in_review: 'Đang duyệt', blocked: 'Bị chặn', done: 'Hoàn thành', cancelled: 'Đã hủy' };
+  const sw = (kind, run) => `<svg width="24" height="12" viewBox="0 0 24 12" style="overflow:visible;flex-shrink:0" aria-hidden="true"><path d="M 1,6 C 9,1 15,11 23,6" class="roadmap-edge" data-edge-kind="${kind}" ${run ? 'data-running' : ''}/>${run ? '<path d="M 1,6 C 9,1 15,11 23,6" class="roadmap-edge-flow"/>' : ''}</svg>`;
+  const narrow = matchMedia('(max-width: 639px)').matches;
+  document.getElementById('legend').innerHTML =
+    `<button type="button" class="toggle" aria-expanded="${!narrow}">Chú thích ${icon('chevron', 'glyph')}</button><ul ${narrow ? 'hidden' : ''}>` +
+    Object.entries(S).map(([k, v]) => `<li><span style="--tone:var(--roadmap-tone-${k});display:inline-flex">${icon(k, 'glyph')}</span>${v}</li>`).join('') +
+    `<li>${sw('parent')}Cha → con</li><li>${sw('blocks')}Chặn (phải xong trước)</li><li>${sw('repair')}Vòng sửa</li><li>${sw('parent', true)}Đang chạy (có việc đang làm)</li><li><span class="ring"></span>Đang xem</li></ul>`;
+  document.querySelector('#legend .toggle').onclick = (e) => {
+    const ul = document.querySelector('#legend ul'); ul.hidden = !ul.hidden; e.currentTarget.setAttribute('aria-expanded', String(!ul.hidden));
+  };
+
+  // Liên kết dạng xem giữ nguyên chỗ đang lấy nét (#…)
+  const withView = (v) => { const p = new URLSearchParams(location.search); if (v === 'list') p.set('view', 'list'); else p.delete('view'); return `?${p}${location.hash}`; };
+  document.getElementById('view-map').href = withView('map');
+  document.getElementById('view-list').href = withView('list');
+
+  const canvas = document.getElementById('canvas');
+  const world = document.getElementById('world');
+  const state = q.get('state');
+  if (q.get('n') === 'nhieu') {
+    // Trên 1000 việc thì có cảnh báo cắt (giữ hành vi hiện tại); ở đây chỉ để thấy chỗ đặt.
+    if (q.get('cat') === '1') document.getElementById('alert-slot').innerHTML = `<div class="alert" role="status">${icon('alert')}Có hơn 1000 việc, bản đồ có thể thiếu một phần.</div>`;
+  }
+  if (state) {
+    world.hidden = true;
+    document.getElementById('overlay').hidden = true;
+    for (const id of ['hint', 'zoom-chip', 'focus-card', 'minimap']) document.getElementById(id).hidden = true;
+    document.getElementById('zoom-chip').style.display = 'none';
+    const box = (html) => { const d = document.createElement('div'); d.className = 'state'; d.innerHTML = `<div class="box">${html}</div>`; canvas.appendChild(d); };
+    if (state === 'loading') {
+      // Khung bản đồ hiện ngay (không nhảy bố cục); bóng công ty và các project nhấp nháy tới khi có dữ liệu.
+      const W = canvas.clientWidth, H = canvas.clientHeight;
+      const sk = [`<div class="skel-orb" style="width:70px;height:70px;left:${W / 2 - 35}px;top:${H * 0.12}px"></div>`];
+      for (let i = 0; i < 5; i++) {
+        const x = W * (0.12 + i * 0.19);
+        sk.push(`<div class="skel-orb" style="width:44px;height:44px;left:${x - 22}px;top:${H * 0.36}px;animation-delay:${i * 120}ms"></div>`);
+        for (let r = 0; r < 4; r++) for (let c = 0; c < 4; c++) if ((i + r + c) % 3) sk.push(`<div class="skel-tile" style="width:22px;height:10px;left:${x - 50 + c * 26}px;top:${H * 0.5 + r * 18}px;animation-delay:${(r + c) * 80}ms"></div>`);
+      }
+      canvas.insertAdjacentHTML('beforeend', sk.join(''));
+      box('<div class="spinner" role="status" aria-label="Đang tải"></div><h2>Đang tải bản đồ…</h2><p>Nạp project, yêu cầu và việc con của cả công ty. Run và docs tải sau khi phóng tới.</p>');
+    } else if (state === 'empty') {
+      box(`${icon('book', 'error-icon" style="color:var(--muted-foreground)')}<h2>Chưa có yêu cầu nào</h2><p>Yêu cầu do người tạo ở trang Crew sẽ hiện ở đây cùng các việc con của nó.</p><a class="btn" href="#">Mở trang Crew</a>`);
+    } else if (state === 'error') {
+      box(`${icon('error', 'error-icon')}<h2>Không tải được bản đồ</h2><p>Lỗi 503: máy chủ đang bận. Dữ liệu cũ không được hiện để tránh nhầm.</p><button type="button" class="btn">Thử lại</button>`);
+    }
+    return;
+  }
+  if (q.get('view') === 'list') {
+    document.getElementById('view-map').setAttribute('aria-pressed', 'false');
+    document.getElementById('view-list').setAttribute('aria-pressed', 'true');
+    canvas.hidden = true;
+    const list = document.getElementById('list'); list.hidden = false;
+    const D = window.ROADMAP_DATA;
+    const cur = decodeURIComponent(location.hash).split('=')[1];
+    const row = (n, title, meta, glyph) => `<button type="button" class="row" ${n === cur ? 'aria-current="true"' : ''}>${glyph}<span>${title}</span><span class="m">${meta}</span></button>`;
+    const st = (s) => `<span style="--tone:var(--roadmap-tone-${s});display:inline-flex">${icon(s, 'glyph')}</span>`;
+    const ticket = (t) => `<li>${row(t.id, `<b class="ident">${t.id}</b> ${t.title}`, `${S[t.status]}${t.assignee ? ' · ' + t.assignee : ''}`, st(t.status))}${t.children.length ? `<ul>${t.children.map(ticket).join('')}</ul>` : ''}</li>`;
+    list.innerHTML = `<ul aria-label="Bản đồ dạng danh sách"><li>${row('company', `<b>${D.company.title}</b>`, `${D.company.total} project · ${D.company.open} yêu cầu mở · ${D.company.tickets} việc`, icon('building', 'glyph'))}<ul>` +
+      D.projects.map((p) => `<li>${row(p.id, `<b>${p.title}</b>`, `${p.total} yêu cầu · ${p.open} mở`, `<span style="color:${p.color || 'var(--foreground)'};display:inline-flex">${icon('folder', 'glyph')}</span>`)}<ul>` +
+        (p.docs ? `<li>${row(p.docs.id, 'Docs', `${p.docs.total} trang`, icon('book', 'glyph'))}</li>` : '') +
+        p.requests.map((r) => `<li>${row(r.id, `<b class="ident">${r.id}</b> ${r.title}`, `${S[r.status]} · ${r.done}/${r.total} việc con xong`, st(r.status))}<ul>${r.children.map(ticket).join('')}</ul></li>`).join('') +
+        '</ul></li>').join('') + '</ul></li></ul>';
+    list.querySelector('[aria-current]')?.scrollIntoView({ block: 'center' });
+  }
+})();
+</script>
+</body>
+</html>
