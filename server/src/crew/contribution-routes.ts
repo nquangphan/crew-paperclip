@@ -29,7 +29,7 @@ import {
   selfHeal,
   toContribution,
 } from "./contributions.js";
-import { crewRoadmapViewerScope } from "./plugin-data-scope.js";
+import { CREW_ROADMAP_SCOPE_PATHS, crewRoadmapViewerScope } from "./plugin-data-scope.js";
 import { crewPluginStartupWait } from "./plugin-startup-wait.js";
 import { listQcStates, QC_ERRORS, verifyQcRound } from "./qc-verification.js";
 import { crewAssistantCallRoutes } from "./assistant-call-routes.js";
@@ -85,8 +85,9 @@ export function crewContributionRoutes(db: Db): Router {
   router.use(crewAssistantCallRoutes(db));
   // Router này gắn trước route plugin stock: request `/plugins/...` lúc vừa khởi động chờ worker plugin đăng ký xong.
   router.use("/plugins", crewPluginStartupWait());
-  // Data `crew.roadmap`: server ghi đè `params.viewer` bằng project người gọi được xem, rồi route data stock chạy tiếp.
-  router.post(["/plugins/:pluginId/data/crew.roadmap", "/plugins/:pluginId/bridge/data"], crewRoadmapViewerScope(db));
+  // Data `crew.roadmap` (mọi cách viết key, so trên key đã decode): server ghi đè `params.viewer` bằng project người gọi
+  // được xem, rồi route data stock chạy tiếp.
+  router.post(CREW_ROADMAP_SCOPE_PATHS, crewRoadmapViewerScope(db));
 
   router.get(`${BASE}/access`, async (req, res) => {
     const actor = await resolveContributionActor(db, req, req.params.companyId, { requireTables: false });
