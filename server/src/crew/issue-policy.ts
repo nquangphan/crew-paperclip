@@ -31,7 +31,14 @@ export const CREW_POLICY_CONFIG_ENV = "CREW_POLICY_CONFIG";
 export type CrewCompanyConfig =
   | { kind: "absent" }
   | { kind: "invalid"; reason: string }
-  | { kind: "ok"; roles: CrewRoles; ownerUserId: string; trackingProjectIds: string[] };
+  | {
+      kind: "ok";
+      roles: CrewRoles;
+      ownerUserId: string;
+      trackingProjectIds: string[];
+      /** Ticket tổng code/bug mới của company đi luồng Bug Finding (`root-bf`); mặc định tắt. */
+      bugFinding: { enabled: boolean };
+    };
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -42,6 +49,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 /**
  * Dạng file: `{ "companies": { "<companyId>": { reviewerAgentId, integratorAgentId, ownerUserId, trackingProjectIds? } } }`.
  * `trackingProjectIds` (tùy chọn, mảng uuid không trùng): project theo dõi, issue gốc board tạo trong đó không nhận policy Crew.
+ * `bugFinding` (tùy chọn, `{ enabled?: boolean }`, mặc định tắt): bật luồng Bug Finding cho ticket tổng code/bug mới.
  */
 export function parseCrewPolicyConfig(text: string, companyId: string): CrewCompanyConfig {
   let parsed: unknown;
@@ -84,11 +92,16 @@ export function parseCrewPolicyConfig(text: string, companyId: string): CrewComp
       return { kind: "invalid", reason: `companies.${companyId}.trackingProjectIds có uuid trùng` };
     }
   }
+  const bugFinding = entry.bugFinding;
+  if (bugFinding !== undefined && (!isRecord(bugFinding) || (bugFinding.enabled !== undefined && typeof bugFinding.enabled !== "boolean"))) {
+    return { kind: "invalid", reason: `companies.${companyId}.bugFinding phải là object { enabled: boolean }` };
+  }
   return {
     kind: "ok",
     roles: { reviewerAgentId: reviewerAgentId.toLowerCase(), integratorAgentId: integratorAgentId.toLowerCase() },
     ownerUserId: ownerUserId.trim(),
     trackingProjectIds,
+    bugFinding: { enabled: bugFinding?.enabled === true },
   };
 }
 
@@ -188,13 +201,15 @@ export async function loadCrewCompanyConfig(
  *   đứng đầu nên stock giao cho nó khi vào stage, reviewer Claude có sẵn trong stage để hệ thống chuyển sang khi Codex
  *   lỗi hay bị tắt mà không phải sửa policy (H2 chỉ cho đúng phép đổi đó).
  * - gốc: `[review reviewer, review integrator (merge + docs), approval owner, review integrator (push)]`.
+ * - gốc Bug Finding (`root-bf`, ticket tổng code/bug khi company bật `bugFinding.enabled`):
+ *   `[review integrator (gộp + docs + PR), review reviewer (cầu nối Bug Finding), approval owner, review integrator (merge PR)]`.
  * - research: `[review reviewer, approval owner]`.
  * - bmad: [review reviewer, approval owner] cho issue con lập epic/story (owner duyệt epic/story trước khi Trợ Lý tạo issue code).
  * - design: [review reviewer, approval owner] cho issue con làm mockup giao diện (owner duyệt mockup trước khi con code
  *   giao diện được chạy).
  */
 export function buildCrewPolicy(
-  kind: "root" | "child" | "research" | "bmad" | "design",
+  kind: "root" | "root-bf" | "child" | "research" | "bmad" | "design",
   roles: CrewRoles,
   ownerUserId: string | null = null,
   options: { codexReviewerAgentId?: string | null } = {},
@@ -209,7 +224,12 @@ export function buildCrewPolicy(
     if (!ownerUserId) throw new Error(`buildCrewPolicy: ${kind} policy needs an owner user id`);
     const owner = { type: "approval", participants: [{ type: "user", userId: ownerUserId }] };
     const integrator = { type: "review", participants: [{ type: "agent", agentId: roles.integratorAgentId }] };
-    stages = kind === "root" ? [reviewer, integrator, owner, integrator] : [reviewer, owner];
+    stages =
+      kind === "root"
+        ? [reviewer, integrator, owner, integrator]
+        : kind === "root-bf"
+          ? [integrator, reviewer, owner, integrator]
+          : [reviewer, owner];
   }
   const policy = normalizeIssueExecutionPolicy({ stages, maxReviewRounds: CREW_MAX_REVIEW_ROUNDS });
   if (!policy) throw new Error("buildCrewPolicy: template normalized to null");

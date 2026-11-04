@@ -54,6 +54,16 @@ function overlapping(level: RoadmapLevel) {
 }
 
 describe('crewMapLevel', () => {
+  it('gốc code-bf: tên giai đoạn theo thứ tự Bug Finding, loại hiện là Lập trình', () => {
+    const root = issue('r', null, {
+      kind: 'code-bf',
+      stage: { currentStageId: 's0', currentType: 'review', completed: [], position: 0 },
+    });
+    const { level } = crewMapLevel(family([root]), 'r', t);
+    expect(level.center.notes).toContain(t('crewMap.kind.code'));
+    expect(level.center.notes).toContain(t('crewMap.stageLine', { stage: t('stage.integratorMerge') }));
+  });
+
   it('gốc ở đỉnh (thẻ yêu cầu, đếm việc con xong), việc con là thẻ việc, thứ tự theo mã', () => {
     const { level } = crewMapLevel(map, 'i-b', t);
     expect(level.layout).toBe('top-down');

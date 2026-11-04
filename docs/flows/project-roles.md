@@ -86,5 +86,5 @@ Luật chính:
   văn, gửi `null` khi bỏ ô runtime.
 - `packages/crew-web/test/features/projects/use-save-roles.test.ts`: khi nào render lại AGENTS.md Trợ Lý, giữ danh sách
   BMAD, xung đột 409 không ghi đè, lỗi 400 không PUT.
-- `server/src/__tests__/crew-project-roles.test.ts`, `crew-project-roles.db.test.ts`: `loadCrewRoles` khi bảng chưa
-  có, project không có dòng, bảng đọc lỗi (board và hệ thống rơi về vai trò file trong savepoint, agent và lúc tạo issue nhận 503), dòng trỏ agent không hợp lệ.
+- `server/src/__tests__/crew-project-roles.test.ts`, `crew-project-roles.db.test.ts`: `loadCrewRoles` (giữ nguyên owner,
+  project theo dõi và cờ `bugFinding` của file) khi bảng chưa có, project không có dòng, bảng đọc lỗi (board và hệ thống rơi về vai trò file trong savepoint, agent và lúc tạo issue nhận 503), dòng trỏ agent không hợp lệ.

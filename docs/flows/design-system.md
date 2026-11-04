@@ -90,5 +90,6 @@ Widget Crew trong `ds/widgets/crew/` và `ds/widgets/roadmap/`, và widget đín
   thô, component ghi nguồn, không kéo markdown hay `@xyflow` vào chunk đầu, bộ quét không xanh vì quét rỗng.
 - `packages/crew-web/test/guards/i18n.test.ts`: hai locale cùng khóa, không chữ cứng.
 - `packages/crew-web/test/ds/`: hành vi từng component và widget (button, dialog, confirm, alert, nhãn mặc định, dòng
-  danh sách, section và code block, status badge, markdown kể cả chip mention agent, wizard, ô soạn). Test trong `test/ds/crew/` và các test đính
+  danh sách, section và code block, status badge, stage badge (`resolveStageKey` theo thứ tự stage của `code`, `code-bf`,
+  `research`), markdown kể cả chip mention agent, wizard, ô soạn). Test trong `test/ds/crew/` và các test đính
   kèm, markdown-image thuộc flow tính năng tương ứng.

@@ -25,9 +25,11 @@ import {
   loadCrewRoles,
   loadProjectAgentRoles,
   type ProjectAgentRoles,
+  rowsOf,
 } from "./project-roles.js";
 import { loadModelSettings } from "./model-settings.js";
 import { readRuntimeSwitch, resolveAgentMachine } from "./runtime-switch.js";
+import { crewTableSql } from "./machine-pin.js";
 import { logger } from "../middleware/logger.js";
 
 /** Cùng shape với IssueCreateLike trong core-hooks.ts (không import registry). */
@@ -70,7 +72,7 @@ export type CreatePolicyDecision =
       violations?: string[];
     }
   | { kind: "set"; template: "child" }
-  | { kind: "set"; template: "root" | "research" | "bmad" | "design"; ownerUserId: string };
+  | { kind: "set"; template: "root" | "root-bf" | "research" | "bmad" | "design"; ownerUserId: string };
 
 /** Agent không được tạo issue ở trạng thái đã kết thúc hoặc đang review (bỏ qua gate). */
 const AGENT_CREATE_FORBIDDEN_STATUSES = new Set(["done", "cancelled", "in_review"]);
@@ -80,7 +82,9 @@ const AGENT_CREATE_FORBIDDEN_STATUSES = new Set(["done", "cancelled", "in_review
  * Agent chỉ tạo được issue con và luôn nhận template con (mọi policy agent gửi bị thay), trừ con có dòng
  * `crew-kind bmad` hay `crew-kind design` trong mô tả: nhận template bmad/design (reviewer rồi owner duyệt). Board gửi policy riêng
  * thì giữ; không gửi thì nhận template theo loại issue, owner của template gốc lấy từ file cấu hình.
- * Board tạo issue gốc có nhãn research nhận template reviewer rồi owner. Issue gốc trong project theo dõi
+ * Board tạo issue gốc có nhãn research nhận template reviewer rồi owner. Board tạo ticket tổng code/bug (không nhãn
+ * research/docs/plan) khi company bật `bugFinding.enabled` và project có origin GitHub nhận `root-bf`; còn lại `root`.
+ * Issue gốc trong project theo dõi
  * (`trackingProjectIds`) không nhận policy; policy chốt lúc tạo, đổi project sau đó không đổi gì.
  * Hệ thống (không người tạo): issue watchdog/recovery giữ hành vi stock, trừ khi giao lại cho agent đang làm issue
  * nguồn (khi đó nhận template con); routine và mọi nguồn khác (kể cả không nhận diện được) nhận template con nếu có
@@ -93,6 +97,12 @@ export function decideCreatePolicy(input: {
   /** Agent đang làm issue nguồn (assignee, `returnAssignee`) của issue watchdog/recovery. */
   sourceExecutorAgentIds?: readonly string[];
   researchLabel?: boolean;
+  /** Issue gốc có nhãn research, docs hoặc plan: không phải ticket tổng code/bug, không nhận `root-bf`. */
+  nonCodeLabel?: boolean;
+  /** Company bật `bugFinding.enabled` trong file cấu hình Crew. */
+  bugFindingEnabled?: boolean;
+  /** Project của issue có origin GitHub trong `project_repos` (integrator mở được PR bằng `gh`). */
+  githubOrigin?: boolean;
   /** Issue thuộc project theo dõi của company: board tạo issue gốc ở đây không nhận policy Crew. */
   trackingProject?: boolean;
   /** Mọi agent reviewer/integrator của company (file ∪ vai trò theo project); không truyền thì dùng `roles`. */
@@ -159,23 +169,58 @@ export function decideCreatePolicy(input: {
   if (data.executionPolicy != null || !roles) return { kind: "keep" };
   if (data.parentId) return { kind: "set", template: "child" };
   if (input.trackingProject) return { kind: "keep" };
-  return input.ownerUserId
-    ? { kind: "set", template: input.researchLabel ? "research" : "root", ownerUserId: input.ownerUserId }
-    : { kind: "keep" };
+  if (!input.ownerUserId) return { kind: "keep" };
+  if (input.researchLabel) return { kind: "set", template: "research", ownerUserId: input.ownerUserId };
+  const bugFinding = !input.nonCodeLabel && !!input.bugFindingEnabled && !!input.githubOrigin;
+  return { kind: "set", template: bugFinding ? "root-bf" : "root", ownerUserId: input.ownerUserId };
 }
 
-async function hasResearchLabel(db: Db, companyId: string, labelIds: readonly string[] | null | undefined): Promise<boolean> {
-  if (!labelIds?.length) return false;
+/** Nhãn của issue gốc khiến nó không phải ticket tổng code/bug (luồng cũ, không Bug Finding). */
+export const CREW_NON_CODE_LABELS: readonly string[] = [CREW_RESEARCH_LABEL, "docs", "plan"];
+
+/**
+ * Origin trỏ tới github.com: `https://github.com/…`, `git@github.com:…`, `ssh://git@github.com[:port]/…`. So host
+ * chính xác (không phân biệt hoa thường), nên `github.com.khac.vn` hay `notgithub.com` không tính.
+ */
+export function isGithubOrigin(originUrl: string | null | undefined): boolean {
+  const url = originUrl?.trim() ?? "";
+  const scp = /^[^@/\s]+@([^:/\s]+):/.exec(url);
+  if (scp && !url.includes("://")) return scp[1]!.toLowerCase() === "github.com";
+  try {
+    return new URL(url).hostname.toLowerCase() === "github.com";
+  } catch {
+    return false;
+  }
+}
+
+/** Tên nhãn (chữ thường) trong `CREW_NON_CODE_LABELS` mà issue mang, chỉ nhãn cùng company. */
+async function nonCodeLabelNames(db: Db, companyId: string, labelIds: readonly string[] | null | undefined): Promise<Set<string>> {
+  if (!labelIds?.length) return new Set();
   const rows = await db
-    .select({ id: labels.id })
+    .select({ name: sql<string>`lower(${labels.name})` })
     .from(labels)
     .where(and(
       eq(labels.companyId, companyId),
       inArray(labels.id, [...labelIds]),
-      sql`lower(${labels.name}) = ${CREW_RESEARCH_LABEL}`,
-    ))
-    .limit(1);
-  return rows.length > 0;
+      inArray(sql`lower(${labels.name})`, [...CREW_NON_CODE_LABELS]),
+    ));
+  return new Set(rows.map((row) => row.name));
+}
+
+/**
+ * Project có origin GitHub trong `project_repos` của plugin crew.core. Chỉ gọi khi company bật Bug Finding; đọc lỗi
+ * (plugin chưa cài, bảng chưa có) thì coi như không GitHub: ticket tổng giữ luồng cũ, không chặn tạo issue.
+ */
+async function projectHasGithubOrigin(db: Db, companyId: string, projectId: string | null): Promise<boolean> {
+  if (!projectId || !UUID_RE.test(projectId)) return false;
+  try {
+    const rows = rowsOf(await db.execute(sql`SELECT origin_url FROM ${crewTableSql("project_repos")}
+      WHERE company_id = ${companyId} AND project_id = ${projectId} LIMIT 1`));
+    return isGithubOrigin(typeof rows[0]?.origin_url === "string" ? rows[0].origin_url : null);
+  } catch (err) {
+    logger.warn({ err, companyId, projectId }, "crew: reading project_repos failed; root issue keeps the root policy");
+    return false;
+  }
 }
 
 /**
@@ -392,8 +437,15 @@ export async function crewBeforeIssueCreate<T extends IssueCreateFields>(input: 
     ? await loadSourceExecutorAgentIds(input.db, housekeepingSourceIssueId(data))
     : [];
   const boardRoot = !data.createdByAgentId && !!data.createdByUserId?.trim() && !data.parentId && data.executionPolicy == null;
-  const researchLabel = boardRoot ? await hasResearchLabel(input.db, input.companyId, data.labelIds) : false;
+  const rootLabels = boardRoot ? await nonCodeLabelNames(input.db, input.companyId, data.labelIds) : new Set<string>();
+  const researchLabel = rootLabels.has(CREW_RESEARCH_LABEL);
+  const nonCodeLabel = rootLabels.size > 0;
   const trackingProject = isTrackingProject(config, data.projectId);
+  const bugFindingEnabled = config.kind === "ok" && config.bugFinding.enabled;
+  const githubOrigin =
+    boardRoot && bugFindingEnabled && !nonCodeLabel && !trackingProject
+      ? await projectHasGithubOrigin(input.db, input.companyId, projectId)
+      : false;
   const checksOverrides = !!data.createdByAgentId && data.assigneeAdapterOverrides != null;
   const assigneeAdapterType = checksOverrides
     ? await loadAssigneeAdapterType(input.db, input.companyId, data.assigneeAgentId)
@@ -405,6 +457,9 @@ export async function crewBeforeIssueCreate<T extends IssueCreateFields>(input: 
     ownerUserId,
     sourceExecutorAgentIds,
     researchLabel,
+    nonCodeLabel,
+    bugFindingEnabled,
+    githubOrigin,
     trackingProject,
     roleAgentIds,
     projectAgentRoles,

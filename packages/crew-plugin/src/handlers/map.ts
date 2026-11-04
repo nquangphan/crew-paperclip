@@ -14,7 +14,8 @@ export interface CrewMapNode {
   stage: { currentStageId: string | null; currentType: string | null; completed: string[]; position: number | null } | null;
   reviewRounds: number;
   maxReviewRounds: number;
-  kind: "code" | "research" | "fix";
+  /** `code-bf`: gốc theo luồng Bug Finding (thứ tự stage khác `code`); việc con và gốc thường là `code`. */
+  kind: "code" | "code-bf" | "research" | "fix";
   bundle: { id: string; seq: number } | null;
 }
 
@@ -67,10 +68,15 @@ function nodeFrom(row: IssueRow): CrewMapNode {
     reviewRounds: typeof rounds === "number" && Number.isInteger(rounds) && rounds >= 0 ? rounds : 0,
     // Matches resolveMaxReviewRounds in the host execution-policy service.
     maxReviewRounds: typeof maxRounds === "number" && Number.isInteger(maxRounds) && maxRounds > 0 ? maxRounds : 3,
-    kind: parseCrewFixBase(row.description) ? "fix"
-      : crewPolicyKind(row.execution_policy) === "research" ? "research" : "code",
+    kind: crewNodeKind(row.description, row.execution_policy),
     bundle: parseCrewBundle(row.description),
   };
+}
+
+export function crewNodeKind(description: string | null, executionPolicy: unknown): CrewMapNode["kind"] {
+  if (parseCrewFixBase(description)) return "fix";
+  const policyKind = crewPolicyKind(executionPolicy);
+  return policyKind === "research" || policyKind === "code-bf" ? policyKind : "code";
 }
 
 export function isCrewRoot(row: Pick<IssueRow, "execution_policy">): boolean {

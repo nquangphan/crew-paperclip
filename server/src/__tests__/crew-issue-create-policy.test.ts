@@ -5,9 +5,11 @@ import path from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { and, eq } from "drizzle-orm";
 import { agents, companies, createDb, issues, labels, projects, routineTriggers } from "@paperclipai/db";
+import { sql } from "drizzle-orm";
 import { getEmbeddedPostgresTestSupport, startEmbeddedPostgresTestDatabase } from "./helpers/embedded-postgres.js";
-import { boardChildAwaitingExecutor, decideCreatePolicy, executorRuntimeOf, withProjectTag } from "../crew/issue-create-policy.ts";
-import { buildCrewPolicy, CREW_MAX_REVIEW_ROUNDS, CREW_POLICY_CONFIG_ENV } from "../crew/issue-policy.ts";
+import { boardChildAwaitingExecutor, decideCreatePolicy, executorRuntimeOf, isGithubOrigin, withProjectTag } from "../crew/issue-create-policy.ts";
+import { buildCrewPolicy, CREW_MAX_REVIEW_ROUNDS, CREW_POLICY_CONFIG_ENV, parseCrewPolicyConfig } from "../crew/issue-policy.ts";
+import { applyCrewMachineTables } from "./helpers/crew-machine-tables.js";
 import { heartbeatService } from "../services/heartbeat.ts";
 import { issueService } from "../services/issues.js";
 import { routineService } from "../services/routines.ts";
@@ -297,6 +299,77 @@ describe("decideCreatePolicy", () => {
   });
 });
 
+describe("ticket tổng root-bf (Bug Finding)", () => {
+  const OWNER = "owner-1";
+  /** Board tạo ticket tổng: nhãn (tên), cờ `bugFinding.enabled` của company, host của origin GitHub/khác trong `project_repos`. */
+  const decide = (input: { labels: string[]; bugFindingEnabled: boolean; originHost: string | null }) =>
+    decideCreatePolicy({
+      data: { createdByUserId: OWNER },
+      roles,
+      ownerUserId: OWNER,
+      researchLabel: input.labels.includes("research"),
+      nonCodeLabel: input.labels.some((name) => ["research", "docs", "plan"].includes(name)),
+      bugFindingEnabled: input.bugFindingEnabled,
+      githubOrigin: input.originHost ? isGithubOrigin(`https://${input.originHost}/o/r.git`) : false,
+    }) as { kind: string; template?: string };
+
+  it("root-bf: integrator, reviewer cầu nối, owner, integrator", () => {
+    const r = { reviewerAgentId: randomUUID(), integratorAgentId: randomUUID() };
+    const p = buildCrewPolicy("root-bf", r, OWNER);
+    expect(p.stages.map((s) => [s.type, s.participants[0]?.agentId ?? s.participants[0]?.userId])).toEqual([
+      ["review", r.integratorAgentId], ["review", r.reviewerAgentId], ["approval", OWNER], ["review", r.integratorAgentId],
+    ]);
+    expect(p.maxReviewRounds).toBe(CREW_MAX_REVIEW_ROUNDS);
+    expect(() => buildCrewPolicy("root-bf", r, null)).toThrow();
+  });
+
+  it("ticket tổng không nhãn, cờ bật, origin GitHub → root-bf; nhãn docs, cờ tắt, origin không phải GitHub → root", () => {
+    expect(decide({ labels: [], bugFindingEnabled: true, originHost: "github.com" })).toEqual({ kind: "set", template: "root-bf", ownerUserId: OWNER });
+    expect(decide({ labels: ["docs"], bugFindingEnabled: true, originHost: "github.com" })).toMatchObject({ template: "root" });
+    expect(decide({ labels: ["plan"], bugFindingEnabled: true, originHost: "github.com" })).toMatchObject({ template: "root" });
+    expect(decide({ labels: [], bugFindingEnabled: false, originHost: "github.com" })).toMatchObject({ template: "root" });
+    expect(decide({ labels: [], bugFindingEnabled: true, originHost: "gitlab.corp.vn" })).toMatchObject({ template: "root" });
+    expect(decide({ labels: [], bugFindingEnabled: true, originHost: null })).toMatchObject({ template: "root" });
+    expect(decide({ labels: ["research"], bugFindingEnabled: true, originHost: "github.com" })).toMatchObject({ template: "research" });
+  });
+
+  it("chỉ ticket tổng board tạo mới nhận root-bf; con, policy riêng, project theo dõi, hệ thống giữ như cũ", () => {
+    const bf = { bugFindingEnabled: true, githubOrigin: true } as const;
+    expect(decideCreatePolicy({ data: { createdByUserId: OWNER, parentId: "p" }, roles, ownerUserId: OWNER, ...bf })).toEqual({ kind: "set", template: "child" });
+    expect(decideCreatePolicy({ data: { createdByUserId: OWNER, executionPolicy: { stages: [] } }, roles, ownerUserId: OWNER, ...bf })).toEqual({ kind: "keep" });
+    expect(decideCreatePolicy({ data: { createdByUserId: OWNER }, roles, ownerUserId: OWNER, trackingProject: true, ...bf })).toEqual({ kind: "keep" });
+    expect(decideCreatePolicy({ data: {}, roles, ownerUserId: OWNER, ...bf })).toEqual({ kind: "set", template: "root", ownerUserId: OWNER });
+  });
+
+  it("isGithubOrigin: https, ssh scp và ssh:// tới github.com; host khác thì không", () => {
+    for (const url of [
+      "https://github.com/nquangphan/kidy_school.git",
+      "https://GitHub.com/o/r",
+      "git@github.com:nquangphan/kidy_school.git",
+      "ssh://git@github.com/o/r.git",
+      "ssh://git@github.com:22/o/r.git",
+    ]) expect(isGithubOrigin(url), url).toBe(true);
+    for (const url of [
+      "https://gitlab.corp.vn/o/r.git",
+      "git@gitlab.com:o/r.git",
+      "https://github.com.evil.vn/o/r.git",
+      "https://notgithub.com/o/r.git",
+      "/Volumes/CORSAIR/Projects/r",
+      "",
+    ]) expect(isGithubOrigin(url), url).toBe(false);
+  });
+
+  it("parseCrewPolicyConfig: bugFinding.enabled mặc định false; sai kiểu thì invalid", () => {
+    const C = "10000000-0000-4000-8000-000000000001";
+    const entry = { reviewerAgentId: "20000000-0000-4000-8000-000000000001", integratorAgentId: "20000000-0000-4000-8000-000000000002", ownerUserId: OWNER };
+    const parse = (extra: Record<string, unknown>) => parseCrewPolicyConfig(JSON.stringify({ companies: { [C]: { ...entry, ...extra } } }), C);
+    expect(parse({})).toMatchObject({ kind: "ok", bugFinding: { enabled: false } });
+    expect(parse({ bugFinding: { enabled: true } })).toMatchObject({ kind: "ok", bugFinding: { enabled: true } });
+    expect(parse({ bugFinding: {} })).toMatchObject({ kind: "ok", bugFinding: { enabled: false } });
+    for (const bad of [true, "yes", { enabled: "true" }, [] as unknown]) expect(parse({ bugFinding: bad })).toMatchObject({ kind: "invalid" });
+  });
+});
+
 describe("withProjectTag", () => {
   it("gắn [tên project] ở đầu title", () => {
     expect(withProjectTag("Sửa lỗi đăng nhập", "kidy_school")).toBe("[kidy_school] Sửa lỗi đăng nhập");
@@ -379,6 +452,13 @@ suite("crew policy in issueService.create", () => {
     return { companyId, executorId, reviewerId, integratorId, rootId };
   }
 
+  let crewNs: string | undefined;
+  /** Bảng plugin `crew.core` (gồm `project_repos`), tạo một lần cho cả suite. */
+  async function crewTables(): Promise<string> {
+    crewNs ??= await applyCrewMachineTables(db);
+    return crewNs;
+  }
+
   it("board tạo gốc với nhãn Research nhận policy hai stage; không nhãn nhận bốn stage", async () => {
     const { companyId } = await seed();
     const labelId = randomUUID();
@@ -458,6 +538,43 @@ suite("crew policy in issueService.create", () => {
     const created = await issueService(db).create(companyId, { title: "t", createdByUserId: "owner-1", projectId } as never);
     const policy = (await db.select().from(issues).where(eq(issues.id, created.id)))[0]!.executionPolicy as { stages: unknown[] };
     expect(policy.stages).toHaveLength(4);
+  });
+
+  it("cờ bugFinding bật: gốc không nhãn của project origin GitHub nhận root-bf; nhãn docs, GitLab, không origin vẫn root", async () => {
+    const { companyId, reviewerId, integratorId } = await seed();
+    configured[companyId] = { ...(configured[companyId] as object), bugFinding: { enabled: true } };
+    writeConfig();
+    const ns = await crewTables();
+    const github = randomUUID();
+    const gitlab = randomUUID();
+    const bare = randomUUID();
+    await db.insert(projects).values([
+      { id: github, companyId, name: "gh" },
+      { id: gitlab, companyId, name: "gl" },
+      { id: bare, companyId, name: "bare" },
+    ]);
+    await db.execute(sql.raw(`INSERT INTO ${ns}.project_repos (company_id, project_id, origin_url, branch, updated_by_user_id) VALUES
+      ('${companyId}', '${github}', 'git@github.com:nquangphan/kidy_school.git', 'main', 'owner-1'),
+      ('${companyId}', '${gitlab}', 'https://gitlab.corp.vn/team/app.git', 'main', 'owner-1')`));
+    const docsLabel = randomUUID();
+    await db.insert(labels).values({ id: docsLabel, companyId, name: "Docs", color: "#16a34a" });
+    const principals = async (id: string) =>
+      ((await db.select().from(issues).where(eq(issues.id, id)))[0]!.executionPolicy as {
+        stages: { type: string; participants: { agentId?: string | null; userId?: string | null }[] }[];
+      }).stages.map((s) => [s.type, s.participants.map((p) => p.agentId ?? p.userId)]);
+    const create = (projectId: string, labelIds?: string[]) =>
+      issueService(db).create(companyId, { title: "t", createdByUserId: "owner-1", projectId, labelIds } as never);
+    const rootPipeline = [["review", [reviewerId]], ["review", [integratorId]], ["approval", ["owner-1"]], ["review", [integratorId]]];
+    expect(await principals((await create(github)).id)).toEqual([
+      ["review", [integratorId]], ["review", [reviewerId]], ["approval", ["owner-1"]], ["review", [integratorId]],
+    ]);
+    expect(await principals((await create(github, [docsLabel])).id)).toEqual(rootPipeline);
+    expect(await principals((await create(gitlab)).id)).toEqual(rootPipeline);
+    expect(await principals((await create(bare)).id)).toEqual(rootPipeline);
+    // Cờ tắt: project GitHub cũng giữ luồng cũ.
+    configured[companyId] = { ...(configured[companyId] as object), bugFinding: { enabled: false } };
+    writeConfig();
+    expect(await principals((await create(github)).id)).toEqual(rootPipeline);
   });
 
   it("nhãn research của company khác không tính", async () => {

@@ -65,7 +65,7 @@ Luật chính:
 | `packages/crew-plugin/src/companies/data.ts` | Danh sách company Crew | `allCrewCompanies`, `storedVerifiedCrewCompanies`, `isScopeDenied` |
 | `packages/crew-plugin/src/shared/db.ts` | Helper SQL an toàn | `pluginNamespace`, `checkedId`, `uuidArray`, `jsonObject` |
 | `packages/crew-plugin/src/shared/markers.ts` | Đọc marker Crew trong mô tả và comment | `parseCrewBundle`, `parseCrewDocsCheck`, `isCrewResearch` |
-| `packages/crew-plugin/src/shared/policy.ts` | Đọc policy Crew của issue | `crewPolicyKind`, `docsStageAgents` |
+| `packages/crew-plugin/src/shared/policy.ts` | Đọc policy Crew của issue: `code`, `code-bf` (gốc Bug Finding: stage 0 và 3 cùng integrator, stage 2 owner), `research`; agent của stage docs (stage 0 với `code-bf`) | `crewPolicyKind`, `docsStageAgents` |
 | `packages/crew-plugin/src/shared/css.d.ts` | Khai báo kiểu cho import CSS | |
 | `packages/crew-plugin/src/ui/index.tsx` | Export cho slot UI | |
 | `packages/crew-plugin/src/ui/registry.ts` | Đăng ký mục trang Crew và panel issue | `registerPageSection`, `registerIssuePanel` |
@@ -130,6 +130,8 @@ sự kiện plugin dạng call để xóa invocation scope khi handler xong).
   `src/shared-web`, không kéo React.
 - `packages/crew-plugin/src/__tests__/ui-bundle.test.ts`: bundle UI nạp được qua shim của host.
 - `packages/crew-plugin/src/ui/summary.test.ts`: tóm tắt Crew trên issue.
+- `packages/crew-plugin/src/__tests__/policy.test.ts`: `crewPolicyKind` nhận `code`, `code-bf`, `research` (một agent ở
+  mọi stage review vẫn là `code`), `docsStageAgents` của `code` và `code-bf`, `crewNodeKind` của bản đồ.
 - `server/src/__tests__/crew-plugin-data-viewer.test.ts`: viewer chỉ đọc được các data key cho phép, đúng company,
   membership xác nhận từ DB; cấu hình hỏng thì 403.
 - `server/src/__tests__/crew-plugin-event-invocation-scope.test.ts`: sau khi handler sự kiện xong, call không scope

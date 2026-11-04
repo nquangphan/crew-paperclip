@@ -1,7 +1,7 @@
 import type { PluginContext } from "@paperclipai/plugin-sdk";
 import { isCrewRoot } from "./map.js";
 import { checkedId, jsonObject } from "../shared/db.js";
-import { crewPolicyKind } from "../shared/policy.js";
+import { type CrewPolicyKind, crewPolicyKind } from "../shared/policy.js";
 
 export interface CrewRoot {
   id: string;
@@ -13,7 +13,7 @@ export interface CrewRoot {
   updatedAt: string;
   doneChildren: number;
   totalChildren: number;
-  kind: "code" | "research";
+  kind: CrewPolicyKind;
   stage: { currentStageId: string | null; currentType: string | null; completed: string[]; position: number | null } | null;
 }
 

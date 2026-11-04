@@ -423,6 +423,7 @@ flows:
       - packages/crew-plugin/src/__tests__/migration-0018.db.test.ts
       - packages/crew-plugin/src/__tests__/migration-0019.db.test.ts
       - packages/crew-plugin/src/__tests__/migration-0022.db.test.ts
+      - packages/crew-plugin/src/__tests__/policy.test.ts
       - packages/crew-plugin/src/__tests__/registry.test.ts
       - packages/crew-plugin/src/__tests__/shared-exports.test.ts
       - packages/crew-plugin/src/__tests__/ui-bundle.test.ts
@@ -1052,6 +1053,7 @@ flows:
       - packages/crew-web/test/ds/markdown-view.test.tsx
       - packages/crew-web/test/ds/rows.test.tsx
       - packages/crew-web/test/ds/section-codeblock.test.tsx
+      - packages/crew-web/test/ds/stage-badge.test.ts
       - packages/crew-web/test/ds/status-badge.test.tsx
       - packages/crew-web/test/ds/wizard.test.tsx
       - packages/crew-web/test/guards/design-system.test.ts

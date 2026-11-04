@@ -141,6 +141,7 @@ File nào thuộc flow nào. Dùng `crew-docs where <file>` để tra từ dòng
 | `packages/crew-plugin/src/__tests__/migration-0018.db.test.ts` | [crew-plugin](flows/crew-plugin.md) (test) |
 | `packages/crew-plugin/src/__tests__/migration-0019.db.test.ts` | [crew-plugin](flows/crew-plugin.md) (test) |
 | `packages/crew-plugin/src/__tests__/migration-0022.db.test.ts` | [crew-plugin](flows/crew-plugin.md) (test) |
+| `packages/crew-plugin/src/__tests__/policy.test.ts` | [crew-plugin](flows/crew-plugin.md) (test) |
 | `packages/crew-plugin/src/__tests__/registry.test.ts` | [crew-plugin](flows/crew-plugin.md) (test) |
 | `packages/crew-plugin/src/__tests__/roles.db.test.ts` | [project-roles](flows/project-roles.md) (test) |
 | `packages/crew-plugin/src/__tests__/roots.data.test.ts` | [roadmap-map](flows/roadmap-map.md) (test) |
@@ -700,6 +701,7 @@ File nào thuộc flow nào. Dùng `crew-docs where <file>` để tra từ dòng
 | `packages/crew-web/test/ds/markdown-view.test.tsx` | [design-system](flows/design-system.md) (test) |
 | `packages/crew-web/test/ds/rows.test.tsx` | [design-system](flows/design-system.md) (test) |
 | `packages/crew-web/test/ds/section-codeblock.test.tsx` | [design-system](flows/design-system.md) (test) |
+| `packages/crew-web/test/ds/stage-badge.test.ts` | [design-system](flows/design-system.md) (test) |
 | `packages/crew-web/test/ds/status-badge.test.tsx` | [design-system](flows/design-system.md) (test) |
 | `packages/crew-web/test/ds/wizard.test.tsx` | [design-system](flows/design-system.md) (test) |
 | `packages/crew-web/test/features/access/nav-access.test.ts` | [project-access](flows/project-access.md) (test) |

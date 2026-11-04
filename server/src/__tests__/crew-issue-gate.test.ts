@@ -76,6 +76,7 @@ describe("parseCrewPolicyConfig", () => {
       roles,
       ownerUserId: "owner-1",
       trackingProjectIds: [],
+      bugFinding: { enabled: false },
     });
   });
 

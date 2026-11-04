@@ -31,7 +31,7 @@ Luật chính:
 ## Các bước
 
 1. `packages/crew-plugin/src/handlers/map.ts` → `loadCrewMap`: từ một issue leo lên gốc, đọc cả cây, quan hệ phụ thuộc
-   và vòng sửa; mỗi nút có giai đoạn, người làm, số vòng duyệt, loại việc (`code`, `research`, `fix`), bundle. Worker không đọc được nhãn nên yêu cầu Viết tài liệu / Lập kế hoạch vẫn báo `code`.
+   và vòng sửa; mỗi nút có giai đoạn, người làm, số vòng duyệt, loại việc (`crewNodeKind`: `code`, `code-bf`, `research`, `fix`), bundle. Worker không đọc được nhãn nên yêu cầu Viết tài liệu / Lập kế hoạch vẫn báo `code`. `code-bf` là gốc theo luồng Bug Finding: cùng loại việc lập trình, chỉ khác thứ tự stage (integrator gộp trước, reviewer cầu nối, owner, integrator merge), nên `stageLabel` (UI stock) và `resolveStageKey` (crew-web) đặt tên giai đoạn theo thứ tự đó; `crew.roots` báo `kind` `code-bf` như vậy.
 2. `packages/crew-plugin/src/handlers/roots.ts` → `loadCrewRoots`: danh sách yêu cầu gốc của company (lọc `isCrewRoot`),
    mới nhất trước, kèm tiến độ việc con trực tiếp.
 3. `packages/crew-plugin/src/handlers/runs.ts` → `loadMapRuns`, `loadRequestRuns`: run tóm tắt theo issue, cùng nguồn
@@ -40,7 +40,7 @@ Luật chính:
    thành cạnh và vị trí; crew-web dùng lại qua `packages/crew-plugin/src/shared-web/map.ts`.
 5. `packages/crew-web/src/ds/widgets/crew/crew-map-level.ts` → `crewMapLevel`: đổi bản đồ Crew thành một tầng Roadmap
    (cạnh phụ thuộc thành "chặn"); `crew-map.tsx` → `CrewMap` vẽ nó bằng canvas Roadmap. Tham số `rootKind` (`docs` | `plan` | null,
-   `SummarySlot` lấy từ nhãn của yêu cầu gốc) đổi nhãn loại của việc `code` thành "Viết tài liệu" hoặc "Lập kế hoạch"; việc `fix` vẫn là "Sửa".
+   `SummarySlot` lấy từ nhãn của yêu cầu gốc) đổi nhãn loại của việc `code` thành "Viết tài liệu" hoặc "Lập kế hoạch"; việc `fix` vẫn là "Sửa"; `code-bf` hiện là "Lập trình".
 6. `packages/crew-web/src/features/roadmap/use-roadmap.ts` → `useRoadmapData`: issue, project, docs và run, lọc theo
    project được cấp.
 7. `packages/crew-web/src/features/roadmap/roadmap-model.ts`: dựng từng tầng (công ty, project, yêu cầu, nhánh Docs)
@@ -54,7 +54,7 @@ Luật chính:
 
 | Đường dẫn | Vai trò | Symbol chính |
 |-----------|---------|--------------|
-| `packages/crew-plugin/src/handlers/map.ts` | Data key `crew.map` | `loadCrewMap`, `isCrewRoot`, `CrewMap` |
+| `packages/crew-plugin/src/handlers/map.ts` | Data key `crew.map` | `loadCrewMap`, `isCrewRoot`, `crewNodeKind`, `CrewMap` |
 | `packages/crew-plugin/src/handlers/roots.ts` | Data key `crew.roots` | `loadCrewRoots`, `CrewRoot` |
 | `packages/crew-plugin/src/handlers/runs.ts` | Data key `crew.runs` | `loadMapRuns`, `loadRequestRuns`, `MAP_RUNS_LIMIT` |
 | `packages/crew-plugin/src/shared-web/map.ts` | Export bản đồ cho crew-web | |

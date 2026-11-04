@@ -36,6 +36,11 @@ Luật áp theo company:
      cấu hình thì `crew_roles_unconfigured`.
    - Board gửi policy riêng thì giữ; không gửi thì nhận template theo loại: con, gốc, gốc có nhãn `research`. Issue
      gốc trong project theo dõi không nhận policy.
+   - Ticket tổng code/bug theo luồng Bug Finding: board tạo gốc không nhãn `research`/`docs`/`plan` (`CREW_NON_CODE_LABELS`),
+     company bật `bugFinding.enabled` và project có origin GitHub trong bảng plugin `project_repos` (`isGithubOrigin`:
+     `https://github.com/…`, `git@github.com:…`, `ssh://git@github.com/…`) thì nhận template `root-bf`; thiếu một điều
+     kiện thì `root`. Chỉ đọc `project_repos` khi cờ bật; đọc lỗi (plugin chưa cài) thì coi như không GitHub, không chặn
+     tạo issue. Gốc do hệ thống (routine) tạo vẫn nhận `root`.
    - Hệ thống: issue watchdog/recovery giữ stock, trừ khi giao lại cho chính executor của issue nguồn; routine do agent
      tạo/sửa bị từ chối (`crew_routine_issue_forbidden`).
    - Company có cấu hình Crew: `withProjectTag` gắn `[tên project]` vào đầu title của mọi issue mới có project (project
@@ -45,7 +50,9 @@ Luật áp theo company:
      đứng trước reviewer Claude trong stage review, khi công tắc `codex_local` trên máy reviewer Codex đang bật. Máy của
      reviewer Codex suy theo cây của issue cha (`issueId: data.parentId`) khi cây đã ghim máy (flow `multi-machine`).
 3. `server/src/crew/issue-policy.ts` → `buildCrewPolicy`: dựng template đã normalize, `maxReviewRounds` là
-   `CREW_MAX_REVIEW_ROUNDS` (5). Gốc: reviewer, integrator (merge + docs), owner, integrator (push). Research, bmad và
+   `CREW_MAX_REVIEW_ROUNDS` (5). Gốc: reviewer, integrator (merge + docs), owner, integrator (push). Gốc Bug Finding
+   (`root-bf`): integrator (gộp + docs + PR), reviewer (cầu nối Bug Finding, không review code), owner, integrator
+   (merge PR); gate riêng của các stage này chưa có, nên chỉ bật `bugFinding.enabled` khi gate `root-bf` đã lên bản. Research, bmad và
    design: reviewer, owner (owner duyệt mockup trước khi con code giao diện bị chặn bởi nó được chạy). Con: reviewer.
 4. `server/src/crew/issue-gate.ts` → `crewBeforeIssueWrite` (H2): kiểm override model trước, rồi khi patch chạm
    `status`, `executionPolicy`, `executionState`, `assigneeAgentId` hoặc `projectId` thì khóa dòng issue, đọc vai trò
@@ -97,7 +104,9 @@ Luật áp theo company:
   `crew_project_outside_parent`, `crew_routine_issue_forbidden`.
 - Comment bằng chứng (dòng đầu): `crew-docs-check commit=… range=…..… exit=N` (`CREW_DOCS_CHECK_RE`),
   `crew-merge sha=… branch=… pushed=yes|pr pr=<url>` (`CREW_MERGE_RE`).
-- Env: `CREW_POLICY_CONFIG` (đường dẫn file JSON chỉ đọc; công cụ sửa ở flow `ops-tools`).
+- Env: `CREW_POLICY_CONFIG` (đường dẫn file JSON chỉ đọc; công cụ sửa ở flow `ops-tools`). Mỗi company trong file có thể
+  có `bugFinding: { enabled: boolean }` (mặc định tắt; sai kiểu thì cấu hình `invalid`).
+- Bảng plugin đọc ở H4: `project_repos.origin_url` (chỉ khi company bật Bug Finding).
 
 ## Flow liên quan
 
@@ -117,7 +126,8 @@ Luật áp theo company:
 
 - `server/src/__tests__/crew-issue-create-policy.test.ts`: các nhánh của `decideCreatePolicy` (agent, board, hệ
   thống, research, project theo dõi, bmad, design, override theo runtime, watchdog trả về executor), `withProjectTag` và tag
-  `[tên project]` trên title qua `issueService.create`.
+  `[tên project]` trên title qua `issueService.create`; `root-bf` (template, cờ, nhãn docs/plan, origin GitHub/GitLab,
+  `isGithubOrigin`, `bugFinding` trong file cấu hình) cả hàm thuần lẫn qua `issueService.create` với `project_repos`.
 - `server/src/__tests__/crew-issue-gate.test.ts`: parse file cấu hình (absent, invalid, hoa thường), đọc lại file mỗi
   lần, cảnh báo lúc khởi động, template policy, fingerprint policy, các nhánh của `evaluateIssueGate`.
 - `server/src/__tests__/crew-issue-gate.db.test.ts`: H2 trên DB thật: chặn override, xóa policy, cancel, giao cho

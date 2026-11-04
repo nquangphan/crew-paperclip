@@ -32,7 +32,9 @@ function facts(t: TFn, issue: CrewMapNode, current: boolean, rootKind: RootKind)
   const stage = issue.stage ? t(`stage.${resolveStageKey(issue.stage, issue.kind)}`) : t('stage.none');
   const rounds = t('crewMap.roundsShort', { round: issue.reviewRounds, max: issue.maxReviewRounds });
   // Yêu cầu tài liệu / kế hoạch đi pipeline của code nên worker báo `code`; việc sửa (`fix`) vẫn hiện là Sửa.
-  const kind = rootKind && issue.kind === 'code' ? rootKind : issue.kind;
+  // `code-bf` chỉ khác thứ tự stage (luồng Bug Finding), loại việc vẫn là code.
+  const base = issue.kind === 'code-bf' ? 'code' : issue.kind;
+  const kind = rootKind && base === 'code' ? rootKind : base;
   const notes = [
     t(`crewMap.kind.${kind}`),
     t('crewMap.stageLine', { stage }),

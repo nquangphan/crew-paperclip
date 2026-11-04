@@ -23,8 +23,13 @@ function resolveStageKey(stage: StageInput | null | undefined, kind?: string | n
   if (!stage) return 'none';
   if (!stage.currentType) return stage.completed.length ? 'done' : 'notStarted';
   if (stage.position === null) return 'unknown';
+  // `code-bf` (luồng Bug Finding): integrator gộp + PR trước, reviewer cầu nối Bug Finding, owner, integrator merge.
   const order: StageKey[] =
-    kind === 'research' ? ['reviewer', 'owner'] : ['reviewer', 'integratorMerge', 'owner', 'integratorPush'];
+    kind === 'research'
+      ? ['reviewer', 'owner']
+      : kind === 'code-bf'
+        ? ['integratorMerge', 'reviewer', 'owner', 'integratorPush']
+        : ['reviewer', 'integratorMerge', 'owner', 'integratorPush'];
   return order[stage.position] ?? (stage.currentType === 'approval' ? 'owner' : 'reviewer');
 }
 
