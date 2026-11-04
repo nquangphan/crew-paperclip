@@ -129,3 +129,8 @@ Luật chính:
 - `packages/crew-plugin/src/__tests__/bug-finding-triage.test.ts`: đọc dòng `crew-bf-triage` và lý do, nhóm rỗng `-`;
   Trợ Lý là `returnAssignee` hay assignee; ghép kế hoạch trong khoảng sau lượt xong và trước lượt kế, bỏ comment của
   người khác, việc con sửa theo finding (một con nhiều finding).
+- `packages/crew-web/e2e/bug-finding/root-bf.spec.ts` (Playwright, giả toàn bộ `/api/*` bằng `stub.ts`, chạy
+  `pnpm exec playwright test -c e2e/bug-finding/playwright.config.ts` từ `packages/crew-web`, web dev cổng 5193): ticket
+  tổng `code-bf` hiện dải 4 giai đoạn có "Review Bug Finding", tiến độ lane của lượt đang chạy và ba nhóm kế hoạch của
+  Trợ Lý; owner thấy "Duyệt và merge" với kết quả Bug Finding trên đúng commit và gửi `done`; ticket policy `code` cũ
+  giữ nút "Duyệt" và không gọi route Bug Finding.
