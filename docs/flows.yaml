@@ -680,6 +680,7 @@ flows:
       - packages/crew-web/src/ds/widgets/crew/crew-summary.tsx
       - packages/crew-web/src/ds/widgets/roadmap/roadmap-canvas.tsx
       - packages/crew-web/src/ds/widgets/roadmap/roadmap-doc-popup.tsx
+      - packages/crew-web/src/ds/widgets/roadmap/roadmap-flow-parts.tsx
       - packages/crew-web/src/ds/widgets/roadmap/roadmap-flow.tsx
       - packages/crew-web/src/ds/widgets/roadmap/roadmap-layout.ts
       - packages/crew-web/src/ds/widgets/roadmap/roadmap-legend.tsx
@@ -688,6 +689,9 @@ flows:
       - packages/crew-web/src/ds/widgets/roadmap/roadmap-run-list.tsx
       - packages/crew-web/src/ds/widgets/roadmap/roadmap-runs.ts
       - packages/crew-web/src/ds/widgets/roadmap/roadmap-types.ts
+      - packages/crew-web/src/ds/widgets/roadmap/roadmap-world-canvas.tsx
+      - packages/crew-web/src/ds/widgets/roadmap/roadmap-world-flow.tsx
+      - packages/crew-web/src/ds/widgets/roadmap/roadmap-world.ts
       - packages/crew-web/src/features/roadmap/index.ts
       - packages/crew-web/src/features/roadmap/roadmap-doc-reader.tsx
       - packages/crew-web/src/features/roadmap/roadmap-model.ts
@@ -708,6 +712,8 @@ flows:
       - packages/crew-web/test/ds/crew/roadmap-edges.test.tsx
       - packages/crew-web/test/ds/crew/roadmap-layout.test.ts
       - packages/crew-web/test/ds/crew/roadmap-runs.test.tsx
+      - packages/crew-web/test/ds/crew/roadmap-world-perf.test.ts
+      - packages/crew-web/test/ds/crew/roadmap-world.test.ts
       - packages/crew-web/test/features/roadmap/roadmap-model.test.ts
       - packages/crew-web/test/features/roadmap/roadmap-page.test.tsx
       - packages/crew-web/test/features/roadmap/roadmap-url.test.ts

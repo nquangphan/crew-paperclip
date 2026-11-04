@@ -1,4 +1,5 @@
-// S22 Roadmap: bản đồ công ty → project → yêu cầu do người tạo → cây việc con, nhánh Docs, và lọc theo quyền project.
+// S22 Roadmap một trang: một bản đồ chứa công ty → project → yêu cầu do người tạo → cây việc con (và đảo Docs); bấm một
+// mục thì camera zoom tới đó, không đổi trang. URL `?focus=` (Back lùi vị trí), link cũ `?project=`/`?request=` tự đổi.
 // Dữ liệu ca dựng bằng API phiên owner (nên có `createdByUserId`). Việc gốc do agent tạo không dựng được vì policy Crew
 // từ chối agent tạo issue gốc (`crew_agent_root_issue`); bộ lọc đó có unit test ở test/features/roadmap.
 import type { Page } from '@playwright/test';
@@ -6,10 +7,12 @@ import { archiveProject, createIssue, createProject, uniqueToken, waitInCompactL
 import { expect, test } from '../support/fixtures';
 import { memberProjects, setMemberProjects } from '../support/project-access';
 
-const node = (page: Page, id: string) => page.locator(`button[data-roadmap-id="${id}"]`);
+const canvas = (page: Page) => page.locator('[data-slot="roadmap-canvas"]');
+const node = (page: Page, id: string) => canvas(page).locator(`button[data-roadmap-id="${id}"]`);
 const notFound = 'Không tìm thấy hoặc bạn không được xem';
+const focusOf = (page: Page) => new URL(page.url()).searchParams.get('focus');
 
-test('PW-S22-1 owner đi từ công ty vào project, yêu cầu, việc con; popup, Esc, Back và dạng danh sách @t1', async ({
+test('PW-S22-1 owner zoom từ toàn cảnh vào project, yêu cầu, việc con trên một trang; popup, Esc, Back, link cũ và dạng danh sách @t1', async ({
   page,
   api,
   company,
@@ -31,46 +34,53 @@ test('PW-S22-1 owner đi từ công ty vào project, yêu cầu, việc con; pop
     });
     await waitInCompactList(api, company.id, [root.id, first.id, second.id]);
 
+    // Toàn cảnh: một bản đồ, nút project có mặt; camera đặt xong.
     await page.goto(company.path('roadmap'));
     await expect(page.getByRole('heading', { name: 'Roadmap', exact: true })).toBeVisible();
-    await expect(node(page, 'company')).toBeFocused();
+    await expect(canvas(page)).toHaveAttribute('data-camera', 'placed');
     await expect(node(page, a.id)).toHaveAttribute('aria-label', `Project ${a.name}: 1 yêu cầu, 1 đang mở`);
+    const url = page.url();
 
-    // Bấm project: camera phóng vào, URL đổi sang tầng project; chỉ yêu cầu gốc, không có việc con ở tầng này.
+    // Bấm project: camera zoom tới cụm, vẫn cùng trang (chỉ đổi ?focus=).
     await node(page, a.id).click();
-    await expect(page).toHaveURL(new RegExp(`roadmap\\?project=${a.id}$`));
-    await expect(node(page, root.id)).toBeVisible();
-    await expect(node(page, first.id)).toHaveCount(0);
+    await expect.poll(() => focusOf(page)).toBe(`project:${a.id}`);
+    expect(new URL(page.url()).pathname).toBe(new URL(url).pathname);
     await expect(page.getByRole('navigation', { name: 'Đường dẫn trang' })).toContainText(a.name);
 
-    // Bấm yêu cầu: cây việc con với cạnh chặn.
-    await node(page, root.id).click();
-    await expect(page).toHaveURL(new RegExp(`request=${root.identifier}`));
-    await expect(node(page, first.id)).toBeVisible();
+    // Bấm nhãn của yêu cầu (mức nhãn) rồi việc con: thẻ và dây như bản đồ Crew, có dây chặn.
+    await canvas(page).locator(`button[data-plate="${root.id}"]`).click();
+    await expect.poll(() => focusOf(page)).toBe(root.identifier);
+    await expect(node(page, root.id)).toHaveAttribute('aria-current', 'true');
     await expect(node(page, second.id)).toBeVisible();
-    await expect(page.locator('[data-slot="roadmap-canvas"] path[data-edge-kind="blocks"]')).toHaveCount(1);
+    await expect(canvas(page).locator('path[data-edge-kind="blocks"]')).toHaveCount(1);
+    await node(page, second.id).click();
+    await expect.poll(() => focusOf(page)).toBe(second.identifier);
+    await expect(node(page, second.id)).toHaveAttribute('aria-current', 'true');
 
-    // Việc con mở popup chi tiết có sẵn; Esc đóng popup, Esc nữa lùi về tầng project.
+    // Bấm lại việc đang xem mở popup chi tiết có sẵn; Esc đóng popup, Esc nữa ra yêu cầu, rồi ra project.
     await node(page, second.id).click();
     await expect(page).toHaveURL(new RegExp(`issue=${second.identifier}`));
     await expect(page.getByTestId('issue-popup')).toContainText(second.title);
     await page.keyboard.press('Escape');
     await expect(page.getByTestId('issue-popup')).toHaveCount(0);
-    await expect(page).toHaveURL(new RegExp(`request=${root.identifier}$`));
+    await expect.poll(() => focusOf(page)).toBe(second.identifier);
     await page.keyboard.press('Escape');
-    await expect(page).toHaveURL(new RegExp(`roadmap\\?project=${a.id}$`));
-    await expect(node(page, root.id)).toBeFocused();
+    await expect.poll(() => focusOf(page)).toBe(root.identifier);
 
-    // Back trình duyệt trở lại tầng yêu cầu; breadcrumb về tầng công ty.
+    // Back trình duyệt lùi về vị trí trước (việc con); nút Toàn cảnh về toàn cảnh.
     await page.goBack();
-    await expect(page).toHaveURL(new RegExp(`request=${root.identifier}$`));
-    await expect(node(page, second.id)).toBeVisible();
-    await page.getByRole('link', { name: company.name, exact: true }).click();
-    await expect(page).toHaveURL(new RegExp(`${company.path('roadmap')}$`));
-    await expect(node(page, a.id)).toBeVisible();
+    await expect.poll(() => focusOf(page)).toBe(second.identifier);
+    await expect(node(page, second.id)).toHaveAttribute('aria-current', 'true');
+    await page.getByRole('button', { name: 'Toàn cảnh' }).first().click();
+    await expect.poll(() => focusOf(page)).toBeNull();
+
+    // Link cũ mở đúng chỗ.
+    await page.goto(company.path(`roadmap?project=${a.id}&request=${root.identifier}`));
+    await expect.poll(() => focusOf(page)).toBe(root.identifier);
+    await expect(node(page, root.id)).toHaveAttribute('aria-current', 'true');
 
     // Dạng danh sách cho cùng nội dung.
-    await page.goto(company.path(`roadmap?project=${a.id}&request=${root.identifier}&view=list`));
+    await page.goto(company.path(`roadmap?focus=${root.identifier}&view=list`));
     const list = page.getByRole('region', { name: 'Bản đồ dạng danh sách' });
     await expect(list.locator(`[data-roadmap-id="${first.id}"]`)).toBeVisible();
     await expect(list.locator(`[data-roadmap-id="${second.id}"]`)).toBeVisible();
@@ -99,17 +109,21 @@ test('PW-S22-2 thành viên bị giới hạn chỉ thấy project được cấ
     await setMemberProjects(api, company.id, userId, [...new Set([...before, a.id])]);
 
     await guest.goto(company.path('roadmap'));
+    await expect(canvas(guest)).toHaveAttribute('data-camera', 'placed');
     await expect(node(guest, a.id)).toBeVisible();
     await expect(node(guest, b.id)).toHaveCount(0);
     await expect(node(guest, 'none')).toHaveCount(0);
 
-    await guest.goto(company.path(`roadmap?project=${a.id}`));
-    await expect(node(guest, issueA.id)).toBeVisible();
+    await guest.goto(company.path(`roadmap?focus=${issueA.identifier}`));
+    await expect(node(guest, issueA.id)).toHaveAttribute('aria-current', 'true');
 
-    await guest.goto(company.path(`roadmap?project=${b.id}`));
+    await guest.goto(company.path(`roadmap?focus=project:${b.id}`));
+    await expect(guest.getByText(notFound)).toBeVisible();
+    await guest.goto(company.path(`roadmap?focus=${issueB.identifier}`));
     await expect(guest.getByText(notFound)).toBeVisible();
     await expect(node(guest, issueB.id)).toHaveCount(0);
-    await guest.goto(company.path(`roadmap?project=${a.id}&request=${issueB.identifier}`));
+    // Link cũ tới project không được cấp cũng ra thông báo chung.
+    await guest.goto(company.path(`roadmap?project=${b.id}`));
     await expect(guest.getByText(notFound)).toBeVisible();
   } finally {
     await setMemberProjects(api, company.id, userId, before);
@@ -118,11 +132,7 @@ test('PW-S22-2 thành viên bị giới hạn chỉ thấy project được cấ
   }
 });
 
-test('PW-S22-3 nhánh Docs: vào bộ docs, mở trang trong popup, link sang trang Docs @t1', async ({
-  page,
-  api,
-  company,
-}) => {
+test('PW-S22-3 đảo Docs: lấy nét, mở trang trong popup, link sang trang Docs @t1', async ({ page, api, company }) => {
   // Bản docs chỉ có khi máy đã ghép gửi lên; ca chỉ đọc nên dùng project có docs của company e2e, không có thì của
   // company khác mà board xem được (ví dụ company mẫu ảnh hướng dẫn trên T1).
   const companies = await api.get<{ id: string; issuePrefix: string }[]>('/api/companies');
@@ -150,32 +160,15 @@ test('PW-S22-3 nhánh Docs: vào bộ docs, mở trang trong popup, link sang tr
   test.skip(!tree?.pages.length, 'Bản docs không có trang nào');
   const pages = tree?.pages ?? [];
 
-  await page.goto(at(`roadmap?project=${projectId}`));
+  // Đảo Docs: lấy nét bằng link, bấm trang (thẻ đầy đủ) mở popup đọc, Esc đóng popup, chỗ lấy nét giữ nguyên.
+  await page.goto(at(`roadmap?focus=docs:${projectId}`));
   const docs = node(page, `docs:${projectId}`);
   await expect(docs).toHaveAttribute('aria-label', `Docs: ${pages.length} trang`);
-  await docs.click();
-  await expect(page).toHaveURL(new RegExp(`project=${projectId}&docs=1$`));
-
-  // Gốc chỉ có một thư mục (không trang) thì tự vào thư mục đó, breadcrumb vẫn ghi đường thư mục.
-  const tops = new Set(pages.map((p) => (p.path.includes('/') ? `dir:${p.path.split('/')[0]}` : 'page')));
-  const center = page.locator('button[data-roadmap-id][data-center]');
-  if (tops.size === 1 && !tops.has('page')) {
-    const only = [...tops][0];
-    await expect(center).toHaveAttribute('data-roadmap-id', only);
-    await expect(page.getByRole('navigation', { name: 'Đường dẫn trang' })).toContainText(only.slice(4));
-  }
-
-  // Đi tới trang đầu tiên: vào từng thư mục trên đường dẫn của nó (bỏ qua tầng đã tự vào) rồi bấm trang.
+  await expect(docs).toHaveAttribute('aria-current', 'true');
   const target = pages[0];
-  const parts = target.path.split('/');
-  for (let i = 1; i < parts.length; i++) {
-    const folder = parts.slice(0, i).join('/');
-    const current = (await center.getAttribute('data-roadmap-id')) ?? '';
-    if (current.startsWith('dir:') && `${current.slice(4)}/`.startsWith(`${folder}/`)) continue;
-    await node(page, `dir:${folder}`).click();
-    await expect(page).toHaveURL(new RegExp(`folder=${encodeURIComponent(folder)}$`));
-  }
-  await node(page, `page:${target.path}`).click();
+  const pageNode = node(page, `page:${projectId}:${target.path}`);
+  await pageNode.scrollIntoViewIfNeeded();
+  await pageNode.click();
   await expect(page).toHaveURL(new RegExp(`doc=${encodeURIComponent(target.path)}`));
   const popup = page.getByTestId('roadmap-doc-popup');
   await expect(popup).toContainText(target.path);
@@ -186,5 +179,5 @@ test('PW-S22-3 nhánh Docs: vào bộ docs, mở trang trong popup, link sang tr
   await page.keyboard.press('Escape');
   await expect(popup).toHaveCount(0);
   await expect(page).not.toHaveURL(/doc=/);
-  await expect(node(page, `page:${target.path}`)).toBeVisible();
+  await expect.poll(() => focusOf(page)).toBe(`docs:${projectId}`);
 });

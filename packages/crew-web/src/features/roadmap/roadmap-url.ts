@@ -1,10 +1,14 @@
-// Hợp đồng URL của trang Roadmap. Tầng đang xem nằm trên query để gửi link được và nút Back trình duyệt lùi tầng:
-//   ?project=<projectId|none>            tầng project ("none": yêu cầu không thuộc project nào, chỉ owner)
-//   &request=<mã TPS-12>                 tầng yêu cầu (cây việc con)
-//   &docs=1[&folder=<đường thư mục>]     nhánh Docs của project (gốc bộ docs hoặc một thư mục)
-//   &doc=<đường trang>                   popup đọc một trang docs (trên nhánh Docs)
-//   &view=list                           dạng danh sách thay cho bản đồ
-//   &issue=<mã>                          popup chi tiết yêu cầu dùng chung của shell (xem features/issues/popup)
+// Hợp đồng URL của trang Roadmap một trang. Chỗ camera đang lấy nét nằm trên query để gửi link được; mỗi lần lấy nét
+// đẩy một mục lịch sử nên Back trình duyệt bay về chỗ trước:
+//   ?focus=<mã TPS-12>                 yêu cầu hoặc việc con
+//   ?focus=project:<projectId|none>    cụm project ("none": yêu cầu không thuộc project nào, chỉ owner)
+//   ?focus=docs:<projectId>            đảo Docs của project
+//   ?focus=dir:<projectId>:<thư mục>   một thư mục docs
+//   (không có focus)                   toàn cảnh
+//   &doc=<đường trang>                 popup đọc một trang docs (project lấy từ focus)
+//   &view=list                         dạng danh sách thay cho bản đồ
+//   &issue=<mã>                        popup chi tiết yêu cầu dùng chung của shell (xem features/issues/popup)
+// Link cũ (?project=, &request=, &docs=1, &folder=) tự đổi sang ?focus= (`legacyHref`).
 import { ISSUE_PARAM } from '@/features/issues/popup/issue-href';
 
 export interface LocationLike {
@@ -15,29 +19,21 @@ export interface LocationLike {
 export type RoadmapView = 'map' | 'list';
 
 export interface RoadmapParams {
-  project: string | null;
-  request: string | null;
-  docs: boolean;
-  folder: string | null;
+  /** Chỗ đang lấy nét; null là toàn cảnh. */
+  focus: string | null;
   doc: string | null;
   view: RoadmapView;
 }
 
-/** Đích chuyển tầng (không gồm view, giữ nguyên khi đổi tầng). */
-export interface RoadmapTarget {
-  project?: string | null;
-  request?: string | null;
-  docs?: boolean;
-  folder?: string | null;
-}
-
-const P = { project: 'project', request: 'request', docs: 'docs', folder: 'folder', doc: 'doc', view: 'view' } as const;
+const P = { focus: 'focus', doc: 'doc', view: 'view' } as const;
+/** Tham số của bản nhiều tầng cũ. */
+const LEGACY = { project: 'project', request: 'request', docs: 'docs', folder: 'folder' } as const;
 
 const clean = (v: string | null) => {
   const s = v?.trim();
   return s ? s : null;
 };
-/** Đường thư mục: bỏ `/` thừa ở đầu cuối, không nhận `..`. */
+/** Đường docs: bỏ `/` thừa ở đầu cuối, không nhận `..`. */
 const cleanPath = (v: string | null) => {
   const s = clean(v)?.replace(/^\/+|\/+$/g, '') ?? null;
   return s && !s.split('/').includes('..') ? s : null;
@@ -45,15 +41,9 @@ const cleanPath = (v: string | null) => {
 
 export function parseRoadmapParams(search: string): RoadmapParams {
   const q = new URLSearchParams(search);
-  const project = clean(q.get(P.project));
-  const request = project ? clean(q.get(P.request)) : null;
-  const docs = !!project && !request && q.get(P.docs) === '1';
   return {
-    project,
-    request,
-    docs,
-    folder: docs ? cleanPath(q.get(P.folder)) : null,
-    doc: docs ? cleanPath(q.get(P.doc)) : null,
+    focus: clean(q.get(P.focus)),
+    doc: cleanPath(q.get(P.doc)),
     view: q.get(P.view) === 'list' ? 'list' : 'map',
   };
 }
@@ -63,22 +53,37 @@ const withSearch = (pathname: string, q: URLSearchParams) => {
   return s ? `${pathname}?${s}` : pathname;
 };
 
-/** Đường tới một tầng: giữ tham số khác (view), bỏ popup (`issue`, `doc`) vì chúng thuộc tầng cũ. */
-export function roadmapHref(current: LocationLike, target: RoadmapTarget): string {
+/** Đường tới một chỗ lấy nét (null: toàn cảnh): giữ view, bỏ popup (`issue`, `doc`) và tham số cũ. */
+export function focusHref(current: LocationLike, focus: string | null): string {
   const q = new URLSearchParams(current.search);
-  for (const key of [P.project, P.request, P.docs, P.folder, P.doc, ISSUE_PARAM]) q.delete(key);
-  if (target.project) {
-    q.set(P.project, target.project);
-    if (target.request) q.set(P.request, target.request);
-    else if (target.docs) {
-      q.set(P.docs, '1');
-      if (target.folder) q.set(P.folder, target.folder);
-    }
-  }
+  for (const key of [P.focus, P.doc, ISSUE_PARAM, ...Object.values(LEGACY)]) q.delete(key);
+  if (focus) q.set(P.focus, focus);
   return withSearch(current.pathname, q);
 }
 
-/** Đổi dạng bản đồ/danh sách, giữ tầng. */
+/**
+ * Link cũ của bản nhiều tầng → đường với `?focus=` (giữ view, popup issue, trang docs). null khi URL không có tham số
+ * cũ. Trang thay URL (replace) nên Back không quay lại dạng cũ.
+ */
+export function legacyHref(current: LocationLike): string | null {
+  const q = new URLSearchParams(current.search);
+  const project = clean(q.get(LEGACY.project));
+  const request = clean(q.get(LEGACY.request));
+  const docs = q.get(LEGACY.docs) === '1';
+  const folder = cleanPath(q.get(LEGACY.folder));
+  if (!project && !request && !q.has(LEGACY.docs) && !q.has(LEGACY.folder)) return null;
+  const doc = q.get(P.doc);
+  for (const key of [...Object.values(LEGACY), P.doc]) q.delete(key);
+  let focus: string | null = null;
+  if (request) focus = request;
+  else if (project && docs) focus = folder ? `dir:${project}:${folder}` : `docs:${project}`;
+  else if (project) focus = `project:${project}`;
+  if (focus && !q.has(P.focus)) q.set(P.focus, focus);
+  if (doc && docs) q.set(P.doc, doc);
+  return withSearch(current.pathname, q);
+}
+
+/** Đổi dạng bản đồ/danh sách, giữ chỗ lấy nét. */
 export function viewHref(current: LocationLike, view: RoadmapView): string {
   const q = new URLSearchParams(current.search);
   if (view === 'list') q.set(P.view, 'list');
@@ -86,35 +91,10 @@ export function viewHref(current: LocationLike, view: RoadmapView): string {
   return withSearch(current.pathname, q);
 }
 
-/** Mở (hoặc đóng khi `path` null) popup đọc trang docs, giữ tầng. */
+/** Mở (hoặc đóng khi `path` null) popup đọc trang docs, giữ chỗ lấy nét. */
 export function docHref(current: LocationLike, path: string | null): string {
   const q = new URLSearchParams(current.search);
   if (path) q.set(P.doc, path);
   else q.delete(P.doc);
   return withSearch(current.pathname, q);
-}
-
-/** Tầng cha của tầng đang xem; null ở tầng công ty. */
-export function parentTarget(p: Pick<RoadmapParams, 'project' | 'request' | 'docs' | 'folder'>): RoadmapTarget | null {
-  if (!p.project) return null;
-  if (p.request) return { project: p.project };
-  if (p.docs && p.folder) {
-    const up = p.folder.split('/').slice(0, -1).join('/');
-    return { project: p.project, docs: true, folder: up || null };
-  }
-  if (p.docs) return { project: p.project };
-  return {};
-}
-
-/** Độ sâu tầng: công ty 0, project 1, yêu cầu hoặc gốc docs 2, mỗi cấp thư mục thêm 1. */
-export function levelDepth(p: Pick<RoadmapParams, 'project' | 'request' | 'docs' | 'folder'>): number {
-  if (!p.project) return 0;
-  if (p.request) return 2;
-  if (p.docs) return 2 + (p.folder ? p.folder.split('/').length : 0);
-  return 1;
-}
-
-/** Khóa tầng (đổi khóa = đổi tầng, chạy chuyển động). */
-export function levelKeyOf(p: Pick<RoadmapParams, 'project' | 'request' | 'docs' | 'folder'>): string {
-  return [p.project ?? '', p.request ?? '', p.docs ? 'docs' : '', p.folder ?? ''].join('|');
 }

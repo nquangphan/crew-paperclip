@@ -1330,6 +1330,48 @@
   }
 }
 
+/* Roadmap một trang: nút tròn giữ cỡ tối thiểu trên màn hình (--rm-orb-min chia độ phóng --rm-zoom), nhãn nổi của đảo
+   giữ cỡ cố định trên màn hình; ô màu là vài path SVG gộp theo màu trạng thái. Biến do canvas đặt theo camera. */
+.roadmap-world {
+  --rm-zoom: 1;
+  --rm-orb-min: 0.9;
+}
+
+.roadmap-world-orb {
+  transform: scale(max(1, min(calc(var(--rm-orb-min) / var(--rm-zoom)), var(--rm-orb-cap, 40))));
+}
+
+.roadmap-world-orb[data-orb="company"] {
+  transform: scale(max(1, min(calc(var(--rm-orb-min) / var(--rm-zoom)), var(--rm-company-cap, 40))));
+}
+
+.roadmap-world-plate {
+  bottom: calc(10px / var(--rm-zoom));
+  /* Rộng bằng đảo cộng nửa khe giữa hai đảo (không đè nhãn đảo bên cạnh), trong khoảng 80–300px trên màn hình. */
+  width: clamp(80px, calc((var(--rm-w) + 120) * var(--rm-zoom) * 1px), 300px);
+  transform: scale(calc(1 / var(--rm-zoom)));
+  transform-origin: 0 100%;
+}
+
+.roadmap-world-block {
+  opacity: 0.85;
+}
+
+.roadmap-world-block-running {
+  opacity: 1;
+  filter: drop-shadow(0 0 40px var(--roadmap-edge-running));
+}
+
+.roadmap-world-minimap-view {
+  fill: color-mix(in oklab, var(--foreground) 8%, transparent);
+  stroke: var(--foreground);
+  stroke-width: 60;
+}
+
+.roadmap-world .react-flow__viewport-portal {
+  pointer-events: none;
+}
+
 /* Nút điều khiển của xyflow theo token của theme (sáng/tối). */
 .roadmap-flow {
   --xy-background-color: transparent;
@@ -1359,6 +1401,9 @@
   }
   .roadmap-edge-spark {
     display: none;
+  }
+  .roadmap-world-block-running {
+    filter: none;
   }
 }
 
