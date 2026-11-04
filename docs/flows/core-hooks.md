@@ -80,7 +80,9 @@ import cuối file để merge upstream ít conflict), mô tả lý do và `upst
 - `multi-machine`: vá C16.
 - `model-settings`: vá C17, một dòng `GET /api/crew/model-settings` trong allowlist cầu nối callback của run SSH
   (`DEFAULT_SANDBOX_CALLBACK_BRIDGE_ROUTE_ALLOWLIST` trong `packages/adapter-utils/src/sandbox-callback-bridge.ts`, file
-  dùng chung với flow `model-settings`) để Trợ Lý đọc bảng model ở mỗi run. Không phải hook nên không tính vào
+  dùng chung với flow `model-settings`) để Trợ Lý đọc bảng model ở mỗi run; thêm ba dòng Bug Finding của plugin
+  `crew.core` cho ticket tổng `code-bf` (`GET …/issues/<id>/bug-finding`, `POST …/bug-finding/request`, `POST
+  …/bug-finding/skip`; `…/bug-finding/results` vẫn chỉ board). Không phải hook nên không tính vào
   `HOOK_BUDGET`. Loại `adapter-patch`: image chạy `adapter-utils` từ `src`, nên `overlay-source.sh` ship nguyên file và
   `inspect-adapters.mjs` kiểm sha256 cùng anchor trong image như các vá adapter khác.
 - `ops-deploy`: build image từ cây đã qua `verify.sh`.
@@ -100,4 +102,5 @@ import cuối file để merge upstream ít conflict), mô tả lý do và `upst
 - `server/src/__tests__/crew-run-environment.test.ts` (Postgres nhúng): C16: Crew trả environment thì heartbeat dùng nó,
   `null` hay lỗi thì giữ environment mặc định; run vẫn chạy khi Crew ném lỗi.
 - `server/src/__tests__/crew-bridge-allowlist.test.ts`: C17: cầu nối cho qua `GET /api/crew/model-settings`, chặn
-  `PUT`/`POST` cùng đường dẫn và mọi route `/api/crew` khác; allowlist chỉ có đúng một dòng Crew.
+  `PUT`/`POST` cùng đường dẫn và mọi route `/api/crew` khác; cho qua đúng ba route Bug Finding, chặn route kết quả, phương
+  thức khác và route plugin khác; allowlist có đúng bốn dòng Crew.

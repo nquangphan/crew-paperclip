@@ -139,6 +139,11 @@ export const DEFAULT_SANDBOX_CALLBACK_BRIDGE_ROUTE_ALLOWLIST: readonly SandboxCa
   // Crew (core patch C17): the instance model settings the Crew assistant reads before choosing a model.
   // Read only; saving and bulk upgrades stay owner-only browser actions.
   { method: "GET", path: /^\/api\/crew\/model-settings$/ },
+  // Crew Bug Finding (code-bf root issues): the reviewer bridge and the assistant read the Bug Finding runs of an issue,
+  // queue a review run and skip Bug Finding after the owner agreed. The plugin route still checks the agent.
+  { method: "GET", path: /^\/api\/plugins\/crew\.core\/api\/issues\/[^/]+\/bug-finding$/ },
+  { method: "POST", path: /^\/api\/plugins\/crew\.core\/api\/bug-finding\/request$/ },
+  { method: "POST", path: /^\/api\/plugins\/crew\.core\/api\/bug-finding\/skip$/ },
 
   // Company-level reads used to discover work and context
   { method: "GET", path: /^\/api\/companies\/[^/]+$/ },

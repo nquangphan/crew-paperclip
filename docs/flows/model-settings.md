@@ -37,7 +37,7 @@ Luật:
 - Owner là actor board đăng nhập bằng phiên trình duyệt có `isInstanceAdmin` (middleware auth tính lại từ
   `instance_user_roles` mỗi request). Board API key, `local_implicit` và agent nhận `403`; `canEdit` chỉ đúng với owner.
 - Run SSH của Trợ Lý đọc `GET` qua cầu nối callback nhờ vá C17 (một dòng allowlist trong
-  `packages/adapter-utils/src/sandbox-callback-bridge.ts`); `PUT`/`POST` vẫn bị cầu nối chặn.
+  `packages/adapter-utils/src/sandbox-callback-bridge.ts`; cùng vá đó còn ba dòng Bug Finding, xem flow `core-hooks`); `PUT`/`POST` vẫn bị cầu nối chặn.
 
 ## Các bước
 

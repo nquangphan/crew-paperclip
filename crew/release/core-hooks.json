@@ -390,7 +390,7 @@
       "file": "packages/adapter-utils/src/sandbox-callback-bridge.ts",
       "symbol": "DEFAULT_SANDBOX_CALLBACK_BRIDGE_ROUTE_ALLOWLIST",
       "anchor": "  { method: \"GET\", path: /^\\/api\\/crew\\/model-settings$/ },",
-      "description": "Allow exactly one Crew route through the sandbox callback bridge of SSH runs: GET /api/crew/model-settings, so the Crew assistant reads the owner's model table (catalog, complexity table, role defaults) at the start of every run instead of an embedded copy in AGENTS.md. Read only: PUT and POST of the same path and every other /api/crew route stay denied, and the server still checks the actor on top of the allowlist. The allowlist is enforced on the server host (http2-bridge-server), so deploying the server is enough.",
+      "description": "Allow four Crew routes through the sandbox callback bridge of SSH runs: GET /api/crew/model-settings, so the Crew assistant reads the owner's model table (catalog, complexity table, role defaults) at the start of every run instead of an embedded copy in AGENTS.md; and the three crew.core Bug Finding routes agents call on code-bf root issues (GET /api/plugins/crew.core/api/issues/<id>/bug-finding, POST .../bug-finding/request, POST .../bug-finding/skip). Model settings are read only: PUT and POST of the same path and every other /api/crew route stay denied, as do every other plugin route (bug-finding/results stays board-only), and the server still checks the actor on top of the allowlist. The allowlist is enforced on the server host (http2-bridge-server), so deploying the server is enough.",
       "upstreamPr": null,
       "tests": ["server/src/__tests__/crew-bridge-allowlist.test.ts"]
     },
