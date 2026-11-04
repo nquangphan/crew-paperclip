@@ -61,10 +61,26 @@ test("regex crew-docs-check trong test trùng chuỗi regex của server", { ski
   assert.equal(match[1], DOCS_CHECK_RE.source);
 });
 
+// Server dựng regex PR bằng `new RegExp(\`…${GITHUB_PR_URL}…\`)`: đọc lại nguồn và thay hằng URL để so chuỗi.
+const GH_PR = String.raw`https:\/\/github\.com\/[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+\/pull\/[1-9][0-9]*`;
+const MERGE_SERVER_RE = new RegExp(`^crew-merge sha=([0-9a-f]{40}) branch=(\\S+) pushed=(?:yes|pr pr=(${GH_PR})|merged pr=(${GH_PR}) merge=([0-9a-f]{40}))$`);
+const CREW_PR_RE = new RegExp(`^crew-pr sha=([0-9a-f]{40}) pr=(${GH_PR})$`);
+function serverRegex(name) {
+  const src = readFileSync(POLICY_SOURCE, "utf8");
+  const url = /const GITHUB_PR_URL = String\.raw`([^`]+)`;/.exec(src)?.[1];
+  const tpl = new RegExp(`export const ${name} = new RegExp\\(\\s*\`([^\`]+)\`,?\\s*\\);`).exec(src)?.[1];
+  assert.ok(url && tpl, `không tìm thấy ${name}`);
+  return tpl.replaceAll("${GITHUB_PR_URL}", url).replaceAll("\\\\", "\\");
+}
+
 test("regex crew-merge trong test trùng chuỗi regex của server", { skip: !existsSync(POLICY_SOURCE) && "issue-policy.ts chưa có trên nhánh này" }, () => {
-  const match = /CREW_MERGE_RE\s*=\s*\/(.+)\/;/.exec(readFileSync(POLICY_SOURCE, "utf8"));
-  assert.ok(match, "không tìm thấy CREW_MERGE_RE");
-  assert.equal(match[1], MERGE_CHECK_RE.source);
+  assert.equal(serverRegex("CREW_MERGE_RE"), MERGE_SERVER_RE.source);
+  assert.equal(serverRegex("CREW_PR_RE"), CREW_PR_RE.source);
+  // Mọi dòng luồng cũ (pushed=yes|pr) vẫn được server nhận.
+  for (const line of [`crew-merge sha=${"a".repeat(40)} branch=main pushed=yes`, `crew-merge sha=${"a".repeat(40)} branch=main pushed=pr pr=https://github.com/o/r/pull/1`]) {
+    assert.match(line, MERGE_CHECK_RE);
+    assert.match(line, MERGE_SERVER_RE);
+  }
 });
 
 test("stage 4 nhận diện bằng currentStageId, push lỗi không đổi status, không PATCH blocked khi là participant duyệt", () => {
@@ -1318,4 +1334,184 @@ test("executor: con có crew-design on= đọc mockup đã duyệt và ghi crew-
   assert.match(body, /"status":"blocked","comment":"Executor: dừng vì con thiết kế/);
   assert.match(section(text, "## Báo xong"), /crew-design-used sha=<sha12> dir=<dir>/);
   assert.match("crew-design-used sha=abcdef012345 dir=docs/design/mockups/tps-508-trang-home", /^crew-design-used sha=[0-9a-f]{12} dir=\S+$/);
+});
+
+// ---- Ticket tổng code-bf (luồng Bug Finding) ----
+const PLUGIN_SOURCE = (f) => new URL(`../../packages/crew-plugin/src/bug-finding/${f}`, import.meta.url);
+const sectionOf = (text, heading, nextHeading = /\n## /g) => {
+  const at = text.indexOf(heading);
+  assert.ok(at >= 0, `thiếu mục ${heading}`);
+  nextHeading.lastIndex = at + heading.length;
+  const next = nextHeading.exec(text);
+  return text.slice(at, next ? next.index : text.length);
+};
+const fillBf = (line) => fill(line).replaceAll("<URL pull request>", "https://github.com/acme/app/pull/3").replaceAll("<sha merge>", "e".repeat(40));
+
+test("integrator: ticket tổng code-bf gộp và mở PR ở stage 1 bằng MODE=bf, merge ở stage 4 bằng MODE=merge; luồng cũ giữ nguyên", () => {
+  const text = integratorProse();
+  const bf = sectionOf(text, "## Ticket tổng `code-bf` (luồng Bug Finding)");
+  assert.ok(text.indexOf("## Lỗi server") < text.indexOf("## Ticket tổng `code-bf`"), "mục code-bf sau Lỗi server");
+  assert.ok(text.indexOf("## Ticket tổng `code-bf`") < text.indexOf("## Stage 4"), "mục code-bf trước Stage 4");
+  const stage1 = sectionOf(bf, "### Stage gộp (stage 1)", /\n### /g);
+  assert.ok(bf.includes("stage 1 `review` có participant agent là bạn"), "thiếu cách nhận diện code-bf");
+  for (const needle of [
+    'git switch -C crew/req/<identifier> "$BASE"',
+    'git switch -C crew/req/<identifier> "$P"',
+    "git merge-base --is-ancestor <sha> HEAD",
+    'git merge --no-ff --no-edit "origin/$DEFAULT"',
+    "MODE=bf T=<T>",
+    "Script không đọc quyết định nào của owner",
+    '-d @"$D/pr-comment.json"',
+    '-d @"$D/done.json"',
+    "`pr_missing`",
+    "`pr_sha_mismatch`",
+    "mục \"Yêu cầu sửa\"",
+  ]) assert.ok(stage1.includes(needle), `stage gộp thiếu: ${needle}`);
+  const pr = /`(crew-pr sha=<T> pr=<URL pull request>)`/.exec(stage1);
+  assert.ok(pr, "thiếu dòng mẫu crew-pr");
+  assert.match(fillBf(pr[1]), CREW_PR_RE);
+  assert.ok(stage1.indexOf("crew-docs-check") < stage1.indexOf("MODE=bf"), "bằng chứng docs trước khi mở PR");
+  const stage4 = sectionOf(bf, "### Stage merge (stage 4)", /\n### |\n## /g);
+  for (const needle of [
+    "MODE=merge T=<T>",
+    "`gh pr merge <URL> --merge --match-head-commit <T>`",
+    "`--squash`",
+    "mergeCommitAllowed",
+    "`Integrator: chưa merge được — conflict`",
+    "Không tự gộp, không sửa conflict, không đổi status",
+    "HEAD_OK",
+    "--pr <URL pull request>",
+    '-d @"$D/merge-comment.json"',
+    "`merge_missing`",
+  ]) assert.ok(stage4.includes(needle), `stage merge thiếu: ${needle}`);
+  const merged = /`(crew-merge sha=<T> branch=<nhánh mặc định> pushed=merged pr=<URL pull request> merge=<sha merge>)`/.exec(stage4);
+  assert.ok(merged, "thiếu dòng mẫu crew-merge pushed=merged");
+  assert.match(fillBf(merged[1]), MERGE_SERVER_RE);
+  assert.ok(stage4.indexOf("crew-merge sha=<T>") < stage4.indexOf("5. Lệnh ghi cuối"), "crew-merge trước PATCH done");
+  assert.match(text, /9\. Ở stage 4 khi `origin` ở GitHub: push vào nhánh mặc định, chạy `gh pr merge`.*Ngoại lệ duy nhất là stage merge của ticket tổng `code-bf`/);
+  assert.match(text, /## Gộp \(stage 2[^\n]*\n\nTicket tổng `code-bf`: gộp theo mục "Ticket tổng `code-bf`"/);
+  assert.match(text, /## Stage 4[^\n]*\n\nTicket tổng `code-bf`: làm mục "Stage merge"/);
+  // Luồng cũ: stage 4 của policy code vẫn mở PR rồi owner bấm Merge.
+  const old = text.slice(text.indexOf("## Stage 4"));
+  assert.match(old, /owner bấm Merge trên GitHub/);
+  assert.ok(old.includes('T=<EVIDENCE 40 ký tự> DEFAULT=<nhánh mặc định> bash "$D/crew-pr.sh" "$D"'), "lệnh luồng cũ không có MODE");
+});
+
+test("reviewer: ticket tổng code-bf là cầu nối Bug Finding theo luật cố định, đọc route kết quả, không đọc code, không tin comment", () => {
+  const text = read("reviewer");
+  const bf = sectionOf(text, "## Ticket tổng `code-bf`: cầu nối Bug Finding");
+  assert.ok(text.indexOf("## Issue gốc") < text.indexOf("## Ticket tổng `code-bf`"), "sau mục Issue gốc");
+  assert.ok(text.indexOf("## Ticket tổng `code-bf`") < text.indexOf("## Khi chạy bằng Codex"));
+  assert.match(sectionOf(text, "## Issue gốc"), /Ticket tổng `code-bf`[^\n]*mục "Ticket tổng `code-bf`: cầu nối Bug Finding"/);
+  for (const needle of [
+    "GET /api/plugins/crew.core/api/issues/<id>/bug-finding",
+    "POST /api/plugins/crew.core/api/bug-finding/request",
+    "POST /api/plugins/crew.core/api/bug-finding/skip",
+    "`batchesUsed`",
+    "`maxBatches`",
+    "`currentHead`",
+    "`approvalRound`",
+    "`OPEN`, `STILL_PRESENT`, `REGRESSED`, `PARTIALLY_FIXED`, `UNABLE_TO_VERIFY`",
+    "Không đọc code, không chạy test, không sửa tổng kết",
+    "không tin comment",
+    "`request_confirmation`",
+    "crew-bf-skip:<id issue>:",
+    "Bug Finding không chạy được: <lý do>. Bỏ qua Bug Finding cho yêu cầu này?",
+    "`crew-bf:<id issue>:<approvalRound>-`",
+    "Route not allowed",
+  ]) assert.ok(bf.includes(needle), `mục cầu nối thiếu: ${needle}`);
+  const changes = /`(\{"status":"in_progress","comment":"Reviewer: cần sửa — Bug Finding[^`]*\})`/.exec(bf);
+  assert.ok(changes, "thiếu PATCH cần sửa về Trợ Lý");
+  const pass = /`(\{"status":"done","comment":"Reviewer: cho qua Bug Finding[^`]*\})`/.exec(bf);
+  assert.ok(pass, "thiếu PATCH cho qua");
+  // Ba nhánh của luật quyết định theo đúng thứ tự spec 5.5: chưa có lượt, lượt hỏng, lượt xong.
+  const order = ["Chưa có lượt cho head", "Lượt mới nhất `failed`, `timeout` hoặc `cancelled`", "Lượt mới nhất `succeeded` hoặc `skipped`"].map((n) => bf.indexOf(n));
+  assert.ok(order.every((i) => i > 0) && order[0] < order[1] && order[1] < order[2], "thứ tự nhánh quyết định");
+  assert.doesNotMatch(text, /"status":"blocked"/);
+});
+
+test("reviewer: route và trạng thái lượt trong template khớp plugin", { skip: !existsSync(PLUGIN_SOURCE("api.ts")) && "plugin bug-finding chưa có" }, () => {
+  const bf = sectionOf(read("reviewer"), "## Ticket tổng `code-bf`: cầu nối Bug Finding");
+  const runs = readFileSync(PLUGIN_SOURCE("runs.ts"), "utf8");
+  const open = /OPEN_FINDING_STATUSES = \[([^\]]+)\]/.exec(runs)[1].match(/[A-Z_]+/g);
+  assert.ok(bf.includes(open.map((x) => `\`${x}\``).join(", ")), "danh sách finding mở khớp OPEN_FINDING_STATUSES");
+  assert.match(runs, /MAX_BATCHES = 2/);
+  const api = readFileSync(PLUGIN_SOURCE("api.ts"), "utf8");
+  assert.ok(api.includes("startsWith(`crew-bf-skip:${issue.id}`)"), "khóa thẻ bỏ qua khớp skipRoute");
+});
+
+test("assistant: xử lý finding Bug Finding theo bảng tự sửa / hỏi owner / bỏ qua, lô bf-fix, thẻ hỏi crew-bf, crew-bf-feedback", () => {
+  const text = read("assistant");
+  const bf = sectionOf(text, "## Xử lý finding Bug Finding");
+  for (const needle of [
+    "GET /api/plugins/crew.core/api/issues/<id gốc>/bug-finding",
+    "GET /api/issues/<id gốc>/documents/<reportDocumentKey>",
+    "Không tin comment tự xưng",
+    "| **Tự sửa** |",
+    "| **Hỏi owner** |",
+    "| **Bỏ qua có lý do** |",
+    "`CRITICAL` và `HIGH` không bao giờ bị bỏ qua",
+    "`mr_relation` là `introduced`",
+    "`Needs-Clarification`",
+    "`CONFIRM_CONTRACT`",
+    "`EVIDENCE_GATE`",
+    "`pre_existing`",
+    "`ask_user_questions`",
+    '"idempotencyKey":"crew-bf:<id gốc>:<approvalRound>-<n>"',
+    "crew-fix base=<head PR>",
+    "e2e-fix-bf<k>",
+    "### Cần owner quyết định",
+  ]) assert.ok(bf.includes(needle), `mục finding thiếu: ${needle}`);
+  // Dòng kế hoạch lô khớp gate server.
+  const triage = /`(crew-bf-triage run=<n> batch=bf-fix-<k> fix=[^`]+)`/.exec(bf);
+  assert.ok(triage, "thiếu dòng mẫu crew-bf-triage");
+  const line = triage[1].replaceAll("<n>", "2").replaceAll("<k>", "1").replace(/<[^>]+>/g, "F-01");
+  assert.match(line, /^crew-bf-triage run=([1-9][0-9]*) batch=bf-fix-([1-9][0-9]*)(?=$|\s)/);
+  // Marker con của lô: gate đếm con chưa xong theo đúng hai dòng này.
+  const finding = /^crew-bf finding=<F-xx>\[,<F-yy>…\] run=<n>$/m.test(bf);
+  assert.ok(finding, "thiếu dòng marker crew-bf finding");
+  assert.match("crew-bf finding=F-01,F-02 run=2\n", /(^|\n)crew-bf finding=\S+ run=2([ \t\r]|\n|$)/);
+  assert.match(bf, /`crew-child key=bf-<F-xx> revision=bf-fix-<k>`/);
+  assert.match("crew-child key=bf-F-01 revision=bf-fix-1\n", /(^|\n)crew-child key=\S+ revision=bf-fix-1[ \t\r]*(\n|$)/);
+  // Chỉ PATCH done khi đủ hai điều kiện, một lần, kèm khối crew-bf-feedback.
+  assert.match(bf, /Chỉ khi \*\*mọi\*\* con của lô `done`[^\n]*\*\*và\*\* mọi thẻ hỏi `crew-bf:` đã trả lời/);
+  const feedback = /````\n(crew-assistant done[\s\S]*?)\n````/.exec(bf);
+  assert.ok(feedback, "thiếu mẫu comment PATCH done có khối crew-bf-feedback");
+  assert.match(feedback[1], /^```crew-bf-feedback[ \t]*\r?\n([\s\S]*?)\r?\n```/m);
+  // Wake và thứ tự: mục này đứng trước "Sửa sau quyết định trên gốc" khi quyết định là của reviewer cầu nối.
+  const wake = sectionOf(text, "## Mỗi lần được đánh thức");
+  assert.match(wake, /mục "Xử lý finding Bug Finding"/);
+  assert.match(sectionOf(text, "## Sửa sau quyết định trên gốc"), /reviewer cầu nối[^\n]*mục "Xử lý finding Bug Finding"/);
+  assert.match(text, /4\. Hỏi owner sau khi đã tạo issue con[^\n]*Ngoại lệ: thẻ hỏi `crew-bf:`/);
+});
+
+test("assistant: khối crew-bf-feedback trong template đúng dạng plugin đọc", { skip: !existsSync(PLUGIN_SOURCE("enqueue.ts")) && "plugin bug-finding chưa có" }, () => {
+  const src = readFileSync(PLUGIN_SOURCE("enqueue.ts"), "utf8");
+  const fenced = new RegExp(/const FEEDBACK_FENCED = \/(.+)\/m;/.exec(src)[1], "m");
+  const bf = sectionOf(read("assistant"), "## Xử lý finding Bug Finding");
+  const sample = /````\n(crew-assistant done[\s\S]*?)\n````\n/.exec(bf)[1];
+  assert.match(sample, fenced);
+});
+
+test("assistant: Đóng issue gốc nói rõ code-bf sang integrator, không còn reviewer cấp gốc", () => {
+  const close = sectionOf(read("assistant"), "## Đóng issue gốc");
+  assert.match(close, /Ticket tổng `code-bf`[^\n]*server chuyển sang integrator[^\n]*không còn reviewer Claude ở cấp gốc/);
+  assert.match(close, /không gửi theo từng con/);
+});
+
+test("executor: con sửa finding Bug Finding dựng từ crew-fix base, tiêu chí từ accept, test chứng minh từ test của finding", () => {
+  const text = read("executor");
+  const bf = sectionOf(text, "## Con sửa finding Bug Finding (`crew-bf finding=`)");
+  for (const needle of [
+    "`crew-bf finding=<F-xx> run=<n>`",
+    "`crew-fix base=<40 hex>`",
+    "git switch -c crew/<identifier> <base>",
+    "`accept`",
+    "`test` của finding",
+    "đỏ trên `<base>`",
+    "Tiêu chí → test:",
+    "\"status\":\"blocked\"",
+  ]) assert.ok(bf.includes(needle), `mục con sửa finding thiếu: ${needle}`);
+  assert.ok(text.indexOf("## Con code theo mockup") < text.indexOf("## Con sửa finding Bug Finding"));
+  assert.ok(text.indexOf("## Con sửa finding Bug Finding") < text.indexOf("## Con E2E"));
 });

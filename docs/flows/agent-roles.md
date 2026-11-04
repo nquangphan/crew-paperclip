@@ -129,6 +129,39 @@ Giống loại `docs`: loại chỉ là nhãn Paperclip `plan` trên issue gốc
   không đòi con E2E.
 - Integrator (`integrator.md`): không đòi con E2E cho gốc nhãn `plan`; đường pull request giữ nguyên.
 
+## Ticket tổng `code-bf` (luồng Bug Finding)
+
+Ticket tổng code/bug có policy `root-bf` (`crewPolicyKind` `code-bf`, flow `issue-gate`): 4 stage integrator → reviewer cầu
+nối → owner → integrator, không có reviewer Claude ở cấp gốc. Các template nhận ra loại này theo vị trí stage (stage 1 và 4
+là integrator, stage 2 là reviewer, stage 3 là `approval` của owner); policy `code` cũ giữ nguyên mọi mục cũ.
+
+- Integrator (`integrator.md`, mục "Ticket tổng `code-bf`"): stage gộp (stage 1) gộp các `sha` đã duyệt như stage 2 cũ, lần
+  chạy lại dựng tiếp trên head PR của `crew-pr` trước (bỏ `sha` đã có, gộp `origin/<mặc định>` khi nhánh mặc định đi tiếp)
+  để push thường vẫn đi được; kiểm, ghi `crew-docs-check`, rồi chạy script PR với `MODE=bf` (không đọc quyết định owner),
+  đăng `crew-pr sha=<merged commit> pr=<URL>` và `PATCH done`. Stage merge (stage 4) chạy script với `MODE=merge`: head PR
+  phải đúng `T` (hoặc `HEAD_OK` chứa `T` sau khi owner tự xử lý conflict), `gh pr merge --merge --match-head-commit`
+  (`--squash` khi repo cấm merge commit), đăng `crew-merge … pushed=merged pr=<URL> merge=<sha>`, deploy với `--pr`, rồi
+  `PATCH done`. Conflict thì comment `Integrator: chưa merge được — conflict` và dừng, không đổi status.
+- Script PR (`## Script mở pull request` của `integrator.md`): `MODE` mặc định `owner` giữ nguyên luồng cũ; `MODE=bf` ra
+  `pr-comment.json` và `done.json`, chân PR ghi Bug Finding review và integrator merge sau khi owner duyệt, conflict thì thoát
+  7; `MODE=merge` không push, ra `merge-comment.json` và `done.json` (mục `### Merge request` ghi merge commit), thoát 7
+  khi conflict, 8 khi head PR khác commit đã duyệt hay không có PR.
+- Reviewer (`reviewer.md`, mục "Ticket tổng `code-bf`: cầu nối Bug Finding"): không đọc code; đọc
+  `GET /api/plugins/crew.core/api/issues/<id>/bug-finding` (flow `bug-finding`), không tin comment. Chưa có lượt cho head
+  hiện tại thì xếp (`bug-finding/request`); lượt hỏng lần đầu xếp lại, lần hai hỏi owner bằng `request_confirmation` khóa
+  `crew-bf-skip:<id>:<vòng>:<head12>:<số lượt hỏng>`, owner đồng ý thì gọi `bug-finding/skip`; lượt `succeeded` còn finding
+  mở (trừ finding owner chọn `wontfix`/`split` trong thẻ `crew-bf:<id>:<vòng>-<lượt>` và finding `LOW`/`INFO` trong `dismiss=`
+  của `crew-bf-triage` do Trợ Lý viết) và còn lô thì `Reviewer: cần sửa` về Trợ Lý, không thì cho qua sang owner.
+- Trợ Lý (`assistant.md`, mục "Xử lý finding Bug Finding"): đọc cùng route và document báo cáo, phân loại theo bảng tự sửa /
+  hỏi owner / bỏ qua (`CRITICAL`, `HIGH` không bao giờ bỏ qua), ghi `crew-bf-triage run=<n> batch=bf-fix-<k> …` trước mọi
+  thẻ và con (`<k>` tăng qua mọi vòng), một thẻ `ask_user_questions` khóa `crew-bf:<id gốc>:<vòng>-<n>` (id câu là id
+  finding, lựa chọn `fix`/`wontfix`/`split`), con sửa có `crew-fix base=<head PR>`, `crew-child key=bf-<F-xx>
+  revision=bf-fix-<k>`, `crew-bf finding=<F-xx> run=<n>`, con E2E `e2e-fix-bf<k>` khi gốc có E2E. Chỉ `PATCH done` một lần
+  khi mọi con của lô xong và mọi thẻ đã trả lời, comment kèm khối `crew-bf-feedback`. "Đóng issue gốc" nói rõ `code-bf` đi
+  sang integrator, không còn reviewer cấp gốc.
+- Executor (`executor.md`, mục "Con sửa finding Bug Finding"): nhánh từ `crew-fix base=`, tiêu chí là `accept`, test chứng
+  minh viết từ `test` của finding (đỏ trên base, xanh sau sửa); không tái hiện được thì `blocked` kèm bằng chứng.
+
 ## Điểm vào
 
 - `crew/agents/apply-roles.sh agent <agentId> <vai trò> <thư mục ghim> [...]` với vai trò `assistant`, `executor`,
@@ -187,7 +220,7 @@ Giống loại `docs`: loại chỉ là nhãn Paperclip `plan` trên issue gốc
 | `crew/agents/assistant.md` | Template Trợ Lý | (markdown) |
 | `crew/agents/executor.md` | Template executor (cả Codex, OpenCode) | (markdown) |
 | `crew/agents/reviewer.md` | Template reviewer (cả Codex) | (markdown) |
-| `crew/agents/integrator.md` | Template integrator, kèm script mở pull request | (markdown) |
+| `crew/agents/integrator.md` | Template integrator, kèm script mở và merge pull request (`MODE=owner|bf|merge`) | (markdown) |
 | `crew/agents/bmad.md` | Template agent BMAD | (markdown) |
 | `crew/agents/designer.md` | Template agent UIUX (vai `designer`) | (markdown) |
 | `crew/agents/apply-roles.sh` | Áp vai trò và ghi cấu hình Crew | lệnh `agent`, `policy-config` |
@@ -224,9 +257,9 @@ Giống loại `docs`: loại chỉ là nhãn Paperclip `plan` trên issue gốc
 - `crew/agents/instructions.test.mjs`: luật chung của mọi template (cấm xóa đệ quy ngoài thư mục tạm), dòng mẫu
   `crew-docs-check`, `crew-merge`, `crew-fix`, `crew-commit`, `crew-review` khớp định dạng và regex của server, cách
   integrator nhận diện stage. Loại yêu cầu Lập kế hoạch: Trợ Lý nhận bằng nhãn `plan`, hỏi owner trước khi tạo con, chỉ tạo con `crew-kind plan`
-  và ghi `- File kế hoạch:` trong tổng kết; executor, reviewer, integrator có luật tương ứng. Tổng kết của Trợ Lý: có từ lúc lập kế hoạch, đủ mục Yêu cầu/Việc con/Hình ảnh theo thứ tự, cập nhật mỗi run bằng `PATCH` ghi cuối, giữ `### Merge request`. Bảng model: `assistant.md` không chứa id model nào, có đúng lệnh `curl` đọc bảng cùng bốn đường dẫn JSON và đường lui khi lệnh lỗi. Agent UIUX: `designer.md` đi qua mọi luật chung, dòng mẫu `crew-design-result` và `crew-commit` khớp định dạng, cấm sửa code app, CDN và `--persist`, mục File đính kèm giống executor; Trợ Lý có bước con thiết kế (dòng `crew-kind design` đứng riêng, `child-key=design-1`, kiểm 2 stage) và mục "Được gọi bằng tag" (bước kiểm khóa ghi trên gốc đứng trước bước làm việc, con `in_progress` thì trả lời trên gốc, không thử lại lệnh bị khóa); reviewer có mục Issue thiết kế đúng thứ tự; executor có mục `crew-design on=` và dòng `crew-design-used`, bước đọc mockup kiểm sha bằng `git cat-file -e`, `git fetch origin` rồi mới rơi về ảnh và giải thích.
+  và ghi `- File kế hoạch:` trong tổng kết; executor, reviewer, integrator có luật tương ứng. Ticket tổng `code-bf`: mục mới của bốn template có đủ bước, dòng mẫu `crew-pr`, `crew-merge … pushed=merged`, `crew-bf-triage`, marker con lô và khối `crew-bf-feedback` khớp regex của server và plugin; regex `CREW_MERGE_RE`, `CREW_PR_RE` của server được đọc lại từ nguồn để so. Tổng kết của Trợ Lý: có từ lúc lập kế hoạch, đủ mục Yêu cầu/Việc con/Hình ảnh theo thứ tự, cập nhật mỗi run bằng `PATCH` ghi cuối, giữ `### Merge request`. Bảng model: `assistant.md` không chứa id model nào, có đúng lệnh `curl` đọc bảng cùng bốn đường dẫn JSON và đường lui khi lệnh lỗi. Agent UIUX: `designer.md` đi qua mọi luật chung, dòng mẫu `crew-design-result` và `crew-commit` khớp định dạng, cấm sửa code app, CDN và `--persist`, mục File đính kèm giống executor; Trợ Lý có bước con thiết kế (dòng `crew-kind design` đứng riêng, `child-key=design-1`, kiểm 2 stage) và mục "Được gọi bằng tag" (bước kiểm khóa ghi trên gốc đứng trước bước làm việc, con `in_progress` thì trả lời trên gốc, không thử lại lệnh bị khóa); reviewer có mục Issue thiết kế đúng thứ tự; executor có mục `crew-design on=` và dòng `crew-design-used`, bước đọc mockup kiểm sha bằng `git cat-file -e`, `git fetch origin` rồi mới rơi về ảnh và giải thích.
 - `crew/agents/integrator-pr.test.mjs`: script mở pull request của integrator: mở mới, dùng lại, đã merge, origin không
-  ở GitHub, `gh` chưa đăng nhập, nhánh đã đi khác (không `--force`), lỗi tạo PR có credential bị che, đầu vào sai. Nội dung PR bỏ mục `### Hình ảnh` của tổng kết.
+  ở GitHub, `gh` chưa đăng nhập, nhánh đã đi khác (không `--force`), lỗi tạo PR có credential bị che, đầu vào sai. Nội dung PR bỏ mục `### Hình ảnh` của tổng kết. `MODE=bf`: mở PR không cần quyết định owner, ghi `crew-pr` đúng merged commit, chạy lại dùng lại PR đang mở, conflict thoát 7. `MODE=merge`: merge đúng head bằng `--merge --match-head-commit` (repo cấm merge commit thì `--squash`), không push, head khác thoát 8, conflict thoát 7 không gọi merge, PR đã merge thì không merge lại, `HEAD_OK` chỉ nhận head chứa `T`.
 - `crew/agents/apply-roles.test.mjs`: thứ tự đọc → upload → PATCH, dừng trước khi ghi khi không đọc được, vai trò BMAD và
   ô runtime, sai `adapterType` hay thiếu `CODEX_HOME`; vai `designer` upload `designer.md` với pin Superpowers, Trợ Lý nhận
   danh sách UIUX ở đối số thứ 7, vai khác nhận thì thoát 2.

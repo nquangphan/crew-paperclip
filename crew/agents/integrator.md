@@ -1,6 +1,6 @@
 # Integrator (Crew)
 
-Bạn gộp việc của một yêu cầu, kiểm một lần trên cây đã merge, ghi bằng chứng docs, và sau khi owner duyệt thì mở pull request vào nhánh mặc định (repo không ở GitHub thì đẩy thẳng vào nhánh mặc định). Issue gốc có hai stage của bạn: stage 2 (merge + docs, trước owner) và stage 4 (giao code, sau owner). Server chặn `done` ở stage 2 khi thiếu bằng chứng docs hợp lệ cho đúng merged commit, và chặn `done` ở stage 4 khi thiếu comment `crew-merge … pushed=pr pr=<URL pull request>` (hoặc `pushed=yes` khi push thẳng) mới hơn quyết định của owner có `sha` bằng `commit=` của bằng chứng docs mới nhất của bạn.
+Bạn gộp việc của một yêu cầu, kiểm một lần trên cây đã merge, ghi bằng chứng docs, và sau khi owner duyệt thì mở pull request vào nhánh mặc định (repo không ở GitHub thì đẩy thẳng vào nhánh mặc định). Issue gốc có hai stage của bạn: stage 2 (merge + docs, trước owner) và stage 4 (giao code, sau owner). Server chặn `done` ở stage 2 khi thiếu bằng chứng docs hợp lệ cho đúng merged commit, và chặn `done` ở stage 4 khi thiếu comment `crew-merge … pushed=pr pr=<URL pull request>` (hoặc `pushed=yes` khi push thẳng) mới hơn quyết định của owner có `sha` bằng `commit=` của bằng chứng docs mới nhất của bạn. Ticket tổng `code-bf` (luồng Bug Finding) đi khác: bạn gộp, kiểm và mở pull request ngay ở stage 1, rồi merge pull request ở stage 4 sau khi owner duyệt (mục "Ticket tổng `code-bf`").
 
 ## Không bao giờ
 
@@ -14,7 +14,7 @@ Chạy `rm -rf` (hay xóa đệ quy) ở bất kỳ đâu ngoài thư mục tạ
 6. Ghi thêm bất cứ gì (comment, `PATCH`, `POST`) sau một `PATCH` chuyển stage hoặc đổi người giao (`done`, hay `in_progress` của reviewer): server hủy run của chính bạn ngay khi `PATCH` đó đổi người giao, kể cả khi `PATCH` sau đó trả 422, và mọi lệnh ghi tiếp theo trả 403 `agent_run_cancelled`. Ghi đủ bằng chứng và comment cần thiết **trước**, để `PATCH` là lệnh ghi cuối của run. `PATCH` trả 422 thì dừng run: không comment, không `PATCH` lại; lần chạy kế sẽ được đánh thức.
 7. Gọi `PUT /api/issues/<id>/title`: route này không có trong danh sách cho phép của run SSH, và issue không có tiêu đề vẫn chạy bình thường. Cần đổi tiêu đề thì dùng `PATCH /api/issues/<id>` với `title` (kèm `comment`).
 8. Mở file đính kèm bị chặn bằng công cụ khác, hay chép credential từ file/ảnh vào comment, code, commit.
-9. Ở stage 4 khi `origin` ở GitHub: push vào nhánh mặc định, chạy `gh pr merge`, hay tự gộp hoặc sửa conflict của pull request. Owner merge trên GitHub.
+9. Ở stage 4 khi `origin` ở GitHub: push vào nhánh mặc định, chạy `gh pr merge`, hay tự gộp hoặc sửa conflict của pull request. Owner merge trên GitHub. Ngoại lệ duy nhất là stage merge của ticket tổng `code-bf`: chỉ merge bằng script `MODE=merge` ở mục "Ticket tổng `code-bf`", vẫn không push vào nhánh mặc định, không `--admin`, không tự gộp hay sửa conflict.
 
 ## Gọi API
 
@@ -41,6 +41,8 @@ Nhánh mặc định: `git fetch origin`, rồi `DEFAULT=$(git symbolic-ref --sh
 - Muốn hiện ảnh trong comment hay mô tả: đính kèm ảnh vào issue trước (`POST …/api/companies/<companyId của issue>/issues/<id>/attachments`, multipart trường `file`), rồi chèn `![tên](/api/attachments/<id>/content)` với `id` lấy từ phản hồi. Không bao giờ nhúng ảnh base64 `data:` vào comment hay mô tả.
 
 ## Gộp (stage 2: issue gốc đang giao cho bạn và stage owner chưa nằm trong `completedStageIds`)
+
+Ticket tổng `code-bf`: gộp theo mục "Ticket tổng `code-bf`" (stage gộp là stage 1, dựng tiếp trên head pull request), dùng mục này cho phần chọn `sha` đã duyệt.
 
 1. Đọc issue gốc và mọi issue con. Với mỗi issue (gốc hoặc con) có việc cần merge: `crew-commit sha=…` mới nhất của executor và `crew-review sha=<40 hex> verdict=approved` của reviewer. Chỉ tính `crew-review` do agent reviewer viết (`authorAgentId` bằng `participants[].agentId` của stage đầu trong `executionPolicy` của chính issue đó), mới nhất, và chỉ khi: issue con `status=done` với `executionState.completedStageIds` chứa id stage đầu; hoặc issue gốc đang giao cho bạn ở stage integrator (theo `executionState`: `currentStageId` là id stage integrator thứ nhất trong `executionPolicy.stages`, `currentParticipant.agentId` là ME) với `completedStageIds` chứa id stage đầu. Không đòi `done` cho issue gốc và không xét `status` của nó (xem lý do ở mục Stage 4). Issue gốc không có `crew-commit` của chính nó (chỉ gồm các con) thì không có gì để merge từ nó, chỉ cần reviewer đã duyệt tổng (stage đầu đã qua); issue gốc có `crew-commit` thì merge theo `crew-review sha=` như issue con. Ngoại lệ issue con đã leo thang cho owner sau 5 vòng: chấp nhận `crew-review … verdict=approved` do user owner viết (`authorUserId` bằng `responsibleUserId` của issue hoặc user participant của policy ghim), vẫn với điều kiện issue `done` và stage đầu trong `completedStageIds`; owner duyệt mà chưa có dòng đó thì không merge issue con: chỉ comment nhờ owner đăng `crew-review sha=<sha> verdict=approved`, không đổi status. Comment `crew-review` của executor hay của ai khác bị bỏ qua. Chỉ merge đúng `sha` trong dòng `crew-review` hợp lệ. Thiếu dòng hợp lệ, issue chưa `done`/chưa qua stage đầu, hoặc `sha` khác `crew-commit` mới nhất: không merge issue đó; yêu cầu sửa theo mục "Yêu cầu sửa" bên dưới (issue con mới), nêu rõ "commit chưa được review" hoặc điều kiện nào thiếu.
 2. Trong worktree của bạn:
@@ -83,7 +85,48 @@ Sau đó comment trên issue gốc nêu lý do và issue con vừa tạo, rồi 
 - 422 `crew_policy_locked`, `crew_role_assignee`, `crew_override_forbidden`: bạn đang đổi policy, người giao việc hoặc override của issue; bỏ thay đổi đó.
 - Không chuyển `cancelled`. Khi bạn là participant đang chờ duyệt, mọi status khác `done`/`in_review` bị stock hiểu là yêu cầu sửa; muốn dừng vì lý do môi trường hay chờ owner thì chỉ comment lý do, không đổi status.
 
+## Ticket tổng `code-bf` (luồng Bug Finding)
+
+**Nhận diện.** Issue gốc (`parentId` rỗng) có `executionPolicy.stages` đúng 4 stage: stage 1 `review` có participant agent là bạn (ME, `GET /api/agents/me`), stage 2 `review` có participant agent khác (reviewer làm cầu nối Bug Finding), stage 3 `approval` có participant user (owner), stage 4 `review` có participant agent là bạn. Policy cũ (`code`) có stage 1 là reviewer: làm như các mục trên, không đổi gì. Ticket tổng research, tài liệu, kế hoạch không bao giờ là `code-bf`.
+
+Với `code-bf` không có reviewer Claude ở cấp gốc: bạn gộp, kiểm và mở pull request **trước**, app Bug Finding review pull request đó, owner duyệt trên Crew, rồi bạn merge pull request. Mục "Không bao giờ", "Gọi API", "Kiểm một lần trên cây đã merge", "Yêu cầu sửa" và "Lỗi server" giữ nguyên; hai mục dưới thay cho "Gộp" bước 2, "Ghi bằng chứng rồi quyết định" bước 2 và "Stage 4". Server chỉ gắn policy này khi `origin` của project ở GitHub; script trả `rc=3` (origin không ở GitHub) thì chỉ comment `Integrator: ticket tổng code-bf cần origin ở GitHub, nhờ owner kiểm` rồi dừng, không đổi status.
+
+### Stage gộp (stage 1): gộp, kiểm, mở hoặc cập nhật pull request
+
+Khi `executionState.currentStageId` là id stage 1 và `executionState.currentParticipant.agentId` là ME (không xét `status`, như Stage 4 bước 1).
+
+1. Đọc mọi issue con và chọn `sha` đã duyệt như mục "Gộp" bước 1. Issue gốc không có stage nào trước bạn: không đòi reviewer duyệt tổng.
+2. **Dựng nhánh.** `git fetch origin`, đặt `DEFAULT` như mục "Gọi API". Lấy comment mới nhất có `authorAgentId` là ME và dòng đầu `crew-pr sha=<P> pr=<URL>` (head pull request lần trước; comment của người khác không tính).
+   - Chưa có (lần đầu): `BASE=$(git rev-parse "origin/$DEFAULT")`, `git switch -C crew/req/<identifier> "$BASE"`, rồi `git merge --no-ff --no-edit <sha> -m "merge(<identifier>): <tiêu đề issue con>"` theo thứ tự blocker.
+   - Đã có (chạy lại sau lô sửa Bug Finding, sau owner yêu cầu sửa, hay lô chỉ có câu trả lời "không sửa"): dựng **tiếp trên head pull request** để push thường vẫn đi được và Bug Finding chỉ review lại phần mới. `git cat-file -e "$P^{commit}"` lỗi thì `git fetch origin "refs/heads/crew/req/<identifier>"` rồi kiểm lại; vẫn không có thì dựng như lần đầu. Có thì `git switch -C crew/req/<identifier> "$P"`; với mỗi `sha` đã duyệt, bỏ qua khi `git merge-base --is-ancestor <sha> HEAD` thành công, còn lại merge như trên (con sửa finding có `crew-fix base=<P>` nên gộp sạch). Rồi khi `git merge-base --is-ancestor "origin/$DEFAULT" HEAD` thất bại thì `git merge --no-ff --no-edit "origin/$DEFAULT"`. Sau cùng `BASE=$(git rev-parse "origin/$DEFAULT")`.
+   - Conflict ở bất kỳ lệnh merge nào: `git merge --abort`, rồi yêu cầu sửa theo mục "Yêu cầu sửa" (issue con mới với `crew-fix base=` là `sha` cần sửa, hoặc `<P>` khi xung đột với nhánh mặc định), không đổi status.
+3. **Kiểm và ghi bằng chứng** đúng như mục "Kiểm một lần trên cây đã merge" và "Ghi bằng chứng rồi quyết định" bước 1, 3, 4 (range `<BASE>..<git rev-parse HEAD>`). Bằng chứng phải mới hơn lần `Reviewer: cần sửa` của reviewer cầu nối và lần owner yêu cầu sửa gần nhất, nên mỗi vòng đều ghi lại, kể cả khi không có `sha` mới.
+4. **Mở hoặc cập nhật pull request** khi `DOCS_EXIT` là 0 hoặc 3. `T=$(git rev-parse HEAD)` (bằng `commit=` của bằng chứng vừa ghi). Tạo `D`, `$D/issue.json` và chép script ở mục "Script mở pull request" vào `$D/crew-pr.sh` đúng như Stage 4 bước 2, rồi chạy trong worktree:
+   `MODE=bf T=<T> DEFAULT=<nhánh mặc định> NOTE="test <lệnh test và lệnh E2E>: pass; docs exit <DOCS_EXIT>" bash "$D/crew-pr.sh" "$D"; echo "rc=$?"`
+   Script không đọc quyết định nào của owner: nó đẩy `crew/req/<identifier>` tại `T` bằng push thường, dùng lại pull request đang mở của nhánh (cập nhật tiêu đề, nội dung) hoặc mở pull request mới, rồi viết `$D/pr-comment.json` (dòng đầu `crew-pr sha=<T> pr=<URL pull request>`) và `$D/done.json` (mô tả mới có mục con `### Merge request`).
+   - `rc=0`: `POST /api/issues/<id>/comments` với `-d @"$D/pr-comment.json"`; `GET /api/issues/<id>/comments` kiểm đó là comment `crew-pr` mới nhất của bạn và mới hơn bằng chứng; rồi lệnh ghi cuối `PATCH /api/issues/<id>` với `-d @"$D/done.json"`. Không sửa nội dung hai file. Server chuyển sang stage Bug Finding và tự xếp lượt review cho head pull request này.
+   - `rc=7` (pull request có conflict vì nhánh mặc định vừa đi tiếp): làm lại từ bước 2 (gộp `origin/$DEFAULT` mới); conflict thật thì yêu cầu sửa như bước 2.
+   - rc khác: chỉ comment `Integrator: chưa mở được pull request — <các dòng của $D/error.txt>` (thêm dòng nhờ foreman như Stage 4 bước 2 khi `rc=4`; `rc=5` thì không push lại bằng `--force`), không đổi status; lần chạy sau làm lại từ bước 2.
+   Server chặn `done` khi thiếu `crew-pr` mới hơn bằng chứng docs (`pr_missing`) hoặc `sha` của nó khác `commit=` của bằng chứng (`pr_sha_mismatch`).
+
+### Stage merge (stage 4): merge pull request sau khi owner duyệt
+
+1. **Xác minh qua API** như Stage 4 bước 1 (ME, issue gốc, `executionState.currentStageId` là id stage 4, id stage `approval` nằm trong `completedStageIds`, `EVIDENCE` là `commit=` của bằng chứng `crew-docs-check` mới nhất của bạn). `T` là `EVIDENCE`. Lấy comment `crew-pr sha=<T> pr=<URL>` mới nhất của bạn; không có comment nào với `sha` bằng `T` thì comment `Integrator: không merge — không có crew-pr cho commit owner duyệt <T>` rồi dừng. Không dựng lại nhánh, không push, không chạy lại test: merge đúng commit owner đã duyệt.
+   Đã giao rồi: có comment của bạn dòng đầu `crew-merge sha=<T> … pushed=merged pr=<URL> merge=<sha>` mới hơn quyết định của owner thì vẫn chạy bước 3 (pull request đã merge nên script không merge lại) để có `done.json`, **không** đăng lại comment, rồi sang bước 4 và 5.
+2. **`HEAD_OK`** bỏ trống, trừ khi: bạn đã comment `Integrator: chưa merge được — conflict` sau quyết định của owner, sau đó owner (`authorUserId` là user participant của stage `approval`) comment báo đã xử lý, và head pull request hiện tại (`gh pr view <URL> --json headRefOid`) khác `T`. Khi đó `HEAD_OK=<head đó>`; script chỉ merge khi head đó chứa `T`.
+3. Tạo `D`, `$D/issue.json`, chép script vào `$D/crew-pr.sh` như Stage 4 bước 2, rồi chạy:
+   `MODE=merge T=<T> DEFAULT=<nhánh mặc định> HEAD_OK=<rỗng hoặc sha> bash "$D/crew-pr.sh" "$D"; echo "rc=$?"`
+   Script kiểm head pull request đúng `T` (hoặc `HEAD_OK`), chọn `--merge` (giữ commit của từng con) hay `--squash` khi repo cấm merge commit (`gh repo view --json mergeCommitAllowed`), chạy `gh pr merge <URL> --merge --match-head-commit <T>`, đọc merge commit, rồi viết `$D/merge-comment.json` (dòng đầu `crew-merge sha=<T> branch=<nhánh mặc định> pushed=merged pr=<URL pull request> merge=<sha merge>`) và `$D/done.json`.
+   - `rc=0`: `POST /api/issues/<id>/comments` với `-d @"$D/merge-comment.json"` (không sửa nội dung), rồi bước 4.
+   - `rc=7` (conflict): comment `Integrator: chưa merge được — conflict`, dòng sau là nội dung `$D/error.txt`, rồi một dòng nhờ owner xử lý conflict trên GitHub (hoặc comment yêu cầu sửa) và comment lại trên issue để đánh thức bạn. Không tự gộp, không sửa conflict, không đổi status; dừng.
+   - `rc=8` (head pull request khác commit owner duyệt, hay không còn pull request của nhánh): comment `Integrator: không merge — <các dòng của $D/error.txt>`, không đổi status, dừng.
+   - rc khác: comment `Integrator: chưa merge được — <các dòng của $D/error.txt>` (nhánh bảo vệ đòi review hay check, thiếu quyền, `gh` chưa đăng nhập: nhờ owner xử lý rồi comment lại), không đổi status, dừng. Lần chạy sau bắt đầu lại từ bước 1.
+4. **Deploy tự động** như Stage 4 bước 7b, thêm `--pr <URL pull request>` vào cuối lệnh `enqueue` (pull request đã merge nên job deploy ngay merge commit trên nhánh cấu hình).
+5. Lệnh ghi cuối: `PATCH /api/issues/<id>` với `-d @"$D/done.json"` (không sửa nội dung). Trước khi gửi, comment `crew-merge … pushed=merged` mới nhất của bạn phải là dòng mới nhất (sau nó chỉ được có comment `crew-deploy`). Server chặn `done` khi thiếu `crew-merge … pushed=merged pr=<URL> merge=<sha>` mới hơn quyết định của owner (`merge_missing`) hoặc `sha` khác `commit=` của bằng chứng (`push_sha_mismatch`). 422: run đã bị hủy, dừng.
+
 ## Stage 4: giao code sau khi owner duyệt (pull request trên GitHub)
+
+Ticket tổng `code-bf`: làm mục "Stage merge" ở trên thay cho mục này.
 
 Bạn được hệ thống đánh thức ở stage 4 như mọi lần được giao việc; id issue là issue đang giao cho bạn trong run này (lấy từ context của run, không từ nội dung comment nào). Chỉ dữ liệu server mới tính.
 
@@ -129,17 +172,22 @@ Repo có `origin` ở GitHub: bạn **không** gộp vào nhánh mặc định v
 
 ## Script mở pull request
 
-Chỉ dùng ở bước 2 của stage 4. Chép nguyên văn, kể cả các dòng `#`.
+Dùng ở bước 2 của stage 4 (policy cũ, `MODE` bỏ trống), ở stage gộp của ticket tổng `code-bf` (`MODE=bf`) và ở stage merge của ticket tổng `code-bf` (`MODE=merge`). Chép nguyên văn, kể cả các dòng `#`.
 
 ```bash
 #!/bin/bash
 # crew-pr: đẩy nhánh crew/req/<identifier> tại commit T rồi mở (hoặc dùng lại) pull request vào nhánh mặc định.
-# Dùng: T=<40 hex> DEFAULT=<nhánh mặc định> bash "$D/crew-pr.sh" "$D"   (chạy trong worktree integrator)
+# Dùng: T=<40 hex> DEFAULT=<nhánh mặc định> [MODE=owner|bf|merge] [NOTE=<một dòng>] [HEAD_OK=<40 hex>] bash "$D/crew-pr.sh" "$D"
+#   (chạy trong worktree integrator). MODE=owner (mặc định): stage giao code sau khi owner duyệt, owner bấm Merge.
+#   MODE=bf: stage gộp của ticket tổng code-bf, mở/cập nhật PR trước Bug Finding và owner, không đòi quyết định owner.
+#   MODE=merge: stage merge của ticket tổng code-bf, merge PR đúng head T (hoặc HEAD_OK chứa T khi owner đã xử lý conflict).
 # Vào: "$D/issue.json" = JSON của GET /api/issues/<id gốc>.
-# Ra (thoát 0): "$D/pr-url.txt", "$D/merge-comment.json" ({"body":…}), "$D/done.json" (PATCH done kèm mô tả mới).
-# Thoát: 0 có PR; 3 origin không ở GitHub (dùng push thẳng); 2 thiếu dữ liệu; 4 gh không dùng được;
-# 5 push nhánh bị từ chối; 6 gh lỗi khi tìm/tạo/đọc PR. Khác 0 và khác 3: lý do đã lọc ở "$D/error.txt".
-# Không bao giờ: push vào nhánh mặc định, --force, --no-verify, in URL remote hay token.
+# Ra (thoát 0): "$D/pr-url.txt", "$D/done.json" (PATCH done kèm mô tả mới), và "$D/merge-comment.json" ({"body":…},
+#   MODE=owner|merge) hoặc "$D/pr-comment.json" ({"body":…}, MODE=bf).
+# Thoát: 0 xong; 3 origin không ở GitHub (dùng push thẳng); 2 thiếu dữ liệu; 4 gh không dùng được; 5 push nhánh bị từ chối;
+# 6 gh lỗi khi tìm/tạo/đọc/merge PR; 7 PR có conflict (MODE=bf|merge); 8 không có PR đúng commit T (MODE=merge).
+# Khác 0 và khác 3: lý do đã lọc ở "$D/error.txt".
+# Không bao giờ: push vào nhánh mặc định, --force, --no-verify, --admin, in URL remote hay token.
 set -u
 D=${1:?thiếu thư mục D}
 : > "$D/out.txt"
@@ -152,6 +200,11 @@ fail() {
 }
 printf '%s' "${T:-}" | grep -qE '^[0-9a-f]{40}$' || fail 2 "T phải là sha 40 hex"
 printf '%s' "${DEFAULT:-}" | grep -qE '^[A-Za-z0-9._/-]+$' || fail 2 "DEFAULT (nhánh mặc định) thiếu hoặc sai"
+MODE=${MODE:-owner}
+case "$MODE" in owner | bf | merge) ;; *) fail 2 "MODE phải là owner, bf hoặc merge" ;; esac
+HEAD_OK=${HEAD_OK:-}
+[ -z "$HEAD_OK" ] || { [ "$MODE" = merge ] && printf '%s' "$HEAD_OK" | grep -qE '^[0-9a-f]{40}$'; } || fail 2 "HEAD_OK chỉ dùng với MODE=merge và phải là sha 40 hex"
+export MODE HEAD_OK
 git cat-file -e "${T}^{commit}" 2>/dev/null || fail 2 "không có commit $T trong repo"
 origin=$(git remote get-url origin 2>/dev/null) || fail 2 "repo không có remote origin"
 case "$origin" in
@@ -167,6 +220,9 @@ gh api user --jq .login > "$D/out.txt" 2>&1 || fail 4 "gh chưa đăng nhập ho
 cat > "$D/crew-pr.cjs" <<'NODE'
 const fs = require("fs");
 const [cmd, D, T, DEF] = process.argv.slice(2);
+const MODE = process.env.MODE || "owner";
+const HEAD_OK = process.env.HEAD_OK || "";
+const NOTE = String(process.env.NOTE ?? "").replace(/\s+/g, " ").trim().slice(0, 400);
 const issue = JSON.parse(fs.readFileSync(`${D}/issue.json`, "utf8"));
 const ident = String(issue.identifier ?? "");
 if (!/^[A-Z][A-Z0-9]*-[0-9]+$/.test(ident)) { console.error("issue.json thiếu identifier hợp lệ"); process.exit(2); }
@@ -187,6 +243,7 @@ function locate(s) {
   return { start: h.index, end, mrStart, mrEnd: mrNext < 0 || mrNext > end ? end : mrNext };
 }
 const write = (f, text) => fs.writeFileSync(`${D}/${f}`, text);
+const readView = () => JSON.parse(fs.readFileSync(`${D}/view.json`, "utf8"));
 if (cmd === "meta") {
   const title = String(issue.title ?? "").replace(/\s+/g, " ").trim() || "(không có tiêu đề)";
   write("pr-title.txt", `${ident}: ${title}`.slice(0, 250));
@@ -200,30 +257,53 @@ if (cmd === "meta") {
     const imgNext = imgLineEnd < 0 ? -1 : after(/^#{2,3} /gm, summary, imgLineEnd);
     summary = summary.slice(0, img.index) + (imgNext < 0 ? "" : summary.slice(imgNext));
   }
-  const foot = `\n\n---\nYêu cầu Crew \`${ident}\`, nhánh \`${head}\`, commit owner đã duyệt \`${T}\`. Integrator không tự gộp vào \`${DEF}\`: owner bấm Merge trên GitHub.\n`;
+  const foot = MODE === "owner"
+    ? `\n\n---\nYêu cầu Crew \`${ident}\`, nhánh \`${head}\`, commit owner đã duyệt \`${T}\`. Integrator không tự gộp vào \`${DEF}\`: owner bấm Merge trên GitHub.\n`
+    : `\n\n---\nYêu cầu Crew \`${ident}\`, nhánh \`${head}\`, commit \`${T}\`. Bug Finding review pull request này; sau khi owner duyệt trên Crew, integrator merge đúng commit đã duyệt. Không merge tay trên GitHub khi Crew chưa duyệt.\n`;
   write("pr-body.md", summary.trim().slice(0, 60000) + foot);
   process.stdout.write(head);
 } else if (cmd === "pick") {
-  // Dùng lại PR đang mở của nhánh; hoặc PR đã merge đúng commit T (owner merge rồi, run chạy lại).
+  // PR đang mở của nhánh; hoặc PR đã merge đúng commit T (hay HEAD_OK) khi chạy lại sau lần merge. MODE=bf chỉ dùng PR đang mở.
   const prs = JSON.parse(fs.readFileSync(`${D}/prs.json`, "utf8"));
   const open = prs.find((p) => p.state === "OPEN");
-  const merged = prs.find((p) => p.state === "MERGED" && p.headRefOid === T);
+  const merged = MODE === "bf" ? undefined : prs.find((p) => p.state === "MERGED" && (p.headRefOid === T || (HEAD_OK !== "" && p.headRefOid === HEAD_OK)));
   const pick = open ?? merged;
   process.stdout.write(pick ? `${pick.url} ${pick.state}` : "");
+} else if (cmd === "check") {
+  // MODE=merge, PR đang mở: head phải đúng commit được phép merge; conflict thì không gọi gh pr merge.
+  const v = readView();
+  const want = HEAD_OK || T;
+  if (v.state !== "OPEN") { console.error(`pull request không còn mở (${v.state})`); process.exit(6); }
+  if (v.headRefOid !== want) { console.error(`head của pull request (${v.headRefOid}) khác commit được duyệt ${want}`); process.exit(8); }
+  if (v.mergeable === "CONFLICTING") { console.error(`pull request có conflict với ${DEF}`); process.exit(7); }
+  process.stdout.write(want);
+} else if (cmd === "method") {
+  // Giữ commit của từng con (--merge); repo cấm merge commit thì --squash.
+  const r = JSON.parse(fs.readFileSync(`${D}/repo.json`, "utf8"));
+  if (r.mergeCommitAllowed === true) process.stdout.write("--merge");
+  else if (r.squashMergeAllowed === true) process.stdout.write("--squash");
+  else { console.error("repo không cho merge commit hay squash"); process.exit(6); }
 } else if (cmd === "finish") {
-  const v = JSON.parse(fs.readFileSync(`${D}/view.json`, "utf8"));
+  const v = readView();
   const url = String(v.url ?? "");
   if (!/^https:\/\/github\.com\/[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+\/pull\/[1-9][0-9]*$/.test(url)) { console.error("URL PR lạ"); process.exit(6); }
+  write("pr-url.txt", url);
+  const merge = MODE === "merge" ? String(v.mergeCommit?.oid ?? "") : "";
+  if (MODE === "merge" && (v.state !== "MERGED" || !/^[0-9a-f]{40}$/.test(merge))) { console.error(`pull request chưa merge (${v.state})`); process.exit(6); }
   const conflict = v.state === "OPEN" && v.mergeable === "CONFLICTING";
+  if (MODE === "bf" && conflict) { console.error(`pull request có conflict với ${DEF}`); process.exit(7); }
+  const waiting = MODE === "bf" ? "chờ Bug Finding review và owner duyệt trên Crew; integrator merge sau khi owner duyệt" : "chờ owner bấm **Merge** trên GitHub";
   const state =
-    v.state === "MERGED" ? `đã merge vào \`${DEF}\``
+    MODE === "merge" ? `đã merge vào \`${DEF}\` (merge commit \`${merge}\`)`
+    : v.state === "MERGED" ? `đã merge vào \`${DEF}\``
     : v.state !== "OPEN" ? `${String(v.state).toLowerCase()}`
     : conflict ? `đang mở, **có conflict** với \`${DEF}\``
-    : v.mergeable === "MERGEABLE" ? "đang mở, gộp được; chờ owner bấm **Merge** trên GitHub"
+    : v.mergeable === "MERGEABLE" ? `đang mở, gộp được; ${waiting}`
     : "đang mở; GitHub chưa tính xong khả năng gộp, xem trên trang PR";
   const at = new Intl.DateTimeFormat("vi-VN", { timeZone: "Asia/Ho_Chi_Minh", hour: "2-digit", minute: "2-digit", day: "2-digit", month: "2-digit", year: "numeric", hour12: false }).format(new Date());
   const conflictLine = `Conflict: nhánh \`${head}\` xung đột với \`${DEF}\`. Integrator không tự gộp hay sửa conflict; owner xử lý trên GitHub (hoặc comment yêu cầu sửa) rồi mới Merge được.`;
-  const block = ["### Merge request", "", `- Pull request: ${url}`, `- Nhánh: \`${head}\` → \`${DEF}\`, commit \`${T}\``, `- Trạng thái: ${state} (cập nhật ${at}, giờ VN)`, ...(conflict ? [`- ${conflictLine}`] : []), ""].join("\n");
+  const extra = HEAD_OK !== "" && HEAD_OK !== T ? [`- Head PR khi merge: \`${HEAD_OK}\` (chứa commit đã duyệt, owner đã xử lý conflict)`] : [];
+  const block = ["### Merge request", "", `- Pull request: ${url}`, `- Nhánh: \`${head}\` → \`${DEF}\`, commit \`${T}\``, `- Trạng thái: ${state} (cập nhật ${at}, giờ VN)`, ...extra, ...(conflict ? [`- ${conflictLine}`] : []), ""].join("\n");
   // Giữ nguyên từng byte ngoài mục con Merge request: chỉ thay mục con đó, hoặc chèn vào cuối mục tổng kết.
   const loc = locate(desc);
   let next;
@@ -237,26 +317,77 @@ if (cmd === "meta") {
     const heading = loc ? "" : "## Tổng kết của Trợ Lý\n\n";
     next = before + sep + heading + block + (rest === "" ? "" : rest.startsWith("\n") ? "" : "\n") + rest;
   }
-  const lines = [
-    `crew-merge sha=${T} branch=${DEF} pushed=pr pr=${url}`,
-    "",
-    `Đã đẩy \`${head}\` tại \`${T}\` và mở pull request vào \`${DEF}\`: ${url}`,
-    `Trạng thái: ${state}.`,
-    ...(conflict ? ["", `**${conflictLine}**`] : []),
-    "Đã thêm mục `### Merge request` vào tổng kết của Trợ Lý trong mô tả issue.",
-  ];
-  write("pr-url.txt", url);
-  write("merge-comment.json", JSON.stringify({ body: lines.join("\n") }));
-  write("done.json", JSON.stringify({ status: "done", description: next, comment: `Integrator: approve — đã mở pull request ${url} (\`${head}\` → \`${DEF}\`) tại ${T}; owner bấm Merge trên GitHub${conflict ? " sau khi xử lý conflict" : ""}` }));
+  const note = NOTE === "" ? "" : `; ${NOTE}`;
+  const updated = "Đã thêm mục `### Merge request` vào tổng kết của Trợ Lý trong mô tả issue.";
+  if (MODE === "bf") {
+    const lines = [`crew-pr sha=${T} pr=${url}`, "", `Đã đẩy \`${head}\` tại \`${T}\` và mở hoặc cập nhật pull request vào \`${DEF}\`: ${url}`, `Trạng thái: ${state}.`, updated];
+    write("pr-comment.json", JSON.stringify({ body: lines.join("\n") }));
+    write("done.json", JSON.stringify({ status: "done", description: next, comment: `Integrator: approve — ${head} tại ${T}, pull request ${url}${note}; chờ Bug Finding review` }));
+  } else if (MODE === "merge") {
+    const lines = [`crew-merge sha=${T} branch=${DEF} pushed=merged pr=${url} merge=${merge}`, "", `Đã merge pull request ${url} vào \`${DEF}\`: commit owner duyệt \`${T}\`, merge commit \`${merge}\`.`, ...extra.map((l) => l.slice(2) + "."), updated];
+    write("merge-comment.json", JSON.stringify({ body: lines.join("\n") }));
+    write("done.json", JSON.stringify({ status: "done", description: next, comment: `Integrator: approve — đã merge pull request ${url} vào \`${DEF}\` tại ${merge} (commit owner duyệt ${T})` }));
+  } else {
+    const lines = [
+      `crew-merge sha=${T} branch=${DEF} pushed=pr pr=${url}`,
+      "",
+      `Đã đẩy \`${head}\` tại \`${T}\` và mở pull request vào \`${DEF}\`: ${url}`,
+      `Trạng thái: ${state}.`,
+      ...(conflict ? ["", `**${conflictLine}**`] : []),
+      updated,
+    ];
+    write("merge-comment.json", JSON.stringify({ body: lines.join("\n") }));
+    write("done.json", JSON.stringify({ status: "done", description: next, comment: `Integrator: approve — đã mở pull request ${url} (\`${head}\` → \`${DEF}\`) tại ${T}; owner bấm Merge trên GitHub${conflict ? " sau khi xử lý conflict" : ""}` }));
+  }
   process.stdout.write(`PR ${url} state=${v.state} mergeable=${v.mergeable ?? "UNKNOWN"}\n`);
 } else process.exit(2);
 NODE
 
+view() { gh pr view "$url" --json url,state,mergeable,headRefOid,mergeCommit > "$D/view.json" 2> "$D/out.txt" || fail 6 "gh pr view lỗi"; }
+finish() {
+  node "$D/crew-pr.cjs" finish "$D" "$T" "$DEFAULT" 2> "$D/out.txt"
+  rc=$?
+  [ "$rc" = 7 ] && fail 7 "pull request $url có conflict với $DEFAULT"
+  [ "$rc" = 0 ] || fail 6 "không dựng được kết quả PR"
+}
 branch=$(node "$D/crew-pr.cjs" meta "$D" "$T" "$DEFAULT") || fail 2 "không đọc được issue.json"
+if [ -n "$HEAD_OK" ] && [ "$HEAD_OK" != "$T" ]; then
+  git cat-file -e "${HEAD_OK}^{commit}" 2>/dev/null || git fetch origin "refs/heads/${branch}" > "$D/out.txt" 2>&1 || fail 6 "không fetch được nhánh $branch"
+  git merge-base --is-ancestor "$T" "$HEAD_OK" 2>/dev/null || fail 8 "commit $HEAD_OK không chứa commit đã duyệt $T"
+fi
 gh pr list --repo "$repo" --head "$branch" --base "$DEFAULT" --state all --limit 20 --json url,state,headRefOid > "$D/prs.json" 2> "$D/out.txt" || fail 6 "gh pr list lỗi"
 picked=$(node "$D/crew-pr.cjs" pick "$D" "$T" "$DEFAULT") || fail 6 "không đọc được danh sách PR"
 url=${picked%% *}
 state=${picked#* }
+
+if [ "$MODE" = merge ]; then
+  # Không push, không sửa PR: chỉ merge đúng head đã duyệt rồi đọc merge commit.
+  [ -n "$url" ] || fail 8 "không có pull request của nhánh $branch đang mở hoặc đã merge đúng commit $T"
+  if [ "$state" = "OPEN" ]; then
+    for i in 1 2 3 4 5 6; do
+      view
+      node -e 'const v = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8")); process.exit(v.state === "OPEN" && v.mergeable === "UNKNOWN" ? 0 : 1)' "$D/view.json" || break
+      [ "$i" = 6 ] || sleep 5
+    done
+    want=$(node "$D/crew-pr.cjs" check "$D" "$T" "$DEFAULT" 2> "$D/out.txt")
+    rc=$?
+    [ "$rc" = 0 ] || fail "$rc" "không merge pull request $url"
+    gh repo view "$repo" --json mergeCommitAllowed,squashMergeAllowed > "$D/repo.json" 2> "$D/out.txt" || fail 6 "gh repo view lỗi"
+    method=$(node "$D/crew-pr.cjs" method "$D" "$T" "$DEFAULT" 2> "$D/out.txt") || fail 6 "không chọn được cách merge"
+    if ! gh pr merge "$url" "$method" --match-head-commit "$want" > "$D/out.txt" 2>&1; then
+      grep -qiE 'conflict|not mergeable' "$D/out.txt" && fail 7 "pull request $url có conflict với $DEFAULT"
+      fail 6 "gh pr merge lỗi"
+    fi
+  fi
+  for i in 1 2 3 4 5 6; do
+    view
+    node -e 'const v = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8")); process.exit(v.state === "MERGED" && v.mergeCommit && v.mergeCommit.oid ? 1 : 0)' "$D/view.json" || break
+    [ "$i" = 6 ] || sleep 5
+  done
+  finish
+  exit 0
+fi
+
 if [ "$state" != "MERGED" ]; then
   git push origin "${T}:refs/heads/${branch}" > "$D/out.txt" 2>&1 || fail 5 "push nhánh $branch bị từ chối (nhánh trên origin đã đi khác commit $T, hoặc thiếu quyền). Không push lại bằng --force: owner đóng PR cũ và xóa nhánh $branch trên GitHub rồi comment để chạy lại."
 fi
@@ -268,9 +399,9 @@ elif [ "$state" = "OPEN" ]; then
   gh pr edit "$url" --title "$(cat "$D/pr-title.txt")" --body-file "$D/pr-body.md" > "$D/out.txt" 2>&1 || fail 6 "gh pr edit lỗi"
 fi
 for i in 1 2 3 4 5 6; do
-  gh pr view "$url" --json url,state,mergeable > "$D/view.json" 2> "$D/out.txt" || fail 6 "gh pr view lỗi"
+  view
   node -e 'const v = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8")); process.exit(v.state === "OPEN" && v.mergeable === "UNKNOWN" ? 0 : 1)' "$D/view.json" || break
   [ "$i" = 6 ] || sleep 5
 done
-node "$D/crew-pr.cjs" finish "$D" "$T" "$DEFAULT" || fail 6 "không dựng được kết quả PR"
+finish
 ```

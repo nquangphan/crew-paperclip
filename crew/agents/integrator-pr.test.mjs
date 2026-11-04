@@ -8,6 +8,11 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, test } from "node:test";
 
+// Dòng crew-pr và crew-merge pushed=merged mà gate server nhận (CREW_PR_RE, CREW_MERGE_RE của issue-policy.ts).
+const GH_PR = String.raw`https:\/\/github\.com\/[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+\/pull\/[1-9][0-9]*`;
+const CREW_PR_RE = new RegExp(`^crew-pr sha=([0-9a-f]{40}) pr=(${GH_PR})$`);
+const MERGED_RE = new RegExp(`^crew-merge sha=([0-9a-f]{40}) branch=(\\S+) pushed=merged pr=(${GH_PR}) merge=([0-9a-f]{40})$`);
+const POLICY_SOURCE = new URL("../../server/src/crew/issue-policy.ts", import.meta.url);
 const MERGE_RE =
   /^crew-merge sha=([0-9a-f]{40}) branch=(\S+) pushed=(?:yes|pr pr=(https:\/\/github\.com\/[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+\/pull\/[1-9][0-9]*))$/;
 const ORIGIN = "https://bot:ghp_SECRETTOKEN123@github.com/acme/app.git";
@@ -61,7 +66,19 @@ if (args[0] === "pr" && args[1] === "edit") {
 }
 if (args[0] === "pr" && args[1] === "view") {
   const p = st.prs.find((x) => x.url === args[2]);
-  process.stdout.write(JSON.stringify({ url: p.url, state: p.state, mergeable: p.state === "OPEN" ? p.mergeable : "UNKNOWN" }));
+  process.stdout.write(JSON.stringify({ url: p.url, state: p.state, mergeable: p.state === "OPEN" ? p.mergeable : "UNKNOWN", headRefOid: p.headRefOid, mergeCommit: p.mergeOid ? { oid: p.mergeOid } : null }));
+  process.exit(0);
+}
+if (args[0] === "pr" && args[1] === "merge") {
+  const p = st.prs.find((x) => x.url === args[2]);
+  p.state = "MERGED";
+  p.mergeOid = st.mergeOid || "e".repeat(40);
+  save();
+  process.stdout.write("Merged pull request " + args[2] + "\\n");
+  process.exit(0);
+}
+if (args[0] === "repo" && args[1] === "view") {
+  process.stdout.write(JSON.stringify({ mergeCommitAllowed: st.mergeCommitAllowed ?? true, squashMergeAllowed: st.squashMergeAllowed ?? true }));
   process.exit(0);
 }
 process.stderr.write("stub gh: unexpected " + args.join(" ") + "\\n");
@@ -88,7 +105,7 @@ const SUMMARY = [
   "",
 ].join("\n");
 
-function world({ origin = ORIGIN, description = SUMMARY, prs = [], fail, failOut, mergeable } = {}) {
+function world({ origin = ORIGIN, description = SUMMARY, prs = [], fail, failOut, mergeable, mergeCommitAllowed } = {}) {
   const root = mkdtempSync(path.join(tmpdir(), "crew-pr-"));
   dirs.push(root);
   const git = (cwd, ...args) => {
@@ -121,7 +138,7 @@ function world({ origin = ORIGIN, description = SUMMARY, prs = [], fail, failOut
   mkdirSync(bin);
   writeFileSync(path.join(bin, "gh"), GH_STUB);
   chmodSync(path.join(bin, "gh"), 0o755);
-  writeFileSync(path.join(stub, "state.json"), JSON.stringify({ prs, fail, failOut, mergeable, headOid: T }));
+  writeFileSync(path.join(stub, "state.json"), JSON.stringify({ prs, fail, failOut, mergeable, mergeCommitAllowed, headOid: T }));
   const D = path.join(root, "D");
   mkdirSync(D);
   writeFileSync(path.join(D, "issue.json"), JSON.stringify({ id: "x", identifier: "TPS-145", title: "Trang  tổng hợp\nmới", description }));
@@ -140,7 +157,7 @@ function world({ origin = ORIGIN, description = SUMMARY, prs = [], fail, failOut
 }
 
 const leaks = (w, r) => {
-  const all = [r.stdout, r.stderr, ...["error.txt", "merge-comment.json", "done.json", "pr-body.md"].filter((f) => existsSync(path.join(w.D, f))).map((f) => w.read(f))];
+  const all = [r.stdout, r.stderr, ...["error.txt", "merge-comment.json", "pr-comment.json", "done.json", "pr-body.md"].filter((f) => existsSync(path.join(w.D, f))).map((f) => w.read(f))];
   for (const text of all) assert.doesNotMatch(text, /SECRETTOKEN|bot:/, "không được lộ credential của URL remote");
 };
 
@@ -310,5 +327,171 @@ test("đầu vào sai: T không phải sha thì thoát 2 trước khi gọi gh",
   const w = world();
   const r = w.run({ T: "abc" });
   assert.equal(r.status, 2);
+  assert.equal(w.calls(), "");
+});
+
+/** Chuỗi regex của server: GITHUB_PR_URL thay vào template `new RegExp(`…`)` của hằng `name`. */
+function serverRegex(name) {
+  const src = readFileSync(POLICY_SOURCE, "utf8");
+  const url = /const GITHUB_PR_URL = String\.raw`([^`]+)`;/.exec(src)?.[1];
+  const tpl = new RegExp(`export const ${name} = new RegExp\\(\\s*\`([^\`]+)\`,?\\s*\\);`).exec(src)?.[1];
+  assert.ok(url && tpl, `không đọc được ${name} của server`);
+  return tpl.replaceAll("${GITHUB_PR_URL}", url).replaceAll("\\\\", "\\");
+}
+
+test("regex crew-pr và crew-merge pushed=merged của test trùng regex gate server", { skip: !existsSync(POLICY_SOURCE) && "issue-policy.ts chưa có trên nhánh này" }, () => {
+  assert.equal(serverRegex("CREW_PR_RE"), CREW_PR_RE.source);
+  assert.match(`crew-merge sha=${"a".repeat(40)} branch=main pushed=merged pr=https://github.com/o/r/pull/2 merge=${"b".repeat(40)}`, new RegExp(serverRegex("CREW_MERGE_RE")));
+});
+
+test("MODE=bf ở stage gộp: không đòi quyết định owner, đẩy nhánh, mở PR, ghi crew-pr đúng merged commit, không merge", () => {
+  const w = world();
+  // issue.json chỉ có id, identifier, title, description: không có executionState hay quyết định owner nào.
+  assert.equal(w.json("issue.json").executionState, undefined);
+  const r = w.run({ MODE: "bf", NOTE: "test pnpm test: pass;\ndocs exit 0" });
+  assert.equal(r.status, 0, r.stdout + r.stderr);
+  leaks(w, r);
+  assert.equal(w.remoteRef("refs/heads/crew/req/TPS-145"), w.T);
+  assert.equal(w.remoteRef("refs/heads/main"), w.base, "nhánh mặc định giữ nguyên");
+  const calls = w.calls();
+  assert.match(calls, /^pr create --repo acme\/app --base main --head crew\/req\/TPS-145 /m);
+  assert.doesNotMatch(calls, /pr merge|repo view|--force/);
+  const url = "https://github.com/acme/app/pull/1";
+  const comment = w.json("pr-comment.json").body;
+  assert.deepEqual(CREW_PR_RE.exec(comment.split("\n")[0])?.slice(1), [w.T, url]);
+  assert.ok(!existsSync(path.join(w.D, "merge-comment.json")), "stage gộp không ghi crew-merge");
+  const body = readFileSync(path.join(w.stub, "body-1.md"), "utf8");
+  assert.match(body, /Bug Finding review pull request này; sau khi owner duyệt trên Crew, integrator merge/);
+  assert.doesNotMatch(body, /owner bấm Merge/);
+  const done = w.json("done.json");
+  assert.equal(done.status, "done");
+  assert.equal(done.comment, `Integrator: approve — crew/req/TPS-145 tại ${w.T}, pull request ${url}; test pnpm test: pass; docs exit 0; chờ Bug Finding review`);
+  assert.match(done.description, /- Trạng thái: đang mở, gộp được; chờ Bug Finding review và owner duyệt trên Crew; integrator merge sau khi owner duyệt \(/);
+});
+
+test("MODE=bf chạy lại sau lô sửa: dùng lại PR đang mở, đẩy commit mới nối tiếp, crew-pr theo commit mới", () => {
+  const old = "https://github.com/acme/app/pull/5";
+  const w = world({ prs: [{ url: old, state: "OPEN", head: "crew/req/TPS-145", base: "main", headRefOid: "0".repeat(40), mergeable: "MERGEABLE" }] });
+  w.git(w.work, "push", "-q", "origin", `${w.T}:refs/heads/crew/req/TPS-145`);
+  writeFileSync(path.join(w.work, "fix.txt"), "fix\n");
+  w.git(w.work, "add", ".");
+  w.git(w.work, "commit", "-qm", "merge(TPS-150): sửa F-01");
+  const T2 = w.git(w.work, "rev-parse", "HEAD");
+  const r = w.run({ MODE: "bf", T: T2 });
+  assert.equal(r.status, 0, r.stdout + r.stderr);
+  assert.equal(w.remoteRef("refs/heads/crew/req/TPS-145"), T2);
+  assert.doesNotMatch(w.calls(), /pr create|pr merge/);
+  assert.match(w.calls(), new RegExp(`^pr edit ${old} `, "m"));
+  assert.equal(w.json("pr-comment.json").body.split("\n")[0], `crew-pr sha=${T2} pr=${old}`);
+});
+
+test("MODE=bf: PR có conflict thì thoát 7, không ghi crew-pr hay done.json", () => {
+  const url = "https://github.com/acme/app/pull/2";
+  const w = world({ prs: [{ url, state: "OPEN", head: "crew/req/TPS-145", base: "main", headRefOid: "0".repeat(40), mergeable: "CONFLICTING" }] });
+  const r = w.run({ MODE: "bf" });
+  assert.equal(r.status, 7, r.stdout + r.stderr);
+  assert.match(w.read("error.txt"), /có conflict với main/);
+  assert.ok(!existsSync(path.join(w.D, "pr-comment.json")));
+  assert.ok(!existsSync(path.join(w.D, "done.json")));
+});
+
+const openPr = (w, extra = {}) => {
+  const st = JSON.parse(readFileSync(path.join(w.stub, "state.json"), "utf8"));
+  st.prs = [{ url: "https://github.com/acme/app/pull/9", state: "OPEN", head: "crew/req/TPS-145", base: "main", headRefOid: w.T, mergeable: "MERGEABLE", ...extra }];
+  writeFileSync(path.join(w.stub, "state.json"), JSON.stringify(st));
+  return st.prs[0].url;
+};
+
+test("MODE=merge: merge đúng head T bằng --merge --match-head-commit, không push, crew-merge pushed=merged có merge commit", () => {
+  const w = world();
+  const url = openPr(w);
+  const r = w.run({ MODE: "merge" });
+  assert.equal(r.status, 0, r.stdout + r.stderr);
+  leaks(w, r);
+  const calls = w.calls();
+  assert.match(calls, new RegExp(`^pr merge ${url} --merge --match-head-commit ${w.T}$`, "m"));
+  assert.doesNotMatch(calls, /pr (create|edit)|--admin|--auto|--delete-branch/);
+  assert.equal(w.remoteRef("refs/heads/crew/req/TPS-145"), "", "stage merge không push");
+  assert.equal(w.remoteRef("refs/heads/main"), w.base, "không push vào nhánh mặc định");
+  const M = "e".repeat(40);
+  const first = w.json("merge-comment.json").body.split("\n")[0];
+  assert.deepEqual(MERGED_RE.exec(first)?.slice(1), [w.T, "main", url, M]);
+  const done = w.json("done.json");
+  assert.equal(done.comment, `Integrator: approve — đã merge pull request ${url} vào \`main\` tại ${M} (commit owner duyệt ${w.T})`);
+  assert.match(done.description, new RegExp(`- Trạng thái: đã merge vào \`main\` \\(merge commit \`${M}\`\\)`));
+});
+
+test("MODE=merge: repo cấm merge commit thì --squash", () => {
+  const w = world({ mergeCommitAllowed: false });
+  const url = openPr(w);
+  const r = w.run({ MODE: "merge" });
+  assert.equal(r.status, 0, r.stdout + r.stderr);
+  assert.match(w.calls(), new RegExp(`^pr merge ${url} --squash --match-head-commit ${w.T}$`, "m"));
+});
+
+test("MODE=merge: head PR khác commit owner duyệt thì thoát 8, không merge", () => {
+  const w = world();
+  openPr(w, { headRefOid: "1".repeat(40) });
+  const r = w.run({ MODE: "merge" });
+  assert.equal(r.status, 8, r.stdout + r.stderr);
+  assert.doesNotMatch(w.calls(), /pr merge/);
+  assert.match(w.read("error.txt"), /khác commit được duyệt/);
+});
+
+test("MODE=merge: conflict thì thoát 7 trước khi gọi gh pr merge; gh pr merge báo conflict cũng thoát 7", () => {
+  const w = world();
+  openPr(w, { mergeable: "CONFLICTING" });
+  const r = w.run({ MODE: "merge" });
+  assert.equal(r.status, 7, r.stdout + r.stderr);
+  assert.doesNotMatch(w.calls(), /pr merge/);
+  assert.ok(!existsSync(path.join(w.D, "done.json")));
+  const w2 = world({ fail: "pr merge", failOut: "Pull request is not mergeable: the merge commit cannot be cleanly created\n" });
+  openPr(w2);
+  const r2 = w2.run({ MODE: "merge" });
+  assert.equal(r2.status, 7, r2.stdout + r2.stderr);
+  assert.match(w2.read("error.txt"), /có conflict với main/);
+});
+
+test("MODE=merge chạy lại khi PR đã merge đúng T: không gọi gh pr merge, vẫn ghi crew-merge pushed=merged", () => {
+  const w = world();
+  const url = openPr(w, { state: "MERGED", mergeOid: "f".repeat(40) });
+  const r = w.run({ MODE: "merge" });
+  assert.equal(r.status, 0, r.stdout + r.stderr);
+  assert.doesNotMatch(w.calls(), /pr merge/);
+  assert.equal(w.json("merge-comment.json").body.split("\n")[0], `crew-merge sha=${w.T} branch=main pushed=merged pr=${url} merge=${"f".repeat(40)}`);
+});
+
+test("MODE=merge với HEAD_OK: owner xử lý conflict trên GitHub, head mới chứa T thì merge đúng head đó; head không chứa T thì thoát 8", () => {
+  const w = world();
+  writeFileSync(path.join(w.work, "resolve.txt"), "owner\n");
+  w.git(w.work, "add", ".");
+  w.git(w.work, "commit", "-qm", "Merge main vào crew/req/TPS-145 (owner sửa conflict)");
+  const H = w.git(w.work, "rev-parse", "HEAD");
+  w.git(w.work, "push", "-q", "origin", `${H}:refs/heads/crew/req/TPS-145`);
+  const url = openPr(w, { headRefOid: H });
+  const r = w.run({ MODE: "merge", HEAD_OK: H });
+  assert.equal(r.status, 0, r.stdout + r.stderr);
+  assert.match(w.calls(), new RegExp(`^pr merge ${url} --merge --match-head-commit ${H}$`, "m"));
+  const body = w.json("merge-comment.json").body;
+  assert.equal(body.split("\n")[0].split(" pushed=")[0], `crew-merge sha=${w.T} branch=main`, "sha vẫn là commit owner duyệt");
+  assert.match(body, new RegExp(`Head PR khi merge: \`${H}\``));
+
+  const w2 = world();
+  w2.git(w2.work, "switch", "-q", "-c", "other", w2.base);
+  writeFileSync(path.join(w2.work, "x.txt"), "x\n");
+  w2.git(w2.work, "add", ".");
+  w2.git(w2.work, "commit", "-qm", "lạ");
+  const X = w2.git(w2.work, "rev-parse", "HEAD");
+  w2.git(w2.work, "push", "-q", "origin", `${X}:refs/heads/crew/req/TPS-145`);
+  openPr(w2, { headRefOid: X });
+  const r2 = w2.run({ MODE: "merge", HEAD_OK: X });
+  assert.equal(r2.status, 8, r2.stdout + r2.stderr);
+  assert.doesNotMatch(w2.calls(), /pr merge/);
+});
+
+test("MODE sai, hoặc HEAD_OK ngoài MODE=merge: thoát 2 trước khi gọi gh", () => {
+  const w = world();
+  assert.equal(w.run({ MODE: "push" }).status, 2);
+  assert.equal(w.run({ MODE: "bf", HEAD_OK: "a".repeat(40) }).status, 2);
   assert.equal(w.calls(), "");
 });
