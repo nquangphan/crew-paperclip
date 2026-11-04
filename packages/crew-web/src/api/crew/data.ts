@@ -5,6 +5,7 @@ import type {
   CrewCompany,
   CrewMachine,
   CrewMap,
+  CrewRoadmap,
   CrewRoot,
   DocsCheckResult,
   DocsPage,
@@ -22,6 +23,7 @@ import type {
 export const CREW_DATA_KEYS = {
   'crew.companies': ['S0.2'],
   'crew.roots': ['S4.3'],
+  'crew.roadmap': ['S4.3', 'S6.1'],
   'crew.map': ['S6.1'],
   'crew.runs': ['S6.1'],
   'crew.docsCheck': ['S6.1', 'S6.3'],
@@ -68,6 +70,11 @@ export const crewDataApi = {
   },
   roots: (companyId: string, params: { status?: string } = {}): Promise<CrewRoot[]> =>
     crewData<CrewRoot[]>('crew.roots', companyId, params),
+  /**
+   * Cây việc con của mọi yêu cầu người xem được thấy, trong một lần tải (trang Roadmap). Client không gửi phạm vi xem:
+   * server Crew tính project được cấp từ phiên và ghi vào params.
+   */
+  roadmap: (companyId: string): Promise<CrewRoadmap> => crewData<CrewRoadmap>('crew.roadmap', companyId),
   map: (companyId: string, issueId: string): Promise<CrewMap> => crewData<CrewMap>('crew.map', companyId, { issueId }),
   /** Run tóm tắt của một yêu cầu và mọi hậu duệ (tầng yêu cầu của trang Roadmap). */
   runs: (companyId: string, issueId: string): Promise<MapRuns> =>

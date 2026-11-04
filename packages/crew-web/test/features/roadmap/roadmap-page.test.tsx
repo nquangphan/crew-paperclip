@@ -58,6 +58,43 @@ const ISSUES = [
   issue('loose', 6, { projectId: null, title: 'Yêu cầu lẻ' }),
 ];
 
+/** Đúng điều worker `crew.roadmap` trả: chỉ cây của yêu cầu gốc do người tạo, cạnh do worker cung cấp. */
+function roadmapOf(issues: ReturnType<typeof issue>[]) {
+  const byId = new Map(issues.map((i) => [i.id, i]));
+  const rootOf = (i: ReturnType<typeof issue>): ReturnType<typeof issue> =>
+    i.parentId ? rootOf(byId.get(i.parentId as string) as ReturnType<typeof issue>) : i;
+  const kept = issues.filter((i) => !!rootOf(i).createdByUserId);
+  return {
+    requests: kept.filter((i) => !i.parentId).map((i) => i.id),
+    nodes: kept.map((i) => ({
+      id: i.id,
+      identifier: i.identifier,
+      title: i.title,
+      status: i.status,
+      parentId: i.parentId,
+      rootId: rootOf(i).id,
+      projectId: i.projectId,
+      createdByUserId: i.createdByUserId,
+      createdAt: i.createdAt,
+      updatedAt: i.updatedAt,
+      assignee: i.assigneeAgentId ? { id: i.assigneeAgentId, name: 'Dev Agent' } : null,
+      stage: null,
+      reviewRounds: 0,
+      maxReviewRounds: 3,
+      kind: 'code',
+      bundle: null,
+    })),
+    edges: [
+      ...kept.filter((i) => i.parentId).map((i) => ({ kind: 'parent', from: i.parentId, to: i.id })),
+      ...kept.flatMap((i) =>
+        (i.blockedBy as { id: string }[]).map((b) => ({ kind: 'dependency', from: b.id, to: i.id })),
+      ),
+    ],
+    diagnostics: [],
+    truncated: false,
+  };
+}
+
 const PAGES = [
   { path: 'README.md', title: 'Giới thiệu', parentPath: null },
   { path: 'docs/index.md', title: 'Mục lục', parentPath: null },
@@ -71,8 +108,7 @@ function server(extra: Record<string, unknown> = {}) {
         { id: 'p2', name: 'Beta', color: null, archivedAt: null },
       ],
     },
-    'GET /api/companies/c1/issues': { body: ISSUES },
-    'GET /api/companies/c1/agents': { body: [{ id: 'a1', name: 'Dev Agent' }] },
+    'POST /api/plugins/crew.core/data/crew.roadmap': { body: { data: roadmapOf(ISSUES) } },
     'POST /api/plugins/crew.core/data/crew.docs.projects': { body: { data: [{ projectId: 'p1', repo: 'crew' }] } },
     'POST /api/plugins/crew.core/data/crew.docs.tree': {
       body: {
@@ -171,6 +207,18 @@ describe('RoadmapPage', () => {
     // Popup đang mở (?issue=) thì Esc không lùi tầng.
     fireEvent.keyDown(document, { key: 'Escape' });
     expect(loc()).toContain('request=TPS-1');
+  });
+
+  it('một lần tải crew.roadmap cho mọi tầng: không gọi danh sách issue hay cây theo từng yêu cầu, không tự gửi viewer', async () => {
+    const { calls } = server();
+    const router = mount('/TPS/roadmap');
+    await waitFor(() => expect(node('p1')).toBeTruthy());
+    await router.navigate('/TPS/roadmap?project=p1&request=TPS-1');
+    await waitFor(() => expect(node('c2')).toBeTruthy());
+    const roadmapCalls = calls.filter((c) => c.url.endsWith('/data/crew.roadmap'));
+    expect(roadmapCalls).toHaveLength(1);
+    expect(roadmapCalls[0].body).toEqual({ companyId: 'c1', params: { companyId: 'c1' } });
+    expect(calls.filter((c) => c.url.includes('/issues') || c.url.includes('/agents'))).toEqual([]);
   });
 
   it('Esc lùi một tầng khi không có popup', async () => {

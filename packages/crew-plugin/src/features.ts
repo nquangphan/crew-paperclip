@@ -5,6 +5,7 @@ import { registerDocsGraph } from "./docs/graph-data.js";
 import { registerDocsHistory } from "./docs/history.js";
 import { registerDocsWebhook } from "./docs/webhook.js";
 import { registerMapFeature } from "./handlers/map.js";
+import { registerRoadmapFeature } from "./handlers/roadmap.js";
 import { registerRootsFeature } from "./handlers/roots.js";
 import { registerRunsFeature } from "./handlers/runs.js";
 import { registerSecurityGuards } from "./security/index.js";
@@ -18,6 +19,7 @@ import { registerUsageData } from "./usage/data.js";
 export function registerFeatures(ctx: PluginContext): void {
   registerMapFeature(ctx);
   registerRootsFeature(ctx);
+  registerRoadmapFeature(ctx);
   registerRunsFeature(ctx);
   registerDocsData(ctx);
   registerDocsWebhook(ctx);

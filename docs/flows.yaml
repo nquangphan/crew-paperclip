@@ -666,6 +666,7 @@ flows:
       - packages/crew-plugin/src/handlers/map.ts
       - packages/crew-web/src/features/roadmap/routes.tsx
     files:
+      - packages/crew-plugin/src/handlers/roadmap.ts
       - packages/crew-plugin/src/handlers/roots.ts
       - packages/crew-plugin/src/handlers/runs.ts
       - packages/crew-plugin/src/shared-web/map.ts
@@ -696,6 +697,7 @@ flows:
     tests:
       - packages/crew-plugin/src/__tests__/map-runs.test.ts
       - packages/crew-plugin/src/__tests__/map.data.test.ts
+      - packages/crew-plugin/src/__tests__/roadmap.data.test.ts
       - packages/crew-plugin/src/__tests__/roots.data.test.ts
       - packages/crew-plugin/src/ui/map/component.test.ts
       - packages/crew-plugin/src/ui/map/project.test.ts
@@ -709,6 +711,7 @@ flows:
       - packages/crew-web/test/features/roadmap/roadmap-model.test.ts
       - packages/crew-web/test/features/roadmap/roadmap-page.test.tsx
       - packages/crew-web/test/features/roadmap/roadmap-url.test.ts
+      - server/src/__tests__/crew-roadmap-viewer-scope.test.ts
   issues-web:
     title: "Issue trên UI Crew: danh sách, chi tiết, tạo yêu cầu, cổng duyệt, ép xong"
     doc: docs/flows/issues-web.md
