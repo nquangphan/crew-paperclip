@@ -306,6 +306,8 @@ describe('RoadmapPage một trang', () => {
     for (const id of ['p1', 'p2', 'none', 'docs:p1', 'r1', 'c1', 'c2', 'c3', 'rB', 'loose']) {
       expect(list.querySelector(`[data-roadmap-id="${id}"]`)).toBeTruthy();
     }
+    expect(list.querySelector('[data-roadmap-id="c2"]')?.getAttribute('aria-current')).toBe('true');
+    expect(list.querySelector('[data-roadmap-id="c1"]')?.hasAttribute('aria-current')).toBe(false);
     fireEvent.click(list.querySelector('[data-roadmap-id="c1"]') as HTMLButtonElement);
     await waitFor(() => expect(loc()).toContain('issue=TPS-2'));
     fireEvent.click(screen.getByRole('button', { name: 'Bản đồ' }));
