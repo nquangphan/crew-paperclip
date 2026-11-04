@@ -4,10 +4,13 @@ import path from "node:path";
 import { afterAll, describe, expect, it, vi } from "vitest";
 import { TASK_WATCHDOG_PRODUCT_BUG_ORIGIN_KIND } from "@paperclipai/shared";
 import {
+  bugFindingGateStages,
+  bugFindingRestartStages,
   crewBeforeIssueWrite,
   docsGateStages,
   evaluateIssueGate,
   ownerRestartStages,
+  prGateStages,
   pushGateStages,
   restartAfterOwnerChanges,
   type IssueGateFacts,
@@ -24,7 +27,9 @@ import {
   loadCrewCompanyConfig,
   reportCrewPolicyConfigAtStartup,
   parseCrewPolicyConfig,
+  parseBugFindingTriage,
   parseCrewMergeEvidence,
+  parseCrewPrEvidence,
   parseDocsCheckEvidence,
   policyGateFingerprint,
 } from "../crew/issue-policy.ts";
@@ -270,6 +275,64 @@ describe("parseCrewMergeEvidence", () => {
       `crew-merge sha=${SHA_HEAD} branch=main pushed=no pr=https://github.com/a/b/pull/5`,
     ]) {
       expect(parseCrewMergeEvidence(bad), bad).toBeNull();
+    }
+  });
+});
+
+describe("parseCrewMergeEvidence pushed=merged", () => {
+  it("nhận pushed=merged kèm URL pull request và sha merge; pushed=yes/pr không có merge", () => {
+    const pr = "https://github.com/acme/app/pull/87";
+    const merge = "d".repeat(40);
+    expect(parseCrewMergeEvidence(`crew-merge sha=${SHA_HEAD} branch=crew/req/TPS-1 pushed=merged pr=${pr} merge=${merge}\nlog`)).toEqual({
+      sha: SHA_HEAD,
+      branch: "crew/req/TPS-1",
+      pr,
+      merge,
+    });
+    expect(parseCrewMergeEvidence(`crew-merge sha=${SHA_HEAD} branch=main pushed=pr pr=${pr}`)?.merge).toBeUndefined();
+    for (const bad of [
+      `crew-merge sha=${SHA_HEAD} branch=main pushed=merged pr=${pr}`,
+      `crew-merge sha=${SHA_HEAD} branch=main pushed=merged merge=${merge}`,
+      `crew-merge sha=${SHA_HEAD} branch=main pushed=merged pr=${pr} merge=${merge.slice(1)}`,
+      `crew-merge sha=${SHA_HEAD} branch=main pushed=merged pr=https://gitlab.com/a/b/pull/5 merge=${merge}`,
+      `crew-merge sha=${SHA_HEAD} branch=main pushed=merged pr=${pr} merge=${merge} thêm`,
+    ]) {
+      expect(parseCrewMergeEvidence(bad), bad).toBeNull();
+    }
+  });
+});
+
+describe("parseCrewPrEvidence", () => {
+  it("chỉ nhận dòng đầu crew-pr sha=<40 hex> pr=<URL pull request GitHub>", () => {
+    const pr = "https://github.com/acme/app/pull/87";
+    expect(parseCrewPrEvidence(`crew-pr sha=${SHA_HEAD} pr=${pr}\nPR đã cập nhật`)).toEqual({ sha: SHA_HEAD, pr });
+    for (const bad of [
+      `ghi chú\ncrew-pr sha=${SHA_HEAD} pr=${pr}`,
+      `crew-pr sha=${SHA_HEAD.slice(1)} pr=${pr}`,
+      `crew-pr sha=${SHA_HEAD}`,
+      `crew-pr sha=${SHA_HEAD} pr=https://github.com/a/b/issues/5`,
+      `crew-pr sha=${SHA_HEAD} pr=${pr} thêm`,
+    ]) {
+      expect(parseCrewPrEvidence(bad), bad).toBeNull();
+    }
+  });
+});
+
+describe("parseBugFindingTriage", () => {
+  it("đọc run và số lô bf-fix từ dòng đầu crew-bf-triage", () => {
+    expect(parseBugFindingTriage("crew-bf-triage run=2 batch=bf-fix-1 fix=F-01,F-02 ask=F-04 dismiss=F-05\nchi tiết")).toEqual({
+      run: 2,
+      batch: 1,
+    });
+    expect(parseBugFindingTriage("crew-bf-triage run=3 batch=bf-fix-2")).toEqual({ run: 3, batch: 2 });
+    for (const bad of [
+      "ghi chú\ncrew-bf-triage run=1 batch=bf-fix-1",
+      "crew-bf-triage run=1",
+      "crew-bf-triage run=0 batch=bf-fix-1",
+      "crew-bf-triage run=1 batch=fix-1",
+      "crew-bf-triage run=1 batch=bf-fix-1x",
+    ]) {
+      expect(parseBugFindingTriage(bad), bad).toBeNull();
     }
   });
 });
@@ -1154,5 +1217,242 @@ describe("owner yêu cầu sửa ở stage duyệt: issue gốc chạy lại t�
     const stored = changesAt(root4, r4Owner, ownerP, [r4Review, r4Integrator]);
     expect(restartAfterOwnerChanges(root4, stored, stored)).toBeNull();
     expect(restartAfterOwnerChanges(root4, atOwner, null)).toBeNull();
+  });
+});
+
+describe("ticket tổng Bug Finding (code-bf): integrator gộp + PR, reviewer cầu nối, owner, integrator merge", () => {
+  const rootBf = buildCrewPolicy("root-bf", roles, "owner-1");
+  const [bfMerge, bfBridge, bfOwner, bfLand] = rootBf.stages.map((s) => s.id) as [string, string, string, string];
+  const integratorP = { type: "agent", agentId: INTEGRATOR, userId: null };
+  const ownerP = { type: "user", agentId: null, userId: "owner-1" };
+  const PR = "https://github.com/acme/app/pull/87";
+  const T0_5 = new Date("2026-10-07T09:30:00Z");
+  const T3 = new Date("2026-10-07T12:00:00Z");
+  const docsAt = (createdAt: Date, commit = SHA_HEAD) => ({ evidence: { commit, base: SHA_BASE, head: commit, exit: 0 as const }, createdAt });
+  const prAt = (createdAt: Date, sha = SHA_HEAD) => ({ sha, pr: PR, createdAt });
+  const approved = (state: object) => ({ ...state, lastDecisionOutcome: "approved" });
+
+  it("nhận dạng stage theo vị trí: gộp + docs + PR là stage 0, Bug Finding stage 1, owner chạy lại stage 2, merge stage 3", () => {
+    expect(docsGateStages(rootBf).map((s) => s.id)).toEqual([bfMerge]);
+    expect(prGateStages(rootBf).map((s) => s.id)).toEqual([bfMerge]);
+    expect(bugFindingGateStages(rootBf).map((s) => s.id)).toEqual([bfBridge]);
+    expect(bugFindingRestartStages(rootBf).map((s) => s.id)).toEqual([bfBridge]);
+    expect(ownerRestartStages(rootBf).map((s) => s.id)).toEqual([bfOwner]);
+    expect(pushGateStages(rootBf).map((s) => s.id)).toEqual([bfLand]);
+    for (const policy of [root4, root, child, buildCrewPolicy("research", roles, "owner-1"), null]) {
+      expect(prGateStages(policy)).toEqual([]);
+      expect(bugFindingGateStages(policy)).toEqual([]);
+      expect(bugFindingRestartStages(policy)).toEqual([]);
+    }
+    expect(docsGateStages(root4).map((s) => s.id)).toEqual([r4Integrator]);
+  });
+
+  describe("stage 0: integrator gộp, kiểm docs và mở PR", () => {
+    const base = {
+      actor: { kind: "agent" as const, agentId: INTEGRATOR },
+      locked: {
+        status: "in_review",
+        executionPolicy: rootBf,
+        executionState: pending(rootBf, bfMerge, integratorP),
+        assigneeAgentId: INTEGRATOR,
+        assigneeUserId: null,
+      },
+      patch: { status: "in_review", executionState: approved(pending(rootBf, bfBridge, reviewerParticipant, [bfMerge])) },
+      docsEvidence: docsAt(T1),
+    };
+
+    it("thiếu crew-pr, hay crew-pr không mới hơn bằng chứng docs: pr_missing", () => {
+      expect(evaluateIssueGate(facts(base))).toMatchObject({ kind: "block", code: "crew_gate_blocked", violations: ["pr_missing"] });
+      expect(evaluateIssueGate(facts({ ...base, prEvidence: prAt(T0) }))).toMatchObject({ violations: ["pr_missing"] });
+      expect(evaluateIssueGate(facts({ ...base, prEvidence: prAt(T1) }))).toMatchObject({ violations: ["pr_missing"] });
+    });
+
+    it("crew-pr cho commit khác merged commit của bằng chứng docs: pr_sha_mismatch", () => {
+      expect(evaluateIssueGate(facts({ ...base, prEvidence: prAt(T2, SHA_BASE) }))).toMatchObject({
+        kind: "block",
+        violations: ["pr_sha_mismatch"],
+      });
+    });
+
+    it("docs đạt và crew-pr mới hơn, đúng commit: sang stage Bug Finding", () => {
+      expect(evaluateIssueGate(facts({ ...base, prEvidence: prAt(T2) }))).toEqual({ kind: "allow", notes: [] });
+    });
+
+    it("stage 0 vẫn là stage docs: thiếu docs thì docs_missing", () => {
+      expect(evaluateIssueGate(facts({ ...base, docsEvidence: null, prEvidence: prAt(T2) }))).toMatchObject({
+        violations: ["docs_missing"],
+      });
+    });
+  });
+
+  describe("stage 1: reviewer cầu nối cho qua khi có lượt Bug Finding cho head PR", () => {
+    const base = {
+      actor: { kind: "agent" as const, agentId: REVIEWER },
+      locked: {
+        status: "in_review",
+        executionPolicy: rootBf,
+        executionState: pending(rootBf, bfBridge, reviewerParticipant, [bfMerge]),
+        assigneeAgentId: REVIEWER,
+        assigneeUserId: null,
+      },
+      patch: { status: "in_review", executionState: approved(pending(rootBf, bfOwner, ownerP, [bfMerge, bfBridge])) },
+      approvals: [approval(bfMerge, INTEGRATOR, T0_5)],
+      docsEvidence: docsAt(T0),
+      prEvidence: prAt(T0_5),
+    };
+
+    it("chưa có lượt, lượt cho head khác, lượt chưa xong hay lỗi: bf_missing", () => {
+      for (const runs of [
+        [],
+        [{ headSha: SHA_BASE, state: "succeeded" }],
+        [{ headSha: SHA_HEAD, state: "running" }],
+        [{ headSha: SHA_HEAD, state: "queued" }],
+        [{ headSha: SHA_HEAD, state: "failed" }],
+        [{ headSha: SHA_HEAD, state: "timeout" }],
+      ]) {
+        expect(evaluateIssueGate(facts({ ...base, bugFindingRuns: runs })), JSON.stringify(runs)).toMatchObject({
+          kind: "block",
+          violations: ["bf_missing"],
+        });
+      }
+      expect(evaluateIssueGate(facts({ ...base, prEvidence: null, bugFindingRuns: [{ headSha: SHA_HEAD, state: "succeeded" }] }))).toMatchObject({
+        violations: ["bf_missing"],
+      });
+    });
+
+    it("lượt succeeded hoặc skipped (owner cho bỏ qua) cho đúng head PR: sang owner", () => {
+      for (const state of ["succeeded", "skipped"]) {
+        expect(
+          evaluateIssueGate(facts({ ...base, bugFindingRuns: [{ headSha: SHA_BASE, state: "failed" }, { headSha: SHA_HEAD, state }] })),
+        ).toEqual({ kind: "allow", notes: [] });
+      }
+    });
+  });
+
+  it("reviewer cầu nối yêu cầu sửa ở stage 1: lần nộp sau của Trợ Lý chạy lại từ stage 0", () => {
+    const changesAt = (stageId: string, participant: object, completedIds: string[]) => ({
+      ...pending(rootBf, stageId, participant, completedIds),
+      status: "changes_requested",
+      lastDecisionId: "66666666-6666-4666-8666-666666666666",
+      lastDecisionOutcome: "changes_requested",
+    });
+    const next = changesAt(bfBridge, reviewerParticipant, [bfMerge]);
+    expect(restartAfterOwnerChanges(rootBf, pending(rootBf, bfBridge, reviewerParticipant, [bfMerge]), next)).toEqual({
+      ...next,
+      currentStageId: null,
+      currentStageIndex: null,
+      completedStageIds: [],
+    });
+    expect(restartAfterOwnerChanges(rootBf, pending(rootBf, bfOwner, ownerP, [bfMerge, bfBridge]), changesAt(bfOwner, ownerP, [bfMerge, bfBridge]))).toMatchObject({
+      completedStageIds: [],
+    });
+    // Integrator yêu cầu sửa ở stage gộp hay stage merge: stock nộp lại về đúng stage đó.
+    expect(restartAfterOwnerChanges(rootBf, pending(rootBf, bfMerge, integratorP), changesAt(bfMerge, integratorP, []))).toBeNull();
+    const atLand = pending(rootBf, bfLand, integratorP, [bfMerge, bfBridge, bfOwner]);
+    expect(restartAfterOwnerChanges(rootBf, atLand, changesAt(bfLand, integratorP, [bfMerge, bfBridge, bfOwner]))).toBeNull();
+    // Policy code cũ: yêu cầu sửa ở stage reviewer (stage 0) không chạy lại.
+    const atReview = pending(root4, r4Review, reviewerParticipant);
+    expect(restartAfterOwnerChanges(root4, atReview, { ...atReview, status: "changes_requested", lastDecisionOutcome: "changes_requested" })).toBeNull();
+  });
+
+  describe("Trợ Lý nộp ticket tổng khi lô bf-fix hay thẻ hỏi crew-bf còn mở", () => {
+    const submit = {
+      actor: { kind: "agent" as const, agentId: EXECUTOR },
+      locked: {
+        status: "in_progress",
+        executionPolicy: rootBf,
+        executionState: { ...pending(rootBf, bfBridge, reviewerParticipant, [bfMerge]), status: "changes_requested" },
+        assigneeAgentId: EXECUTOR,
+        assigneeUserId: null,
+      },
+      patch: { status: "in_review", assigneeAgentId: INTEGRATOR, executionState: pending(rootBf, bfMerge, integratorP) },
+    };
+
+    it("con của lô mới nhất chưa done: bf_batch_open; thẻ hỏi chưa trả lời: bf_questions_open", () => {
+      expect(evaluateIssueGate(facts({ ...submit, openBugFindingBatchChildren: 2 }))).toMatchObject({
+        kind: "block",
+        code: "crew_gate_blocked",
+        violations: ["bf_batch_open"],
+      });
+      expect(evaluateIssueGate(facts({ ...submit, openBugFindingQuestions: 1 }))).toMatchObject({
+        kind: "block",
+        violations: ["bf_questions_open"],
+      });
+      expect(evaluateIssueGate(facts({ ...submit, openBugFindingBatchChildren: 1, openBugFindingQuestions: 1 }))).toMatchObject({
+        violations: ["bf_batch_open", "bf_questions_open"],
+      });
+    });
+
+    it("lô xong và thẻ hỏi đã trả lời: nộp được; policy code cũ không xét lô Bug Finding", () => {
+      expect(evaluateIssueGate(facts({ ...submit, openBugFindingBatchChildren: 0, openBugFindingQuestions: 0 }))).toEqual({
+        kind: "allow",
+        notes: [],
+      });
+      const codeSubmit = {
+        ...submit,
+        locked: { ...submit.locked, executionPolicy: root4, executionState: null },
+        patch: { status: "in_review", assigneeAgentId: REVIEWER, executionState: pending(root4, r4Review, reviewerParticipant) },
+      };
+      expect(evaluateIssueGate(facts({ ...codeSubmit, openBugFindingBatchChildren: 3, openBugFindingQuestions: 1 }))).toEqual({
+        kind: "allow",
+        notes: [],
+      });
+    });
+  });
+
+  describe("stage 3: integrator merge PR sau khi owner duyệt", () => {
+    const base = {
+      actor: { kind: "agent" as const, agentId: INTEGRATOR },
+      locked: {
+        status: "in_review",
+        executionPolicy: rootBf,
+        executionState: pending(rootBf, bfLand, integratorP, [bfMerge, bfBridge, bfOwner]),
+        assigneeAgentId: INTEGRATOR,
+        assigneeUserId: null,
+      },
+      patch: { status: "done", executionState: completed([bfMerge, bfBridge, bfOwner, bfLand]) },
+      approvals: [approval(bfMerge, INTEGRATOR, T0_5), approval(bfBridge, REVIEWER, T0_5), approval(bfOwner, null, T2, "owner-1")],
+      docsEvidence: docsAt(T0),
+      prEvidence: prAt(T0_5),
+      bugFindingRuns: [{ headSha: SHA_HEAD, state: "succeeded" }],
+    };
+    const merge = (createdAt: Date, extra: { sha?: string; pr?: string | null; merge?: string } = {}) => ({
+      sha: SHA_HEAD,
+      branch: "crew/req/TPS-1",
+      pr: PR,
+      merge: "d".repeat(40),
+      createdAt,
+      ...extra,
+    });
+
+    it("thiếu crew-merge, cũ hơn quyết định owner hay chỉ pushed=pr (chưa merge): merge_missing", () => {
+      expect(evaluateIssueGate(facts(base))).toMatchObject({ kind: "block", violations: ["merge_missing"] });
+      expect(evaluateIssueGate(facts({ ...base, pushEvidence: merge(T1) }))).toMatchObject({ violations: ["merge_missing"] });
+      expect(evaluateIssueGate(facts({ ...base, pushEvidence: merge(T3, { merge: undefined }) }))).toMatchObject({
+        violations: ["merge_missing"],
+      });
+      expect(evaluateIssueGate(facts({ ...base, pushEvidence: merge(T3, { pr: null, merge: undefined }) }))).toMatchObject({
+        violations: ["merge_missing"],
+      });
+    });
+
+    it("merge commit khác commit owner duyệt (commit của bằng chứng docs): push_sha_mismatch", () => {
+      expect(evaluateIssueGate(facts({ ...base, pushEvidence: merge(T3, { sha: SHA_BASE }) }))).toMatchObject({
+        violations: ["push_sha_mismatch"],
+      });
+    });
+
+    it("crew-merge pushed=merged mới hơn owner, đúng commit: done", () => {
+      expect(evaluateIssueGate(facts({ ...base, pushEvidence: merge(T3) }))).toEqual({ kind: "allow", notes: [] });
+    });
+
+    it("vào done vẫn đòi PR và lượt Bug Finding của vòng", () => {
+      expect(evaluateIssueGate(facts({ ...base, pushEvidence: merge(T3), bugFindingRuns: [] }))).toMatchObject({
+        violations: ["bf_missing"],
+      });
+      expect(evaluateIssueGate(facts({ ...base, pushEvidence: merge(T3), prEvidence: null }))).toMatchObject({
+        violations: ["pr_missing", "bf_missing"],
+      });
+    });
   });
 });

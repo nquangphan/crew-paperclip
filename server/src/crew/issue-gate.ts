@@ -8,6 +8,7 @@ import {
   issueComments,
   issueExecutionDecisions,
   issues,
+  issueThreadInteractions,
 } from "@paperclipai/db";
 import type { IssueExecutionPolicy, IssueExecutionStage, IssueExecutionStagePrincipal } from "@paperclipai/shared";
 import { unprocessable } from "../errors.js";
@@ -18,6 +19,7 @@ import { CREW_OVERRIDE_FORBIDDEN_MESSAGE, checkAgentAdapterOverrides } from "./m
 import { codexReviewerOverrides, loadModelSettings, rootReviewerOverrides } from "./model-settings.js";
 import {
   type CrewMergeEvidence,
+  type CrewPrEvidence,
   type CrewRoles,
   type DocsCheckEvidence,
   housekeepingSourceIssueId,
@@ -25,7 +27,9 @@ import {
   isTrackingProject,
   loadCrewCompanyConfig,
   loadSourceExecutorAgentIds,
+  parseBugFindingTriage,
   parseCrewMergeEvidence,
+  parseCrewPrEvidence,
   parseDocsCheckEvidence,
   policyGateFingerprint,
 } from "./issue-policy.js";
@@ -96,8 +100,19 @@ export interface IssueGateFacts {
   lastChangesRequestedAt: Date | null;
   /** Comment `crew-docs-check` mới nhất (chưa xóa) của participant stage docs. */
   docsEvidence: { evidence: DocsCheckEvidence; createdAt: Date } | null;
-  /** Comment `crew-merge … pushed=yes` hoặc `pushed=pr pr=<url>` mới nhất (chưa xóa) của participant stage push. */
+  /** Comment `crew-merge … pushed=yes|pr|merged` mới nhất (chưa xóa) của participant stage push. */
   pushEvidence: (CrewMergeEvidence & { createdAt: Date }) | null;
+  /** Ticket tổng Bug Finding: comment `crew-pr` mới nhất (chưa xóa) của participant stage gộp. */
+  prEvidence?: (CrewPrEvidence & { createdAt: Date }) | null;
+  /** Ticket tổng Bug Finding: các lượt Bug Finding của issue (`BugFindingRunReader`). Không truyền là chưa có lượt. */
+  bugFindingRuns?: ReadonlyArray<BugFindingRunFact>;
+  /**
+   * Ticket tổng Bug Finding: số con chưa xong của lô `bf-fix-<k>` mới nhất theo comment `crew-bf-triage` của agent đang
+   * ghi; chỉ đếm khi agent ghi lên issue gốc. Không truyền là 0.
+   */
+  openBugFindingBatchChildren?: number;
+  /** Ticket tổng Bug Finding: số thẻ `ask_user_questions` có `idempotencyKey` `crew-bf:…` còn chờ trả lời. */
+  openBugFindingQuestions?: number;
   /**
    * Số việc con chưa xong (không `done`/`cancelled`) do board (owner, thành viên) tạo dưới issue gốc này; chỉ đếm khi
    * agent ghi lên issue gốc. Không truyền là 0.
@@ -122,6 +137,8 @@ export type IssueGateVerdict =
 export const CREW_CYCLE_RESET_ACTION = "crew.gate.cycle_reset";
 /** Owner yêu cầu sửa ở stage owner và issue gốc sẽ chạy lại từ stage đầu (`restartAfterOwnerChanges`). */
 export const CREW_OWNER_CHANGES_RESTART_ACTION = "crew.gate.owner_changes_restart";
+/** Reviewer cầu nối yêu cầu sửa ở stage Bug Finding của ticket tổng Bug Finding, issue chạy lại từ stage gộp. */
+export const CREW_BUG_FINDING_RESTART_ACTION = "crew.gate.bug_finding_restart";
 const TERMINAL_STATUSES = new Set(["done", "cancelled"]);
 
 function has(patch: Readonly<Record<string, unknown>>, key: string): boolean {
@@ -172,11 +189,36 @@ function firstApprovalIndex(policy: IssueExecutionPolicy): number {
 }
 
 /**
+ * Policy đã ghim của ticket tổng Bug Finding (template `root-bf`): đúng 4 stage `review`, `review`, `approval`, `review`,
+ * mỗi stage một participant, stage 0 và 3 cùng một agent (integrator), stage 1 là agent khác (reviewer cầu nối), stage 2
+ * là user (owner). Cùng cách nhận biết `code-bf` với plugin (`crewPolicyKind`), trừ `maxReviewRounds` (không thuộc gate).
+ */
+export function isBugFindingRootPolicy(policy: IssueExecutionPolicy | null): boolean {
+  if (policy?.stages.length !== 4) return false;
+  const only = (index: number, type: "review" | "approval", principal: "agent" | "user") => {
+    const stage = policy.stages[index]!;
+    const participant = stage.participants[0];
+    if (stage.type !== type || stage.participants.length !== 1 || participant?.type !== principal) return null;
+    return (principal === "agent" ? participant.agentId : participant.userId) || null;
+  };
+  const merge = only(0, "review", "agent");
+  const bridge = only(1, "review", "agent");
+  const land = only(3, "review", "agent");
+  return !!merge && !!bridge && !!only(2, "approval", "user") && merge === land && bridge !== land;
+}
+
+function bugFindingStage(policy: IssueExecutionPolicy | null, index: 0 | 1): IssueExecutionStage[] {
+  return policy && isBugFindingRootPolicy(policy) ? [policy.stages[index] as IssueExecutionStage] : [];
+}
+
+/**
  * Stage cần bằng chứng docs: stage `review` thứ hai, đứng trước stage `approval` đầu (template gốc: stage 2,
- * integrator merge + docs). Xác định theo policy đã ghim trên issue, không theo vai trò trong file cấu hình.
+ * integrator merge + docs); ticket tổng Bug Finding là stage 0 (integrator gộp + docs + PR). Xác định theo policy đã
+ * ghim trên issue, không theo vai trò trong file cấu hình.
  */
 export function docsGateStages(policy: IssueExecutionPolicy | null): IssueExecutionStage[] {
   if (!policy) return [];
+  if (isBugFindingRootPolicy(policy)) return bugFindingStage(policy, 0);
   const beforeApproval = firstApprovalIndex(policy);
   const reviews = policy.stages.filter((s, index) => s.type === "review" && index < beforeApproval);
   return reviews.length >= 2 ? [reviews[1] as IssueExecutionStage] : [];
@@ -188,6 +230,46 @@ export function pushGateStages(policy: IssueExecutionPolicy | null): IssueExecut
   const afterApproval = firstApprovalIndex(policy);
   return policy.stages.filter((s, index) => s.type === "review" && index > afterApproval);
 }
+
+/** Stage cần bằng chứng `crew-pr` (ticket tổng Bug Finding: stage 0, cùng stage docs); loại khác không có. */
+export function prGateStages(policy: IssueExecutionPolicy | null): IssueExecutionStage[] {
+  return bugFindingStage(policy, 0);
+}
+
+/** Stage cần lượt Bug Finding cho head PR (ticket tổng Bug Finding: stage 1, reviewer cầu nối); loại khác không có. */
+export function bugFindingGateStages(policy: IssueExecutionPolicy | null): IssueExecutionStage[] {
+  return bugFindingStage(policy, 1);
+}
+
+/**
+ * Stage cầu nối Bug Finding chạy lại từ đầu khi reviewer yêu cầu sửa: lô sửa finding của Trợ Lý có code mới, nên
+ * integrator phải gộp lại, kiểm docs và cập nhật PR (stage 0) trước khi Bug Finding chạy lại cho head mới.
+ */
+export function bugFindingRestartStages(policy: IssueExecutionPolicy | null): IssueExecutionStage[] {
+  return bugFindingStage(policy, 1);
+}
+
+/** Lượt Bug Finding của issue (bảng `crew_bug_finding_runs` của plugin). */
+export interface BugFindingRunFact {
+  headSha: string;
+  /** `queued`, `running`, `succeeded`, `failed`, `timeout`, `skipped`. */
+  state: string;
+}
+
+export type BugFindingRunReader = (input: { db: Db; companyId: string; issueId: string }) => Promise<BugFindingRunFact[]>;
+
+const noBugFindingRuns: BugFindingRunReader = async () => [];
+let bugFindingRunReader: BugFindingRunReader = noBugFindingRuns;
+
+/**
+ * Nơi H2 đọc lượt Bug Finding (plugin đặt lúc nạp; `null` trả về mặc định). Chưa đặt thì coi như chưa có lượt nào, nên
+ * stage cầu nối của ticket tổng Bug Finding không qua được khi chưa có bảng lượt.
+ */
+export function setBugFindingRunReader(reader: BugFindingRunReader | null): void {
+  bugFindingRunReader = reader ?? noBugFindingRuns;
+}
+
+const BUG_FINDING_PASSED_STATES = new Set(["succeeded", "skipped"]);
 
 /**
  * Stage owner chạy lại từ đầu khi bị yêu cầu sửa: stage `approval` đứng sau stage docs (template gốc: stage 3). Stock
@@ -203,8 +285,8 @@ export function ownerRestartStages(policy: IssueExecutionPolicy | null): IssueEx
 }
 
 /**
- * State thay cho state yêu cầu sửa stock vừa dựng ở stage owner, hoặc `null` khi lệnh ghi không phải yêu cầu sửa ở
- * stage owner. Xóa `completedStageIds` và stage hiện tại để lần nộp lại của Trợ Lý (stock `nextPendingStage`) bắt đầu
+ * State thay cho state yêu cầu sửa stock vừa dựng ở stage owner (hay stage cầu nối Bug Finding của ticket tổng Bug
+ * Finding, `bugFindingRestartStages`), hoặc `null` khi lệnh ghi không phải yêu cầu sửa ở các stage đó. Xóa `completedStageIds` và stage hiện tại để lần nộp lại của Trợ Lý (stock `nextPendingStage`) bắt đầu
  * từ stage đầu: reviewer, integrator gộp và kiểm docs, owner duyệt lại, rồi stage push. Giữ `currentStageType`,
  * `currentParticipant` (owner đã yêu cầu sửa) và `lastDecisionId` để giao diện và Trợ Lý đọc đúng quyết định.
  * Luôn chạy lại, kể cả khi không có code mới: server không biết lần sửa có code hay không, còn bỏ sót code chưa
@@ -219,7 +301,8 @@ export function restartAfterOwnerChanges(
   const nextState = parseIssueExecutionState(nextExecutionState);
   if (lockedState?.status !== "pending" || nextState?.status !== "changes_requested") return null;
   if (!lockedState.currentStageId || nextState.currentStageId !== lockedState.currentStageId) return null;
-  if (!ownerRestartStages(policy).some((s) => s.id === lockedState.currentStageId)) return null;
+  const restartStages = [...ownerRestartStages(policy), ...bugFindingRestartStages(policy)];
+  if (!restartStages.some((s) => s.id === lockedState.currentStageId)) return null;
   return {
     ...(nextExecutionState as Record<string, unknown>),
     currentStageId: null,
@@ -377,6 +460,15 @@ export function evaluateIssueGate(f: IssueGateFacts): IssueGateVerdict {
   if (submitting && (f.openBoardChildren ?? 0) > 0) {
     return { kind: "block", code: "crew_gate_blocked", violations: ["board_child_open"] };
   }
+  // Ticket tổng Bug Finding: Trợ Lý chỉ nộp lại khi mọi con của lô sửa finding mới nhất đã xong và thẻ hỏi owner đã trả
+  // lời, để Bug Finding chạy lại một lần cho cả lô.
+  if (submitting && isBugFindingRootPolicy(effectivePolicy(f.locked, f.patch))) {
+    const open = [
+      ...((f.openBugFindingBatchChildren ?? 0) > 0 ? ["bf_batch_open"] : []),
+      ...((f.openBugFindingQuestions ?? 0) > 0 ? ["bf_questions_open"] : []),
+    ];
+    if (open.length > 0) return { kind: "block", code: "crew_gate_blocked", violations: open };
+  }
 
   const enteringDone = nextStatus === "done" && f.locked.status !== "done";
   const newlyCompleted = (stage: IssueExecutionStage) =>
@@ -386,7 +478,11 @@ export function evaluateIssueGate(f: IssueGateFacts): IssueGateVerdict {
   const pushStages = pushGateStages(policy);
   const completingDocsStage = docsStages.some(newlyCompleted);
   const completingPushStage = pushStages.some(newlyCompleted);
-  if (!enteringDone && !completingDocsStage && !completingPushStage) return { kind: "allow", notes };
+  const bugFindingStages = bugFindingGateStages(policy);
+  const completingBugFindingStage = bugFindingStages.some(newlyCompleted);
+  if (!enteringDone && !completingDocsStage && !completingPushStage && !completingBugFindingStage) {
+    return { kind: "allow", notes };
+  }
 
   const violations: string[] = [];
   if (!f.roles) violations.push("roles_unconfigured");
@@ -425,7 +521,11 @@ export function evaluateIssueGate(f: IssueGateFacts): IssueGateVerdict {
 
   const stagesToCheck = enteringDone
     ? (policy?.stages ?? [])
-    : [...(completingDocsStage ? docsStages : []), ...(completingPushStage ? pushStages : [])];
+    : [
+        ...(completingDocsStage ? docsStages : []),
+        ...(completingBugFindingStage ? bugFindingStages : []),
+        ...(completingPushStage ? pushStages : []),
+      ];
   for (const stage of stagesToCheck) {
     const stored = f.approvals.some(
       (a) =>
@@ -446,6 +546,20 @@ export function evaluateIssueGate(f: IssueGateFacts): IssueGateVerdict {
     else if (docs.evidence.exit !== 0) violations.push(`docs_failed:${docs.evidence.exit}`);
   }
 
+  // Ticket tổng Bug Finding, stage gộp: PR phải mở/cập nhật sau bằng chứng docs và đúng merged commit của nó.
+  const bugFindingRoot = bugFindingStages.length > 0;
+  if (bugFindingRoot && checkDocs) {
+    const pr = f.prEvidence;
+    if (!pr || (f.docsEvidence && pr.createdAt.getTime() <= f.docsEvidence.createdAt.getTime())) violations.push("pr_missing");
+    else if (f.docsEvidence && pr.sha !== f.docsEvidence.evidence.commit) violations.push("pr_sha_mismatch");
+  }
+  // Stage cầu nối: cần lượt Bug Finding `succeeded` (hay `skipped` do owner cho bỏ qua) cho đúng head PR hiện tại.
+  if (bugFindingRoot && (enteringDone || completingBugFindingStage)) {
+    const head = f.prEvidence?.sha;
+    const passed = !!head && (f.bugFindingRuns ?? []).some((run) => run.headSha === head && BUG_FINDING_PASSED_STATES.has(run.state));
+    if (!passed) violations.push("bf_missing");
+  }
+
   if (pushStages.length > 0 && (enteringDone || completingPushStage)) {
     // Push phải sau quyết định duyệt của owner (cùng vòng) và đúng merged commit của bằng chứng docs.
     const pushStageIndex = policy?.stages.findIndex((s) => s.id === pushStages[0]?.id) ?? -1;
@@ -456,8 +570,13 @@ export function evaluateIssueGate(f: IssueGateFacts): IssueGateVerdict {
       .filter((a) => ownerStageIds.has(a.stageId) && (cycleStart === null || a.createdAt.getTime() > cycleStart))
       .reduce<number | null>((latest, a) => Math.max(latest ?? -Infinity, a.createdAt.getTime()), null);
     const push = f.pushEvidence;
-    if (!push) violations.push("push_missing");
-    else if (ownerApprovedAt === null || push.createdAt.getTime() <= ownerApprovedAt) violations.push("push_stale");
+    const fresh = !!push && ownerApprovedAt !== null && push.createdAt.getTime() > ownerApprovedAt;
+    if (bugFindingRoot) {
+      // Ticket tổng Bug Finding: integrator tự merge PR, `pushed=pr` (PR còn mở) không đủ.
+      if (!push || !fresh || !push.merge || !push.pr) violations.push("merge_missing");
+      else if (push.sha !== f.docsEvidence?.evidence.commit) violations.push("push_sha_mismatch");
+    } else if (!push) violations.push("push_missing");
+    else if (!fresh) violations.push("push_stale");
     else if (push.sha !== f.docsEvidence?.evidence.commit) violations.push("push_sha_mismatch");
   }
 
@@ -554,6 +673,7 @@ export async function crewBeforeIssueWrite(input: IssueWriteHookInput): Promise<
   };
   const cycle = await latestActivity(CREW_CYCLE_RESET_ACTION);
   const ownerRestart = await latestActivity(CREW_OWNER_CHANGES_RESTART_ACTION);
+  const bugFindingRestart = await latestActivity(CREW_BUG_FINDING_RESTART_ACTION);
 
   const pinnedPolicy = effectivePolicy(locked, patch);
   // Bằng chứng docs chỉ cũ đi khi stage docs chạy lại: yêu cầu sửa ở stage docs hay trước nó (stock nộp lại về đúng
@@ -569,6 +689,7 @@ export async function crewBeforeIssueWrite(input: IssueWriteHookInput): Promise<
     .filter((d) => d.outcome === "changes_requested" && !afterDocsStageIds.has(d.stageId))
     .map((d) => d.createdAt.getTime());
   if (ownerRestart) changes.push(ownerRestart.createdAt.getTime());
+  if (bugFindingRestart) changes.push(bugFindingRestart.createdAt.getTime());
   const agentsOf = (stages: IssueExecutionStage[]) => [
     ...new Set(stages.flatMap((stage) => stage.participants.flatMap((p) => (p.type === "agent" && p.agentId ? [p.agentId] : [])))),
   ];
@@ -599,6 +720,18 @@ export async function crewBeforeIssueWrite(input: IssueWriteHookInput): Promise<
   const pushParsed = pushComment ? parseCrewMergeEvidence(pushComment.body) : null;
   if (pushComment && pushParsed) pushEvidence = { ...pushParsed, createdAt: pushComment.createdAt };
 
+  // Ticket tổng Bug Finding: PR của stage gộp, lượt Bug Finding (chỉ khi lệnh ghi đổi trạng thái/state).
+  const bugFindingRoot = isBugFindingRootPolicy(pinnedPolicy);
+  const writesState = has(patch, "status") || has(patch, "executionState");
+  let prEvidence: IssueGateFacts["prEvidence"] = null;
+  let bugFindingRuns: BugFindingRunFact[] = [];
+  if (bugFindingRoot) {
+    const prComment = await latestComment(agentsOf(prGateStages(pinnedPolicy)), "crew-pr");
+    const prParsed = prComment ? parseCrewPrEvidence(prComment.body) : null;
+    if (prComment && prParsed) prEvidence = { ...prParsed, createdAt: prComment.createdAt };
+    if (writesState) bugFindingRuns = await bugFindingRunReader({ db: tx, companyId: locked.companyId, issueId });
+  }
+
   // Việc con board thêm dưới issue gốc, chưa xong: chỉ cần khi agent đổi trạng thái/state của issue gốc. Đọc trong
   // transaction của lệnh ghi.
   let openBoardChildren = 0;
@@ -616,6 +749,45 @@ export async function crewBeforeIssueWrite(input: IssueWriteHookInput): Promise<
         ),
       );
     openBoardChildren = row?.count ?? 0;
+  }
+
+  // Ticket tổng Bug Finding, agent ghi lên gốc: con chưa xong của lô `bf-fix-<k>` mới nhất (theo `crew-bf-triage` của
+  // chính agent đó; con thuộc lô khi mô tả có `crew-child … revision=bf-fix-<k>` hoặc `crew-bf finding=… run=<n>`) và
+  // thẻ hỏi `crew-bf:` còn chờ.
+  let openBugFindingBatchChildren = 0;
+  let openBugFindingQuestions = 0;
+  if (bugFindingRoot && actor.kind === "agent" && !locked.parentId && writesState) {
+    const triageComment = await latestComment([actor.agentId], "crew-bf-triage");
+    const triage = triageComment ? parseBugFindingTriage(triageComment.body) : null;
+    if (triage) {
+      const batchLine = String.raw`(^|\n)crew-child key=\S+ revision=bf-fix-${triage.batch}[ \t\r]*(\n|$)`;
+      const findingLine = String.raw`(^|\n)crew-bf finding=\S+ run=${triage.run}([ \t\r]|\n|$)`;
+      const [row] = await tx
+        .select({ count: sql<number>`count(*)::int` })
+        .from(issues)
+        .where(
+          and(
+            eq(issues.companyId, locked.companyId),
+            eq(issues.parentId, issueId),
+            notInArray(issues.status, [...TERMINAL_STATUSES]),
+            sql`(${issues.description} ~ ${batchLine} OR ${issues.description} ~ ${findingLine})`,
+          ),
+        );
+      openBugFindingBatchChildren = row?.count ?? 0;
+    }
+    const [questions] = await tx
+      .select({ count: sql<number>`count(*)::int` })
+      .from(issueThreadInteractions)
+      .where(
+        and(
+          eq(issueThreadInteractions.companyId, locked.companyId),
+          eq(issueThreadInteractions.issueId, issueId),
+          eq(issueThreadInteractions.kind, "ask_user_questions"),
+          eq(issueThreadInteractions.status, "pending"),
+          like(issueThreadInteractions.idempotencyKey, "crew-bf:%"),
+        ),
+      );
+    openBugFindingQuestions = questions?.count ?? 0;
   }
 
   // Issue watchdog/recovery chỉ được miễn khi người ghi không phải agent đang làm issue nguồn.
@@ -646,7 +818,11 @@ export async function crewBeforeIssueWrite(input: IssueWriteHookInput): Promise<
     lastChangesRequestedAt: changes.length > 0 ? new Date(Math.max(...changes)) : null,
     docsEvidence,
     pushEvidence,
+    prEvidence,
+    bugFindingRuns,
     openBoardChildren,
+    openBugFindingBatchChildren,
+    openBugFindingQuestions,
   });
   if (verdict.kind === "block") {
     const message =
@@ -708,7 +884,8 @@ export async function crewBeforeIssueWrite(input: IssueWriteHookInput): Promise<
   if (restarted) {
     input.patch.executionState = restarted as typeof input.patch.executionState;
     const lockedState = parseIssueExecutionState(locked.executionState);
-    await activity(CREW_OWNER_CHANGES_RESTART_ACTION, {
+    const bugFindingStage = bugFindingRestartStages(pinnedPolicy).some((s) => s.id === lockedState?.currentStageId);
+    await activity(bugFindingStage ? CREW_BUG_FINDING_RESTART_ACTION : CREW_OWNER_CHANGES_RESTART_ACTION, {
       stageId: lockedState?.currentStageId ?? null,
       decisionId: restarted.lastDecisionId ?? null,
       clearedStageIds: lockedState?.completedStageIds ?? [],

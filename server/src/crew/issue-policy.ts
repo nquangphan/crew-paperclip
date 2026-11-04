@@ -261,26 +261,58 @@ export function policyGateFingerprint(policy: unknown): string {
   );
 }
 
+const GITHUB_PR_URL = String.raw`https:\/\/github\.com\/[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+\/pull\/[1-9][0-9]*`;
+
 /**
  * `pushed=yes`: đã push thẳng vào nhánh mặc định (repo không ở GitHub). `pushed=pr pr=<url>`: đã đẩy nhánh
- * `crew/req/<identifier>` và mở pull request vào nhánh mặc định; owner bấm Merge trên GitHub.
+ * `crew/req/<identifier>` và mở pull request vào nhánh mặc định; owner bấm Merge trên GitHub. `pushed=merged pr=<url>
+ * merge=<sha>`: integrator đã merge pull request (ticket tổng Bug Finding), `merge` là commit merge trên nhánh mặc định.
  */
-export const CREW_MERGE_RE =
-  /^crew-merge sha=([0-9a-f]{40}) branch=(\S+) pushed=(?:yes|pr pr=(https:\/\/github\.com\/[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+\/pull\/[1-9][0-9]*))$/;
+export const CREW_MERGE_RE = new RegExp(
+  `^crew-merge sha=([0-9a-f]{40}) branch=(\\S+) pushed=(?:yes|pr pr=(${GITHUB_PR_URL})|merged pr=(${GITHUB_PR_URL}) merge=([0-9a-f]{40}))$`,
+);
 
 export interface CrewMergeEvidence {
   sha: string;
   branch: string;
   /** URL pull request khi integrator mở PR thay vì push thẳng; `null` với `pushed=yes`. */
   pr: string | null;
+  /** Commit merge của pull request, chỉ có với `pushed=merged`. */
+  merge?: string;
 }
 
-/** Báo giao code của integrator ở stage push: chỉ dòng đầu, `pushed=yes` hoặc `pushed=pr pr=<url GitHub>`. */
+/** Báo giao code của integrator ở stage push: chỉ dòng đầu, `pushed=yes`, `pushed=pr pr=<url>` hoặc `pushed=merged`. */
 export function parseCrewMergeEvidence(body: string): CrewMergeEvidence | null {
   const first = body.split("\n", 1)[0]?.trim() ?? "";
   const match = CREW_MERGE_RE.exec(first);
   if (!match) return null;
-  return { sha: match[1] as string, branch: match[2] as string, pr: match[3] ?? null };
+  const evidence: CrewMergeEvidence = { sha: match[1] as string, branch: match[2] as string, pr: match[3] ?? match[4] ?? null };
+  if (match[5]) evidence.merge = match[5];
+  return evidence;
+}
+
+/** Bằng chứng pull request của integrator ở stage gộp của ticket tổng Bug Finding: `sha` là head PR (merged commit). */
+export const CREW_PR_RE = new RegExp(`^crew-pr sha=([0-9a-f]{40}) pr=(${GITHUB_PR_URL})$`);
+
+export interface CrewPrEvidence {
+  sha: string;
+  pr: string;
+}
+
+/** Chỉ dòng đầu, đúng `crew-pr sha=<40 hex> pr=<URL pull request GitHub>`. */
+export function parseCrewPrEvidence(body: string): CrewPrEvidence | null {
+  const first = body.split("\n", 1)[0]?.trim() ?? "";
+  const match = CREW_PR_RE.exec(first);
+  return match ? { sha: match[1] as string, pr: match[2] as string } : null;
+}
+
+/** Kế hoạch lô sửa finding của Trợ Lý: `crew-bf-triage run=<n> batch=bf-fix-<k> …` ở dòng đầu. */
+export const CREW_BF_TRIAGE_RE = /^crew-bf-triage run=([1-9][0-9]*) batch=bf-fix-([1-9][0-9]*)(?=$|\s)/;
+
+export function parseBugFindingTriage(body: string): { run: number; batch: number } | null {
+  const first = body.split("\n", 1)[0]?.trim() ?? "";
+  const match = CREW_BF_TRIAGE_RE.exec(first);
+  return match ? { run: Number(match[1]), batch: Number(match[2]) } : null;
 }
 
 /**

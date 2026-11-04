@@ -52,7 +52,8 @@ Luật áp theo company:
 3. `server/src/crew/issue-policy.ts` → `buildCrewPolicy`: dựng template đã normalize, `maxReviewRounds` là
    `CREW_MAX_REVIEW_ROUNDS` (5). Gốc: reviewer, integrator (merge + docs), owner, integrator (push). Gốc Bug Finding
    (`root-bf`): integrator (gộp + docs + PR), reviewer (cầu nối Bug Finding, không review code), owner, integrator
-   (merge PR); gate riêng của các stage này chưa có, nên chỉ bật `bugFinding.enabled` khi gate `root-bf` đã lên bản. Research, bmad và
+   (merge PR); gate của các stage này ở bước 5 (lượt Bug Finding đọc qua `setBugFindingRunReader`, chưa nối bảng lượt
+   thì stage cầu nối không qua được, nên chỉ bật `bugFinding.enabled` khi bảng lượt đã lên bản). Research, bmad và
    design: reviewer, owner (owner duyệt mockup trước khi con code giao diện bị chặn bởi nó được chạy). Con: reviewer.
 4. `server/src/crew/issue-gate.ts` → `crewBeforeIssueWrite` (H2): kiểm override model trước, rồi khi patch chạm
    `status`, `executionPolicy`, `executionState`, `assigneeAgentId` hoặc `projectId` thì khóa dòng issue, đọc vai trò
@@ -68,8 +69,21 @@ Luật áp theo company:
      stage docs (`docsGateStages`) cần comment `crew-docs-check` mới, `exit=0` (`exit=3` repo chưa init thì cho qua kèm
      activity); stage push (`pushGateStages`) cần comment `crew-merge` sau lần owner duyệt và đúng commit của bằng chứng
      docs.
+   - ticket tổng Bug Finding (`isBugFindingRootPolicy`: 4 stage `review` integrator, `review` reviewer, `approval` owner,
+     `review` integrator, nhận theo vị trí như `crewPolicyKind` `code-bf` của plugin): stage docs là stage 0 và
+     `prGateStages` (stage 0) cần thêm `crew-pr sha=<merged commit> pr=<URL>` mới hơn bằng chứng docs (`pr_missing`,
+     `pr_sha_mismatch`); `bugFindingGateStages` (stage 1) cần lượt Bug Finding `succeeded` hoặc `skipped` cho đúng head PR
+     (sha của `crew-pr` mới nhất), thiếu thì `bf_missing`; stage merge cần `crew-merge … pushed=merged pr=<URL>
+     merge=<sha>` sau lần owner duyệt (`pushed=pr`/`yes` hay cũ hơn owner: `merge_missing`) và đúng commit của bằng
+     chứng docs (`push_sha_mismatch`);
+   - Trợ Lý nộp lại ticket tổng Bug Finding khi lô `bf-fix-<k>` mới nhất (comment `crew-bf-triage run=<n>
+     batch=bf-fix-<k>` mới nhất của chính agent nộp) còn con chưa xong (mô tả có `crew-child … revision=bf-fix-<k>` hoặc
+     `crew-bf finding=… run=<n>`, chưa `done`/`cancelled`) bị chặn `bf_batch_open`; còn thẻ `ask_user_questions`
+     `pending` có `idempotencyKey` bắt đầu `crew-bf:` bị chặn `bf_questions_open`.
 6. `server/src/crew/issue-gate.ts` → phần sau verdict: mở lại issue Crew xóa `executionState` và trả việc cho executor
-   (`reopenHandBack`); owner yêu cầu sửa ở stage owner thì chạy lại từ stage đầu (`restartAfterOwnerChanges`); board ép
+   (`reopenHandBack`); owner yêu cầu sửa ở stage owner, hay reviewer cầu nối yêu cầu sửa ở stage Bug Finding
+   (`bugFindingRestartStages`), thì chạy lại từ stage đầu (`restartAfterOwnerChanges`; activity
+   `crew.gate.owner_changes_restart` hoặc `crew.gate.bug_finding_restart`, cả hai làm bằng chứng docs cũ đi); board ép
    `done` xóa state treo; `routeAssigneeOverrides` đặt override theo vai trò khi đổi giữa executor và agent của stage
    (reviewer Codex theo vai `reviewer-codex`, reviewer Claude trên gốc theo vai `reviewer-root` của cài đặt model,
    dựng bằng `codexReviewerOverrides`/`rootReviewerOverrides`; executor lấy lại override để lại lần trước nếu còn hợp
@@ -85,25 +99,27 @@ Luật áp theo company:
 
 | Đường dẫn | Vai trò | Symbol chính |
 |-----------|---------|--------------|
-| `server/src/crew/issue-gate.ts` | H2: kiểm lệnh ghi issue | `crewBeforeIssueWrite`, `evaluateIssueGate`, `docsGateStages`, `pushGateStages`, `restartAfterOwnerChanges`, `CREW_CYCLE_RESET_ACTION` |
+| `server/src/crew/issue-gate.ts` | H2: kiểm lệnh ghi issue | `crewBeforeIssueWrite`, `evaluateIssueGate`, `docsGateStages`, `pushGateStages`, `prGateStages`, `bugFindingGateStages`, `bugFindingRestartStages`, `setBugFindingRunReader`, `restartAfterOwnerChanges`, `CREW_CYCLE_RESET_ACTION` |
 | `server/src/crew/issue-create-policy.ts` | H4: chọn template, từ chối tạo sai luật | `crewBeforeIssueCreate`, `decideCreatePolicy`, `CREW_BMAD_KIND_RE`, `CREW_DESIGN_KIND_RE`, `executorRuntimeOf`, `withProjectTag` |
-| `server/src/crew/issue-policy.ts` | File cấu hình, template policy, parser bằng chứng | `loadCrewCompanyConfig`, `buildCrewPolicy`, `parseCrewMergeEvidence`, `parseDocsCheckEvidence`, `CREW_HOUSEKEEPING_ORIGIN_KINDS` |
+| `server/src/crew/issue-policy.ts` | File cấu hình, template policy, parser bằng chứng | `loadCrewCompanyConfig`, `buildCrewPolicy`, `parseCrewMergeEvidence`, `parseCrewPrEvidence`, `parseBugFindingTriage`, `parseDocsCheckEvidence`, `CREW_HOUSEKEEPING_ORIGIN_KINDS` |
 | `server/src/crew/model-policy.ts` | Bảng runtime/model mặc định, luật override, chọn reviewer | `CREW_RUNTIME_CATALOG`, `CREW_RUNTIME_ORDER`, `checkAgentAdapterOverrides`, `chooseReviewer`, `CREW_CODEX_REVIEWER_MODEL` |
 | `server/src/services/issues.ts` | File upstream chứa H2, H4 | `issueService.create`, `issueService.update` |
 
 ## Dữ liệu
 
 - Bảng lõi đọc: `issues` (khóa `for update`), `issue_execution_decisions`, `issue_comments` (bằng chứng), `activity_log`
-  (mốc vòng), `agents`, `labels`, `routines`, `routine_triggers`. Ghi: chỉ cột của chính lệnh ghi issue
+  (mốc vòng), `agents`, `labels`, `routines`, `routine_triggers`, `issue_thread_interactions` (thẻ hỏi `crew-bf:` của
+  ticket tổng Bug Finding). Ghi: chỉ cột của chính lệnh ghi issue
   (`executionPolicy`, `executionState`, `assigneeAgentId`, `assigneeAdapterOverrides`) và `activity_log`.
-- Activity: `crew.gate.cycle_reset`, `crew.gate.owner_changes_restart`, `crew.gate.reopen_executor_unknown`,
+- Activity: `crew.gate.cycle_reset`, `crew.gate.owner_changes_restart`, `crew.gate.bug_finding_restart`, `crew.gate.reopen_executor_unknown`,
   `crew.policy.board_override`, `crew.gate.codex_reviewer_fallback`, `crew.docs_gate.uninitialized`,
   `crew.assignee_overrides.handoff`.
 - Lỗi trả về: 422 với `code` `crew_policy_locked`, `crew_project_locked`, `crew_gate_blocked`, `crew_role_assignee`,
   `crew_assignment_forbidden`, `crew_override_forbidden`, `crew_agent_root_issue`, `crew_roles_unconfigured`,
   `crew_project_outside_parent`, `crew_routine_issue_forbidden`.
 - Comment bằng chứng (dòng đầu): `crew-docs-check commit=… range=…..… exit=N` (`CREW_DOCS_CHECK_RE`),
-  `crew-merge sha=… branch=… pushed=yes|pr pr=<url>` (`CREW_MERGE_RE`).
+  `crew-merge sha=… branch=… pushed=yes|pr pr=<url>|merged pr=<url> merge=<sha>` (`CREW_MERGE_RE`),
+  `crew-pr sha=… pr=<url>` (`CREW_PR_RE`), `crew-bf-triage run=<n> batch=bf-fix-<k> …` (`CREW_BF_TRIAGE_RE`).
 - Env: `CREW_POLICY_CONFIG` (đường dẫn file JSON chỉ đọc; công cụ sửa ở flow `ops-tools`). Mỗi company trong file có thể
   có `bugFinding: { enabled: boolean }` (mặc định tắt; sai kiểu thì cấu hình `invalid`).
 - Bảng plugin đọc ở H4: `project_repos.origin_url` (chỉ khi company bật Bug Finding).

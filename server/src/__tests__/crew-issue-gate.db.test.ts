@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import { and, eq } from "drizzle-orm";
 import {
   activityLog,
@@ -15,11 +15,17 @@ import {
   issueComments,
   issueExecutionDecisions,
   issues,
+  issueThreadInteractions,
   toolApplications,
   toolConnections,
 } from "@paperclipai/db";
 import { getEmbeddedPostgresTestSupport, startEmbeddedPostgresTestDatabase } from "./helpers/embedded-postgres.js";
-import { CREW_OWNER_CHANGES_RESTART_ACTION } from "../crew/issue-gate.ts";
+import {
+  type BugFindingRunFact,
+  CREW_BUG_FINDING_RESTART_ACTION,
+  CREW_OWNER_CHANGES_RESTART_ACTION,
+  setBugFindingRunReader,
+} from "../crew/issue-gate.ts";
 import { buildCrewPolicy, CREW_POLICY_CONFIG_ENV } from "../crew/issue-policy.ts";
 import {
   applyIssueExecutionPolicyTransition,
@@ -114,6 +120,7 @@ suite("crew issue gate in issueService.update", () => {
       reviewerId,
       integratorId,
       root: buildCrewPolicy("root", roles, "owner-1"),
+      rootBf: buildCrewPolicy("root-bf", roles, "owner-1"),
       legacyRoot,
       child: buildCrewPolicy("child", roles),
       executor: agentP(executorId),
@@ -1311,5 +1318,175 @@ suite("crew issue gate in issueService.update", () => {
     expect(after!.status).toBe("in_review");
     expect(after!.executionState).toEqual(before!.executionState);
     expect(await overridesOf(issueId)).toHaveLength(0);
+  });
+
+  describe("ticket tổng Bug Finding (root-bf)", () => {
+    const PR = "https://github.com/acme/app/pull/87";
+    const MERGE = "d".repeat(40);
+    const runs = new Map<string, BugFindingRunFact[]>();
+    afterEach(() => {
+      runs.clear();
+      setBugFindingRunReader(null);
+    });
+    const useRuns = () => setBugFindingRunReader(async ({ issueId }) => runs.get(issueId) ?? []);
+    // Mốc thời gian của comment lấy theo DB; cách nhau vài ms để "mới hơn" không bị trùng mili giây khi đọc ra Date.
+    const tick = () => new Promise((resolve) => setTimeout(resolve, 5));
+    const post = async (c: Company, issueId: string, author: string, body: string) => {
+      await tick();
+      await postComment(c, issueId, author, body);
+      await tick();
+    };
+    const blocked = (violations: string[]) => ({ status: 422, details: { code: "crew_gate_blocked", violations } });
+
+    async function rootBfAtBridge(c: Company, sha = SHA_HEAD) {
+      const issueId = await issue(c, { status: "in_progress", assigneeAgentId: c.executorId, executionPolicy: c.rootBf });
+      const [sMerge] = c.rootBf.stages.map((s) => s.id) as [string];
+      expect(await act(c, issueId, { agentId: c.executorId }, "done")).toMatchObject({
+        status: "in_review",
+        assigneeAgentId: c.integratorId,
+        executionState: { status: "pending", currentStageId: sMerge },
+      });
+      await post(c, issueId, c.integratorId, docsLineFor(sha, 0));
+      await post(c, issueId, c.integratorId, `crew-pr sha=${sha} pr=${PR}`);
+      expect(await act(c, issueId, { agentId: c.integratorId }, "done")).toMatchObject({ assigneeAgentId: c.reviewerId });
+      return issueId;
+    }
+
+    it("luồng đủ: gộp + crew-pr → Bug Finding cho head PR → owner → crew-merge pushed=merged → done", async () => {
+      useRuns();
+      const c = await company();
+      const issueId = await issue(c, { status: "in_progress", assigneeAgentId: c.executorId, executionPolicy: c.rootBf });
+      const [sMerge, sBridge, sOwner, sLand] = c.rootBf.stages.map((s) => s.id) as [string, string, string, string];
+      await act(c, issueId, { agentId: c.executorId }, "done");
+
+      // Stage 0: docs rồi PR đúng merged commit.
+      await post(c, issueId, c.integratorId, docsLine(0));
+      await expect(act(c, issueId, { agentId: c.integratorId }, "done")).rejects.toMatchObject(blocked(["pr_missing"]));
+      await post(c, issueId, c.integratorId, `crew-pr sha=${SHA_BASE} pr=${PR}`);
+      await expect(act(c, issueId, { agentId: c.integratorId }, "done")).rejects.toMatchObject(blocked(["pr_sha_mismatch"]));
+      await post(c, issueId, c.executorId, `crew-pr sha=${SHA_HEAD} pr=${PR}`);
+      await expect(act(c, issueId, { agentId: c.integratorId }, "done")).rejects.toMatchObject(blocked(["pr_sha_mismatch"]));
+      await post(c, issueId, c.integratorId, `crew-pr sha=${SHA_HEAD} pr=${PR}`);
+      expect(await act(c, issueId, { agentId: c.integratorId }, "done")).toMatchObject({
+        assigneeAgentId: c.reviewerId,
+        executionState: { status: "pending", currentStageId: sBridge, completedStageIds: [sMerge] },
+      });
+
+      // Stage 1: cần lượt succeeded cho đúng head PR.
+      await expect(act(c, issueId, { agentId: c.reviewerId }, "done")).rejects.toMatchObject(blocked(["bf_missing"]));
+      runs.set(issueId, [{ headSha: SHA_BASE, state: "succeeded" }, { headSha: SHA_HEAD, state: "running" }]);
+      await expect(act(c, issueId, { agentId: c.reviewerId }, "done")).rejects.toMatchObject(blocked(["bf_missing"]));
+      runs.set(issueId, [{ headSha: SHA_HEAD, state: "succeeded" }]);
+      expect(await act(c, issueId, { agentId: c.reviewerId }, "done")).toMatchObject({
+        assigneeUserId: "owner-1",
+        executionState: { status: "pending", currentStageId: sOwner, completedStageIds: [sMerge, sBridge] },
+      });
+
+      // Owner duyệt, rồi stage 3: pushed=pr chưa đủ, phải merge.
+      await post(c, issueId, c.integratorId, `crew-merge sha=${SHA_HEAD} branch=crew/req/X pushed=merged pr=${PR} merge=${MERGE}`);
+      expect(await act(c, issueId, { userId: "owner-1" }, "done")).toMatchObject({
+        assigneeAgentId: c.integratorId,
+        executionState: { status: "pending", currentStageId: sLand },
+      });
+      await expect(act(c, issueId, { agentId: c.integratorId }, "done")).rejects.toMatchObject(blocked(["merge_missing"]));
+      await post(c, issueId, c.integratorId, `crew-merge sha=${SHA_HEAD} branch=crew/req/X pushed=pr pr=${PR}`);
+      await expect(act(c, issueId, { agentId: c.integratorId }, "done")).rejects.toMatchObject(blocked(["merge_missing"]));
+      await post(c, issueId, c.integratorId, `crew-merge sha=${SHA_BASE} branch=crew/req/X pushed=merged pr=${PR} merge=${MERGE}`);
+      await expect(act(c, issueId, { agentId: c.integratorId }, "done")).rejects.toMatchObject(blocked(["push_sha_mismatch"]));
+      await post(c, issueId, c.integratorId, `crew-merge sha=${SHA_HEAD} branch=crew/req/X pushed=merged pr=${PR} merge=${MERGE}`);
+      expect(await act(c, issueId, { agentId: c.integratorId }, "done")).toMatchObject({ status: "done" });
+    });
+
+    it("chưa đặt reader lượt Bug Finding: stage cầu nối không qua được", async () => {
+      const c = await company();
+      const issueId = await rootBfAtBridge(c);
+      await expect(act(c, issueId, { agentId: c.reviewerId }, "done")).rejects.toMatchObject(blocked(["bf_missing"]));
+    });
+
+    it("reviewer cần sửa ở stage cầu nối: Trợ Lý chờ hết lô bf-fix và thẻ hỏi crew-bf, rồi nộp lại từ stage gộp với docs và PR mới", async () => {
+      useRuns();
+      const c = await company();
+      const issueId = await rootBfAtBridge(c);
+      const [sMerge, sBridge] = c.rootBf.stages.map((s) => s.id) as [string, string];
+      runs.set(issueId, [{ headSha: SHA_HEAD, state: "succeeded" }]);
+
+      expect(await act(c, issueId, { agentId: c.reviewerId }, "in_progress")).toMatchObject({
+        status: "in_progress",
+        assigneeAgentId: c.executorId,
+        executionState: { status: "changes_requested", currentStageId: null, completedStageIds: [] },
+      });
+      const restarts = await db
+        .select()
+        .from(activityLog)
+        .where(and(eq(activityLog.entityId, issueId), eq(activityLog.action, CREW_BUG_FINDING_RESTART_ACTION)));
+      expect(restarts).toMatchObject([{ details: { stageId: sBridge, clearedStageIds: [sMerge] } }]);
+      expect(await restartActivities(issueId)).toHaveLength(0);
+
+      // Kế hoạch lô của Trợ Lý; lô cũ (bf-fix-1) không còn tính khi đã có lô mới hơn.
+      await post(c, issueId, c.executorId, "crew-bf-triage run=1 batch=bf-fix-1 fix=F-09");
+      await post(c, issueId, c.reviewerId, "crew-bf-triage run=9 batch=bf-fix-9 fix=F-01");
+      await post(c, issueId, c.executorId, "crew-bf-triage run=2 batch=bf-fix-2 fix=F-01,F-02 ask=F-04 dismiss=F-05");
+      const agentChild = (description: string, status: string) =>
+        issue(c, {
+          parentId: issueId,
+          status,
+          description,
+          assigneeAgentId: c.executorId,
+          executionPolicy: c.child,
+          createdByUserId: null,
+          createdByAgentId: c.executorId,
+        });
+      await agentChild("Sửa cũ\ncrew-child key=f-09 revision=bf-fix-1", "in_progress");
+      await agentChild("Sửa lô khác\ncrew-child key=f-01 revision=bf-fix-9", "in_progress");
+      const fix1 = await agentChild(`Sửa F-01\ncrew-fix base=${SHA_HEAD}\ncrew-bf finding=F-01 run=2\ncrew-child key=f-01 revision=bf-fix-2`, "in_progress");
+      const fix2 = await agentChild(`Sửa F-02\ncrew-bf finding=F-02 run=2`, "todo");
+      const e2e = await agentChild("E2E lô\ncrew-child key=e2e-fix-1 revision=bf-fix-2", "blocked");
+      const [question] = await db
+        .insert(issueThreadInteractions)
+        .values({
+          companyId: c.companyId,
+          issueId,
+          kind: "ask_user_questions",
+          status: "pending",
+          idempotencyKey: `crew-bf:${issueId}:2`,
+          createdByAgentId: c.executorId,
+          payload: { version: 1, questions: [] } as never,
+        })
+        .returning({ id: issueThreadInteractions.id });
+      await db.insert(issueThreadInteractions).values({
+        companyId: c.companyId,
+        issueId,
+        kind: "ask_user_questions",
+        status: "pending",
+        idempotencyKey: "other:1",
+        createdByAgentId: c.executorId,
+        payload: { version: 1, questions: [] } as never,
+      });
+
+      await expect(act(c, issueId, { agentId: c.executorId }, "done")).rejects.toMatchObject(
+        blocked(["bf_batch_open", "bf_questions_open"]),
+      );
+      for (const id of [fix1, fix2]) await db.update(issues).set({ status: "done" }).where(eq(issues.id, id));
+      await db.update(issues).set({ status: "cancelled" }).where(eq(issues.id, e2e));
+      await expect(act(c, issueId, { agentId: c.executorId }, "done")).rejects.toMatchObject(blocked(["bf_questions_open"]));
+      await db.update(issueThreadInteractions).set({ status: "answered" }).where(eq(issueThreadInteractions.id, question!.id));
+
+      // Nộp lại về stage gộp: docs và PR của vòng trước cũ đi, phải gộp lại cho head mới.
+      expect(await act(c, issueId, { agentId: c.executorId }, "done")).toMatchObject({
+        assigneeAgentId: c.integratorId,
+        executionState: { status: "pending", currentStageId: sMerge, completedStageIds: [] },
+      });
+      await expect(act(c, issueId, { agentId: c.integratorId }, "done")).rejects.toMatchObject(blocked(["docs_stale"]));
+      await post(c, issueId, c.integratorId, docsLineFor(SHA_FIX, 0));
+      await expect(act(c, issueId, { agentId: c.integratorId }, "done")).rejects.toMatchObject(blocked(["pr_missing"]));
+      await post(c, issueId, c.integratorId, `crew-pr sha=${SHA_FIX} pr=${PR}`);
+      expect(await act(c, issueId, { agentId: c.integratorId }, "done")).toMatchObject({
+        executionState: { status: "pending", currentStageId: sBridge, completedStageIds: [sMerge] },
+      });
+      // Lượt cũ cho head trước không tính cho head mới.
+      await expect(act(c, issueId, { agentId: c.reviewerId }, "done")).rejects.toMatchObject(blocked(["bf_missing"]));
+      runs.set(issueId, [{ headSha: SHA_HEAD, state: "succeeded" }, { headSha: SHA_FIX, state: "skipped" }]);
+      expect(await act(c, issueId, { agentId: c.reviewerId }, "done")).toMatchObject({ assigneeUserId: "owner-1" });
+    });
   });
 });
