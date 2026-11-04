@@ -289,6 +289,13 @@
       "button": "Mở lại",
       "title": "Mở lại yêu cầu này?",
       "body": "Yêu cầu về trạng thái Cần làm, các stage chạy lại từ đầu ở vòng mới."
+    },
+    "approveMerge": {
+      "button": "Duyệt và merge",
+      "title": "Duyệt và merge yêu cầu này?",
+      "body": "Bấm Duyệt và merge thì integrator merge {{pr}} vào nhánh mặc định ngay (không cần bấm Merge trên GitHub). Nhánh mặc định đã đi tiếp mà conflict thì integrator dừng và báo lại ở đây.",
+      "default": "Đã xem kết quả Bug Finding, duyệt và merge.",
+      "changesBody": "Trợ Lý lập lô sửa, cả luồng chạy lại từ bước gộp code; Bug Finding chỉ chạy lại khi commit PR đổi."
     }
   },
   "crew": {
@@ -486,5 +493,85 @@
     "openChild": "Mở việc con",
     "failedUploads": "Chưa tải lên được: {{names}}. Mở việc con để đính kèm lại.",
     "dismiss": "Đóng"
+  },
+  "bugFinding": {
+    "title": "Bug Finding",
+    "failed": "Không tải được lượt Bug Finding",
+    "batches": "Lô sửa tự động: {{used}} / tối đa {{max}}",
+    "rerunNote": "Bug Finding chỉ chạy lại một lần sau khi toàn bộ việc con sửa của lô xong, không chạy theo từng việc con. Muốn xem lane, log trực tiếp: mở app Bug Finding trên Mac.",
+    "empty": "Chưa có lượt Bug Finding. Server tự xếp lượt khi ticket tổng vào bước Review Bug Finding.",
+    "runLabel": "Bug Finding lượt {{run}}",
+    "runLabelRound": "Bug Finding vòng {{round}} lượt {{run}}",
+    "runOf": "Lượt {{run}} / tối đa {{max}}",
+    "prShort": "PR #{{number}}",
+    "findingCount": "{{count}} finding",
+    "minutes": "{{count}} phút",
+    "lanes": "{{done}}/{{total}} lane xong",
+    "progressLabel": "Tiến độ lane",
+    "noProgress": "App Bug Finding chưa báo tiến độ",
+    "brokenTitle": "Lượt này không xong",
+    "noError": "Không có lý do kèm theo.",
+    "skipped": "Owner đã cho bỏ qua Bug Finding cho head PR này.",
+    "noTriage": "Trợ Lý chưa phân loại finding của lượt này.",
+    "noFindings": "Không có finding.",
+    "noFixIssue": "Chưa tạo việc con",
+    "askHint": "Câu hỏi cho owner nằm ở thẻ hỏi của Trợ Lý trên ticket này, kèm đề xuất.",
+    "batchProgress": "Lô sửa bf-fix-{{batch}}: {{done}}/{{total}} xong · Bug Finding chạy lại một lần khi cả lô xong và câu hỏi đã trả lời",
+    "state": {
+      "requested": "Chờ máy nhận",
+      "queued": "Đang xếp hàng trên Mac",
+      "running": "Đang chạy",
+      "succeeded": "Xong",
+      "failed": "Lỗi",
+      "timeout": "Hết giờ",
+      "cancelled": "Đã hủy",
+      "skipped": "Owner cho bỏ qua"
+    },
+    "prop": {
+      "pr": "Pull request",
+      "commit": "Commit review",
+      "run": "Lượt",
+      "progress": "Tiến độ",
+      "since": "Bắt đầu",
+      "cost": "Chi phí",
+      "report": "Báo cáo đầy đủ"
+    },
+    "col": {
+      "finding": "Finding",
+      "severity": "Mức",
+      "location": "Vị trí",
+      "fixIssue": "Việc con sửa",
+      "status": "Trạng thái",
+      "question": "Câu hỏi",
+      "reason": "Lý do (gửi kèm lần chạy lại)",
+      "handling": "Xử lý",
+      "lastRun": "Lượt cuối"
+    },
+    "group": {
+      "fix": "Trợ Lý tự sửa ({{count}})",
+      "ask": "Cần owner chốt ({{count}})",
+      "dismiss": "Trợ Lý bỏ qua ({{count}})",
+      "other": "Finding khác ({{count}})",
+      "all": "Finding ({{count}})",
+      "fixShort": "Trợ Lý tự sửa",
+      "askShort": "Cần owner chốt",
+      "dismissShort": "Trợ Lý bỏ qua (có lý do)"
+    },
+    "handling": {
+      "fix": "Trợ Lý sửa",
+      "fixWith": "Trợ Lý sửa · {{issues}}",
+      "ask": "Hỏi owner",
+      "dismiss": "Trợ Lý bỏ qua",
+      "dismissWith": "Trợ Lý bỏ qua: {{reason}}"
+    },
+    "approval": {
+      "final": "Kết quả cuối",
+      "onHead": "lượt {{run}} trên {{sha}} (đúng commit sẽ merge)",
+      "offHead": "lượt {{run}} trên {{sha}} (khác head PR hiện tại {{head}})"
+    },
+    "strip": {
+      "run": "Lượt {{run}} / tối đa {{max}} · {{state}}",
+      "merge": "Integrator merge PR sau khi duyệt"
+    }
   }
 }

@@ -43,6 +43,7 @@ export * from './widgets/attachment-viewer-logic';
 export * from './widgets/bar-chart';
 export * from './widgets/code-block';
 export * from './widgets/confirm-dialog';
+export * from './widgets/crew/bug-finding-parts';
 export * from './widgets/crew/crew-map';
 export * from './widgets/crew/crew-summary';
 export * from './widgets/crew/docs-check-panel';

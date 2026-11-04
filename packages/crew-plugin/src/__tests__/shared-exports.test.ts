@@ -6,7 +6,7 @@ import { describe, expect, it } from "vitest";
 const here = dirname(fileURLToPath(import.meta.url));
 const pkgRoot = resolve(here, "../..");
 const pkg = JSON.parse(readFileSync(resolve(pkgRoot, "package.json"), "utf8"));
-const SUBPATHS = ["map", "docs-tree", "machine-card", "attachment-rules"] as const;
+const SUBPATHS = ["map", "docs-tree", "machine-card", "attachment-rules", "bug-finding"] as const;
 
 describe("exports ./shared/*", () => {
   it("package.json trỏ subpath vào src/shared-web", () => {

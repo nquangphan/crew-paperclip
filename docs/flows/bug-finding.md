@@ -38,7 +38,8 @@ Luật chính:
   - `POST /bug-finding/results` (`bug-finding.results`, board key của máy), body `{companyId, machineId, requestId,
     state, round?, headSha, lanesDone?, lanesTotal?, verdict?, costUsd?, error?, findings?, reportMarkdown?}`;
   - `GET /issues/:issueId/bug-finding` (`bug-finding.get`, board hoặc agent) → `{runs, batchesUsed, maxBatches: 2,
-    currentHead, approvalRound}`;
+    currentHead, approvalRound}`; mỗi lượt có thêm `triage` (kế hoạch của Trợ Lý, `null` khi chưa có); kiểu body cho
+    web ở `packages/crew-plugin/src/shared-web/bug-finding.ts` (`BugFindingView`, chỉ kiểu);
   - `POST /bug-finding/skip` (`bug-finding.skip`, agent reviewer), body `{issueId}`.
 
 ## Các bước
@@ -66,7 +67,13 @@ Luật chính:
    lỗi của việc; `requested` quá 30 phút → `timeout` và hủy việc còn chờ; `queued`/`running` quá 8 giờ → `timeout`. Lượt
    kết thúc được `announceRun`.
 6. `packages/crew-plugin/src/bug-finding/api.ts` → `getRoute`, `requestRoute`, `skipRoute`: đọc sổ (`batchesUsed`: số
-   head PR khác nhau trong vòng trừ 1), reviewer xếp lại, owner cho bỏ qua.
+   head PR khác nhau trong vòng trừ 1), reviewer xếp lại, owner cho bỏ qua. `getRoute` gắn kế hoạch của Trợ Lý vào lượt
+   `succeeded` bằng `packages/crew-plugin/src/bug-finding/triage.ts` → `attachTriage`: Trợ Lý là
+   `executionState.returnAssignee`, không có thì assignee nếu không phải agent stage gộp/cầu nối (`triageAuthor`); chọn
+   comment `crew-bf-triage run=<lượt> batch=bf-fix-<k> fix=… ask=… dismiss=…` mới nhất của Trợ Lý viết sau khi lượt
+   xong và trước lượt kế tiếp (`parseTriage`, dòng sau là `F-xx: <lý do>`; comment của agent khác bị bỏ qua); việc con
+   sửa (mô tả có `crew-bf finding=<F-xx[,F-yy]> run=<lượt>`, tạo trong cùng khoảng) thành `fixIssues` theo id finding.
+   Web (flow `issues-web`) chia finding thành ba nhóm theo kế hoạch này.
 7. `server/src/crew/bug-finding-runs.ts` → `readBugFindingRuns`: reader mặc định của gate stage cầu nối
    (`setBugFindingRunReader` của `issue-gate.ts` chỉ để test thay); `bumpBugFindingRound`: H2 gọi khi owner yêu cầu sửa
    ticket tổng `root-bf` ở stage duyệt. Bảng chưa có (plugin chưa nâng cấp) thì như chưa có lượt, không ghi vòng.
@@ -78,6 +85,8 @@ Luật chính:
 | `packages/crew-plugin/src/bug-finding/api.ts` | Route request, results, get, skip | `handleBugFindingApi`, `REPORT_MAX_BYTES` |
 | `packages/crew-plugin/src/bug-finding/enqueue.ts` | Xếp lượt, chọn máy, sự kiện, đăng ký | `enqueueBugFinding`, `handleIssueUpdated`, `bridgeStage`, `latestCrewPr`, `feedbackText`, `registerBugFinding` |
 | `packages/crew-plugin/src/bug-finding/runs.ts` | Kiểu, SQL sổ lượt, vòng, báo kết quả | `listRuns`, `getRunByRequest`, `approvalRound`, `batchesUsed`, `announceRun`, `MAX_RUNS`, `MAX_BATCHES` |
+| `packages/crew-plugin/src/bug-finding/triage.ts` | Kế hoạch `crew-bf-triage` của Trợ Lý và việc con sửa cho từng lượt | `attachTriage`, `parseTriage`, `triageAuthor` |
+| `packages/crew-plugin/src/shared-web/bug-finding.ts` | Kiểu body route GET cho web (chỉ kiểu) | `BugFindingView`, `BugFindingRunView` |
 | `packages/crew-plugin/src/bug-finding/watchdog.ts` | Job hết giờ và đối chiếu việc máy | `runBugFindingWatchdog`, `REQUEST_TIMEOUT_MS`, `RESULT_TIMEOUT_MS` |
 | `packages/crew-plugin/migrations/0025_bug_finding.sql` | Bảng lượt, bảng vòng, kind việc máy | `crew_bug_finding_runs`, `crew_bug_finding_rounds` |
 | `server/src/crew/bug-finding-runs.ts` | Server đọc lượt cho gate, ghi vòng | `readBugFindingRuns`, `bumpBugFindingRound` |
@@ -104,6 +113,7 @@ Luật chính:
 - `machine-status`: `jobsAgent.capabilities` trong bản tin máy.
 - `multi-machine`: `issue_machine_pins`, `project_machines`, `project_repos`.
 - `crew-plugin`: worker chia `routeKey` tiền tố `bug-finding.`, đăng ký sự kiện và job.
+- `issues-web`: dải giai đoạn, khối Bug Finding và màn Duyệt và merge trên ticket tổng `code-bf` đọc route GET.
 
 ## Tests
 
@@ -111,8 +121,11 @@ Luật chính:
   lại cùng head không xếp thêm; không xếp khi không ở stage cầu nối, không phải `root-bf` hay chưa có `crew-pr`; máy ghim
   chưa có app thì lượt `failed`; vòng đủ 3 lượt không xếp; owner yêu cầu sửa sang vòng mới; lượt chạy lại mang
   `crew-bf-feedback` của Trợ Lý; request chỉ reviewer và idempotent; results 403/422/404, tiến độ rồi kết quả hợp lệ có
-  document báo cáo, comment và wake, gửi lại 409; GET; skip chỉ khi owner đã chấp nhận; watchdog hết giờ 30 phút và 8
+  document báo cáo, comment và wake, gửi lại 409; GET kèm kế hoạch của Trợ Lý (bỏ comment của agent khác); skip chỉ khi owner đã chấp nhận; watchdog hết giờ 30 phút và 8
   giờ, việc máy hỏng thành `failed`, việc nhận xong thành `queued`.
 - `server/src/__tests__/crew-issue-gate.db.test.ts`: reader mặc định đọc bảng lượt thật của plugin; owner yêu cầu sửa
   ticket tổng Bug Finding tăng vòng, reviewer cầu nối yêu cầu sửa thì không.
 - `packages/crew-plugin/src/__tests__/machine-jobs-validate.test.ts`: payload và result `bug-finding-review`.
+- `packages/crew-plugin/src/__tests__/bug-finding-triage.test.ts`: đọc dòng `crew-bf-triage` và lý do, nhóm rỗng `-`;
+  Trợ Lý là `returnAssignee` hay assignee; ghép kế hoạch trong khoảng sau lượt xong và trước lượt kế, bỏ comment của
+  người khác, việc con sửa theo finding (một con nhiều finding).

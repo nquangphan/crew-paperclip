@@ -1,5 +1,5 @@
 // crew: tự dựng
-import { useEffect, useId, useState } from 'react';
+import { type ReactNode, useEffect, useId, useState } from 'react';
 import {
   Button,
   Dialog,
@@ -31,6 +31,8 @@ interface CommentDialogProps {
   error: Error | null;
   failedTitle: string;
   onSubmit: (comment: string) => void;
+  /** Nội dung thêm giữa phần mô tả và ô lời nhắn (ví dụ thẻ Bug Finding trong màn Duyệt và merge). */
+  children?: ReactNode;
 }
 
 /** Dialog Duyệt / Yêu cầu sửa: một ô lời nhắn, gửi kèm thao tác cổng (server ghi lời nhắn làm comment quyết định). */
@@ -48,6 +50,7 @@ export function CommentDialog({
   error,
   failedTitle,
   onSubmit,
+  children,
 }: CommentDialogProps) {
   const { t } = useT('issues');
   const id = useId();
@@ -63,6 +66,7 @@ export function CommentDialog({
           <DialogTitle>{title}</DialogTitle>
           <DialogDescription>{description}</DialogDescription>
         </DialogHeader>
+        {children}
         <form
           className="flex flex-col gap-4"
           onSubmit={(e) => {

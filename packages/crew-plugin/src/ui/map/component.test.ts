@@ -31,10 +31,10 @@ it("names each review stage by its position in the root template", () => {
     .toBe("Owner duyệt");
 });
 
-it("gốc code-bf: integrator gộp đứng đầu, reviewer cầu nối Bug Finding, owner, integrator merge; loại vẫn là Lập trình", () => {
+it("gốc code-bf: nhãn như dải giai đoạn web (gộp code + PR, review Bug Finding, owner, merge); loại vẫn là Lập trình", () => {
   const issue = { id: "root", identifier: "CRE-2", title: "root", status: "todo", parentId: null, assignee: null, reviewRounds: 0, maxReviewRounds: 5, kind: "code-bf" as const, bundle: null };
   expect([0, 1, 3].map(position => stageLabel({ ...issue, stage: { currentStageId: `s${position}`, currentType: "review", completed: [], position } })))
-    .toEqual(["Integrator · merge + docs", "Reviewer", "Integrator · push"]);
+    .toEqual(["Gộp code + PR", "Review Bug Finding", "Merge"]);
   const markup = renderToStaticMarkup(h(ReactFlowProvider, null,
     h(TicketNode, { data: { issue: { ...issue, stage: null }, highlighted: false, link: { href: "/CRE/issues/CRE-2" } } })));
   expect(markup).toContain("Lập trình");

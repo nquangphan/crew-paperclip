@@ -41,6 +41,12 @@ Cấu trúc thư mục, luật và cách xem thử nằm ở `packages/crew-web/
    đúng dạng `agent://<uuid>` được `urlTransformFor` giữ lại và `MarkdownLink` hiện thành chip
    `<span data-agent-mention>` (chữ là nội dung link, ví dụ `@Trợ Lý`, màu theo nền quanh nó), không phải thẻ `<a>`;
    `agent:` sai dạng và `javascript:` vẫn bị bỏ.
+4a. `packages/crew-web/src/ds/widgets/stage-badge.tsx` → `resolveStageKey`, `StageBadge`, `stageStripOf`, `StageStrip`:
+   khóa giai đoạn theo vị trí stage của từng loại yêu cầu gốc (`code`: `reviewer`, `integratorDocs`, `owner`,
+   `integratorPush`; `code-bf`: `integratorPr` "Gộp code + PR", `bugFinding` "Review Bug Finding", `owner`,
+   `integratorMerge` "Merge"; `research`: `reviewer`, `owner`). `StageStrip` là dải bước đánh số (bước trước xong, bước
+   hiện tại có viền nhấn và `aria-current="step"`, bước sau chờ; ticket xong thì mọi bước xong), dòng phụ do feature
+   truyền vào.
 5. `packages/crew-web/src/ds/index.ts`: export mọi component và widget, gồm widget Crew và bản đồ Roadmap. Widget zoom ảnh (`image-zoom`, `image-zoom-view`) cũng qua cổng này.
 
 ## Files
@@ -91,5 +97,5 @@ Widget Crew trong `ds/widgets/crew/` và `ds/widgets/roadmap/`, và widget đín
 - `packages/crew-web/test/guards/i18n.test.ts`: hai locale cùng khóa, không chữ cứng.
 - `packages/crew-web/test/ds/`: hành vi từng component và widget (button, dialog, confirm, alert, nhãn mặc định, dòng
   danh sách, section và code block, status badge, stage badge (`resolveStageKey` theo thứ tự stage của `code`, `code-bf`,
-  `research`), markdown kể cả chip mention agent, wizard, ô soạn). Test trong `test/ds/crew/` và các test đính
+  `research`; nhãn "Review Bug Finding" ở vị trí 1 của `code-bf`; dải `StageStrip`), markdown kể cả chip mention agent, wizard, ô soạn). Test trong `test/ds/crew/` và các test đính
   kèm, markdown-image thuộc flow tính năng tương ứng.

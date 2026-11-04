@@ -77,7 +77,7 @@ Luật chính:
 
 ## Dữ liệu
 
-- Route lõi Paperclip và route plugin: toàn bộ liệt kê trong `ENDPOINTS` (`packages/crew-web/src/api/endpoints.ts`), kể cả các khóa chạy nhiều máy `machinePin.*` và `projectMachines.*`; khóa query tương ứng là `machineCandidates`, `issueMachine`, `projectMachines`.
+- Route lõi Paperclip và route plugin: toàn bộ liệt kê trong `ENDPOINTS` (`packages/crew-web/src/api/endpoints.ts`), kể cả các khóa chạy nhiều máy `machinePin.*` và `projectMachines.*`; khóa query tương ứng là `machineCandidates`, `issueMachine`, `projectMachines`. Khóa `crew.bugFinding` (route GET lượt Bug Finding, `companyId` ở query) gộp vào `api.crew`; hook `useBugFinding` cũng export qua `api/index.ts` (flow `issues-web`).
   Plugin ở `/api/plugins/crew.core`, router Crew của server ở `/api/crew/companies/:companyId`.
 - WebSocket `/api/companies/:companyId/events/ws`.
 - Trình duyệt: `localStorage` khóa `crew.lang`; `sessionStorage` cho chống lặp tải lại.

@@ -535,9 +535,12 @@ flows:
       - packages/crew-plugin/migrations/0025_bug_finding.sql
       - packages/crew-plugin/src/bug-finding/enqueue.ts
       - packages/crew-plugin/src/bug-finding/runs.ts
+      - packages/crew-plugin/src/bug-finding/triage.ts
       - packages/crew-plugin/src/bug-finding/watchdog.ts
+      - packages/crew-plugin/src/shared-web/bug-finding.ts
       - server/src/crew/bug-finding-runs.ts
     tests:
+      - packages/crew-plugin/src/__tests__/bug-finding-triage.test.ts
       - packages/crew-plugin/src/__tests__/bug-finding.db.test.ts
   setup-wizards:
     title: "Wizard thêm agent, thêm project, gỡ và kiểm sẵn sàng"
@@ -714,7 +717,9 @@ flows:
       - packages/crew-plugin/src/issues/force-done.ts
     files:
       - packages/crew-web/src/api/crew/assistant-call.ts
+      - packages/crew-web/src/api/crew/bug-finding.ts
       - packages/crew-web/src/api/crew/force-done.ts
+      - packages/crew-web/src/ds/widgets/crew/bug-finding-parts.tsx
       - packages/crew-web/src/features/issues/detail/assistant-mention.ts
       - packages/crew-web/src/features/issues/detail/attachment-viewer-provider.tsx
       - packages/crew-web/src/features/issues/detail/assistant-summary.tsx
@@ -723,6 +728,7 @@ flows:
       - packages/crew-web/src/features/issues/detail/comments.tsx
       - packages/crew-web/src/features/issues/detail/composer.tsx
       - packages/crew-web/src/features/issues/detail/crew/actions-slot.tsx
+      - packages/crew-web/src/features/issues/detail/crew/bug-finding-panel.tsx
       - packages/crew-web/src/features/issues/detail/crew/comment-questions.ts
       - packages/crew-web/src/features/issues/detail/crew/force-done-dialog.tsx
       - packages/crew-web/src/features/issues/detail/crew/force-done.ts
@@ -770,6 +776,7 @@ flows:
       - packages/crew-web/test/features/issues/assistant-mention.test.ts
       - packages/crew-web/test/features/issues/attachment-viewer.test.tsx
       - packages/crew-web/test/features/issues/attachments.test.tsx
+      - packages/crew-web/test/features/issues/bug-finding-panel.test.tsx
       - packages/crew-web/test/features/issues/comment-questions.test.ts
       - packages/crew-web/test/features/issues/comment-thread.test.ts
       - packages/crew-web/test/features/issues/comments.test.tsx
@@ -1066,7 +1073,7 @@ flows:
       - packages/crew-web/test/ds/markdown-view.test.tsx
       - packages/crew-web/test/ds/rows.test.tsx
       - packages/crew-web/test/ds/section-codeblock.test.tsx
-      - packages/crew-web/test/ds/stage-badge.test.ts
+      - packages/crew-web/test/ds/stage-badge.test.tsx
       - packages/crew-web/test/ds/status-badge.test.tsx
       - packages/crew-web/test/ds/wizard.test.tsx
       - packages/crew-web/test/guards/design-system.test.ts

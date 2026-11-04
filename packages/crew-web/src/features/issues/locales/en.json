@@ -289,6 +289,13 @@
       "button": "Reopen",
       "title": "Reopen this request?",
       "body": "The request goes back to To do and every stage runs again in a new round."
+    },
+    "approveMerge": {
+      "button": "Approve and merge",
+      "title": "Approve and merge this request?",
+      "body": "Approve and merge makes the integrator merge {{pr}} into the default branch right away (no need to press Merge on GitHub). If the default branch moved on and conflicts, the integrator stops and reports back here.",
+      "default": "Reviewed the Bug Finding result, approve and merge.",
+      "changesBody": "The assistant plans a fix batch and the flow restarts from the merge step; Bug Finding re-runs only when the PR commit changes."
     }
   },
   "crew": {
@@ -486,5 +493,85 @@
     "openChild": "Open the child request",
     "failedUploads": "Not uploaded: {{names}}. Open the child to attach them again.",
     "dismiss": "Dismiss"
+  },
+  "bugFinding": {
+    "title": "Bug Finding",
+    "failed": "Could not load Bug Finding runs",
+    "batches": "Automatic fix batches: {{used}} / max {{max}}",
+    "rerunNote": "Bug Finding re-runs only once, after every fix child of the batch is done, never per child. To watch lanes and logs live, open the Bug Finding app on the Mac.",
+    "empty": "No Bug Finding run yet. The server queues one when the root task reaches Bug Finding review.",
+    "runLabel": "Bug Finding run {{run}}",
+    "runLabelRound": "Bug Finding round {{round}} run {{run}}",
+    "runOf": "Run {{run}} / max {{max}}",
+    "prShort": "PR #{{number}}",
+    "findingCount": "{{count}} findings",
+    "minutes": "{{count}} min",
+    "lanes": "{{done}}/{{total}} lanes done",
+    "progressLabel": "Lane progress",
+    "noProgress": "Bug Finding has not reported progress yet",
+    "brokenTitle": "This run did not finish",
+    "noError": "No reason given.",
+    "skipped": "The owner allowed skipping Bug Finding for this PR head.",
+    "noTriage": "The assistant has not triaged this run's findings yet.",
+    "noFindings": "No findings.",
+    "noFixIssue": "No child task yet",
+    "askHint": "Questions for the owner are in the assistant's question card on this task, with a recommendation.",
+    "batchProgress": "Fix batch bf-fix-{{batch}}: {{done}}/{{total}} done · Bug Finding re-runs once when the whole batch is done and questions are answered",
+    "state": {
+      "requested": "Waiting for a machine",
+      "queued": "Queued on the Mac",
+      "running": "Running",
+      "succeeded": "Done",
+      "failed": "Failed",
+      "timeout": "Timed out",
+      "cancelled": "Cancelled",
+      "skipped": "Skipped by owner"
+    },
+    "prop": {
+      "pr": "Pull request",
+      "commit": "Reviewed commit",
+      "run": "Run",
+      "progress": "Progress",
+      "since": "Started",
+      "cost": "Cost",
+      "report": "Full report"
+    },
+    "col": {
+      "finding": "Finding",
+      "severity": "Severity",
+      "location": "Location",
+      "fixIssue": "Fix task",
+      "status": "Status",
+      "question": "Question",
+      "reason": "Reason (sent with the re-run)",
+      "handling": "Handling",
+      "lastRun": "Last run"
+    },
+    "group": {
+      "fix": "Assistant fixes ({{count}})",
+      "ask": "Owner decides ({{count}})",
+      "dismiss": "Assistant dismissed ({{count}})",
+      "other": "Other findings ({{count}})",
+      "all": "Findings ({{count}})",
+      "fixShort": "Assistant fixes",
+      "askShort": "Owner decides",
+      "dismissShort": "Assistant dismissed (with reason)"
+    },
+    "handling": {
+      "fix": "Assistant fix",
+      "fixWith": "Assistant fix · {{issues}}",
+      "ask": "Asked the owner",
+      "dismiss": "Assistant dismissed",
+      "dismissWith": "Assistant dismissed: {{reason}}"
+    },
+    "approval": {
+      "final": "Final result",
+      "onHead": "run {{run}} on {{sha}} (the commit that will be merged)",
+      "offHead": "run {{run}} on {{sha}} (differs from current PR head {{head}})"
+    },
+    "strip": {
+      "run": "Run {{run}} / max {{max}} · {{state}}",
+      "merge": "Integrator merges the PR after approval"
+    }
   }
 }

@@ -55,7 +55,23 @@ Luật chính:
    xếp hàng; nút "Hiện thêm N run" / "Thu gọn" mở hay gập phần còn lại.
 4. `packages/crew-web/src/features/issues/detail/crew/gate-actions.ts` → `gateActionsFor`, `awaitingMyApproval`: tính
    nút Duyệt, Yêu cầu sửa, Hủy theo stage đang chờ; `actions-slot.tsx` gửi PATCH và làm mới mọi dữ liệu bị đổi. Phần gửi (đọc lại issue, chặn khi owner không còn là người duyệt) nằm ở
-   `useGateMutation`, dùng chung với thẻ câu hỏi ở bước 4b.
+   `useGateMutation`, dùng chung với thẻ câu hỏi ở bước 4b. Ticket tổng `code-bf` (luồng Bug Finding, `mergesOnApprove`
+   nhận policy `root-bf` cùng cách `crewPolicyKind` của plugin): nút và dialog là "Duyệt và merge", mô tả ghi integrator
+   merge PR `#<số>` ngay vào nhánh mặc định (dừng và báo lại khi conflict), giữa mô tả và ô lời nhắn có thẻ Bug Finding
+   (`BugFindingApproval`: kết quả cuối trên đúng head PR sẽ merge, các lượt trước, chi phí, bảng finding với cách xử lý);
+   Yêu cầu sửa ghi lô sửa chạy lại từ bước gộp. Policy `code` và `research` giữ nút "Duyệt". `CommentDialog` nhận
+   `children` cho phần thêm này.
+4a. `packages/crew-web/src/features/issues/detail/crew/summary-slot.tsx` → `SummarySlot`, khi đang xem chính ticket tổng
+   `code-bf` (`map.root.kind`): dưới dòng tóm tắt là dải bốn giai đoạn (`StageStrip` + `stageStripOf` của flow
+   `design-system`, dòng phụ từ `withBugFindingDetails`: số PR, lượt n / tối đa 3 và trạng thái, ghi chú bước merge) và
+   khối Bug Finding (`bug-finding-panel.tsx` → `BugFindingSection`/`BugFindingPanel`). Dữ liệu từ
+   `packages/crew-web/src/api/crew/bug-finding.ts` → `useBugFinding` (`GET /api/plugins/crew.core/api/issues/:id/bug-finding?companyId=`,
+   khóa `queryKeys.crew('crew.bugFinding', …)`, đọc lại mỗi `BUG_FINDING_POLL_MS` 30 giây khi còn lượt chờ/chạy). Mỗi
+   lượt một thẻ: PR, commit review, lượt n / tối đa; lượt chờ/chạy có thanh tiến độ `lanesDone/lanesTotal`; lượt hỏng
+   hiện lý do; lượt `succeeded` chia finding thành Trợ Lý tự sửa (kèm việc con sửa và trạng thái), Cần owner chốt (câu
+   hỏi), Trợ Lý bỏ qua (lý do) theo `triage` của route (flow `bug-finding`), finding ngoài kế hoạch vào nhóm "khác",
+   chưa có kế hoạch thì bảng phẳng kèm câu "Trợ Lý chưa phân loại". Mảnh hiển thị (thanh tiến độ, mức, verdict, mã
+   commit) ở `packages/crew-web/src/ds/widgets/crew/bug-finding-parts.tsx`; màn hình chỉ dùng class bố cục.
 4b. `packages/crew-web/src/features/issues/detail/crew/interactions-slot.tsx` → `InteractionsSlot`: thẻ
    `ask_user_questions` / xác nhận đang chờ thì hiện thẻ đó (`InteractionCard`). Không có thẻ nào đang chờ thì
    `comment-questions.ts` → `pendingQuestions` tìm điểm cần owner chốt agent viết theo mẫu `Q1.` + `a)`, `b)` (mỗi
@@ -115,12 +131,15 @@ gửi, thông báo mất ở lần gửi sau. Bình luận không có tag không
 | `packages/crew-web/src/features/issues/detail/issue-detail.tsx` | Khung chi tiết | `IssueDetail` |
 | `packages/crew-web/src/features/issues/detail/issue-page.tsx` | Trang đầy đủ | `IssuePage` |
 | `packages/crew-web/src/features/issues/detail/use-issue.ts` | Dữ liệu chi tiết | `useIssue`, `useChildIssues`, `useIssueActivity` |
-| `packages/crew-web/src/features/issues/detail/crew/gate-actions.ts` | Luật nút cổng | `gateActionsFor`, `awaitingMyApproval`, `MIN_CHANGE_REASON` |
-| `packages/crew-web/src/features/issues/detail/crew/actions-slot.tsx`, `gate-dialogs.tsx` | Nút và hộp cổng | `ActionsSlot`, `CommentDialog` |
+| `packages/crew-web/src/features/issues/detail/crew/gate-actions.ts` | Luật nút cổng, nhận ticket tổng duyệt là merge | `gateActionsFor`, `awaitingMyApproval`, `mergesOnApprove`, `MIN_CHANGE_REASON` |
+| `packages/crew-web/src/features/issues/detail/crew/actions-slot.tsx`, `gate-dialogs.tsx` | Nút và hộp cổng (Duyệt / Duyệt và merge) | `ActionsSlot`, `CommentDialog` |
+| `packages/crew-web/src/features/issues/detail/crew/bug-finding-panel.tsx` | Khối Bug Finding và thẻ trong màn duyệt | `BugFindingSection`, `BugFindingPanel`, `BugFindingApproval`, `BugFindingApprovalCard`, `withBugFindingDetails`, `prNumberOf` |
+| `packages/crew-web/src/api/crew/bug-finding.ts` | Client và hook route GET Bug Finding | `bugFindingApi`, `useBugFinding`, `hasOpenRun`, `BUG_FINDING_POLL_MS` |
+| `packages/crew-web/src/ds/widgets/crew/bug-finding-parts.tsx` | Thanh tiến độ lane, nhãn mức, verdict, trạng thái finding, mã commit | `LaneProgress`, `SeverityBadge`, `VerdictBadge`, `FindingStatusBadge`, `MonoText`, `FindingMeta` |
 | `packages/crew-web/src/features/issues/detail/crew/force-done.ts`, `force-done-dialog.tsx` | Ép Done phía web | `ForceDoneAction`, `MIN_FORCE_REASON` |
 | `packages/crew-web/src/features/issues/detail/crew/interaction-card.tsx`, `interactions-slot.tsx` | Câu hỏi và xác nhận của Trợ Lý, thẻ chọn dựng từ bình luận/tổng kết | `InteractionCard`, `CommentQuestionsCard`, `InteractionsSlot` |
 | `packages/crew-web/src/features/issues/detail/crew/comment-questions.ts` | Đọc điểm `Q1.` + `a)`/`b)` agent viết, chọn điểm chưa ai trả lời, soạn lời trả lời | `parseCommentQuestions`, `summaryQuestions`, `pendingQuestions`, `commentAnswerBody` |
-| `packages/crew-web/src/features/issues/detail/crew/summary-slot.tsx` | Tóm tắt Crew, bản đồ, kiểm docs | `SummarySlot` |
+| `packages/crew-web/src/features/issues/detail/crew/summary-slot.tsx` | Tóm tắt Crew, bản đồ, kiểm docs; dải giai đoạn và khối Bug Finding của ticket tổng `code-bf` | `SummarySlot` |
 | `packages/crew-web/src/features/issues/detail/crew/machine-slot.tsx` | Dòng "Máy" ở cột Thuộc tính: máy của cả cây, cách chọn; owner đổi ở yêu cầu gốc khi cây chưa có run, ẩn dòng khi không đọc được | `MachineSlot`, `machineLine` |
 | `packages/crew-web/src/features/issues/detail/crew/runtime-slot.tsx` | Quyết định chọn runtime | `RuntimeSlot` |
 | `packages/crew-web/src/features/issues/detail/history-format.ts`, `history.tsx` | Khối Lịch sử | `History`, `FORCE_DONE_ACTION`, `BOARD_OVERRIDE_ACTION` |
@@ -132,7 +151,8 @@ gửi, thông báo mất ở lần gửi sau. Bình luận không có tag không
 - Route lõi Paperclip: issue (danh sách, chi tiết, PATCH, tiêu đề), bình luận, đính kèm, tài liệu, activity, run,
   interaction (`respond`), nhãn.
 - Route Crew của server: `GET /machines?projectId=`, `GET|PUT /issues/:id/machine` (xem flow `multi-machine`).
-- Route plugin: `issues.force-done`; data key `crew.map`, `crew.docsCheck`, `crew.runtimeDecisions`.
+- Route plugin: `issues.force-done`, `bug-finding.get` (`crew.bugFinding`); data key `crew.map`, `crew.docsCheck`,
+  `crew.runtimeDecisions`.
 - Activity: `crew.policy.board_override` (gate server), `crew.issue.force_done` (plugin).
 - Bảng: plugin không ghi bảng riêng ở flow này; Ép Done đi qua `ctx.issues.update` của host.
 
@@ -147,6 +167,8 @@ gửi, thông báo mất ở lần gửi sau. Bình luận không có tag không
 - `qc-department`: nhãn QC trên thẻ của chế độ Bảng.
 - `multi-machine`: route ghim máy mà ô Máy thực thi và dòng Máy gọi.
 - `web-shell`: shell gắn popup, quyền ghi hay chỉ đọc.
+- `bug-finding`: route GET lượt Bug Finding và kế hoạch của Trợ Lý mà khối Bug Finding và màn duyệt đọc.
+- `design-system`: `StageStrip`, nhãn giai đoạn `code-bf`.
 
 ## Tests
 
@@ -167,7 +189,14 @@ gửi, thông báo mất ở lần gửi sau. Bình luận không có tag không
 - `packages/crew-web/test/features/issues/follow-plan.test.ts`, `follow-plan-action.test.tsx`: đọc path/PR từ tổng kết,
   mô tả điền sẵn, nút chỉ ở gốc `plan` đã xong và người ghi được; `new-request-dialog.test.tsx` có ca `initial`.
 - `packages/crew-web/test/features/issues/gate-actions.test.ts`, `gate-actions.test.tsx`: nút cổng chỉ cho người tham gia
-  stage đang chờ, body gửi đi.
+  stage đang chờ, body gửi đi; chỉ policy `root-bf` duyệt là merge; ticket tổng `code-bf` có nút "Duyệt và merge", mô tả
+  merge PR ngay và thẻ Bug Finding trong dialog.
+- `packages/crew-web/test/features/issues/bug-finding-panel.test.tsx`: lượt chạy có thanh tiến độ lane và số lô sửa;
+  lượt xong chia ba nhóm theo kế hoạch (việc con sửa, câu hỏi, lý do bỏ qua); chưa có kế hoạch thì bảng phẳng; lượt
+  hết giờ hiện lý do; thẻ màn duyệt hiện kết quả cuối trên đúng commit sẽ merge và cách xử lý; `BugFindingSection` gọi
+  route kèm `companyId`.
+- `packages/crew-web/test/features/issues/summary-slot.test.tsx` (phần `code-bf`): dải bốn giai đoạn có dòng phụ và
+  khối Bug Finding khi xem ticket tổng; việc con không hiện, không gọi route.
 - `packages/crew-web/test/features/issues/comment-questions.test.ts`, `interaction-card.test.tsx`: đọc câu hỏi theo các
   kiểu agent viết, bỏ bình luận nhắc lại lựa chọn đã chốt, thẻ dựng từ bình luận/tổng kết gửi bình luận hoặc Duyệt /
   Yêu cầu sửa kèm lựa chọn.

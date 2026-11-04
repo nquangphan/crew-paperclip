@@ -130,7 +130,7 @@ sự kiện plugin dạng call để xóa invocation scope khi handler xong).
 - `packages/crew-plugin/src/__tests__/registry.test.ts`, `packages/crew-plugin/src/ui/page-headings.test.ts`: thứ tự mục
   và panel, mỗi mục trang Crew chỉ một tiêu đề.
 - `packages/crew-plugin/src/__tests__/shared-exports.test.ts`: subpath `./shared/*` cho crew-web trỏ vào
-  `src/shared-web`, không kéo React.
+  `src/shared-web` (gồm `bug-finding`, chỉ kiểu), không kéo React.
 - `packages/crew-plugin/src/__tests__/ui-bundle.test.ts`: bundle UI nạp được qua shim của host.
 - `packages/crew-plugin/src/ui/summary.test.ts`: tóm tắt Crew trên issue.
 - `packages/crew-plugin/src/__tests__/policy.test.ts`: `crewPolicyKind` nhận `code`, `code-bf`, `research` (một agent ở

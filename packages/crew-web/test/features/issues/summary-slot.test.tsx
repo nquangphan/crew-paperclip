@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { createMemoryRouter, RouterProvider, useLocation } from 'react-router-dom';
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { SummarySlot } from '@/features/issues/detail/crew/summary-slot';
@@ -141,5 +141,84 @@ describe('SummarySlot (S6.1–S6.3)', () => {
     mockServer({ [`POST ${DATA}/crew.map`]: { status: 500, body: { error: 'plugin crew.core chưa sẵn sàng' } } });
     mountAt(CHILD);
     expect(await screen.findByText('plugin crew.core chưa sẵn sàng')).toBeTruthy();
+  });
+
+  it('ticket tổng code-bf: dải bốn giai đoạn và khối Bug Finding đọc route của plugin', async () => {
+    const stage = { currentStageId: 's1', currentType: 'review', completed: ['s0'], position: 1 };
+    const root = { ...map.root, kind: 'code-bf', stage };
+    const head = `3f9c1e07a2b4${'0'.repeat(28)}`;
+    const s = mockServer({
+      [`POST ${DATA}/crew.map`]: {
+        body: { data: { ...map, root, nodes: map.nodes.map((n) => (n.id === root.id ? root : n)) } },
+      },
+      [`POST ${DATA}/crew.docsCheck`]: { body: { data: null } },
+      'GET /api/plugins/crew.core/api/issues/i-root/bug-finding': {
+        body: {
+          runs: [
+            {
+              id: 'r2',
+              companyId: 'c1',
+              issueId: 'i-root',
+              approvalRound: 0,
+              run: 2,
+              requestId: 'q2',
+              machineJobId: null,
+              machineId: 'm1',
+              headSha: head,
+              prUrl: 'https://github.com/o/r/pull/87',
+              state: 'running',
+              verdict: null,
+              lanesDone: 4,
+              lanesTotal: 7,
+              findings: null,
+              feedbackText: null,
+              reportDocumentKey: null,
+              costUsd: null,
+              error: null,
+              createdAt: '2026-11-04T03:00:00.000Z',
+              startedAt: '2026-11-04T03:01:00.000Z',
+              finishedAt: null,
+              triage: null,
+            },
+          ],
+          batchesUsed: 1,
+          maxBatches: 2,
+          currentHead: head,
+          approvalRound: 0,
+        },
+      },
+    });
+    mountAt({ ...ISSUE, id: 'i-root', identifier: 'CRE-36', parentId: null });
+    const strip = await screen.findByRole('list', { name: 'Giai đoạn' });
+    expect(await screen.findByText('4/7 lane xong')).toBeTruthy();
+    expect(
+      within(strip)
+        .getAllByRole('listitem')
+        .map((step) => step.textContent),
+    ).toEqual([
+      '1. Gộp code + PRPR #87',
+      '2. Review Bug FindingLượt 2 / tối đa 3 · Đang chạy',
+      '3. Owner duyệtChờ',
+      '4. MergeIntegrator merge PR sau khi duyệt',
+    ]);
+    expect(s.calls.some((c) => c.url === '/api/plugins/crew.core/api/issues/i-root/bug-finding?companyId=c1')).toBe(
+      true,
+    );
+  });
+
+  it('việc con của ticket tổng code-bf không hiện khối Bug Finding', async () => {
+    const root = {
+      ...map.root,
+      kind: 'code-bf',
+      stage: { currentStageId: 's1', currentType: 'review', completed: [], position: 1 },
+    };
+    const s = mockServer({
+      [`POST ${DATA}/crew.map`]: { body: { data: { ...map, root } } },
+      [`POST ${DATA}/crew.docsCheck`]: { body: { data: null } },
+    });
+    mountAt(CHILD);
+    expect(await screen.findByText(/con xong/)).toBeTruthy();
+    expect(screen.queryByRole('list', { name: 'Giai đoạn' })).toBeNull();
+    expect(s.calls.some((c) => c.url.includes('/bug-finding'))).toBe(false);
   });
 });

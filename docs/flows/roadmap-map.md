@@ -31,7 +31,7 @@ Luật chính:
 ## Các bước
 
 1. `packages/crew-plugin/src/handlers/map.ts` → `loadCrewMap`: từ một issue leo lên gốc, đọc cả cây, quan hệ phụ thuộc
-   và vòng sửa; mỗi nút có giai đoạn, người làm, số vòng duyệt, loại việc (`crewNodeKind`: `code`, `code-bf`, `research`, `fix`), bundle. Worker không đọc được nhãn nên yêu cầu Viết tài liệu / Lập kế hoạch vẫn báo `code`. `code-bf` là gốc theo luồng Bug Finding: cùng loại việc lập trình, chỉ khác thứ tự stage (integrator gộp trước, reviewer cầu nối, owner, integrator merge), nên `stageLabel` (UI stock) và `resolveStageKey` (crew-web) đặt tên giai đoạn theo thứ tự đó; `crew.roots` báo `kind` `code-bf` như vậy.
+   và vòng sửa; mỗi nút có giai đoạn, người làm, số vòng duyệt, loại việc (`crewNodeKind`: `code`, `code-bf`, `research`, `fix`), bundle. Worker không đọc được nhãn nên yêu cầu Viết tài liệu / Lập kế hoạch vẫn báo `code`. `code-bf` là gốc theo luồng Bug Finding: cùng loại việc lập trình, chỉ khác thứ tự stage (integrator gộp trước, reviewer cầu nối, owner, integrator merge), nên `stageLabel` (UI stock) và `resolveStageKey` (crew-web) đặt tên giai đoạn theo thứ tự đó, cùng nhãn với dải giai đoạn của ticket tổng (Gộp code + PR, Review Bug Finding, Owner duyệt, Merge); `crew.roots` báo `kind` `code-bf` như vậy.
 2. `packages/crew-plugin/src/handlers/roots.ts` → `loadCrewRoots`: danh sách yêu cầu gốc của company (lọc `isCrewRoot`),
    mới nhất trước, kèm tiến độ việc con trực tiếp.
 3. `packages/crew-plugin/src/handlers/runs.ts` → `loadMapRuns`, `loadRequestRuns`: run tóm tắt theo issue, cùng nguồn

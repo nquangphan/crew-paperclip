@@ -28,12 +28,21 @@
     "none": "Chưa có giai đoạn",
     "notStarted": "Chưa bắt đầu",
     "reviewer": "Reviewer",
-    "integratorMerge": "Integrator · merge + docs",
+    "integratorDocs": "Integrator · merge + docs",
     "owner": "Owner duyệt",
     "integratorPush": "Integrator · push",
+    "integratorPr": "Gộp code + PR",
+    "bugFinding": "Review Bug Finding",
+    "integratorMerge": "Merge",
     "done": "Đã xong",
     "unknown": "Không rõ",
-    "round": "Vòng sửa {{round}}/{{max}}"
+    "round": "Vòng sửa {{round}}/{{max}}",
+    "strip": "Giai đoạn",
+    "step": {
+      "done": "Xong",
+      "current": "Đang ở đây",
+      "waiting": "Chờ"
+    }
   },
   "wizard": {
     "resume": "Chạy tiếp",

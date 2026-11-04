@@ -2,17 +2,19 @@
 import type { Issue } from '@paperclipai/shared';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
-import { api, queryKeys } from '@/api';
+import { api, queryKeys, useBugFinding } from '@/api';
 import { useMe } from '@/app/hooks';
 import { Button, ConfirmDialog, ErrorState } from '@/ds';
 import { useCompanyAccess } from '@/features/access';
 import { useT } from '@/i18n';
+import { BugFindingApproval, prNumberOf } from './bug-finding-panel';
 import {
   awaitingMyApproval,
   type GateActionId,
   gateAction,
   gateActionsFor,
   MIN_CHANGE_REASON,
+  mergesOnApprove,
   needsApprovalStage,
 } from './gate-actions';
 import { CommentDialog } from './gate-dialogs';
@@ -89,6 +91,14 @@ export function ActionsSlot({ issue }: { issue: Issue }) {
     if (!next) setOpen(null);
   };
   const inDialog = open === 'approve' || open === 'request_changes';
+  // Ticket tổng code-bf: duyệt là integrator merge PR ngay; màn duyệt có thẻ Bug Finding và số PR sẽ merge.
+  const merge = mergesOnApprove(issue);
+  const bugFinding = useBugFinding(issue.companyId, issue.id, merge && actions.some((a) => a.id === 'approve'));
+  const view = bugFinding.data;
+  const headRun = view?.runs.find((run) => run.headSha === view.currentHead) ?? view?.runs[0];
+  const prNumber = prNumberOf(headRun?.prUrl);
+  const prLabel = prNumber ? t('bugFinding.prShort', { number: prNumber }) : 'PR';
+  const label = (id: GateActionId) => (merge && id === 'approve' ? 'gate.approveMerge.button' : LABEL[id]);
   if (readOnly) return null;
 
   return (
@@ -102,7 +112,7 @@ export function ActionsSlot({ issue }: { issue: Issue }) {
             disabled={gate.isPending}
             onClick={() => show(a.id)}
           >
-            {t(LABEL[a.id])}
+            {t(label(a.id))}
           </Button>
         ))}
       </div>
@@ -110,23 +120,25 @@ export function ActionsSlot({ issue }: { issue: Issue }) {
       <CommentDialog
         open={open === 'approve'}
         onOpenChange={close}
-        title={t('gate.approve.title')}
-        description={t('gate.approve.body')}
+        title={t(merge ? 'gate.approveMerge.title' : 'gate.approve.title')}
+        description={merge ? t('gate.approveMerge.body', { pr: prLabel }) : t('gate.approve.body')}
         label={t('gate.approve.label')}
         hint={t('gate.approve.hint')}
-        initial={t('gate.approve.default')}
+        initial={t(merge ? 'gate.approveMerge.default' : 'gate.approve.default')}
         minLength={1}
-        submitLabel={t('gate.approve.button')}
+        submitLabel={t(label('approve'))}
         pending={gate.isPending}
         error={open === 'approve' ? gate.error : null}
         failedTitle={t('gate.failed')}
         onSubmit={(comment) => run('approve', comment)}
-      />
+      >
+        {merge ? <BugFindingApproval companyId={issue.companyId} issueId={issue.id} /> : null}
+      </CommentDialog>
       <CommentDialog
         open={open === 'request_changes'}
         onOpenChange={close}
         title={t('gate.requestChanges.title')}
-        description={t('gate.requestChanges.body')}
+        description={t(merge ? 'gate.approveMerge.changesBody' : 'gate.requestChanges.body')}
         label={t('gate.requestChanges.label')}
         hint={t('gate.requestChanges.hint', { min: MIN_CHANGE_REASON })}
         initial=""

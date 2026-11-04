@@ -262,4 +262,82 @@ describe('ActionsSlot (S6.7, S6.8, S6.10, S6.11)', () => {
       expect(seen).toContain(JSON.stringify(queryKeys.comments('i1')));
     });
   });
+
+  it('ticket tổng code-bf: nút "Duyệt và merge", màn duyệt ghi chú merge ngay và có thẻ Bug Finding', async () => {
+    const review = (id: string, agentId: string) => ({
+      id,
+      type: 'review',
+      approvalsNeeded: 1,
+      participants: [{ id: `p-${id}`, type: 'agent', agentId }],
+    });
+    const ROOT_BF = {
+      ...ISSUE,
+      id: 'i0',
+      parentId: null,
+      ancestors: [],
+      identifier: 'TPS-1',
+      executionPolicy: {
+        ...ISSUE.executionPolicy,
+        stages: [
+          review('s0', 'a3'),
+          review('s1', 'a2'),
+          {
+            id: 's2',
+            type: 'approval',
+            approvalsNeeded: 1,
+            participants: [{ id: 'p-s2', type: 'user', userId: 'u1' }],
+          },
+          review('s3', 'a3'),
+        ],
+      },
+      executionState: { ...ISSUE.executionState, currentStageId: 's2', currentStageIndex: 2 },
+    };
+    const head = `3f9c1e07a2b4${'0'.repeat(28)}`;
+    mockServer({
+      'GET /api/issues/TPS-2': { body: ROOT_BF },
+      'GET /api/plugins/crew.core/api/issues/i0/bug-finding': {
+        body: {
+          runs: [
+            {
+              id: 'r1',
+              companyId: 'c1',
+              issueId: 'i0',
+              approvalRound: 0,
+              run: 1,
+              requestId: 'q1',
+              machineJobId: null,
+              machineId: 'm1',
+              headSha: head,
+              prUrl: 'https://github.com/o/r/pull/87',
+              state: 'succeeded',
+              verdict: 'APPROVE',
+              lanesDone: 7,
+              lanesTotal: 7,
+              findings: [],
+              feedbackText: null,
+              reportDocumentKey: null,
+              costUsd: 0.96,
+              error: null,
+              createdAt: '2026-11-04T03:00:00.000Z',
+              startedAt: null,
+              finishedAt: '2026-11-04T03:22:00.000Z',
+              triage: null,
+            },
+          ],
+          batchesUsed: 0,
+          maxBatches: 2,
+          currentHead: head,
+          approvalRound: 0,
+        },
+      },
+    });
+    mountHarness();
+    fireEvent.click(await screen.findByRole('button', { name: 'Duyệt và merge' }));
+    expect(screen.queryByRole('button', { name: 'Duyệt' })).toBeNull();
+    const dialog = await screen.findByRole('dialog');
+    expect(within(dialog).getByText(/integrator merge PR #87 vào nhánh mặc định ngay/)).toBeTruthy();
+    const card = await within(dialog).findByRole('region', { name: 'Bug Finding' });
+    expect(within(card).getByText('APPROVE')).toBeTruthy();
+    expect(within(dialog).getByRole('button', { name: 'Duyệt và merge' })).toBeTruthy();
+  });
 });

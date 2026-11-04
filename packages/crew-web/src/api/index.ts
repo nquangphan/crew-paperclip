@@ -1,5 +1,6 @@
 // Cổng vào lớp dữ liệu: feature chỉ import từ '@/api'.
 import { assistantCallApi } from './crew/assistant-call';
+import { bugFindingApi } from './crew/bug-finding';
 import { contributionsApi } from './crew/contributions';
 import { crewDataApi } from './crew/data';
 import { forceDoneApi } from './crew/force-done';
@@ -61,7 +62,7 @@ export const api = {
   secrets: secretsApi,
   skills: skillsApi,
   skillSources: skillSourcesApi,
-  crew: { ...crewDataApi, ...forceDoneApi },
+  crew: { ...crewDataApi, ...forceDoneApi, ...bugFindingApi },
   roles: rolesApi,
   machines: machinesApi,
   runtimes: runtimesApi,
@@ -81,6 +82,7 @@ export const api = {
 
 export type Api = typeof api;
 export type { AssistantCallResult } from './crew/assistant-call';
+export { BUG_FINDING_POLL_MS, hasOpenRun, useBugFinding } from './crew/bug-finding';
 export { CREW_DATA_KEYS, type CrewDataKey } from './crew/data';
 export type * from './crew/model-settings';
 export { modelSettingsErrorOf } from './crew/model-settings';

@@ -3,6 +3,7 @@ import { sanitizeJobError } from "../jobs/sanitize.js";
 import { unknownKeyError } from "../jobs/validate.js";
 import { UUID } from "../shared/db.js";
 import { bridgeStage, bugFindingRoles, enqueueBugFinding, latestCrewPr } from "./enqueue.js";
+import { attachTriage, triageAuthor } from "./triage.js";
 import {
   announceRun, approvalRound, BROKEN_RUN_STATES, type BugFindingFinding, type BugFindingRun, type BugFindingRunState,
   type BugFindingVerdict, batchesUsed, cut, errText, FINDING_KEYS, getRunByRequest, listRuns, MAX_BATCHES, runsTable, VERDICTS,
@@ -81,8 +82,22 @@ async function getRoute(ctx: Ctx, input: PluginApiRequestInput): Promise<PluginA
   if (!issue || issue.companyId !== input.companyId) return fail(404, "issue_not_found");
   const roles = bugFindingRoles(issue);
   const [runs, round] = await Promise.all([listRuns(ctx, input.companyId, issue.id), approvalRound(ctx, input.companyId, issue.id)]);
-  const currentHead = roles ? latestCrewPr(await ctx.issues.listComments(issue.id, input.companyId), roles.integratorId)?.sha ?? null : null;
-  return { status: 200, body: { runs, batchesUsed: batchesUsed(runs, round), maxBatches: MAX_BATCHES, currentHead, approvalRound: round } };
+  const comments = roles ? await ctx.issues.listComments(issue.id, input.companyId) : [];
+  const currentHead = roles ? latestCrewPr(comments, roles.integratorId)?.sha ?? null : null;
+  // Kế hoạch của Trợ Lý (`crew-bf-triage`) và việc con sửa của lô: web chia finding của lượt thành ba nhóm.
+  const children = roles && runs.some((run) => run.state === "succeeded") ? await childIssues(ctx, input.companyId, issue.id) : [];
+  const withTriage = attachTriage(runs, comments, roles ? triageAuthor(issue, roles) : null, children);
+  return {
+    status: 200,
+    body: { runs: withTriage, batchesUsed: batchesUsed(runs, round), maxBatches: MAX_BATCHES, currentHead, approvalRound: round },
+  };
+}
+
+async function childIssues(ctx: Ctx, companyId: string, issueId: string) {
+  const rows = await ctx.db.query<{ id: string; identifier: string | null; status: string; description: string | null; created_at: string | Date }>(
+    `SELECT id::text AS id, identifier, status, description, created_at FROM public.issues WHERE company_id = $1 AND parent_id = $2`,
+    [companyId, issueId]);
+  return rows.map((row) => ({ id: row.id, identifier: row.identifier, status: row.status, description: row.description, createdAt: row.created_at }));
 }
 
 async function skipRoute(ctx: Ctx, input: PluginApiRequestInput): Promise<PluginApiResponse> {

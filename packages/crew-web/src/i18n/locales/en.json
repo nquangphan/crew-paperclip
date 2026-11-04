@@ -28,12 +28,21 @@
     "none": "No stage",
     "notStarted": "Not started",
     "reviewer": "Reviewer",
-    "integratorMerge": "Integrator · merge + docs",
+    "integratorDocs": "Integrator · merge + docs",
     "owner": "Owner approval",
     "integratorPush": "Integrator · push",
+    "integratorPr": "Merge code + PR",
+    "bugFinding": "Bug Finding review",
+    "integratorMerge": "Merge",
     "done": "Finished",
     "unknown": "Unknown",
-    "round": "Revision {{round}}/{{max}}"
+    "round": "Revision {{round}}/{{max}}",
+    "strip": "Stages",
+    "step": {
+      "done": "Done",
+      "current": "In progress",
+      "waiting": "Waiting"
+    }
   },
   "wizard": {
     "resume": "Resume",

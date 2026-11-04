@@ -114,6 +114,7 @@ File nào thuộc flow nào. Dùng `crew-docs where <file>` để tra từ dòng
 | `packages/crew-plugin/migrations/0025_bug_finding.sql` | [bug-finding](flows/bug-finding.md) (file) |
 | `packages/crew-plugin/src/__tests__/attachments-audit.db.test.ts` | [attachments](flows/attachments.md) (test) |
 | `packages/crew-plugin/src/__tests__/attachments-rules.test.ts` | [attachments](flows/attachments.md) (test) |
+| `packages/crew-plugin/src/__tests__/bug-finding-triage.test.ts` | [bug-finding](flows/bug-finding.md) (test) |
 | `packages/crew-plugin/src/__tests__/bug-finding.db.test.ts` | [bug-finding](flows/bug-finding.md) (test) |
 | `packages/crew-plugin/src/__tests__/companies.db.test.ts` | [crew-plugin](flows/crew-plugin.md) (test) |
 | `packages/crew-plugin/src/__tests__/companies.test.ts` | [crew-plugin](flows/crew-plugin.md) (test) |
@@ -169,6 +170,7 @@ File nào thuộc flow nào. Dùng `crew-docs where <file>` để tra từ dòng
 | `packages/crew-plugin/src/bug-finding/api.ts` | [bug-finding](flows/bug-finding.md) (điểm vào) |
 | `packages/crew-plugin/src/bug-finding/enqueue.ts` | [bug-finding](flows/bug-finding.md) (file) |
 | `packages/crew-plugin/src/bug-finding/runs.ts` | [bug-finding](flows/bug-finding.md) (file) |
+| `packages/crew-plugin/src/bug-finding/triage.ts` | [bug-finding](flows/bug-finding.md) (file) |
 | `packages/crew-plugin/src/bug-finding/watchdog.ts` | [bug-finding](flows/bug-finding.md) (file) |
 | `packages/crew-plugin/src/companies/data.ts` | [crew-plugin](flows/crew-plugin.md) (file) |
 | `packages/crew-plugin/src/docs/api.ts` | [docs-snapshot](flows/docs-snapshot.md) (điểm vào) |
@@ -212,6 +214,7 @@ File nào thuộc flow nào. Dùng `crew-docs where <file>` để tra từ dòng
 | `packages/crew-plugin/src/setup/data.ts` | [setup-wizards](flows/setup-wizards.md) (file) |
 | `packages/crew-plugin/src/setup/types.ts` | [setup-wizards](flows/setup-wizards.md) (file) |
 | `packages/crew-plugin/src/shared-web/attachment-rules.ts` | [attachments](flows/attachments.md) (file) |
+| `packages/crew-plugin/src/shared-web/bug-finding.ts` | [bug-finding](flows/bug-finding.md) (file) |
 | `packages/crew-plugin/src/shared-web/docs-tree.ts` | [docs-snapshot](flows/docs-snapshot.md) (file) |
 | `packages/crew-plugin/src/shared-web/machine-card.ts` | [machine-status](flows/machine-status.md) (file) |
 | `packages/crew-plugin/src/shared-web/map.ts` | [roadmap-map](flows/roadmap-map.md) (file) |
@@ -261,6 +264,7 @@ File nào thuộc flow nào. Dùng `crew-docs where <file>` để tra từ dòng
 | `packages/crew-plugin/src/usage/rollup.ts` | [usage-storage](flows/usage-storage.md) (file) |
 | `packages/crew-plugin/src/worker.ts` | [crew-plugin](flows/crew-plugin.md) (điểm vào) |
 | `packages/crew-web/src/api/crew/assistant-call.ts` | [issues-web](flows/issues-web.md) (file) |
+| `packages/crew-web/src/api/crew/bug-finding.ts` | [issues-web](flows/issues-web.md) (file) |
 | `packages/crew-web/src/api/crew/contributions.ts` | [contributions](flows/contributions.md) (file) |
 | `packages/crew-web/src/api/crew/data.ts` | [web-shell](flows/web-shell.md) (file) |
 | `packages/crew-web/src/api/crew/force-done.ts` | [issues-web](flows/issues-web.md) (file) |
@@ -370,6 +374,7 @@ File nào thuộc flow nào. Dùng `crew-docs where <file>` để tra từ dòng
 | `packages/crew-web/src/ds/widgets/bar-chart.tsx` | [design-system](flows/design-system.md) (file) |
 | `packages/crew-web/src/ds/widgets/code-block.tsx` | [design-system](flows/design-system.md) (file) |
 | `packages/crew-web/src/ds/widgets/confirm-dialog.tsx` | [design-system](flows/design-system.md) (file) |
+| `packages/crew-web/src/ds/widgets/crew/bug-finding-parts.tsx` | [issues-web](flows/issues-web.md) (file) |
 | `packages/crew-web/src/ds/widgets/crew/crew-map-level.ts` | [roadmap-map](flows/roadmap-map.md) (file) |
 | `packages/crew-web/src/ds/widgets/crew/crew-map.tsx` | [roadmap-map](flows/roadmap-map.md) (file) |
 | `packages/crew-web/src/ds/widgets/crew/crew-summary.tsx` | [roadmap-map](flows/roadmap-map.md) (file) |
@@ -490,6 +495,7 @@ File nào thuộc flow nào. Dùng `crew-docs where <file>` để tra từ dòng
 | `packages/crew-web/src/features/issues/detail/comments.tsx` | [issues-web](flows/issues-web.md) (file) |
 | `packages/crew-web/src/features/issues/detail/composer.tsx` | [issues-web](flows/issues-web.md) (file) |
 | `packages/crew-web/src/features/issues/detail/crew/actions-slot.tsx` | [issues-web](flows/issues-web.md) (file) |
+| `packages/crew-web/src/features/issues/detail/crew/bug-finding-panel.tsx` | [issues-web](flows/issues-web.md) (file) |
 | `packages/crew-web/src/features/issues/detail/crew/comment-questions.ts` | [issues-web](flows/issues-web.md) (file) |
 | `packages/crew-web/src/features/issues/detail/crew/force-done-dialog.tsx` | [issues-web](flows/issues-web.md) (file) |
 | `packages/crew-web/src/features/issues/detail/crew/force-done.ts` | [issues-web](flows/issues-web.md) (file) |
@@ -707,7 +713,7 @@ File nào thuộc flow nào. Dùng `crew-docs where <file>` để tra từ dòng
 | `packages/crew-web/test/ds/markdown-view.test.tsx` | [design-system](flows/design-system.md) (test) |
 | `packages/crew-web/test/ds/rows.test.tsx` | [design-system](flows/design-system.md) (test) |
 | `packages/crew-web/test/ds/section-codeblock.test.tsx` | [design-system](flows/design-system.md) (test) |
-| `packages/crew-web/test/ds/stage-badge.test.ts` | [design-system](flows/design-system.md) (test) |
+| `packages/crew-web/test/ds/stage-badge.test.tsx` | [design-system](flows/design-system.md) (test) |
 | `packages/crew-web/test/ds/status-badge.test.tsx` | [design-system](flows/design-system.md) (test) |
 | `packages/crew-web/test/ds/wizard.test.tsx` | [design-system](flows/design-system.md) (test) |
 | `packages/crew-web/test/features/access/nav-access.test.ts` | [project-access](flows/project-access.md) (test) |
@@ -746,6 +752,7 @@ File nào thuộc flow nào. Dùng `crew-docs where <file>` để tra từ dòng
 | `packages/crew-web/test/features/issues/assistant-mention.test.ts` | [issues-web](flows/issues-web.md) (test) |
 | `packages/crew-web/test/features/issues/attachment-viewer.test.tsx` | [issues-web](flows/issues-web.md) (test) |
 | `packages/crew-web/test/features/issues/attachments.test.tsx` | [issues-web](flows/issues-web.md) (test) |
+| `packages/crew-web/test/features/issues/bug-finding-panel.test.tsx` | [issues-web](flows/issues-web.md) (test) |
 | `packages/crew-web/test/features/issues/comment-questions.test.ts` | [issues-web](flows/issues-web.md) (test) |
 | `packages/crew-web/test/features/issues/comment-thread.test.ts` | [issues-web](flows/issues-web.md) (test) |
 | `packages/crew-web/test/features/issues/comments.test.tsx` | [issues-web](flows/issues-web.md) (test) |

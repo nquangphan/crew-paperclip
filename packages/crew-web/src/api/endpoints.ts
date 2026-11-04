@@ -194,6 +194,8 @@ export const ENDPOINTS = {
   'roles.delete': { ids: ['S8.7'], method: 'DELETE', path: `${PLUGIN}/api/projects/:projectId/roles` },
   // Ép Done (S6.17): board ép issue sang done kèm lý do; chỉ board gọi được (agent 403).
   'crew.forceDone': { ids: ['S6.17'], method: 'POST', path: `${PLUGIN}/api/issues/:issueId/force-done` },
+  // Lượt Bug Finding của ticket tổng code-bf (tiến độ lane, finding, kế hoạch của Trợ Lý); companyId ở query.
+  'crew.bugFinding': { ids: ['S6.1'], method: 'GET', path: `${PLUGIN}/api/issues/:issueId/bug-finding` },
   'jobs.create': {
     ids: ['S9.3', 'S9.7', 'S13.4', 'S14.4', 'S8.7', 'S11.9', 'S14.7', 'S15.3'],
     method: 'POST',

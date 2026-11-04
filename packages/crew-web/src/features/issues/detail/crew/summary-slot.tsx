@@ -2,16 +2,18 @@
 import type { Issue } from '@paperclipai/shared';
 import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
-import { api, queryKeys } from '@/api';
-import { CrewMap, CrewSummary, DocsCheckPanel, ErrorState } from '@/ds';
+import { api, queryKeys, useBugFinding } from '@/api';
+import { CrewMap, CrewSummary, DocsCheckPanel, ErrorState, StageStrip, stageStripOf } from '@/ds';
 import { useT } from '@/i18n';
 import { labelledKindOf } from '../../new/kinds';
 import { useIssueOpener } from '../../popup/issue-nav';
+import { BugFindingSection, withBugFindingDetails } from './bug-finding-panel';
 
 /**
  * Tóm tắt Crew trên đầu trang (S6.1–S6.3): "x/y con xong · giai đoạn · docs", nút Mở/Đóng map; mở ra thì có
  * bản đồ (bấm ô mở issue: trong popup thì thay popup, trên trang đầy đủ thì sang trang đó) và panel kiểm docs. Kiểm docs hỏi theo yêu cầu gốc, như tab Crew của plugin.
- * Issue không thuộc yêu cầu Crew (`not_crew_root`) thì không hiện gì.
+ * Issue không thuộc yêu cầu Crew (`not_crew_root`) thì không hiện gì. Ticket tổng code-bf (luồng Bug Finding) có thêm
+ * dải bốn giai đoạn và khối Bug Finding (tiến độ lane, finding theo kế hoạch của Trợ Lý) khi đang xem chính ticket tổng.
  */
 export function SummarySlot({ issue }: { issue: Issue }) {
   const { t } = useT('issues');
@@ -39,6 +41,8 @@ export function SummarySlot({ issue }: { issue: Issue }) {
   });
   const labelled = labelledKindOf(viewingRoot ? issue.labels : rootQuery.data?.labels);
   const rootKind = labelled === 'docs' || labelled === 'plan' ? labelled : null;
+  const bugFindingRoot = crew && viewingRoot && map?.root.kind === 'code-bf';
+  const bugFinding = useBugFinding(companyId, rootId, bugFindingRoot);
 
   if (mapQuery.error) {
     return (
@@ -64,6 +68,12 @@ export function SummarySlot({ issue }: { issue: Issue }) {
         expanded={expanded}
         onToggleMap={() => setExpanded((v) => !v)}
       />
+      {bugFindingRoot ? (
+        <>
+          <StageStrip items={withBugFindingDetails(stageStripOf(map.root.stage, map.root.kind), bugFinding.data, t)} />
+          <BugFindingSection companyId={companyId} issueId={rootId} />
+        </>
+      ) : null}
       {expanded ? (
         <div className="flex flex-col gap-2">
           <CrewMap map={map} currentIssueId={issue.id} onOpenIssue={openIssue} rootKind={rootKind} />

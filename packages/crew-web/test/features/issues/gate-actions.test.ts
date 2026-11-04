@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { gateActionsFor } from '@/features/issues/detail/crew/gate-actions';
+import { gateActionsFor, mergesOnApprove } from '@/features/issues/detail/crew/gate-actions';
 
 // Hình issue theo GET /api/issues/:id; executionState theo server/src/services/issue-execution-policy.ts.
 const me = { id: 'user-1' };
@@ -91,5 +91,18 @@ describe('gateActionsFor', () => {
   it('duyệt bắt buộc có lời nhắn (server từ chối duyệt không comment)', () => {
     expect(() => action(atApproval, 'approve').body('   ')).toThrow();
     expect(() => action(atApproval, 'approve').body()).toThrow();
+  });
+});
+
+describe('mergesOnApprove', () => {
+  const review = (agentId: string) => ({ type: 'review', participants: [{ type: 'agent', agentId }] });
+  const approval = { type: 'approval', participants: [{ type: 'user', userId: 'user-1' }] };
+  const policy = (stages: unknown[]) => ({ executionPolicy: { maxReviewRounds: 5, stages } });
+
+  it('chỉ ticket tổng code-bf (integrator gộp + PR, reviewer cầu nối, owner, integrator merge) mới duyệt là merge', () => {
+    expect(mergesOnApprove(policy([review('int'), review('rev'), approval, review('int')]))).toBe(true);
+    expect(mergesOnApprove(policy([review('rev'), review('int'), approval, review('int')]))).toBe(false);
+    expect(mergesOnApprove(policy([review('rev'), approval]))).toBe(false);
+    expect(mergesOnApprove({ executionPolicy: null })).toBe(false);
   });
 });

@@ -65,6 +65,30 @@ export function needsApprovalStage(id: GateActionId): boolean {
   return id === 'approve' || id === 'request_changes';
 }
 
+type PolicyStage = { type?: unknown; participants?: unknown };
+
+function principal(stage: PolicyStage | undefined, type: 'review' | 'approval'): string | null {
+  if (!stage || stage.type !== type || !Array.isArray(stage.participants)) return null;
+  const first = stage.participants[0] as { type?: unknown; agentId?: unknown; userId?: unknown } | undefined;
+  const id = type === 'review' ? first?.agentId : first?.userId;
+  return first?.type === (type === 'review' ? 'agent' : 'user') && typeof id === 'string' ? id : null;
+}
+
+/**
+ * Ticket tổng code-bf (policy `root-bf`: integrator gộp + PR, reviewer cầu nối Bug Finding, owner, integrator merge; cùng
+ * nhận dạng với `crewPolicyKind` của plugin): owner duyệt là integrator merge PR ngay, nên nút là "Duyệt và merge".
+ * Policy `code` (integrator push sau duyệt) và `research` giữ nút "Duyệt".
+ */
+export function mergesOnApprove(issue: { executionPolicy?: unknown }): boolean {
+  const policy = issue.executionPolicy as { maxReviewRounds?: unknown; stages?: unknown } | null | undefined;
+  if (policy?.maxReviewRounds !== 5 || !Array.isArray(policy.stages) || policy.stages.length !== 4) return false;
+  const stages = policy.stages as PolicyStage[];
+  const first = principal(stages[0], 'review');
+  const second = principal(stages[1], 'review');
+  const last = principal(stages[3], 'review');
+  return !!first && !!second && last === first && last !== second && !!principal(stages[2], 'approval');
+}
+
 /** Thao tác cổng được phép theo trạng thái mới nhất của issue. */
 export function gateActionsFor(issue: GateIssue, me: { id: string }): GateAction[] {
   if (CLOSED.has(issue.status)) return [ACTIONS.reopen];

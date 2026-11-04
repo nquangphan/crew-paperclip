@@ -263,15 +263,23 @@ describe("route", () => {
     expect(await result(run!.request_id)).toMatchObject({ status: 409 });
   });
 
-  it("GET: mọi lượt, số lô sửa trong vòng, tối đa 2 lô, head hiện tại", async () => {
+  it("GET: mọi lượt kèm kế hoạch của Trợ Lý, số lô sửa trong vòng, tối đa 2 lô, head hiện tại", async () => {
     const issue = addIssue(11);
     for (const [run, head, state] of [[1, HEAD, "succeeded"], [2, NEXT_HEAD, "failed"], [3, NEXT_HEAD, "requested"]] as const) {
       await host.sql.unsafe(`INSERT INTO ${host.ns}.crew_bug_finding_runs (company_id,issue_id,approval_round,run,request_id,head_sha,pr_url,state,created_at)
         VALUES ($1,$2,0,$3,gen_random_uuid(),$4,$5,$6,now() - make_interval(mins => 10 - $3))`, [companyId, issue, run, head, PR, state]);
     }
+    // Kế hoạch của Trợ Lý (returnAssignee) cho lượt 1, viết sau lượt 1 và trước lượt 2; bản của agent khác bị bỏ qua.
+    const triage = "crew-bf-triage run=1 batch=bf-fix-1 fix=F-01 ask=F-02 dismiss=-";
+    comments.get(issue)!.push(
+      { authorAgentId: assistant, body: triage, createdAt: new Date(Date.now() - 8.5 * 60_000) },
+      { authorAgentId: outsider, body: "crew-bf-triage run=1 batch=bf-fix-9 fix=F-09 ask=- dismiss=-", createdAt: new Date(Date.now() - 8.2 * 60_000) },
+    );
     const response = await api("bug-finding.get", { method: "GET", params: { issueId: issue }, actor: asAgent(reviewer) });
     expect(response).toMatchObject({ status: 200, body: { batchesUsed: 1, maxBatches: 2, currentHead: HEAD, approvalRound: 0 } });
-    expect((response.body as { runs: { run: number }[] }).runs.map((r) => r.run)).toEqual([3, 2, 1]);
+    const body = response.body as { runs: { run: number; triage: unknown }[] };
+    expect(body.runs.map((r) => r.run)).toEqual([3, 2, 1]);
+    expect(body.runs.map((r) => r.triage)).toEqual([null, null, expect.objectContaining({ batch: 1, fix: ["F-01"], ask: ["F-02"], fixIssues: {} })]);
     expect(await api("bug-finding.get", { method: "GET", params: { issueId: id(3, 98) } })).toMatchObject({ status: 404 });
   });
 

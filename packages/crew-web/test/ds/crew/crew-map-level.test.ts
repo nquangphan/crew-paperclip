@@ -61,7 +61,7 @@ describe('crewMapLevel', () => {
     });
     const { level } = crewMapLevel(family([root]), 'r', t);
     expect(level.center.notes).toContain(t('crewMap.kind.code'));
-    expect(level.center.notes).toContain(t('crewMap.stageLine', { stage: t('stage.integratorMerge') }));
+    expect(level.center.notes).toContain(t('crewMap.stageLine', { stage: t('stage.integratorPr') }));
   });
 
   it('gốc ở đỉnh (thẻ yêu cầu, đếm việc con xong), việc con là thẻ việc, thứ tự theo mã', () => {

@@ -18,7 +18,7 @@ export function stageLabel(node: Pick<CrewMapNode, "stage" | "kind">): string {
   const labels = node.kind === "research"
     ? ["Reviewer", "Owner duyệt"]
     : node.kind === "code-bf"
-      ? ["Integrator · merge + docs", "Reviewer", "Owner duyệt", "Integrator · push"]
+      ? ["Gộp code + PR", "Review Bug Finding", "Owner duyệt", "Merge"]
       : ["Reviewer", "Integrator · merge + docs", "Owner duyệt", "Integrator · push"];
   return labels[index] ?? (node.stage.currentType === "approval" ? "Owner duyệt" : "Đang duyệt");
 }
