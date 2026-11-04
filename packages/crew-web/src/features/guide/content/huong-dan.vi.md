@@ -196,7 +196,7 @@ Trên ảnh:
 1. **Mở toàn trang**: xem trang đầy đủ ở tab mới (hoặc Cmd/Ctrl+click vào yêu cầu trong danh sách).
 2. Tiêu đề, mã, và dòng **Tóm tắt Crew**, ví dụ "Crew · 1/3 con xong · Owner duyệt · docs Đạt":
    - **x/y con xong**: số yêu cầu con đã xong trên tổng số;
-   - giai đoạn: *Reviewer*, *Integrator · merge + docs*, *Owner duyệt*, *Integrator · push*, *Đã xong*;
+   - giai đoạn: *Reviewer*, *Integrator · merge + docs*, *Owner duyệt*, *Integrator · push*, *Đã xong*; yêu cầu gốc theo luồng Bug Finding thì là *Gộp code + PR*, *Review Bug Finding*, *Owner duyệt*, *Merge*;
    - **docs**: *Đạt* là tài liệu khớp code, *Lỗi* là Integrator sẽ sửa, *Chưa có* là chưa tới bước kiểm.
 3. **Thuộc tính**: trạng thái, người làm, project, loại, model, giai đoạn và người duyệt, vòng sửa (tối đa 5), giờ tạo và cập nhật. Nhóm **Runtime** cho biết runtime đã chọn và các lần tự chuyển.
 
@@ -217,6 +217,30 @@ Bạn giao cho Trợ Lý
   → owner bấm Merge trên GitHub
 ```
 
+Yêu cầu **Code** hay **Bug** của project ở GitHub, khi company bật Bug Finding, đi luồng khác ở yêu cầu gốc (mục ngay dưới). Yêu cầu Nghiên cứu, Viết tài liệu, Lập kế hoạch, và yêu cầu tạo trước khi bật, giữ luồng trên.
+
+#### Luồng duyệt có Bug Finding
+
+Bug Finding là app review pull request đi kèm app 2P Crew trên Mac. Ở luồng này yêu cầu gốc không còn bước Reviewer đọc code: Integrator gom code và mở pull request trước, Bug Finding review chính pull request đó, rồi mới tới lượt bạn.
+
+```
+Mọi yêu cầu con xong (mỗi con vẫn qua Reviewer như thường)
+  → (1) Gộp code + PR: Integrator gộp code, kiểm tài liệu, mở hoặc cập nhật pull request
+  → (2) Review Bug Finding: server xếp pull request vào hàng đợi app Bug Finding trên Mac của project
+       → còn lỗi cần sửa: Trợ Lý tự giao sửa phần sửa được, hỏi bạn phần còn lại
+         → cả lô sửa xong và bạn đã trả lời hết → quay lại (1), Bug Finding chạy lại MỘT lần
+       → hết lỗi cần sửa (hoặc đã sửa đủ 2 lô) → (3)
+  → (3) OWNER DUYỆT: bấm Duyệt và merge, hoặc Yêu cầu sửa
+  → (4) Merge: Integrator merge pull request ngay, đúng bản bạn đã duyệt
+```
+
+- **Dải giai đoạn** dưới dòng Tóm tắt Crew cho biết yêu cầu đang ở bước nào trong bốn bước trên, kèm số pull request và lượt Bug Finding (ví dụ "Lượt 2 / tối đa 3 · Đang chạy").
+- **Khối Bug Finding** liệt kê từng lượt: pull request, commit được review, thanh tiến độ lane khi đang chạy, chi phí và báo cáo đầy đủ khi xong. Lỗi Bug Finding tìm thấy (finding) chia ba nhóm theo cách Trợ Lý xử lý: **Trợ Lý tự sửa** (kèm việc con sửa và trạng thái), **Cần owner chốt** (câu hỏi cho bạn), **Trợ Lý bỏ qua** (kèm lý do). Muốn xem lane và log trực tiếp thì mở app Bug Finding trên Mac.
+- **Trợ Lý xử lý finding.** Lỗi rõ ràng, sửa không đổi hành vi sản phẩm hay hợp đồng API thì Trợ Lý lập một **lô sửa** (việc con sửa giao Executor, qua Reviewer như mọi việc con). Lỗi cần chốt phạm vi, giao diện, quy tắc sản phẩm, bảo mật hay dữ liệu thì Trợ Lý gom vào **một thẻ câu hỏi** "Bug Finding lượt n: cần owner chốt", mỗi lỗi có ba lựa chọn: a) Sửa, b) Không sửa, c) Tách ticket riêng (không chặn pull request này), kèm đề xuất của Trợ Lý. Lỗi mức thấp đã có từ trước hoặc báo nhầm có bằng chứng thì Trợ Lý bỏ qua và ghi lý do. Lỗi mức HIGH và CRITICAL không bao giờ bị tự bỏ qua.
+- **Bug Finding chạy lại đúng một lần cho mỗi lô**, sau khi **toàn bộ** việc con sửa của lô xong và bạn đã trả lời hết thẻ câu hỏi; không chạy lại theo từng việc con, vì mỗi lượt rất nặng. Lô chỉ có câu trả lời "Không sửa" (không có code mới) thì không chạy lại.
+- Mỗi lần bạn duyệt có tối đa **3 lượt** Bug Finding: lần đầu và tối đa 2 lô sửa tự động. Hết lượt mà vẫn còn lỗi thì yêu cầu sang bạn duyệt, kèm danh sách lỗi còn mở trong **Cần owner quyết định** của tổng kết.
+- Bug Finding hỏng hay hết giờ (30 phút chưa Mac nào nhận, hoặc 8 giờ chưa có kết quả) thì được chạy lại một lần; hỏng lần nữa thì owner nhận thẻ "Bug Finding không chạy được" để chọn **Bỏ qua Bug Finding** hoặc **Không, chạy lại sau khi sửa máy**. Yêu cầu không bị kẹt im lặng.
+
 #### Tổng kết của Trợ Lý
 
 Ngay dưới mô tả yêu cầu gốc có một khối riêng **Tổng kết của Trợ Lý**: chỉ cần đọc khối này là nắm được toàn bộ yêu cầu mà không phải mở từng việc con. Khối có từ lúc Trợ Lý lập kế hoạch và được cập nhật ở mỗi lần Trợ Lý chạy lại (tạo thêm việc con, việc con đổi trạng thái, bạn trả lời câu hỏi, có vòng sửa), nên luôn khớp với việc đã làm. Khối gồm: **Yêu cầu** (Trợ Lý hiểu yêu cầu là gì, làm gì và không làm gì), **Việc con** (mỗi việc kèm trạng thái), **Kết quả**, **Hình ảnh** (mockup và ảnh nghiệm thu chính lấy từ file đính kèm của các việc con), **Đã tự quyết định**, **Kế hoạch** (chỉ với yêu cầu lập kế hoạch) và **Cần owner quyết định**. Trợ Lý chưa lập kế hoạch (còn đang hỏi bạn) thì chưa có khối này. Muốn viết thêm vào mô tả thì viết phía trên tổng kết; chữ viết sau tổng kết sẽ được Trợ Lý chuyển lên trên ở lần chạy sau.
@@ -228,6 +252,7 @@ Duyệt xong, Integrator không tự gộp vào nhánh chính. Nó đẩy nhánh
 - Mở link, xem thay đổi trên GitHub rồi bấm **Merge**. Code chỉ vào nhánh chính lúc bạn bấm.
 - PR báo conflict thì Integrator không tự sửa: bạn xử lý trên GitHub, hoặc mở lại yêu cầu và ghi rõ cần sửa gì.
 - Repo không ở GitHub thì Integrator đẩy thẳng vào nhánh chính như trước và ghi rõ điều đó trong bình luận.
+- Yêu cầu theo [luồng Bug Finding](#issue-popup): pull request đã mở từ bước Gộp code + PR, trước khi bạn duyệt. Bạn bấm **Duyệt và merge** thì Integrator merge luôn, không cần bấm Merge trên GitHub. Nhánh chính đã đi tiếp mà conflict thì Integrator bình luận `Integrator: chưa merge được — conflict` và dừng: bạn xử lý conflict trên GitHub rồi bình luận trên yêu cầu, Integrator chạy lại và merge.
 - Project bật deploy tự động chỉ deploy sau khi PR được merge, đúng commit merge trên nhánh deploy. PR đóng mà không merge thì không deploy (bình luận `crew-deploy … status=cancelled`); quá 3 ngày chưa merge thì job thôi chờ.
 
 Một yêu cầu nhỏ thường xong trong 15 đến 30 phút.
@@ -324,16 +349,30 @@ Khi giai đoạn là **Owner duyệt**, đến lượt bạn. Yêu cầu hiện 
 
 #### Cách làm
 
-1. Mở yêu cầu. Xem bình luận của Reviewer, kết quả **Kiểm docs** là Đạt và mọi yêu cầu con đã xong.
+1. Mở yêu cầu. Xem bình luận của Reviewer, kết quả **Kiểm docs** là Đạt và mọi yêu cầu con đã xong. Yêu cầu theo luồng Bug Finding thì xem khối **Bug Finding** thay cho bình luận của Reviewer (mục **Duyệt yêu cầu có Bug Finding** ngay dưới).
 2. Chọn một nút ở đầu trang:
 
 | Nút | Dùng khi | Chuyện xảy ra |
 |---|---|---|
 | **Duyệt** (1) | Đồng ý | Hộp thoại có ô **Lời nhắn khi duyệt** điền sẵn "Đã xem, duyệt.", không được để trống. Xác nhận thì Integrator mở pull request (link ở mục **Merge request** của tổng kết) và yêu cầu thành **Hoàn thành**; code vào nhánh chính khi bạn bấm Merge trên GitHub |
+| **Duyệt và merge** | Đồng ý, yêu cầu theo luồng Bug Finding | Thay cho **Duyệt**. Hộp thoại có thẻ Bug Finding và lời nhắn điền sẵn "Đã xem kết quả Bug Finding, duyệt và merge.". Xác nhận thì Integrator merge pull request vào nhánh chính ngay, đúng bản bạn đã xem, rồi yêu cầu thành **Hoàn thành** |
 | **Yêu cầu sửa** (2) | Chưa đồng ý | Viết **Lý do cần sửa** (ít nhất 5 ký tự), **Gửi yêu cầu sửa**. Việc quay về người làm, tính thêm một vòng sửa. Với yêu cầu code hay viết tài liệu, lần nộp lại chạy lại từ đầu: Reviewer xem lại, Integrator gộp lại cả việc sửa mới và kiểm docs, rồi mới về bạn duyệt lại; **Lịch sử** ghi dòng *Owner yêu cầu sửa: lần nộp lại chạy lại từ Reviewer* |
 | **Hủy yêu cầu** (3) | Không cần nữa | Có hộp xác nhận. Yêu cầu thành **Đã hủy**, run đang chạy bị dừng |
 | **Ép Done** (4) | Bất khả kháng | Mục [Ép Done](#force-done) |
 | **Mở lại** | Yêu cầu đã xong hoặc đã hủy mà cần làm lại | Yêu cầu về **Cần làm**, chạy lại từ đầu ở vòng mới |
+
+#### Duyệt yêu cầu có Bug Finding
+
+Yêu cầu Code hay Bug theo luồng Bug Finding (giai đoạn **Owner duyệt** trong dải bốn bước *Gộp code + PR*, *Review Bug Finding*, *Owner duyệt*, *Merge*) tới tay bạn khi Bug Finding không còn lỗi cần sửa, hoặc đã dùng hết 2 lô sửa tự động.
+
+1. Bấm **Duyệt và merge**. Trong hộp thoại, thẻ Bug Finding ghi **Kết quả cuối** và commit được review: dòng "đúng commit sẽ merge" nghĩa là Bug Finding đã xem đúng bản sắp vào nhánh chính. Bên dưới là các lượt trước, chi phí và bảng finding với cách đã xử lý.
+2. Còn lỗi mở sau lô cuối thì chúng nằm trong **Cần owner quyết định** của tổng kết: duyệt luôn, hoặc **Yêu cầu sửa** và ghi rõ lỗi nào cần sửa.
+3. **Yêu cầu sửa** ở đây mở một vòng mới: Trợ Lý lập lô sửa, cả luồng chạy lại từ bước Gộp code + PR, số lượt Bug Finding đếm lại từ đầu; Bug Finding chỉ chạy lại khi commit của pull request đổi.
+
+Trong lúc Bug Finding đang chạy, bạn có thể nhận hai loại thẻ:
+
+- **Bug Finding lượt n: cần owner chốt**: mỗi câu là một lỗi Trợ Lý không tự quyết được. Chọn a) **Sửa** (Trợ Lý thêm việc con sửa vào cùng lô), b) **Không sửa** (lý do gửi kèm lần chạy lại để Bug Finding không báo lại), c) **Tách ticket riêng** (ghi vào **Cần owner quyết định**, không chặn pull request). Trợ Lý chỉ cho Bug Finding chạy lại khi bạn đã trả lời hết thẻ.
+- **Bug Finding không chạy được**: Bug Finding hỏng hai lần cho cùng commit (Mac tắt, mất mạng, app lỗi). **Bỏ qua Bug Finding** cho yêu cầu đi tiếp sang bạn duyệt mà không có kết quả Bug Finding; **Không, chạy lại sau khi sửa máy** giữ yêu cầu chờ, sửa máy xong thì bình luận trên yêu cầu để Bug Finding được xếp lại.
 
 > **Mẹo:** hết 5 vòng sửa mà chưa đạt thì yêu cầu được chuyển cho bạn quyết. Lúc đó trả lời bằng **bình luận** nói rõ hướng xử lý, không có nút Duyệt. Không có ô chọn trạng thái tự do (lý do ở mục [Vì sao không có nút X](#missing-buttons)).
 
@@ -806,6 +845,12 @@ Bình luận của agent có các dòng bắt đầu bằng `crew-`: bằng ch�
 | `crew-docs-check commit=… exit=0` | Integrator đã kiểm tài liệu trên code đã gộp; `exit=0` là đạt |
 | `crew-merge sha=… pushed=pr pr=…` | Đã mở pull request vào nhánh chính, chờ owner bấm Merge trên GitHub |
 | `crew-merge sha=… pushed=yes` | Đã đẩy thẳng lên nhánh chính (repo không ở GitHub) |
+| `crew-pr sha=… pr=…` | Luồng Bug Finding: Integrator đã mở hoặc cập nhật pull request đúng code đã gộp, trước khi owner duyệt |
+| `crew-bugfinding run=… sha=… verdict=… open=…` | Hệ thống báo một lượt Bug Finding kết thúc: lượt thứ mấy, commit được review, kết luận (`APPROVE`, `BLOCK`…) và số lỗi còn mở |
+| `crew-bf-triage run=… batch=bf-fix-… fix=… ask=… dismiss=…` | Kế hoạch của Trợ Lý cho lượt đó: lỗi tự sửa, lỗi hỏi owner, lỗi bỏ qua (kèm lý do ở các dòng sau) |
+| `crew-bf finding=F-… run=…` | Việc con này sửa lỗi nào của lượt Bug Finding nào |
+| `crew-bf-feedback` | Khối Trợ Lý gửi kèm lần chạy lại: mỗi dòng `F-xx: …` là lý do không sửa hay bỏ qua một lỗi |
+| `crew-merge sha=… pushed=merged pr=… merge=…` | Luồng Bug Finding: Integrator đã merge pull request vào nhánh chính sau khi owner duyệt; `merge=` là commit merge |
 | `crew-assistant done children=…` | Trợ Lý xác nhận mọi yêu cầu con đã xong |
 
 ### Sự cố thường gặp {#troubleshooting}
@@ -826,6 +871,9 @@ Bình luận của agent có các dòng bắt đầu bằng `crew-`: bằng ch�
 | Máy **Mất liên lạc** | Mac tắt, mất mạng, app chưa mở | Kiểm Mac, mạng, mở lại app 2P Crew |
 | Việc trên máy ghi **Chờ app 2P Crew** | App chưa chạy | Mở app 2P Crew trên Mac |
 | Agent báo hết quota | Gói Claude trên Mac hết hạn mức | Chờ hạn mức mở lại, hoặc nhờ owner bật Codex/OpenCode |
+| Khối Bug Finding đứng ở **Chờ máy nhận** | Mac của project tắt, mất mạng, hoặc app 2P Crew chưa mở | Mở app 2P Crew trên Mac; quá 30 phút thì lượt thành **Hết giờ** và được xếp lại |
+| Lượt Bug Finding **Lỗi** "Mac chưa cập nhật 2P Crew có Bug Finding" | App 2P Crew trên Mac là bản cũ, chưa kèm Bug Finding | Cập nhật app 2P Crew trên Mac đó rồi bình luận trên yêu cầu |
+| Bình luận `Integrator: chưa merge được — conflict` | Nhánh chính đã đi tiếp sau khi bạn duyệt | Xử lý conflict trên GitHub rồi bình luận trên yêu cầu; Integrator chạy lại và merge |
 {{/roles}}
 {{roles:owner}}
 | Bạn thấy | Nguyên nhân | Cách xử lý |
@@ -851,6 +899,9 @@ Bình luận của agent có các dòng bắt đầu bằng `crew-`: bằng ch�
 | Run | Một lần agent chạy |
 | Giai đoạn | Một bước trong luồng duyệt |
 | Vòng sửa | Một lần Reviewer hoặc owner trả việc về sửa (tối đa 5) |
+| Bug Finding | App review pull request đi kèm app 2P Crew trên Mac; review yêu cầu gốc Code/Bug trước khi owner duyệt |
+| Finding | Một lỗi Bug Finding tìm thấy, mã dạng `F-01`, có mức (CRITICAL, HIGH, MEDIUM, LOW, INFO) |
+| Lô sửa | Nhóm việc con sửa finding Trợ Lý lập sau một lượt Bug Finding (`bf-fix-<số>`); Bug Finding chạy lại một lần khi cả lô xong |
 | Vai trò (project) | Trợ Lý, Executor, Reviewer, Integrator |
 | Environment | Cấu hình cho agent biết chạy trên máy nào, thư mục nào |
 | Checkout | Thư mục repo riêng của một agent trên máy |

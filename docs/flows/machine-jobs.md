@@ -5,13 +5,19 @@
 ## Mục đích
 
 Một số việc chỉ làm được trên Mac chạy agent: soi thư mục repo, tạo checkout cho agent, đồng bộ hay gỡ skill, chạy
-kiểm tra máy, gỡ checkout, cài runtime. Server không SSH vào làm hộ; board xếp việc vào hàng đợi trong plugin, app 2P
-Crew trên Mac dùng board key để nhận việc của đúng máy đó và báo kết quả. Web chỉ thấy kết quả đã kiểm dạng và đã làm
-sạch.
+kiểm tra máy, gỡ checkout, cài runtime, xếp PR của ticket tổng vào hàng đợi app Bug Finding. Server không SSH vào làm
+hộ; board (hoặc chính plugin, với việc `bug-finding-review`) xếp việc vào hàng đợi trong plugin, app 2P Crew trên Mac
+dùng board key để nhận việc của đúng máy đó và báo kết quả. Web chỉ thấy kết quả đã kiểm dạng và đã làm sạch.
 
 Luật chính:
 
-- Chỉ actor board được tạo, nhận, báo, thử lại, hủy việc; agent không bao giờ xếp được việc lên máy.
+- Chỉ actor board được tạo, nhận, báo, thử lại, hủy việc; agent không bao giờ xếp được việc lên máy. Ngoại lệ duy nhất
+  là việc `bug-finding-review`: plugin tự gọi `insertJob` (người tạo `crew:bug-finding`) khi ticket tổng Bug Finding vào
+  stage cầu nối hay khi reviewer cầu nối gọi `bug-finding/request`; agent không chọn được máy, loại việc hay payload
+  (máy, PR, head lấy từ dữ liệu server, flow `bug-finding`).
+- Việc `bug-finding-review` xong ngay khi app 2P Crew ghi yêu cầu vào hộp thư của app Bug Finding (`{ accepted: true }`);
+  app không giữ việc suốt lượt review. Tiến độ và kết quả đi route `bug-finding.results`, hết giờ do watchdog của flow
+  `bug-finding` xét, không do lease của hàng đợi.
 - Payload kiểm theo loại việc trước khi xếp (`validateJobPayload`); app kiểm lại trước khi làm. Kết quả chỉ giữ trường
   đã biết (`validateJobResult`); lỗi từ Mac bỏ mã điều khiển, che credential và cắt `JOB_ERROR_MAX` ký tự.
 - Nhận việc không có transaction (host chạy mỗi câu SQL riêng), nên mỗi bước là một câu nguyên tử: trả lease hết hạn

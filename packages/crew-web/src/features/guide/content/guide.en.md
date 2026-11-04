@@ -196,7 +196,7 @@ On the screenshot:
 1. **Open full page**: see the full page in a new tab (or Cmd/Ctrl+click the request in a list).
 2. Title, id, and the **Crew summary** line, for example "Crew · 1/3 children done · Owner approval · docs Pass":
    - **x/y children done**: finished sub-requests out of the total;
-   - stage: *Reviewer*, *Integrator · merge + docs*, *Owner approval*, *Integrator · push*, *Done*;
+   - stage: *Reviewer*, *Integrator · merge + docs*, *Owner approval*, *Integrator · push*, *Done*; a root request on the Bug Finding path shows *Merge code + PR*, *Bug Finding review*, *Owner approval*, *Merge*;
    - **docs**: *Pass* means the docs match the code, *Fail* means the Integrator will fix them, *None* means the check has not run yet.
 3. **Properties**: status, assignee, project, kind, model, stages and approver, review round (max 5), created and updated times. The **Runtime** group shows the chosen runtime and any automatic switches.
 
@@ -217,6 +217,30 @@ You give it to the Assistant
   → the owner clicks Merge on GitHub
 ```
 
+A **Code** or **Bug** request in a GitHub project, once the company turns Bug Finding on, takes a different path at the root request (next subsection). Research, Documentation and Planning requests, and requests created before it was turned on, keep the path above.
+
+#### The approval path with Bug Finding
+
+Bug Finding is the pull request review app bundled with the 2P Crew app on the Mac. On this path the root request has no Reviewer reading the code: the Integrator merges the code and opens the pull request first, Bug Finding reviews that very pull request, and only then is it your turn.
+
+```
+Every sub-request is done (each still goes through the Reviewer as usual)
+  → (1) Merge code + PR: the Integrator merges the code, checks the docs, opens or updates the pull request
+  → (2) Bug Finding review: the server queues the pull request in the Bug Finding app on the project's Mac
+       → issues left to fix: the Assistant assigns fixes for what it can fix, asks you about the rest
+         → the whole fix batch is done and you answered everything → back to (1), Bug Finding runs again ONCE
+       → nothing left to fix (or 2 fix batches used) → (3)
+  → (3) OWNER APPROVAL: click Approve and merge, or Request changes
+  → (4) Merge: the Integrator merges the pull request right away, exactly the version you approved
+```
+
+- The **stage strip** below the Crew summary line shows which of the four steps the request is at, with the pull request number and the Bug Finding run (for example "Run 2 / max 3 · Running").
+- The **Bug Finding block** lists every run: the pull request, the reviewed commit, a lane progress bar while running, the cost and the full report when done. Issues Bug Finding found (findings) are split into three groups by how the Assistant handles them: **Assistant fixes** (with the fix sub-request and its state), **Owner decides** (questions for you), **Assistant dismissed** (with a reason). To watch lanes and logs live, open the Bug Finding app on the Mac.
+- **How the Assistant handles findings.** A clear issue whose fix changes no product behaviour or API contract goes into a **fix batch** (fix sub-requests for an Executor, reviewed by the Reviewer like any sub-request). An issue that needs a decision on scope, UI, product rules, security or data goes into **one question card** ("Bug Finding lượt n: cần owner chốt", Bug Finding run n: owner decides), each issue with three options: a) Fix, b) Don't fix, c) Split into a separate ticket (does not block this pull request), plus the Assistant's recommendation. A low-severity issue that already existed, or a false positive with evidence, is dismissed with a reason. HIGH and CRITICAL issues are never dismissed by the Assistant.
+- **Bug Finding runs again exactly once per batch**, after **every** fix sub-request of the batch is done and you have answered every question card; it never reruns per sub-request, because each run is heavy. A batch with only "Don't fix" answers (no new code) does not rerun.
+- Each approval of yours allows at most **3 Bug Finding runs**: the first and at most 2 automatic fix batches. If issues remain after the last run, the request comes to you with the open issues listed under **Needs owner decision** in the summary.
+- If Bug Finding fails or times out (30 minutes with no Mac picking it up, or 8 hours without a result) it is queued once more; if it fails again the owner gets a "Bug Finding không chạy được" (Bug Finding could not run) card to choose **Bỏ qua Bug Finding** (skip Bug Finding) or **Không, chạy lại sau khi sửa máy** (no, rerun after fixing the machine). The request never gets stuck silently.
+
 #### The Assistant summary
 
 Right below the description of the root request there is a separate **Assistant summary** ("Tổng kết của Trợ Lý") block: reading it alone is enough to understand the whole request without opening each sub-request. It exists from the moment the Assistant makes its plan and is updated every time the Assistant runs again (more sub-requests created, a sub-request changes state, you answer a question, a fix round), so it always matches the work done. It contains: **Request** (what the Assistant understood the request to be, what it will and will not do), **Sub-requests** (each with its state), **Result**, **Images** (the main mockups and acceptance screenshots taken from the sub-requests' attachments), **Decided on its own**, **Plan** (only for planning requests) and **Needs owner decision**. Until the Assistant has made a plan (while it is still asking you), there is no such block. To add to the description, write above the summary; text written after the summary is moved above it by the Assistant on its next run.
@@ -228,6 +252,7 @@ After approval the Integrator does not merge into the main branch itself. It pus
 - Open the link, review the changes on GitHub and click **Merge**. The code reaches the main branch only when you click.
 - If the PR reports a conflict, the Integrator does not fix it: resolve it on GitHub, or reopen the request and say what to change.
 - Repositories not hosted on GitHub are pushed straight to the main branch as before, and the comment says so.
+- A request on the [Bug Finding path](#issue-popup): the pull request was already opened at the Merge code + PR step, before your approval. When you click **Approve and merge** the Integrator merges it, no need to click Merge on GitHub. If the main branch moved on and there is a conflict, the Integrator comments `Integrator: chưa merge được — conflict` (could not merge, conflict) and stops: resolve the conflict on GitHub and comment on the request; the Integrator runs again and merges.
 - A project with auto-deploy deploys only after the PR is merged, at the merge commit on the deploy branch. A PR closed without merging is not deployed (comment `crew-deploy … status=cancelled`); after 3 days without a merge the job stops waiting.
 
 A small request usually finishes in 15 to 30 minutes.
@@ -324,16 +349,30 @@ When the stage is **Owner approval**, it is your turn. The request shows in the 
 
 #### How to
 
-1. Open the request. Check the Reviewer's comment, that the **Docs check** passed and that every sub-request is done.
+1. Open the request. Check the Reviewer's comment, that the **Docs check** passed and that every sub-request is done. For a request on the Bug Finding path, check the **Bug Finding** block instead of the Reviewer's comment (subsection **Approving a request with Bug Finding** below).
 2. Pick a button at the top:
 
 | Button | When | What happens |
 |---|---|---|
 | **Approve** (1) | You agree | The dialog has an **Approval note** prefilled with "Reviewed, approved."; it cannot be empty. Confirm and the Integrator opens a pull request (link in the **Merge request** part of the summary); the request becomes **Done** and the code reaches the main branch when you click Merge on GitHub |
+| **Approve and merge** | You agree, request on the Bug Finding path | Replaces **Approve**. The dialog has a Bug Finding card and a note prefilled with "Reviewed the Bug Finding result, approve and merge.". Confirm and the Integrator merges the pull request into the main branch right away, exactly the version you reviewed, then the request becomes **Done** |
 | **Request changes** (2) | You do not agree yet | Write **What needs fixing** (at least 5 characters), **Send change request**. The work goes back and counts one more review round. For a code or documentation request, the resubmission starts over: the Reviewer looks again, the Integrator merges again including the new fixes and reruns the docs check, and only then does it come back for your approval; **History** shows *Owner requested changes: the resubmission restarts at the Reviewer* |
 | **Cancel request** (3) | No longer needed | Asks for confirmation. The request becomes **Cancelled** and running runs stop |
 | **Force Done** (4) | Exceptional cases | Section [Force Done](#force-done) |
 | **Reopen** | A done or cancelled request needs more work | The request goes back to **To do** and runs again in a new round |
+
+#### Approving a request with Bug Finding
+
+A Code or Bug request on the Bug Finding path (stage **Owner approval** in the four-step strip *Merge code + PR*, *Bug Finding review*, *Owner approval*, *Merge*) reaches you when Bug Finding has nothing left to fix, or the 2 automatic fix batches are used up.
+
+1. Click **Approve and merge**. In the dialog the Bug Finding card shows the **Final result** and the reviewed commit: "the commit that will be merged" means Bug Finding looked at exactly the version about to reach the main branch. Below are the earlier runs, the cost and the findings table with how each was handled.
+2. Issues still open after the last batch are listed under **Needs owner decision** in the summary: approve anyway, or **Request changes** and say which issues to fix.
+3. **Request changes** here starts a new round: the Assistant makes a fix batch, the whole path runs again from Merge code + PR, and Bug Finding runs are counted from zero; Bug Finding only reruns when the pull request commit changes.
+
+While Bug Finding is running you may get two kinds of cards:
+
+- **Bug Finding lượt n: cần owner chốt** (Bug Finding run n: owner decides): each question is one issue the Assistant could not decide alone. Pick a) **Fix** (the Assistant adds a fix sub-request to the same batch), b) **Don't fix** (the reason goes with the next run so Bug Finding does not report it again), c) **Split into a separate ticket** (listed under **Needs owner decision**, does not block the pull request). The Assistant only lets Bug Finding rerun once you answered the whole card.
+- **Bug Finding không chạy được** (Bug Finding could not run): Bug Finding failed twice for the same commit (Mac off, offline, app error). **Bỏ qua Bug Finding** (skip) lets the request move on to your approval without a Bug Finding result; **Không, chạy lại sau khi sửa máy** (rerun after fixing the machine) keeps it waiting, and once the machine is fixed, comment on the request so Bug Finding is queued again.
 
 > **Tip:** after 5 review rounds without success, the request comes to you to decide. Answer with a **comment** saying how to proceed; there is no Approve button then. There is no free status picker (the reason is in [Why there is no button X](#missing-buttons)).
 
@@ -806,6 +845,12 @@ Agent comments contain lines starting with `crew-`: machine-readable evidence.
 | `crew-docs-check commit=… exit=0` | The Integrator checked the docs on the merged code; `exit=0` means pass |
 | `crew-merge sha=… pushed=pr pr=…` | Pull request opened into the main branch, waiting for the owner to click Merge on GitHub |
 | `crew-merge sha=… pushed=yes` | Pushed straight to the main branch (repository not on GitHub) |
+| `crew-pr sha=… pr=…` | Bug Finding path: the Integrator opened or updated the pull request at exactly the merged code, before the owner's approval |
+| `crew-bugfinding run=… sha=… verdict=… open=…` | The system reports a finished Bug Finding run: which run, the reviewed commit, the verdict (`APPROVE`, `BLOCK`…) and how many issues are still open |
+| `crew-bf-triage run=… batch=bf-fix-… fix=… ask=… dismiss=…` | The Assistant's plan for that run: issues to fix, issues to ask the owner, dismissed issues (reasons on the following lines) |
+| `crew-bf finding=F-… run=…` | Which issue of which Bug Finding run this sub-request fixes |
+| `crew-bf-feedback` | Block the Assistant sends with the rerun: each `F-xx: …` line is why an issue is not fixed or was dismissed |
+| `crew-merge sha=… pushed=merged pr=… merge=…` | Bug Finding path: the Integrator merged the pull request into the main branch after the owner's approval; `merge=` is the merge commit |
 | `crew-assistant done children=…` | The Assistant confirms every sub-request is done |
 
 ### Troubleshooting {#troubleshooting}
@@ -826,6 +871,9 @@ Agent comments contain lines starting with `crew-`: machine-readable evidence.
 | Machine **Offline** | The Mac is off, offline, or the app is closed | Check the Mac and network, reopen the 2P Crew app |
 | A machine job says **Waiting for the 2P Crew app** | The app is not running | Open the 2P Crew app on the Mac |
 | An agent reports out of quota | The Claude plan on the Mac hit its limit | Wait for the limit to reset, or ask the owner to turn on Codex/OpenCode |
+| The Bug Finding block stays at **Waiting for a machine** | The project's Mac is off, offline, or the 2P Crew app is closed | Open the 2P Crew app on the Mac; after 30 minutes the run becomes **Timed out** and is queued again |
+| A Bug Finding run fails with "Mac chưa cập nhật 2P Crew có Bug Finding" | The 2P Crew app on that Mac is an old version without Bug Finding | Update the 2P Crew app on that Mac, then comment on the request |
+| Comment `Integrator: chưa merge được — conflict` | The main branch moved on after your approval | Resolve the conflict on GitHub and comment on the request; the Integrator runs again and merges |
 {{/roles}}
 {{roles:owner}}
 | You see | Cause | Fix |
@@ -851,6 +899,9 @@ Agent comments contain lines starting with `crew-`: machine-readable evidence.
 | Run | One agent execution |
 | Stage | One step of the approval flow |
 | Review round | One time the Reviewer or the owner sends work back (max 5) |
+| Bug Finding | Pull request review app bundled with the 2P Crew app on the Mac; reviews Code/Bug root requests before the owner approves |
+| Finding | One issue Bug Finding found, keyed like `F-01`, with a severity (CRITICAL, HIGH, MEDIUM, LOW, INFO) |
+| Fix batch | The group of fix sub-requests the Assistant makes after a Bug Finding run (`bf-fix-<n>`); Bug Finding reruns once when the whole batch is done |
 | Role (project) | Assistant, Executor, Reviewer, Integrator |
 | Environment | Configuration telling an agent which machine and folder to run in |
 | Checkout | An agent's own copy of the repository on the machine |

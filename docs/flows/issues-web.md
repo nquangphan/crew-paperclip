@@ -6,7 +6,9 @@
 
 Owner và thành viên làm việc với yêu cầu Crew trên crew-web: xem danh sách (dạng cây hoặc bảng), mở chi tiết (trang đầy
 đủ hoặc popup trên trang đang xem), tạo yêu cầu, thêm việc con, bình luận, đính kèm, trả lời câu hỏi của Trợ Lý, duyệt
-hoặc yêu cầu sửa ở cổng, và ép đóng (Ép Done) khi cần.
+hoặc yêu cầu sửa ở cổng, và ép đóng (Ép Done) khi cần. Ticket tổng code/bug theo luồng Bug Finding (`code-bf`) có thêm
+dải bốn giai đoạn (Gộp code + PR, Review Bug Finding, Owner duyệt, Merge), khối Bug Finding (lượt, tiến độ lane, finding
+chia theo cách Trợ Lý xử lý) và nút **Duyệt và merge** thay cho **Duyệt**.
 
 Luật chính:
 

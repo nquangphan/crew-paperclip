@@ -6,7 +6,9 @@
 
 Mỗi agent Crew làm đúng một vai trò: Trợ Lý (lập kế hoạch, tách việc con, chọn runtime và model), executor (làm việc
 con), reviewer (duyệt), integrator (gộp, kiểm docs, giao code sau khi owner duyệt), agent BMAD (lập epic/story), agent UIUX (vai `designer`,
-làm mockup giao diện trước con code). Cách
+làm mockup giao diện trước con code). Trên ticket tổng Bug Finding (`code-bf`, mục bên dưới) vai trò đổi: integrator mở PR
+trước khi owner duyệt và tự merge sau khi owner duyệt, reviewer chỉ làm cầu nối Bug Finding (không đọc code), Trợ Lý phân
+loại finding và lập lô sửa, executor làm con sửa finding. Cách
 làm của từng vai trò nằm trong file `AGENTS.md` của agent, sinh từ template `crew/agents/<vai trò>.md`. Template là nơi
 duy nhất dạy agent các luật mà server kiểm (flow `issue-gate`): dòng bằng chứng `crew-docs-check`, `crew-merge`, marker
 `crew-model`, `crew-bundle`, `crew-kind`, mục "Không bao giờ", cách xử lý 422.

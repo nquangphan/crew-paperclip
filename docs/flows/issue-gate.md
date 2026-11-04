@@ -9,6 +9,23 @@ owner duyệt, integrator push. Paperclip gốc đã có execution policy (stage
 tự xóa hay tự ký. Flow này ghim policy Crew lúc tạo issue (H4) và kiểm mọi lệnh ghi issue (H2), để agent không lách
 được quy trình, không tự giao việc sai vai trò và không đặt model ngoài bảng cho phép.
 
+Ticket tổng code/bug theo luồng Bug Finding (template `root-bf`, chỉ khi company bật `bugFinding.enabled` và project có
+origin GitHub) đi đường khác ở cấp gốc, không còn reviewer Claude:
+
+```text
+mọi con done → Trợ Lý PATCH done
+  → [0] integrator: gộp sha đã duyệt, kiểm, crew-docs-check, mở/cập nhật PR (crew-pr)
+  → [1] reviewer cầu nối: plugin xếp lượt Bug Finding cho head PR (flow bug-finding), reviewer đọc kết quả
+        ├─ còn finding mở và còn lô sửa → "Reviewer: cần sửa" → Trợ Lý lập lô bf-fix-<k>, hỏi owner phần còn lại
+        │     → mọi con của lô xong + mọi thẻ hỏi crew-bf: đã trả lời → Trợ Lý PATCH done → chạy lại từ [0]
+        └─ hết finding mở, hoặc đã đủ 2 lô → [2]
+  → [2] owner: Duyệt và merge, hoặc Yêu cầu sửa (vòng mới, chạy lại từ [0])
+  → [3] integrator: gh pr merge đúng commit owner duyệt (crew-merge … pushed=merged) → done
+```
+
+Gate của từng stage và của lần Trợ Lý nộp lại ở bước 5 bên dưới; số lượt, hết giờ và bỏ qua Bug Finding ở flow
+`bug-finding`. Ticket tổng tạo trước khi bật cờ, và ticket tổng nhãn `research`/`docs`/`plan`, giữ luồng cũ.
+
 Luật áp theo company:
 
 - Company không có trong file cấu hình (`CREW_POLICY_CONFIG` chưa đặt hoặc không có key company): hành vi Paperclip gốc.
