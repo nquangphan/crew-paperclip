@@ -80,7 +80,9 @@ Luật chính:
   đi route `bug-finding.results`). Mã lỗi riêng: `project_missing`, `bug_finding_missing`, `standalone_running`.
 - Ô vai trò (`CREW_ROLE_SLOTS`, 11 ô): `assistant`, `executor`, `executor-2` … `executor-5` (`MAX_EXECUTORS = 5`),
   `reviewer`, `integrator` và ba ô runtime. Việc `prepare-checkouts` nhận 4–8 ô (bốn vai trò bắt buộc cộng tối đa bốn
-  executor thêm).
+  executor thêm). Việc `agent-workspace` nhận một ô vai trò hoặc `designer` (`DESIGNER_CHECKOUT`, checkout của agent
+  UIUX mà wizard thêm project dựng; kiểu `WorkspaceRole`); `prepare-checkouts` không nhận `designer`. App Mac cũ từ chối
+  `designer`, nên app phải được cập nhật trước khi deploy bản wizard tạo agent UIUX.
 - Việc `remove-checkouts`: `roles` là 1–12 tên thư mục checkout (`MAX_CHECKOUTS`: mười một ô của wizard, `designer`, hoặc
   tên thư mục của app như `executor-1`), khác `repo`; server Crew xếp việc này cho máy khác khi gỡ agent/project (flow `multi-machine`).
 - Log: `crew machine job changed` (hành động, job, company, user).

@@ -185,6 +185,83 @@ describe('runAddProject', () => {
     expect(f.state.agents.every((a) => a.status === 'idle')).toBe(true);
   });
 
+  it('company có skill ui-ux-pro-max → tạo thêm agent UIUX của project, Trợ Lý có agent đó; dòng vai trò không đổi', async () => {
+    const f = fakeApi();
+    f.state.skills = [{ id: 'sk-1', key: 'local/264a2248bd/ui-ux-pro-max', slug: 'ui-ux-pro-max' }];
+    const run = await runAddProject(ctxOf(f.api), f.state.run);
+    expect(run.status).toBe('done');
+
+    const jobs = f.calls.filter((c) => c.fn === 'jobs.create').map((c) => (c.args[0] as { payload: unknown }).payload);
+    expect(jobs.map((j) => (j as { kind: string }).kind)).toEqual([
+      'inspect-folder',
+      'prepare-checkouts',
+      'agent-workspace',
+      'check',
+    ]);
+    expect(jobs[2]).toEqual({
+      kind: 'agent-workspace',
+      projectKey: 'demo',
+      folder: '/Users/owner/code/demo',
+      role: 'designer',
+      branch: 'crew/demo/designer',
+    });
+
+    const envs = f.calls.filter((c) => c.fn === 'environments.create').map((c) => c.args[1] as { name: string });
+    expect(envs.map((e) => e.name)).toEqual([
+      'demo-assistant',
+      'demo-executor',
+      'demo-reviewer',
+      'demo-integrator',
+      'demo-designer',
+    ]);
+    expect(envs[4]).toMatchObject({ config: { remoteWorkspacePath: '/Users/owner/crew-agents/demo/designer' } });
+
+    const designer = f.state.agents.find((a) => a.name === 'UIUX demo');
+    expect(designer).toBeDefined();
+    expect(f.state.agents).toHaveLength(5);
+    const designerEnv = f.state.environments.find((e) => e.name === 'demo-designer');
+    expect(designer?.defaultEnvironmentId).toBe(designerEnv?.id);
+    expect(designer?.adapterType).toBe('claude_local');
+    expect(designer?.adapterConfig).toMatchObject({
+      model: 'claude-opus-5-5',
+      extraArgs: ['--setting-sources', 'project,local', '--plugin-dir', PIN],
+    });
+    expect(f.state.agentSkills.get(designer?.id ?? '')).toEqual(['local/264a2248bd/ui-ux-pro-max']);
+    expect(f.calls.find((c) => c.fn === 'agents.syncSkills')?.args.slice(2)).toEqual(['replace', COMPANY]);
+    expect(f.calls.find((c) => c.fn === 'agents.setPermissions' && c.args[0] === designer?.id)?.args[1]).toEqual({
+      canCreateAgents: false,
+      canCreateSkills: false,
+      canAssignTasks: false,
+    });
+
+    const [assistant, executor] = f.state.agents;
+    const designerId = designer?.id ?? '';
+    expect(f.state.files.get(designerId)?.content).toBe(renderInstructions('designer', { agentId: designerId }));
+    expect(f.state.files.get(assistant.id)?.content).toBe(
+      renderInstructions('assistant', { agentId: assistant.id, executorIds: [executor.id], designerIds: [designerId] }),
+    );
+    const roles = f.calls.find((c) => c.fn === 'roles.set')?.args[2] as Record<string, unknown>;
+    expect(JSON.stringify(roles)).not.toContain(designerId);
+  });
+
+  it('lỗi khi gắn skill cho agent UIUX → pause cả agent UIUX; Chạy tiếp không tạo lại agent nào', async () => {
+    const f = fakeApi();
+    f.state.skills = [{ id: 'sk-1', key: 'local/264a2248bd/ui-ux-pro-max', slug: 'ui-ux-pro-max' }];
+    f.failOn('agents.syncSkills', 1, new ApiError(422, 'Skill không có'));
+    const failed = await runAddProject(ctxOf(f.api), f.state.run);
+    expect(failed.steps.agents).toMatchObject({ status: 'failed', error: 'Skill không có' });
+    expect(f.state.agents).toHaveLength(5);
+    expect(f.state.agents.every((a) => a.status === 'paused')).toBe(true);
+
+    f.clearFailures();
+    f.calls.length = 0;
+    const done = await runAddProject(ctxOf(f.api), failed);
+    expect(done.status).toBe('done');
+    expect(f.names()).not.toContain('agents.create');
+    expect(f.state.agents).toHaveLength(5);
+    expect(f.state.agents.every((a) => a.status === 'idle')).toBe(true);
+  });
+
   it('check có mục error → bước check failed kèm danh sách mục', async () => {
     const f = fakeApi({
       jobOutcome: (payload) =>

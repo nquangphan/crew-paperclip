@@ -26,6 +26,9 @@ Luật chính:
 - Thêm project chọn 1–5 executor (mặc định 1; `MAX_EXECUTORS`), tạo đủ ô `executor`, `executor-2` … theo số đã chọn
   (`projectSlots`). Thêm agent vào ô `executor-N` thay agent đang giữ ô đó, ô chưa có thì thêm vào cuối danh sách
   executor (`withSlot`).
+- Thêm project tạo luôn agent UIUX của project khi company có skill công ty `ui-ux-pro-max` (key đuôi
+  `/ui-ux-pro-max`); chưa có skill thì bỏ qua như trước. Agent UIUX không nằm trong dòng vai trò; nó có checkout
+  `designer`, environment `<khóa>-designer`, tên `UIUX <khóa>`, và nằm trong mục "Agent UIUX của company" của Trợ Lý.
 - Việc trên máy (soi thư mục, tạo hay gỡ checkout) đi qua hàng đợi machine jobs; khóa project dùng cùng luật với app
   Mac (`PROJECT_KEY_RE`), khóa `e2e-` chỉ dùng ở company Crew E2E.
 
@@ -49,7 +52,12 @@ Luật chính:
    `project`, `checkouts`, `environments`, `agents`, `roles`, `check`; chọn environment mẫu đúng máy (`pickTemplate`),
    chờ việc trên máy bằng `waitJob` (`add-project/wait-job.ts`). Phần bổ sung cho nhiều máy: bước `inspect` lưu `remote`;
    bước `check` xong thì `provisionOthersSafely` xếp `ensure-project` cho máy khác (`refs.others`, lỗi ở
-   `refs.othersError`, không làm hỏng run); `repoOf` bỏ remote đã che và cắt userinfo https trước khi gửi.
+   `refs.othersError`, không làm hỏng run); `repoOf` bỏ remote đã che và cắt userinfo https trước khi gửi. Agent UIUX:
+   bước `checkouts` tìm skill (`designerSkillOf`), có thì xếp `agent-workspace` role `designer` (nhánh
+   `crew/<khóa>/designer`) và lưu `checkout_designer`, `designer_skill`; bước `environments` thêm `environment_designer`
+   (`projectCheckouts`); bước `agents` tạo agent (`ensureDesigner`: body như executor Claude, model và effort vai
+   `designer`, không giao việc), gắn skill bằng `agents.syncSkills` chế độ `replace`, upload `designer.md` và render
+   AGENTS.md của Trợ Lý kèm `designerIds`. Bước `check` dựng máy khác như cũ; server tự thêm checkout UIUX vào bố cục.
 4. `packages/crew-web/src/features/wizards/add-agent/run-step.ts` → `runAddAgentStep`: `agent`, `pin`,
    `environment`, `workspace`, `role`, `assistant-instructions` (render lại AGENTS.md của Trợ Lý khi danh sách executor
    đổi); bước cuối còn xếp dựng lại mọi máy khác kể cả máy `ready` (`includeReady`, phần bổ sung cho nhiều máy). Mỗi bước kiểm trước rồi chỉ ghi phần chưa đạt, nên chế độ sửa dùng cùng code. Repo gốc của project không có
@@ -129,7 +137,8 @@ Luật chính:
 - `packages/crew-web/test/api/setup-abandon.test.ts`: client gọi abandon đúng body.
 - `packages/crew-web/test/features/wizards/add-project.test.ts`, `add-project-page.test.tsx`, `validate.test.ts`,
   `wait-job.test.ts`: đủ bước theo thứ tự, lỗi giữa chừng pause agent đã tạo và chạy tiếp không tạo lại, kiểm khóa
-  (trùng, đã gỡ, `e2e-`), chờ việc.
+  (trùng, đã gỡ, `e2e-`), chờ việc; company có skill `ui-ux-pro-max` thì có agent UIUX (checkout, environment, skill,
+  AGENTS.md của Trợ Lý), lỗi lúc gắn skill thì pause cả agent UIUX và chạy tiếp không tạo lại.
 - `packages/crew-web/test/features/wizards/add-agent.test.ts`, `add-agent-page.test.tsx`, `validate-add-agent.test.ts`,
   `repo-root.test.ts`: thêm executor, thay reviewer hay Trợ Lý, ô runtime và model, hỏi repo gốc từ máy; danh sách model và
   mặc định của ô theo bảng cài đặt model, chưa tải xong thì chưa cho tạo, tải lỗi thì `ErrorState`.

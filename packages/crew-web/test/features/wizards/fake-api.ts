@@ -143,6 +143,10 @@ export function fakeApi(opts: { run?: SetupRun; busy?: boolean; jobOutcome?: Job
     environments: [structuredClone(TEMPLATE_ENV)] as Record<string, unknown>[],
     /** Secret của company đang chạy wizard (environment mẫu phải trỏ vào đây). */
     secrets: [{ id: 'sec-1' }] as { id: string }[],
+    /** Skill công ty; có `…/ui-ux-pro-max` thì wizard thêm project tạo agent UIUX. */
+    skills: [] as { id: string; key: string; slug: string }[],
+    /** Skill đã gắn theo agent (`agents.syncSkills`). */
+    agentSkills: new Map<string, string[]>(),
     /** Route Crew máy khác: cây ghim còn run, kết quả dọn máy khác, kết quả dựng sẵn. */
     machineBlockers: [] as { issueId: string; identifier: string | null; hostname: string; runStatus: string }[],
     machineRelease: { archivedEnvironmentIds: [] as string[], jobs: [] as { machineId: string; jobId: string }[] },
@@ -291,6 +295,12 @@ export function fakeApi(opts: { run?: SetupRun; busy?: boolean; jobOutcome?: Job
         return structuredClone(state.secrets);
       },
     },
+    skills: {
+      list: async (companyId: string) => {
+        record('skills.list', companyId);
+        return structuredClone(state.skills);
+      },
+    },
     environments: {
       list: async (companyId: string) => {
         record('environments.list', companyId);
@@ -367,6 +377,11 @@ export function fakeApi(opts: { run?: SetupRun; busy?: boolean; jobOutcome?: Job
         const agent = state.agents.find((a) => a.id === id);
         if (agent) agent.status = 'idle';
         return structuredClone(agent);
+      },
+      syncSkills: async (id: string, desiredSkills: string[], mode: string, companyId?: string) => {
+        record('agents.syncSkills', id, structuredClone(desiredSkills), mode, companyId);
+        state.agentSkills.set(id, [...desiredSkills]);
+        return { desiredSkills };
       },
       setPermissions: async (id: string, body: Record<string, unknown>, companyId?: string) => {
         record('agents.setPermissions', id, body, companyId);
