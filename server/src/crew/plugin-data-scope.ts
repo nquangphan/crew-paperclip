@@ -1,10 +1,11 @@
 import { and, eq } from "drizzle-orm";
-import type { Request } from "express";
+import type { NextFunction, Request, RequestHandler, Response } from "express";
 import { companyMemberships, type Db } from "@paperclipai/db";
 import { logger } from "../middleware/logger.js";
 import { hasCompanyAccess } from "../routes/authz.js";
 import { loadCrewCompanyConfig } from "./issue-policy.js";
 import { CREW_PLUGIN_KEY } from "./project-roles.js";
+import { visibleProjectsFor } from "./project-access.js";
 
 /**
  * Phạm vi company cho `POST /plugins/:pluginId/data/:key` khi viewer của company Crew đọc data plugin `crew.core`.
@@ -29,6 +30,7 @@ import { CREW_PLUGIN_KEY } from "./project-roles.js";
 export const CREW_VIEWER_DATA_KEYS: ReadonlySet<string> = new Set([
   "crew.companies",
   "crew.roots",
+  "crew.roadmap",
   "crew.map",
   "crew.docsCheck",
   "crew.runtimeDecisions",
@@ -78,4 +80,63 @@ export async function crewViewerPluginDataScope(
     logger.warn({ err: error, companyId }, "Crew: không đọc được membership viewer, giữ kiểm tra stock cho data plugin");
     return undefined;
   }
+}
+
+/** Data key Roadmap một trang: cây mọi yêu cầu, lọc project được xem ở worker theo `params.viewer` server ghi. */
+export const CREW_ROADMAP_DATA_KEY = "crew.roadmap";
+
+export type RoadmapViewerScope = { all: true } | { all: false; projectIds: string[] };
+type VisibleResolver = (companyId: string, userId: string) => Promise<{ all: boolean; projectIds: string[] }>;
+
+const CLOSED: RoadmapViewerScope = { all: false, projectIds: [] };
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * Đường dẫn router Crew gắn {@link crewRoadmapViewerScope}: đúng hai route data stock. Gắn trên `:key` chứ không trên
+ * literal `data/crew.roadmap`: Express khớp route trên path CHƯA decode nhưng decode `req.params.key`, nên
+ * `data/crew%2Eroadmap` không khớp literal mà route stock vẫn nhận `key = "crew.roadmap"`.
+ */
+export const CREW_ROADMAP_SCOPE_PATHS = ["/plugins/:pluginId/data/:key", "/plugins/:pluginId/bridge/data"];
+
+/**
+ * Worker plugin không biết ai đang xem, nên trước route data stock, router Crew tính phạm vi xem project của người gọi
+ * cho `crew.roadmap` (`POST /plugins/:pluginId/data/:key` có key đã decode là `crew.roadmap`, với mọi cách viết như
+ * `crew%2Eroadmap`; và `bridge/data` có `key: "crew.roadmap"`) rồi GHI ĐÈ `params.viewer` (giá trị client tự gửi bị
+ * bỏ). Key so đúng giá trị route stock chuyển cho worker: `req.params.key` đã decode, hay `body.key` của `bridge/data`.
+ * Cùng luật với `project-access/me`: chỉ actor board đăng nhập bằng phiên trình duyệt; owner `{ all: true }`, người
+ * khác project được cấp. Actor khác, company không thuộc phiên, uuid sai hay lỗi đọc quyền thì
+ * `{ all: false, projectIds: [] }` (đóng khi lỗi). Kiểm quyền company vẫn do route stock. Chỉ `crew.roadmap` đọc
+ * `params.viewer`; key khác trong {@link CREW_VIEWER_DATA_KEYS} đi nguyên.
+ */
+export function crewRoadmapViewerScope(
+  db: Db,
+  visible: VisibleResolver = (companyId, userId) => visibleProjectsFor(db, companyId, userId),
+): RequestHandler {
+  return (req: Request, _res: Response, next: NextFunction) => {
+    const body = (req.body && typeof req.body === "object" ? req.body : {}) as Record<string, unknown>;
+    // Route `data/:key`: key worker nhận là `req.params.key` đã decode; route `bridge/data`: `body.key`.
+    const key = typeof req.params.key === "string" ? req.params.key : body.key;
+    if (key !== CREW_ROADMAP_DATA_KEY) {
+      next();
+      return;
+    }
+    const write = (viewer: RoadmapViewerScope) => {
+      const params = body.params && typeof body.params === "object" ? body.params as Record<string, unknown> : {};
+      req.body = { ...body, params: { ...params, viewer } };
+      next();
+    };
+    void roadmapViewerOf(req, body.companyId, visible).then(write, (error: unknown) => {
+      logger.warn({ err: error }, "Crew: không đọc được quyền xem project cho crew.roadmap, trả phạm vi rỗng");
+      write(CLOSED);
+    });
+  };
+}
+
+async function roadmapViewerOf(req: Request, companyId: unknown, visible: VisibleResolver): Promise<RoadmapViewerScope> {
+  const actor = req.actor;
+  if (actor?.type !== "board" || actor.source !== "session") return CLOSED;
+  const userId = typeof actor.userId === "string" ? actor.userId.trim() : "";
+  if (!userId || typeof companyId !== "string" || !UUID.test(companyId) || !hasCompanyAccess(req, companyId)) return CLOSED;
+  const scope = await visible(companyId, userId);
+  return scope.all ? { all: true } : { all: false, projectIds: [...scope.projectIds] };
 }

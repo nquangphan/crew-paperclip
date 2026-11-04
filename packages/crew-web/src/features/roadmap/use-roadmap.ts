@@ -1,17 +1,26 @@
-// Dữ liệu trang Roadmap. Mọi danh sách lọc bằng `useVisibleProjects` (chỉ project được cấp; yêu cầu không project chỉ
-// owner thấy), như các trang khác. Khóa cache trùng trang Yêu cầu và trang Docs nên dùng chung dữ liệu và sự kiện live.
-// Tầng sâu hơn dùng dữ liệu tầng trên làm `placeholderData` để chuyển tầng không chờ mạng.
-import type { CompactIssue } from '@paperclipai/shared';
+// Dữ liệu trang Roadmap. Mọi yêu cầu và cây việc con đến từ MỘT lần tải `crew.roadmap` (số query cố định ở worker, không
+// gọi theo từng yêu cầu); server Crew đã lọc theo project người xem được cấp, hook lọc thêm bằng `useVisibleProjects`
+// cho chắc. Các tầng (công ty, project, yêu cầu) dựng từ cùng dữ liệu nên chuyển tầng không chờ mạng. Khóa nằm dưới
+// tiền tố `crew` nên sự kiện live của issue làm tươi (`live-events.ts`). Run và tiền tải lười theo yêu cầu đang xem.
 import { useQuery } from '@tanstack/react-query';
-import { useCallback, useMemo } from 'react';
-import { api, type IssueListFilters, queryKeys } from '@/api';
+import { useMemo } from 'react';
+import { api, queryKeys } from '@/api';
 import { useVisibleProjects } from '@/features/access';
-import { childrenIndex, descendantsOf, LIST_LIMIT, NO_PROJECT, projectRoots } from './roadmap-model';
+import { issuesFromRoadmap, NO_PROJECT, projectRoots, type RoadmapIssue } from './roadmap-model';
 
-/** Danh sách đã lọc quyền, kèm cờ "server có thể đã cắt" (đủ trần dòng). */
+/** Danh sách đã lọc quyền, kèm cờ "server đã cắt" (vượt trần nút của `crew.roadmap`). */
 export interface IssueSlice {
-  items: CompactIssue[];
+  items: RoadmapIssue[];
   truncated: boolean;
+}
+
+/** Một phần dữ liệu dựng từ lần tải chung, cùng trạng thái tải của lần tải đó. */
+export interface RoadmapSlice<T> {
+  data: T | undefined;
+  isPending: boolean;
+  isPlaceholderData: boolean;
+  error: Error | null;
+  refetch: () => Promise<unknown>;
 }
 
 export interface RoadmapDataParams {
@@ -24,15 +33,9 @@ export interface RoadmapDataParams {
   doc: string | null;
 }
 
-export const companyFilters = (): IssueListFilters => ({ view: 'compact', limit: LIST_LIMIT });
-
 export function useRoadmapData(companyId: string, p: RoadmapDataParams) {
   const visible = useVisibleProjects();
   const { filterIssues } = visible;
-  const slice = useCallback(
-    (list: CompactIssue[]): IssueSlice => ({ items: filterIssues(list), truncated: list.length >= LIST_LIMIT }),
-    [filterIssues],
-  );
 
   const projects = useQuery({
     queryKey: queryKeys.projects(companyId),
@@ -41,23 +44,43 @@ export function useRoadmapData(companyId: string, p: RoadmapDataParams) {
     enabled: visible.ready,
   });
 
-  const cf = companyFilters();
-  const company = useQuery({
-    queryKey: queryKeys.issues(companyId, cf),
-    queryFn: () => api.issues.listCompact(companyId, cf),
-    select: slice,
+  const roadmap = useQuery({
+    queryKey: queryKeys.crew('crew.roadmap', { companyId }),
+    queryFn: () => api.crew.roadmap(companyId),
     enabled: visible.ready,
   });
+  const all = useMemo(() => {
+    if (!roadmap.data) return undefined;
+    return {
+      issues: filterIssues(issuesFromRoadmap(roadmap.data)),
+      rootOf: new Map(roadmap.data.nodes.map((n) => [n.id, n.rootId])),
+      agents: [
+        ...new Map(
+          roadmap.data.nodes.flatMap((n) => (n.assignee ? [[n.assignee.id, n.assignee] as const] : [])),
+        ).values(),
+      ],
+      truncated: roadmap.data.truncated,
+    };
+  }, [roadmap.data, filterIssues]);
+  const slice = <T>(data: T | undefined): RoadmapSlice<T> => ({
+    data,
+    isPending: roadmap.isPending,
+    isPlaceholderData: false,
+    error: roadmap.error,
+    refetch: roadmap.refetch,
+  });
+
+  const company = slice<IssueSlice>(all && { items: all.issues, truncated: all.truncated });
 
   const realProject = p.project && p.project !== NO_PROJECT ? p.project : null;
-  const pf: IssueListFilters = { view: 'compact', limit: LIST_LIMIT, projectId: realProject ?? '' };
-  const project = useQuery({
-    queryKey: queryKeys.issues(companyId, pf),
-    queryFn: () => api.issues.listCompact(companyId, pf),
-    select: slice,
-    enabled: visible.ready && realProject !== null && visible.canSeeProject(realProject),
-    placeholderData: () => company.data?.items.filter((i) => i.projectId === realProject),
-  });
+  const projectItems = useMemo(
+    () =>
+      all && realProject && visible.canSeeProject(realProject)
+        ? all.issues.filter((i) => i.projectId === realProject)
+        : undefined,
+    [all, realProject, visible],
+  );
+  const project = slice<IssueSlice>(projectItems && all && { items: projectItems, truncated: all.truncated });
 
   const issuesOfProject = p.project === NO_PROJECT ? company.data?.items : project.data?.items;
   // Mã trên URL → yêu cầu, chỉ tìm trong yêu cầu gốc do người tạo của project (không lộ yêu cầu project khác).
@@ -68,31 +91,16 @@ export function useRoadmapData(companyId: string, p: RoadmapDataParams) {
   const wanted = p.request?.toLowerCase() ?? null;
   const request = wanted ? (roots.find((r) => r.identifier?.toLowerCase() === wanted) ?? null) : null;
   const requestId = request?.id ?? null;
-  // Cạnh "chặn" cần `blockedBy`; danh sách compact chỉ trả trường này khi xin rõ.
-  const sf: IssueListFilters = {
-    view: 'compact',
-    limit: LIST_LIMIT,
-    descendantOf: requestId ?? '',
-    includeBlockedBy: 'true',
-  };
-  const subtree = useQuery({
-    queryKey: queryKeys.issues(companyId, sf),
-    queryFn: () => api.issues.listCompact(companyId, sf),
-    select: slice,
-    enabled: visible.ready && requestId !== null,
-    placeholderData: () =>
-      requestId && issuesOfProject
-        ? (descendantsOf(requestId, childrenIndex(issuesOfProject)) as CompactIssue[])
-        : undefined,
-  });
+  // Cây của yêu cầu: mọi nút có cùng gốc (worker ghi `rootId`), cạnh "chặn" đã nằm trong `blockedBy`.
+  const subtreeItems = useMemo(
+    () => (all && requestId ? all.issues.filter((i) => all.rootOf.get(i.id) === requestId) : undefined),
+    [all, requestId],
+  );
+  const subtree = slice<IssueSlice>(subtreeItems && all && { items: subtreeItems, truncated: all.truncated });
+  // Tên người làm có sẵn trong nút, không tải danh sách agent riêng.
+  const agents = slice(all?.agents);
 
-  const agents = useQuery({
-    queryKey: queryKeys.agents(companyId),
-    queryFn: () => api.agents.list(companyId),
-    enabled: requestId !== null,
-  });
-
-  // Run và chi phí của cây yêu cầu; khóa `crew` nên được làm tươi cùng sự kiện issue như bản đồ Crew.
+  // Run và chi phí của cây yêu cầu (tải lười theo yêu cầu đang xem); khóa `crew` được làm tươi cùng sự kiện issue.
   const runs = useQuery({
     queryKey: queryKeys.crew('crew.runs', { companyId, issueId: requestId }),
     queryFn: () => api.crew.runs(companyId, requestId as string),

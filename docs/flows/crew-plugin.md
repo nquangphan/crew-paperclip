@@ -55,6 +55,8 @@ Luật chính:
    trong `server/src/crew/contribution-routes.ts` (router mount trước route plugin stock).
 9. `server/src/crew/plugin-data-scope.ts` → `crewViewerPluginDataScope`: cho viewer của company Crew đọc các data key
    trong `CREW_VIEWER_DATA_KEYS`; mọi trường hợp khác trả `undefined` để route stock kiểm như cũ (đóng khi lỗi).
+   Cùng file, `crewRoadmapViewerScope` ghi đè `params.viewer` của data `crew.roadmap` bằng project người gọi được xem,
+   so trên key đã decode nên mọi cách viết key (`crew%2Eroadmap`…) đều bị ghi đè (flow `roadmap-map`).
 
 ## Files
 
@@ -75,7 +77,7 @@ Luật chính:
 | `packages/crew-plugin/src/ui/summary.tsx` | Tóm tắt Crew trên issue | `CrewIssueSummary`, `crewSummaryLine` |
 | `packages/crew-plugin/migrations/` | Chuỗi migration bảng plugin (`0001_docs.sql` … `0022_multi_machine.sql`) | |
 | `server/src/crew/plugin-startup-wait.ts` | Chờ plugin nạp xong lúc khởi động | `crewPluginStartupWait` |
-| `server/src/crew/plugin-data-scope.ts` | Viewer đọc data `crew.core` | `crewViewerPluginDataScope`, `CREW_VIEWER_DATA_KEYS` |
+| `server/src/crew/plugin-data-scope.ts` | Viewer đọc data `crew.core`; phạm vi xem của `crew.roadmap` | `crewViewerPluginDataScope`, `CREW_VIEWER_DATA_KEYS`, `crewRoadmapViewerScope` |
 
 File upstream có vá (mục `shared`, mô tả ở `crew/release/core-hooks.json`): `server/src/app.ts` (mount router Crew; C15 gắn parser JSON 16 MB cho webhook `docs-snapshot`, flow `docs-snapshot`),
 `server/src/routes/plugins.ts` (gọi `crewViewerPluginDataScope`), `server/src/services/plugin-worker-manager.ts` (giao
