@@ -241,6 +241,17 @@ test('PW-S22-2 thành viên bị giới hạn chỉ thấy project được cấ
     expect(payload).toContain(issueA.id);
     expect(payload).not.toContain(issueB.id);
     expect(payload).not.toContain(issueB.identifier);
+    // Client tự gửi viewer "thấy tất cả" thì server vẫn ghi đè, kể cả khi key viết mã hóa URL (`crew%2Eroadmap`): lỗ đã
+    // bịt ở middleware; ca này giữ nó bịt.
+    for (const key of ['crew.roadmap', 'crew%2Eroadmap', 'crew%2eroadmap']) {
+      const forged = await contributorApi.post<{ data: unknown }>(`/api/plugins/crew.core/data/${key}`, {
+        companyId: company.id,
+        params: { companyId: company.id, viewer: { all: true } },
+      });
+      const text = JSON.stringify(forged);
+      expect(text, `key ${key} chứa việc A`).toContain(issueA.id);
+      expect(text, `key ${key} lọt việc project khác`).not.toContain(issueB.id);
+    }
 
     await guest.goto(company.path(`roadmap?focus=${issueA.identifier}`));
     await expect(node(guest, issueA.id)).toHaveAttribute('aria-current', 'true');
