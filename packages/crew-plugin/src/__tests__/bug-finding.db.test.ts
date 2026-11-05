@@ -157,6 +157,19 @@ describe("xếp lượt khi ticket tổng vào stage cầu nối", () => {
     });
   });
 
+  it("crew-pr là URL MR GitLab: payload provider gitlab, prNumber là số MR", async () => {
+    const issue = addIssue(30);
+    const mr = "https://gitlab.qasoftsolution.com/nail/business-app/-/merge_requests/42";
+    comments.set(issue, [{ authorAgentId: integrator, body: `crew-pr sha=${HEAD} pr=${mr}`, createdAt: new Date() }]);
+    await handleIssueUpdated(ctx, updated(issue));
+
+    const [run] = await runs(issue);
+    expect(run).toMatchObject({ run: 1, state: "requested", head_sha: HEAD, machine_id: mini, error: null });
+    const [job] = await jobs();
+    expect(job).toMatchObject({ id: run!.machine_job_id, kind: "bug-finding-review", status: "queued" });
+    expect(job!.payload).toMatchObject({ provider: "gitlab", prNumber: 42, prUrl: mr, headSha: HEAD });
+  });
+
   it("không xếp khi issue không ở stage cầu nối, không phải root-bf hay chưa có crew-pr", async () => {
     const merge = addIssue(2, { executionState: { ...atBridge, currentStageId: "s-merge", currentStageIndex: 0 } as never });
     const code = addIssue(3, { executionPolicy: { ...rootBf, stages: [stages[1], stages[0], stages[2], stages[0]] } as never });
