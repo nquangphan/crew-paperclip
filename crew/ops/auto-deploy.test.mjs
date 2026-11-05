@@ -630,6 +630,15 @@ test("enqueue: repos without crew/release/auto-deploy.json are a silent no-op (e
   assert.ok(!existsSync(path.join(f.home, ".crew")));
 });
 
+test("enqueue: a GitLab merge request URL in --pr is still a silent no-op when the repo has no auto-deploy config", () => {
+  const f = fixtureRepo({ withConfig: false });
+  const r = f.enqueue(f.two, I1, ["--pr", "https://gitlab.qasoftsolution.com/nail/business-app/-/merge_requests/42"]);
+  assert.equal(r.status, 3, r.stderr);
+  assert.equal(r.stdout, "");
+  assert.ok(!existsSync(path.join(f.root, "body.json")));
+  assert.ok(!existsSync(path.join(f.home, ".crew")));
+});
+
 test("enqueue: --simulate-merge-ok is refused outside dry-run; dry-run uses its own label and state", () => {
   const f = fixtureRepo();
   assert.equal(f.enqueue(f.two, I1, ["--simulate-merge-ok"]).status, 1);

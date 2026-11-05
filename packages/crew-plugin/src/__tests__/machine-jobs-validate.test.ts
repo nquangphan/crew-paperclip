@@ -294,10 +294,13 @@ describe("bug-finding-review", () => {
     [{ projectKey: "My_Crew" }, "projectKey không hợp lệ"],
     [{ repoPath: "crew-agents/my-crew/repo" }, "repoPath phải là đường tuyệt đối"],
     [{ repoPath: "/Users/a/../b" }, "repoPath không được chứa .."],
-    [{ provider: "gitlab" }, "provider chỉ nhận github"],
+    [{ provider: "bitbucket" }, "provider chỉ nhận github hoặc gitlab"],
+    [{ provider: undefined }, "provider chỉ nhận github hoặc gitlab"],
+    [{ provider: "gitlab" }, "prUrl không khớp provider"],
     [{ prNumber: 0 }, "prNumber phải là số nguyên dương"],
     [{ prNumber: "87" }, "prNumber phải là số nguyên dương"],
-    [{ prUrl: "https://gitlab.com/a/b/-/merge_requests/87" }, "prUrl không hợp lệ"],
+    [{ prUrl: "https://gitlab.com/a/b/-/merge_requests/87" }, "prUrl không khớp provider"],
+    [{ prUrl: "https://gitlab.com/a/b/merge_requests/87" }, "prUrl không hợp lệ"],
     [{ prUrl: "https://github.com/nquangphan/my-crew/pull/88" }, "prUrl không khớp prNumber"],
     [{ headSha: "A".repeat(40) }, "headSha phải là 40 ký tự hex"],
     [{ headSha: "a".repeat(39) }, "headSha phải là 40 ký tự hex"],
@@ -307,6 +310,27 @@ describe("bug-finding-review", () => {
     [{ extra: 1 }, "trường extra không được hỗ trợ"],
   ])("từ chối %j", (patch, error) => {
     expect(validateJobPayload("bug-finding-review", { ...bugFindingReview, ...patch })).toBe(error);
+  });
+
+  it("provider gitlab với URL MR hợp lệ (gitlab.com, GitLab tự host có subgroup)", () => {
+    for (const prUrl of [
+      "https://gitlab.com/acme/shop-app/-/merge_requests/87",
+      "https://gitlab.qasoftsolution.com/nail/mobile/business-app/-/merge_requests/87",
+    ]) {
+      const gitlab = { ...bugFindingReview, provider: "gitlab", prUrl };
+      expect(validateJobPayload("bug-finding-review", gitlab)).toEqual({ kind: "bug-finding-review", ...gitlab });
+    }
+  });
+
+  it.each([
+    [{ prUrl: "https://github.com/nquangphan/my-crew/pull/87" }, "prUrl không khớp provider"],
+    [{ prUrl: "https://gitlab.com/acme/shop-app/-/merge_requests/88" }, "prUrl không khớp prNumber"],
+    [{ prUrl: "https://gitlab.com/acme/-/merge_requests/87" }, "prUrl không hợp lệ"],
+    [{ prUrl: "https://github.com/acme/shop-app/-/merge_requests/87" }, "prUrl không hợp lệ"],
+  ])("provider gitlab: từ chối %j", (patch, error) => {
+    expect(validateJobPayload("bug-finding-review", {
+      ...bugFindingReview, provider: "gitlab", prUrl: "https://gitlab.com/acme/shop-app/-/merge_requests/87", ...patch,
+    })).toBe(error);
   });
 
   it("thiếu trường bắt buộc thì từ chối", () => {

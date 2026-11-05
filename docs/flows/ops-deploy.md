@@ -48,7 +48,9 @@ phối run đó. Job launchd có PPID 1, nhóm process và session riêng, cwd n
    plugin `crew.core` healthy (6). Mọi lỗi sau khi đổi in lệnh `rollback.sh <TS>`.
 5. `crew/ops/rollback.sh`: khôi phục compose đã lưu và tạo lại server, giữ mount file policy.
 6. `crew/ops/compose-set-image.py`: chỉ đổi image của service `server` và đảm bảo `stop_grace_period: 60s`.
-7. `crew/ops/auto-deploy.mjs` → `enqueue`: đọc `crew/release/auto-deploy.json` (`parseConfig`), xếp commit vào hàng chờ
+7. `crew/ops/auto-deploy.mjs` → `enqueue`: đọc `crew/release/auto-deploy.json` (`parseConfig`); repo không có file hay
+   `enabled=false` thì thoát 3 không in gì, kể cả khi `--pr` là URL MR GitLab (repo origin GitLab không bật deploy tự
+   động); repo đã bật chỉ nhận `--pr` là URL pull request GitHub (`PR_URL_RE`, worker chờ bằng `gh pr view`). Xếp commit vào hàng chờ
    (`mergeQueue`, `addWaiting` cho pull request chưa merge), khởi động worker launchd (`plistFor`, `jobEnv`), in thân
    comment `crew-deploy sha=… status=queued` cho integrator đăng.
 8. `crew/ops/auto-deploy.mjs` → `worker`, `workerLoop`: chờ pull request merge (`gh pr view`, mỗi `PR_POLL_MS`, tối đa
@@ -104,7 +106,7 @@ phối run đó. Job launchd có PPID 1, nhóm process và session riêng, cwd n
 - `crew/ops/compose-set-image.test.mjs`: chỉ đổi image của `server`, thêm `stop_grace_period` một lần, lỗi thì không đổi
   file.
 - `crew/ops/auto-deploy.test.mjs`: cấu hình của repo hợp lệ; hàng chờ giữ commit mới nhất và mọi issue; pull request
-  chờ; đọc `gh pr view`; bỏ cổng server khi chỉ đổi web/docs; `redact`; đọc log deploy; dòng đầu comment; job launchd
+  chờ; `--pr` sai dạng bị từ chối ở repo đã bật, repo không bật thoát 3 kể cả với URL MR GitLab; đọc `gh pr view`; bỏ cổng server khi chỉ đổi web/docs; `redact`; đọc log deploy; dòng đầu comment; job launchd
   tách khỏi run; worker đi hết vòng tới `deployed`.
 - `crew/ops/auto-deploy-vps.test.mjs`: tham số sai hình dạng bị từ chối; `deploy-when-idle` chạy tách và sống sót khi
   nhóm process gọi bị giết, báo `BUSY`; rollback; comment không lộ key.
