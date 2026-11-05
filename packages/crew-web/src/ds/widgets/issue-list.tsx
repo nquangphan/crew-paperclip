@@ -514,6 +514,7 @@ function IssueListRow({
       {...rest}
     >
       <NavAnchor
+        data-slot="task-row-link"
         href={href}
         onOpen={onOpen}
         aria-label={title}

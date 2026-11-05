@@ -33,6 +33,28 @@ const INDICATOR: Record<Exclude<MachineLabelState, 'unpinned'>, React.ReactNode>
   unpaired: <Unlink className="size-3 text-(--status-task-icon-todo)" />,
 };
 
+/**
+ * Nhãn có tooltip nằm trên link phủ cả dòng (`task-row-link`) để nhận hover, nên tự chuyển click xuống link đó: bấm lên
+ * tên máy mở yêu cầu như phần còn lại của dòng, giữ phím bổ trợ (Cmd/Ctrl/Shift+click mở tab mới).
+ */
+function forwardClickToRow(event: React.MouseEvent<HTMLElement>) {
+  const link = event.currentTarget
+    .closest('[data-slot="task-row"]')
+    ?.querySelector<HTMLAnchorElement>('[data-slot="task-row-link"]');
+  if (!link) return;
+  link.dispatchEvent(
+    new MouseEvent('click', {
+      bubbles: true,
+      cancelable: true,
+      button: event.button,
+      ctrlKey: event.ctrlKey,
+      metaKey: event.metaKey,
+      shiftKey: event.shiftKey,
+      altKey: event.altKey,
+    }),
+  );
+}
+
 function MachineLabel({
   state,
   name,
@@ -44,11 +66,13 @@ function MachineLabel({
 }: MachineLabelProps) {
   const option = layout === 'option';
   const label = (
+    // biome-ignore lint/a11y/useKeyWithClickEvents: nhãn không nhận focus; bàn phím mở yêu cầu bằng chính link của dòng, click ở đây chỉ chuyển tiếp cho chuột.
     <span
       data-slot="machine-label"
       data-state={state}
       role="img"
       aria-label={ariaLabel ?? name}
+      onClick={tooltip ? forwardClickToRow : undefined}
       className={cn(
         'inline-flex max-w-full min-w-0 items-center gap-1.5 whitespace-nowrap',
         option ? 'flex-wrap text-sm text-foreground' : 'text-xs text-muted-foreground',
