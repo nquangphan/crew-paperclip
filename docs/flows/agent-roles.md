@@ -42,14 +42,28 @@ cấm chạy lệnh ở chế độ nền rồi kết thúc lượt, đứng nga
 Các vai biến thể `executor-codex`, `executor-opencode` (template `executor`) và `reviewer-codex` (template `reviewer`) dùng chung
 template nên có luật này, không có file riêng. Đoạn giống hệt nhau ở mọi file vì `render-instructions.mjs` không có cơ chế phần chung.
 
-Nội dung: mọi lệnh (test, build, E2E, simulator) chạy tiền cảnh và đọc kết quả trong cùng lượt, không `run_in_background`,
-không Monitor, không kết thúc lượt để "chờ thông báo"; một lệnh tối đa 10 phút (việc dài thì tách từng flow/spec, mỗi phần một
-lệnh có timeout); chỉ kết thúc lượt khi có kết quả thật hoặc đã `PATCH` trạng thái kèm lý do; cần tiến trình nền (dev server
-cho E2E) thì tự bật, dùng xong và tự tắt trong lượt.
+Nội dung: mọi lệnh (test, build, E2E, simulator) chạy tiền cảnh và đọc kết quả trong cùng lượt, không dùng `run_in_background`
+hay Monitor của công cụ agent, không kết thúc lượt để "chờ thông báo" của lệnh nền; một lệnh tối đa 10 phút (việc dài thì tách
+từng flow/spec, mỗi phần một lệnh có timeout). Cần tiến trình phụ (dev server cho E2E) thì tự bật bằng `&` trong lượt, ghi
+`$!`, dùng xong và tắt theo PID trước khi kết thúc lượt (khớp mục "Không bao giờ" về dọn process và luồng E2E của executor).
+
+Cách hiểu thống nhất (Bug Finding lượt 1 của TPS-741, sửa ở TPS-757): luật chỉ cấm bỏ **lệnh nền của chính run** rồi kết thúc
+lượt, vì lệnh nền không đánh thức lại agent. Luật không cấm dừng chờ **server** đánh thức theo luồng của vai: reviewer chờ kết
+quả Bug Finding (`reviewer.md`, kết thúc run không đổi status), reviewer/integrator chỉ comment lý do và giữ status khi chờ
+owner, integrator chờ con sửa xong, Trợ Lý chờ cả lô con hoặc owner trả lời thẻ, BMAD `blocked` chờ owner. Server đánh thức bằng
+sự kiện của chính nó (issue được giao, con xong, owner trả lời), không dựa vào lệnh nền của run. Job do server xếp hàng chạy
+riêng ngoài run (deploy của integrator ở bước 7b, Bug Finding) không thuộc luật. Đoạn luật không còn mệnh đề chung "không có
+thông báo đánh thức lại", chỉ nói về lệnh nền của run.
 
 Lý do (sự cố TPS-693, 05/11/2026): executor bật flow Maestro iOS chạy nền rồi kết thúc lượt "chờ monitor báo kết quả". Run
-agent là một lần `claude --print`: kết thúc lượt thì process thoát, không có thông báo nào đánh thức lại, lệnh nền bị cắt. Issue
+agent là một lần `claude --print`: kết thúc lượt thì process thoát và lệnh nền bị cắt, không có gì đánh thức lại agent. Issue
 bị `blocked` sau 5 run hỏng `adapter_failed` exit 255.
+
+Kiểm: `crew/agents/instructions.test.mjs` (đoạn luật giống hệt ở 6 template; F-01/F-02 kiểm câu cho phép chờ server đánh thức,
+`&`/`$!`, ngoại lệ job do server xếp hàng), `packages/crew-web/test/lib/instructions/render.test.ts` (fixture render) và E2E
+ca giả `packages/crew-web/e2e/fake/agents-md-no-background.spec.ts` (web hiện luật ở 4 vai có thao tác "Render lại theo vai
+trò": Trợ Lý, executor, reviewer, integrator). `bmad` và `designer` cố ý ngoài phạm vi E2E vì web không có ô vai trò và đường
+render AGENTS.md cho hai agent này; spec ghi chú lý do và có ca khóa danh sách đủ 6 template.
 
 ## Tổng kết của Trợ Lý trên mô tả gốc
 
