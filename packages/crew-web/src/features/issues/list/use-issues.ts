@@ -1,18 +1,28 @@
 // Dữ liệu và trạng thái bộ lọc của danh sách yêu cầu. Lọc, sắp xếp, nhóm, cột, chế độ Danh sách/Bảng và mật độ bảng
-// nằm trong URL query, không ghi DB.
+// nằm trong URL query, không ghi DB. Máy của từng yêu cầu lấy bằng một request lô (`machines.ts`), lọc theo máy ở máy
+// khách như lọc loại.
 import type { CompactIssue } from '@paperclipai/shared';
 import { useQuery } from '@tanstack/react-query';
 import { api, type CrewRoot, type IssueListFilters, queryKeys } from '@/api';
 import { KANBAN_COLUMN_DEFAULT_PAGE_SIZE, KANBAN_COLUMN_PAGE_SIZE_OPTIONS, type KanbanColumnPageSize } from '@/ds';
 import { useVisibleProjects } from '@/features/access';
 import { labelledKindOf } from '../new/kinds';
+import { useIssueMachines } from './machines';
 import { byUpdatedDesc } from './tree';
 
 /** Cột phụ bên phải dòng theo thứ tự hiển thị. */
-export const COLUMN_IDS = ['stage', 'progress', 'assignee', 'project', 'labels', 'id', 'updated'] as const;
+export const COLUMN_IDS = ['stage', 'progress', 'machine', 'assignee', 'project', 'labels', 'id', 'updated'] as const;
 export type ColumnId = (typeof COLUMN_IDS)[number];
 /** Cột hiện sẵn; `?hide=` ẩn bớt cột mặc định, `?show=` bật thêm cột khác (Project). */
-export const DEFAULT_COLUMNS: readonly ColumnId[] = ['stage', 'progress', 'assignee', 'labels', 'id', 'updated'];
+export const DEFAULT_COLUMNS: readonly ColumnId[] = [
+  'stage',
+  'progress',
+  'machine',
+  'assignee',
+  'labels',
+  'id',
+  'updated',
+];
 export const SORT_KEYS = ['updated', 'created', 'title'] as const;
 export type SortKey = (typeof SORT_KEYS)[number];
 export const GROUP_KEYS = ['none', 'status', 'assignee', 'project'] as const;
@@ -36,6 +46,8 @@ export interface ListState {
   projectId: string;
   assigneeAgentId: string;
   kind: KindFilter;
+  /** `machineId` của máy, `unpinned` là cây chưa ghim, rỗng là không lọc. */
+  machine: string;
   sort: SortKey;
   group: GroupKey;
   hidden: ColumnId[];
@@ -53,6 +65,7 @@ export const PARAM = {
   projectId: 'project',
   assigneeAgentId: 'assignee',
   kind: 'kind',
+  machine: 'machine',
   sort: 'sort',
   group: 'group',
   hidden: 'hide',
@@ -83,6 +96,7 @@ export function parseListState(params: URLSearchParams): ListState {
     projectId: params.get(PARAM.projectId) ?? '',
     assigneeAgentId: params.get(PARAM.assigneeAgentId) ?? '',
     kind: oneOf(KIND_FILTERS, params.get(PARAM.kind), 'all'),
+    machine: params.get(PARAM.machine) ?? '',
     sort: oneOf(SORT_KEYS, params.get(PARAM.sort), 'updated'),
     group: oneOf(GROUP_KEYS, params.get(PARAM.group), 'none'),
     hidden: columnList(params.get(PARAM.hidden)),
@@ -186,5 +200,7 @@ export function useIssuesData(companyId: string, state: ListState) {
     queryKey: [...queryKeys.liveRuns(companyId), 'issues-list'],
     queryFn: () => api.runs.live(companyId),
   });
-  return { issues, roots, projects, agents, liveRuns };
+  // Nhãn máy là phần phụ: route lô lỗi thì danh sách vẫn hiện, ô Máy ghi "—" kèm dòng lỗi có Thử lại.
+  const machines = useIssueMachines(companyId, issues.data);
+  return { issues, roots, projects, agents, liveRuns, machines };
 }

@@ -763,6 +763,8 @@ flows:
       - packages/crew-web/src/features/issues/list/issues-board.tsx
       - packages/crew-web/src/features/issues/list/issues-page.tsx
       - packages/crew-web/src/features/issues/list/list-view.ts
+      - packages/crew-web/src/features/issues/list/machine-label.tsx
+      - packages/crew-web/src/features/issues/list/machines.ts
       - packages/crew-web/src/features/issues/list/tree.ts
       - packages/crew-web/src/features/issues/list/use-issues.ts
       - packages/crew-web/src/features/issues/new/add-child-dialog.tsx
@@ -804,6 +806,7 @@ flows:
       - packages/crew-web/test/features/issues/issue-popup.test.tsx
       - packages/crew-web/test/features/issues/issue-runs.test.tsx
       - packages/crew-web/test/features/issues/issues-board.test.tsx
+      - packages/crew-web/test/features/issues/issues-machines.test.tsx
       - packages/crew-web/test/features/issues/issues-page-pending.test.tsx
       - packages/crew-web/test/features/issues/issues-page.test.tsx
       - packages/crew-web/test/features/issues/kind-labels.test.tsx
@@ -1056,6 +1059,7 @@ flows:
       - packages/crew-web/src/ds/widgets/issue-list.tsx
       - packages/crew-web/src/ds/widgets/issue-row.tsx
       - packages/crew-web/src/ds/widgets/kanban-board.tsx
+      - packages/crew-web/src/ds/widgets/machine-label.tsx
       - packages/crew-web/src/ds/widgets/markdown-renderer.tsx
       - packages/crew-web/src/ds/widgets/markdown-view.tsx
       - packages/crew-web/src/ds/widgets/metric-card.tsx
