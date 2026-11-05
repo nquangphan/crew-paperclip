@@ -69,7 +69,8 @@ Luật chính:
    khối Bug Finding (`bug-finding-panel.tsx` → `BugFindingSection`/`BugFindingPanel`). Dữ liệu từ
    `packages/crew-web/src/api/crew/bug-finding.ts` → `useBugFinding` (`GET /api/plugins/crew.core/api/issues/:id/bug-finding?companyId=`,
    khóa `queryKeys.crew('crew.bugFinding', …)`, đọc lại mỗi `BUG_FINDING_POLL_MS` 30 giây khi còn lượt chờ/chạy). Mỗi
-   lượt một thẻ: PR, commit review, lượt n / tối đa; lượt chờ/chạy có thanh tiến độ `lanesDone/lanesTotal`; lượt hỏng
+   lượt một thẻ: PR (link tới URL của lượt; `prNumberOf` rút số từ `/pull/<n>` của GitHub hoặc `/-/merge_requests/<iid>`
+   của GitLab, không rút được thì hiện nguyên URL), commit review, lượt n / tối đa; lượt chờ/chạy có thanh tiến độ `lanesDone/lanesTotal`; lượt hỏng
    hiện lý do; lượt `succeeded` chia finding thành Trợ Lý tự sửa (kèm việc con sửa và trạng thái), Cần owner chốt (câu
    hỏi), Trợ Lý bỏ qua (lý do) theo `triage` của route (flow `bug-finding`), finding ngoài kế hoạch vào nhóm "khác",
    chưa có kế hoạch thì bảng phẳng kèm câu "Trợ Lý chưa phân loại". Mảnh hiển thị (thanh tiến độ, mức, verdict, mã
@@ -196,7 +197,7 @@ gửi, thông báo mất ở lần gửi sau. Bình luận không có tag không
 - `packages/crew-web/test/features/issues/bug-finding-panel.test.tsx`: lượt chạy có thanh tiến độ lane và số lô sửa;
   lượt xong chia ba nhóm theo kế hoạch (việc con sửa, câu hỏi, lý do bỏ qua); chưa có kế hoạch thì bảng phẳng; lượt
   hết giờ hiện lý do; thẻ màn duyệt hiện kết quả cuối trên đúng commit sẽ merge và cách xử lý; `BugFindingSection` gọi
-  route kèm `companyId`.
+  route kèm `companyId`; `prNumberOf` rút số PR GitHub và số MR GitLab, URL khác trả null.
 - `packages/crew-web/test/features/issues/summary-slot.test.tsx` (phần `code-bf`): dải bốn giai đoạn có dòng phụ và
   khối Bug Finding khi xem ticket tổng; việc con không hiện, không gọi route.
 - `packages/crew-web/test/features/issues/comment-questions.test.ts`, `interaction-card.test.tsx`: đọc câu hỏi theo các
