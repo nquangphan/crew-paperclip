@@ -10,8 +10,13 @@ import { afterEach, test } from "node:test";
 
 // Dòng crew-pr và crew-merge pushed=merged mà gate server nhận (CREW_PR_RE, CREW_MERGE_RE của issue-policy.ts).
 const GH_PR = String.raw`https:\/\/github\.com\/[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+\/pull\/[1-9][0-9]*`;
-const CREW_PR_RE = new RegExp(`^crew-pr sha=([0-9a-f]{40}) pr=(${GH_PR})$`);
-const MERGED_RE = new RegExp(`^crew-merge sha=([0-9a-f]{40}) branch=(\\S+) pushed=merged pr=(${GH_PR}) merge=([0-9a-f]{40})$`);
+// URL merge request GitLab (gitlab.com hoặc tự host, cổng, nhóm con): GITLAB_MR_URL của issue-policy.ts.
+const GL_MR = String.raw`https:\/\/(?!github\.com[:/])[A-Za-z0-9][A-Za-z0-9.-]*(?::[0-9]{1,5})?(?:\/[A-Za-z0-9_][A-Za-z0-9_.-]*){2,}\/-\/merge_requests\/[1-9][0-9]*`;
+const PR_URL = `(?:${GH_PR}|${GL_MR})`;
+const crewPrRe = (url) => new RegExp(`^crew-pr sha=([0-9a-f]{40}) pr=(${url})$`);
+const mergedRe = (url) => new RegExp(`^crew-merge sha=([0-9a-f]{40}) branch=(\\S+) pushed=merged pr=(${url}) merge=([0-9a-f]{40})$`);
+const CREW_PR_RE = crewPrRe(PR_URL);
+const MERGED_RE = mergedRe(PR_URL);
 const POLICY_SOURCE = new URL("../../server/src/crew/issue-policy.ts", import.meta.url);
 const MERGE_RE =
   /^crew-merge sha=([0-9a-f]{40}) branch=(\S+) pushed=(?:yes|pr pr=(https:\/\/github\.com\/[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+\/pull\/[1-9][0-9]*))$/;
@@ -330,18 +335,40 @@ test("đầu vào sai: T không phải sha thì thoát 2 trước khi gọi gh",
   assert.equal(w.calls(), "");
 });
 
-/** Chuỗi regex của server: GITHUB_PR_URL thay vào template `new RegExp(`…`)` của hằng `name`. */
-function serverRegex(name) {
-  const src = readFileSync(POLICY_SOURCE, "utf8");
-  const url = /const GITHUB_PR_URL = String\.raw`([^`]+)`;/.exec(src)?.[1];
+/**
+ * Chuỗi regex của server: thay mọi hằng `const X = String.raw\`…\`` / `const X = \`…\`` (GITHUB_PR_URL, GITLAB_MR_URL,
+ * PR_URL…) vào template `new RegExp(`…`)` của hằng `name`.
+ */
+function serverRegex(name, src = readFileSync(POLICY_SOURCE, "utf8")) {
+  const consts = new Map();
+  for (const m of src.matchAll(/^const ([A-Z_]+) = (String\.raw)?`([^`]*)`;/gm)) consts.set(m[1], m[2] ? m[3] : m[3].replaceAll("\\\\", "\\"));
   const tpl = new RegExp(`export const ${name} = new RegExp\\(\\s*\`([^\`]+)\`,?\\s*\\);`).exec(src)?.[1];
-  assert.ok(url && tpl, `không đọc được ${name} của server`);
-  return tpl.replaceAll("${GITHUB_PR_URL}", url).replaceAll("\\\\", "\\");
+  assert.ok(consts.has("GITHUB_PR_URL") && tpl, `không đọc được ${name} của server`);
+  const expand = (s) => s.replace(/\$\{([A-Z_]+)\}/g, (_, k) => (assert.ok(consts.has(k), `server thiếu hằng ${k}`), expand(consts.get(k))));
+  return expand(tpl.replaceAll("\\\\", "\\"));
 }
 
 test("regex crew-pr và crew-merge pushed=merged của test trùng regex gate server", { skip: !existsSync(POLICY_SOURCE) && "issue-policy.ts chưa có trên nhánh này" }, () => {
-  assert.equal(serverRegex("CREW_PR_RE"), CREW_PR_RE.source);
-  assert.match(`crew-merge sha=${"a".repeat(40)} branch=main pushed=merged pr=https://github.com/o/r/pull/2 merge=${"b".repeat(40)}`, new RegExp(serverRegex("CREW_MERGE_RE")));
+  // Server chưa nhận MR GitLab (nhánh chưa gộp phần server) thì so với bản chỉ GitHub; đã nhận thì so với bản đủ.
+  const gitlab = /^const GITLAB_MR_URL = /m.test(readFileSync(POLICY_SOURCE, "utf8"));
+  assert.equal(serverRegex("CREW_PR_RE"), crewPrRe(gitlab ? PR_URL : GH_PR).source);
+  const merge = new RegExp(serverRegex("CREW_MERGE_RE"));
+  assert.match(`crew-merge sha=${"a".repeat(40)} branch=main pushed=merged pr=https://github.com/o/r/pull/2 merge=${"b".repeat(40)}`, merge);
+  if (gitlab) assert.match(`crew-merge sha=${"a".repeat(40)} branch=main pushed=merged pr=https://gitlab.example.com/acme/sub/app/-/merge_requests/2 merge=${"b".repeat(40)}`, merge);
+});
+
+test("serverRegex đọc được nguồn server có hằng PR_URL lồng GITHUB_PR_URL và GITLAB_MR_URL", () => {
+  const src = [
+    "const GITHUB_PR_URL = String.raw`" + GH_PR + "`;",
+    "const GITLAB_MR_URL = String.raw`" + GL_MR + "`;",
+    "const PR_URL = `(?:${GITHUB_PR_URL}|${GITLAB_MR_URL})`;",
+    "export const CREW_PR_RE = new RegExp(`^crew-pr sha=([0-9a-f]{40}) pr=(${PR_URL})$`);",
+    "export const CREW_MERGE_RE = new RegExp(",
+    "  `^crew-merge sha=([0-9a-f]{40}) branch=(\\\\S+) pushed=merged pr=(${PR_URL}) merge=([0-9a-f]{40})$`,",
+    ");",
+  ].join("\n");
+  assert.equal(serverRegex("CREW_PR_RE", src), CREW_PR_RE.source);
+  assert.equal(serverRegex("CREW_MERGE_RE", src), MERGED_RE.source);
 });
 
 test("MODE=bf ở stage gộp: không đòi quyết định owner, đẩy nhánh, mở PR, ghi crew-pr đúng merged commit, không merge", () => {
@@ -520,4 +547,247 @@ test("MODE sai, hoặc HEAD_OK ngoài MODE=merge: thoát 2 trước khi gọi gh
   assert.equal(w.run({ MODE: "push" }).status, 2);
   assert.equal(w.run({ MODE: "bf", HEAD_OK: "a".repeat(40) }).status, 2);
   assert.equal(w.calls(), "");
+});
+
+// ---- Origin GitLab (ticket tổng code-bf): không dùng gh; MR mở bằng push option, merge bằng push thường. ----
+
+const GL_ORIGIN = "git@gitlab.example.com:acme/sub/app.git";
+const GL_TOKEN_ORIGIN = "https://bot:glpat-SECRETTOKEN123@gitlab.example.com/acme/sub/app.git";
+const GL_WEB = "https://gitlab.example.com/acme/sub/app";
+
+// post-receive giả GitLab: ghi push option, mở MR khi có merge_request.create (MR đang mở của nhánh thì dùng lại),
+// cập nhật refs/merge-requests/<iid>/head, in link như GitLab (kể cả link "tạo MR" khi không có option).
+const GL_HOOK = `#!/usr/bin/env node
+const fs = require("fs");
+const { execFileSync } = require("child_process");
+const dir = process.env.GL_STUB;
+const file = dir + "/mrs.json";
+const st = JSON.parse(fs.readFileSync(file, "utf8"));
+const opts = [];
+for (let i = 0; i < Number(process.env.GIT_PUSH_OPTION_COUNT || 0); i++) opts.push(process.env["GIT_PUSH_OPTION_" + i]);
+fs.appendFileSync(dir + "/push.log", JSON.stringify(opts) + "\\n");
+for (const line of fs.readFileSync(0, "utf8").split("\\n").filter(Boolean)) {
+  const [, sha, ref] = line.split(" ");
+  const br = ref.replace(/^refs\\/heads\\//, "");
+  if (br === "main" || /^0+$/.test(sha)) continue;
+  let mr = st.mrs.find((m) => m.branch === br && m.state === "opened");
+  if (!mr && opts.includes("merge_request.create")) {
+    mr = { iid: st.next++, branch: br, state: "opened", target: (opts.find((o) => o.startsWith("merge_request.target=")) || "").split("=")[1] };
+    st.mrs.push(mr);
+  }
+  if (mr) {
+    mr.head = sha;
+    execFileSync("git", ["update-ref", "refs/merge-requests/" + mr.iid + "/head", sha]);
+    process.stderr.write("\\nView merge request for " + br + ":\\n  ${GL_WEB}/-/merge_requests/" + mr.iid + "\\n\\n");
+  } else process.stderr.write("\\nTo create a merge request for " + br + ", visit:\\n  ${GL_WEB}/-/merge_requests/new?merge_request%5Bsource_branch%5D=" + br + "\\n\\n");
+}
+fs.writeFileSync(file, JSON.stringify(st));
+`;
+
+function gitlabWorld({ origin = GL_ORIGIN, mrs = [], next = 1 } = {}) {
+  const w = world({ origin });
+  w.git(w.bare, "config", "receive.advertisePushOptions", "true");
+  const hook = path.join(w.bare, "hooks", "post-receive");
+  writeFileSync(hook, GL_HOOK);
+  chmodSync(hook, 0o755);
+  const gl = path.join(w.root, "gl-stub");
+  mkdirSync(gl);
+  writeFileSync(path.join(gl, "mrs.json"), JSON.stringify({ mrs, next }));
+  // git fetch/ls-remote origin đi tới repo bare (origin là URL GitLab giả, chỉ push được nhờ pushInsteadOf).
+  const realGit = spawnSync("bash", ["-c", "command -v git"], { encoding: "utf8" }).stdout.trim();
+  writeFileSync(
+    path.join(w.root, "bin", "git"),
+    `#!/bin/bash\nif { [ "$1" = fetch ] || [ "$1" = ls-remote ]; } && [ "$2" = origin ]; then c=$1; shift 2; exec "${realGit}" "$c" "${w.bare}" "$@"; fi\nexec "${realGit}" "$@"\n`,
+  );
+  chmodSync(path.join(w.root, "bin", "git"), 0o755);
+  const runGl = (env = {}) => w.run({ GL_STUB: gl, ...env });
+  const state = () => JSON.parse(readFileSync(path.join(gl, "mrs.json"), "utf8"));
+  const pushes = () => (existsSync(path.join(gl, "push.log")) ? readFileSync(path.join(gl, "push.log"), "utf8").trim().split("\n").filter(Boolean).map((l) => JSON.parse(l)) : []);
+  /** Nhánh mặc định đi tiếp với một commit đổi `file` (đổi b.txt thì xung đột với commit T). */
+  const advanceMain = (file, text) => {
+    w.git(w.work, "switch", "-q", "-c", `adv-${file}`, w.base);
+    writeFileSync(path.join(w.work, file), text);
+    w.git(w.work, "add", ".");
+    w.git(w.work, "commit", "-qm", `main đổi ${file}`);
+    w.git(w.work, "push", "-q", "origin", `HEAD:refs/heads/main`);
+    const sha = w.git(w.work, "rev-parse", "HEAD");
+    w.git(w.work, "switch", "-q", "crew/req/TPS-145");
+    return sha;
+  };
+  return { ...w, gl, runGl, state, pushes, advanceMain };
+}
+
+test("GitLab MODE=bf: không gọi gh, đẩy nhánh bằng push option merge_request.*, crew-pr ghi URL MR từ output push", () => {
+  const w = gitlabWorld();
+  const r = w.runGl({ MODE: "bf", NOTE: "test pnpm test: pass; docs exit 0" });
+  assert.equal(r.status, 0, r.stdout + r.stderr);
+  leaks(w, r);
+  assert.equal(w.calls(), "", "không gọi gh");
+  assert.equal(w.remoteRef("refs/heads/crew/req/TPS-145"), w.T);
+  assert.equal(w.remoteRef("refs/heads/main"), w.base, "nhánh mặc định giữ nguyên");
+  assert.deepEqual(w.pushes(), [["merge_request.create", "merge_request.target=main", "merge_request.title=TPS-145: Trang tổng hợp mới"]]);
+  const url = `${GL_WEB}/-/merge_requests/1`;
+  assert.equal(w.read("pr-url.txt"), url);
+  const comment = w.json("pr-comment.json").body;
+  assert.equal(comment.split("\n")[0], `crew-pr sha=${w.T} pr=${url}`);
+  assert.deepEqual(CREW_PR_RE.exec(comment.split("\n")[0])?.slice(1), [w.T, url]);
+  assert.ok(!existsSync(path.join(w.D, "merge-comment.json")));
+  const done = w.json("done.json");
+  assert.equal(done.status, "done");
+  assert.equal(done.comment, `Integrator: approve — crew/req/TPS-145 tại ${w.T}, pull request ${url}; test pnpm test: pass; docs exit 0; chờ Bug Finding review`);
+  assert.match(done.description, new RegExp(`### Merge request\\n\\n- Pull request: ${url.replaceAll(".", "\\.")}\\n`));
+  assert.match(done.description, /- Trạng thái: đang mở, gộp được; chờ Bug Finding review/);
+});
+
+test("GitLab MODE=bf chạy lại sau lô sửa: MR đang mở được dùng lại (output push in link MR cũ), không tạo MR trùng", () => {
+  const w = gitlabWorld({ mrs: [{ iid: 4, branch: "crew/req/TPS-145", state: "opened", head: "0".repeat(40) }], next: 5 });
+  w.git(w.work, "push", "-q", "origin", `${w.T}:refs/heads/crew/req/TPS-145`);
+  writeFileSync(path.join(w.work, "fix.txt"), "fix\n");
+  w.git(w.work, "add", ".");
+  w.git(w.work, "commit", "-qm", "merge(TPS-150): sửa F-01");
+  const T2 = w.git(w.work, "rev-parse", "HEAD");
+  const r = w.runGl({ MODE: "bf", T: T2 });
+  assert.equal(r.status, 0, r.stdout + r.stderr);
+  assert.equal(w.remoteRef("refs/heads/crew/req/TPS-145"), T2);
+  assert.equal(w.state().mrs.length, 1, "không tạo MR trùng");
+  assert.equal(w.json("pr-comment.json").body.split("\n")[0], `crew-pr sha=${T2} pr=${GL_WEB}/-/merge_requests/4`);
+});
+
+test("GitLab MODE=bf: nhánh đã ở đúng T (push không đổi gì, không có output) thì tìm lại MR qua refs/merge-requests, URL không lộ credential", () => {
+  const w = gitlabWorld({ origin: GL_TOKEN_ORIGIN, next: 3 });
+  assert.equal(w.runGl({ MODE: "bf" }).status, 0, "lần đầu mở MR");
+  rmSync(path.join(w.D, "pr-comment.json"));
+  const r = w.runGl({ MODE: "bf" });
+  assert.equal(r.status, 0, r.stdout + r.stderr);
+  leaks(w, r);
+  assert.equal(w.pushes().length, 1, "lần hai push không đổi ref nên hook không chạy");
+  assert.equal(w.state().mrs.length, 1);
+  assert.equal(w.json("pr-comment.json").body.split("\n")[0], `crew-pr sha=${w.T} pr=${GL_WEB}/-/merge_requests/3`);
+});
+
+test("GitLab MODE=bf: không tìm được URL MR thì thoát 6, không ghi crew-pr", () => {
+  const w = gitlabWorld();
+  w.git(w.work, "push", "-q", "origin", `${w.T}:refs/heads/crew/req/TPS-145`);
+  const r = w.runGl({ MODE: "bf" });
+  assert.equal(r.status, 6, r.stdout + r.stderr);
+  assert.match(w.read("error.txt"), /URL merge request/);
+  assert.ok(!existsSync(path.join(w.D, "pr-comment.json")));
+});
+
+test("GitLab MODE=bf: conflict với nhánh mặc định (kiểm bằng git cục bộ) thì thoát 7, không push nhánh, không ghi crew-pr", () => {
+  const w = gitlabWorld();
+  w.advanceMain("b.txt", "khác\n");
+  const r = w.runGl({ MODE: "bf" });
+  assert.equal(r.status, 7, r.stdout + r.stderr);
+  assert.match(w.read("error.txt"), /conflict với main/);
+  assert.equal(w.remoteRef("refs/heads/crew/req/TPS-145"), "");
+  assert.ok(!existsSync(path.join(w.D, "pr-comment.json")));
+  assert.ok(!existsSync(path.join(w.D, "done.json")));
+  assert.equal(w.calls(), "");
+});
+
+/** Mở MR cho T bằng MODE=bf rồi trả URL MR. */
+const openMr = (w) => {
+  const r = w.runGl({ MODE: "bf" });
+  assert.equal(r.status, 0, r.stdout + r.stderr);
+  const url = w.read("pr-url.txt");
+  for (const f of ["pr-url.txt", "pr-comment.json", "done.json"]) rmSync(path.join(w.D, f));
+  return url;
+};
+
+test("GitLab MODE=merge: đẩy đúng T vào nhánh mặc định bằng push thường, crew-merge pushed=merged pr=<URL MR> merge=T", () => {
+  const w = gitlabWorld();
+  const url = openMr(w);
+  const r = w.runGl({ MODE: "merge", PR: url });
+  assert.equal(r.status, 0, r.stdout + r.stderr);
+  leaks(w, r);
+  assert.equal(w.calls(), "", "không gọi gh");
+  assert.equal(w.remoteRef("refs/heads/main"), w.T);
+  const first = w.json("merge-comment.json").body.split("\n")[0];
+  assert.equal(first, `crew-merge sha=${w.T} branch=main pushed=merged pr=${url} merge=${w.T}`);
+  assert.deepEqual(MERGED_RE.exec(first)?.slice(1), [w.T, "main", url, w.T]);
+  const done = w.json("done.json");
+  assert.equal(done.comment, `Integrator: approve — đã merge pull request ${url} vào \`main\` tại ${w.T} (commit owner duyệt ${w.T})`);
+  assert.match(done.description, /- Trạng thái: đã merge vào `main`/);
+});
+
+test("GitLab MODE=merge: nhánh mặc định đi tiếp không xung đột thì đẩy merge commit (cha: nhánh mặc định, T), không --force", () => {
+  const w = gitlabWorld();
+  const url = openMr(w);
+  const moved = w.advanceMain("m.txt", "main đi tiếp\n");
+  const r = w.runGl({ MODE: "merge", PR: url });
+  assert.equal(r.status, 0, r.stdout + r.stderr);
+  const M = w.remoteRef("refs/heads/main");
+  assert.equal(w.git(w.work, "rev-list", "--parents", "-n", "1", M), `${M} ${moved} ${w.T}`);
+  assert.equal(w.json("merge-comment.json").body.split("\n")[0], `crew-merge sha=${w.T} branch=main pushed=merged pr=${url} merge=${M}`);
+});
+
+test("GitLab MODE=merge: head nhánh MR lệch commit owner duyệt thì thoát 8, không đẩy gì vào nhánh mặc định", () => {
+  const w = gitlabWorld();
+  const url = openMr(w);
+  w.git(w.work, "switch", "-q", "-c", "lạ", w.T);
+  writeFileSync(path.join(w.work, "lạ.txt"), "chưa duyệt\n");
+  w.git(w.work, "add", ".");
+  w.git(w.work, "commit", "-qm", "commit chưa duyệt");
+  w.git(w.work, "push", "-q", "origin", "HEAD:refs/heads/crew/req/TPS-145");
+  const r = w.runGl({ MODE: "merge", PR: url });
+  assert.equal(r.status, 8, r.stdout + r.stderr);
+  assert.match(w.read("error.txt"), /khác commit được duyệt/);
+  assert.equal(w.remoteRef("refs/heads/main"), w.base);
+  assert.ok(!existsSync(path.join(w.D, "merge-comment.json")));
+});
+
+test("GitLab MODE=merge: conflict với nhánh mặc định thì thoát 7, không đẩy", () => {
+  const w = gitlabWorld();
+  const url = openMr(w);
+  const moved = w.advanceMain("b.txt", "khác\n");
+  const r = w.runGl({ MODE: "merge", PR: url });
+  assert.equal(r.status, 7, r.stdout + r.stderr);
+  assert.match(w.read("error.txt"), /conflict với main/);
+  assert.equal(w.remoteRef("refs/heads/main"), moved);
+  assert.ok(!existsSync(path.join(w.D, "done.json")));
+});
+
+test("GitLab MODE=merge chạy lại khi T đã vào nhánh mặc định: không đẩy lại, merge= là commit đã đưa T vào", () => {
+  const w = gitlabWorld();
+  const url = openMr(w);
+  w.advanceMain("m.txt", "main đi tiếp\n");
+  assert.equal(w.runGl({ MODE: "merge", PR: url }).status, 0);
+  const M = w.remoteRef("refs/heads/main");
+  rmSync(path.join(w.D, "merge-comment.json"));
+  const r = w.runGl({ MODE: "merge", PR: url });
+  assert.equal(r.status, 0, r.stdout + r.stderr);
+  assert.equal(w.remoteRef("refs/heads/main"), M, "không đẩy thêm");
+  assert.equal(w.json("merge-comment.json").body.split("\n")[0], `crew-merge sha=${w.T} branch=main pushed=merged pr=${url} merge=${M}`);
+});
+
+test("GitLab MODE=merge với HEAD_OK (owner gộp nhánh mặc định vào nhánh MR): đẩy đúng head đó", () => {
+  const w = gitlabWorld();
+  const url = openMr(w);
+  const moved = w.advanceMain("m.txt", "main đi tiếp\n");
+  w.git(w.work, "fetch", "-q", w.bare, "main");
+  w.git(w.work, "merge", "-q", "--no-ff", "-m", "Merge main vào crew/req/TPS-145 (owner)", moved);
+  const H = w.git(w.work, "rev-parse", "HEAD");
+  w.git(w.work, "push", "-q", "origin", `${H}:refs/heads/crew/req/TPS-145`);
+  const r = w.runGl({ MODE: "merge", PR: url, HEAD_OK: H });
+  assert.equal(r.status, 0, r.stdout + r.stderr);
+  assert.equal(w.remoteRef("refs/heads/main"), H);
+  const body = w.json("merge-comment.json").body;
+  assert.equal(body.split("\n")[0], `crew-merge sha=${w.T} branch=main pushed=merged pr=${url} merge=${H}`);
+  assert.match(body, new RegExp(`Head PR khi merge: \`${H}\``));
+});
+
+test("GitLab MODE=merge: thiếu PR (URL MR của crew-pr) hoặc URL không phải MR thì thoát 2, không đẩy", () => {
+  const w = gitlabWorld();
+  assert.equal(w.runGl({ MODE: "merge" }).status, 2);
+  assert.equal(w.runGl({ MODE: "merge", PR: "https://github.com/acme/app/pull/1" }).status, 2);
+  assert.equal(w.remoteRef("refs/heads/main"), w.base);
+});
+
+test("origin không ở GitHub, MODE=owner (ticket thường): vẫn thoát 3 để push thẳng, không push option", () => {
+  const w = gitlabWorld();
+  const r = w.runGl();
+  assert.equal(r.status, 3);
+  assert.equal(w.remoteRef("refs/heads/crew/req/TPS-145"), "");
+  assert.deepEqual(w.pushes(), []);
 });
