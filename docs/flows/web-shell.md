@@ -84,6 +84,7 @@ Luật chính:
 - Kiểu dữ liệu plugin: `api/crew/types.ts` là bản chép, bản gốc ở `packages/crew-plugin/src/jobs/types.ts` và
   `packages/crew-plugin/src/setup/`; plugin đổi thì sửa cùng lúc (ví dụ `AddProjectInput.executors` là số 1–5, cùng
   `MAX_EXECUTORS` của plugin). Logic dùng chung lấy qua subpath `shared/*` của plugin.
+- Khóa data `crew.roadmap` (`api.crew.roadmap(companyId)`, kiểu `CrewRoadmap`/`CrewRoadmapNode`): cây việc con của mọi yêu cầu người xem được thấy, một lần tải cho trang Roadmap một trang (flow `roadmap-map`). Client không gửi phạm vi xem; server Crew ghi `params.viewer`.
 
 ## Flow liên quan
 

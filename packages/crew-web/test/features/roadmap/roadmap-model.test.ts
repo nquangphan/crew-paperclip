@@ -1,305 +1,304 @@
-import { describe, expect, it } from 'vitest';
+import type { CrewRoadmap, CrewRoadmapNode } from '@crew/paperclip-plugin/shared/map';
+import { beforeAll, describe, expect, it } from 'vitest';
+import { layoutWorld } from '@/ds';
 import {
-  buildCompanyLevel,
-  buildDocsLevel,
-  buildProjectLevel,
-  buildRequestLevel,
-  docsNodeId,
-  docsParentFolder,
-  folderTrail,
+  buildWorldInput,
+  focusOfNode,
+  focusTrail,
   isHumanRoot,
-  MORE_ID,
-  NO_PROJECT,
-  type RoadmapIssue,
-  resolveDocsFolder,
-  stableOrder,
+  parentFocus,
+  resolveFocus,
+  type WorldDataInput,
+  worldFocusOf,
+  worldListItems,
 } from '@/features/roadmap/roadmap-model';
+import { getI18n, initI18n, setLanguage } from '@/i18n';
 
-let seq = 0;
-const issue = (over: Partial<RoadmapIssue> & { id: string }): RoadmapIssue => ({
-  identifier: `TPS-${++seq}`,
-  title: `Việc ${over.id}`,
+beforeAll(async () => {
+  await initI18n();
+  await setLanguage('vi');
+});
+const t = ((key: string, opts?: Record<string, unknown>) => getI18n().t(key, opts)) as WorldDataInput['t'];
+
+const node = (id: string, n: number, over: Partial<CrewRoadmapNode> = {}): CrewRoadmapNode => ({
+  id,
+  identifier: `TPS-${n}`,
+  title: `Việc ${id}`,
   status: 'todo',
   parentId: null,
+  rootId: id,
   projectId: 'p1',
   createdByUserId: 'u1',
-  createdAt: `2026-10-0${(seq % 9) + 1}T00:00:00.000Z`,
-  assigneeAgentId: null,
-  blockedBy: [],
+  createdAt: `2026-10-${String(10 + n).padStart(2, '0')}T00:00:00.000Z`,
+  updatedAt: '2026-10-30T00:00:00.000Z',
+  assignee: null,
+  stage: null,
+  reviewRounds: 0,
+  maxReviewRounds: 5,
+  kind: 'code',
+  bundle: null,
   ...over,
 });
 
+const ROADMAP: CrewRoadmap = {
+  requests: ['r2', 'r1', 'rB', 'loose'],
+  nodes: [
+    // r2 tạo sau r1 nhưng đứng trước trong danh sách worker: đảo vẫn xếp theo thứ tự tạo.
+    node('r2', 5, { status: 'done' }),
+    node('r1', 1, { status: 'in_progress' }),
+    node('c1', 2, { parentId: 'r1', rootId: 'r1', status: 'done', assignee: { id: 'a1', name: 'executor-1' } }),
+    node('c2', 3, { parentId: 'r1', rootId: 'r1', status: 'in_progress' }),
+    node('c3', 4, { parentId: 'c2', rootId: 'r1' }),
+    node('rB', 6, { projectId: 'p2' }),
+    node('loose', 7, { projectId: null }),
+  ],
+  edges: [
+    { kind: 'parent', from: 'r1', to: 'c1' },
+    { kind: 'parent', from: 'r1', to: 'c2' },
+    { kind: 'parent', from: 'c2', to: 'c3' },
+    { kind: 'dependency', from: 'c1', to: 'c2' },
+    { kind: 'repair', from: 'c2', to: 'c2' },
+  ],
+  diagnostics: [],
+  truncated: false,
+};
+
 const PROJECTS = [
-  { id: 'p1', name: 'Crew', color: '#2b59c3' },
-  { id: 'p2', name: 'Alpha', color: null },
-  { id: 'p3', name: 'Cũ', archivedAt: '2026-10-01' },
+  { id: 'p2', name: 'Beta', color: null, archivedAt: null },
+  { id: 'p1', name: 'Alpha', color: '#2b59c3', archivedAt: null },
+  { id: 'old', name: 'Cũ', color: null, archivedAt: '2026-01-01' },
 ];
 
-describe('isHumanRoot', () => {
-  it('chỉ gốc do người tạo', () => {
-    expect(isHumanRoot(issue({ id: 'a' }))).toBe(true);
-    expect(isHumanRoot(issue({ id: 'b', createdByUserId: null }))).toBe(false);
-    expect(isHumanRoot(issue({ id: 'c', createdByUserId: '  ' }))).toBe(false);
-    expect(isHumanRoot(issue({ id: 'd', parentId: 'a' }))).toBe(false);
-  });
-});
+function data(over: Partial<WorldDataInput> = {}): WorldDataInput {
+  return {
+    companyName: '2P',
+    projects: PROJECTS,
+    roadmap: ROADMAP,
+    includeNoProject: true,
+    noProjectTitle: 'Chưa gắn project',
+    docs: new Map([
+      [
+        'p1',
+        {
+          pages: [
+            { path: 'README.md', title: 'Giới thiệu' },
+            { path: 'docs/a.md', title: 'A' },
+          ],
+        },
+      ],
+    ]),
+    t,
+    ...over,
+  };
+}
 
-describe('buildCompanyLevel', () => {
-  const issues = [
-    issue({ id: 'r1' }),
-    issue({ id: 'r2', status: 'done' }),
-    issue({ id: 'agent', createdByUserId: null }),
-    issue({ id: 'child', parentId: 'r1' }),
-    issue({ id: 'r3', projectId: 'p2', status: 'in_progress' }),
-    issue({ id: 'loose', projectId: null }),
-  ];
-
-  it('đếm yêu cầu gốc do người tạo và số đang mở; bỏ project lưu trữ; sắp theo tên', () => {
-    const level = buildCompanyLevel({
-      companyName: '2P',
-      projects: PROJECTS,
-      issues,
-      includeNoProject: false,
-      noProjectTitle: 'Chưa gắn project',
-    });
-    expect(level.center).toMatchObject({ id: 'company', kind: 'company', title: '2P', total: 2, open: 3 });
-    expect(level.nodes.map((n) => n.id)).toEqual(['p2', 'p1']);
-    expect(level.nodes.find((n) => n.id === 'p1')).toMatchObject({ total: 2, open: 1, color: '#2b59c3' });
-    expect(level.edges).toHaveLength(2);
+describe('buildWorldInput', () => {
+  it('project theo tên, bỏ project lưu trữ; "Chưa gắn project" cuối, chỉ cho owner', () => {
+    const input = buildWorldInput(data());
+    expect(input.clusters.map((c) => c.node.id)).toEqual(['p1', 'p2', 'none']);
+    expect(buildWorldInput(data({ includeNoProject: false })).clusters.map((c) => c.node.id)).toEqual(['p1', 'p2']);
   });
 
-  it('owner thấy thêm "Chưa gắn project" khi có gốc không project', () => {
-    const level = buildCompanyLevel({
-      companyName: '2P',
-      projects: PROJECTS,
-      issues,
-      includeNoProject: true,
-      noProjectTitle: 'Chưa gắn project',
-    });
-    expect(level.nodes.at(-1)).toMatchObject({ id: NO_PROJECT, title: 'Chưa gắn project', total: 1 });
+  it('đếm trên nút công ty và project', () => {
+    const input = buildWorldInput(data());
+    expect(input.company).toMatchObject({ id: 'company', kind: 'company', title: '2P', total: 2, open: 3 });
+    expect(input.clusters[0].node).toMatchObject({ kind: 'project', title: 'Alpha', total: 2, open: 1 });
   });
 
-  it('vượt trần sinh nút "+N" với số đúng', () => {
-    const many = Array.from({ length: 45 }, (_, i) => ({ id: `p${i}`, name: `P${String(i).padStart(2, '0')}` }));
-    const level = buildCompanyLevel({
-      companyName: '2P',
-      projects: many,
-      issues: [],
-      includeNoProject: false,
-      noProjectTitle: '',
-    });
-    expect(level.nodes).toHaveLength(41);
-    expect(level.nodes.at(-1)).toMatchObject({ id: MORE_ID, kind: 'more', extra: 5 });
-    expect(level.overflow).toBe(5);
-    expect(level.edges.some((e) => e.target === MORE_ID)).toBe(false);
-  });
-});
-
-describe('buildProjectLevel', () => {
-  const issues = [
-    issue({ id: 'r1', createdAt: '2026-10-01T00:00:00Z' }),
-    issue({ id: 'c1', parentId: 'r1', status: 'done' }),
-    issue({ id: 'c2', parentId: 'r1' }),
-    issue({ id: 'g1', parentId: 'c2', status: 'done' }),
-    issue({ id: 'rDone', status: 'done', createdAt: '2026-09-01T00:00:00Z' }),
-    issue({ id: 'r2', createdAt: '2026-10-02T00:00:00Z' }),
-    issue({ id: 'agentRoot', createdByUserId: null }),
-    issue({ id: 'other', projectId: 'p2' }),
-  ];
-
-  it('yêu cầu gốc do người tạo, đang mở trước, tiến độ tính cả cháu', () => {
-    const level = buildProjectLevel({ project: { id: 'p1', title: 'Crew', color: null }, issues });
-    expect(level.nodes.map((n) => n.id)).toEqual(['r1', 'r2', 'rDone']);
-    expect(level.nodes[0]).toMatchObject({ total: 3, done: 2 });
-    expect(level.center).toMatchObject({ id: 'p1', total: 3, open: 2 });
-  });
-
-  it('thứ tự ổn định: thêm yêu cầu mới không đổi chỗ nút cũ', () => {
-    const before = buildProjectLevel({ project: { id: 'p1', title: 'Crew' }, issues });
-    const after = buildProjectLevel({
-      project: { id: 'p1', title: 'Crew' },
-      issues: [...issues, issue({ id: 'r9', createdAt: '2026-10-09T00:00:00Z' })],
-    });
-    expect(after.nodes.slice(0, 2).map((n) => n.id)).toEqual(before.nodes.slice(0, 2).map((n) => n.id));
-  });
-
-  it('nút Docs đứng đầu; chưa có bản docs hoặc đang tải thì không bấm được; không có nhánh docs thì không vẽ', () => {
-    const withDocs = buildProjectLevel({ project: { id: 'p1', title: 'Crew' }, issues, docs: { pages: 7 } });
-    expect(withDocs.nodes[0]).toMatchObject({ id: docsNodeId('p1'), kind: 'docs', total: 7, disabled: false });
-    expect(withDocs.edges[0].target).toBe(docsNodeId('p1'));
-    const none = buildProjectLevel({ project: { id: 'p1', title: 'Crew' }, issues, docs: null });
-    expect(none.nodes[0]).toMatchObject({ kind: 'docs', disabled: true });
-    expect(buildProjectLevel({ project: { id: 'p1', title: 'Crew' }, issues }).nodes[0].kind).toBe('request');
-    // Đang tải: nút giữ chỗ (mờ, chưa có số trang) để bố cục không đổi khi tải xong.
-    const loading = buildProjectLevel({ project: { id: 'p1', title: 'Crew' }, issues, docs: 'loading' });
-    expect(loading.nodes[0]).toMatchObject({ kind: 'docs', disabled: true, total: undefined });
-  });
-
-  it('"Chưa gắn project" lấy gốc không có project', () => {
-    const level = buildProjectLevel({
-      project: { id: NO_PROJECT, title: 'Chưa gắn project' },
-      issues: [issue({ id: 'x', projectId: null }), issue({ id: 'y' })],
-    });
-    expect(level.nodes.map((n) => n.id)).toEqual(['x']);
-  });
-
-  it('trần 60 yêu cầu', () => {
-    const many = Array.from({ length: 65 }, (_, i) => issue({ id: `m${i}` }));
-    const level = buildProjectLevel({ project: { id: 'p1', title: 'Crew' }, issues: many });
-    expect(level.nodes).toHaveLength(61);
-    expect(level.nodes.at(-1)).toMatchObject({ kind: 'more', extra: 5 });
-  });
-});
-
-describe('buildRequestLevel', () => {
-  const request = issue({ id: 'r', identifier: 'TPS-1' });
-  const descendants = [
-    issue({ id: 'a', parentId: 'r', assigneeAgentId: 'ag1' }),
-    issue({ id: 'b', parentId: 'r', blockedBy: [{ id: 'a' }, { id: 'outside' }] }),
-    issue({ id: 'a1', parentId: 'a', status: 'done' }),
-  ];
-
-  it('cây hậu duệ, cạnh cha-con và cạnh chặn chỉ khi hai đầu cùng trên bản đồ', () => {
-    const level = buildRequestLevel({
-      request,
-      descendants,
-      agentName: (id) => (id === 'ag1' ? 'Dev Agent' : undefined),
-    });
-    expect(level.layout).toBe('top-down');
-    expect(level.center).toMatchObject({ id: 'r', kind: 'request', total: 3, done: 1 });
-    expect(level.nodes.map((n) => n.id)).toEqual(['a', 'b', 'a1']);
-    expect(level.nodes[0]).toMatchObject({ assignee: 'Dev Agent', children: 1, parentId: 'r' });
-    expect(level.edges.filter((e) => e.kind === 'parent').map((e) => `${e.source}>${e.target}`)).toEqual([
-      'r>a',
-      'r>b',
-      'a>a1',
-    ]);
-    expect(level.edges.filter((e) => e.kind === 'blocks')).toEqual([
-      { id: 'a=>b', source: 'a', target: 'b', kind: 'blocks' },
+  it('Docs là đảo đầu của project, cây thư mục → trang; yêu cầu theo thứ tự tạo', () => {
+    const [alpha] = buildWorldInput(data()).clusters;
+    expect(alpha.islands.map((i) => i.center.id)).toEqual(['docs:p1', 'r1', 'r2']);
+    const docs = alpha.islands[0];
+    expect(docs.center).toMatchObject({ kind: 'docs', total: 2 });
+    expect(docs.nodes.map((n) => [n.id, n.kind, n.parentId])).toEqual([
+      ['dir:p1:docs', 'folder', 'docs:p1'],
+      ['page:p1:docs/a.md', 'page', 'dir:p1:docs'],
+      ['page:p1:README.md', 'page', 'docs:p1'],
     ]);
   });
 
-  it('run của cây: mỗi thẻ có run của chính nó, yêu cầu gốc có tổng cả cây; chưa tải run thì không có khối run', () => {
-    const run = (id: string) => ({
-      id,
-      status: 'succeeded',
-      agentName: 'executor-1',
-      model: 'claude-sonnet-5',
-      createdAt: '2026-10-21T01:00:00.000Z',
-      startedAt: '2026-10-21T01:00:00.000Z',
-      finishedAt: '2026-10-21T01:10:00.000Z',
-      costUsd: 0.5,
-      billingType: 'subscription_included',
-    });
-    const level = buildRequestLevel({
-      request,
-      descendants,
-      runs: {
-        byIssue: { a: { runs: [run('x1'), run('x2')], count: 2, costUsd: 1, subscription: true } },
-        tree: { count: 2, costUsd: 1, subscription: true },
-      },
-    });
-    expect(level.center.runs).toEqual({
-      runs: [],
-      count: 0,
-      total: { count: 2, costUsd: 1, subscription: true, tree: true },
-    });
-    expect(level.nodes.find((n) => n.id === 'a')?.runs).toMatchObject({ count: 2, total: { tree: false } });
-    expect(level.nodes.find((n) => n.id === 'b')?.runs).toBeUndefined();
-    expect(buildRequestLevel({ request, descendants }).center.runs).toBeUndefined();
+  it('đảo yêu cầu dựng bằng crewMapLevel: thẻ như bản đồ Crew, cạnh chặn và vòng sửa từ worker', () => {
+    const r1 = buildWorldInput(data()).clusters[0].islands[1];
+    expect(r1.layout).toBe('top-down');
+    expect(r1.center).toMatchObject({ id: 'r1', kind: 'request', total: 3, done: 1, detail: 'Chưa có giai đoạn' });
+    expect(r1.nodes.find((n) => n.id === 'c1')).toMatchObject({ kind: 'ticket', assignee: 'executor-1' });
+    expect(r1.nodes.find((n) => n.id === 'c3')?.parentId).toBe('c2');
+    const kinds = r1.edges.map((e) => `${e.kind}:${e.source}>${e.target}`);
+    expect(kinds).toEqual(expect.arrayContaining(['parent:c2>c3', 'blocks:c1>c2', 'repair:c2>c2']));
   });
 
-  it('vòng cha-con hỏng không treo; issue không nối về yêu cầu bị bỏ', () => {
-    const level = buildRequestLevel({
-      request,
-      descendants: [...descendants, issue({ id: 'x', parentId: 'y' }), issue({ id: 'y', parentId: 'x' })],
-    });
-    expect(level.nodes.map((n) => n.id)).toEqual(['a', 'b', 'a1']);
+  it('trạng thái hiển thị (QC) cho thẻ yêu cầu; run chỉ gắn vào đúng yêu cầu đang xem', () => {
+    const runs = {
+      byIssue: {},
+      tree: { count: 2, costUsd: 1.5, subscription: false },
+    };
+    const input = buildWorldInput(
+      data({ statusOf: (i) => (i.id === 'r2' ? 'qc_awaiting' : i.status), runs: { rootId: 'r1', data: runs } }),
+    );
+    const [, r1, r2] = input.clusters[0].islands;
+    expect(r2.center.status).toBe('qc_awaiting');
+    expect(r1.center.runs?.total).toMatchObject({ count: 2, tree: true });
+    expect(r2.center.runs).toBeUndefined();
   });
 
-  it('vượt trần giữ theo độ sâu, cha luôn có mặt, có nút "+N"', () => {
-    const kids = Array.from({ length: 3 }, (_, i) => issue({ id: `k${i}`, parentId: 'r' }));
-    const grand = Array.from({ length: 4 }, (_, i) => issue({ id: `g${i}`, parentId: 'k0' }));
-    const level = buildRequestLevel({ request, descendants: [...grand, ...kids], cap: 5 });
-    const ids = level.nodes.map((n) => n.id);
-    expect(ids.slice(0, 3)).toEqual(['k0', 'k1', 'k2']);
-    expect(ids).toContain(MORE_ID);
-    expect(level.overflow).toBe(2);
+  it('docs đang tải: một nút Docs mờ giữ chỗ; project không có docs: không có đảo Docs', () => {
+    const loading = buildWorldInput(data({ docs: new Map([['p1', 'loading']]) })).clusters[0].islands[0];
+    expect(loading.center).toMatchObject({ id: 'docs:p1', disabled: true });
+    expect(loading.nodes).toEqual([]);
+    expect(buildWorldInput(data({ docs: new Map() })).clusters[0].islands[0].center.id).toBe('r1');
   });
 });
 
-describe('buildDocsLevel', () => {
-  const pages = [
-    { path: 'README.md', title: 'Giới thiệu' },
-    { path: 'docs/index.md', title: 'Mục lục' },
-    { path: 'docs/flows/login.md', title: 'Đăng nhập' },
-  ];
-
-  it('gốc bộ docs: thư mục trước, rồi trang; đếm trang trong thư mục', () => {
-    const level = buildDocsLevel({ projectId: 'p1', pages, folder: null });
-    expect(level?.center).toMatchObject({ id: docsNodeId('p1'), kind: 'docs', total: 3 });
-    expect(level?.nodes.map((n) => [n.kind, n.title, n.total])).toEqual([
-      ['folder', 'docs', 2],
-      ['page', 'Giới thiệu', undefined],
-    ]);
+// Các ca đối chiếu với mô hình nhiều tầng cũ (buildCompanyLevel/buildProjectLevel/buildRequestLevel/buildDocsLevel):
+// hành vi còn tồn tại trên thế giới một trang thì giữ ca; trần "+N" và tự đi xuống thư mục không còn (bản đồ vẽ đủ).
+describe('buildWorldInput: hành vi giữ từ mô hình nhiều tầng', () => {
+  it('isHumanRoot: chỉ gốc do người tạo; gốc do agent tạo không thành đảo', () => {
+    expect(isHumanRoot(node('a', 1))).toBe(true);
+    expect(isHumanRoot(node('b', 2, { createdByUserId: null }))).toBe(false);
+    expect(isHumanRoot(node('c', 3, { createdByUserId: '  ' }))).toBe(false);
+    expect(isHumanRoot(node('d', 4, { parentId: 'a', rootId: 'a' }))).toBe(false);
+    const roadmap = { ...ROADMAP, nodes: [...ROADMAP.nodes, node('agent', 8, { createdByUserId: null })] };
+    const ids = buildWorldInput(data({ roadmap })).clusters.flatMap((c) => c.islands.map((i) => i.center.id));
+    expect(ids).not.toContain('agent');
   });
 
-  it('vào thư mục; thư mục không có thì null', () => {
-    const level = buildDocsLevel({ projectId: 'p1', pages, folder: 'docs' });
-    expect(level?.center).toMatchObject({ kind: 'folder', title: 'docs' });
-    expect(level?.nodes.map((n) => n.id)).toEqual(['dir:docs/flows', 'page:docs/index.md']);
-    expect(buildDocsLevel({ projectId: 'p1', pages, folder: 'nope' })).toBeNull();
+  it('"Chưa gắn project" chỉ lấy gốc không có project; không có gốc như vậy thì không có cụm', () => {
+    const none = buildWorldInput(data()).clusters.at(-1);
+    expect(none?.node).toMatchObject({ id: 'none', title: 'Chưa gắn project', total: 1 });
+    expect(none?.islands.map((i) => i.center.id)).toEqual(['loose']);
+    const roadmap = { ...ROADMAP, nodes: ROADMAP.nodes.filter((n) => n.id !== 'loose') };
+    expect(buildWorldInput(data({ roadmap })).clusters.map((c) => c.node.id)).toEqual(['p1', 'p2']);
   });
 
-  it('tầng chỉ có một thư mục và không trang thì tự đi xuống; lùi bỏ qua tầng tự đi xuống', () => {
-    const nested = [
-      { path: 'docs/guide/a.md', title: 'A' },
-      { path: 'docs/guide/b/c.md', title: 'C' },
+  it('không còn trần "+N": mọi project và mọi yêu cầu đều có mặt', () => {
+    const projects = Array.from({ length: 45 }, (_, i) => ({
+      id: `q${i}`,
+      name: `P${i}`,
+      color: null,
+      archivedAt: null,
+    }));
+    const many = Array.from({ length: 65 }, (_, i) => node(`m${i}`, 100 + i, { projectId: 'q0' }));
+    const input = buildWorldInput(
+      data({ projects, roadmap: { ...ROADMAP, requests: many.map((n) => n.id), nodes: many, edges: [] } }),
+    );
+    expect(input.clusters).toHaveLength(45);
+    expect(input.clusters[0].islands).toHaveLength(65);
+    expect(input.clusters.some((c) => c.node.kind === 'more')).toBe(false);
+  });
+
+  it('thứ tự ổn định: yêu cầu mới thêm vào cuối; cùng thời điểm tạo thì theo mã số', () => {
+    const later = node('r9', 9, { createdAt: '2026-11-01T00:00:00.000Z' });
+    const ids = (roadmap: CrewRoadmap) =>
+      buildWorldInput(data({ roadmap })).clusters[0].islands.map((i) => i.center.id);
+    const before = ids(ROADMAP);
+    const after = ids({ ...ROADMAP, nodes: [...ROADMAP.nodes, later] });
+    expect(after).toEqual([...before, 'r9']);
+    const same = '2026-10-01T00:00:00.000Z';
+    const tied = [
+      node('x10', 10, { createdAt: same }),
+      node('x9', 9, { createdAt: same }),
+      node('x2', 2, { createdAt: same }),
     ];
-    expect(resolveDocsFolder(nested, null)).toBe('docs/guide');
-    expect(resolveDocsFolder(nested, 'docs')).toBe('docs/guide');
-    expect(resolveDocsFolder(nested, 'docs/guide/b')).toBe('docs/guide/b');
-    expect(resolveDocsFolder(pages, null)).toBeNull();
-    expect(resolveDocsFolder(pages, 'nope')).toBe('nope');
-    expect(docsParentFolder(nested, 'docs/guide')).toBe('project');
-    expect(docsParentFolder(nested, 'docs/guide/b')).toBe('docs/guide');
-    expect(docsParentFolder(pages, 'docs/flows')).toBe('docs');
-    expect(docsParentFolder(pages, 'docs')).toBeNull();
-    expect(docsParentFolder(pages, null)).toBe('project');
+    expect(ids({ ...ROADMAP, nodes: tied, edges: [] })).toEqual(['docs:p1', 'x2', 'x9', 'x10']);
   });
 
-  it('folderTrail tách đường thư mục', () => {
-    expect(folderTrail('a/b')).toEqual([
-      { path: 'a', name: 'a' },
-      { path: 'a/b', name: 'b' },
+  it('cạnh chỉ giữ khi hai đầu cùng một cây; việc không thuộc yêu cầu nào thấy được thì bị bỏ', () => {
+    const roadmap: CrewRoadmap = {
+      ...ROADMAP,
+      nodes: [...ROADMAP.nodes, node('stray', 20, { parentId: 'gone', rootId: 'gone' })],
+      edges: [
+        ...ROADMAP.edges,
+        { kind: 'dependency', from: 'c1', to: 'rB' },
+        { kind: 'dependency', from: 'c1', to: 'outside' },
+      ],
+    };
+    const input = buildWorldInput(data({ roadmap }));
+    const r1 = input.clusters[0].islands[1];
+    expect(r1.edges.filter((e) => e.kind === 'blocks').map((e) => `${e.source}>${e.target}`)).toEqual(['c1>c2']);
+    const all = input.clusters.flatMap((c) => c.islands.flatMap((i) => [i.center.id, ...i.nodes.map((n) => n.id)]));
+    expect(all).not.toContain('stray');
+  });
+
+  it('docs không tải được (null): nút Docs mờ, 0 trang; thư mục đếm trang của nó', () => {
+    const failed = buildWorldInput(data({ docs: new Map([['p1', null]]) })).clusters[0].islands[0];
+    expect(failed.center).toMatchObject({ id: 'docs:p1', disabled: true, total: 0 });
+    const docs = buildWorldInput(data()).clusters[0].islands[0];
+    expect(docs.center.disabled).toBe(false);
+    expect(docs.nodes.find((n) => n.id === 'dir:p1:docs')).toMatchObject({ kind: 'folder', total: 1 });
+  });
+
+  it('trạng thái QC chỉ đổi nhãn thẻ; số đang mở vẫn theo trạng thái lõi', () => {
+    const plain = buildWorldInput(data()).clusters[0].node;
+    const qc = buildWorldInput(data({ statusOf: (i) => (i.id === 'r2' ? 'qc_awaiting' : i.status) })).clusters[0].node;
+    expect(qc.open).toBe(plain.open);
+  });
+});
+
+describe('focus: phân giải, cha, breadcrumb', () => {
+  const world = layoutWorld(buildWorldInput(data()));
+
+  it('mã việc (không phân biệt hoa thường), project, docs, thư mục; không có thì missing; trống là toàn cảnh', () => {
+    expect(resolveFocus(world, null)).toEqual({ kind: 'overview' });
+    expect(resolveFocus(world, 'tps-1')).toMatchObject({ kind: 'request', id: 'r1', cluster: 'p1' });
+    expect(resolveFocus(world, 'TPS-4')).toMatchObject({ kind: 'ticket', id: 'c3', island: 'r1', cluster: 'p1' });
+    expect(resolveFocus(world, 'project:p2')).toMatchObject({ kind: 'project', id: 'p2', cluster: 'p2' });
+    expect(resolveFocus(world, 'project:none')).toMatchObject({ kind: 'project', id: 'none' });
+    expect(resolveFocus(world, 'docs:p1')).toMatchObject({ kind: 'docs', id: 'docs:p1', projectId: 'p1' });
+    expect(resolveFocus(world, 'dir:p1:docs')).toMatchObject({ kind: 'folder', id: 'dir:p1:docs', projectId: 'p1' });
+    expect(resolveFocus(world, 'TPS-999')).toEqual({ kind: 'missing', focus: 'TPS-999' });
+    expect(resolveFocus(world, 'project:old')).toEqual({ kind: 'missing', focus: 'project:old' });
+    expect(resolveFocus(world, 'dir:p1:nope')).toEqual({ kind: 'missing', focus: 'dir:p1:nope' });
+  });
+
+  it('focus của một nút (để đẩy vào URL)', () => {
+    expect(focusOfNode(world, 'c3')).toBe('TPS-4');
+    expect(focusOfNode(world, 'p1')).toBe('project:p1');
+    expect(focusOfNode(world, 'docs:p1')).toBe('docs:p1');
+    expect(focusOfNode(world, 'company')).toBeNull();
+  });
+
+  it('Esc / Ra ngoài: việc → yêu cầu → project → toàn cảnh; việc cấp 2 ra thẳng yêu cầu; thư mục → Docs', () => {
+    expect(parentFocus(world, resolveFocus(world, 'TPS-4'))).toBe('TPS-1');
+    expect(parentFocus(world, resolveFocus(world, 'TPS-1'))).toBe('project:p1');
+    expect(parentFocus(world, resolveFocus(world, 'project:p1'))).toBeNull();
+    expect(parentFocus(world, resolveFocus(world, 'dir:p1:docs'))).toBe('docs:p1');
+    expect(parentFocus(world, resolveFocus(world, 'docs:p1'))).toBe('project:p1');
+    expect(parentFocus(world, resolveFocus(world, null))).toBeUndefined();
+  });
+
+  it('camera: project → cụm, yêu cầu/Docs → đảo, việc/thư mục → nút', () => {
+    expect(worldFocusOf(resolveFocus(world, 'project:p1'))).toEqual({ kind: 'cluster', id: 'p1' });
+    expect(worldFocusOf(resolveFocus(world, 'TPS-1'))).toEqual({ kind: 'island', id: 'r1' });
+    expect(worldFocusOf(resolveFocus(world, 'docs:p1'))).toEqual({ kind: 'island', id: 'docs:p1' });
+    expect(worldFocusOf(resolveFocus(world, 'TPS-4'))).toEqual({ kind: 'node', id: 'c3' });
+    expect(worldFocusOf(resolveFocus(world, 'nope'))).toEqual({ kind: 'overview' });
+  });
+
+  it('breadcrumb: công ty › project › yêu cầu › việc', () => {
+    expect(focusTrail(world, resolveFocus(world, 'TPS-4'), t)).toEqual([
+      { id: 'company', label: '2P', focus: null },
+      { id: 'p1', label: 'Alpha', focus: 'project:p1' },
+      { id: 'r1', label: 'TPS-1 Việc r1', focus: 'TPS-1' },
+      { id: 'c3', label: 'TPS-4', focus: 'TPS-4' },
     ]);
-    expect(folderTrail(null)).toEqual([]);
+    expect(focusTrail(world, resolveFocus(world, 'dir:p1:docs'), t).map((c) => c.label)).toEqual([
+      '2P',
+      'Alpha',
+      'Docs',
+      'docs',
+    ]);
   });
 });
 
-describe('stableOrder', () => {
-  it('mở trước, tạo sớm trước, rồi theo mã số', () => {
-    const list = [
-      issue({ id: '1', identifier: 'TPS-10', status: 'done', createdAt: '2026-01-01T00:00:00Z' }),
-      issue({ id: '2', identifier: 'TPS-9', createdAt: '2026-01-02T00:00:00Z' }),
-      issue({ id: '3', identifier: 'TPS-2', createdAt: '2026-01-02T00:00:00Z' }),
-    ];
-    expect([...list].sort(stableOrder).map((i) => i.identifier)).toEqual(['TPS-2', 'TPS-9', 'TPS-10']);
-  });
-});
-
-describe('trạng thái QC trên thẻ yêu cầu', () => {
-  it('statusOf đổi nhãn thẻ (Chờ QC duyệt), số đếm đang mở và đã xong vẫn theo trạng thái lõi', () => {
-    const root = issue({ id: 'r1', status: 'done', projectId: 'p1' });
-    const open = issue({ id: 'r2', status: 'todo', projectId: 'p1' });
-    const kid = issue({ id: 'k1', status: 'done', parentId: 'r1', projectId: 'p1', createdByUserId: null });
-    const statusOf = (i: RoadmapIssue) => (i.id === 'r1' ? 'qc_awaiting' : i.status);
-    const project = buildProjectLevel({ project: { id: 'p1', title: 'Crew' }, issues: [root, open, kid], statusOf });
-    expect(project.nodes.find((n) => n.id === 'r1')?.status).toBe('qc_awaiting');
-    expect(project.nodes.find((n) => n.id === 'r2')?.status).toBe('todo');
-    expect(project.center.open).toBe(1);
-    const request = buildRequestLevel({ request: root, descendants: [kid], statusOf });
-    expect(request.center).toMatchObject({ status: 'qc_awaiting', done: 1, total: 1 });
-    expect(request.nodes[0]?.status).toBe('done');
+describe('worldListItems: dạng danh sách đủ mọi mục', () => {
+  it('project → đảo (Docs, yêu cầu) → việc con lồng nhau; tô mục đang xem', () => {
+    const world = layoutWorld(buildWorldInput(data()));
+    const items = worldListItems(world, 'c2');
+    expect(items.map((i) => i.node.id)).toEqual(['p1', 'p2', 'none']);
+    const r1 = items[0].children.find((i) => i.node.id === 'r1');
+    expect(r1?.children.map((c) => c.node.id)).toEqual(['c1', 'c2']);
+    const c2 = r1?.children[1];
+    expect(c2?.node.current).toBe(true);
+    expect(c2?.children.map((c) => c.node.id)).toEqual(['c3']);
   });
 });

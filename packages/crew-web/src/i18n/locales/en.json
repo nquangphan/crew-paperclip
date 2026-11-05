@@ -408,6 +408,10 @@
       "latest": "Latest runs: {{runs}}",
       "noteSubscription": "API-equivalent price; the subscription plan is not charged",
       "noteApi": "API-equivalent price from run usage"
+    },
+    "world": {
+      "tasks": "{{done}}/{{total}} tasks",
+      "running": "{{count}} running"
     }
   }
 }

@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="vi" class="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mockup TPS-696 · Roadmap một trang</title>
+<link rel="stylesheet" href="./tokens.css">
+<style>
+  /* Trang mục lục của mockup, dùng token của app (tokens.css). */
+  body { font-family: var(--font-sans); background: var(--background); color: var(--foreground); margin: 0; font-size: 14px; line-height: 1.55; }
+  main { max-width: 980px; margin: 0 auto; padding: 32px 24px 64px; }
+  h1 { font-size: 20px; font-weight: 600; margin: 0 0 4px; }
+  h2 { font-size: 15px; font-weight: 600; margin: 32px 0 8px; }
+  p, li { color: color-mix(in oklab, var(--foreground) 88%, transparent); }
+  .muted { color: var(--muted-foreground); }
+  a { color: var(--status-task-icon-in_progress); }
+  code { font-family: var(--font-mono); font-size: 12px; background: var(--muted); padding: 1px 5px; border-radius: 4px; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; margin: 8px 0; }
+  th, td { border-bottom: 1px solid var(--border); padding: 8px 10px; text-align: left; vertical-align: top; }
+  th { color: var(--muted-foreground); font-weight: 500; }
+  .screens { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 10px; padding: 0; list-style: none; }
+  .screens a { display: block; border: 1px solid var(--border); border-radius: 12px; padding: 12px 14px; text-decoration: none; color: var(--foreground); background: var(--card); }
+  .screens a:hover { border-color: var(--status-task-icon-in_progress); }
+  .screens b { display: block; font-weight: 600; margin-bottom: 2px; }
+  .screens span { font-size: 12px; color: var(--muted-foreground); }
+  .new { color: var(--status-task-icon-todo); font-weight: 600; }
+</style>
+</head>
+<body>
+<main>
+  <h1>TPS-696 · Roadmap một trang, hiện mọi ticket, bấm để zoom</h1>
+  <p class="muted">Mockup tĩnh để owner duyệt trước khi code (con TPS-697, vai BA + UIUX). Mở <code>ban-do.html</code> là bấm thử được thật: bấm để camera bay tới, Esc để ra, Back trình duyệt để lùi, kéo và cuộn để di chuyển.</p>
+
+  <h2>Các màn và trạng thái</h2>
+  <ul class="screens">
+    <li><a href="ban-do.html"><b>1. Toàn cảnh (mở trang)</b><span>Mọi project, yêu cầu, việc con trên một bản đồ; mức ô màu</span></a></li>
+    <li><a href="ban-do.html#p=paperclip"><b>2. Bấm một project</b><span>Camera phóng tới cụm; mức nhãn yêu cầu</span></a></li>
+    <li><a href="ban-do.html#r=TPS-696"><b>3. Bấm một yêu cầu</b><span>TPS-696: thẻ đầy đủ, khối run, dây chặn, dây đang chạy</span></a></li>
+    <li><a href="ban-do.html#t=TPS-697"><b>4. Bấm một việc con</b><span>TPS-697: viền "đang xem", nút Mở chi tiết</span></a></li>
+    <li><a href="ban-do.html#r=TPS-701"><b>5. Yêu cầu có vòng sửa</b><span>Dây vòng sửa và việc con cấp 2</span></a></li>
+    <li><a href="ban-do.html#d=docs%3Apaperclip"><b>6. Nhánh Docs của project</b><span>Thư mục, trang; bấm trang mở popup đọc</span></a></li>
+    <li><a href="ban-do.html?view=list#r=TPS-696"><b>7. Dạng danh sách</b><span>Cho trình đọc màn hình; giữ mục đang xem</span></a></li>
+    <li><a href="ban-do.html?state=loading"><b>8. Đang tải</b><span>Khung bản đồ hiện ngay, bóng mờ nhấp nháy</span></a></li>
+    <li><a href="ban-do.html?state=empty"><b>9. Rỗng</b><span>Chưa có yêu cầu nào</span></a></li>
+    <li><a href="ban-do.html?state=error"><b>10. Lỗi</b><span>Không tải được, có Thử lại</span></a></li>
+    <li><a href="ban-do.html?n=nhieu"><b>11. Nhiều ticket (~600)</b><span>Toàn cảnh vẫn là ô màu, không chậm</span></a></li>
+    <li><a href="ban-do.html?rm=1#r=TPS-696"><b>12. Giảm chuyển động</b><span>Camera nhảy tức thì, dây không chạy</span></a></li>
+    <li><a href="ban-do.html?theme=light"><b>13. Theme sáng</b><span>Cùng token theme sáng</span></a></li>
+    <li><a href="ban-do.html#r=TPS-696"><b>14. Màn hẹp</b><span>Mở bằng cửa sổ &lt; 768px (ảnh chụp 390×844)</span></a></li>
+  </ul>
+
+  <h2>Hành vi (BA)</h2>
+  <ol>
+    <li><b>Một trang, một bản đồ.</b> <code>/roadmap</code> mở ra là toàn cảnh: công ty ở đỉnh, các project xếp một hàng bên dưới, dưới mỗi project là các "đảo" yêu cầu; mỗi đảo là cây trên xuống y như bản đồ trong trang issue (<code>CrewMap</code>): yêu cầu ở đỉnh, việc con và việc con cấp 2 xếp tầng. Nhánh Docs là một đảo đầu tiên của project. Không còn tầng, không còn đổi trang.</li>
+    <li><b>Bấm = phóng tới, không đổi trang.</b> Bấm project → khung vừa cụm của project. Bấm yêu cầu (thẻ hay nhãn nổi) → khung vừa đảo của yêu cầu, thẻ yêu cầu có viền "đang xem". Bấm việc con → camera canh việc đó ở độ phóng 105%, có viền "đang xem". Ở mức ô màu bấm thẳng vào ô của một việc cũng bay thẳng tới việc đó. Phần ngoài mục đang xem mờ đi (vẫn bấm được).</li>
+    <li><b>Chi tiết.</b> Bấm lại mục đang xem, hoặc Enter, hoặc nút <i>Mở chi tiết</i> ở góc trên phải bản đồ → mở popup issue có sẵn (<code>?issue=</code>) đè lên bản đồ; đóng popup thì camera vẫn ở chỗ cũ. Bấm trang docs ở mức thẻ đầy đủ → popup đọc docs có sẵn (<code>?doc=</code>).</li>
+    <li><b>Quay ra.</b> Esc ra một mức (việc → yêu cầu → project → toàn cảnh); popup đang mở thì Esc đóng popup trước. Nút <i>Ra ngoài</i> (thay nút Lùi cũ) làm như Esc; nút <i>Toàn cảnh</i> và nút ⛶ ở góc bản đồ, phím <kbd>0</kbd>, về toàn cảnh. Breadcrumb trên đầu trang luôn chỉ chỗ đang xem và bấm được. Mỗi lần lấy nét đẩy một mục lịch sử nên Back trình duyệt bay về chỗ trước.</li>
+    <li><b>URL.</b> <code>?focus=&lt;mã&gt;</code> (ví dụ <code>?focus=TPS-697</code>, <code>?focus=project:&lt;id&gt;</code>, <code>?focus=docs:&lt;id&gt;</code>) thay cho <code>?project=</code>/<code>?request=</code>; link cũ tự đổi sang <code>?focus=</code>. Deep link mở toàn cảnh rồi bay vào mục. <code>?view=list</code>, <code>?issue=</code>, <code>?doc=</code> giữ nguyên. Mục không được xem → về toàn cảnh kèm thông báo chung như hiện nay. <i>Riêng mockup này</i> dùng hash (<code>#p=</code>, <code>#r=</code>, <code>#t=</code>, <code>#d=</code>) để thử bay camera và Back trên file tĩnh; hợp đồng thật của app là <code>?focus=</code> theo <code>packages/crew-web/src/features/roadmap/roadmap-url.ts</code>, mockup không đọc <code>?focus=</code>.</li>
+    <li><b>Kéo, cuộn tự do.</b> Kéo để di chuyển, cuộn hay chụm hai ngón để phóng; mục đang xem giữ nguyên tới lần bấm sau. Bản đồ thu nhỏ góc dưới trái (hiện khi đã phóng vào, hoặc ở toàn cảnh khi khung bản đồ rộng dưới 640px) cho biết đang ở đâu, bấm để nhảy.</li>
+    <li><b>Dạng danh sách</b> vẫn còn: cây công ty → project → yêu cầu → việc con (và Docs), không giới hạn số mục, mục đang xem được tô và cuộn tới. Đây là bản thay thế cho trình đọc màn hình.</li>
+  </ol>
+
+  <h2>Mức chi tiết theo độ zoom</h2>
+  <table>
+    <tr><th>Mức</th><th>Độ phóng</th><th>Vẽ gì</th></tr>
+    <tr><td>Ô màu</td><td>&lt; 16%</td><td>Nút tròn công ty và project (cỡ cố định trên màn hình, có số yêu cầu, số đang mở, số việc, số đang chạy). Mỗi việc là một ô đặc màu trạng thái đúng vị trí và kích thước thẻ; việc đang làm phát sáng tím. Chỉ vẽ dây trục công ty → project → yêu cầu.</td></tr>
+    <tr><td>Nhãn yêu cầu</td><td>16% – 55%</td><td>Như trên, thêm nhãn nổi trên mỗi đảo: mã · tiêu đề yêu cầu, trạng thái, x/y việc, số đang chạy. Dây cha-con trong đảo hiện mờ.</td></tr>
+    <tr><td>Thẻ đầy đủ</td><td>≥ 55%</td><td>Thẻ y hệt <code>CrewMap</code>: đầu thẻ, người làm, ô giai đoạn, khối run (tối đa 3 dòng + tổng tiền), dây cha-con / chặn / vòng sửa, dây đang chạy có vạch chạy và hạt sáng. Dây project → đảo khác bị ẩn để không cắt ngang thẻ.</td></tr>
+  </table>
+  <p class="muted">Ngưỡng có độ trễ ±2% để dừng đúng mốc không nhấp nháy. Đổi mức là chuyển mờ 200ms (thẻ ↔ ô màu), không bay nút như khi đổi tầng cũ vì nút không còn "vào" từ tâm.</p>
+
+  <h2>Chuyển động</h2>
+  <ul>
+    <li>Camera bay bằng <code>--roadmap-zoom-in</code> (450ms) khi phóng vào, <code>--roadmap-zoom-out</code> (650ms) khi thu ra, đường cong <code>--motion-ease-out-expo</code>; độ phóng nội suy theo log nên phóng đều mắt.</li>
+    <li>Thẻ, dây, dây đang chạy (vạch 0.7s, hạt sáng <code>--roadmap-flow-duration</code> 2.4s), chấm run nhấp nháy: giữ nguyên class <code>.roadmap-*</code> của app.</li>
+    <li>Giảm chuyển động (<code>prefers-reduced-motion</code>): camera nhảy tức thì, không chạy dây, không hạt sáng, không chuyển mờ giữa các mức.</li>
+  </ul>
+
+  <h2>Giới hạn hiệu năng giả định (cho con dữ liệu và con giao diện)</h2>
+  <table>
+    <tr><th>Hạng mục</th><th>Giới hạn</th></tr>
+    <tr><td>Dữ liệu lúc mở</td><td>Một lần gọi <code>crew.roadmap</code> trả cây của mọi yêu cầu người xem được thấy (cha-con, cạnh chặn, vòng sửa; số query cố định ở worker), server Crew đã lọc theo project được cấp. Trần <b>5000</b> việc: vượt thì cắt theo cây (yêu cầu mới trước) và hiện cảnh báo "bản đồ có thể thiếu một phần".</td></tr>
+    <tr><td>Dữ liệu tải song song / lười</td><td>Danh sách docs và cây Docs của các project có docs tải song song lúc mở trang (chỉ đường và tiêu đề); lỗi docs không chặn bản đồ. Run (<code>crew.runs</code>) chỉ tải cho yêu cầu đang lấy nét. Bản trước của bảng này (danh sách issue trần 1000, <code>crew.map</code> tải lười theo đảo, cây Docs tải khi vào mức nhãn) là thiết kế cũ; hợp đồng hiện hành ở <code>docs/flows/roadmap-map.md</code>.</td></tr>
+    <tr><td>Thẻ đầy đủ cùng lúc</td><td>Tối đa <b>120</b> thẻ DOM (chỉ trong khung + nửa khung đệm). Vượt thì đảo xa tâm khung vẽ ở mức ô màu.</td></tr>
+    <tr><td>Ô màu</td><td>Mức ô màu và nhãn vẽ trên một lớp <code>&lt;canvas&gt;</code> (hoặc một <code>&lt;path&gt;</code> SVG mỗi màu trạng thái), không phải một nút DOM mỗi việc. Mục tiêu 60fps khi kéo/cuộn với 1000 việc.</td></tr>
+    <tr><td>Nhãn nổi</td><td>Chỉ nhãn của đảo trong khung, tối đa <b>80</b>; vị trí cập nhật theo camera, không render lại React mỗi khung hình.</td></tr>
+    <tr><td>Dây đang chạy</td><td>Lớp chạy (vạch + hạt sáng) tối đa <b>30</b> dây trong khung; còn lại vẽ màu tĩnh.</td></tr>
+    <tr><td>Bố cục</td><td>Hàm thuần, tính theo từng đảo; dữ liệu live đổi một đảo thì chỉ tính lại đảo đó và dời đảo cùng kệ, vị trí ổn định theo thứ tự tạo để camera không nhảy.</td></tr>
+  </table>
+
+  <h2>Chỗ mới so với app <span class="new">(cần owner duyệt)</span></h2>
+  <ul>
+    <li>Ô màu và nhãn nổi theo mức zoom; nút tròn công ty/project giữ cỡ tối thiểu trên màn hình (lớp phủ). Lý do: một bản đồ chứa hàng trăm thẻ, zoom xa thì chữ không đọc được.</li>
+    <li>Thẻ "đang xem" góc trên phải có nút Mở chi tiết; nhãn "độ zoom · mức" cạnh nút điều khiển; bản đồ thu nhỏ (nút tự vẽ bằng SVG, không dùng MiniMap của xyflow). Lý do: không còn đổi trang nên cần chỗ mở chi tiết và cần biết mình đang ở đâu.</li>
+    <li>Số việc và số đang chạy trên nút tròn. Nút Lùi đổi thành Ra ngoài, thêm nút Toàn cảnh.</li>
+    <li>Không có màu, font, icon mới: mọi màu từ <code>tokens.css</code> (<code>--roadmap-*</code>, <code>--status-task-icon-*</code>), font InterVariable của app, icon lucide.</li>
+  </ul>
+</main>
+</body>
+</html>

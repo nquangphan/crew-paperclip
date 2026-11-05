@@ -1,8 +1,6 @@
 {
   "title": "Roadmap",
-  "description": "Bản đồ công ty: project, yêu cầu do người tạo, việc con và docs.",
-  "back": "Lùi",
-  "backHint": "Lùi một tầng (Esc)",
+  "description": "Toàn bộ công ty trên một bản đồ: project, yêu cầu, việc con và docs. Bấm một mục để phóng tới.",
   "view": {
     "map": "Bản đồ",
     "list": "Danh sách"
@@ -12,25 +10,45 @@
   "canvasLabel": "Bản đồ công ty",
   "listLabel": "Bản đồ dạng danh sách",
   "loadFailed": "Không tải được bản đồ",
+  "partialLoadFailed": "Một phần bản đồ chưa tải được, bản đồ có thể cũ hoặc thiếu.",
   "notFound": "Không tìm thấy hoặc bạn không được xem",
-  "notFoundHint": "Mục này không có trên bản đồ của bạn. Quay lại tầng trên để chọn mục khác.",
+  "notFoundHint": "Mục này không có trên bản đồ của bạn. Bản đồ đang ở toàn cảnh, chọn mục khác.",
   "truncated": "Có hơn {{limit}} việc, bản đồ có thể thiếu một phần.",
   "docLoadFailed": "Không tải được trang docs",
   "docMissing": "Không có trang {{path}} trong bản docs này",
   "hint": {
-    "company": "Bấm project để đi vào · kéo để di chuyển · cuộn để phóng to",
-    "project": "Bấm một yêu cầu để xem việc con · bấm Docs để xem tài liệu",
-    "emptyProject": "Project chưa có yêu cầu nào do người tạo",
-    "request": "Bấm việc con hoặc yêu cầu ở giữa để xem chi tiết · nét đứt: chặn",
-    "noChildren": "Yêu cầu chưa có việc con · bấm yêu cầu ở giữa để xem chi tiết",
-    "docs": "Bấm thư mục để đi vào · bấm trang để đọc"
+    "overview": "Bấm project, yêu cầu hay việc để phóng tới · kéo để di chuyển · cuộn để phóng to",
+    "project": "Bấm một yêu cầu để phóng tới · Esc: ra toàn cảnh",
+    "request": "Bấm việc con để phóng tới · bấm lại yêu cầu để mở chi tiết · Esc: ra project",
+    "ticket": "Bấm lại hoặc Enter để mở chi tiết · Esc: ra yêu cầu",
+    "docs": "Bấm thư mục để phóng tới · bấm trang để đọc · Esc: ra project",
+    "folder": "Bấm trang để đọc · Esc: ra Docs"
   },
   "empty": {
-    "default": "Chưa có mục nào",
-    "company": "Chưa có project nào",
-    "project": "Chưa có yêu cầu nào do người tạo",
-    "request": "Chưa có việc con",
-    "docs": "Bộ docs chưa có trang nào",
-    "folder": "Thư mục trống"
+    "default": "Chưa có mục nào"
+  },
+  "out": "Ra ngoài",
+  "outHint": "Ra một mức (Esc)",
+  "overview": "Toàn cảnh",
+  "overviewHint": "Về toàn cảnh (phím 0)",
+  "openDetail": "Mở chi tiết",
+  "minimap": "Bản đồ thu nhỏ, bấm để di chuyển tới",
+  "lod": {
+    "blocks": "Ô màu",
+    "labels": "Nhãn yêu cầu",
+    "cards": "Thẻ đầy đủ"
+  },
+  "live": {
+    "overview": "Toàn cảnh công ty {{name}}",
+    "at": "Đang xem {{name}}"
+  },
+  "emptyWorld": {
+    "title": "Chưa có yêu cầu nào",
+    "hint": "Bản đồ hiện yêu cầu do người tạo cùng việc con của chúng. Tạo yêu cầu đầu tiên ở trang Việc.",
+    "action": "Mở trang Việc"
+  },
+  "keys": {
+    "esc": "Esc",
+    "enter": "Enter"
   }
 }

@@ -211,14 +211,14 @@ describe("khóa mới của bản tin máy: checkouts, superpowers.pinDir/skills
     expect(parseMachineReport(full)).toEqual(full);
     expect(parseMachineReport({ ...report, superpowers: { pinned: null, ownerInstalled: null, pinDir: null }, checkouts: [] }))
       .toEqual({ ...report, superpowers: { pinned: null, ownerInstalled: null, pinDir: null }, checkouts: [] });
-    expect(parseMachineReport({ ...full, checkouts: Array.from({ length: 64 }, (_, i) => checkout(i)) }).checkouts).toHaveLength(64);
+    expect(parseMachineReport({ ...full, checkouts: Array.from({ length: 256 }, (_, i) => checkout(i)) }).checkouts).toHaveLength(256);
     expect(parseMachineReport({ ...full, superpowers: { ...full.superpowers, skills: Array.from({ length: 100 }, (_, i) => `s${i}`) } })
       .superpowers.skills).toHaveLength(100);
   });
 
   it("bỏ riêng checkouts sai dạng, phần còn lại vẫn nhận", () => {
     for (const bad of [
-      Array.from({ length: 65 }, (_, i) => checkout(i)),
+      Array.from({ length: 257 }, (_, i) => checkout(i)),
       [{ head: null, clean: null }],
       [{ ...checkout(1), path: "relative/path" }],
       [{ ...checkout(1), path: "/Users/a/\u0007x" }],
@@ -266,21 +266,21 @@ describe("khóa mới của bản tin máy: checkouts, superpowers.pinDir/skills
     expect(() => parseMachineReport({ ...full, targets: [] })).toThrow();
   });
 
-  it("nhận bản tin 40 000 byte, từ chối bản tin quá 65 536 byte", async () => {
+  it("nhận bản tin 256 checkout (hơn 36 000 byte), từ chối bản tin quá 65 536 byte", async () => {
     const execute = vi.fn(async (_statement: string, _params: unknown[]) => ({ rowCount: 1 }));
     const query = vi.fn(async () => []);
     const { ctx: base } = context();
     const ctx = { ...base, db: { namespace: "plugin_crew_core_0433ea20b6", execute, query } } as unknown as PluginContext;
     const now = new Date(timestamp * 1000);
     const big = { ...full, sentAt: now.toISOString(),
-      checkouts: Array.from({ length: 64 }, (_, i) => ({ ...checkout(i), path: `/Users/a/crew-agents/${"p".repeat(500)}/role-${i}` })) };
+      checkouts: Array.from({ length: 256 }, (_, i) => ({ ...checkout(i), path: `/Users/a/crew-agents/${"p".repeat(60)}/role-${i}` })) };
     const raw = JSON.stringify(big);
     expect(Buffer.byteLength(raw)).toBeGreaterThan(36_000);
     expect(Buffer.byteLength(raw)).toBeLessThan(65_536);
     await handleMachineStatus(ctx, input(raw, signed(raw)), now);
     expect(execute).toHaveBeenCalled();
     const stored = JSON.parse(execute.mock.calls[0]![1][8] as string);
-    expect(stored.checkouts).toHaveLength(64);
+    expect(stored.checkouts).toHaveLength(256);
 
     execute.mockClear();
     const tooBig = JSON.stringify({ ...big, hostname: "x", pad: "y".repeat(66_000) });

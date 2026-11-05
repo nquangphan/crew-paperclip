@@ -320,13 +320,15 @@ export interface RoadmapNodeButtonProps {
   center: boolean;
   /** Mờ đi khi camera đang phóng vào nút khác. */
   dimmed?: boolean;
+  /** Ngoài mục đang xem (Roadmap một trang): mờ nhưng vẫn bấm được. */
+  faded?: boolean;
   /** Bay ra từ tâm: độ lệch (đơn vị bản đồ) và độ trễ (ms). */
   enter?: { fromX: number; fromY: number; delay: number } | null;
   onActivate: () => void;
 }
 
 /** Nút bấm được trên bản đồ (hoặc nút mờ không bấm được khi `node.disabled`). */
-export function RoadmapNodeButton({ node, center, dimmed, enter, onActivate }: RoadmapNodeButtonProps) {
+export function RoadmapNodeButton({ node, center, dimmed, faded, enter, onActivate }: RoadmapNodeButtonProps) {
   const { t, lang } = useT();
   const now = useRunClock(!!node.runs?.runs.some(isRunActive));
   const style: CSSProperties & Record<string, string | number> = { '--tone': toneOf(node) };
@@ -364,6 +366,7 @@ export function RoadmapNodeButton({ node, center, dimmed, enter, onActivate }: R
         node.disabled &&
           'cursor-default border-dashed! bg-transparent! text-muted-foreground opacity-70 shadow-none! before:hidden',
         dimmed && 'pointer-events-none opacity-15',
+        faded && !dimmed && 'opacity-35 hover:opacity-80',
         enter && 'roadmap-node-enter',
       )}
     >

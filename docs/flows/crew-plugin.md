@@ -55,6 +55,10 @@ Luật chính:
    trong `server/src/crew/contribution-routes.ts` (router mount trước route plugin stock).
 9. `server/src/crew/plugin-data-scope.ts` → `crewViewerPluginDataScope`: cho viewer của company Crew đọc các data key
    trong `CREW_VIEWER_DATA_KEYS`; mọi trường hợp khác trả `undefined` để route stock kiểm như cũ (đóng khi lỗi).
+   Cùng file, `crewRoadmapViewerScope` ghi đè `params.viewer` của data `crew.roadmap` bằng project người gọi được xem,
+   so trên key đã decode nên mọi cách viết key (`crew%2Eroadmap`…) đều bị ghi đè; lỗi đọc quyền thì log warn kèm
+   `companyId` và trả thẳng 503 (`crew_roadmap_scope_unavailable`, không qua `errorHandler` nên không báo crash) trước
+   route stock thay vì Roadmap rỗng (flow `roadmap-map`).
 
 ## Files
 
@@ -73,9 +77,9 @@ Luật chính:
 | `packages/crew-plugin/src/ui/page.tsx` | Trang Crew | `CrewPage` |
 | `packages/crew-plugin/src/ui/tab.tsx` | Tab Crew trên issue | `CrewIssueTab` |
 | `packages/crew-plugin/src/ui/summary.tsx` | Tóm tắt Crew trên issue | `CrewIssueSummary`, `crewSummaryLine` |
-| `packages/crew-plugin/migrations/` | Chuỗi migration bảng plugin (`0001_docs.sql` … `0022_multi_machine.sql`) | |
+| `packages/crew-plugin/migrations/` | Chuỗi migration bảng plugin (`0001_docs.sql` … `0025_bug_finding.sql`) | |
 | `server/src/crew/plugin-startup-wait.ts` | Chờ plugin nạp xong lúc khởi động | `crewPluginStartupWait` |
-| `server/src/crew/plugin-data-scope.ts` | Viewer đọc data `crew.core` | `crewViewerPluginDataScope`, `CREW_VIEWER_DATA_KEYS` |
+| `server/src/crew/plugin-data-scope.ts` | Viewer đọc data `crew.core`; phạm vi xem của `crew.roadmap` | `crewViewerPluginDataScope`, `CREW_VIEWER_DATA_KEYS`, `crewRoadmapViewerScope` |
 
 File upstream có vá (mục `shared`, mô tả ở `crew/release/core-hooks.json`): `server/src/app.ts` (mount router Crew; C15 gắn parser JSON 16 MB cho webhook `docs-snapshot`, flow `docs-snapshot`),
 `server/src/routes/plugins.ts` (gọi `crewViewerPluginDataScope`), `server/src/services/plugin-worker-manager.ts` (giao
@@ -101,6 +105,9 @@ sự kiện plugin dạng call để xóa invocation scope khi handler xong).
   - `0022_multi_machine.sql`: `project_machines` (trạng thái dựng project trên từng máy), `project_repos` (origin, nhánh,
     repo đi kèm của project), `issue_machine_pins` (máy ghim theo issue gốc) và kind `ensure-project`. Server Crew ghi ba
     bảng này (flow `multi-machine`).
+  - `0023_model_settings.sql`: `crew_model_settings` (các revision cài đặt model, flow `model-settings`).
+  - `0024_max_five_executors.sql`: nới ràng buộc `crew_project_roles.executor_agent_ids` từ 1–2 lên 1–5 executor (flow
+    `project-roles`).
   - `0025_bug_finding.sql`: `crew_bug_finding_runs` (lượt Bug Finding), `crew_bug_finding_rounds` (vòng duyệt owner,
     server ghi) và kind `bug-finding-review` (flow `bug-finding`).
 - Bảng lõi plugin được đọc: `database.coreReadTables` trong manifest.

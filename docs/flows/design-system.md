@@ -48,6 +48,9 @@ Cấu trúc thư mục, luật và cách xem thử nằm ở `packages/crew-web/
    hiện tại có viền nhấn và `aria-current="step"`, bước sau chờ; ticket xong thì mọi bước xong), dòng phụ do feature
    truyền vào.
 5. `packages/crew-web/src/ds/index.ts`: export mọi component và widget, gồm widget Crew và bản đồ Roadmap. Widget zoom ảnh (`image-zoom`, `image-zoom-view`) cũng qua cổng này.
+   Bản đồ Roadmap một trang (`roadmap-world*`, `crewMapLevel` để feature dựng đảo giống bản đồ Crew) cũng qua cổng này;
+   `tokens.css` có class `.roadmap-world-*` (nút tròn giữ cỡ tối thiểu theo `--rm-zoom` và trần `--rm-orb-cap`, nhãn nổi
+   cỡ cố định trên màn hình, ô màu, khung bản đồ thu nhỏ); `icons.ts` có thêm `Scan` (nút Toàn cảnh).
 
 ## Files
 
