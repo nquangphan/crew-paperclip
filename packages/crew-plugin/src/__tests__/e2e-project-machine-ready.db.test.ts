@@ -10,7 +10,9 @@ import { heartbeatRuns, issues } from "../../../db/src/index.js";
 import { handleIssueUpdated } from "../bug-finding/enqueue.js";
 import { claimNextJob, finishJob } from "../jobs/data.js";
 import { type PluginHost, startPluginHost } from "./plugin-host-db.js";
-import { MINI, seedCrewProject, seedPairing, seedReport, seedTemplate, type SeededProject } from "../../../../server/src/__tests__/helpers/crew-machine-tables.js";
+import {
+  MINI, seedAddProjectRun, seedCrewProject, seedEnsureJob, seedPairing, seedReport, seedTemplate, type SeededProject,
+} from "../../../../server/src/__tests__/helpers/crew-machine-tables.js";
 
 vi.mock("../../../../server/src/services/secrets.ts", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../../../../server/src/services/secrets.ts")>()),
@@ -19,6 +21,7 @@ vi.mock("../../../../server/src/services/secrets.ts", async (importOriginal) => 
 
 import { evaluateMachineGate } from "../../../../server/src/crew/machine-gate.ts";
 import { readProjectMachine, startProvisioning, writeProjectRepo } from "../../../../server/src/crew/machine-provision.ts";
+import { provisionOtherMachines } from "../../../../server/src/crew/machine-release.ts";
 import { readPin, setOwnerPin } from "../../../../server/src/crew/machine-pin.ts";
 
 const REPO = "/Users/owner/crew-agents/my-crew/repo";
@@ -173,5 +176,122 @@ describe("máy dựng xong project (ensure-project done) → project_machines re
         expect(await bugFindingRuns(w)).toMatchObject([{ state: "failed", machine_id: MINI.machineId, error: "Máy đã ghim chưa có repo của project" }]);
       }
     }
+  });
+});
+
+const NO_REPO_ERROR = "Máy đã ghim chưa có repo của project";
+const WIZARD_REPO = "/Users/owner/Projects/my-crew";
+
+/** App thêm project / wizard xong trên máy chính (MINI): server dựng sẵn máy khác và ghi máy chính `ready` (`markPrimaryReady`). */
+const markPrimary = (w: World) => provisionOtherMachines(host.db, {
+  companyId: w.companyId, projectId: w.projectId, exceptMachineId: MINI.machineId, includeReady: false, repo: null, createdBy: "owner",
+});
+const primaryRow = async (w: World) => (await rows<{ status: string; repo_path: string | null; error: string | null }>(
+  `SELECT status, repo_path, error FROM ${host.ns}.project_machines WHERE company_id = $1 AND machine_id = $2`, [w.companyId, MINI.machineId]))[0] ?? null;
+const insertPrimaryRow = (w: World, status: string, repoPath: string | null, error: string | null = null) => host.sql.unsafe(
+  `INSERT INTO ${host.ns}.project_machines (company_id, project_id, machine_id, status, repo_path, error) VALUES ($1, $2, $3, $4, $5, $6)`,
+  [w.companyId, w.projectId, MINI.machineId, status, repoPath, error]);
+const addProjectRun = (w: World, root: string) => seedAddProjectRun(host.db, host.ns, { companyId: w.companyId, projectId: w.projectId, machine: MINI, key: "my-crew", root });
+
+describe("máy chính ghi ready (markPrimaryReady) → dòng có repo_path tuyệt đối, Bug Finding chọn được máy chính", () => {
+  it("wizard xong trên máy chính: dòng ready kèm repo gốc của lần thêm project, Bug Finding xếp việc với đúng repo đó", async () => {
+    const w = await world();
+    await addProjectRun(w, WIZARD_REPO);
+    await markPrimary(w);
+    expect(await primaryRow(w)).toEqual({ status: "ready", repo_path: WIZARD_REPO, error: null });
+
+    const { ctx, event } = bugFindingCtx(w);
+    await handleIssueUpdated(ctx, event);
+    expect(await bugFindingRuns(w)).toEqual([{ run: 1, state: "requested", machine_id: MINI.machineId, error: null }]);
+    expect(await bugFindingJobs(w)).toMatchObject([{ machine_id: MINI.machineId, payload: { repoPath: WIZARD_REPO, projectKey: "my-crew", headSha: HEAD, prNumber: 87 } }]);
+  });
+
+  it("máy chính đã có việc ensure-project done: repoPath của việc được ưu tiên hơn repo gốc của lần thêm project", async () => {
+    const w = await world();
+    await addProjectRun(w, "/Users/owner/old-root");
+    await seedEnsureJob(host.db, host.ns, { companyId: w.companyId, projectId: w.projectId, machine: MINI, status: "done", repoPath: REPO });
+    await markPrimary(w);
+    expect(await primaryRow(w)).toEqual({ status: "ready", repo_path: REPO, error: null });
+
+    const { ctx, event } = bugFindingCtx(w);
+    await handleIssueUpdated(ctx, event);
+    expect(await bugFindingJobs(w)).toMatchObject([{ machine_id: MINI.machineId, payload: { repoPath: REPO } }]);
+  });
+
+  it("không có nguồn repo nào: dòng không được ghi ready, Bug Finding báo máy chưa có repo và không xếp việc", async () => {
+    const w = await world();
+    await markPrimary(w);
+    expect(await primaryRow(w)).toBeNull();
+
+    const { ctx, event } = bugFindingCtx(w);
+    await handleIssueUpdated(ctx, event);
+    expect(await bugFindingRuns(w)).toMatchObject([{ state: "failed", error: NO_REPO_ERROR }]);
+    expect(await bugFindingJobs(w)).toEqual([]);
+  });
+});
+
+describe("dòng ready thiếu repo_path (dữ liệu cũ) không làm Bug Finding chọn repo rỗng", () => {
+  it("ready NULL và không có nguồn repo nào: lượt failed với lý do rõ ràng, không xếp việc", async () => {
+    const w = await world();
+    await insertPrimaryRow(w, "ready", null);
+    const { ctx, event } = bugFindingCtx(w);
+    await handleIssueUpdated(ctx, event);
+    expect(await bugFindingRuns(w)).toEqual([{ run: 1, state: "failed", machine_id: MINI.machineId, error: NO_REPO_ERROR }]);
+    expect(await bugFindingJobs(w)).toEqual([]);
+  });
+
+  it("ready với repo_path rỗng hay tương đối cũng coi là thiếu repo", async () => {
+    for (const bad of ["", "relative/repo"]) {
+      const w = await world();
+      await insertPrimaryRow(w, "ready", bad);
+      const { ctx, event } = bugFindingCtx(w);
+      await handleIssueUpdated(ctx, event);
+      expect(await bugFindingRuns(w)).toMatchObject([{ state: "failed", error: NO_REPO_ERROR }]);
+      expect(await bugFindingJobs(w)).toEqual([]);
+    }
+  });
+
+  it("ready NULL nhưng có repo gốc của lần thêm project: xếp được lượt lên máy ghim với repo đó, dòng không bị ghi đè (chỉ đọc)", async () => {
+    const w = await world();
+    await insertPrimaryRow(w, "ready", null);
+    await addProjectRun(w, WIZARD_REPO);
+    const { ctx, event } = bugFindingCtx(w);
+    await handleIssueUpdated(ctx, event);
+    expect(await bugFindingRuns(w)).toEqual([{ run: 1, state: "requested", machine_id: MINI.machineId, error: null }]);
+    expect(await bugFindingJobs(w)).toMatchObject([{ machine_id: MINI.machineId, payload: { repoPath: WIZARD_REPO } }]);
+    expect(await primaryRow(w)).toEqual({ status: "ready", repo_path: null, error: null });
+  });
+
+  it("ready NULL có việc ensure-project done: dùng repoPath của việc; lần dựng sau của máy chính điền repo_path vào dòng", async () => {
+    const w = await world();
+    await insertPrimaryRow(w, "ready", null);
+    await seedEnsureJob(host.db, host.ns, { companyId: w.companyId, projectId: w.projectId, machine: MINI, status: "done", repoPath: REPO });
+    const { ctx, event } = bugFindingCtx(w);
+    await handleIssueUpdated(ctx, event);
+    expect(await bugFindingJobs(w)).toMatchObject([{ payload: { repoPath: REPO } }]);
+
+    await markPrimary(w);
+    expect(await primaryRow(w)).toEqual({ status: "ready", repo_path: REPO, error: null });
+  });
+
+  it("dòng failed vẫn không dùng được dù có nguồn repo khác (hành vi cũ)", async () => {
+    const w = await world();
+    await insertPrimaryRow(w, "failed", null, "Máy không dựng checkout reviewer");
+    await addProjectRun(w, WIZARD_REPO);
+    const { ctx, event } = bugFindingCtx(w);
+    await handleIssueUpdated(ctx, event);
+    expect(await bugFindingRuns(w)).toMatchObject([{ state: "failed", error: NO_REPO_ERROR }]);
+    expect(await bugFindingJobs(w)).toEqual([]);
+  });
+
+  it("dòng ready đã có repo_path tuyệt đối giữ nguyên qua lần dựng sau và Bug Finding dùng đúng repo đó", async () => {
+    const w = await world();
+    await insertPrimaryRow(w, "ready", "/Users/owner/hand-filled");
+    await addProjectRun(w, WIZARD_REPO);
+    await markPrimary(w);
+    expect(await primaryRow(w)).toEqual({ status: "ready", repo_path: "/Users/owner/hand-filled", error: null });
+    const { ctx, event } = bugFindingCtx(w);
+    await handleIssueUpdated(ctx, event);
+    expect(await bugFindingJobs(w)).toMatchObject([{ payload: { repoPath: "/Users/owner/hand-filled" } }]);
   });
 });
