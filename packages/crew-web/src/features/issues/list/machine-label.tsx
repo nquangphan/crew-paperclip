@@ -10,9 +10,11 @@ interface IssueMachineLabelProps {
   machine: IssueMachineSummary | null;
   names: ReadonlyMap<string, string>;
   variant: 'cell' | 'inline' | 'option';
+  /** Chữ thay tên cho máy đã gỡ ghép (không có tên), vd. "Đã gỡ ghép #2" trong bộ lọc; mặc định "Đã gỡ ghép". */
+  unnamedLabel?: string;
 }
 
-export function IssueMachineLabel({ machine, names, variant }: IssueMachineLabelProps) {
+export function IssueMachineLabel({ machine, names, variant, unnamedLabel }: IssueMachineLabelProps) {
   const { t } = useT('issues');
   const state = machineStateOf(machine);
   if (state === 'unpinned' || !machine) {
@@ -31,7 +33,7 @@ export function IssueMachineLabel({ machine, names, variant }: IssueMachineLabel
   return (
     <MachineLabel
       state={state}
-      name={name ?? t('machine.unpaired')}
+      name={name ?? unnamedLabel ?? t('machine.unpaired')}
       strike={state === 'unpaired' && name !== null}
       stateText={variant !== 'cell' && state !== 'online' && name !== null ? stateLabel : undefined}
       layout={variant === 'option' ? 'option' : 'inline'}

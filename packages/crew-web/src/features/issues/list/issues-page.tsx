@@ -216,29 +216,41 @@ export function IssuesPage() {
     () => ofKind.filter((i) => matchesMachine(i, state.machine, machineItems)),
     [ofKind, state.machine, machineItems],
   );
-  // Mục Máy của bộ lọc: máy có trong danh sách (theo tên), số yêu cầu sau lọc loại, cuối là Chưa ghim. Giá trị
-  // `?machine=` không còn máy nào khớp (link cũ, máy không còn yêu cầu) vẫn là một ô đang tích để thấy và bỏ được.
+  // Mục Máy của bộ lọc: máy có trong danh sách (theo tên), số yêu cầu sau lọc loại, cuối là Chưa ghim. Máy đang chọn
+  // vẫn có trong lô máy nhưng bộ lọc khác loại hết yêu cầu thì giữ tên máy với số 0; chỉ giá trị `?machine=` không còn
+  // trong lô (link cũ, máy không còn yêu cầu) mới là ô "Máy không còn trong danh sách", vẫn tích để thấy và bỏ được.
+  // Máy đã gỡ ghép không có tên: thêm "#2", "#3"… theo thứ tự `machineId` để mỗi ô có tên truy cập riêng.
   const machineOptions = useMemo(() => {
     if (!machineItems) return [];
     const counts = machineCounts(ofKind, machineItems);
-    const byId = new Map(
-      Object.values(machineItems).flatMap((m) => (m && counts.has(m.machineId) ? [[m.machineId, m] as const] : [])),
+    const known = new Map(Object.values(machineItems).flatMap((m) => (m ? [[m.machineId, m] as const] : [])));
+    const shown = [...known.values()].filter((m) => counts.has(m.machineId) || m.machineId === state.machine);
+    const named = shown.sort(
+      (a, b) =>
+        (machineNames.get(a.machineId) ?? '\uffff').localeCompare(machineNames.get(b.machineId) ?? '\uffff', 'vi') ||
+        (a.machineId < b.machineId ? -1 : a.machineId > b.machineId ? 1 : 0),
     );
-    const named = [...byId.values()].sort((a, b) =>
-      (machineNames.get(a.machineId) ?? '\uffff').localeCompare(machineNames.get(b.machineId) ?? '\uffff', 'vi'),
-    );
-    const selectedGone = state.machine !== '' && !counts.has(state.machine);
+    // Số thứ tự đánh trên mọi máy không tên của lô (không theo bộ lọc loại) để "#2" không đổi khi đổi Loại.
+    const unnamed = [...known.keys()].filter((id) => !machineNames.has(id)).sort();
+    const labelOf = (machineId: string) => {
+      const name = machineNames.get(machineId);
+      if (name) return name;
+      const n = unnamed.indexOf(machineId) + 1;
+      return n === 1 ? t('machine.unpaired') : `${t('machine.unpaired')} #${n}`;
+    };
+    const selectedGone = state.machine !== '' && state.machine !== MACHINE_FILTER_NONE && !known.has(state.machine);
     return [
-      ...named.map((m) => ({
-        value: m.machineId,
-        label: machineNames.get(m.machineId) ?? t('machine.unpaired'),
-        content: <IssueMachineLabel machine={m} names={machineNames} variant="option" />,
-        count: counts.get(m.machineId),
-      })),
-      ...(selectedGone && state.machine !== MACHINE_FILTER_NONE
-        ? [{ value: state.machine, label: t('machine.gone'), count: 0 }]
-        : []),
-      ...(counts.has(MACHINE_FILTER_NONE) || (selectedGone && state.machine === MACHINE_FILTER_NONE)
+      ...named.map((m) => {
+        const label = labelOf(m.machineId);
+        return {
+          value: m.machineId,
+          label,
+          content: <IssueMachineLabel machine={m} names={machineNames} variant="option" unnamedLabel={label} />,
+          count: counts.get(m.machineId) ?? 0,
+        };
+      }),
+      ...(selectedGone ? [{ value: state.machine, label: t('machine.gone'), count: 0 }] : []),
+      ...(counts.has(MACHINE_FILTER_NONE) || state.machine === MACHINE_FILTER_NONE
         ? [{ value: MACHINE_FILTER_NONE, label: t('machine.unpinned'), count: counts.get(MACHINE_FILTER_NONE) ?? 0 }]
         : []),
     ];

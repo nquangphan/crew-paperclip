@@ -298,6 +298,46 @@ describe('lọc theo máy', () => {
     await waitFor(() => expect(rows()).toHaveLength(5));
   });
 
+  it('máy còn trong lô nhưng bộ lọc Loại loại hết yêu cầu: ô giữ tên máy, số 0, không ghi "không còn"', async () => {
+    server();
+    mount('/TPS/issues?machine=m-mini&kind=research');
+    expect(await screen.findByText('Không có yêu cầu khớp bộ lọc')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: /^Lọc/ }));
+    const group = (await screen.findByText('Máy', { selector: 'legend' })).closest('fieldset') as HTMLElement;
+    const mini = within(group).getByRole('checkbox', { name: 'demo-mac-01' });
+    expect(mini.getAttribute('aria-checked') ?? String((mini as HTMLInputElement).checked)).toBe('true');
+    expect(within(group).queryByRole('checkbox', { name: 'Máy không còn trong danh sách' })).toBeNull();
+    const counts = within(group)
+      .getAllByTestId('filter-option-count')
+      .map((n) => n.textContent);
+    expect(counts).toEqual(['0']);
+  });
+
+  it('nhiều máy đã gỡ ghép: mỗi ô có tên riêng theo thứ tự machineId, không lộ id', async () => {
+    const gone = (root: string, machineId: string) => ({
+      rootIssueId: root,
+      machineId,
+      hostname: null,
+      online: false,
+      paired: false,
+    });
+    server({ [BATCH]: { body: { items: { ...ITEMS, '3': gone('3', 'm-gone-b'), '4': gone('4', 'm-gone-a') } } } });
+    mount();
+    await waitFor(() => expect(cell('1')).not.toBeNull());
+    fireEvent.click(screen.getByRole('button', { name: 'Lọc' }));
+    const group = (await screen.findByText('Máy', { selector: 'legend' })).closest('fieldset') as HTMLElement;
+    const names = within(group)
+      .getAllByRole('checkbox')
+      .map((c) => c.getAttribute('aria-label'));
+    expect(names).toEqual(['demo-mac-01', 'Đã gỡ ghép', 'Đã gỡ ghép #2', 'Chưa ghim']);
+    expect(new Set(names).size).toBe(names.length);
+    expect(group.textContent).toContain('Đã gỡ ghép #2');
+    expect(group.textContent).not.toContain('m-gone');
+    fireEvent.click(within(group).getByRole('checkbox', { name: 'Đã gỡ ghép #2' }));
+    await waitFor(() => expect(loc()).toBe('/TPS/issues?machine=m-gone-b'));
+    await waitFor(() => expect(rows().map(idOf)).toEqual(['3']));
+  });
+
   it('mục Máy trong popover Lọc: tên, số yêu cầu, Chưa ghim; chọn thì ghi URL, Xóa thì bỏ', async () => {
     const { calls } = server();
     mount();
