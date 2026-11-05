@@ -3,6 +3,7 @@ import type { Issue } from '@paperclipai/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ApiError, api, queryKeys } from '@/api';
 import { getI18n } from '@/i18n';
+import { invalidateIssueMachines } from '../list/machines';
 import { findKindLabelIds, isLabelledKind, type KindLabelIds, type RequestKind } from './kinds';
 
 export interface CreateRequestInput {
@@ -116,6 +117,8 @@ export function useCreateRequest(companyId: string) {
       void queryClient.invalidateQueries({ queryKey: queryKeys.issues(companyId) });
       void queryClient.invalidateQueries({ queryKey: queryKeys.sidebarBadges(companyId) });
       void queryClient.invalidateQueries({ queryKey: queryKeys.crew('crew.roots') });
+      // Ghim máy chạy sau khi tạo: sự kiện tạo issue có thể đã làm danh sách tải lô trước khi ghim xong.
+      void invalidateIssueMachines(queryClient);
     },
   });
 }

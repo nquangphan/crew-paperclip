@@ -1,7 +1,7 @@
 // Máy của cây chứa từng yêu cầu trên danh sách và Bảng: một request lô (`POST …/issue-machines`) cho mọi yêu cầu đang
 // tải, tên máy gọn, trạng thái nhãn và lọc theo máy ở máy khách. Mockup: docs/design/mockups/tps-750-machine-label.
 import type { CompactIssue } from '@paperclipai/shared';
-import { keepPreviousData, useQuery } from '@tanstack/react-query';
+import { keepPreviousData, type QueryClient, useQuery } from '@tanstack/react-query';
 import { useMemo } from 'react';
 import { api, type IssueMachineSummary, queryKeys } from '@/api';
 import type { MachineLabelState } from '@/ds';
@@ -61,6 +61,14 @@ export function machineCounts(issues: readonly CompactIssue[], items: IssueMachi
     counts.set(key, (counts.get(key) ?? 0) + 1);
   }
   return counts;
+}
+
+/**
+ * Ghim hay đổi máy của một cây xong thì mọi lô máy đang mở (danh sách, Bảng) tải lại: route ghim không ghi activity nên
+ * sự kiện live không làm mới khóa lô, nhãn và lọc `?machine=` sẽ giữ máy cũ tới khi tải lại trang.
+ */
+export function invalidateIssueMachines(queryClient: QueryClient): Promise<void> {
+  return queryClient.invalidateQueries({ queryKey: queryKeys.crew('issue-machines') });
 }
 
 /** Máy của mọi yêu cầu đang tải: một request lô (client chia khúc 500 id), khóa trong `queryKeys.crew`. */
