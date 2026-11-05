@@ -76,6 +76,11 @@ export function useRoadmapData(companyId: string, p: RoadmapDataParams) {
     combine: (results) => ({
       loading: results.map((q) => q.isPending && q.failureCount === 0),
       data: results.map((q) => q.data ?? null),
+      /** Lỗi cuối của cây đầu tiên tải hỏng (đã hết lượt thử lại); trang báo nhẹ kèm Thử lại các cây lỗi. */
+      error: results.find((q) => q.error)?.error ?? null,
+      refetch: () => {
+        for (const q of results) if (q.error) void q.refetch();
+      },
     }),
   });
   /** Company đã qua lần chờ docs đầu tiên (đổi company thì chờ lại). */
@@ -105,5 +110,19 @@ export function useRoadmapData(companyId: string, p: RoadmapDataParams) {
     enabled: !!docProject && docProjectIds.includes(docProject) && p.doc !== null,
   });
 
-  return { visible, projects, roadmapQuery, roadmap, requestId, runs, docsProjects, docs, docProject, docTree, page };
+  const docsTrees = { error: trees.error, refetch: trees.refetch };
+  return {
+    visible,
+    projects,
+    roadmapQuery,
+    roadmap,
+    requestId,
+    runs,
+    docsProjects,
+    docsTrees,
+    docs,
+    docProject,
+    docTree,
+    page,
+  };
 }

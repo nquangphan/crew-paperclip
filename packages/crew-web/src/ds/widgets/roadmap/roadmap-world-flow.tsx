@@ -120,6 +120,9 @@ function plateLabel(level: WorldNode['node'], running: number, t: ReturnType<typ
   return { title: `${level.identifier} · ${level.title}`, sub: parts.join(' · ') };
 }
 
+/** Chữ trên chip "độ phóng · mức". */
+const chipText = (k: number, label: string | undefined) => `${Math.round(k * 100)}% · ${label ?? ''}`;
+
 function WorldFlow({
   world,
   focusKey,
@@ -163,6 +166,14 @@ function WorldFlow({
   const lodLabels = useRef(labels.lod);
   lodLabels.current = labels.lod;
 
+  // Nhãn mức đổi (đổi ngôn ngữ) khi camera đứng yên: chỉ ghi lại chữ trên chip, không đăng ký lại store.
+  const lodText = labels.lod.join('\n');
+  useEffect(() => {
+    const level = lodRef.current;
+    if (!chip.current || level === null) return;
+    chip.current.textContent = chipText(store.getState().transform[2], lodText.split('\n')[level]);
+  }, [lodText, store]);
+
   const readView = useCallback(() => {
     const s = store.getState();
     setView(viewBoxOf(s.transform, { width: s.width, height: s.height }));
@@ -190,7 +201,7 @@ function WorldFlow({
         const vb = viewBoxOf(s.transform, { width: s.width, height: s.height });
         if (!cardViewRef.current || !containsBox(cardViewRef.current, vb)) setCards(padBox(vb, CARD_PAD));
       }
-      if (chip.current) chip.current.textContent = `${Math.round(k * 100)}% · ${lodLabels.current[next]}`;
+      if (chip.current) chip.current.textContent = chipText(k, lodLabels.current[next]);
       const r = miniView.current;
       if (r) {
         r.setAttribute('x', String(-tx / k));
@@ -355,6 +366,17 @@ function WorldFlow({
   const timer = useRef<number | undefined>(undefined);
   /** Vòng rAF đang đưa focus bàn phím tới mục đang xem; chỗ lấy nét mới hay unmount thì hủy. */
   const focusRaf = useRef(0);
+  /** Còn gắn trên trang: chuyến bay xong muộn sau unmount không đặt lại vòng rAF. */
+  const mounted = useRef(false);
+  // Khai báo trước effect camera để cờ đã bật khi effect đó chạy lần đầu.
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+      window.clearTimeout(timer.current);
+      window.cancelAnimationFrame(focusRaf.current);
+    };
+  }, []);
   useEffect(() => {
     if (!ready || shownKey.current === focusKey) return;
     const first = shownKey.current === null;
@@ -370,7 +392,7 @@ function WorldFlow({
     const key = focusKey;
     const focusEl = () => {
       // Chuyến bay cũ xong muộn sau khi đã lấy nét chỗ khác: không giành focus về mục cũ.
-      if (shownKey.current !== key) return;
+      if (!mounted.current || shownKey.current !== key) return;
       window.cancelAnimationFrame(focusRaf.current);
       let tries = 0;
       const id = currentId ?? world.company.node.id;
@@ -405,13 +427,6 @@ function WorldFlow({
       focusEl();
     });
   }, [ready, focusKey, focus, world, currentId, fly, readView, reduced, store]);
-  useEffect(
-    () => () => {
-      window.clearTimeout(timer.current);
-      window.cancelAnimationFrame(focusRaf.current);
-    },
-    [],
-  );
 
   // Bấm vào nền ở mức xa: trúng ô của một việc thì bay thẳng tới việc đó.
   const onPaneClick = useCallback(

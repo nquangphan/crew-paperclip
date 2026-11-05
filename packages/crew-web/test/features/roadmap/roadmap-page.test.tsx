@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { createMemoryRouter, RouterProvider, useLocation } from 'react-router-dom';
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { CompanyContext } from '@/app/hooks';
@@ -102,6 +102,20 @@ const PAGES = [
   { path: 'docs/index.md', title: 'Mục lục', parentPath: 'docs' },
 ];
 
+const TREE = {
+  body: {
+    data: {
+      repo: 'crew',
+      commit: 'abcdef1234',
+      auditState: 'ok',
+      receivedAt: '2026-10-10T00:00:00.000Z',
+      machineId: 'm',
+      dropped: [],
+      pages: PAGES,
+    },
+  },
+};
+
 function server(extra: Record<string, unknown> = {}) {
   return mockServer({
     'GET /api/companies/c1/projects': {
@@ -113,19 +127,7 @@ function server(extra: Record<string, unknown> = {}) {
     'POST /api/plugins/crew.core/data/crew.roadmap': { body: { data: roadmapOf(ROWS) } },
     'POST /api/plugins/crew.core/data/crew.runs': { body: { data: { byIssue: {}, tree: null } } },
     'POST /api/plugins/crew.core/data/crew.docs.projects': { body: { data: [{ projectId: 'p1', repo: 'crew' }] } },
-    'POST /api/plugins/crew.core/data/crew.docs.tree': {
-      body: {
-        data: {
-          repo: 'crew',
-          commit: 'abcdef1234',
-          auditState: 'ok',
-          receivedAt: '2026-10-10T00:00:00.000Z',
-          machineId: 'm',
-          dropped: [],
-          pages: PAGES,
-        },
-      },
-    },
+    'POST /api/plugins/crew.core/data/crew.docs.tree': TREE,
     'POST /api/plugins/crew.core/data/crew.docs.page': {
       body: {
         data: { path: 'README.md', title: 'Giới thiệu', text: '# Giới thiệu\n\nNội dung trang giới thiệu.', links: [] },
@@ -439,13 +441,29 @@ describe('RoadmapPage một trang', () => {
     expect(screen.getByRole('region', { name: 'Bản đồ dạng danh sách' })).toBe(list);
   });
 
-  it('cây docs lỗi: bản đồ vẫn hiện, nút Docs mờ', async () => {
+  it('cây docs đang thử lại: bản đồ vẫn hiện, nút Docs mờ ngay', async () => {
     server({ 'POST /api/plugins/crew.core/data/crew.docs.tree': fail });
     mount('/TPS/roadmap?view=list', { retry: 3, retryDelay: 10_000 });
     const list = await screen.findByRole('region', { name: 'Bản đồ dạng danh sách' });
     await waitFor(() => expect(list.querySelector('[data-roadmap-id="docs:p1"]')).toBeTruthy());
+    expect(list.querySelector('[data-roadmap-id="docs:p1"]')?.getAttribute('aria-disabled')).toBe('true');
     expect(list.querySelector('[data-roadmap-id="r1"]')).toBeTruthy();
     expect(list.querySelector('[data-roadmap-id="page:p1:README.md"]')).toBeNull();
+  });
+
+  it('cây docs lỗi hẳn: nút Docs mờ kèm báo nhẹ; Thử lại tải lại cây và bổ sung trang', async () => {
+    let ok = false;
+    server({ 'POST /api/plugins/crew.core/data/crew.docs.tree': () => (ok ? TREE : fail) });
+    mount('/TPS/roadmap?view=list');
+    const list = await screen.findByRole('region', { name: 'Bản đồ dạng danh sách' });
+    await waitFor(() => expect(partialAlert()).toBeTruthy());
+    expect(list.querySelector('[data-roadmap-id="docs:p1"]')?.getAttribute('aria-disabled')).toBe('true');
+    ok = true;
+    fireEvent.click(screen.getByRole('button', { name: 'Thử lại' }));
+    await waitFor(() =>
+      expect(list.querySelector('[data-roadmap-id="docs:p1"]')?.hasAttribute('aria-disabled')).toBe(false),
+    );
+    expect(partialAlert()).toBeNull();
   });
 
   it('crew.runs lỗi khi lấy nét yêu cầu: giữ bản đồ, báo nhẹ', async () => {
@@ -483,5 +501,20 @@ describe('RoadmapPage một trang', () => {
       const pages = calls.filter((c) => c.url.endsWith('/data/crew.docs.page'));
       expect(pages.map((c) => (c.body as { params: { projectId: string } }).params.projectId)).toEqual(['p2']);
     });
+  });
+  it('đổi ngôn ngữ khi camera đứng yên: chip "độ phóng · mức" đổi theo', async () => {
+    server();
+    mount('/TPS/roadmap');
+    await placed();
+    const chip = () => document.querySelector('[data-slot="roadmap-zoom-chip"]')?.textContent ?? '';
+    await waitFor(() => expect(chip()).toContain('Nhãn yêu cầu'));
+    const before = zoom();
+    try {
+      await act(() => setLanguage('en'));
+      await waitFor(() => expect(chip()).toContain('Request labels'));
+      expect(zoom()).toBe(before);
+    } finally {
+      await act(() => setLanguage('vi'));
+    }
   });
 });

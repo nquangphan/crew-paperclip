@@ -313,6 +313,7 @@ export function RoadmapPage() {
       message: data.docsProjects.error.message,
       retry: () => void data.docsProjects.refetch(),
     }) ||
+    (data.docsTrees.error && { message: data.docsTrees.error.message, retry: data.docsTrees.refetch }) ||
     (data.runs.error && { message: data.runs.error.message, retry: () => void data.runs.refetch() });
 
   let body: ReactNode;
