@@ -596,6 +596,8 @@
     "loading": "Loading machine",
     "loadFailed": "Could not load the machines of these requests.",
     "missing": "Could not load machine",
+    "gone": "Machine no longer in the list",
+    "filterFailed": "Could not filter by machine because the machines of these requests could not be loaded.",
     "retry": "Retry"
   }
 }

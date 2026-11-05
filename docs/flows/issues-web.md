@@ -49,10 +49,18 @@ Luật chính:
    sau thêm "#2" theo thứ tự `machineId` (`machineDisplayNames`); không bao giờ hiện `machineId`. Cột `machine` (mặc
    định bật, tắt trong menu Cột) có tooltip tên đầy đủ và lý do; dưới `sm` nhãn xuống dòng phụ dưới tiêu đề (`subline`
    của `IssueListRow`) kèm chữ trạng thái, chưa ghim thì không có dòng phụ; thẻ Bảng có dòng máy cuối thẻ
-   (`KanbanCardData.machine`), chưa ghim thì không có. Đang tải: ô Máy là skeleton; route lỗi: ô ghi "—" và dòng lỗi có
-   nút Thử lại, danh sách vẫn hiện. Lọc theo máy: mục "Máy" trong popover Lọc (`?machine=<machineId>` hay
+   (`KanbanCardData.machine`), chưa ghim thì không có. Không lọc theo máy: lô đang tải thì ô Máy là skeleton; đổi bộ
+   lọc server thì ô Máy giữ nhãn cũ tới khi lô mới về (`keepPreviousData`); route lỗi thì ô ghi "—", dòng lỗi phía trên
+   có nút Thử lại, danh sách vẫn hiện. Lọc theo máy: mục "Máy" trong popover Lọc (`?machine=<machineId>` hay
    `?machine=unpinned`, `ListState.machine`), lọc ở máy khách (`matchesMachine`, con theo máy của gốc), mỗi máy kèm số
-   yêu cầu (`machineCounts`) sau lọc loại; đổi bộ lọc máy không gọi lại route lô.
+   yêu cầu (`machineCounts`) sau lọc loại; đổi bộ lọc máy không gọi lại route lô. Vì kết quả lọc phụ thuộc lô máy, khi
+   đang lọc theo máy thì cả thân danh sách (hay Bảng) là skeleton lúc lô đang tải hoặc còn là bản của tập yêu cầu trước
+   (`isPlaceholderData` sau khi đổi bộ lọc server), không lọc bằng map cũ; lô lỗi thì thân danh sách là `ErrorState`
+   ("Không lọc được theo máy…", nút Thử lại gọi lại route lô) thay cho trạng thái rỗng, và dòng lỗi phía trên không lặp
+   lại. Tập yêu cầu rỗng thì query lô tắt và không giữ bản cũ (`useIssueMachines`), nên trang báo rỗng chứ không chờ
+   mãi. `?machine=` trỏ máy không còn yêu cầu nào trong danh sách (link cũ, máy đã thôi chạy cây nào) vẫn là một ô
+   đang tích trong mục Máy với nhãn trung tính "Máy không còn trong danh sách" (số 0, không hiện id), bỏ tích được;
+   `?machine=unpinned` khi không còn cây chưa ghim thì ô "Chưa ghim" vẫn hiện với số 0.
 2. `packages/crew-web/src/features/issues/new/new-request-dialog.tsx` → `NewRequestDialog`: chỉ liệt kê project sẵn
    sàng, người nhận cố định là Trợ Lý của project; `use-create-request.ts` → `createRequest` POST issue rồi upload đính
    kèm lần lượt. Owner thấy thêm ô "Máy thực thi" (`machine-field.tsx` → `MachineField`, mặc định "Tự chọn", chỉ liệt kê

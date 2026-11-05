@@ -59,11 +59,11 @@ const ISSUES = [
   issue('4', { updatedAt: '2026-10-08T05:00:00.000Z' }),
   issue('5', { updatedAt: '2026-10-07T05:00:00.000Z', status: 'backlog' }),
 ];
-const MINI = { rootIssueId: '1', machineId: 'm-mini', hostname: 'phans-mac-mini.local', online: true, paired: true };
+const MINI = { rootIssueId: '1', machineId: 'm-mini', hostname: 'demo-mac-01.local', online: true, paired: true };
 const ITEMS: Record<string, IssueMachineSummary | null> = {
   '1': MINI,
   '2': MINI,
-  '3': { rootIssueId: '3', machineId: 'm-book', hostname: 'phans-macbook-pro', online: false, paired: true },
+  '3': { rootIssueId: '3', machineId: 'm-book', hostname: 'demo-mac-02', online: false, paired: true },
   '4': { rootIssueId: '4', machineId: 'm-gone', hostname: null, online: false, paired: false },
   '5': null,
 };
@@ -104,6 +104,29 @@ function mount(path = '/TPS/issues') {
       <RouterProvider router={router} />
     </QueryClientProvider>,
   );
+  return router;
+}
+
+/**
+ * Bọc fetch giả: yêu cầu có `status=blocked` trả `blocked`; lô máy từ lần thứ hai chờ `release()` rồi mới trả.
+ * Mô phỏng đổi bộ lọc server khi đang lọc theo máy, lô máy của tập yêu cầu mới về chậm.
+ */
+function delaySecondBatch(fetchMock: ReturnType<typeof server>['fetchMock'], blocked: unknown[]) {
+  let release = () => {};
+  const gate = new Promise<void>((r) => {
+    release = r;
+  });
+  let batches = 0;
+  globalThis.fetch = (async (input: string, init?: RequestInit) => {
+    const url = String(input);
+    if (url.includes('/issues?') && url.includes('status=blocked')) return new Response(JSON.stringify(blocked));
+    if (url.endsWith('/issue-machines')) {
+      batches += 1;
+      if (batches > 1) await gate;
+    }
+    return fetchMock(input, init);
+  }) as unknown as typeof fetch;
+  return { release: () => release(), batches: () => batches };
 }
 
 const rows = () => screen.getAllByTestId('issue-row');
@@ -127,13 +150,13 @@ describe('nhãn máy trên danh sách yêu cầu', () => {
     // Gốc và con cùng nhãn máy của gốc; tên bỏ hậu tố miền.
     for (const id of ['1', '2']) {
       expect(cell(id)?.getAttribute('data-state')).toBe('online');
-      expect(cell(id)?.textContent).toBe('phans-mac-mini');
-      expect(cell(id)?.getAttribute('aria-label')).toBe('Máy phans-mac-mini, đang kết nối');
+      expect(cell(id)?.textContent).toBe('demo-mac-01');
+      expect(cell(id)?.getAttribute('aria-label')).toBe('Máy demo-mac-01, đang kết nối');
     }
     // Offline: icon riêng, cột desktop không có chữ trạng thái (có tooltip), aria nêu trạng thái.
     expect(cell('3')?.getAttribute('data-state')).toBe('offline');
-    expect(cell('3')?.textContent).toBe('phans-macbook-pro');
-    expect(cell('3')?.getAttribute('aria-label')).toBe('Máy phans-macbook-pro, mất liên lạc');
+    expect(cell('3')?.textContent).toBe('demo-mac-02');
+    expect(cell('3')?.getAttribute('aria-label')).toBe('Máy demo-mac-02, mất liên lạc');
     expect(cell('3')?.querySelector('[data-slot="machine-label-indicator"] svg')).not.toBeNull();
     // Đã gỡ ghép: server không trả tên máy, nhãn ghi trạng thái thay vì id.
     expect(cell('4')?.getAttribute('data-state')).toBe('unpaired');
@@ -151,8 +174,8 @@ describe('nhãn máy trên danh sách yêu cầu', () => {
     server();
     mount();
     await waitFor(() => expect(subline('3')).not.toBeNull());
-    expect(subline('1')?.textContent).toBe('phans-mac-mini');
-    expect(subline('3')?.textContent).toBe('phans-macbook-pro · mất liên lạc');
+    expect(subline('1')?.textContent).toBe('demo-mac-01');
+    expect(subline('3')?.textContent).toBe('demo-mac-02 · mất liên lạc');
     expect(subline('4')?.textContent).toBe('Đã gỡ ghép');
     expect(subline('5')).toBeNull();
   });
@@ -211,6 +234,70 @@ describe('lọc theo máy', () => {
     await waitFor(() => expect(rows().map(idOf)).toEqual(['5']));
   });
 
+  it('đổi bộ lọc server khi đang lọc máy: lô máy mới chưa về thì chờ, không lọc bằng máy của tập cũ', async () => {
+    const NEW = issue('6', { status: 'blocked' });
+    let second = false;
+    const { fetchMock } = server({
+      [BATCH]: () => ({ body: { items: second ? { '6': MINI } : ITEMS } }),
+    });
+    const slow = delaySecondBatch(fetchMock, [NEW]);
+    const router = mount('/TPS/issues?machine=m-mini');
+    await waitFor(() => expect(rows().map(idOf)).toEqual(['1', '2']));
+
+    second = true;
+    await router.navigate('/TPS/issues?machine=m-mini&status=blocked');
+    // Yêu cầu mới đã về (lô máy của tập mới đã gửi) nhưng lô chưa trả: danh sách là skeleton, không "không có yêu cầu".
+    await waitFor(() => expect(slow.batches()).toBe(2));
+    await new Promise((r) => setTimeout(r, 20));
+    expect(screen.queryAllByTestId('issue-row')).toHaveLength(0);
+    expect(screen.getByLabelText('Đang tải')).toBeTruthy();
+    expect(screen.queryByText('Không có yêu cầu khớp bộ lọc')).toBeNull();
+
+    slow.release();
+    await waitFor(() => expect(rows().map(idOf)).toEqual(['6']));
+  });
+
+  it('đang lọc máy, bộ lọc server không còn yêu cầu nào: báo rỗng, không kẹt ở trạng thái chờ', async () => {
+    const { fetchMock } = server();
+    delaySecondBatch(fetchMock, []);
+    const router = mount('/TPS/issues?machine=m-mini');
+    await waitFor(() => expect(rows().map(idOf)).toEqual(['1', '2']));
+    await router.navigate('/TPS/issues?machine=m-mini&status=blocked');
+    expect(await screen.findByText('Không có yêu cầu khớp bộ lọc')).toBeTruthy();
+  });
+
+  it('lô máy lỗi khi đang lọc máy: thân danh sách báo lỗi có Thử lại, không báo rỗng', async () => {
+    let fail = true;
+    const { calls } = server({
+      [BATCH]: () => (fail ? { status: 500, body: { error: 'hỏng' } } : { body: { items: ITEMS } }),
+    });
+    mount('/TPS/issues?machine=m-mini');
+    const alert = await screen.findByRole('alert');
+    expect(within(alert).getByText('Không lọc được theo máy vì không tải được máy của các yêu cầu.')).toBeTruthy();
+    expect(screen.queryByText('Không có yêu cầu khớp bộ lọc')).toBeNull();
+    expect(screen.queryAllByTestId('issue-row')).toHaveLength(0);
+    // Chỉ một nút Thử lại (dòng lỗi phía trên không lặp lại khi thân danh sách đã báo).
+    expect(screen.queryByText('Không tải được máy của các yêu cầu.')).toBeNull();
+    fail = false;
+    fireEvent.click(within(alert).getByRole('button', { name: 'Thử lại' }));
+    await waitFor(() => expect(rows().map(idOf)).toEqual(['1', '2']));
+    expect(batchCalls(calls)).toHaveLength(2);
+  });
+
+  it('?machine= trỏ máy không còn trong danh sách: popover Lọc giữ ô đang tích, bỏ tích được', async () => {
+    server();
+    mount('/TPS/issues?machine=ghost');
+    expect(await screen.findByText('Không có yêu cầu khớp bộ lọc')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Lọc: 1' }));
+    const group = (await screen.findByText('Máy', { selector: 'legend' })).closest('fieldset') as HTMLElement;
+    const gone = within(group).getByRole('checkbox', { name: 'Máy không còn trong danh sách' });
+    expect(gone.getAttribute('aria-checked') ?? String((gone as HTMLInputElement).checked)).toBe('true');
+    expect(group.textContent).not.toContain('ghost');
+    fireEvent.click(gone);
+    await waitFor(() => expect(loc()).toBe('/TPS/issues'));
+    await waitFor(() => expect(rows()).toHaveLength(5));
+  });
+
   it('mục Máy trong popover Lọc: tên, số yêu cầu, Chưa ghim; chọn thì ghi URL, Xóa thì bỏ', async () => {
     const { calls } = server();
     mount();
@@ -220,7 +307,7 @@ describe('lọc theo máy', () => {
     const options = within(group)
       .getAllByRole('checkbox')
       .map((c) => c.getAttribute('aria-label'));
-    expect(options).toEqual(['phans-mac-mini', 'phans-macbook-pro', 'Đã gỡ ghép', 'Chưa ghim']);
+    expect(options).toEqual(['demo-mac-01', 'demo-mac-02', 'Đã gỡ ghép', 'Chưa ghim']);
     expect(
       within(group)
         .getAllByTestId('filter-option-count')
@@ -228,7 +315,7 @@ describe('lọc theo máy', () => {
     ).toEqual(['2', '1', '1', '1']);
     expect(within(group).getByText('mất liên lạc')).toBeTruthy();
 
-    fireEvent.click(within(group).getByRole('checkbox', { name: 'phans-macbook-pro' }));
+    fireEvent.click(within(group).getByRole('checkbox', { name: 'demo-mac-02' }));
     await waitFor(() => expect(loc()).toBe('/TPS/issues?machine=m-book'));
     await waitFor(() => expect(rows().map(idOf)).toEqual(['3']));
 
@@ -248,9 +335,9 @@ describe('nhãn máy trên thẻ Bảng', () => {
       screen.getAllByTestId('kanban-card').find((c) => c.getAttribute('data-issue-id') === id) as HTMLElement;
     const line = (id: string) => card(id).querySelector('[data-slot="kanban-card-machine"]');
     await waitFor(() => expect(line('1')).not.toBeNull());
-    expect(line('1')?.textContent).toBe('phans-mac-mini');
-    expect(line('2')?.textContent).toBe('phans-mac-mini');
-    expect(line('3')?.textContent).toBe('phans-macbook-pro · mất liên lạc');
+    expect(line('1')?.textContent).toBe('demo-mac-01');
+    expect(line('2')?.textContent).toBe('demo-mac-01');
+    expect(line('3')?.textContent).toBe('demo-mac-02 · mất liên lạc');
     expect(line('4')?.textContent).toBe('Đã gỡ ghép');
     expect(line('5')).toBeNull();
     expect(batchCalls(calls)).toHaveLength(1);
@@ -259,9 +346,9 @@ describe('nhãn máy trên thẻ Bảng', () => {
 
 describe('luật nhãn máy', () => {
   it('tên gọn bỏ hậu tố miền', () => {
-    expect(machineShortName('phans-macbook-pro.local')).toBe('phans-macbook-pro');
+    expect(machineShortName('demo-mac-02.local')).toBe('demo-mac-02');
     expect(machineShortName('mini.tail1234.ts.net')).toBe('mini');
-    expect(machineShortName('Phans-Mac-mini')).toBe('Phans-Mac-mini');
+    expect(machineShortName('Demo-Mac-01')).toBe('Demo-Mac-01');
   });
 
   it('hai máy trùng tên gọn: máy sau thêm "#2", không dùng id', () => {

@@ -216,7 +216,8 @@ export function IssuesPage() {
     () => ofKind.filter((i) => matchesMachine(i, state.machine, machineItems)),
     [ofKind, state.machine, machineItems],
   );
-  // Mục Máy của bộ lọc: máy có trong danh sách (theo tên), số yêu cầu sau lọc loại, cuối là Chưa ghim.
+  // Mục Máy của bộ lọc: máy có trong danh sách (theo tên), số yêu cầu sau lọc loại, cuối là Chưa ghim. Giá trị
+  // `?machine=` không còn máy nào khớp (link cũ, máy không còn yêu cầu) vẫn là một ô đang tích để thấy và bỏ được.
   const machineOptions = useMemo(() => {
     if (!machineItems) return [];
     const counts = machineCounts(ofKind, machineItems);
@@ -226,6 +227,7 @@ export function IssuesPage() {
     const named = [...byId.values()].sort((a, b) =>
       (machineNames.get(a.machineId) ?? '\uffff').localeCompare(machineNames.get(b.machineId) ?? '\uffff', 'vi'),
     );
+    const selectedGone = state.machine !== '' && !counts.has(state.machine);
     return [
       ...named.map((m) => ({
         value: m.machineId,
@@ -233,11 +235,14 @@ export function IssuesPage() {
         content: <IssueMachineLabel machine={m} names={machineNames} variant="option" />,
         count: counts.get(m.machineId),
       })),
-      ...(counts.has(MACHINE_FILTER_NONE)
-        ? [{ value: MACHINE_FILTER_NONE, label: t('machine.unpinned'), count: counts.get(MACHINE_FILTER_NONE) }]
+      ...(selectedGone && state.machine !== MACHINE_FILTER_NONE
+        ? [{ value: state.machine, label: t('machine.gone'), count: 0 }]
+        : []),
+      ...(counts.has(MACHINE_FILTER_NONE) || (selectedGone && state.machine === MACHINE_FILTER_NONE)
+        ? [{ value: MACHINE_FILTER_NONE, label: t('machine.unpinned'), count: counts.get(MACHINE_FILTER_NONE) ?? 0 }]
         : []),
     ];
-  }, [machineItems, machineNames, ofKind, t]);
+  }, [machineItems, machineNames, ofKind, state.machine, t]);
   const board = state.view === 'board';
   const boardIssues = useMemo(
     () => (board ? [...visible].sort(sortCompare(state.sort)) : []),
@@ -400,12 +405,26 @@ export function IssuesPage() {
   };
 
   const body = () => {
-    // Đang lọc theo máy mà lô máy chưa về: chờ, không báo "không có yêu cầu".
-    if (issues.isLoading || (state.machine && machines.isLoading)) return <Skeleton aria-label={tc('ui.loading')} />;
+    if (issues.isLoading) return <Skeleton aria-label={tc('ui.loading')} />;
     if (issues.error) {
       return (
         <ErrorState title={t('page.loadFailed')} message={issues.error.message} onRetry={() => void issues.refetch()} />
       );
+    }
+    // Đang lọc theo máy thì danh sách phụ thuộc lô máy: lô lỗi thì báo lỗi (không báo "không có yêu cầu"); lô đang tải,
+    // hay còn là bản của tập yêu cầu trước (`isPlaceholderData` sau khi đổi bộ lọc server), thì chờ, không lọc bằng map cũ.
+    if (state.machine && machines.error) {
+      return (
+        <ErrorState
+          title={t('machine.filterFailed')}
+          message={machines.error.message}
+          onRetry={() => void machines.refetch()}
+          retryLabel={t('machine.retry')}
+        />
+      );
+    }
+    if (state.machine && (machines.isLoading || machines.isPlaceholderData)) {
+      return <Skeleton aria-label={tc('ui.loading')} />;
     }
     if (board) {
       return (
@@ -623,7 +642,7 @@ export function IssuesPage() {
           <EmptyState title={tg('issuesGroup.empty')} />
         )
       ) : null}
-      {machines.error && !pendingOnly ? (
+      {machines.error && !pendingOnly && !state.machine ? (
         <InlineError>
           {t('machine.loadFailed')}{' '}
           <Button type="button" variant="link" size="xs" onClick={() => void machines.refetch()}>

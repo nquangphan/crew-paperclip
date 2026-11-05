@@ -12,7 +12,7 @@ export type IssueMachines = Readonly<Record<string, IssueMachineSummary | null>>
 /** Giá trị lọc "Chưa ghim" trong `?machine=` (không dùng `none`: `patchParams` coi `none` là mặc định và bỏ khóa). */
 export const MACHINE_FILTER_NONE = 'unpinned';
 
-/** Tên gọn: hostname máy báo, bỏ hậu tố miền (`phans-macbook-pro.local` → `phans-macbook-pro`). */
+/** Tên gọn: hostname máy báo, bỏ hậu tố miền (`demo-mac-02.local` → `demo-mac-02`). */
 export function machineShortName(hostname: string): string {
   const short = hostname.split('.')[0];
   return short || hostname;
@@ -66,11 +66,14 @@ export function machineCounts(issues: readonly CompactIssue[], items: IssueMachi
 /** Máy của mọi yêu cầu đang tải: một request lô (client chia khúc 500 id), khóa trong `queryKeys.crew`. */
 export function useIssueMachines(companyId: string, issues: readonly CompactIssue[] | undefined) {
   const issueIds = useMemo(() => (issues ?? []).map((i) => i.id).sort(), [issues]);
+  const enabled = issueIds.length > 0;
   return useQuery({
     queryKey: queryKeys.crew('issue-machines', { companyId, issueIds }),
     queryFn: () => api.machinePins.issueMachines(companyId, issueIds),
-    enabled: issueIds.length > 0,
-    // Đổi bộ lọc server (trạng thái, project…) thì giữ nhãn cũ tới khi lô mới về, không nháy skeleton cả danh sách.
-    placeholderData: keepPreviousData,
+    enabled,
+    // Đổi bộ lọc server (trạng thái, project…) thì giữ nhãn cũ tới khi lô mới về, không nháy skeleton ô Máy. Bản cũ
+    // (`isPlaceholderData`) không dùng để lọc theo máy (`IssuesPage` chờ lô mới). Danh sách rỗng thì query tắt, không
+    // giữ bản cũ để khỏi kẹt ở trạng thái chờ.
+    placeholderData: enabled ? keepPreviousData : undefined,
   });
 }

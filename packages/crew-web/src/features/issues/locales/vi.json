@@ -596,6 +596,8 @@
     "loading": "Đang tải máy",
     "loadFailed": "Không tải được máy của các yêu cầu.",
     "missing": "Không tải được máy",
+    "gone": "Máy không còn trong danh sách",
+    "filterFailed": "Không lọc được theo máy vì không tải được máy của các yêu cầu.",
     "retry": "Thử lại"
   }
 }
