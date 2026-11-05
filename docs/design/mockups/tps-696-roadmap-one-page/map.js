@@ -386,7 +386,10 @@
     const r = NODES.get(f.id); return { cx: r.x, cy: r.y + 40, k: 1.05 };
   }
   const parse = () => {
-    const m = /^#([prtd])=(.+)$/.exec(decodeURIComponent(location.hash));
+    // Hash có % sai (vd. #r=%E0%A4%A) thì coi như toàn cảnh, không để URIError dừng khởi tạo bản đồ.
+    let raw = '';
+    try { raw = decodeURIComponent(location.hash); } catch { raw = ''; }
+    const m = /^#([prtd])=(.+)$/.exec(raw);
     if (!m) return { kind: 'overview', id: null };
     const kind = { p: 'project', r: 'request', t: 'ticket', d: 'docs' }[m[1]];
     return NODES.has(m[2]) || CLUSTERS.some((c) => c.p.id === m[2]) ? { kind, id: m[2] } : { kind: 'overview', id: null };

@@ -127,7 +127,8 @@
     canvas.hidden = true;
     const list = document.getElementById('list'); list.hidden = false;
     const D = window.ROADMAP_DATA;
-    const cur = decodeURIComponent(location.hash).split('=')[1];
+    let cur;
+    try { cur = decodeURIComponent(location.hash).split('=')[1]; } catch { cur = undefined; } // hash có % sai: không tô mục nào
     const row = (n, title, meta, glyph) => `<button type="button" class="row" ${n === cur ? 'aria-current="true"' : ''}>${glyph}<span>${title}</span><span class="m">${meta}</span></button>`;
     const st = (s) => `<span style="--tone:var(--roadmap-tone-${s});display:inline-flex">${icon(s, 'glyph')}</span>`;
     const ticket = (t) => `<li>${row(t.id, `<b class="ident">${t.id}</b> ${t.title}`, `${S[t.status]}${t.assignee ? ' · ' + t.assignee : ''}`, st(t.status))}${t.children.length ? `<ul>${t.children.map(ticket).join('')}</ul>` : ''}</li>`;
