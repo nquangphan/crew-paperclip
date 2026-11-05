@@ -55,8 +55,8 @@ Luật chính:
    trong `server/src/crew/contribution-routes.ts` (router mount trước route plugin stock).
 9. `server/src/crew/plugin-data-scope.ts` → `crewViewerPluginDataScope`: cho viewer của company Crew đọc các data key
    trong `CREW_VIEWER_DATA_KEYS`; mọi trường hợp khác trả `undefined` để route stock kiểm như cũ (đóng khi lỗi).
-   Cùng file, `crewRoadmapViewerScope` ghi đè `params.viewer` của data `crew.roadmap` bằng project người gọi được xem
-   (flow `roadmap-map`).
+   Cùng file, `crewRoadmapViewerScope` ghi đè `params.viewer` của data `crew.roadmap` bằng project người gọi được xem,
+   so trên key đã decode nên mọi cách viết key (`crew%2Eroadmap`…) đều bị ghi đè (flow `roadmap-map`).
 
 ## Files
 

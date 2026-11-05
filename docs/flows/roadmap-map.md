@@ -48,10 +48,14 @@ Luật chính:
    thật (165 yêu cầu, 630 issue): 3 query, ~13 ms ở Postgres, 426 KB JSON, 15 KB gzip; cách cũ cần danh sách cả company
    2 MB (3,5 – 6,5 s) cộng một lần gọi cây cho mỗi yêu cầu (101 lần, ~2 s mỗi lần).
 4. `server/src/crew/plugin-data-scope.ts` → `crewRoadmapViewerScope` (gắn trong `crewContributionRoutes`, trước route
-   plugin stock, không thêm vá lõi): với `POST /plugins/:pluginId/data/crew.roadmap` và `bridge/data` có
-   `key: "crew.roadmap"`, tính `visibleProjectsFor` của người gọi và ghi đè `params.viewer` (owner `{ all: true }`,
-   người khác `{ all: false, projectIds }`); actor không phải phiên trình duyệt, company không thuộc phiên hay lỗi đọc
-   quyền thì phạm vi rỗng. Key nằm trong `CREW_VIEWER_DATA_KEYS` để viewer đọc được.
+   plugin stock, không thêm vá lõi, gắn trên `CREW_ROADMAP_SCOPE_PATHS`): với `POST /plugins/:pluginId/data/:key` có
+   `req.params.key` ĐÃ DECODE là `crew.roadmap` (mọi cách viết: `crew.roadmap`, `crew%2Eroadmap`, `crew%2eroadmap`…)
+   và `bridge/data` có `key: "crew.roadmap"`, tính `visibleProjectsFor` của người gọi và ghi đè `params.viewer` (owner
+   `{ all: true }`, người khác `{ all: false, projectIds }`); actor không phải phiên trình duyệt, company không thuộc
+   phiên hay lỗi đọc quyền thì phạm vi rỗng. Không gắn trên literal `data/crew.roadmap`: Express khớp route trên path
+   chưa decode nhưng decode `req.params.key`, nên `crew%2Eroadmap` từng lọt qua middleware mà route stock vẫn chuyển
+   viewer client gửi cho worker. Chỉ `crew.roadmap` đọc `params.viewer`; key khác đi nguyên. Key nằm trong
+   `CREW_VIEWER_DATA_KEYS` để viewer đọc được.
 5. `packages/crew-plugin/src/handlers/runs.ts` → `loadMapRuns`, `loadRequestRuns`: run tóm tắt theo issue, cùng nguồn
    với báo cáo chi phí (`heartbeat_runs` + `cost_events`), tối đa `MAP_RUNS_LIMIT` mỗi việc.
 6. `packages/crew-plugin/src/ui/map/project.ts` → `projectCrewMap` và `layout.ts` → `layoutHierarchy`: chiếu bản đồ
@@ -125,7 +129,9 @@ Luật chính:
   cấp một project không thấy project khác, yêu cầu ngoài project hay nhánh con ở project không được cấp, viewer thiếu
   hoặc sai thì rỗng; dữ liệu cỡ company thật (165 yêu cầu) dùng cùng số query như 10 yêu cầu (≤ 3) và in số đo.
 - `server/src/__tests__/crew-roadmap-viewer-scope.test.ts`: server ghi đè `params.viewer` (viewer client tự gửi bị bỏ),
-  owner thấy hết, actor khác hoặc lỗi đọc quyền thì rỗng, key khác giữ nguyên, middleware gắn trong router Crew;
+  owner thấy hết, actor khác hoặc lỗi đọc quyền thì rỗng, key khác giữ nguyên, middleware gắn trong router Crew; qua
+  router Crew thật, mọi cách viết key (`crew%2Eroadmap`, `crew%2eroadmap`, `%63rew.roadmap`, `/` cuối) và `bridge/data`
+  gửi `viewer={all:true}` thì worker vẫn nhận project được cấp;
   `crew-plugin-data-viewer.test.ts` (flow `crew-plugin`) ghim `crew.roadmap` trong danh sách key viewer đọc được.
 - `packages/crew-plugin/src/__tests__/map-runs.test.ts`: model và tiền của run, thứ tự ưu tiên nguồn, `null` khi không có.
 - `packages/crew-plugin/src/ui/map/component.test.ts`, `project.test.ts`: thẻ việc trong UI stock, chiếu cạnh không bịa

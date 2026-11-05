@@ -92,11 +92,21 @@ const CLOSED: RoadmapViewerScope = { all: false, projectIds: [] };
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /**
+ * Đường dẫn router Crew gắn {@link crewRoadmapViewerScope}: đúng hai route data stock. Gắn trên `:key` chứ không trên
+ * literal `data/crew.roadmap`: Express khớp route trên path CHƯA decode nhưng decode `req.params.key`, nên
+ * `data/crew%2Eroadmap` không khớp literal mà route stock vẫn nhận `key = "crew.roadmap"`.
+ */
+export const CREW_ROADMAP_SCOPE_PATHS = ["/plugins/:pluginId/data/:key", "/plugins/:pluginId/bridge/data"];
+
+/**
  * Worker plugin không biết ai đang xem, nên trước route data stock, router Crew tính phạm vi xem project của người gọi
- * cho `crew.roadmap` (`POST /plugins/:pluginId/data/crew.roadmap`, và `bridge/data` có `key: "crew.roadmap"`) rồi
- * GHI ĐÈ `params.viewer` (giá trị client tự gửi bị bỏ). Cùng luật với `project-access/me`: chỉ actor board đăng nhập
- * bằng phiên trình duyệt; owner `{ all: true }`, người khác project được cấp. Actor khác, company không thuộc phiên,
- * uuid sai hay lỗi đọc quyền thì `{ all: false, projectIds: [] }` (đóng khi lỗi). Kiểm quyền company vẫn do route stock.
+ * cho `crew.roadmap` (`POST /plugins/:pluginId/data/:key` có key đã decode là `crew.roadmap`, với mọi cách viết như
+ * `crew%2Eroadmap`; và `bridge/data` có `key: "crew.roadmap"`) rồi GHI ĐÈ `params.viewer` (giá trị client tự gửi bị
+ * bỏ). Key so đúng giá trị route stock chuyển cho worker: `req.params.key` đã decode, hay `body.key` của `bridge/data`.
+ * Cùng luật với `project-access/me`: chỉ actor board đăng nhập bằng phiên trình duyệt; owner `{ all: true }`, người
+ * khác project được cấp. Actor khác, company không thuộc phiên, uuid sai hay lỗi đọc quyền thì
+ * `{ all: false, projectIds: [] }` (đóng khi lỗi). Kiểm quyền company vẫn do route stock. Chỉ `crew.roadmap` đọc
+ * `params.viewer`; key khác trong {@link CREW_VIEWER_DATA_KEYS} đi nguyên.
  */
 export function crewRoadmapViewerScope(
   db: Db,
@@ -104,7 +114,9 @@ export function crewRoadmapViewerScope(
 ): RequestHandler {
   return (req: Request, _res: Response, next: NextFunction) => {
     const body = (req.body && typeof req.body === "object" ? req.body : {}) as Record<string, unknown>;
-    if (req.path.endsWith("/bridge/data") && body.key !== CREW_ROADMAP_DATA_KEY) {
+    // Route `data/:key`: key worker nhận là `req.params.key` đã decode; route `bridge/data`: `body.key`.
+    const key = typeof req.params.key === "string" ? req.params.key : body.key;
+    if (key !== CREW_ROADMAP_DATA_KEY) {
       next();
       return;
     }
