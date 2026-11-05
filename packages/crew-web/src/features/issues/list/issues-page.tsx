@@ -4,6 +4,8 @@
 // vạch Hôm nay/Hôm qua. Giữ phần Crew: cột giai đoạn và x/y con xong, nhóm và chip Chờ duyệt, chế độ chỉ đọc.
 // Nút Danh sách/Bảng như Paperclip: chế độ Bảng (`issues-board.tsx`) dùng cùng dữ liệu và bộ lọc, ẩn Sắp xếp/Nhóm, hiện
 // nút mật độ bảng. Mọi trạng thái xem nằm trong URL (`use-issues.ts`), trừ nhóm/nhánh đang thu gọn.
+// Nhãn máy (TPS-753, mockup docs/design/mockups/tps-750-machine-label): cột Máy trên desktop, dòng phụ dưới tiêu đề ở
+// màn hẹp, dòng cuối thẻ Bảng, mục Máy trong bộ lọc; một request lô cho mọi yêu cầu (`machines.ts`).
 import type { CompactIssue } from '@paperclipai/shared';
 import { type ReactNode, useEffect, useMemo, useState } from 'react';
 import { Link, useLocation, useSearchParams } from 'react-router-dom';
@@ -19,12 +21,15 @@ import {
   EmptyState,
   ErrorState,
   Identity,
+  InlineError,
   IssueGroup,
   IssueListRow,
   KanbanToolbarControls,
   LabelPill,
   ListItemRow,
   LiveBadge,
+  MachineLabelMissing,
+  MachineLabelPending,
   MutedText,
   RowCell,
   RowNote,
@@ -61,6 +66,8 @@ import {
   groupIssues,
   liveIssueIds,
 } from './list-view';
+import { IssueMachineLabel } from './machine-label';
+import { MACHINE_FILTER_NONE, machineCounts, machineDisplayNames, matchesMachine } from './machines';
 import { buildIssueTree, flattenTree, type TreeNode } from './tree';
 import {
   COLUMN_IDS,
@@ -153,7 +160,7 @@ export function IssuesPage() {
   const opener = useIssueOpener();
   const [params, setParams] = useSearchParams();
   const state = useMemo(() => parseListState(params), [params]);
-  const { issues, roots, projects, agents, liveRuns } = useIssuesData(company.id, state);
+  const { issues, roots, projects, agents, liveRuns, machines } = useIssuesData(company.id, state);
   const selectable = useSelectableAgents(company.id);
   const [collapsedParents, setCollapsedParents] = useState<Set<string>>(new Set());
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
@@ -199,10 +206,38 @@ export function IssuesPage() {
   const agentName = useMemo(() => new Map((agents.data ?? []).map((a) => [a.id, a.name])), [agents.data]);
   const live = useMemo(() => liveIssueIds(liveRuns.data, issues.data ?? []), [liveRuns.data, issues.data]);
 
-  const visible = useMemo(
+  const machineItems = machines.data;
+  const machineNames = useMemo(() => machineDisplayNames(Object.values(machineItems ?? {})), [machineItems]);
+  const ofKind = useMemo(
     () => (issues.data ?? []).filter((i) => matchesKind(i, state.kind, rootsById)),
     [issues.data, state.kind, rootsById],
   );
+  const visible = useMemo(
+    () => ofKind.filter((i) => matchesMachine(i, state.machine, machineItems)),
+    [ofKind, state.machine, machineItems],
+  );
+  // Mục Máy của bộ lọc: máy có trong danh sách (theo tên), số yêu cầu sau lọc loại, cuối là Chưa ghim.
+  const machineOptions = useMemo(() => {
+    if (!machineItems) return [];
+    const counts = machineCounts(ofKind, machineItems);
+    const byId = new Map(
+      Object.values(machineItems).flatMap((m) => (m && counts.has(m.machineId) ? [[m.machineId, m] as const] : [])),
+    );
+    const named = [...byId.values()].sort((a, b) =>
+      (machineNames.get(a.machineId) ?? '\uffff').localeCompare(machineNames.get(b.machineId) ?? '\uffff', 'vi'),
+    );
+    return [
+      ...named.map((m) => ({
+        value: m.machineId,
+        label: machineNames.get(m.machineId) ?? t('machine.unpaired'),
+        content: <IssueMachineLabel machine={m} names={machineNames} variant="option" />,
+        count: counts.get(m.machineId),
+      })),
+      ...(counts.has(MACHINE_FILTER_NONE)
+        ? [{ value: MACHINE_FILTER_NONE, label: t('machine.unpinned'), count: counts.get(MACHINE_FILTER_NONE) }]
+        : []),
+    ];
+  }, [machineItems, machineNames, ofKind, t]);
   const board = state.view === 'board';
   const boardIssues = useMemo(
     () => (board ? [...visible].sort(sortCompare(state.sort)) : []),
@@ -228,6 +263,7 @@ export function IssuesPage() {
     state.projectId,
     state.assigneeAgentId,
     state.kind === 'all' ? '' : state.kind,
+    state.machine,
   ].filter(Boolean).length;
 
   const setNewOpen = (open: boolean) =>
@@ -248,6 +284,14 @@ export function IssuesPage() {
       <span className="hidden sm:inline-flex">{t('new.button')}</span>
     </Button>
   );
+
+  /** Ô cột Máy: nhãn, chờ lô về, hoặc "—" khi tải lỗi. */
+  const machineCell = (issue: CompactIssue): ReactNode => {
+    const m = machineItems?.[issue.id];
+    if (m !== undefined) return <IssueMachineLabel machine={m} names={machineNames} variant="cell" />;
+    if (machines.error) return <MachineLabelMissing title={t('machine.missing')} />;
+    return machines.isFetching ? <MachineLabelPending label={t('machine.loading')} /> : null;
+  };
 
   const metadata = (issue: CompactIssue): ReactNode => {
     const root = rootsById.get(issue.id);
@@ -270,6 +314,7 @@ export function IssuesPage() {
               : null}
           </RowCell>
         ) : null}
+        {show('machine') ? <RowCell size="lg">{machineCell(issue)}</RowCell> : null}
         {show('assignee') ? (
           <RowCell size="lg" title={assignee}>
             {assignee ? <Identity name={assignee} /> : null}
@@ -324,6 +369,11 @@ export function IssuesPage() {
         titleSuffix={
           hasChildren && !expanded ? <RowNote>{t('list.children', { count: countDescendants(node) })}</RowNote> : null
         }
+        subline={
+          machineItems?.[issue.id] ? (
+            <IssueMachineLabel machine={machineItems[issue.id]} names={machineNames} variant="inline" />
+          ) : null
+        }
         metadata={metadata(issue)}
         identifier={show('id') ? identifier : null}
         time={show('updated') ? { text: formatRelative(at, lang), title: formatDateTime(at, lang) } : null}
@@ -350,7 +400,8 @@ export function IssuesPage() {
   };
 
   const body = () => {
-    if (issues.isLoading) return <Skeleton aria-label={tc('ui.loading')} />;
+    // Đang lọc theo máy mà lô máy chưa về: chờ, không báo "không có yêu cầu".
+    if (issues.isLoading || (state.machine && machines.isLoading)) return <Skeleton aria-label={tc('ui.loading')} />;
     if (issues.error) {
       return (
         <ErrorState title={t('page.loadFailed')} message={issues.error.message} onRetry={() => void issues.refetch()} />
@@ -363,6 +414,8 @@ export function IssuesPage() {
           issues={boardIssues}
           state={state}
           rootsById={rootsById}
+          machines={machineItems}
+          machineNames={machineNames}
           agentName={agentName}
           live={live}
           qcStates={qcStates}
@@ -486,7 +539,7 @@ export function IssuesPage() {
               title={t('list.filterTitle')}
               clearLabel={t('list.clear')}
               activeCount={filterCount}
-              onClear={() => patch({ status: null, projectId: null, assigneeAgentId: null, kind: null })}
+              onClear={() => patch({ status: null, projectId: null, assigneeAgentId: null, kind: null, machine: null })}
               sections={[
                 {
                   id: 'status',
@@ -521,6 +574,13 @@ export function IssuesPage() {
                     value: k,
                     label: t(`list.kindOption.${k}`),
                   })),
+                },
+                {
+                  id: 'machine',
+                  label: t('list.machine'),
+                  value: state.machine,
+                  onChange: (v) => patch({ machine: v }),
+                  options: machineOptions,
                 },
               ]}
             />
@@ -562,6 +622,14 @@ export function IssuesPage() {
         ) : (
           <EmptyState title={tg('issuesGroup.empty')} />
         )
+      ) : null}
+      {machines.error && !pendingOnly ? (
+        <InlineError>
+          {t('machine.loadFailed')}{' '}
+          <Button type="button" variant="link" size="xs" onClick={() => void machines.refetch()}>
+            {t('machine.retry')}
+          </Button>
+        </InlineError>
       ) : null}
       {pendingOnly ? null : body()}
       <NewRequestDialog

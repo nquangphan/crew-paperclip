@@ -95,7 +95,8 @@ fallback) dựa vào kho git dùng chung trên một máy. Owner chọn máy lú
    - lỗi bất ngờ khi cây đã ghim hay đang ghi ghim: `hold`; lỗi trước khi biết có ghim: `pass` với `null` như stock.
 5. `server/src/crew/machine-routes.ts` (route của owner):
    - `POST …/issue-machines` (đọc, mọi thành viên, quyền như `GET …/issues/:issueId/machine`): máy ghim cho danh sách issue
-     và board (flow `issues-web`), 1–500 id mỗi lần (`ISSUE_MACHINES_MAX`), id trùng được gộp. `issueMachines`
+     và board (flow `issues-web`: crew-web gọi một lần cho mọi yêu cầu đã tải qua `api.machinePins.issueMachines`, chia
+     khúc 500 id; tên hiện là hostname bỏ hậu tố miền, `paired=false` hiện "Đã gỡ ghép"), 1–500 id mỗi lần (`ISSUE_MACHINES_MAX`), id trùng được gộp. `issueMachines`
      (`machine-pin.ts`) trả cả lô trong một truy vấn: CTE đệ quy lên gốc (cùng luật `findRootIssueId`/`pinnedMachineId`,
      sâu tối đa `MAX_TREE_DEPTH`), join `issue_machine_pins`, `machine_pairings` chưa gỡ và `machine_latest`; số truy vấn
      không tăng theo số issue. Issue con và cháu nhận máy của gốc (`rootIssueId` là gốc); cây chưa ghim hay không tìm được

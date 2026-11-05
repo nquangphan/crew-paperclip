@@ -40,6 +40,19 @@ Luật chính:
 1. `packages/crew-web/src/features/issues/list/issues-page.tsx` → `IssuesPage`: danh sách cây (`buildIssueTree`), nhóm
    và vạch ngày theo giờ Việt Nam (`list-view.ts`), bộ lọc trong URL (`use-issues.ts`); chế độ Bảng
    (`issues-board.tsx`) kéo thẻ gửi PATCH trạng thái, server từ chối thì thẻ về cột cũ và hiện lỗi nguyên văn.
+   Nhãn máy (mockup đã duyệt `docs/design/mockups/tps-750-machine-label`): `useIssuesData` gọi `useIssueMachines`
+   (`machines.ts`) MỘT request lô `POST …/issue-machines` cho mọi yêu cầu đã tải (khóa `queryKeys.crew('issue-machines',
+   { companyId, issueIds })`; client chia khúc 500 id nên chỉ danh sách trên 500 yêu cầu mới có hơn một request), không
+   gọi máy từng yêu cầu. `IssueMachineLabel` (`machine-label.tsx`) dựng widget ds `MachineLabel` theo bốn trạng thái
+   (`machineStateOf`): online chấm xanh, offline icon WifiOff, đã gỡ ghép icon Unlink (server không trả tên nên ghi "Đã gỡ
+   ghép"), chưa ghim chỉ chữ "Chưa ghim". Tên là hostname bỏ hậu tố miền (`machineShortName`); hai máy trùng tên thì máy
+   sau thêm "#2" theo thứ tự `machineId` (`machineDisplayNames`); không bao giờ hiện `machineId`. Cột `machine` (mặc
+   định bật, tắt trong menu Cột) có tooltip tên đầy đủ và lý do; dưới `sm` nhãn xuống dòng phụ dưới tiêu đề (`subline`
+   của `IssueListRow`) kèm chữ trạng thái, chưa ghim thì không có dòng phụ; thẻ Bảng có dòng máy cuối thẻ
+   (`KanbanCardData.machine`), chưa ghim thì không có. Đang tải: ô Máy là skeleton; route lỗi: ô ghi "—" và dòng lỗi có
+   nút Thử lại, danh sách vẫn hiện. Lọc theo máy: mục "Máy" trong popover Lọc (`?machine=<machineId>` hay
+   `?machine=unpinned`, `ListState.machine`), lọc ở máy khách (`matchesMachine`, con theo máy của gốc), mỗi máy kèm số
+   yêu cầu (`machineCounts`) sau lọc loại; đổi bộ lọc máy không gọi lại route lô.
 2. `packages/crew-web/src/features/issues/new/new-request-dialog.tsx` → `NewRequestDialog`: chỉ liệt kê project sẵn
    sàng, người nhận cố định là Trợ Lý của project; `use-create-request.ts` → `createRequest` POST issue rồi upload đính
    kèm lần lượt. Owner thấy thêm ô "Máy thực thi" (`machine-field.tsx` → `MachineField`, mặc định "Tự chọn", chỉ liệt kê
@@ -152,7 +165,8 @@ gửi, thông báo mất ở lần gửi sau. Bình luận không có tag không
 
 - Route lõi Paperclip: issue (danh sách, chi tiết, PATCH, tiêu đề), bình luận, đính kèm, tài liệu, activity, run,
   interaction (`respond`), nhãn.
-- Route Crew của server: `GET /machines?projectId=`, `GET|PUT /issues/:id/machine` (xem flow `multi-machine`).
+- Route Crew của server: `GET /machines?projectId=`, `GET|PUT /issues/:id/machine`, `POST /issue-machines` (lô máy
+  của danh sách và Bảng; xem flow `multi-machine`).
 - Route plugin: `issues.force-done`, `bug-finding.get` (`crew.bugFinding`); data key `crew.map`, `crew.docsCheck`,
   `crew.runtimeDecisions`.
 - Activity: `crew.policy.board_override` (gate server), `crew.issue.force_done` (plugin).
@@ -167,7 +181,8 @@ gửi, thông báo mất ở lần gửi sau. Bình luận không có tag không
 - `attachments`: xem và chọn file đính kèm.
 - `contributions`: nhóm Chờ duyệt và bình luận chờ duyệt trong danh sách và luồng bình luận.
 - `qc-department`: nhãn QC trên thẻ của chế độ Bảng.
-- `multi-machine`: route ghim máy mà ô Máy thực thi và dòng Máy gọi.
+- `multi-machine`: route ghim máy mà ô Máy thực thi và dòng Máy gọi, route lô `issue-machines` của nhãn máy trên danh
+  sách và Bảng.
 - `web-shell`: shell gắn popup, quyền ghi hay chỉ đọc.
 - `bug-finding`: route GET lượt Bug Finding và kế hoạch của Trợ Lý mà khối Bug Finding và màn duyệt đọc.
 - `design-system`: `StageStrip`, nhãn giai đoạn `code-bf`.
@@ -185,6 +200,9 @@ gửi, thông báo mất ở lần gửi sau. Bình luận không có tag không
   do và cảnh báo phụ.
 - `packages/crew-web/test/features/issues/issues-page.test.tsx`, `issues-board.test.tsx`, `list-view.test.ts`,
   `tree.test.ts`, `issues-page-pending.test.tsx`: cây và thu gọn, chế độ Bảng, nhóm và vạch ngày, nhóm Chờ duyệt.
+- `packages/crew-web/test/features/issues/issues-machines.test.tsx`: nhãn máy của gốc ghim, con kế thừa, offline, đã gỡ
+  ghép, chưa ghim, không lộ `machineId`; dòng phụ màn hẹp; đúng một request lô cho cả danh sách; lỗi tải có Thử lại; lọc
+  `?machine=` (máy, `unpinned`, popover có số đếm, Xóa) và thẻ Bảng; luật tên gọn, trùng tên "#2", URL state.
 - `packages/crew-web/test/features/issues/new-request-dialog.test.tsx`, `use-create-request.test.ts`, `kinds.test.ts`,
   `kind-labels.test.tsx`, `add-child.test.ts`, `add-child-dialog.test.tsx`: tạo yêu cầu, nhãn loại, thêm việc con.
 - `packages/crew-web/test/features/issues/machine-slot.test.tsx`: dòng Máy (S25.2) và ca ô Máy thực thi của `new-request-dialog.test.tsx` (S25.1).

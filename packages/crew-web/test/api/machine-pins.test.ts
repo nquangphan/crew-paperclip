@@ -64,4 +64,21 @@ describe('machinePins', () => {
       { exceptMachineId: 'm1', includeReady: true, repo: null },
     ]);
   });
+  it('máy của nhiều yêu cầu: một POST lô cho tới 500 id, quá thì chia khúc 500', async () => {
+    const m = { rootIssueId: 'i1', machineId: 'm1', hostname: 'mini', online: true, paired: true };
+    const { calls } = mockServer({
+      [`POST ${BASE}/issue-machines`]: (init) => {
+        const ids: string[] = JSON.parse(String(init?.body)).issueIds;
+        return { body: { items: Object.fromEntries(ids.map((id) => [id, id === 'i2' ? null : m])) } };
+      },
+    });
+    expect(await api.machinePins.issueMachines('c1', ['i1', 'i2'])).toEqual({ i1: m, i2: null });
+    expect(calls).toHaveLength(1);
+    expect(calls[0]).toMatchObject({ method: 'POST', body: { issueIds: ['i1', 'i2'] } });
+
+    const many = Array.from({ length: 501 }, (_, n) => `x${n}`);
+    const items = await api.machinePins.issueMachines('c1', many);
+    expect(Object.keys(items)).toHaveLength(501);
+    expect(calls.slice(1).map((c) => (c.body as { issueIds: string[] }).issueIds.length)).toEqual([500, 1]);
+  });
 });

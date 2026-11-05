@@ -67,6 +67,8 @@ function server(over: Record<string, unknown> = {}) {
     'POST /api/plugins/crew.core/data/crew.roots': { body: { data: ROOTS } },
     'GET /api/companies/c1/projects': { body: [{ id: 'p1', name: 'Alpha', archivedAt: null }] },
     'GET /api/companies/c1/agents': { body: [{ id: 'a1', name: 'Trợ Lý Alpha' }] },
+    // Nhãn máy (route lô): không ghim máy nào.
+    'POST /api/crew/companies/c1/issue-machines': { body: { items: {} } },
     ...over,
   } as Parameters<typeof mockServer>[0]);
 }
@@ -245,7 +247,10 @@ describe('IssuesPage lọc, sắp xếp, nhóm (S4.2)', () => {
     // Bấm lại mục đang chọn thì bỏ lọc.
     fireEvent.click(screen.getByRole('checkbox', { name: 'Đang làm' }));
     await waitFor(() => expect(loc()).toBe('/TPS/issues'));
-    expect(calls.filter((c) => c.method !== 'GET' && !c.url.includes('/data/'))).toEqual([]);
+    // Route lô máy là POST chỉ đọc.
+    expect(
+      calls.filter((c) => c.method !== 'GET' && !c.url.includes('/data/') && !c.url.endsWith('/issue-machines')),
+    ).toEqual([]);
   });
 
   it('lọc loại Nghiên cứu theo nhãn ở máy khách', async () => {

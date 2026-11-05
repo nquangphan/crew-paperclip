@@ -432,6 +432,16 @@ export interface IssueMachine {
   locked: boolean;
   pin: IssueMachinePin | null;
 }
+/** Máy của cây chứa một yêu cầu (route lô `POST …/issue-machines`); `null` là cây chưa ghim máy. */
+export interface IssueMachineSummary {
+  rootIssueId: string;
+  machineId: string;
+  /** Hostname máy báo; `null` khi máy đã gỡ ghép (server không lộ tên cũ). */
+  hostname: string | null;
+  online: boolean;
+  /** `false`: máy đã gỡ ghép, cây không chạy được cho tới khi ghim máy khác. */
+  paired: boolean;
+}
 export interface ProjectRepo {
   originUrl: string;
   branch: string;
