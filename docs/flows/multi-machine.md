@@ -80,7 +80,10 @@ fallback) dựa vào kho git dùng chung trên một máy. Owner chọn máy lú
    - không có issue, bảng chưa có hay project chưa có máy nào trong `project_machines`: `pass` với `null` (hành vi stock);
    - cây chưa ghim: `chooseMachine` (cờ `provisionable` từ `projectProvisionable`) rồi ghim `auto`, activity
      `crew.machine.pinned`; không chọn được máy thì `pass` với `null`;
-   - cây đã ghim, agent có environment trên máy ghim: `pass` kèm id đó (cổng tải đo tải trên environment này);
+   - cây đã ghim, agent có environment trên máy ghim: `reconcileProjectMachine` cho dòng `project_machines` của máy ghim
+     (chỉ đổi dòng `provisioning`; lỗi chỉ ghi log) rồi `pass` kèm id đó (cổng tải đo tải trên environment này). Không
+     có bước này thì dòng kẹt `provisioning`, `repo_path` rỗng khi mọi agent đã có environment trên máy (sự cố TPS-723,
+     05/11/2026: Bug Finding báo "Máy đã ghim chưa có repo của project");
    - máy ghim không còn ghép, hay agent không phải vai trò của project mà environment mặc định là SSH trên Mac khác:
      `hold` (không bao giờ rơi về environment mặc định trên máy khác); agent chạy trên server (không có environment
      SSH) thì `pass` với `null`;
@@ -105,6 +108,12 @@ fallback) dựa vào kho git dùng chung trên một máy. Owner chọn máy lú
      sai thì 422 `crew_machine_invalid`, đúng thì `writeProjectRepo`.
    - `GET …/projects/:projectId/machines`: trước khi trả, `reconcileProjectMachine` mọi dòng `provisioning` để trang project
      thấy kết quả việc dựng mà không chờ run.
+
+   Nơi đối chiếu dòng `provisioning` (`reconcileProjectMachine`, trả nguyên khi dòng đã `ready`/`failed`): cổng claim với
+   mọi run của cây ghim vào máy đó, kể cả khi agent đã có environment (bước 4), và route `GET …/machines` của trang Máy.
+   Việc máy `ensure-project` chuyển `done`/`failed` ở route kết quả của plugin (flow `machine-jobs`), nơi không gọi được
+   hàm server, nên không đối chiếu ở đó. Bug Finding (flow `bug-finding`, `chooseMachine`) chỉ đọc: dòng còn
+   `provisioning` mà việc `ensure-project` mới nhất đã `done` kèm `repoPath` thì dùng `repoPath` đó, không ghi dòng.
 6. Gỡ và thêm (`server/src/crew/machine-release.ts`; phần owner duyệt thêm ngoài spec, 24/10/2026): mọi đường gỡ (wizard
    web gỡ project/agent, app 2P Crew gỡ project) hỏi `…/machines/blockers` trước khi pause và gọi `…/machines/release` sau
    khi archive environment mặc định; mọi đường thêm (wizard thêm project/agent, app thêm project) gọi
@@ -190,7 +199,8 @@ lần mỗi run).
   không chặn issue, dựng hỏng thì `fail` (qua cổng claim: hủy run, issue `blocked`), chờ quá 60 phút thì `fail` mà việc
   vẫn chờ, ghim của owner giữ nguyên, máy ghim đã gỡ hay agent ngoài vai trò trên Mac khác thì giữ run và quá 60 phút
   thì `fail` với lý do riêng, lỗi bất ngờ khi
-  cây đã ghim thì giữ run.
+  cây đã ghim thì giữ run; agent đã có environment trên máy ghim và việc `ensure-project` `done` thì `pass` như cũ và
+  dòng `provisioning` thành `ready` kèm `repo_path`, dòng `ready`/`failed` không đổi, đối chiếu lỗi vẫn `pass`.
 - `server/src/__tests__/crew-load-gate.test.ts` (`ghim máy trong cổng claim`): `pass` kèm environment, `hold`, `fail`,
   cổng ném lỗi thì giữ run, `probeKeyOf`.
 - `server/src/__tests__/crew-run-environment.test.ts` (Postgres nhúng): Crew trả environment của máy ghim thì heartbeat dùng

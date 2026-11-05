@@ -17,7 +17,10 @@ Luật chính:
 - Một vòng + một head PR chỉ có một lượt đang dùng: vào lại stage cầu nối với cùng head không xếp thêm; reviewer xếp lại
   (`retry`) chỉ khi lượt mới nhất của head đó hỏng.
 - Head PR là sha của `crew-pr` mới nhất do agent stage gộp viết; số PR lấy từ URL pull request GitHub.
-- Máy: máy đã ghim cho cây (`issue_machine_pins`), không ghim thì máy `ready` của project (`project_machines`). Máy phải
+- Máy: máy đã ghim cho cây (`issue_machine_pins`), không ghim thì máy `ready` của project (`project_machines`). Dòng còn
+  `provisioning` mà việc `ensure-project` mới nhất của project trên máy đã `done` kèm `repoPath` tuyệt đối thì coi như
+  `ready` với `repoPath` đó (chỉ đọc, không ghi dòng; server đối chiếu dòng ở cổng claim, flow `multi-machine`); dòng
+  `ready`/`failed` đọc như cũ. Máy phải
   có repo của project và app báo `jobsAgent.capabilities` có `bug-finding-review`; không thì không xếp việc máy, lượt
   `failed` với lý do (máy chưa có app hỗ trợ: "Mac chưa cập nhật 2P Crew có Bug Finding").
 - Kết quả chỉ nhận từ đúng máy được giao (403), đúng head của lượt (422 `head_mismatch`), lượt chưa kết thúc (409);
@@ -119,7 +122,9 @@ Luật chính:
 
 - `packages/crew-plugin/src/__tests__/bug-finding.db.test.ts`: vào stage cầu nối xếp đúng một việc và một lượt, vào
   lại cùng head không xếp thêm; không xếp khi không ở stage cầu nối, không phải `root-bf` hay chưa có `crew-pr`; máy ghim
-  chưa có app thì lượt `failed`; vòng đủ 3 lượt không xếp; owner yêu cầu sửa sang vòng mới; lượt chạy lại mang
+  chưa có app thì lượt `failed`; máy ghim còn `provisioning` mà việc `ensure-project` đã `done` thì chọn máy ghim với
+  `repoPath` của việc và không đổi dòng, việc chưa xong hay dòng `failed` thì vẫn "Máy đã ghim chưa có repo của project";
+  vòng đủ 3 lượt không xếp; owner yêu cầu sửa sang vòng mới; lượt chạy lại mang
   `crew-bf-feedback` của Trợ Lý; request chỉ reviewer và idempotent; results 403/422/404, tiến độ rồi kết quả hợp lệ có
   document báo cáo, comment và wake, gửi lại 409; GET kèm kế hoạch của Trợ Lý (bỏ comment của agent khác); skip chỉ khi owner đã chấp nhận; watchdog hết giờ 30 phút và 8
   giờ, việc máy hỏng thành `failed`, việc nhận xong thành `queued`.
