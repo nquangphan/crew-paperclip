@@ -4,7 +4,7 @@
 // Run và tiền tải lười theo yêu cầu đang lấy nét (`crew.runs`). Cây Docs của các project có docs tải song song (vài KB
 // mỗi project, chỉ đường và tiêu đề) để đảo Docs có đủ kích thước ngay, bố cục không xê dịch khi tải xong; docs lỗi
 // không chặn bản đồ.
-import { useQueries, useQuery } from '@tanstack/react-query';
+import { useQueries, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useMemo, useRef } from 'react';
 import { api, queryKeys } from '@/api';
 import { useVisibleProjects } from '@/features/access';
@@ -23,9 +23,29 @@ export function docsProjectOf(focus: string | null): string | null {
   return m ? (m[1] ?? m[2] ?? null) : null;
 }
 
+/** Nhánh phụ đang lỗi (docs, cây docs, run): trang báo nhẹ lỗi đầu và Thử lại tải lại mọi nhánh lỗi. */
+export interface PartialFailure {
+  error: Error;
+  refetch: () => void;
+}
+
+/**
+ * Lỗi cuối của một nhánh, giữ qua lần tải lại tới khi tải thành công. TanStack xóa `error` khi bắt đầu tải lại một query
+ * chưa có data (sự kiện live làm tươi mọi khóa `crew`), nên đọc thẳng `error` làm báo lỗi nháy theo từng sự kiện.
+ * `scope` đổi (query khác) thì quên lỗi cũ.
+ */
+function stickyError(memo: Map<string, Error>, scope: string, error: Error | null, ok: boolean): Error | null {
+  if (error) memo.set(scope, error);
+  else if (ok) memo.delete(scope);
+  return memo.get(scope) ?? null;
+}
+
 export function useRoadmapData(companyId: string, p: RoadmapDataParams) {
   const visible = useVisibleProjects();
   const { filterIssues } = visible;
+  const queryClient = useQueryClient();
+  /** Lỗi cuối theo nhánh (khóa: tên nhánh + tham số), xem {@link stickyError}. */
+  const failures = useRef(new Map<string, Error>()).current;
 
   const projects = useQuery({
     queryKey: queryKeys.projects(companyId),
@@ -76,11 +96,9 @@ export function useRoadmapData(companyId: string, p: RoadmapDataParams) {
     combine: (results) => ({
       loading: results.map((q) => q.isPending && q.failureCount === 0),
       data: results.map((q) => q.data ?? null),
-      /** Lỗi cuối của cây đầu tiên tải hỏng (đã hết lượt thử lại); trang báo nhẹ kèm Thử lại các cây lỗi. */
-      error: results.find((q) => q.error)?.error ?? null,
-      refetch: () => {
-        for (const q of results) if (q.error) void q.refetch();
-      },
+      /** Lỗi (đã hết lượt thử lại) và tải xong của từng cây, để giữ lỗi qua lần tải lại. */
+      errors: results.map((q) => q.error),
+      ok: results.map((q) => q.isSuccess),
     }),
   });
   /** Company đã qua lần chờ docs đầu tiên (đổi company thì chờ lại). */
@@ -110,7 +128,27 @@ export function useRoadmapData(companyId: string, p: RoadmapDataParams) {
     enabled: !!docProject && docProjectIds.includes(docProject) && p.doc !== null,
   });
 
-  const docsTrees = { error: trees.error, refetch: trees.refetch };
+  // Nhánh phụ đang lỗi, lỗi giữ qua lần tải lại do sự kiện live tới khi tải thành công.
+  const partial: PartialFailure[] = [];
+  const listError = stickyError(failures, `docs.projects:${companyId}`, docsProjects.error, docsProjects.isSuccess);
+  if (listError) partial.push({ error: listError, refetch: () => void docsProjects.refetch() });
+  const failedTrees = docProjectIds.flatMap((projectId, i) => {
+    const error = stickyError(failures, `docs.tree:${companyId}:${projectId}`, trees.errors[i], trees.ok[i]);
+    return error ? [{ projectId, error }] : [];
+  });
+  if (failedTrees.length > 0) {
+    partial.push({
+      error: failedTrees[0].error,
+      refetch: () => {
+        for (const { projectId } of failedTrees) {
+          const queryKey = queryKeys.crew('crew.docs.tree', { companyId, projectId });
+          void queryClient.refetchQueries({ queryKey, exact: true });
+        }
+      },
+    });
+  }
+  const runsError = stickyError(failures, `runs:${companyId}:${requestId}`, runs.error, runs.isSuccess);
+  if (runsError && requestId) partial.push({ error: runsError, refetch: () => void runs.refetch() });
   return {
     visible,
     projects,
@@ -118,8 +156,7 @@ export function useRoadmapData(companyId: string, p: RoadmapDataParams) {
     roadmap,
     requestId,
     runs,
-    docsProjects,
-    docsTrees,
+    partial,
     docs,
     docProject,
     docTree,

@@ -466,6 +466,59 @@ describe('RoadmapPage một trang', () => {
     expect(partialAlert()).toBeNull();
   });
 
+  it('cây docs lỗi bền: sự kiện live làm tươi khóa crew thì báo nhẹ không nháy', async () => {
+    server({ 'POST /api/plugins/crew.core/data/crew.docs.tree': fail });
+    // Giữ lần tải lại cây docs ở trạng thái đang tải để bắt khoảnh khắc TanStack xóa `error`.
+    const stock = globalThis.fetch;
+    let release: () => void = () => {};
+    let hold: Promise<void> | null = null;
+    let treeCalls = 0;
+    globalThis.fetch = (async (input: string, init?: RequestInit) => {
+      if (String(input).endsWith('/data/crew.docs.tree')) {
+        treeCalls += 1;
+        if (hold) await hold;
+      }
+      return stock(input, init);
+    }) as typeof fetch;
+    mount('/TPS/roadmap?view=list');
+    await waitFor(() => expect(partialAlert()).toBeTruthy());
+    hold = new Promise((resolve) => {
+      release = resolve;
+    });
+    const before = treeCalls;
+    try {
+      // Không chờ promise của invalidate: nó chỉ xong khi lần tải lại (đang bị giữ) xong.
+      act(() => {
+        void client.invalidateQueries({ queryKey: ['crew'] });
+      });
+      await waitFor(() => expect(treeCalls).toBeGreaterThan(before));
+      expect(client.isFetching({ queryKey: ['crew', 'crew.docs.tree'] })).toBeGreaterThan(0);
+      expect(partialAlert()).toBeTruthy();
+    } finally {
+      release();
+    }
+    await waitFor(() => expect(client.isFetching()).toBe(0));
+    expect(partialAlert()).toBeTruthy();
+  });
+
+  it('cây docs và run cùng lỗi: một lần Thử lại tải lại cả hai, báo nhẹ tắt', async () => {
+    let ok = false;
+    const { calls } = server({
+      'POST /api/plugins/crew.core/data/crew.docs.tree': () => (ok ? TREE : fail),
+      'POST /api/plugins/crew.core/data/crew.runs': () => (ok ? { body: { data: { byIssue: {}, tree: null } } } : fail),
+    });
+    mount('/TPS/roadmap?focus=TPS-1');
+    await waitFor(() => expect(partialAlert()).toBeTruthy());
+    await waitFor(() => expect(calls.filter((c) => c.url.endsWith('/data/crew.runs'))).toHaveLength(1));
+    const count = (key: string) => calls.filter((c) => c.url.endsWith(`/data/${key}`)).length;
+    const [trees, runs] = [count('crew.docs.tree'), count('crew.runs')];
+    ok = true;
+    fireEvent.click(screen.getByRole('button', { name: 'Thử lại' }));
+    await waitFor(() => expect(partialAlert()).toBeNull());
+    expect(count('crew.docs.tree')).toBe(trees + 1);
+    expect(count('crew.runs')).toBe(runs + 1);
+  });
+
   it('crew.runs lỗi khi lấy nét yêu cầu: giữ bản đồ, báo nhẹ', async () => {
     server({ 'POST /api/plugins/crew.core/data/crew.runs': fail });
     mount('/TPS/roadmap?focus=TPS-1');

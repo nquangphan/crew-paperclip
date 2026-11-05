@@ -307,14 +307,15 @@ export function RoadmapPage() {
     });
 
   // Đã có bản đồ mà lần tải lại (hoặc nhánh phụ docs / run) lỗi: giữ bản đồ, báo nhẹ kèm Thử lại.
+  // Thử lại tải lại mọi nhánh đang lỗi một lần; lỗi nhánh phụ giữ qua lần tải lại do sự kiện live (không nháy).
   const partialError =
     loadError ||
-    (data.docsProjects.error && {
-      message: data.docsProjects.error.message,
-      retry: () => void data.docsProjects.refetch(),
-    }) ||
-    (data.docsTrees.error && { message: data.docsTrees.error.message, retry: data.docsTrees.refetch }) ||
-    (data.runs.error && { message: data.runs.error.message, retry: () => void data.runs.refetch() });
+    (data.partial.length > 0 && {
+      message: data.partial[0].error.message,
+      retry: () => {
+        for (const branch of data.partial) branch.refetch();
+      },
+    });
 
   let body: ReactNode;
   if (visible.ready && visible.restricted && projects.data && projects.data.length === 0) {
