@@ -143,8 +143,17 @@ describe("crew.roadmap", () => {
     for (const [n, parent] of [[63, 62], [64, 62], [65, 63]] as const) {
       await issue({ id: id(n), companyId: other, parentId: id(parent), identifier: `OTH-${n - 53}`, projectId: otherProject });
     }
+    // Thời điểm tạo tường minh: OTH-9 mới nhất, rồi OTH-2, OTH-1 cũ nhất.
+    await sql`UPDATE issues SET created_at = now() - interval '3 days' WHERE id = ${id(40)}`;
+    await sql`UPDATE issues SET created_at = now() - interval '2 days' WHERE id = ${id(60)}`;
+    await sql`UPDATE issues SET created_at = now() - interval '1 day' WHERE id = ${id(62)}`;
     const full = await loadCrewRoadmap(ctx, other, { all: true });
     expect(full.nodes).toHaveLength(7);
+    // Yêu cầu mới trước: trần 4 vừa đủ cây OTH-9 (4 nút); trần 6 thêm cây OTH-2, cây cũ nhất OTH-1 vắng hẳn.
+    expect((await loadCrewRoadmap(ctx, other, { all: true }, 4)).requests).toEqual([id(62)]);
+    const six = await loadCrewRoadmap(ctx, other, { all: true }, 6);
+    expect(six.requests).toEqual([id(62), id(60)]);
+    expect(six.nodes.map((node) => node.rootId)).not.toContain(id(40));
     const sizeOf = (roadmap: typeof full) => {
       const size = new Map<string, number>();
       for (const node of roadmap.nodes) size.set(node.rootId, (size.get(node.rootId) ?? 0) + 1);

@@ -4,7 +4,6 @@ import { describe, expect, it, vi } from "vitest";
 import type { Db } from "@paperclipai/db";
 import * as projectAccess from "../crew/project-access.js";
 import { crewContributionRoutes } from "../crew/contribution-routes.js";
-import { errorHandler } from "../middleware/error-handler.js";
 import { CREW_ROADMAP_SCOPE_PATHS, CREW_VIEWER_DATA_KEYS, crewRoadmapViewerScope } from "../crew/plugin-data-scope.js";
 
 const COMPANY = "10000000-0000-4000-8000-000000000001";
@@ -99,13 +98,20 @@ describe("crewRoadmapViewerScope: server ghi đè phạm vi xem của crew.roadm
 
   it("lỗi đọc quyền: trả 503 có mã lỗi, route stock không chạy (không phải Roadmap rỗng 200)", async () => {
     const server = app(session("member"), async () => { throw new Error("db down"); });
-    server.use(errorHandler);
+    // Trả thẳng trong middleware, không qua errorHandler (nhánh 5xx của nó báo crash): handler lỗi gắn sau không được gọi.
+    const crashPath = vi.fn((_err: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
+      res.status(500).end();
+    });
+    server.use(crashPath);
     for (const path of ["/plugins/crew.core/data/crew.roadmap", "/plugins/crew.core/data/crew%2Eroadmap"]) {
       const res = await request(server).post(path).send({ companyId: COMPANY, params: { viewer: { all: true } } });
       expect(res.status).toBe(503);
-      expect(res.body).toMatchObject({ code: "crew_roadmap_scope_unavailable" });
-      expect(res.body.params).toBeUndefined();
+      expect(res.body).toEqual({
+        error: "Crew: tạm thời không đọc được quyền xem project, hãy thử lại.",
+        code: "crew_roadmap_scope_unavailable",
+      });
     }
+    expect(crashPath).not.toHaveBeenCalled();
     const bridge = await request(server).post("/plugins/crew.core/bridge/data")
       .send({ key: "crew.roadmap", companyId: COMPANY, params: { viewer: { all: true } } });
     expect(bridge.status).toBe(503);

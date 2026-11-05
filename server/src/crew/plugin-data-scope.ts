@@ -1,7 +1,6 @@
 import { and, eq } from "drizzle-orm";
 import type { NextFunction, Request, RequestHandler, Response } from "express";
 import { companyMemberships, type Db } from "@paperclipai/db";
-import { HttpError } from "../errors.js";
 import { logger } from "../middleware/logger.js";
 import { hasCompanyAccess } from "../routes/authz.js";
 import { loadCrewCompanyConfig } from "./issue-policy.js";
@@ -114,7 +113,7 @@ export function crewRoadmapViewerScope(
   db: Db,
   visible: VisibleResolver = (companyId, userId) => visibleProjectsFor(db, companyId, userId),
 ): RequestHandler {
-  return (req: Request, _res: Response, next: NextFunction) => {
+  return (req: Request, res: Response, next: NextFunction) => {
     const body = (req.body && typeof req.body === "object" ? req.body : {}) as Record<string, unknown>;
     // Route `data/:key`: key worker nhận là `req.params.key` đã decode; route `bridge/data`: `body.key`.
     const key = typeof req.params.key === "string" ? req.params.key : body.key;
@@ -128,16 +127,19 @@ export function crewRoadmapViewerScope(
       next();
     };
     void roadmapViewerOf(req, body.companyId, visible).then(write, (error: unknown) => {
-      logger.warn({ err: error }, "Crew: không đọc được quyền xem project cho crew.roadmap, trả 503");
-      next(roadmapScopeUnavailable());
+      // Lỗi tạm thời đã biết (DB chập chờn): log một lần ở đây và trả 503 thẳng, không qua errorHandler (nhánh 5xx của
+      // nó báo crash mỗi request, nhân lên theo số lần client thử lại).
+      logger.warn(
+        { err: error, companyId: body.companyId },
+        "Crew: không đọc được quyền xem project cho crew.roadmap, trả 503",
+      );
+      res.status(503).json({ error: ROADMAP_SCOPE_UNAVAILABLE_MESSAGE, code: ROADMAP_SCOPE_UNAVAILABLE_CODE });
     });
   };
 }
 
-const roadmapScopeUnavailable = () =>
-  new HttpError(503, "Crew: tạm thời không đọc được quyền xem project, hãy thử lại.", {
-    code: "crew_roadmap_scope_unavailable",
-  });
+const ROADMAP_SCOPE_UNAVAILABLE_MESSAGE = "Crew: tạm thời không đọc được quyền xem project, hãy thử lại.";
+const ROADMAP_SCOPE_UNAVAILABLE_CODE = "crew_roadmap_scope_unavailable";
 
 async function roadmapViewerOf(req: Request, companyId: unknown, visible: VisibleResolver): Promise<RoadmapViewerScope> {
   const actor = req.actor;
