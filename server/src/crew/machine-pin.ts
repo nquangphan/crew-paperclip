@@ -190,6 +190,54 @@ export async function pinnedMachineId(db: ExecDb, companyId: string, issueId: st
   return (await readPin(db, companyId, rootIssueId))?.machineId ?? null;
 }
 
+export interface IssueMachine {
+  rootIssueId: string;
+  machineId: string;
+  /** `null` khi máy đã gỡ ghép: không lấy tên từ bản tin cũ, không lấy id thô. */
+  hostname: string | null;
+  /** Bản tin của máy (`machine_latest.received_at`), `null` khi máy đã gỡ ghép hay chưa có bản tin. */
+  receivedAt: string | null;
+  paired: boolean;
+}
+
+/**
+ * Máy ghim của cây chứa từng issue, cho cả lô trong MỘT truy vấn (CTE đệ quy lên gốc như `findRootIssueId`, join ghim,
+ * dòng ghép chưa gỡ và bản tin). Issue không thuộc company không có trong kết quả; cây chưa ghim hay không tìm được gốc
+ * (vòng `parentId`, như `pinnedMachineId`) thì `null`.
+ */
+export async function issueMachines(
+  db: ExecDb, companyId: string, issueIds: readonly string[],
+): Promise<Map<string, IssueMachine | null>> {
+  // Một tham số text kiểu mảng Postgres: số tham số không đổi theo số issue; id sai dạng uuid thì Postgres từ chối.
+  const ids = `{${[...new Set(issueIds)].join(",")}}`;
+  const rows = rowsOf(await db.execute(sql`WITH RECURSIVE up(start_id, id, parent_id, depth) AS (
+      SELECT id, id, parent_id, 0 FROM issues WHERE company_id = ${companyId} AND id = ANY(${ids}::text::uuid[])
+      UNION ALL
+      SELECT up.start_id, i.id, i.parent_id, up.depth + 1 FROM issues i JOIN up ON i.id = up.parent_id
+      WHERE i.company_id = ${companyId} AND up.depth < ${DEPTH}
+    ),
+    roots AS (SELECT DISTINCT ON (start_id) start_id, id AS root_id FROM up WHERE parent_id IS NULL ORDER BY start_id, depth)
+    SELECT s.start_id::text AS issue_id, r.root_id::text AS root_issue_id, pin.machine_id::text AS machine_id,
+      p.hostname, (p.machine_id IS NOT NULL) AS paired, l.received_at
+    FROM up s
+    LEFT JOIN roots r ON r.start_id = s.start_id
+    LEFT JOIN ${crewTableSql("issue_machine_pins")} pin ON pin.company_id = ${companyId} AND pin.root_issue_id = r.root_id
+    LEFT JOIN ${crewTableSql("machine_pairings")} p
+      ON p.company_id = ${companyId} AND p.machine_id = pin.machine_id AND p.revoked_at IS NULL
+    LEFT JOIN ${crewTableSql("machine_latest")} l ON l.company_id = ${companyId} AND l.machine_id = pin.machine_id
+    WHERE s.depth = 0`));
+  const result = new Map<string, IssueMachine | null>();
+  for (const row of rows) {
+    const rootIssueId = text(row.root_issue_id);
+    const machineId = text(row.machine_id);
+    const paired = row.paired === true;
+    result.set(String(row.issue_id), rootIssueId && machineId
+      ? { rootIssueId, machineId, hostname: paired ? text(row.hostname) : null, receivedAt: paired ? iso(row.received_at) : null, paired }
+      : null);
+  }
+  return result;
+}
+
 /** Environment của agent trên máy đã ghim cho cây của `issueId`, hoặc `null` (giữ hành vi stock). */
 export async function resolvePinnedEnvironment(
   db: ExecDb, input: { companyId: string; agentId: string; issueId: string },
