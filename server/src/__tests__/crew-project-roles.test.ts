@@ -107,7 +107,7 @@ describe("loadCrewRoles", () => {
         roles: { reviewerAgentId: FILE_REVIEWER, integratorAgentId: FILE_INTEGRATOR },
         ownerUserId: "owner-1",
         trackingProjectIds: okEntry.trackingProjectIds,
-        bugFinding: { enabled: false },
+        bugFinding: { enabled: false, gitlabHosts: [] },
       });
     }
     expect(db.statements).toEqual([]);
@@ -149,7 +149,7 @@ describe("loadCrewRoles", () => {
       roles: { reviewerAgentId: ROW_REVIEWER, integratorAgentId: ROW_INTEGRATOR, codexReviewerAgentId: null },
       ownerUserId: "owner-1",
       trackingProjectIds: okEntry.trackingProjectIds,
-      bugFinding: { enabled: false },
+      bugFinding: { enabled: false, gitlabHosts: [] },
     });
     expect(db.statements[1]).toMatch(/FROM plugin_crew_core_0433ea20b6\.crew_project_roles/);
     expect(db.statements[1]).toMatch(/"agents"/);

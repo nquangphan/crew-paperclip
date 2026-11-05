@@ -36,11 +36,16 @@ export type CrewCompanyConfig =
       roles: CrewRoles;
       ownerUserId: string;
       trackingProjectIds: string[];
-      /** Ticket tổng code/bug mới của company đi luồng Bug Finding (`root-bf`); mặc định tắt. */
-      bugFinding: { enabled: boolean };
+      /**
+       * Ticket tổng code/bug mới của company đi luồng Bug Finding (`root-bf`); mặc định tắt. `gitlabHosts`: host GitLab tự
+       * host (chữ thường) được coi là GitLab khi nhận diện origin; `gitlab.com` không cần khai báo.
+       */
+      bugFinding: { enabled: boolean; gitlabHosts: string[] };
     };
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+/** Tên host DNS (các nhãn chữ, số, `-` nối bằng `.`): giá trị của `bugFinding.gitlabHosts`. */
+const HOSTNAME_RE = /^[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?(?:\.[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?)*$/;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -49,7 +54,9 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 /**
  * Dạng file: `{ "companies": { "<companyId>": { reviewerAgentId, integratorAgentId, ownerUserId, trackingProjectIds? } } }`.
  * `trackingProjectIds` (tùy chọn, mảng uuid không trùng): project theo dõi, issue gốc board tạo trong đó không nhận policy Crew.
- * `bugFinding` (tùy chọn, `{ enabled?: boolean }`, mặc định tắt): bật luồng Bug Finding cho ticket tổng code/bug mới.
+ * `bugFinding` (tùy chọn, `{ enabled?: boolean, gitlabHosts?: string[] }`, mặc định tắt): bật luồng Bug Finding cho ticket
+ * tổng code/bug mới. `gitlabHosts` liệt kê host GitLab tự host (chỉ tên host, không scheme, cổng hay đường dẫn), ví dụ
+ * `["gitlab.qasoftsolution.com"]`; host không khai báo không được coi là GitLab.
  */
 export function parseCrewPolicyConfig(text: string, companyId: string): CrewCompanyConfig {
   let parsed: unknown;
@@ -96,12 +103,19 @@ export function parseCrewPolicyConfig(text: string, companyId: string): CrewComp
   if (bugFinding !== undefined && (!isRecord(bugFinding) || (bugFinding.enabled !== undefined && typeof bugFinding.enabled !== "boolean"))) {
     return { kind: "invalid", reason: `companies.${companyId}.bugFinding phải là object { enabled: boolean }` };
   }
+  const hosts = bugFinding?.gitlabHosts;
+  if (hosts !== undefined && (!Array.isArray(hosts) || hosts.some((host) => typeof host !== "string" || !HOSTNAME_RE.test(host)))) {
+    return { kind: "invalid", reason: `companies.${companyId}.bugFinding.gitlabHosts phải là mảng tên host (không scheme, cổng, đường dẫn)` };
+  }
   return {
     kind: "ok",
     roles: { reviewerAgentId: reviewerAgentId.toLowerCase(), integratorAgentId: integratorAgentId.toLowerCase() },
     ownerUserId: ownerUserId.trim(),
     trackingProjectIds,
-    bugFinding: { enabled: bugFinding?.enabled === true },
+    bugFinding: {
+      enabled: bugFinding?.enabled === true,
+      gitlabHosts: ((hosts ?? []) as string[]).map((host) => host.toLowerCase()),
+    },
   };
 }
 
@@ -262,14 +276,23 @@ export function policyGateFingerprint(policy: unknown): string {
 }
 
 const GITHUB_PR_URL = String.raw`https:\/\/github\.com\/[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+\/pull\/[1-9][0-9]*`;
+/**
+ * URL merge request GitLab (gitlab.com hoặc tự host, có thể kèm cổng, nhóm con):
+ * `https://<host>/<group>[/<subgroup>…]/<repo>/-/merge_requests/<iid>`; cùng luật với `GITLAB_MR_URL` của plugin
+ * (`packages/crew-plugin/src/jobs/validate.ts`).
+ */
+const GITLAB_MR_URL = String.raw`https:\/\/(?!github\.com[:/])[A-Za-z0-9][A-Za-z0-9.-]*(?::[0-9]{1,5})?(?:\/[A-Za-z0-9_][A-Za-z0-9_.-]*){2,}\/-\/merge_requests\/[1-9][0-9]*`;
+/** URL pull request GitHub hoặc merge request GitLab trong `crew-merge`/`crew-pr`. */
+const PR_URL = `(?:${GITHUB_PR_URL}|${GITLAB_MR_URL})`;
 
 /**
  * `pushed=yes`: đã push thẳng vào nhánh mặc định (repo không ở GitHub). `pushed=pr pr=<url>`: đã đẩy nhánh
- * `crew/req/<identifier>` và mở pull request vào nhánh mặc định; owner bấm Merge trên GitHub. `pushed=merged pr=<url>
+ * `crew/req/<identifier>` và mở pull request (GitHub) hoặc merge request (GitLab) vào nhánh mặc định; owner bấm Merge.
+ * `pushed=merged pr=<url>
  * merge=<sha>`: integrator đã merge pull request (ticket tổng Bug Finding), `merge` là commit merge trên nhánh mặc định.
  */
 export const CREW_MERGE_RE = new RegExp(
-  `^crew-merge sha=([0-9a-f]{40}) branch=(\\S+) pushed=(?:yes|pr pr=(${GITHUB_PR_URL})|merged pr=(${GITHUB_PR_URL}) merge=([0-9a-f]{40}))$`,
+  `^crew-merge sha=([0-9a-f]{40}) branch=(\\S+) pushed=(?:yes|pr pr=(${PR_URL})|merged pr=(${PR_URL}) merge=([0-9a-f]{40}))$`,
 );
 
 export interface CrewMergeEvidence {
@@ -292,14 +315,14 @@ export function parseCrewMergeEvidence(body: string): CrewMergeEvidence | null {
 }
 
 /** Bằng chứng pull request của integrator ở stage gộp của ticket tổng Bug Finding: `sha` là head PR (merged commit). */
-export const CREW_PR_RE = new RegExp(`^crew-pr sha=([0-9a-f]{40}) pr=(${GITHUB_PR_URL})$`);
+export const CREW_PR_RE = new RegExp(`^crew-pr sha=([0-9a-f]{40}) pr=(${PR_URL})$`);
 
 export interface CrewPrEvidence {
   sha: string;
   pr: string;
 }
 
-/** Chỉ dòng đầu, đúng `crew-pr sha=<40 hex> pr=<URL pull request GitHub>`. */
+/** Chỉ dòng đầu, đúng `crew-pr sha=<40 hex> pr=<URL pull request GitHub hoặc merge request GitLab>`. */
 export function parseCrewPrEvidence(body: string): CrewPrEvidence | null {
   const first = body.split("\n", 1)[0]?.trim() ?? "";
   const match = CREW_PR_RE.exec(first);

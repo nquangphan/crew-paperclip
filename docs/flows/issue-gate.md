@@ -10,7 +10,7 @@ tự xóa hay tự ký. Flow này ghim policy Crew lúc tạo issue (H4) và ki�
 được quy trình, không tự giao việc sai vai trò và không đặt model ngoài bảng cho phép.
 
 Ticket tổng code/bug theo luồng Bug Finding (template `root-bf`, chỉ khi company bật `bugFinding.enabled` và project có
-origin GitHub) đi đường khác ở cấp gốc, không còn reviewer Claude:
+origin GitHub hoặc GitLab, xem luật GitLab ở bước 1) đi đường khác ở cấp gốc, không còn reviewer Claude:
 
 ```text
 mọi con done → Trợ Lý PATCH done
@@ -54,10 +54,17 @@ Luật áp theo company:
    - Board gửi policy riêng thì giữ; không gửi thì nhận template theo loại: con, gốc, gốc có nhãn `research`. Issue
      gốc trong project theo dõi không nhận policy.
    - Ticket tổng code/bug theo luồng Bug Finding: board tạo gốc không nhãn `research`/`docs`/`plan` (`CREW_NON_CODE_LABELS`),
-     company bật `bugFinding.enabled` và project có origin GitHub trong bảng plugin `project_repos` (`isGithubOrigin`:
-     `https://github.com/…`, `git@github.com:…`, `ssh://git@github.com/…`) thì nhận template `root-bf`; thiếu một điều
-     kiện thì `root`. Chỉ đọc `project_repos` khi cờ bật; đọc lỗi (plugin chưa cài) thì coi như không GitHub, không chặn
-     tạo issue. Gốc do hệ thống (routine) tạo vẫn nhận `root`.
+     company bật `bugFinding.enabled` và origin của project trong bảng plugin `project_repos` là GitHub hoặc GitLab
+     (`originProvider`) thì nhận template `root-bf`; thiếu một điều kiện thì `root`. `originProvider` đọc host của
+     origin dạng `https://<host>/…`, `git@<host>:…` hoặc `ssh://git@<host>[:cổng]/…` và so chính xác, không phân biệt hoa
+     thường:
+     - `github.com` → GitHub;
+     - `gitlab.com` → GitLab, không cần khai báo;
+     - GitLab tự host (ví dụ `gitlab.qasoftsolution.com`) chỉ là GitLab khi host có trong `bugFinding.gitlabHosts` của
+       company trong file cấu hình Crew (cách khai báo ở mục "Env và cấu hình" bên dưới). Không đoán theo chữ "gitlab"
+       trong host: host chưa khai báo, origin lạ, đường dẫn local hay rỗng → không GitHub/GitLab → `root` như cũ.
+     Chỉ đọc `project_repos` khi cờ bật; đọc lỗi (plugin chưa cài) thì coi như không GitHub/GitLab, không chặn tạo
+     issue. Gốc do hệ thống (routine) tạo vẫn nhận `root`.
    - Hệ thống: issue watchdog/recovery giữ stock, trừ khi giao lại cho chính executor của issue nguồn; routine do agent
      tạo/sửa bị từ chối (`crew_routine_issue_forbidden`).
    - Company có cấu hình Crew: `withProjectTag` gắn `[tên project]` vào đầu title của mọi issue mới có project (project
@@ -89,7 +96,8 @@ Luật áp theo company:
      docs.
    - ticket tổng Bug Finding (`isBugFindingRootPolicy`: 4 stage `review` integrator, `review` reviewer, `approval` owner,
      `review` integrator, nhận theo vị trí như `crewPolicyKind` `code-bf` của plugin): stage docs là stage 0 và
-     `prGateStages` (stage 0) cần thêm `crew-pr sha=<merged commit> pr=<URL>` mới hơn bằng chứng docs (`pr_missing`,
+     `prGateStages` (stage 0) cần thêm `crew-pr sha=<merged commit> pr=<URL>` (URL pull request GitHub hoặc merge
+     request GitLab, xem mục comment bằng chứng) mới hơn bằng chứng docs (`pr_missing`,
      `pr_sha_mismatch`); `bugFindingGateStages` (stage 1) cần lượt Bug Finding `succeeded` hoặc `skipped` cho đúng head PR
      (sha của `crew-pr` mới nhất), thiếu thì `bf_missing`; stage merge cần `crew-merge … pushed=merged pr=<URL>
      merge=<sha>` sau lần owner duyệt (`pushed=pr`/`yes` hay cũ hơn owner: `merge_missing`) và đúng commit của bằng
@@ -140,8 +148,22 @@ Luật áp theo company:
 - Comment bằng chứng (dòng đầu): `crew-docs-check commit=… range=…..… exit=N` (`CREW_DOCS_CHECK_RE`),
   `crew-merge sha=… branch=… pushed=yes|pr pr=<url>|merged pr=<url> merge=<sha>` (`CREW_MERGE_RE`),
   `crew-pr sha=… pr=<url>` (`CREW_PR_RE`), `crew-bf-triage run=<n> batch=bf-fix-<k> …` (`CREW_BF_TRIAGE_RE`).
-- Env: `CREW_POLICY_CONFIG` (đường dẫn file JSON chỉ đọc; công cụ sửa ở flow `ops-tools`). Mỗi company trong file có thể
-  có `bugFinding: { enabled: boolean }` (mặc định tắt; sai kiểu thì cấu hình `invalid`).
+  `<url>` của `crew-merge`/`crew-pr` là pull request GitHub `https://github.com/<owner>/<repo>/pull/<n>` hoặc merge
+  request GitLab `https://<host>[:cổng]/<nhóm>[/<nhóm con>…]/<repo>/-/merge_requests/<iid>` (gitlab.com hoặc tự host,
+  cùng luật với `GITLAB_MR_URL` của plugin); cổng không so host MR với `gitlabHosts`. `readBugFindingRuns`
+  (`bug-finding-runs.ts`) chỉ đọc `head_sha` và `state` của lượt, không đọc URL nên không phụ thuộc provider.
+- Env và cấu hình: `CREW_POLICY_CONFIG` (đường dẫn file JSON chỉ đọc; công cụ sửa ở flow `ops-tools`). Mỗi company trong
+  file có thể có `bugFinding: { enabled?: boolean, gitlabHosts?: string[] }`: `enabled` mặc định tắt; `gitlabHosts`
+  mặc định rỗng, là danh sách host GitLab tự host, chỉ tên host (không scheme, cổng, `user@` hay đường dẫn), lưu chữ
+  thường. Sai kiểu thì cấu hình `invalid`. Khai báo GitLab tự host cho business-app:
+
+  ```json
+  { "companies": { "<companyId>": { "…": "…",
+    "bugFinding": { "enabled": true, "gitlabHosts": ["gitlab.qasoftsolution.com"] } } } }
+  ```
+
+  Server đọc lại file ở mỗi lần tạo issue nên không cần khởi động lại; chỉ ticket tổng tạo sau khi sửa mới nhận
+  `root-bf` (policy chốt lúc tạo).
 - Bảng plugin đọc ở H4: `project_repos.origin_url` (chỉ khi company bật Bug Finding).
 
 ## Flow liên quan
@@ -163,7 +185,8 @@ Luật áp theo company:
 - `server/src/__tests__/crew-issue-create-policy.test.ts`: các nhánh của `decideCreatePolicy` (agent, board, hệ
   thống, research, project theo dõi, bmad, design, override theo runtime, watchdog trả về executor), `withProjectTag` và tag
   `[tên project]` trên title qua `issueService.create`; `root-bf` (template, cờ, nhãn docs/plan, origin GitHub/GitLab,
-  `isGithubOrigin`, `bugFinding` trong file cấu hình) cả hàm thuần lẫn qua `issueService.create` với `project_repos`.
+  `originProvider` với GitHub, gitlab.com, GitLab tự host có và không khai báo, origin lạ, rỗng; `bugFinding.enabled` và
+  `bugFinding.gitlabHosts` trong file cấu hình) cả hàm thuần lẫn qua `issueService.create` với `project_repos`.
 - `server/src/__tests__/crew-issue-gate.test.ts`: parse file cấu hình (absent, invalid, hoa thường), đọc lại file mỗi
   lần, cảnh báo lúc khởi động, template policy, fingerprint policy, các nhánh của `evaluateIssueGate`.
 - `server/src/__tests__/crew-issue-gate.db.test.ts`: H2 trên DB thật: chặn override, xóa policy, cancel, giao cho

@@ -1398,6 +1398,22 @@ suite("crew issue gate in issueService.update", () => {
       expect(await act(c, issueId, { agentId: c.integratorId }, "done")).toMatchObject({ status: "done" });
     });
 
+    it("origin GitLab: crew-pr và crew-merge pushed=merged mang URL MR GitLab qua đủ bốn stage", async () => {
+      useRuns();
+      const MR = "https://gitlab.qasoftsolution.com/nail/business-app/-/merge_requests/12";
+      const c = await company();
+      const issueId = await issue(c, { status: "in_progress", assigneeAgentId: c.executorId, executionPolicy: c.rootBf });
+      await act(c, issueId, { agentId: c.executorId }, "done");
+      await post(c, issueId, c.integratorId, docsLine(0));
+      await post(c, issueId, c.integratorId, `crew-pr sha=${SHA_HEAD} pr=${MR}`);
+      expect(await act(c, issueId, { agentId: c.integratorId }, "done")).toMatchObject({ assigneeAgentId: c.reviewerId });
+      runs.set(issueId, [{ headSha: SHA_HEAD, state: "succeeded" }]);
+      expect(await act(c, issueId, { agentId: c.reviewerId }, "done")).toMatchObject({ assigneeUserId: "owner-1" });
+      expect(await act(c, issueId, { userId: "owner-1" }, "done")).toMatchObject({ assigneeAgentId: c.integratorId });
+      await post(c, issueId, c.integratorId, `crew-merge sha=${SHA_HEAD} branch=crew/req/X pushed=merged pr=${MR} merge=${MERGE}`);
+      expect(await act(c, issueId, { agentId: c.integratorId }, "done")).toMatchObject({ status: "done" });
+    });
+
     it("chưa đặt reader lượt Bug Finding: stage cầu nối không qua được", async () => {
       const c = await company();
       const issueId = await rootBfAtBridge(c);
