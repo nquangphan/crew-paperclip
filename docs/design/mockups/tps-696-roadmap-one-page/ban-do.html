@@ -94,8 +94,8 @@
   const world = document.getElementById('world');
   const state = q.get('state');
   if (q.get('n') === 'nhieu') {
-    // Trên 1000 việc thì có cảnh báo cắt (giữ hành vi hiện tại); ở đây chỉ để thấy chỗ đặt.
-    if (q.get('cat') === '1') document.getElementById('alert-slot').innerHTML = `<div class="alert" role="status">${icon('alert')}Có hơn 1000 việc, bản đồ có thể thiếu một phần.</div>`;
+    // Trên 5000 việc thì có cảnh báo cắt (ROADMAP_NODE_LIMIT ở worker); ở đây chỉ để thấy chỗ đặt.
+    if (q.get('cat') === '1') document.getElementById('alert-slot').innerHTML = `<div class="alert" role="status">${icon('alert')}Có hơn 5000 việc, bản đồ có thể thiếu một phần.</div>`;
   }
   if (state) {
     world.hidden = true;

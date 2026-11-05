@@ -77,7 +77,7 @@ Luật chính:
 | `packages/crew-plugin/src/ui/page.tsx` | Trang Crew | `CrewPage` |
 | `packages/crew-plugin/src/ui/tab.tsx` | Tab Crew trên issue | `CrewIssueTab` |
 | `packages/crew-plugin/src/ui/summary.tsx` | Tóm tắt Crew trên issue | `CrewIssueSummary`, `crewSummaryLine` |
-| `packages/crew-plugin/migrations/` | Chuỗi migration bảng plugin (`0001_docs.sql` … `0022_multi_machine.sql`) | |
+| `packages/crew-plugin/migrations/` | Chuỗi migration bảng plugin (`0001_docs.sql` … `0025_bug_finding.sql`) | |
 | `server/src/crew/plugin-startup-wait.ts` | Chờ plugin nạp xong lúc khởi động | `crewPluginStartupWait` |
 | `server/src/crew/plugin-data-scope.ts` | Viewer đọc data `crew.core`; phạm vi xem của `crew.roadmap` | `crewViewerPluginDataScope`, `CREW_VIEWER_DATA_KEYS`, `crewRoadmapViewerScope` |
 
@@ -105,6 +105,9 @@ sự kiện plugin dạng call để xóa invocation scope khi handler xong).
   - `0022_multi_machine.sql`: `project_machines` (trạng thái dựng project trên từng máy), `project_repos` (origin, nhánh,
     repo đi kèm của project), `issue_machine_pins` (máy ghim theo issue gốc) và kind `ensure-project`. Server Crew ghi ba
     bảng này (flow `multi-machine`).
+  - `0023_model_settings.sql`: `crew_model_settings` (các revision cài đặt model, flow `model-settings`).
+  - `0024_max_five_executors.sql`: nới ràng buộc `crew_project_roles.executor_agent_ids` từ 1–2 lên 1–5 executor (flow
+    `project-roles`).
   - `0025_bug_finding.sql`: `crew_bug_finding_runs` (lượt Bug Finding), `crew_bug_finding_rounds` (vòng duyệt owner,
     server ghi) và kind `bug-finding-review` (flow `bug-finding`).
 - Bảng lõi plugin được đọc: `database.coreReadTables` trong manifest.

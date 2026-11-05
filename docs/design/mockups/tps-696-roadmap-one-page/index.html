@@ -56,7 +56,7 @@
     <li><b>Chi tiết.</b> Bấm lại mục đang xem, hoặc Enter, hoặc nút <i>Mở chi tiết</i> ở góc trên phải bản đồ → mở popup issue có sẵn (<code>?issue=</code>) đè lên bản đồ; đóng popup thì camera vẫn ở chỗ cũ. Bấm trang docs ở mức thẻ đầy đủ → popup đọc docs có sẵn (<code>?doc=</code>).</li>
     <li><b>Quay ra.</b> Esc ra một mức (việc → yêu cầu → project → toàn cảnh); popup đang mở thì Esc đóng popup trước. Nút <i>Ra ngoài</i> (thay nút Lùi cũ) làm như Esc; nút <i>Toàn cảnh</i> và nút ⛶ ở góc bản đồ, phím <kbd>0</kbd>, về toàn cảnh. Breadcrumb trên đầu trang luôn chỉ chỗ đang xem và bấm được. Mỗi lần lấy nét đẩy một mục lịch sử nên Back trình duyệt bay về chỗ trước.</li>
     <li><b>URL.</b> <code>?focus=&lt;mã&gt;</code> (ví dụ <code>?focus=TPS-697</code>, <code>?focus=project:&lt;id&gt;</code>, <code>?focus=docs:&lt;id&gt;</code>) thay cho <code>?project=</code>/<code>?request=</code>; link cũ tự đổi sang <code>?focus=</code>. Deep link mở toàn cảnh rồi bay vào mục. <code>?view=list</code>, <code>?issue=</code>, <code>?doc=</code> giữ nguyên. Mục không được xem → về toàn cảnh kèm thông báo chung như hiện nay. <i>Riêng mockup này</i> dùng hash (<code>#p=</code>, <code>#r=</code>, <code>#t=</code>, <code>#d=</code>) để thử bay camera và Back trên file tĩnh; hợp đồng thật của app là <code>?focus=</code> theo <code>packages/crew-web/src/features/roadmap/roadmap-url.ts</code>, mockup không đọc <code>?focus=</code>.</li>
-    <li><b>Kéo, cuộn tự do.</b> Kéo để di chuyển, cuộn hay chụm hai ngón để phóng; mục đang xem giữ nguyên tới lần bấm sau. Bản đồ thu nhỏ góc dưới trái (chỉ hiện khi đã phóng vào) cho biết đang ở đâu, bấm để nhảy.</li>
+    <li><b>Kéo, cuộn tự do.</b> Kéo để di chuyển, cuộn hay chụm hai ngón để phóng; mục đang xem giữ nguyên tới lần bấm sau. Bản đồ thu nhỏ góc dưới trái (hiện khi đã phóng vào, hoặc ở toàn cảnh khi khung bản đồ rộng dưới 640px) cho biết đang ở đâu, bấm để nhảy.</li>
     <li><b>Dạng danh sách</b> vẫn còn: cây công ty → project → yêu cầu → việc con (và Docs), không giới hạn số mục, mục đang xem được tô và cuộn tới. Đây là bản thay thế cho trình đọc màn hình.</li>
   </ol>
 
@@ -91,7 +91,7 @@
   <h2>Chỗ mới so với app <span class="new">(cần owner duyệt)</span></h2>
   <ul>
     <li>Ô màu và nhãn nổi theo mức zoom; nút tròn công ty/project giữ cỡ tối thiểu trên màn hình (lớp phủ). Lý do: một bản đồ chứa hàng trăm thẻ, zoom xa thì chữ không đọc được.</li>
-    <li>Thẻ "đang xem" góc trên phải có nút Mở chi tiết; nhãn "độ zoom · mức" cạnh nút điều khiển; bản đồ thu nhỏ (MiniMap của xyflow). Lý do: không còn đổi trang nên cần chỗ mở chi tiết và cần biết mình đang ở đâu.</li>
+    <li>Thẻ "đang xem" góc trên phải có nút Mở chi tiết; nhãn "độ zoom · mức" cạnh nút điều khiển; bản đồ thu nhỏ (nút tự vẽ bằng SVG, không dùng MiniMap của xyflow). Lý do: không còn đổi trang nên cần chỗ mở chi tiết và cần biết mình đang ở đâu.</li>
     <li>Số việc và số đang chạy trên nút tròn. Nút Lùi đổi thành Ra ngoài, thêm nút Toàn cảnh.</li>
     <li>Không có màu, font, icon mới: mọi màu từ <code>tokens.css</code> (<code>--roadmap-*</code>, <code>--status-task-icon-*</code>), font InterVariable của app, icon lucide.</li>
   </ul>

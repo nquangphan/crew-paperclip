@@ -62,7 +62,7 @@ Luật chính:
    cắt dở (giữ gốc và tầng trên), không việc nào mất gốc hay mất cha; Q2
    quan hệ `blocks` trong tập; Q3 chỉ khi có việc `crew-fix`: comment `crew-commit` của việc anh em. Không trả
    `description`. `viewer` thiếu hoặc sai (`parseRoadmapViewer`) thì trả rỗng. Đo 2026-11-04 trên dữ liệu cỡ company
-   thật (165 yêu cầu, 630 issue): 3 query, ~13 ms ở Postgres, 426 KB JSON, 15 KB gzip; cách cũ cần danh sách cả company
+   thật (165 yêu cầu, 698 issue, cùng số với comment test `roadmap.data.test.ts`): 3 query, ~13 ms ở Postgres, 426 KB JSON, 15 KB gzip; cách cũ cần danh sách cả company
    2 MB (3,5 – 6,5 s) cộng một lần gọi cây cho mỗi yêu cầu (101 lần, ~2 s mỗi lần).
 4. `server/src/crew/plugin-data-scope.ts` → `crewRoadmapViewerScope` (gắn trong `crewContributionRoutes`, trước route
    plugin stock, không thêm vá lõi, gắn trên `CREW_ROADMAP_SCOPE_PATHS`): với `POST /plugins/:pluginId/data/:key` có
@@ -90,8 +90,10 @@ Luật chính:
    sách docs và cây Docs của các project có docs tải song song (chỉ đường và tiêu đề); lần đầu trang chờ chúng xong để
    đảo Docs có đủ kích thước ngay, bố cục không xê dịch. Docs không chặn bản đồ: danh sách docs lỗi hay đang thử lại thì
    dựng không có đảo Docs, cây lỗi hay đang thử lại là `null` (nút Docs mờ); đã hiện bản đồ rồi thì docs về sau được bổ
-   sung (cây còn tải là `'loading'`), không quay lại khung đang tải. Hook trả cả `docsProjects` và `docsTrees`
-   (lỗi cuối của cây hỏng và hàm tải lại các cây lỗi) để trang báo lỗi.
+   sung (cây còn tải là `'loading'`), không quay lại khung đang tải. Hook trả `partial`: các nhánh phụ đang lỗi
+   (`crew.docs.projects`, `crew.docs.tree`, `crew.runs` của yêu cầu đang xem), mỗi nhánh có lỗi cuối và hàm tải lại.
+   Lỗi giữ qua lần tải lại tới khi tải thành công (`stickyError`): sự kiện live làm tươi mọi khóa `crew`, TanStack xóa
+   `error` của query chưa có data khi bắt đầu tải lại, đọc thẳng thì báo lỗi nháy theo từng sự kiện.
 9. `packages/crew-web/src/features/roadmap/roadmap-model.ts` → `buildWorldInput`: project (theo tên, bỏ project lưu
    trữ; "Chưa gắn project" cuối, chỉ owner), mỗi project một cụm gồm đảo Docs (thư mục → trang) rồi các đảo yêu cầu theo
    thứ tự tạo; đảo yêu cầu dựng bằng `crewMapLevel` từ phần `crew.roadmap` của yêu cầu đó (thẻ yêu cầu hiện trạng thái QC
@@ -105,7 +107,7 @@ Luật chính:
    Bấm trang docs của project khác project Docs đang lấy nét thì lấy nét Docs của project đó để popup đọc đúng project.
    Lỗi tải lần đầu (quyền xem, project, `crew.roadmap`) thay bản đồ bằng `ErrorState` kèm Thử lại; khi đã có bản đồ, lỗi
    tải lại hay lỗi nhánh phụ (`crew.docs.projects`, `crew.docs.tree`, `crew.runs`) giữ bản đồ và hiện `Alert` cảnh báo
-   nhẹ kèm Thử lại.
+   nhẹ (lỗi đầu) kèm Thử lại; Thử lại tải lại mọi nhánh đang lỗi một lần.
 11. `packages/crew-web/src/ds/widgets/roadmap/roadmap-world.ts` → `layoutWorld` (thế giới: đảo, cụm, dây trục, cạnh,
    `orbCap`), `worldLod`, `fitWorldBox`, `worldFocusView` (toàn cảnh; project 22–50%; đảo 60–110%, canh mép trên khi
    không vừa; việc con 105%), `cardsInView`, `platesInView`, `runningInView`, `blockPaths`, `nodeAtPoint`.
@@ -206,7 +208,8 @@ vùng, vào mức thẻ có khung 290–430 ms vì xyflow nhận cả ~800 nút.
   sách, quyền xem, đảo Docs, giảm chuyển động; một lần gọi `crew.roadmap`, run chỉ cho yêu cầu đang xem; `crew.roadmap`
   500 ra `ErrorState` và Thử lại, vượt trần ra cảnh báo, tải lại / `crew.docs.projects` / `crew.runs` lỗi khi đã có bản
   đồ ra `Alert` nhẹ, docs lỗi hay đang thử lại không chặn bản đồ và docs về sau được bổ sung, cây docs lỗi hẳn ra nút
-  Docs mờ kèm `Alert` và Thử lại, đổi ngôn ngữ đổi chip mức, bấm trang Docs của project khác mở đúng project; dựng đảo bằng `crewMapLevel` (gốc do người tạo, "Chưa gắn project", không trần "+N", thứ tự tạo
+  Docs mờ kèm `Alert` và Thử lại, báo lỗi cây docs không nháy khi sự kiện live làm tươi khóa `crew`, cây docs và run
+  cùng lỗi thì một lần Thử lại tải lại cả hai, đổi ngôn ngữ đổi chip mức, bấm trang Docs của project khác mở đúng project; dựng đảo bằng `crewMapLevel` (gốc do người tạo, "Chưa gắn project", không trần "+N", thứ tự tạo
   ổn định, cạnh trong cùng cây, docs `null`, số đang mở theo trạng thái lõi), phân giải `?focus=`, breadcrumb.
 - `packages/crew-web/e2e/specs/s22-roadmap.spec.ts` (Playwright, T1): đi từ toàn cảnh vào project, yêu cầu, việc con
   trên cùng một trang; popup, Esc, Back, link cũ, dạng danh sách, quyền xem.
