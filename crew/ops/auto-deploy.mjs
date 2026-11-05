@@ -361,7 +361,6 @@ export function enqueue(argv, env = process.env) {
   if (!SHA_RE.test(sha)) return { code: 1, sha, body: null, error: "--sha phải là 40 hex" };
   if (!UUID_RE.test(issueId)) return { code: 1, sha, body: null, error: "--issue phải là uuid" };
   const pr = a.pr ?? null;
-  if (pr !== null && !PR_URL_RE.test(pr)) return { code: 1, sha, body: null, error: "--pr phải là URL pull request GitHub" };
   if (a["simulate-merge-ok"] && !dryRun) return { code: 1, sha, body: null, error: "--simulate-merge-ok chỉ dùng với --dry-run" };
 
   const raw = git(repo, ["show", `${sha}:${CONFIG_PATH}`]);
@@ -373,6 +372,8 @@ export function enqueue(argv, env = process.env) {
     return result(1, "failed", [`Không xếp hàng deploy: ${e.message}.`]);
   }
   if (!cfg.enabled) return { code: 3, sha, body: null, error: `${CONFIG_PATH}: enabled=false` };
+  // Kiểm sau khi biết repo bật deploy: repo không bật (vd. origin GitLab, `--pr` là URL MR) luôn là no-op exit 3.
+  if (pr !== null && !PR_URL_RE.test(pr)) return { code: 1, sha, body: null, error: "--pr phải là URL pull request GitHub" };
   if (a["max-wait-min"] !== undefined) {
     const m = Number(a["max-wait-min"]);
     if (!Number.isInteger(m) || m < 1 || m > 1440) return { code: 1, sha, body: null, error: "--max-wait-min sai" };

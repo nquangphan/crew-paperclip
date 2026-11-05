@@ -16,7 +16,12 @@ Luật chính:
   cầu sửa thì sang vòng mới và đếm lại từ đầu. Lượt hỏng (`failed`, `timeout`, `cancelled`) cũng tính là một lượt.
 - Một vòng + một head PR chỉ có một lượt đang dùng: vào lại stage cầu nối với cùng head không xếp thêm; reviewer xếp lại
   (`retry`) chỉ khi lượt mới nhất của head đó hỏng.
-- Head PR là sha của `crew-pr` mới nhất do agent stage gộp viết; số PR lấy từ URL pull request GitHub.
+- Head PR là sha của `crew-pr` mới nhất có URL hợp lệ do agent stage gộp viết (`latestCrewPr`). URL quyết định nơi review:
+  pull request GitHub `https://github.com/<owner>/<repo>/pull/N` → `provider` `github`; merge request GitLab
+  (gitlab.com hoặc tự host, có thể có subgroup và cổng) `https://<host>/<group>[/<subgroup>…]/<repo>/-/merge_requests/N`
+  → `provider` `gitlab`, `prNumber` là `iid` của MR. URL lạ thì coi như chưa có `crew-pr`. App Bug Finding tra MR theo
+  project dò từ origin của repo trên Mac và `iid == prNumber`, nên MR GitLab cần app đăng nhập host
+  GitLab đó; app Mac cũ chỉ nhận `github` thì việc máy bị từ chối và lượt `failed` có lý do.
 - Máy: máy đã ghim cho cây (`issue_machine_pins`), không ghim thì máy `ready` của project (`project_machines`). Máy phải
   có repo của project và app báo `jobsAgent.capabilities` có `bug-finding-review`; không thì không xếp việc máy, lượt
   `failed` với lý do (máy chưa có app hỗ trợ: "Mac chưa cập nhật 2P Crew có Bug Finding").
@@ -126,7 +131,11 @@ Luật chính:
   integrator, tên khác dạng thì lượt `failed` có lý do; vòng đủ 3 lượt không xếp; owner yêu cầu sửa sang vòng mới; lượt chạy lại mang
   `crew-bf-feedback` của Trợ Lý; request chỉ reviewer và idempotent; results 403/422/404, tiến độ rồi kết quả hợp lệ có
   document báo cáo, comment và wake, gửi lại 409; GET kèm kế hoạch của Trợ Lý (bỏ comment của agent khác); skip chỉ khi owner đã chấp nhận; watchdog hết giờ 30 phút và 8
-  giờ, việc máy hỏng thành `failed`, việc nhận xong thành `queued`.
+  giờ, việc máy hỏng thành `failed`, việc nhận xong thành `queued`; `crew-pr` là URL MR GitLab thì payload `provider`
+  `gitlab`, `prNumber` là số MR.
+- `packages/crew-plugin/src/__tests__/bug-finding-pr.test.ts`: `latestCrewPr` nhận URL PR GitHub, MR gitlab.com, GitLab tự
+  host có subgroup và cổng; không nhận URL lạ (thiếu namespace hay `/-/`, `http`, số 0, có đuôi, MR trên github.com,
+  issue GitLab); lấy `crew-pr` mới nhất có URL hợp lệ của integrator.
 - `server/src/__tests__/crew-issue-gate.db.test.ts`: reader mặc định đọc bảng lượt thật của plugin; owner yêu cầu sửa
   ticket tổng Bug Finding tăng vòng, reviewer cầu nối yêu cầu sửa thì không.
 - `packages/crew-plugin/src/__tests__/machine-jobs-validate.test.ts`: payload và result `bug-finding-review`.
