@@ -37,6 +37,7 @@
     "col": {
       "stage": "Giai đoạn Crew",
       "progress": "Yêu cầu con",
+      "machine": "Máy",
       "assignee": "Người làm",
       "project": "Project",
       "labels": "Nhãn",
@@ -46,6 +47,7 @@
     "colHint": {
       "stage": "Giai đoạn của yêu cầu gốc trong quy trình Crew.",
       "progress": "Số yêu cầu con đã xong trên tổng số.",
+      "machine": "Máy chạy cây yêu cầu (yêu cầu con lấy máy của gốc).",
       "assignee": "Agent đang làm yêu cầu.",
       "project": "Project của yêu cầu.",
       "labels": "Nhãn gắn trên yêu cầu.",
@@ -74,7 +76,8 @@
       "today": "Hôm nay",
       "yesterday": "Hôm qua",
       "earlier": "Trước đó"
-    }
+    },
+    "machine": "Máy"
   },
   "board": {
     "viewMode": "Chế độ xem",
@@ -573,5 +576,26 @@
       "run": "Lượt {{run}} / tối đa {{max}} · {{state}}",
       "merge": "Integrator merge PR sau khi duyệt"
     }
+  },
+  "machine": {
+    "state": {
+      "online": "đang kết nối",
+      "offline": "mất liên lạc",
+      "unpaired": "đã gỡ ghép"
+    },
+    "unpaired": "Đã gỡ ghép",
+    "unpinned": "Chưa ghim",
+    "aria": "Máy {{name}}, {{state}}",
+    "ariaUnnamed": "Máy {{state}}",
+    "tip": {
+      "online": "Đang kết nối. Mọi yêu cầu trong cây chạy trên máy này.",
+      "offline": "Mất liên lạc. Yêu cầu trong cây chờ máy này trở lại.",
+      "unpaired": "Máy đã gỡ ghép. Yêu cầu trong cây không chạy được cho tới khi ghim máy khác.",
+      "unpinned": "Cây yêu cầu này chưa ghim máy. Lượt chạy đầu tiên sẽ ghim máy còn trống."
+    },
+    "loading": "Đang tải máy",
+    "loadFailed": "Không tải được máy của các yêu cầu.",
+    "missing": "Không tải được máy",
+    "retry": "Thử lại"
   }
 }

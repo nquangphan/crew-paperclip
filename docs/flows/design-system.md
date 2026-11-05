@@ -41,6 +41,14 @@ Cấu trúc thư mục, luật và cách xem thử nằm ở `packages/crew-web/
    đúng dạng `agent://<uuid>` được `urlTransformFor` giữ lại và `MarkdownLink` hiện thành chip
    `<span data-agent-mention>` (chữ là nội dung link, ví dụ `@Trợ Lý`, màu theo nền quanh nó), không phải thẻ `<a>`;
    `agent:` sai dạng và `javascript:` vẫn bị bỏ.
+4b. `packages/crew-web/src/ds/widgets/machine-label.tsx` → `MachineLabel`, `MachineLabelPending`, `MachineLabelMissing`:
+   nhãn máy của cây yêu cầu (mockup `docs/design/mockups/tps-750-machine-label`). Chữ 12px muted như `RowCell`, chỉ báo
+   12px: `online` chấm `--status-task-icon-done`, `offline` icon WifiOff `--status-task-icon-backlog`, `unpaired` icon
+   Unlink `--status-task-icon-todo` và tên gạch ngang, `unpinned` chỉ chữ; `stateText` thêm "· trạng thái" (màn hẹp,
+   thẻ Bảng), `layout="option"` cho mục bộ lọc (chữ trạng thái xuống dòng), `tooltip` cho cột desktop. `IssueListRow` có
+   `subline` (dòng phụ dưới tiêu đề, chỉ dưới `sm`); `FilterOption` của `ToolbarFilterMenu` có `content` (nội dung thay
+   nhãn, `label` thành tên ô tích) và `count` (số ở mép phải); `KanbanCardData.machine` là dòng cuối thẻ ngăn bằng đường
+   kẻ mảnh.
 4a. `packages/crew-web/src/ds/widgets/stage-badge.tsx` → `resolveStageKey`, `StageBadge`, `stageStripOf`, `StageStrip`:
    khóa giai đoạn theo vị trí stage của từng loại yêu cầu gốc (`code`: `reviewer`, `integratorDocs`, `owner`,
    `integratorPush`; `code-bf`: `integratorPr` "Gộp code + PR", `bugFinding` "Review Bug Finding", `owner`,
