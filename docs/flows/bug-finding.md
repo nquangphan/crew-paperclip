@@ -19,8 +19,12 @@ Luật chính:
 - Head PR là sha của `crew-pr` mới nhất do agent stage gộp viết; số PR lấy từ URL pull request GitHub.
 - Máy: máy đã ghim cho cây (`issue_machine_pins`), không ghim thì máy `ready` của project (`project_machines`). Dòng còn
   `provisioning` mà việc `ensure-project` mới nhất của project trên máy đã `done` kèm `repoPath` tuyệt đối thì coi như
-  `ready` với `repoPath` đó (chỉ đọc, không ghi dòng; server đối chiếu dòng ở cổng claim, flow `multi-machine`); dòng
-  `ready`/`failed` đọc như cũ. Máy phải
+  `ready` với `repoPath` đó (chỉ đọc, không ghi dòng; server đối chiếu dòng ở cổng claim, flow `multi-machine`). Dòng
+  `ready` có `repo_path` tuyệt đối dùng đúng repo đó. Dòng `ready` thiếu repo (dòng cũ trước TPS-755, khi server chưa luôn
+  ghi `repo_path`) thử lần lượt `repoPath` tuyệt đối của việc `ensure-project` mới nhất đã `done` của project trên máy,
+  rồi repo gốc bước `inspect` của lần thêm project mới nhất trên máy (`crew_setup_runs.steps.inspect.refs.root`), cùng
+  nguồn `knownRepoPath` của server; không có nguồn nào thì máy không dùng được (không bao giờ xếp việc với repo rỗng).
+  Dòng `failed` không dùng được. Máy phải
   có repo của project và app báo `jobsAgent.capabilities` có `bug-finding-review`; không thì không xếp việc máy, lượt
   `failed` với lý do (máy chưa có app hỗ trợ: "Mac chưa cập nhật 2P Crew có Bug Finding").
 - Kết quả chỉ nhận từ đúng máy được giao (403), đúng head của lượt (422 `head_mismatch`), lượt chưa kết thúc (409);
@@ -128,6 +132,9 @@ Luật chính:
   chưa có app thì lượt `failed`; project không có lần thêm qua wizard, repo ngoài `~/crew-agents` lấy khóa từ tên agent
   integrator, tên khác dạng thì lượt `failed` có lý do; máy ghim còn `provisioning` mà việc `ensure-project` đã `done` thì chọn máy ghim với
   `repoPath` của việc và không đổi dòng, việc chưa xong hay dòng `failed` thì vẫn "Máy đã ghim chưa có repo của project";
+  máy ghim `ready` thiếu repo dùng `repoPath` của việc `ensure-project` done mới nhất (việc sau còn chờ không che), không
+  có việc thì repo gốc lần thêm project trên đúng máy đó, không có nguồn nào thì lượt `failed` "Máy đã ghim chưa có repo
+  của project" và không xếp việc; không ghim thì máy `ready` thiếu repo có việc done vẫn được chọn;
   vòng đủ 3 lượt không xếp; owner yêu cầu sửa sang vòng mới; lượt chạy lại mang
   `crew-bf-feedback` của Trợ Lý; request chỉ reviewer và idempotent; results 403/422/404, tiến độ rồi kết quả hợp lệ có
   document báo cáo, comment và wake, gửi lại 409; GET kèm kế hoạch của Trợ Lý (bỏ comment của agent khác); skip chỉ khi owner đã chấp nhận; watchdog hết giờ 30 phút và 8
