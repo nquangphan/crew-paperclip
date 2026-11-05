@@ -166,6 +166,32 @@ describe("xếp lượt khi ticket tổng vào stage cầu nối", () => {
     expect(await jobs()).toHaveLength(0);
   });
 
+  it("project không có lần thêm qua wizard, repo ngoài ~/crew-agents: khóa lấy từ tên agent integrator", async () => {
+    const plain = "20000000-0000-4000-8000-000000000002";
+    const plainIntegrator = id(4, 9);
+    await host.sql`INSERT INTO projects (id,company_id,name) VALUES (${plain},${companyId},'my_money') ON CONFLICT DO NOTHING`;
+    await host.sql`INSERT INTO agents (id,company_id,name) VALUES (${plainIntegrator},${companyId},'my-money-integrator') ON CONFLICT DO NOTHING`;
+    await host.sql.unsafe(`INSERT INTO ${host.ns}.project_machines (company_id,project_id,machine_id,repo_path,status,updated_at)
+      VALUES ($1,$2,$3,'/Users/m/Documents/projects/my_money','ready',now())`, [companyId, plain, mini]);
+    const withIntegrator = (agentId: string) => ({ ...rootBf, stages: [
+      { ...stages[0], participants: [{ id: "p1", type: "agent", agentId }] }, stages[1], stages[2],
+      { ...stages[3], participants: [{ id: "p4", type: "agent", agentId }] },
+    ] });
+    const issue = addIssue(40, { projectId: plain, executionPolicy: withIntegrator(plainIntegrator) as never });
+    comments.set(issue, [{ authorAgentId: plainIntegrator, body: `crew-pr sha=${HEAD} pr=${PR}`, createdAt: new Date() }]);
+    await handleIssueUpdated(ctx, updated(issue));
+    expect(await runs(issue)).toMatchObject([{ run: 1, state: "requested", machine_id: mini }]);
+    expect((await jobs())[0]!.payload).toMatchObject({ projectKey: "my-money", repoPath: "/Users/m/Documents/projects/my_money" });
+
+    // Tên agent không theo dạng `<khóa>-integrator`: vẫn báo rõ lý do, không xếp việc.
+    const odd = id(4, 10);
+    await host.sql`INSERT INTO agents (id,company_id,name) VALUES (${odd},${companyId},'Integrator') ON CONFLICT DO NOTHING`;
+    const other = addIssue(41, { projectId: plain, executionPolicy: withIntegrator(odd) as never });
+    comments.set(other, [{ authorAgentId: odd, body: `crew-pr sha=${HEAD} pr=${PR}`, createdAt: new Date() }]);
+    await handleIssueUpdated(ctx, updated(other));
+    expect(await runs(other)).toMatchObject([{ run: 1, state: "failed", error: "Không xác định được khóa project trên máy" }]);
+  });
+
   it("máy ghim chưa có app hỗ trợ: không xếp việc, lượt failed với lý do", async () => {
     const issue = addIssue(5);
     await host.sql.unsafe(`INSERT INTO ${host.ns}.issue_machine_pins (company_id,root_issue_id,machine_id,source) VALUES ($1,$2,$3,'owner')`,

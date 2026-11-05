@@ -49,7 +49,10 @@ Luật chính:
    đánh thức reviewer.
 2. `packages/crew-plugin/src/bug-finding/enqueue.ts` → `enqueueBugFinding`: `latestCrewPr` lấy head PR; `approvalRound`
    đọc vòng; đã có lượt cho vòng + head thì trả lượt đó; vòng đủ 3 lượt thì không xếp (`runs_exhausted`); chọn máy
-   (`chooseMachine`), khóa project (`crew_setup_runs` của wizard, không có thì từ đường `~/crew-agents/<khóa>/repo`), nhánh
+   (`chooseMachine`), khóa project (`projectKeyOf`: `crew_setup_runs` của wizard, không có thì từ đường
+   `~/crew-agents/<khóa>/repo`, không có nữa thì từ tên agent integrator của ticket `<khóa>-integrator`, cách app 2P Crew
+   và crew-mac đặt tên agent vai trò; project dựng bằng crew-mac hay repo ngoài `~/crew-agents` chỉ có nguồn này; vẫn
+   không ra khóa thì lượt `failed` "Không xác định được khóa project trên máy"), nhánh
    gốc (`project_repos.branch`), phản hồi người review (`feedbackText`: khối `crew-bf-feedback` trong comment mới nhất có
    khối này của Trợ Lý, `executionState.returnAssignee`, viết sau lượt trước); ghi lượt `requested` (`ON CONFLICT DO
    NOTHING` trên khóa duy nhất), rồi việc máy `bug-finding-review` (flow `machine-jobs`) và gắn `machine_job_id`.
@@ -119,7 +122,8 @@ Luật chính:
 
 - `packages/crew-plugin/src/__tests__/bug-finding.db.test.ts`: vào stage cầu nối xếp đúng một việc và một lượt, vào
   lại cùng head không xếp thêm; không xếp khi không ở stage cầu nối, không phải `root-bf` hay chưa có `crew-pr`; máy ghim
-  chưa có app thì lượt `failed`; vòng đủ 3 lượt không xếp; owner yêu cầu sửa sang vòng mới; lượt chạy lại mang
+  chưa có app thì lượt `failed`; project không có lần thêm qua wizard, repo ngoài `~/crew-agents` lấy khóa từ tên agent
+  integrator, tên khác dạng thì lượt `failed` có lý do; vòng đủ 3 lượt không xếp; owner yêu cầu sửa sang vòng mới; lượt chạy lại mang
   `crew-bf-feedback` của Trợ Lý; request chỉ reviewer và idempotent; results 403/422/404, tiến độ rồi kết quả hợp lệ có
   document báo cáo, comment và wake, gửi lại 409; GET kèm kế hoạch của Trợ Lý (bỏ comment của agent khác); skip chỉ khi owner đã chấp nhận; watchdog hết giờ 30 phút và 8
   giờ, việc máy hỏng thành `failed`, việc nhận xong thành `queued`.

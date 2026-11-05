@@ -23,6 +23,7 @@ const FEEDBACK_FENCED = /^```crew-bf-feedback[ \t]*\r?\n([\s\S]*?)\r?\n```/m;
 const FEEDBACK_BARE = /^crew-bf-feedback[ \t]*\r?\n((?:F-[0-9A-Za-z]+:.*(?:\r?\n|$))+)/m;
 const CHECKOUT_REPO = /\/crew-agents\/([a-z][a-z0-9-]{1,30})\/repo\/?$/;
 const PROJECT_KEY = /^[a-z][a-z0-9-]{1,30}$/;
+const INTEGRATOR_NAME = /^([a-z][a-z0-9-]{1,30})-integrator$/;
 
 export const NOT_CAPABLE_ERROR = "Mac chưa cập nhật 2P Crew có Bug Finding";
 
@@ -124,13 +125,21 @@ async function chooseMachine(ctx: Ctx, companyId: string, issue: Issue): Promise
   return capable ? { machineId: capable.machine_id, repoPath: capable.repo_path! } : { machineId: ready[0]!.machine_id, error: NOT_CAPABLE_ERROR };
 }
 
-/** Khóa project trên Mac: lần thêm project của wizard, không có thì lấy từ đường repo `~/crew-agents/<khóa>/repo`. */
-async function projectKeyOf(ctx: Ctx, companyId: string, projectId: string, repoPath: string): Promise<string | null> {
+/**
+ * Khóa project trên Mac, theo thứ tự: lần thêm project của wizard; đường repo `~/crew-agents/<khóa>/repo`; tên agent
+ * integrator của ticket (`<khóa>-integrator`, cách app 2P Crew và crew-mac đặt tên agent vai trò). Project dựng bằng
+ * crew-mac hay repo nằm ngoài `~/crew-agents` chỉ có nguồn thứ ba.
+ */
+async function projectKeyOf(ctx: Ctx, companyId: string, projectId: string, repoPath: string, integratorId: string): Promise<string | null> {
   const rows = await ctx.db.query<{ project_key: string | null }>(`SELECT project_key FROM ${pluginNamespace(ctx)}.crew_setup_runs
     WHERE company_id = $1 AND project_id = $2 AND kind = 'add-project' AND project_key IS NOT NULL ORDER BY updated_at DESC LIMIT 1`,
   [companyId, checkedId(projectId)]);
-  const key = rows[0]?.project_key ?? CHECKOUT_REPO.exec(repoPath)?.[1] ?? null;
-  return key && PROJECT_KEY.test(key) ? key : null;
+  const known = rows[0]?.project_key ?? CHECKOUT_REPO.exec(repoPath)?.[1] ?? null;
+  if (known && PROJECT_KEY.test(known)) return known;
+  const agents = await ctx.db.query<{ name: string }>("SELECT name FROM public.agents WHERE id = $1 AND company_id = $2",
+    [checkedId(integratorId), companyId]);
+  const named = INTEGRATOR_NAME.exec(agents[0]?.name ?? "")?.[1] ?? null;
+  return named && PROJECT_KEY.test(named) ? named : null;
 }
 
 async function baseBranchOf(ctx: Ctx, companyId: string, projectId: string): Promise<string> {
@@ -174,7 +183,7 @@ export async function enqueueBugFinding(ctx: Ctx, issue: Issue, options: { retry
   let error = "error" in machine ? machine.error : null;
   let payload: JobPayload | string | null = null;
   if (!error && "repoPath" in machine) {
-    const projectKey = await projectKeyOf(ctx, companyId, issue.projectId!, machine.repoPath);
+    const projectKey = await projectKeyOf(ctx, companyId, issue.projectId!, machine.repoPath, roles.integratorId);
     payload = projectKey
       ? validateJobPayload("bug-finding-review", {
         requestId, issueId: issue.id, identifier: issue.identifier, run: runNo, projectId: issue.projectId, projectKey,
