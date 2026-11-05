@@ -12,6 +12,10 @@ project owner cấp cho họ. Luật:
 - Bảng quyền chưa có (plugin chưa nâng cấp) hay tải quyền lỗi thì người bị giới hạn không thấy project nào (đóng khi lỗi).
 - Giới hạn: chỉ UI Crew và router Crew áp luật này. API lõi của Paperclip không đổi, nên gọi thẳng API lõi vẫn thấy
   mọi project của company. Đây là ẩn khỏi giao diện, không phải ranh giới bảo mật.
+- Quyền xem project của thành viên chỉ là lọc giao diện, không phải ranh giới bảo mật: API lõi Paperclip và
+  `crew.roots`/`crew.map` vẫn trả dữ liệu cả company. Cần giấu dữ liệu thật thì tách company. (Owner chốt 05/11/2026.)
+  Riêng `crew.roadmap` vẫn cắt ở server như hiện tại: router Crew ghi đè `params.viewer` theo `visibleProjectsFor` và
+  worker lọc trong SQL (flow `roadmap-map`).
 - Router Crew dùng luật này thật sự ở góp ý: người góp ý không gửi được vào project hay issue mình không xem được, và
   owner không duyệt được mục của người đã mất quyền xem project đó (flow `contributions`). Vòng QC cũng lọc theo quyền
   này (flow `qc-department`).

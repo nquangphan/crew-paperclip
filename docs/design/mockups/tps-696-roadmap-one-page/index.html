@@ -79,8 +79,8 @@
   <h2>Giới hạn hiệu năng giả định (cho con dữ liệu và con giao diện)</h2>
   <table>
     <tr><th>Hạng mục</th><th>Giới hạn</th></tr>
-    <tr><td>Dữ liệu lúc mở</td><td>Một lần gọi danh sách issue của công ty (đã có, trần 1000) là đủ vẽ toàn cảnh: cây theo <code>parentId</code>, trạng thái, người làm. Trên 1000 giữ cảnh báo "bản đồ có thể thiếu một phần".</td></tr>
-    <tr><td>Dữ liệu tải lười</td><td>Cạnh chặn / vòng sửa (<code>crew.map</code>) và run (<code>crew.runs</code>) chỉ tải cho đảo đang ở mức thẻ đầy đủ và nằm trong khung; giữ cache, run làm mới 30s. Cây Docs chỉ tải khi đảo Docs vào mức nhãn trở lên.</td></tr>
+    <tr><td>Dữ liệu lúc mở</td><td>Một lần gọi <code>crew.roadmap</code> trả cây của mọi yêu cầu người xem được thấy (cha-con, cạnh chặn, vòng sửa; số query cố định ở worker), server Crew đã lọc theo project được cấp. Trần <b>5000</b> việc: vượt thì cắt theo cây (yêu cầu mới trước) và hiện cảnh báo "bản đồ có thể thiếu một phần".</td></tr>
+    <tr><td>Dữ liệu tải song song / lười</td><td>Danh sách docs và cây Docs của các project có docs tải song song lúc mở trang (chỉ đường và tiêu đề); lỗi docs không chặn bản đồ. Run (<code>crew.runs</code>) chỉ tải cho yêu cầu đang lấy nét. Bản trước của bảng này (danh sách issue trần 1000, <code>crew.map</code> tải lười theo đảo, cây Docs tải khi vào mức nhãn) là thiết kế cũ; hợp đồng hiện hành ở <code>docs/flows/roadmap-map.md</code>.</td></tr>
     <tr><td>Thẻ đầy đủ cùng lúc</td><td>Tối đa <b>120</b> thẻ DOM (chỉ trong khung + nửa khung đệm). Vượt thì đảo xa tâm khung vẽ ở mức ô màu.</td></tr>
     <tr><td>Ô màu</td><td>Mức ô màu và nhãn vẽ trên một lớp <code>&lt;canvas&gt;</code> (hoặc một <code>&lt;path&gt;</code> SVG mỗi màu trạng thái), không phải một nút DOM mỗi việc. Mục tiêu 60fps khi kéo/cuộn với 1000 việc.</td></tr>
     <tr><td>Nhãn nổi</td><td>Chỉ nhãn của đảo trong khung, tối đa <b>80</b>; vị trí cập nhật theo camera, không render lại React mỗi khung hình.</td></tr>

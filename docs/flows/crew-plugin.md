@@ -56,8 +56,9 @@ Luật chính:
 9. `server/src/crew/plugin-data-scope.ts` → `crewViewerPluginDataScope`: cho viewer của company Crew đọc các data key
    trong `CREW_VIEWER_DATA_KEYS`; mọi trường hợp khác trả `undefined` để route stock kiểm như cũ (đóng khi lỗi).
    Cùng file, `crewRoadmapViewerScope` ghi đè `params.viewer` của data `crew.roadmap` bằng project người gọi được xem,
-   so trên key đã decode nên mọi cách viết key (`crew%2Eroadmap`…) đều bị ghi đè; lỗi đọc quyền thì trả 503
-   (`crew_roadmap_scope_unavailable`) trước route stock thay vì Roadmap rỗng (flow `roadmap-map`).
+   so trên key đã decode nên mọi cách viết key (`crew%2Eroadmap`…) đều bị ghi đè; lỗi đọc quyền thì log warn kèm
+   `companyId` và trả thẳng 503 (`crew_roadmap_scope_unavailable`, không qua `errorHandler` nên không báo crash) trước
+   route stock thay vì Roadmap rỗng (flow `roadmap-map`).
 
 ## Files
 

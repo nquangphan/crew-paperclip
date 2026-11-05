@@ -71,8 +71,9 @@ Luật chính:
    `{ all: true }`, người khác `{ all: false, projectIds }`); actor không phải phiên trình duyệt, company không thuộc
    phiên thì phạm vi rỗng. Không gắn trên literal `data/crew.roadmap`: Express khớp route trên path
    chưa decode nhưng decode `req.params.key`, nên `crew%2Eroadmap` từng lọt qua middleware mà route stock vẫn chuyển
-   viewer client gửi cho worker. Lỗi đọc quyền (`visibleProjectsFor` ném) thì trả 503 có mã
-   `crew_roadmap_scope_unavailable`, route stock không chạy, để trang báo lỗi kèm Thử lại chứ không hiện Roadmap rỗng
+   viewer client gửi cho worker. Lỗi đọc quyền (`visibleProjectsFor` ném) thì middleware log warn kèm `companyId` và
+   trả thẳng 503 `{ error, code: "crew_roadmap_scope_unavailable" }` (không qua `errorHandler`, nhánh 5xx của nó báo
+   crash mỗi request), route stock không chạy, để trang báo lỗi kèm Thử lại chứ không hiện Roadmap rỗng
    như thể không có yêu cầu; được đọc quyền mà không có project nào vẫn là rỗng 200. Chỉ `crew.roadmap` đọc
    `params.viewer`; key khác đi nguyên. Key nằm trong
    `CREW_VIEWER_DATA_KEYS` để viewer đọc được.
@@ -89,7 +90,8 @@ Luật chính:
    sách docs và cây Docs của các project có docs tải song song (chỉ đường và tiêu đề); lần đầu trang chờ chúng xong để
    đảo Docs có đủ kích thước ngay, bố cục không xê dịch. Docs không chặn bản đồ: danh sách docs lỗi hay đang thử lại thì
    dựng không có đảo Docs, cây lỗi hay đang thử lại là `null` (nút Docs mờ); đã hiện bản đồ rồi thì docs về sau được bổ
-   sung (cây còn tải là `'loading'`), không quay lại khung đang tải. Hook trả cả `docsProjects` để trang báo lỗi.
+   sung (cây còn tải là `'loading'`), không quay lại khung đang tải. Hook trả cả `docsProjects` và `docsTrees`
+   (lỗi cuối của cây hỏng và hàm tải lại các cây lỗi) để trang báo lỗi.
 9. `packages/crew-web/src/features/roadmap/roadmap-model.ts` → `buildWorldInput`: project (theo tên, bỏ project lưu
    trữ; "Chưa gắn project" cuối, chỉ owner), mỗi project một cụm gồm đảo Docs (thư mục → trang) rồi các đảo yêu cầu theo
    thứ tự tạo; đảo yêu cầu dựng bằng `crewMapLevel` từ phần `crew.roadmap` của yêu cầu đó (thẻ yêu cầu hiện trạng thái QC
@@ -102,7 +104,8 @@ Luật chính:
    cảnh / phím 0 về toàn cảnh, breadcrumb bấm được, mục không có hoặc không được xem thì về toàn cảnh kèm thông báo chung.
    Bấm trang docs của project khác project Docs đang lấy nét thì lấy nét Docs của project đó để popup đọc đúng project.
    Lỗi tải lần đầu (quyền xem, project, `crew.roadmap`) thay bản đồ bằng `ErrorState` kèm Thử lại; khi đã có bản đồ, lỗi
-   tải lại hay lỗi nhánh phụ (`crew.docs.projects`, `crew.runs`) giữ bản đồ và hiện `Alert` cảnh báo nhẹ kèm Thử lại.
+   tải lại hay lỗi nhánh phụ (`crew.docs.projects`, `crew.docs.tree`, `crew.runs`) giữ bản đồ và hiện `Alert` cảnh báo
+   nhẹ kèm Thử lại.
 11. `packages/crew-web/src/ds/widgets/roadmap/roadmap-world.ts` → `layoutWorld` (thế giới: đảo, cụm, dây trục, cạnh,
    `orbCap`), `worldLod`, `fitWorldBox`, `worldFocusView` (toàn cảnh; project 22–50%; đảo 60–110%, canh mép trên khi
    không vừa; việc con 105%), `cardsInView`, `platesInView`, `runningInView`, `blockPaths`, `nodeAtPoint`.
@@ -111,7 +114,8 @@ Luật chính:
    mức". Độ phóng đổi thì chỉ cập nhật biến CSS (`--rm-zoom`) và thuộc tính DOM; React render lại khi đổi mức, khi camera
    dừng, hoặc khi kéo ra khỏi vùng thẻ. Nhãn mức đọc qua ref nên cha render lại không làm đăng ký lại store; cờ đang bay
    có bộ đếm thế hệ (chuyến bị ngắt không hạ cờ của chuyến sau); vòng rAF đưa focus bàn phím tới mục đang xem bị hủy khi
-   lấy nét chỗ mới hay unmount, chuyến bay cũ xong muộn không giành focus về mục cũ.
+   lấy nét chỗ mới hay unmount, chuyến bay cũ xong muộn (kể cả sau unmount) không đặt lại vòng rAF; nhãn mức đổi (đổi
+   ngôn ngữ) thì một effect nhẹ ghi lại chữ trên chip khi camera đứng yên.
 12. `packages/crew-web/src/ds/widgets/roadmap/`: canvas `RoadmapCanvas` (bản đồ Crew ở trang issue, phần nặng
    `roadmap-flow.tsx` nạp lười), phần vẽ dùng chung `roadmap-flow-parts.tsx`, bố cục cây (`roadmap-layout.ts`), thẻ nút,
    khối run, chú giải.
@@ -178,10 +182,11 @@ vùng, vào mức thẻ có khung 290–430 ms vì xyflow nhận cả ~800 nút.
   Postgres thật; chỉ liệt kê gốc Crew, kèm tiến độ và giai đoạn.
 - `packages/crew-plugin/src/__tests__/roadmap.data.test.ts`: Postgres thật; cây đủ của mọi yêu cầu cho owner, người được
   cấp một project không thấy project khác, yêu cầu ngoài project hay nhánh con ở project không được cấp, viewer thiếu
-  hoặc sai thì rỗng; vượt trần (trần hạ qua tham số `limit`) cắt theo cây, không việc nào mất gốc hay mất cha, nhiều
-  nhất một cây cắt dở; dữ liệu cỡ company thật (165 yêu cầu) dùng cùng số query như 10 yêu cầu (≤ 3) và in số đo.
+  hoặc sai thì rỗng; vượt trần (trần hạ qua tham số `limit`) cắt theo cây, yêu cầu mới trước (`created_at` tường
+  minh, cây cũ nhất vắng hẳn), không việc nào mất gốc hay mất cha, nhiều nhất một cây cắt dở; dữ liệu cỡ company thật (165 yêu cầu) dùng cùng số query như 10 yêu cầu (≤ 3) và in số đo.
 - `server/src/__tests__/crew-roadmap-viewer-scope.test.ts`: server ghi đè `params.viewer` (viewer client tự gửi bị bỏ),
-  owner thấy hết, actor khác thì rỗng, lỗi đọc quyền thì 503 có mã lỗi và route stock không chạy (không được cấp gì
+  owner thấy hết, actor khác thì rỗng, lỗi đọc quyền thì 503 có mã lỗi trả thẳng (không tới handler lỗi) và route
+  stock không chạy (không được cấp gì
   vẫn rỗng 200), key khác giữ nguyên, middleware gắn trong router Crew; qua router Crew thật, mọi cách viết key
   (`crew%2Eroadmap`, `crew%2eroadmap`, `%63rew.roadmap`, `/` cuối) và `bridge/data` gửi `viewer={all:true}` thì worker
   vẫn nhận project được cấp, lỗi đọc quyền thì 503 với mọi cách viết;
@@ -200,8 +205,8 @@ vùng, vào mức thẻ có khung 290–430 ms vì xyflow nhận cả ~800 nút.
   toàn cảnh có mọi việc, bấm để zoom không đổi trang, Esc / Ra ngoài / Toàn cảnh, Back lùi vị trí, link cũ, dạng danh
   sách, quyền xem, đảo Docs, giảm chuyển động; một lần gọi `crew.roadmap`, run chỉ cho yêu cầu đang xem; `crew.roadmap`
   500 ra `ErrorState` và Thử lại, vượt trần ra cảnh báo, tải lại / `crew.docs.projects` / `crew.runs` lỗi khi đã có bản
-  đồ ra `Alert` nhẹ, docs lỗi hay đang thử lại không chặn bản đồ và docs về sau được bổ sung, bấm trang Docs của project
-  khác mở đúng project; dựng đảo bằng `crewMapLevel` (gốc do người tạo, "Chưa gắn project", không trần "+N", thứ tự tạo
+  đồ ra `Alert` nhẹ, docs lỗi hay đang thử lại không chặn bản đồ và docs về sau được bổ sung, cây docs lỗi hẳn ra nút
+  Docs mờ kèm `Alert` và Thử lại, đổi ngôn ngữ đổi chip mức, bấm trang Docs của project khác mở đúng project; dựng đảo bằng `crewMapLevel` (gốc do người tạo, "Chưa gắn project", không trần "+N", thứ tự tạo
   ổn định, cạnh trong cùng cây, docs `null`, số đang mở theo trạng thái lõi), phân giải `?focus=`, breadcrumb.
 - `packages/crew-web/e2e/specs/s22-roadmap.spec.ts` (Playwright, T1): đi từ toàn cảnh vào project, yêu cầu, việc con
   trên cùng một trang; popup, Esc, Back, link cũ, dạng danh sách, quyền xem.
