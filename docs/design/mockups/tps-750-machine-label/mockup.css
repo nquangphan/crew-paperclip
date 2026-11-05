@@ -1,0 +1,197 @@
+/* Mockup TPS-750 · nhãn máy. Giá trị lấy từ tokens.css (chép từ packages/crew-web/src/ds/tokens.css) và class
+   Tailwind mà component đang dùng (ghi tên class bên cạnh). Không có màu mới: nhãn máy dùng lại
+   --status-task-icon-done (máy online), --status-task-icon-backlog (offline), --status-task-icon-todo (đã gỡ ghép). */
+
+/* ds/tokens.css dòng 589-590 */
+:root { --text-nano: 10px; --text-micro: 11px; --destructive: oklch(0.577 0.245 27.325); /* tokens.css dòng 121 */ }
+.dark { --destructive: oklch(0.637 0.237 25.331); /* tokens.css dòng 424 */ }
+
+* { box-sizing: border-box; }
+body { margin: 0; font-family: var(--font-sans); font-size: 14px; line-height: 1.43; background: var(--background); color: var(--foreground); -webkit-font-smoothing: antialiased; }
+svg.i { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; flex-shrink: 0; }
+.muted { color: var(--muted-foreground); }
+.mono { font-family: var(--font-mono); }
+
+/* ── Khung app (ds/components/app-frame.tsx): sidebar 240px, dưới md (768px) thành thanh trên có nút ☰ ── */
+.frame { display: flex; min-height: 100vh; }
+.side { width: 240px; flex-shrink: 0; background: var(--sidebar); border-right: 1px solid var(--sidebar-border); padding: 14px 10px; display: flex; flex-direction: column; gap: 2px; }
+.side .brand { font-weight: 700; font-size: 15px; padding: 2px 8px 14px; }
+.side a { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 6px; color: var(--sidebar-foreground); text-decoration: none; font-size: 13px; }
+.side a.on { background: var(--sidebar-accent); font-weight: 500; }
+.topbar { display: none; }
+.main { flex: 1; min-width: 0; padding: 16px 24px 32px; display: flex; flex-direction: column; gap: 12px; }
+@media (max-width: 767px) {
+  .frame { flex-direction: column; }
+  .side { display: none; }
+  .topbar { display: flex; align-items: center; gap: 10px; height: 48px; padding: 0 12px; border-bottom: 1px solid var(--border); font-weight: 700; }
+  .topbar .burger { width: 44px; height: 44px; display: inline-flex; align-items: center; justify-content: center; font-size: 18px; }
+  .main { padding: 12px 12px 24px; }
+}
+
+/* ── Thanh công cụ (issue-list.tsx: CollectionToolbar, ToolbarSearch, ToolbarIconButton) ── */
+h1.title { font-size: 14px; font-weight: 600; margin: 0; }
+.toolbar { display: flex; align-items: center; gap: 8px; }
+.btn { display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 10px; border: 1px solid var(--border); border-radius: 6px; background: var(--background); font: inherit; font-size: 13px; font-weight: 500; color: var(--foreground); }
+.search { position: relative; width: 320px; }
+.search svg { position: absolute; left: 8px; top: 9px; color: var(--muted-foreground); }
+.search input { width: 100%; height: 32px; border: 1px solid var(--border); border-radius: 6px; padding: 0 8px 0 28px; font: inherit; font-size: 13px; background: transparent; color: var(--foreground); }
+.controls { margin-left: auto; display: flex; align-items: center; gap: 4px; position: relative; }
+.ib { position: relative; width: 32px; height: 32px; display: inline-flex; align-items: center; justify-content: center; border: 1px solid var(--border); border-radius: 6px; background: var(--background); color: var(--foreground); }
+.ib.on { background: var(--accent); }
+.ib .badge { position: absolute; top: -4px; right: -4px; width: 14px; height: 14px; border-radius: 999px; background: var(--primary); color: var(--primary-foreground); font-size: var(--text-nano); font-weight: 700; display: flex; align-items: center; justify-content: center; }
+.toggle { display: flex; border: 1px solid var(--border); border-radius: 6px; overflow: hidden; margin-right: 4px; }
+.toggle span { width: 32px; height: 32px; display: inline-flex; align-items: center; justify-content: center; color: var(--muted-foreground); }
+.toggle span.on { background: var(--accent); color: var(--foreground); }
+@media (max-width: 639px) {
+  .toolbar { flex-wrap: wrap; }
+  .search { width: 100%; order: 3; }
+  .btn .lbl { display: none; }
+  /* Màn hẹp: nút biểu tượng cao 44px cho dễ chạm (checklist ui-ux-pro-max: touch target ≥ 44px). */
+  .ib, .toggle span { width: 44px; height: 44px; }
+  .btn { height: 44px; }
+}
+
+/* ── Nhóm và dòng (IssueGroup, IssueListRow, RowCell) ── */
+.group-h { display: flex; align-items: center; gap: 8px; padding: 6px 12px 6px 4px; font-size: 14px; font-weight: 600; letter-spacing: .025em; text-transform: uppercase; }
+.group-h svg { transform: rotate(90deg); color: var(--muted-foreground); margin-left: 12px; }
+.row { position: relative; display: flex; align-items: center; gap: 8px; padding: 8px 8px 8px 16px; border-radius: 8px; font-size: 14px; }
+.row:hover, .row.hover { background: color-mix(in oklab, var(--accent) 50%, transparent); }
+.lead { display: flex; align-items: center; gap: 4px; align-self: stretch; flex-shrink: 0; }
+.guide { position: relative; width: 16px; align-self: stretch; }
+.guide::after { content: ""; position: absolute; top: -12px; bottom: -12px; left: 28px; width: 1px; background: var(--border); }
+.tw { width: 16px; height: 16px; display: inline-flex; align-items: center; justify-content: center; color: var(--muted-foreground); }
+.tw.open svg { transform: rotate(90deg); }
+.body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.titleline { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.t { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.time-m { display: none; }
+.subline { display: none; }
+.trail { margin-left: auto; display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+.cell { display: flex; align-items: center; min-width: 0; overflow: hidden; white-space: nowrap; font-size: 12px; color: var(--muted-foreground); flex-shrink: 0; }
+.cell.sm { width: 96px; } .cell.md { width: 112px; } .cell.lg { width: 128px; }
+.cell.id { width: 80px; justify-content: flex-end; font-family: var(--font-mono); }
+.cell.time { width: 96px; justify-content: flex-end; }
+.colhead { display: flex; gap: 8px; padding: 0 8px 4px 16px; font-size: var(--text-micro); color: var(--muted-foreground); }
+.colhead .sp { flex: 1; }
+.colhead .new, .newmark { color: var(--status-task-icon-todo); font-weight: 600; }
+@media (max-width: 639px) {
+  /* IssueListRow dưới sm: cột phụ ẩn (task-row-trailing `hidden sm:flex`), tiêu đề 2 dòng, giờ ở phải. */
+  .row { align-items: flex-start; padding: 10px 8px; }
+  .t { white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+  .titleline { align-items: baseline; }
+  .time-m { display: inline; margin-left: auto; font-size: 12px; color: var(--muted-foreground); white-space: nowrap; flex-shrink: 0; }
+  .trail, .colhead { display: none; }
+  .subline { display: flex; } /* MỚI: dòng phụ dưới tiêu đề, chỉ có ở màn hẹp. */
+  .lead { align-items: flex-start; padding-top: 2px; }
+  .lead .tw { margin-top: 1px; }
+}
+
+/* ── Huy hiệu sẵn có (LiveBadge, Badge outline của StageBadge, Avatar của Identity) ── */
+.live { display: inline-flex; align-items: center; gap: 6px; padding: 2px 8px; border-radius: 999px; background: color-mix(in oklab, #8b5cf6 10%, transparent); flex-shrink: 0; }
+.live i { width: 8px; height: 8px; border-radius: 999px; background: #8b5cf6; /* violet-500 */ }
+.live b { font-size: var(--text-micro); font-weight: 500; color: #7c3aed; /* violet-600 */ }
+.stage { display: inline-flex; align-items: center; height: 20px; padding: 0 8px; border: 1px solid var(--border); border-radius: 6px; font-size: 12px; font-weight: 500; color: var(--foreground); }
+.who { display: inline-flex; align-items: center; gap: 6px; min-width: 0; font-size: 14px; color: var(--foreground); }
+.av { width: 20px; height: 20px; border-radius: 999px; background: var(--muted); color: var(--muted-foreground); font-size: var(--text-nano); font-weight: 600; display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.who span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; }
+
+/* ── MỚI: nhãn máy (đề xuất widget ds/widgets/machine-label.tsx) ──
+   Cỡ chữ 12px + màu muted-foreground như RowCell; chỉ báo 12px đứng trước tên máy.
+   online   : chấm 8px màu --status-task-icon-done
+   offline  : icon WifiOff (lucide) màu --status-task-icon-backlog, tên máy giữ màu muted
+   unpaired : icon Unlink (lucide) màu --status-task-icon-todo, tên máy gạch ngang
+   unpinned : chữ "Chưa ghim", không chỉ báo (chỉ ở cột danh sách desktop)
+   Không bao giờ chỉ dựa vào màu: offline/đã gỡ ghép khác hình (icon) và có chữ trạng thái ở nơi không có tooltip. */
+.ml { display: inline-flex; align-items: center; gap: 6px; min-width: 0; font-size: 12px; color: var(--muted-foreground); white-space: nowrap; }
+.ml .ind { width: 12px; height: 12px; display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.ml .ind i { width: 8px; height: 8px; border-radius: 999px; background: var(--status-task-icon-done); }
+.ml .ind svg { width: 12px; height: 12px; }
+.ml.offline .ind { color: var(--status-task-icon-backlog); }
+.ml.unpaired .ind { color: var(--status-task-icon-todo); }
+.ml .host { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.ml.unpaired .host { text-decoration: line-through; text-decoration-color: color-mix(in oklab, var(--muted-foreground) 70%, transparent); }
+.ml .st { display: none; }
+.ml.with-state .st { display: inline; }
+.ml.with-state .st::before { content: "· "; }
+.ml.offline .st, .ml.unpaired .st { font-weight: 500; color: var(--foreground); }
+.ml.unpinned { color: var(--muted-foreground); }
+
+/* Tooltip (ds/components/tooltip.tsx: bg-foreground text-background, text-xs, rounded-md, px-3 py-1.5) */
+.tip { position: absolute; z-index: 30; background: var(--foreground); color: var(--background); font-size: 12px; line-height: 1.4; padding: 6px 12px; border-radius: 6px; width: max-content; max-width: 260px; white-space: normal; }
+.tip::after { content: ""; position: absolute; top: -4px; left: 16px; width: 8px; height: 8px; background: var(--foreground); transform: rotate(45deg); }
+.tip b { font-weight: 600; }
+
+/* Skeleton (ds/components/skeleton.tsx: bg-accent animate-pulse rounded-md) */
+.skel { display: inline-block; height: 10px; width: 84px; border-radius: 6px; background: var(--accent); animation: pulse 2s ease-in-out infinite; }
+@keyframes pulse { 50% { opacity: .5; } }
+@media (prefers-reduced-motion: reduce) { .skel { animation: none; } }
+
+/* ── Popover Lọc (ToolbarFilterMenu): w-[min(44rem,100vw-2rem)], lưới 3 cột từ md ── */
+.pop { position: absolute; z-index: 20; right: 0; top: 40px; width: min(44rem, calc(100vw - 2rem)); background: var(--popover); border: 1px solid var(--border); border-radius: 8px; box-shadow: 0 4px 6px -1px rgb(0 0 0 / .1), 0 2px 4px -2px rgb(0 0 0 / .1); padding: 12px; display: flex; flex-direction: column; gap: 12px; }
+.pop .ph { display: flex; justify-content: space-between; align-items: center; }
+.pop .ph b { font-size: 14px; font-weight: 500; }
+.pop .ph a { font-size: 12px; color: var(--muted-foreground); }
+.pop hr { border: 0; border-top: 1px solid var(--border); margin: 0; }
+.fgrid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
+.fs { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.fs legend, .fs .lg { font-size: 12px; color: var(--muted-foreground); margin-bottom: 4px; }
+.fs.new { outline: 1px dashed var(--status-task-icon-todo); outline-offset: 4px; border-radius: 4px; }
+.opt { display: flex; align-items: center; gap: 8px; padding: 4px 8px; border-radius: 4px; font-size: 14px; min-width: 0; }
+.opt:hover { background: color-mix(in oklab, var(--accent) 50%, transparent); }
+.cb { width: 16px; height: 16px; border: 1px solid var(--border); border-radius: 4px; flex-shrink: 0; display: inline-flex; align-items: center; justify-content: center; box-shadow: 0 1px 2px rgb(0 0 0 / .05); }
+.cb.on { background: var(--primary); border-color: var(--primary); color: var(--primary-foreground); }
+.cb.on svg { width: 12px; height: 12px; stroke-width: 3; }
+.opt .ml { font-size: 14px; color: var(--foreground); flex: 1; }
+.opt .cnt { margin-left: auto; font-size: 12px; color: var(--muted-foreground); font-variant-numeric: tabular-nums; }
+.sg { width: 14px; height: 14px; }
+@media (max-width: 767px) {
+  .fgrid { grid-template-columns: 1fr; }
+  .opt { min-height: 44px; }
+}
+
+/* ── Bảng Kanban (kanban-board.tsx): cột 260px, thẻ Card p-2.5 ── */
+.board { display: flex; gap: 12px; overflow-x: auto; padding-bottom: 8px; align-items: flex-start; }
+.col { width: 260px; min-width: 260px; flex-shrink: 0; display: flex; flex-direction: column; }
+.colh { display: flex; align-items: center; gap: 8px; padding: 8px 12px; margin-bottom: 4px; }
+.colh b { font-size: 12px; font-weight: 600; letter-spacing: .025em; text-transform: uppercase; }
+.colh .n { margin-left: auto; font-size: 12px; font-variant-numeric: tabular-nums; }
+.colb { border-radius: 6px; padding: 8px; display: flex; flex-direction: column; gap: 4px; min-height: 120px; }
+/* COLUMN_TONES: bg-*-50/45 + ring-*-500/15 (Tailwind palette) */
+.c-todo .colh { color: #b45309; } .c-todo .colb { background: color-mix(in oklab, #fffbeb 45%, transparent); box-shadow: inset 0 0 0 1px color-mix(in oklab, #f59e0b 15%, transparent); }
+.c-prog .colh { color: #6d28d9; } .c-prog .colb { background: color-mix(in oklab, #f5f3ff 45%, transparent); box-shadow: inset 0 0 0 1px color-mix(in oklab, #8b5cf6 15%, transparent); }
+.c-rev .colh { color: #0e7490; } .c-rev .colb { background: color-mix(in oklab, #ecfeff 45%, transparent); box-shadow: inset 0 0 0 1px color-mix(in oklab, #06b6d4 15%, transparent); }
+.c-blk .colh { color: #b91c1c; } .c-blk .colb { background: color-mix(in oklab, #fef2f2 45%, transparent); box-shadow: inset 0 0 0 1px color-mix(in oklab, #ef4444 15%, transparent); }
+.c-back .colh { color: var(--muted-foreground); } .c-back .colb { background: color-mix(in oklab, var(--muted) 30%, transparent); box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--border) 50%, transparent); }
+.colh .n { opacity: .65; }
+.card { position: relative; background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 10px; box-shadow: 0 1px 2px rgb(0 0 0 / .05); }
+.card .top { display: flex; align-items: flex-start; gap: 6px; margin-bottom: 6px; }
+.card .top .mono { font-size: 12px; color: var(--muted-foreground); }
+.card .live-dot { width: 8px; height: 8px; border-radius: 999px; background: #8b5cf6; margin-top: 4px; }
+.card p { margin: 0 0 8px; font-size: 14px; line-height: 1.375; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.card .foot { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; min-width: 0; }
+.card .note { font-size: 12px; color: var(--muted-foreground); }
+/* MỚI: dòng máy cuối thẻ, ngăn với phần trên bằng đường kẻ mảnh. */
+.card .mline { display: flex; min-width: 0; margin-top: 8px; padding-top: 6px; border-top: 1px solid color-mix(in oklab, var(--border) 70%, transparent); }
+.card .mline .ml { max-width: 100%; }
+.compact .card { padding: 8px; }
+.compact .card p { font-size: 12px; margin-bottom: 6px; }
+.compact .card .mline { margin-top: 6px; padding-top: 4px; }
+
+/* ── Bảng chú giải và khung trạng thái ── */
+.frame-title { font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; color: var(--muted-foreground); margin: 20px 0 6px; }
+.panel { border: 1px solid var(--border); border-radius: 12px; background: var(--card); padding: 12px; }
+.legend { width: 100%; border-collapse: collapse; font-size: 13px; }
+.legend th, .legend td { border-bottom: 1px solid var(--border); padding: 10px; text-align: left; vertical-align: middle; }
+.legend th { font-size: 12px; font-weight: 500; color: var(--muted-foreground); }
+.legend td.n { color: var(--muted-foreground); font-size: 12px; max-width: 260px; }
+.note-box { border-left: 3px solid var(--status-task-icon-todo); padding: 6px 12px; font-size: 12px; color: var(--muted-foreground); background: color-mix(in oklab, var(--muted) 60%, transparent); border-radius: 0 6px 6px 0; }
+.err { font-size: 12px; color: var(--destructive); display: flex; align-items: center; gap: 8px; }
+.err a { color: var(--foreground); text-decoration: underline; }
+
+/* Bộ lọc: cột hẹp, chữ trạng thái xuống dòng dưới tên máy để tên máy không bị cắt. */
+.opt { align-items: flex-start; }
+.opt .cb, .opt > svg { margin-top: 2px; }
+.opt .ml.with-state { flex-wrap: wrap; row-gap: 0; }
+.opt .ml .host { overflow: visible; }
+.opt .ml.with-state .st { flex-basis: 100%; padding-left: 18px; font-size: 12px; }
+.opt .ml.with-state .st::before { content: none; }

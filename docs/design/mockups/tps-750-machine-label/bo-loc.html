@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TPS-750 · Bộ lọc theo máy</title>
+<link rel="stylesheet" href="./tokens.css">
+<link rel="stylesheet" href="./mockup.css">
+<script src="./ui.js"></script>
+</head>
+<body>
+<!-- Màn 2: popover Lọc có thêm mục "Máy" (mục thứ 5 của ToolbarFilterMenu). Đang chọn phans-macbook-pro:
+     nút Lọc có số 1, danh sách chỉ còn cây chạy trên máy đó. Màn hẹp: popover một cột, mỗi lựa chọn cao 44px. -->
+<div id="app"></div>
+<script>
+  const opt = (label, on, extra = '') => `<label class="opt"><span class="cb${on ? ' on' : ''}">${on ? icon('check') : ''}</span>${label}${extra}</label>`;
+  const st = (s) => opt(`${glyph(s)}<span>${STATUS_VI[s]}</span>`, false);
+  const machineOpts = [
+    opt(machineLabel('mini', { withState: false }), false, '<span class="cnt">4</span>'),
+    opt(machineLabel('mbp', { withState: true }), true, '<span class="cnt">2</span>'),
+    opt(machineLabel('imac', { withState: true }), false, '<span class="cnt">1</span>'),
+    opt('<span class="ml unpinned">Chưa ghim</span>', false, '<span class="cnt">1</span>'),
+  ].join('');
+  const pop = `<div class="pop" role="dialog" aria-label="Lọc yêu cầu">
+    <div class="ph"><b>Lọc yêu cầu</b><a href="#">Xóa</a></div><hr>
+    <div class="fgrid">
+      <fieldset class="fs" style="border:0;padding:0;margin:0"><legend class="lg">Trạng thái</legend>${['backlog','todo','in_progress','in_review','blocked','done'].map(st).join('')}</fieldset>
+      <fieldset class="fs" style="border:0;padding:0;margin:0"><legend class="lg">Người làm</legend>${['Trợ Lý','Executor 1','Executor 2','Executor 3','Reviewer'].map((n) => opt(`<span>${n}</span>`, false)).join('')}</fieldset>
+      <fieldset class="fs" style="border:0;padding:0;margin:0"><legend class="lg">Project</legend>${opt('<span>paperclip</span>', false)}${opt('<span>crew</span>', false)}</fieldset>
+      <fieldset class="fs" style="border:0;padding:0;margin:0"><legend class="lg">Loại</legend>${['Làm code','Nghiên cứu','Viết tài liệu','Bug Finding'].map((n) => opt(`<span>${n}</span>`, false)).join('')}</fieldset>
+      <fieldset class="fs new" style="border:0;padding:0;margin:0"><legend class="lg">Máy <span class="newmark">(mới)</span></legend>${machineOpts}</fieldset>
+    </div></div>`;
+  const body = toolbar({ filterCount: 1, popover: pop }) + colHead() +
+    `<section aria-label="Bị chặn"><div class="group-h">${icon('chevron')}Bị chặn</div>${rows([ISSUES[1]])}</section>`;
+  document.getElementById('app').innerHTML = frame(body);
+</script>
+</body>
+</html>

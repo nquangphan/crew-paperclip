@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TPS-750 · Bảng có nhãn máy trên thẻ</title>
+<link rel="stylesheet" href="./tokens.css">
+<link rel="stylesheet" href="./mockup.css">
+<script src="./ui.js"></script>
+</head>
+<body>
+<!-- Màn 3: bảng Kanban. Nhãn máy là dòng cuối thẻ (dưới người làm và giai đoạn), luôn kèm chữ trạng thái khi máy
+     không online. Thẻ chưa ghim máy không có dòng này. Màn hẹp: bảng cuộn ngang như hiện nay, thẻ giữ nguyên. -->
+<div id="app"></div>
+<script>
+  const all = flat();
+  const col = (cls, s, items) => `<section class="col ${cls}" aria-label="${STATUS_VI[s]}"><div class="colh">${glyph(s)}<b>${STATUS_VI[s]}</b><span class="n">${items.length}</span></div><div class="colb">${items.map(card).join('')}</div></section>`;
+  const by = (s) => all.filter((i) => i.status === s);
+  const body = toolbar({ board: true }) + `<div class="board">
+    ${col('c-back', 'backlog', by('backlog'))}${col('c-todo', 'todo', by('todo'))}${col('c-prog', 'in_progress', by('in_progress'))}${col('c-rev', 'in_review', by('in_review'))}${col('c-blk', 'blocked', by('blocked'))}
+  </div>`;
+  document.getElementById('app').innerHTML = frame(body);
+</script>
+</body>
+</html>
