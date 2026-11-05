@@ -52,6 +52,16 @@ test("refuses a changed file outside the shippable areas", () => {
   assert.match(r.stderr, /scripts\/other\.sh/);
 });
 
+test("accepts design mockups under docs/design/: they never ship", () => {
+  const r = run([
+    "docs/design/mockups/x/index.html",
+    "docs/design/mockups/x/map.js",
+    "docs/design/mockups/x/fonts/InterVariable.woff2",
+    "docs/design/mockups/x/fonts/LICENSE.txt",
+  ]);
+  assert.doesNotMatch(r.stderr, /cannot ship/);
+});
+
 test("accepts the stock UI files: ui/ is served by stock-ui.sh and never ships in the image", () => {
   const r = run(["ui/src/main.tsx", "ui/vite.config.ts"]);
   assert.doesNotMatch(r.stderr, /cannot ship/);

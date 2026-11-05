@@ -33,7 +33,7 @@ phối run đó. Job launchd có PPID 1, nhóm process và session riêng, cwd n
 ## Các bước
 
 1. `crew/ops/overlay-source.sh`: worktree phải đứng đúng commit yêu cầu và sạch. Chỉ file trong danh sách SHIP được
-   đóng gói; `docs/flows.yaml`, trang flow và `.githooks/` không bao giờ vào image; `ui/` (UI gốc ở `/paperclip/`) do
+   đóng gói; `docs/flows.yaml`, trang flow, mockup thiết kế dưới `docs/design/` (html, js, css, font) và `.githooks/` không bao giờ vào image; `ui/` (UI gốc ở `/paperclip/`) do
    flow `stock-ui` build riêng. File adapter ngoài `claude-local`, và file `packages/adapter-utils/src/` (image chạy
    `adapter-utils` từ `src`, vd vá C17), chỉ được đóng gói khi `core-hooks.json` khai là `adapter-patch`. Ghi manifest kiểm adapter (`inspect-adapters.mjs --write-manifest`).
 2. `crew/ops/overlay-job.sh`: build image `crew-v3/paperclip:v3-<short>` trên image upstream; watchdog RAM dừng build
