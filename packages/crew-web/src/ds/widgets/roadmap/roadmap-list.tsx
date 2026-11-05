@@ -1,6 +1,7 @@
 // crew: tự dựng
 // Dạng danh sách của bản đồ Roadmap: cùng nội dung tầng đang xem (đủ, không cắt trần) thành <ul> lồng nhau. Vừa là lối
-// thoát khi tầng có quá nhiều nút, vừa là bản thay thế cho trình đọc màn hình.
+// thoát khi tầng có quá nhiều nút, vừa là bản thay thế cho trình đọc màn hình. Mục đang xem (`current`) được tô và có
+// `aria-current`.
 import { BookOpen, Building2, FileText, Folder, FolderOpen } from 'lucide-react';
 import { useT } from '@/i18n';
 import { StatusGlyph } from '../status-glyph';
@@ -46,11 +47,12 @@ function Row({ node, onOpen }: { node: RoadmapNode; onOpen: (node: RoadmapNode) 
       type="button"
       data-roadmap-id={node.id}
       aria-label={label}
+      aria-current={node.current || undefined}
       aria-disabled={node.disabled || undefined}
       onClick={() => {
         if (!node.disabled) onOpen(node);
       }}
-      className="flex w-full min-w-0 cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm hover:bg-accent focus-visible:outline-2 focus-visible:outline-primary aria-disabled:cursor-default aria-disabled:text-muted-foreground aria-disabled:hover:bg-transparent"
+      className="flex w-full min-w-0 cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm hover:bg-accent focus-visible:outline-2 focus-visible:outline-primary aria-current:bg-accent aria-current:font-medium aria-current:ring-1 aria-current:ring-primary aria-disabled:cursor-default aria-disabled:text-muted-foreground aria-disabled:hover:bg-transparent"
     >
       <Icon node={node} />
       {node.identifier ? <span className="shrink-0 text-xs text-muted-foreground">{node.identifier}</span> : null}

@@ -5,8 +5,9 @@
 ## Mục đích
 
 Một yêu cầu Crew là một issue gốc (có policy Crew) với cây việc con, cạnh phụ thuộc và vòng sửa. Flow này cho người xem
-thấy cả cây đó: plugin dựng bản đồ từ bảng issue, crew-web vẽ bản đồ ở trang chi tiết issue và ở trang Roadmap (công ty
-→ project → yêu cầu → cây việc con, kèm nhánh Docs của project). Thẻ việc có vài run mới nhất và tổng tiền.
+thấy cả cây đó: plugin dựng bản đồ từ bảng issue, crew-web vẽ bản đồ ở trang chi tiết issue và ở trang Roadmap. Trang
+Roadmap chỉ còn một trang: một bản đồ chứa công ty → project → yêu cầu → cây việc con (kèm đảo Docs của project); bấm
+một mục thì camera zoom/pan tới mục đó, không đổi trang hay đổi tầng. Thẻ việc có vài run mới nhất và tổng tiền.
 
 Luật chính:
 
@@ -19,9 +20,22 @@ Luật chính:
   router Crew ghi đè phạm vi xem vào params, worker lọc trong SQL (cả việc con nằm ở project không được cấp).
 - Cây của mọi yêu cầu đến trong một lần tải `crew.roadmap` với số query cố định (tối đa 3), không gọi theo từng yêu
   cầu. Run và tiền tải lười theo yêu cầu đang xem (`crew.runs`).
-- Mỗi tầng có trần số nút (`CAPS`); vượt thì có nút "+N khác" mở dạng danh sách. Dạng danh sách cũng là bản thay thế cho
-  trình đọc màn hình.
-- Tầng đang xem nằm trên URL (`roadmap-url.ts`) để gửi link và nút Back lùi tầng.
+- Roadmap một trang dùng chung thẻ, đường nối và chuyển động với `CrewMap`: mỗi yêu cầu là một "đảo" dựng bằng
+  `crewMapLevel` và xếp bằng `topDownTree` như bản đồ ở trang issue; nút và dây vẽ bằng `FlowNode`/`FlowEdge`/`edgePath`
+  trong `roadmap-flow-parts.tsx` (cùng file với canvas của `CrewMap`), không có bộ vẽ thứ hai.
+- Mức chi tiết theo độ phóng (`worldLod`, ngưỡng 16% và 55%, trễ ±2%): ô màu (mỗi việc một hình chữ nhật, gộp một
+  `<path>` mỗi màu trạng thái), nhãn nổi của đảo (tối đa 80, trong khung), thẻ đầy đủ (tối đa 120 thẻ DOM trong khung +
+  nửa khung đệm, xyflow chỉ vẽ nút trong khung; phần còn lại vẫn là ô màu). Lớp chạy trên dây tối đa 30 dây trong khung.
+  Nút tròn công ty/project giữ cỡ tối thiểu trên màn hình, có trần theo khoảng cách giữa các cụm để không chồng nhau.
+- Bố cục tính một lần cho mỗi lần dữ liệu đổi và nhớ theo đảo (`IslandCache`, khóa là chữ ký id-cha-kích thước): dữ liệu
+  live đổi một đảo thì chỉ tính lại đảo đó; cụm và kệ đảo canh trái nên đảo đứng trước không dời chỗ. Camera chỉ bay khi
+  chỗ lấy nét đổi, không theo dữ liệu.
+- Chỗ lấy nét nằm trên URL (`?focus=<mã>`, `project:<id>`, `docs:<project>`, `dir:<project>:<thư mục>`; không có là toàn
+  cảnh). Mỗi lần lấy nét đẩy một mục lịch sử nên Back trình duyệt bay về chỗ trước. Link cũ `?project=`/`&request=`/
+  `&docs=1`/`&folder=` tự đổi sang `?focus=` (thay URL, không thêm mục lịch sử). `?view=list`, `?issue=`, `?doc=` giữ
+  nguyên nghĩa.
+- Dạng danh sách (`?view=list`) có đủ mọi mục lồng nhau (không trần), tô mục đang xem; là bản thay thế cho trình đọc màn
+  hình. Giảm chuyển động (prefers-reduced-motion): camera nhảy thẳng, không lớp chạy trên dây.
 
 ## Điểm vào
 
@@ -64,17 +78,37 @@ Luật chính:
    (cạnh phụ thuộc thành "chặn"); `crew-map.tsx` → `CrewMap` vẽ nó bằng canvas Roadmap. Tham số `rootKind` (`docs` | `plan` | null,
    `SummarySlot` lấy từ nhãn của yêu cầu gốc) đổi nhãn loại của việc `code` thành "Viết tài liệu" hoặc "Lập kế hoạch"; việc `fix` vẫn là "Sửa"; `code-bf` hiện là "Lập trình".
 8. `packages/crew-web/src/features/roadmap/use-roadmap.ts` → `useRoadmapData`: một query `crew.roadmap` (khóa
-   `queryKeys.crew('crew.roadmap', { companyId })`, nằm dưới tiền tố `crew` nên sự kiện live của issue làm tươi) cho
-   mọi tầng: công ty, project, cây yêu cầu (theo `rootId`) và tên người làm đều dựng từ cùng dữ liệu, nên chuyển tầng
-   không gọi mạng; lọc thêm bằng `useVisibleProjects`. Project, run (`crew.runs`, theo yêu cầu đang xem) và docs tải
-   riêng.
-9. `packages/crew-web/src/features/roadmap/roadmap-model.ts`: dựng từng tầng (công ty, project, yêu cầu, nhánh Docs)
-   thành `RoadmapLevel`; `issuesFromRoadmap` đổi nút `crew.roadmap` thành issue phẳng (chặn lấy từ cạnh `dependency`);
-   không gọi API, không đọc URL.
-10. `packages/crew-web/src/features/roadmap/roadmap-page.tsx` → `RoadmapPage`: điều hướng tầng, popup chi tiết yêu cầu
-   (`?issue=`), popup đọc docs (`?doc=`, `RoadmapDocReader`), dạng danh sách (`?view=list`).
-11. `packages/crew-web/src/ds/widgets/roadmap/`: canvas (`RoadmapCanvas`, phần nặng `roadmap-flow.tsx` nạp lười), bố cục
-   tỏa tròn và cây (`roadmap-layout.ts`), thẻ nút, khối run, chú giải.
+   `queryKeys.crew('crew.roadmap', { companyId })`, nằm dưới tiền tố `crew` nên sự kiện live của issue làm tươi) cho cả
+   bản đồ, lọc thêm bằng `useVisibleProjects`. Run (`crew.runs`) tải lười theo yêu cầu gốc của chỗ đang lấy nét. Danh
+   sách docs và cây Docs của các project có docs tải song song (chỉ đường và tiêu đề) và trang chờ chúng xong để đảo Docs
+   có đủ kích thước ngay, bố cục không xê dịch.
+9. `packages/crew-web/src/features/roadmap/roadmap-model.ts` → `buildWorldInput`: project (theo tên, bỏ project lưu
+   trữ; "Chưa gắn project" cuối, chỉ owner), mỗi project một cụm gồm đảo Docs (thư mục → trang) rồi các đảo yêu cầu theo
+   thứ tự tạo; đảo yêu cầu dựng bằng `crewMapLevel` từ phần `crew.roadmap` của yêu cầu đó (thẻ yêu cầu hiện trạng thái QC
+   qua `statusOf`). `resolveFocus`, `parentFocus`, `focusOfNode`, `worldFocusOf`, `focusTrail`: chỗ lấy nét trên URL →
+   mục trên thế giới, mức ngoài (Esc), khung camera, breadcrumb. `worldListItems`: dạng danh sách. Không gọi API, không
+   đọc URL.
+10. `packages/crew-web/src/features/roadmap/roadmap-page.tsx` → `RoadmapPage`: dựng thế giới (`layoutWorld` với
+   `IslandCache` giữ qua các lần render), đổi link cũ, bấm mục để lấy nét (bấm lại mục đang xem, Enter hay nút Mở chi
+   tiết mở popup `?issue=`; bấm trang docs mở popup `?doc=`, `RoadmapDocReader`), Esc / nút Ra ngoài ra một mức, nút Toàn
+   cảnh / phím 0 về toàn cảnh, breadcrumb bấm được, mục không có hoặc không được xem thì về toàn cảnh kèm thông báo chung.
+11. `packages/crew-web/src/ds/widgets/roadmap/roadmap-world.ts` → `layoutWorld` (thế giới: đảo, cụm, dây trục, cạnh,
+   `orbCap`), `worldLod`, `fitWorldBox`, `worldFocusView` (toàn cảnh; project 22–50%; đảo 60–110%, canh mép trên khi
+   không vừa; việc con 105%), `cardsInView`, `platesInView`, `runningInView`, `blockPaths`, `nodeAtPoint`.
+   `roadmap-world-canvas.tsx` → `RoadmapWorldCanvas` (vỏ nạp lười), `RoadmapFocusCard`, `RoadmapWorldSkeleton`;
+   `roadmap-world-flow.tsx`: xyflow, lớp ô màu/dây trục/nhãn nổi trong `ViewportPortal`, bản đồ thu nhỏ, nhãn "độ phóng ·
+   mức". Độ phóng đổi thì chỉ cập nhật biến CSS (`--rm-zoom`) và thuộc tính DOM; React render lại khi đổi mức, khi camera
+   dừng, hoặc khi kéo ra khỏi vùng thẻ.
+12. `packages/crew-web/src/ds/widgets/roadmap/`: canvas `RoadmapCanvas` (bản đồ Crew ở trang issue, phần nặng
+   `roadmap-flow.tsx` nạp lười), phần vẽ dùng chung `roadmap-flow-parts.tsx`, bố cục cây (`roadmap-layout.ts`), thẻ nút,
+   khối run, chú giải.
+
+Hiệu năng (đo 2026-11-05, Chrome headless trên Mac của owner, khung 1440×900, API giả với dữ liệu cỡ company thật:
+5 project, 165 yêu cầu, 792 việc): mở trang tới bản đồ hiện 1,0–1,6 s (vite dev); kéo và cuộn ở cả ba mức 57–60 fps,
+p95 khung 16,8 ms, không long task; camera bay giữa các mức 55–59 fps, khung chậm nhất 33–83 ms (lúc thẻ mới gắn vào);
+DOM cao nhất ~830 phần tử. Bộ lớn 12 project, 420 yêu cầu, 1844 việc: kéo/cuộn 57–60 fps, camera bay 50–57 fps. Bố cục
+165 đảo / 748 nút: 3,5 ms lần đầu, 0,9 ms khi nhớ đảo (`roadmap-world-perf.test.ts`). Trước khi giới hạn thẻ DOM theo
+vùng, vào mức thẻ có khung 290–430 ms vì xyflow nhận cả ~800 nút.
 
 ## Files
 
@@ -94,13 +128,17 @@ Luật chính:
 | `packages/crew-web/src/ds/widgets/crew/crew-map.tsx` | Bản đồ yêu cầu ở trang issue | `CrewMap` |
 | `packages/crew-web/src/ds/widgets/crew/crew-summary.tsx` | Dòng tóm tắt Crew | `CrewSummary`, `crewSummaryLine` |
 | `packages/crew-web/src/ds/widgets/roadmap/roadmap-canvas.tsx` | Canvas bản đồ (nạp lười) | `RoadmapCanvas` |
-| `packages/crew-web/src/ds/widgets/roadmap/roadmap-flow.tsx` | xyflow và chuyển động camera | |
-| `packages/crew-web/src/ds/widgets/roadmap/roadmap-layout.ts` | Bố cục thuần | `rings`, `radialTree` |
+| `packages/crew-web/src/ds/widgets/roadmap/roadmap-flow.tsx` | xyflow và chuyển động camera của `CrewMap` | |
+| `packages/crew-web/src/ds/widgets/roadmap/roadmap-flow-parts.tsx` | Thẻ, dây, đường cong dùng chung hai canvas | `FlowNode`, `FlowEdge`, `edgePath`, `useReducedMotion` |
+| `packages/crew-web/src/ds/widgets/roadmap/roadmap-layout.ts` | Bố cục thuần | `rings`, `radialTree`, `topDownTree` |
+| `packages/crew-web/src/ds/widgets/roadmap/roadmap-world.ts` | Thế giới Roadmap một trang và camera thuần | `layoutWorld`, `worldLod`, `worldFocusView`, `cardsInView`, `blockPaths` |
+| `packages/crew-web/src/ds/widgets/roadmap/roadmap-world-canvas.tsx` | Vỏ nạp lười, thẻ đang xem, khung đang tải | `RoadmapWorldCanvas`, `RoadmapFocusCard`, `RoadmapWorldSkeleton` |
+| `packages/crew-web/src/ds/widgets/roadmap/roadmap-world-flow.tsx` | xyflow của bản đồ một trang, mức chi tiết | |
 | `packages/crew-web/src/ds/widgets/roadmap/roadmap-types.ts` | Kiểu dữ liệu bản đồ | `RoadmapNode`, `RoadmapRuns` |
 | `packages/crew-web/src/ds/widgets/roadmap/` (còn lại) | Thẻ nút, khối run, chú giải, danh sách, popup docs | `RoadmapList`, `RoadmapRunList`, `RoadmapLegend` |
-| `packages/crew-web/src/features/roadmap/roadmap-page.tsx` | Trang Roadmap | `RoadmapPage` |
-| `packages/crew-web/src/features/roadmap/roadmap-model.ts` | Dựng tầng | `CAPS`, `issuesFromRoadmap` |
-| `packages/crew-web/src/features/roadmap/roadmap-url.ts` | Hợp đồng URL | `parseRoadmapParams`, `roadmapHref` |
+| `packages/crew-web/src/features/roadmap/roadmap-page.tsx` | Trang Roadmap một trang | `RoadmapPage` |
+| `packages/crew-web/src/features/roadmap/roadmap-model.ts` | Dữ liệu → thế giới, chỗ lấy nét | `buildWorldInput`, `resolveFocus`, `parentFocus`, `focusTrail` |
+| `packages/crew-web/src/features/roadmap/roadmap-url.ts` | Hợp đồng URL | `parseRoadmapParams`, `focusHref`, `legacyHref` |
 | `packages/crew-web/src/features/roadmap/use-roadmap.ts` | Dữ liệu trang | `useRoadmapData` |
 | `packages/crew-web/src/features/roadmap/roadmap-doc-reader.tsx` | Popup đọc docs | `RoadmapDocReader` |
 | `packages/crew-web/src/features/roadmap/routes.tsx`, `index.ts` | Route `roadmap` | `routes` |
@@ -140,6 +178,12 @@ Luật chính:
   Crew, việc treo dưới gốc, bấm mở issue, dòng tóm tắt.
 - `packages/crew-web/test/ds/crew/roadmap-canvas.test.tsx`, `roadmap-edges.test.tsx`, `roadmap-layout.test.ts`,
   `roadmap-runs.test.tsx`: nút có nhãn đọc màn hình, dây đang chạy và giảm chuyển động, bố cục, định dạng dòng run.
+- `packages/crew-web/test/ds/crew/roadmap-world.test.ts`: bố cục thế giới (cụm, đảo y như `topDownTree`, không chồng,
+  nhiều kệ, nhớ đảo, trần nút tròn), mức chi tiết có trễ, khung camera từng loại mục, ô màu, bấm ở mức xa, nhãn nổi,
+  dây chạy và thẻ DOM trong khung. `roadmap-world-perf.test.ts`: 165 đảo dựng một lần, lần sau dùng lại, in số đo.
 - `packages/crew-web/test/features/roadmap/roadmap-page.test.tsx`, `roadmap-model.test.ts`, `roadmap-url.test.ts`:
-  điều hướng tầng và quyền xem, trần nút, URL; mọi tầng chỉ một lần gọi `crew.roadmap`, không gọi danh sách issue;
-  `issuesFromRoadmap` lấy cạnh chặn từ worker.
+  toàn cảnh có mọi việc, bấm để zoom không đổi trang, Esc / Ra ngoài / Toàn cảnh, Back lùi vị trí, link cũ, dạng danh
+  sách, quyền xem, đảo Docs, giảm chuyển động; một lần gọi `crew.roadmap`, run chỉ cho yêu cầu đang xem; dựng đảo bằng
+  `crewMapLevel`, phân giải `?focus=`, breadcrumb.
+- `packages/crew-web/e2e/specs/s22-roadmap.spec.ts` (Playwright, T1): đi từ toàn cảnh vào project, yêu cầu, việc con
+  trên cùng một trang; popup, Esc, Back, link cũ, dạng danh sách, quyền xem.

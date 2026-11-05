@@ -408,6 +408,10 @@
       "latest": "Run mới nhất: {{runs}}",
       "noteSubscription": "Giá quy đổi API, gói thuê bao không bị trừ tiền",
       "noteApi": "Giá quy đổi API theo số liệu của run"
+    },
+    "world": {
+      "tasks": "{{done}}/{{total}} việc",
+      "running": "{{count}} đang chạy"
     }
   }
 }

@@ -409,6 +409,7 @@ File nào thuộc flow nào. Dùng `crew-docs where <file>` để tra từ dòng
 | `packages/crew-web/src/ds/widgets/property-list.tsx` | [design-system](flows/design-system.md) (file) |
 | `packages/crew-web/src/ds/widgets/roadmap/roadmap-canvas.tsx` | [roadmap-map](flows/roadmap-map.md) (file) |
 | `packages/crew-web/src/ds/widgets/roadmap/roadmap-doc-popup.tsx` | [roadmap-map](flows/roadmap-map.md) (file) |
+| `packages/crew-web/src/ds/widgets/roadmap/roadmap-flow-parts.tsx` | [roadmap-map](flows/roadmap-map.md) (file) |
 | `packages/crew-web/src/ds/widgets/roadmap/roadmap-flow.tsx` | [roadmap-map](flows/roadmap-map.md) (file) |
 | `packages/crew-web/src/ds/widgets/roadmap/roadmap-layout.ts` | [roadmap-map](flows/roadmap-map.md) (file) |
 | `packages/crew-web/src/ds/widgets/roadmap/roadmap-legend.tsx` | [roadmap-map](flows/roadmap-map.md) (file) |
@@ -417,6 +418,9 @@ File nào thuộc flow nào. Dùng `crew-docs where <file>` để tra từ dòng
 | `packages/crew-web/src/ds/widgets/roadmap/roadmap-run-list.tsx` | [roadmap-map](flows/roadmap-map.md) (file) |
 | `packages/crew-web/src/ds/widgets/roadmap/roadmap-runs.ts` | [roadmap-map](flows/roadmap-map.md) (file) |
 | `packages/crew-web/src/ds/widgets/roadmap/roadmap-types.ts` | [roadmap-map](flows/roadmap-map.md) (file) |
+| `packages/crew-web/src/ds/widgets/roadmap/roadmap-world-canvas.tsx` | [roadmap-map](flows/roadmap-map.md) (file) |
+| `packages/crew-web/src/ds/widgets/roadmap/roadmap-world-flow.tsx` | [roadmap-map](flows/roadmap-map.md) (file) |
+| `packages/crew-web/src/ds/widgets/roadmap/roadmap-world.ts` | [roadmap-map](flows/roadmap-map.md) (file) |
 | `packages/crew-web/src/ds/widgets/row-link.tsx` | [design-system](flows/design-system.md) (file) |
 | `packages/crew-web/src/ds/widgets/run-row.tsx` | [design-system](flows/design-system.md) (file) |
 | `packages/crew-web/src/ds/widgets/section.tsx` | [design-system](flows/design-system.md) (file) |
@@ -708,6 +712,8 @@ File nào thuộc flow nào. Dùng `crew-docs where <file>` để tra từ dòng
 | `packages/crew-web/test/ds/crew/roadmap-edges.test.tsx` | [roadmap-map](flows/roadmap-map.md) (test) |
 | `packages/crew-web/test/ds/crew/roadmap-layout.test.ts` | [roadmap-map](flows/roadmap-map.md) (test) |
 | `packages/crew-web/test/ds/crew/roadmap-runs.test.tsx` | [roadmap-map](flows/roadmap-map.md) (test) |
+| `packages/crew-web/test/ds/crew/roadmap-world-perf.test.ts` | [roadmap-map](flows/roadmap-map.md) (test) |
+| `packages/crew-web/test/ds/crew/roadmap-world.test.ts` | [roadmap-map](flows/roadmap-map.md) (test) |
 | `packages/crew-web/test/ds/default-labels.test.tsx` | [design-system](flows/design-system.md) (test) |
 | `packages/crew-web/test/ds/dialog.test.tsx` | [design-system](flows/design-system.md) (test) |
 | `packages/crew-web/test/ds/image-zoom.test.ts` | [attachments](flows/attachments.md) (test) |

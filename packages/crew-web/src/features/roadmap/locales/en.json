@@ -1,8 +1,6 @@
 {
   "title": "Roadmap",
-  "description": "Company map: projects, human-created requests, sub-tasks and docs.",
-  "back": "Back",
-  "backHint": "Go up one level (Esc)",
+  "description": "The whole company on one map: projects, requests, sub-tasks and docs. Click an item to zoom to it.",
   "view": {
     "map": "Map",
     "list": "List"
@@ -13,24 +11,43 @@
   "listLabel": "Map as a list",
   "loadFailed": "Could not load the map",
   "notFound": "Not found or you do not have access",
-  "notFoundHint": "This item is not on your map. Go up a level to pick another one.",
+  "notFoundHint": "This item is not on your map. The map shows the overview; pick another item.",
   "truncated": "There are more than {{limit}} items; the map may be incomplete.",
   "docLoadFailed": "Could not load the docs page",
   "docMissing": "Page {{path}} is not in this docs snapshot",
   "hint": {
-    "company": "Click a project to go in · drag to move · scroll to zoom",
-    "project": "Click a request to see its sub-tasks · click Docs for documentation",
-    "emptyProject": "This project has no human-created requests yet",
-    "request": "Click a sub-task or the center request for details · dashed: blocks",
-    "noChildren": "No sub-tasks yet · click the center request for details",
-    "docs": "Click a folder to go in · click a page to read it"
+    "overview": "Click a project, request or task to zoom to it · drag to move · scroll to zoom",
+    "project": "Click a request to zoom to it · Esc: overview",
+    "request": "Click a sub-task to zoom to it · click the request again for details · Esc: project",
+    "ticket": "Click again or press Enter for details · Esc: request",
+    "docs": "Click a folder to zoom · click a page to read · Esc: project",
+    "folder": "Click a page to read · Esc: Docs"
   },
   "empty": {
-    "default": "Nothing here yet",
-    "company": "No projects yet",
-    "project": "No human-created requests yet",
-    "request": "No sub-tasks yet",
-    "docs": "This docs set has no pages",
-    "folder": "Empty folder"
+    "default": "Nothing here yet"
+  },
+  "out": "Zoom out",
+  "outHint": "Go out one level (Esc)",
+  "overview": "Overview",
+  "overviewHint": "Back to the overview (key 0)",
+  "openDetail": "Open details",
+  "minimap": "Minimap, click to move there",
+  "lod": {
+    "blocks": "Color blocks",
+    "labels": "Request labels",
+    "cards": "Full cards"
+  },
+  "live": {
+    "overview": "Overview of {{name}}",
+    "at": "Viewing {{name}}"
+  },
+  "emptyWorld": {
+    "title": "No requests yet",
+    "hint": "The map shows human-created requests and their sub-tasks. Create the first request on the Issues page.",
+    "action": "Open Issues"
+  },
+  "keys": {
+    "esc": "Esc",
+    "enter": "Enter"
   }
 }
