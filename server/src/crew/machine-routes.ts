@@ -95,11 +95,14 @@ async function assertProject(db: Db, companyId: string, projectId: string): Prom
 
 async function issueMachineView(db: Db, companyId: string, issueId: string) {
   const issue = await loadIssue(db, companyId, issueId);
-  const rootIssueId = (await findRootIssueId(db, companyId, issue.id)) ?? issue.id;
-  const pin = await readPin(db, companyId, rootIssueId);
+  // Không tìm được gốc (vòng parentId, quá MAX_TREE_DEPTH): không có máy, không đổi được, cùng kết luận với route lô và
+  // `pinnedMachineId` của run; không lấy ghim của chính issue.
+  const root = await findRootIssueId(db, companyId, issue.id);
+  const rootIssueId = root ?? issue.id;
+  const pin = root ? await readPin(db, companyId, root) : null;
   return {
     rootIssueId,
-    isRoot: rootIssueId === issue.id,
+    isRoot: root === issue.id,
     locked: await treeStarted(db, companyId, rootIssueId),
     pin: pin
       ? {

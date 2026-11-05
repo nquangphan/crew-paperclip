@@ -251,13 +251,16 @@ suite("route máy của Crew", () => {
         for (let i = 0; i < length; i += 1) ids.push(await insertIssue(w.companyId, ids[i - 1] ?? null, `${title} ${i}`));
         return ids;
       };
-      /** Lô và đường đơn lẻ phải cùng kết luận, cả qua route. */
+      /** Lô, đường đơn lẻ và GET …/issues/:issueId/machine của trang chi tiết phải cùng kết luận, cả qua route. */
       const expectNoMachine = async (issueId: string) => {
         expect(await pinnedMachineId(db, w.companyId, issueId)).toBeNull();
         expect((await issueMachines(db, w.companyId, [issueId])).get(issueId)).toBeNull();
         const res = await post({ issueIds: [issueId] });
         expect(res.status).toBe(200);
         expect(res.body.items).toEqual({ [issueId]: null });
+        const view = await request(await as(VIEWER)).get(url(`/issues/${issueId}/machine`));
+        expect(view.status).toBe(200);
+        expect(view.body).toMatchObject({ pin: null, isRoot: false });
       };
 
       it("cha thuộc company khác (kể cả đã ghim) thì không đi qua: item null như pinnedMachineId", async () => {
@@ -291,6 +294,8 @@ suite("route máy của Crew", () => {
         const tooDeep = await chain(MAX_TREE_DEPTH + 2, "Sâu quá");
         await pinTo(w.companyId, reachable[0]!);
         await pinTo(w.companyId, tooDeep[0]!);
+        // Ghim trên chính lá của chuỗi quá sâu (dữ liệu cũ): GET không được lấy ghim này khi không tìm được gốc.
+        await pinTo(w.companyId, tooDeep.at(-1)!);
         const leaf = reachable.at(-1)!;
         expect(await pinnedMachineId(db, w.companyId, leaf)).toBe(BOOK.machineId);
         expect((await issueMachines(db, w.companyId, [leaf])).get(leaf)).toMatchObject({ rootIssueId: reachable[0], machineId: BOOK.machineId });
