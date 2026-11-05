@@ -11,6 +11,8 @@ const packageRoot = fileURLToPath(new URL("../..", import.meta.url));
 
 export interface PluginHost {
   sql: postgres.Sql;
+  /** Drizzle client of the same database, for tests that call server code (gates, provisioning) next to the plugin. */
+  db: ReturnType<typeof createDb>;
   ctx: PluginContext;
   ns: string;
   logs: { level: string; message: string; meta?: unknown }[];
@@ -54,5 +56,8 @@ export async function startPluginHost(prefix: string, root = packageRoot): Promi
     },
     logger: { info: record("info"), debug: record("debug"), error: record("error"), warn: record("warn") },
   } as unknown as PluginContext;
-  return { sql, ctx, ns, logs, fail, applyMigrations, cleanup: async () => { await sql.end(); await database.cleanup(); } };
+  return {
+    sql, db: hostDb, ctx, ns, logs, fail, applyMigrations,
+    cleanup: async () => { await sql.end(); await hostDb.$client.end({ timeout: 0 }); await database.cleanup(); },
+  };
 }
