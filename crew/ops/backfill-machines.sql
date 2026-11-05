@@ -39,8 +39,11 @@ BEGIN;
 -- terminated đều trỏ host của máy đó (tailscale_ip), cùng luật máy chính của server (`markPrimaryReady`). Project có agent
 -- chia hai máy, có agent không có environment SSH, hay host không khớp máy đã ghép nào thì không được gắn máy nào: máy
 -- `ready` phải có checkout của mọi vai trò, không thì run trên máy đó thiếu environment.
-INSERT INTO plugin_crew_core_0433ea20b6.project_machines (company_id, project_id, machine_id, status, updated_at)
-SELECT r.company_id, r.project_id, p.machine_id, 'ready', now()
+-- Dòng `ready` luôn có `repo_path` (Bug Finding đọc nó), cùng nguồn `knownRepoPath` của server: `repoPath` tuyệt đối của
+-- việc `ensure-project` mới nhất đã `done` của project trên máy, không có thì repo gốc bước `inspect` của lần thêm project
+-- mới nhất trên máy đó. Không có nguồn nào thì không gắn máy (cổng claim tự chọn và dựng sau, `ensure-project` báo repo).
+INSERT INTO plugin_crew_core_0433ea20b6.project_machines (company_id, project_id, machine_id, status, repo_path, updated_at)
+SELECT r.company_id, r.project_id, p.machine_id, 'ready', COALESCE(job.repo_path, wizard.root), now()
 FROM plugin_crew_core_0433ea20b6.crew_project_roles r
 CROSS JOIN LATERAL (
   SELECT count(*) AS agents, count(e.config->>'host') AS with_host, count(DISTINCT e.config->>'host') AS hosts,
@@ -52,7 +55,20 @@ CROSS JOIN LATERAL (
 ) layout
 JOIN plugin_crew_core_0433ea20b6.machine_pairings p
   ON p.company_id = r.company_id AND p.revoked_at IS NULL AND p.tailscale_ip = layout.host
+LEFT JOIN LATERAL (
+  SELECT j.result->>'repoPath' AS repo_path FROM plugin_crew_core_0433ea20b6.crew_machine_jobs j
+  WHERE j.company_id = r.company_id AND j.machine_id = p.machine_id AND j.kind = 'ensure-project' AND j.status = 'done'
+    AND j.payload->>'projectId' = r.project_id::text AND j.result->>'repoPath' LIKE '/%'
+  ORDER BY j.created_at DESC, j.id DESC LIMIT 1
+) job ON true
+LEFT JOIN LATERAL (
+  SELECT s.steps->'inspect'->'refs'->>'root' AS root FROM plugin_crew_core_0433ea20b6.crew_setup_runs s
+  WHERE s.company_id = r.company_id AND s.project_id = r.project_id AND s.machine_id = p.machine_id AND s.kind = 'add-project'
+    AND s.steps->'inspect'->>'status' = 'done' AND s.steps->'inspect'->'refs'->>'root' LIKE '/%'
+  ORDER BY s.updated_at DESC, s.id DESC LIMIT 1
+) wizard ON true
 WHERE layout.agents > 0 AND layout.with_host = layout.agents AND layout.hosts = 1
+  AND COALESCE(job.repo_path, wizard.root) IS NOT NULL
 ON CONFLICT (company_id, project_id, machine_id) DO NOTHING;
 -- Mỗi cây đang mở (gốc chưa done/cancelled) của project được ghim `auto`, reason {"backfill": true}, vào máy của người
 -- nhận issue gốc, không có thì máy của Trợ Lý. Máy phải đã ghép và đã gắn `ready` với project ở bước trên (máy chứa mọi

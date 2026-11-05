@@ -209,6 +209,59 @@ describe("xếp lượt khi ticket tổng vào stage cầu nối", () => {
     }
   });
 
+  it("máy ghim ready nhưng repo_path NULL: dùng repoPath của việc ensure-project mới nhất đã done trên máy (việc sau còn chờ)", async () => {
+    const issue = addIssue(22);
+    await pinMiniWithEnsure(issue, "ready", "done");
+    await host.sql.unsafe(`INSERT INTO ${host.ns}.crew_machine_jobs (company_id,machine_id,kind,payload,status,created_by_user_id,created_at)
+      VALUES ($1,$2,'ensure-project',$3::text::jsonb,'claimed','crew:auto',now() + interval '1 minute')`,
+    [companyId, mini, JSON.stringify({ kind: "ensure-project", projectId })]);
+    await handleIssueUpdated(ctx, updated(issue));
+    expect(await runs(issue)).toMatchObject([{ run: 1, state: "requested", machine_id: mini, error: null }]);
+    const queued = (await jobs()).filter((job) => job.kind === "bug-finding-review");
+    expect(queued).toMatchObject([{ machine_id: mini, payload: { repoPath: "/Users/o/crew-agents/my-crew/repo" } }]);
+    const [row] = await host.sql.unsafe(`SELECT status, repo_path FROM ${host.ns}.project_machines WHERE company_id = $1 AND machine_id = $2`,
+      [companyId, mini]);
+    expect(row).toMatchObject({ status: "ready", repo_path: null });
+  });
+
+  it("máy ghim ready thiếu repo, không có việc ensure-project: dùng repo gốc mà bước inspect của lần thêm project trên máy kiểm được", async () => {
+    const issue = addIssue(23);
+    await pinMiniWithEnsure(issue, "ready", "claimed");
+    const steps = (root: string) => JSON.stringify({ inspect: { status: "done", at: new Date().toISOString(), refs: { root } } });
+    await host.sql.unsafe(`INSERT INTO ${host.ns}.crew_setup_runs (company_id,kind,project_key,project_id,machine_id,input,steps,
+        status,created_by_user_id) VALUES ($1,'add-project','my-crew',$2,$3,'{}'::jsonb,$4::text::jsonb,'done','owner'),
+        ($1,'add-project','my-crew',$2,$5,'{}'::jsonb,$6::text::jsonb,'done','owner')`,
+    [companyId, projectId, mini, steps("/Volumes/CORSAIR/Projects/my-crew"), other, steps("/Users/m/elsewhere")]);
+    try {
+      await handleIssueUpdated(ctx, updated(issue));
+      expect(await runs(issue)).toMatchObject([{ run: 1, state: "requested", machine_id: mini, error: null }]);
+      const queued = (await jobs()).filter((job) => job.kind === "bug-finding-review");
+      expect(queued).toMatchObject([{ machine_id: mini, payload: { repoPath: "/Volumes/CORSAIR/Projects/my-crew", projectKey: "my-crew" } }]);
+    } finally {
+      await host.sql.unsafe(`DELETE FROM ${host.ns}.crew_setup_runs WHERE company_id = $1 AND steps ? 'inspect'`, [companyId]);
+    }
+  });
+
+  it("máy ghim ready thiếu repo và không có nguồn repo nào: lượt failed báo chưa có repo, không xếp việc với repo rỗng", async () => {
+    const issue = addIssue(24);
+    await pinMiniWithEnsure(issue, "ready", "failed");
+    await handleIssueUpdated(ctx, updated(issue));
+    expect((await jobs()).filter((job) => job.kind === "bug-finding-review")).toHaveLength(0);
+    expect(await runs(issue)).toMatchObject([{ run: 1, state: "failed", machine_id: mini, error: "Máy đã ghim chưa có repo của project" }]);
+  });
+
+  it("không ghim: máy ready thiếu repo nhưng có việc ensure-project done vẫn là máy sẵn sàng", async () => {
+    const issue = addIssue(25);
+    await host.sql.unsafe(`DELETE FROM ${host.ns}.project_machines WHERE machine_id = $1`, [other]);
+    await host.sql.unsafe(`UPDATE ${host.ns}.project_machines SET repo_path = NULL WHERE machine_id = $1`, [mini]);
+    await host.sql.unsafe(`INSERT INTO ${host.ns}.crew_machine_jobs (company_id,machine_id,kind,payload,status,result,created_by_user_id)
+      VALUES ($1,$2,'ensure-project',$3::text::jsonb,'done',$4::text::jsonb,'crew:auto')`,
+    [companyId, mini, JSON.stringify({ kind: "ensure-project", projectId }),
+      JSON.stringify({ kind: "ensure-project", repoPath: "/Users/o/crew-agents/my-crew/repo", cloned: false, checkouts: [], companions: [] })]);
+    await handleIssueUpdated(ctx, updated(issue));
+    expect(await runs(issue)).toMatchObject([{ run: 1, state: "requested", machine_id: mini, error: null }]);
+  });
+
   it("vòng đã có 3 lượt: không xếp lượt thứ tư", async () => {
     const issue = addIssue(6);
     for (const [run, head] of [[1, "1"], [2, "2"], [3, "3"]] as const) {

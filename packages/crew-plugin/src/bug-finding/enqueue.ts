@@ -97,7 +97,11 @@ type MachineChoice = { machineId: string; repoPath: string } | { machineId: stri
  * Máy chạy Bug Finding: máy đã ghim cho cây (`issue_machine_pins`), không ghim thì máy `ready` của project trong
  * `project_machines`. Máy phải có repo của project và app báo khả năng `bug-finding-review` trong bản tin máy. Dòng còn
  * `provisioning` mà việc `ensure-project` mới nhất của project trên máy đã `done` kèm `repoPath` tuyệt đối thì repo đã có
- * trên máy: dùng `repoPath` đó (chỉ đọc; server mới đối chiếu dòng sang `ready`). Dòng `ready`/`failed` đọc như cũ.
+ * trên máy: dùng `repoPath` đó (chỉ đọc; server mới đối chiếu dòng sang `ready`). Dòng `ready` có `repo_path` tuyệt đối
+ * dùng đúng repo đó; dòng `ready` thiếu repo (dòng cũ trước khi server luôn ghi repo) thử, theo thứ tự, `repoPath` tuyệt đối
+ * của việc `ensure-project` mới nhất đã `done` trên máy rồi repo gốc bước `inspect` của lần thêm project mới nhất trên máy
+ * (cùng nguồn server ghi cho máy chính, `knownRepoPath`); không có nguồn nào thì máy không dùng được. Dòng `failed` không
+ * dùng được. Chỉ đọc, không ghi lại dòng.
  */
 async function chooseMachine(ctx: Ctx, companyId: string, issue: Issue): Promise<MachineChoice> {
   const projectId = issue.projectId;
@@ -106,7 +110,7 @@ async function chooseMachine(ctx: Ctx, companyId: string, issue: Issue): Promise
   const pinned = await pinnedMachine(ctx, companyId, issue);
   const rows = await ctx.db.query<{ machine_id: string; repo_path: string | null; status: string; capable: boolean | null }>(
     `SELECT m.machine_id::text AS machine_id,
-       CASE WHEN ej.status = 'done' THEN ej.repo_path ELSE pm.repo_path END AS repo_path,
+       CASE WHEN ej.status = 'done' THEN ej.repo_path ELSE COALESCE(dj.repo_path, sr.root, pm.repo_path) END AS repo_path,
        CASE WHEN ej.status = 'done' THEN 'ready' ELSE COALESCE(pm.status, 'absent') END AS status,
        (l.report->'jobsAgent'->'capabilities') @> '["${BUG_FINDING_CAPABILITY}"]'::jsonb AS capable
      FROM (SELECT machine_id FROM ${ns}.project_machines WHERE company_id = $1 AND project_id = $2
@@ -115,6 +119,14 @@ async function chooseMachine(ctx: Ctx, companyId: string, issue: Issue): Promise
      LEFT JOIN LATERAL (SELECT j.status, j.result->>'repoPath' AS repo_path FROM ${ns}.crew_machine_jobs j
        WHERE j.company_id = $1 AND j.machine_id = m.machine_id AND j.kind = 'ensure-project'
          AND j.payload->>'projectId' = $2::text ORDER BY j.created_at DESC, j.id DESC LIMIT 1) ej ON pm.status = 'provisioning'
+     LEFT JOIN LATERAL (SELECT j.result->>'repoPath' AS repo_path FROM ${ns}.crew_machine_jobs j
+       WHERE j.company_id = $1 AND j.machine_id = m.machine_id AND j.kind = 'ensure-project' AND j.status = 'done'
+         AND j.payload->>'projectId' = $2::text AND j.result->>'repoPath' LIKE '/%'
+       ORDER BY j.created_at DESC, j.id DESC LIMIT 1) dj ON pm.status = 'ready' AND COALESCE(pm.repo_path, '') NOT LIKE '/%'
+     LEFT JOIN LATERAL (SELECT r.steps->'inspect'->'refs'->>'root' AS root FROM ${ns}.crew_setup_runs r
+       WHERE r.company_id = $1 AND r.project_id = $2 AND r.machine_id = m.machine_id AND r.kind = 'add-project'
+         AND r.steps->'inspect'->>'status' = 'done' AND r.steps->'inspect'->'refs'->>'root' LIKE '/%'
+       ORDER BY r.updated_at DESC, r.id DESC LIMIT 1) sr ON pm.status = 'ready' AND COALESCE(pm.repo_path, '') NOT LIKE '/%'
      LEFT JOIN ${ns}.machine_latest l ON l.company_id = $1 AND l.machine_id = m.machine_id
      ORDER BY pm.updated_at DESC NULLS LAST, m.machine_id`,
     [companyId, checkedId(projectId), pinned],

@@ -11,7 +11,10 @@ const migration = (file: string) =>
     .map((statement) => statement.trim())
     .filter(Boolean);
 
-/** Bảng plugin luật nhiều máy dùng: bản tin máy, vai trò, hàng đợi việc, ghép máy và ba bảng của 0022. */
+/**
+ * Bảng plugin luật nhiều máy dùng: bản tin máy, vai trò, hàng đợi việc, lần chạy wizard (repo của máy chính), ghép máy
+ * và ba bảng của 0022.
+ */
 export async function applyCrewMachineTables(db: Db): Promise<string> {
   const ns = derivePluginDatabaseNamespace("crew.core");
   await db.execute(sql.raw(`CREATE SCHEMA IF NOT EXISTS ${ns}`));
@@ -19,6 +22,9 @@ export async function applyCrewMachineTables(db: Db): Promise<string> {
     ...migration("0003_machine_latest.sql").filter((s) => s.startsWith(`CREATE TABLE ${ns}.machine_latest`)),
     ...migration("0004_project_roles.sql"),
     ...migration("0006_machine_jobs.sql"),
+    ...migration("0007_setup_runs.sql"),
+    ...migration("0009_setup_runs_abandon.sql"),
+    ...migration("0011_removal_kinds.sql").filter((s) => s.includes(`${ns}.crew_setup_runs`)),
     ...migration("0012_runtimes.sql"),
     ...migration("0014_machine_pairings.sql"),
     ...migration("0015_machine_pairings_unpaired_removal.sql"),
@@ -107,4 +113,36 @@ export async function seedCrewProject(db: Db, ns: string, opts: { key: string; h
     VALUES ('${companyId}', '${project!.id}', '${seeded.assistant.agentId}', ARRAY['${seeded["executor-1"].agentId}']::uuid[],
       '${seeded.reviewer.agentId}', '${seeded.integrator.agentId}', 'owner')`));
   return { companyId, projectId: project!.id, agents: seeded };
+}
+
+/**
+ * Lần thêm project của wizard trên `machine`: bước `inspect` đã `done` với repo gốc `root` (`steps.inspect.refs.root`),
+ * nguồn repo của máy chính khi máy chưa có việc `ensure-project` nào.
+ */
+export async function seedAddProjectRun(
+  db: Db, ns: string, input: { companyId: string; projectId: string; machine: TestMachine; key: string; root: string; at?: Date },
+): Promise<void> {
+  const at = (input.at ?? new Date()).toISOString();
+  const steps = JSON.stringify({ inspect: { status: "done", at, refs: { root: input.root, branch: "main" } } });
+  const runInput = JSON.stringify({ name: input.key, key: input.key, folder: input.root, executors: 1 });
+  await db.execute(sql.raw(`INSERT INTO ${ns}.crew_setup_runs (company_id, kind, project_key, project_id, machine_id, input, steps,
+      status, created_by_user_id, created_at, updated_at)
+    VALUES ('${input.companyId}', 'add-project', '${input.key}', '${input.projectId}', '${input.machine.machineId}',
+      '${runInput}'::jsonb, '${steps}'::jsonb, 'done', 'owner', '${at}', '${at}')`));
+}
+
+/** Việc `ensure-project` của project trên `machine` ở `status`; `done` thì kèm kết quả có `repoPath`. */
+export async function seedEnsureJob(
+  db: Db, ns: string,
+  input: { companyId: string; projectId: string; machine: TestMachine; status: string; repoPath?: string; at?: Date },
+): Promise<void> {
+  const at = (input.at ?? new Date()).toISOString();
+  const payload = JSON.stringify({ kind: "ensure-project", projectId: input.projectId });
+  const result = input.status === "done"
+    ? `'${JSON.stringify({ kind: "ensure-project", repoPath: input.repoPath, cloned: false, checkouts: [], companions: [] })}'::jsonb`
+    : "NULL";
+  await db.execute(sql.raw(`INSERT INTO ${ns}.crew_machine_jobs (company_id, machine_id, kind, payload, status, result,
+      created_by_user_id, created_at)
+    VALUES ('${input.companyId}', '${input.machine.machineId}', 'ensure-project', '${payload}'::jsonb, '${input.status}',
+      ${result}, 'crew:auto', '${at}')`));
 }
