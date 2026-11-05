@@ -35,6 +35,22 @@ thì Trợ Lý comment `Trợ Lý: không đọc được bảng model (<lỗi>)
 thức sau thử lại. Khi server trả `crew_override_forbidden`, Trợ Lý đọc lại bảng (owner có thể vừa lưu) rồi tạo lại con. Vì
 `AGENTS.md` không còn chứa bảng, đổi bảng không cần render lại hay upload lại `AGENTS.md`.
 
+## Luật chung: không chạy nền rồi kết thúc lượt
+
+Mục "Không bao giờ" của cả 6 template (`executor`, `reviewer`, `integrator`, `assistant`, `designer`, `bmad`) có cùng một đoạn
+cấm chạy lệnh ở chế độ nền rồi kết thúc lượt, đứng ngay sau đoạn cấm xóa đệ quy (đoạn không đánh số, nên số mục không đổi).
+Các vai biến thể `executor-codex`, `executor-opencode` (template `executor`) và `reviewer-codex` (template `reviewer`) dùng chung
+template nên có luật này, không có file riêng. Đoạn giống hệt nhau ở mọi file vì `render-instructions.mjs` không có cơ chế phần chung.
+
+Nội dung: mọi lệnh (test, build, E2E, simulator) chạy tiền cảnh và đọc kết quả trong cùng lượt, không `run_in_background`,
+không Monitor, không kết thúc lượt để "chờ thông báo"; một lệnh tối đa 10 phút (việc dài thì tách từng flow/spec, mỗi phần một
+lệnh có timeout); chỉ kết thúc lượt khi có kết quả thật hoặc đã `PATCH` trạng thái kèm lý do; cần tiến trình nền (dev server
+cho E2E) thì tự bật, dùng xong và tự tắt trong lượt.
+
+Lý do (sự cố TPS-693, 05/11/2026): executor bật flow Maestro iOS chạy nền rồi kết thúc lượt "chờ monitor báo kết quả". Run
+agent là một lần `claude --print`: kết thúc lượt thì process thoát, không có thông báo nào đánh thức lại, lệnh nền bị cắt. Issue
+bị `blocked` sau 5 run hỏng `adapter_failed` exit 255.
+
 ## Tổng kết của Trợ Lý trên mô tả gốc
 
 Mục `## Tổng kết của Trợ Lý` ở cuối mô tả gốc là chỗ owner đọc để nắm cả yêu cầu. Luật nằm ở mục "Tổng kết trên mô tả gốc" của
@@ -259,7 +275,7 @@ là integrator, stage 2 là reviewer, stage 3 là `approval` của owner); polic
 
 ## Tests
 
-- `crew/agents/instructions.test.mjs`: luật chung của mọi template (cấm xóa đệ quy ngoài thư mục tạm), dòng mẫu
+- `crew/agents/instructions.test.mjs`: luật chung của mọi template (cấm xóa đệ quy ngoài thư mục tạm; cấm chạy lệnh nền rồi kết thúc lượt, đúng một đoạn trong mục "Không bao giờ"), dòng mẫu
   `crew-docs-check`, `crew-merge`, `crew-fix`, `crew-commit`, `crew-review` khớp định dạng và regex của server, cách
   integrator nhận diện stage. Loại yêu cầu Lập kế hoạch: Trợ Lý nhận bằng nhãn `plan`, hỏi owner trước khi tạo con, chỉ tạo con `crew-kind plan`
   và ghi `- File kế hoạch:` trong tổng kết; executor, reviewer, integrator có luật tương ứng. Ticket tổng `code-bf`: mục mới của bốn template có đủ bước, dòng mẫu `crew-pr`, `crew-merge … pushed=merged`, `crew-bf-triage`, marker con lô và khối `crew-bf-feedback` khớp regex của server và plugin; regex `CREW_MERGE_RE`, `CREW_PR_RE` của server được đọc lại từ nguồn để so. Tổng kết của Trợ Lý: có từ lúc lập kế hoạch, đủ mục Yêu cầu/Việc con/Hình ảnh theo thứ tự, cập nhật mỗi run bằng `PATCH` ghi cuối, giữ `### Merge request`. Bảng model: `assistant.md` không chứa id model nào, có đúng lệnh `curl` đọc bảng cùng bốn đường dẫn JSON và đường lui khi lệnh lỗi. Agent UIUX: `designer.md` đi qua mọi luật chung, dòng mẫu `crew-design-result` và `crew-commit` khớp định dạng, cấm sửa code app, CDN và `--persist`, mục File đính kèm giống executor; Trợ Lý có bước con thiết kế (dòng `crew-kind design` đứng riêng, `child-key=design-1`, kiểm 2 stage) và mục "Được gọi bằng tag" (bước kiểm khóa ghi trên gốc đứng trước bước làm việc, con `in_progress` thì trả lời trên gốc, không thử lại lệnh bị khóa); reviewer có mục Issue thiết kế đúng thứ tự; executor có mục `crew-design on=` và dòng `crew-design-used`, bước đọc mockup kiểm sha bằng `git cat-file -e`, `git fetch origin` rồi mới rơi về ảnh và giải thích.
