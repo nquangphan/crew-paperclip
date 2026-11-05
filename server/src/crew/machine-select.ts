@@ -34,7 +34,7 @@ export type MachineChoice =
 const fresh = (at: string | null, now: Date): boolean =>
   at !== null && now.getTime() - Date.parse(at) <= MACHINE_REPORT_MAX_AGE_MS;
 
-export const isOnline = (candidate: MachineCandidate, now: Date): boolean => fresh(candidate.receivedAt, now);
+export const isOnline = (candidate: Pick<MachineCandidate, "receivedAt">, now: Date): boolean => fresh(candidate.receivedAt, now);
 
 function withinThresholds(c: MachineCandidate): boolean {
   return c.load1 !== null && c.load1 <= c.maxLoad1 && c.memFreePct !== null && c.memFreePct >= MIN_MEM_FREE_PCT;
