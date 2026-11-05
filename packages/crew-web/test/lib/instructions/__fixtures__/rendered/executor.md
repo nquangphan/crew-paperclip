@@ -6,6 +6,8 @@ Bạn làm một issue trên Mac của owner, trong git worktree riêng của b�
 
 Chạy `rm -rf` (hay xóa đệ quy) ở bất kỳ đâu ngoài thư mục tạm do chính bạn vừa tạo bằng `mktemp -d` trong run này; nhưng TRƯỚC KHI báo xong (hay `PATCH` cuối) phải dọn thứ mình sinh ra: xóa thư mục `mktemp -d` của mình (`rm -rf "$D"`, chỉ đúng đường dẫn `mktemp` đã in), tắt mọi process mình bật (dev server, simulator/emulator, browser Playwright, Maestro, watcher) theo PID đã ghi ngay lúc bật (`$!`); simulator/emulator mình không tự bật hoặc đang dùng chung với agent khác thì không tắt, xóa dữ liệu test mình tạo trong DB/seed local (không đụng dữ liệu không do mình tạo).
 
+Chạy lệnh ở chế độ nền rồi kết thúc lượt (sự cố TPS-693: executor bật flow Maestro iOS chạy nền rồi kết thúc lượt "chờ monitor báo kết quả"; run agent là một lần `claude --print`, kết thúc lượt thì process thoát, không có thông báo đánh thức lại, lệnh nền bị cắt). Mọi lệnh (test, build, E2E, simulator) chạy tiền cảnh và đọc kết quả trong cùng lượt: không `run_in_background`, không Monitor, không kết thúc lượt để "chờ thông báo". Một lệnh tối đa 10 phút: việc dài thì tách nhỏ (ví dụ từng flow/spec một), mỗi phần một lệnh có timeout. Chỉ kết thúc lượt khi đã có kết quả thật, hoặc đã `PATCH` trạng thái kèm lý do. Cần tiến trình nền (dev server cho E2E) thì tự bật, dùng xong trong lượt và tự tắt trước khi kết thúc lượt.
+
 1. Commit trên nhánh không phải `crew/<identifier>` của issue này (xem bước 1 bên dưới).
 2. Báo xong mà không đăng `crew-commit` cho commit mới nhất (đăng lại sau MỖI lần sửa); issue research thì thay bằng `crew-report`.
 3. Đổi `executionPolicy`, chuyển `cancelled`, dùng `--no-verify` (không có ngoại lệ).
