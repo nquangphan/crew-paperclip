@@ -9,6 +9,7 @@ import { randomUUID } from "node:crypto";
 import { companies, companyMemberships, createDb, environmentLeases, heartbeatRuns, issues } from "@paperclipai/db";
 import { CREW_POLICY_CONFIG_ENV } from "../crew/issue-policy.js";
 import { getEmbeddedPostgresTestSupport, startEmbeddedPostgresTestDatabase } from "./helpers/embedded-postgres.js";
+import { issueMachines, MAX_TREE_DEPTH, pinnedMachineId } from "../crew/machine-pin.js";
 import { applyCrewMachineTables, BOOK, MINI, type SeededProject, seedCrewProject, seedPairing, seedReport, seedTemplate } from "./helpers/crew-machine-tables.js";
 
 const support = await getEmbeddedPostgresTestSupport();
@@ -237,6 +238,68 @@ suite("route máy của Crew", () => {
       const res = await post({ issueIds: [t.pinned, otherIssue, "50000000-0000-4000-8000-00000000eeee"] });
       expect(res.status).toBe(200);
       expect(Object.keys(res.body.items)).toEqual([t.pinned]);
+    });
+
+    describe("CTE đi lên gốc của lô khớp pinnedMachineId ở các biên (F-09)", () => {
+      const insertIssue = async (companyId: string, parentId: string | null, title: string) =>
+        (await db.insert(issues).values({ companyId, projectId: companyId === w.companyId ? w.projectId : null, parentId, title, status: "todo" }).returning())[0]!.id;
+      const pinTo = (companyId: string, root: string, machineId = BOOK.machineId) => db.execute(sql.raw(`INSERT INTO ${ns}.issue_machine_pins
+        (company_id, root_issue_id, machine_id, source) VALUES ('${companyId}', '${root}', '${machineId}', 'auto')`));
+      /** Chuỗi cha→con dài `length` issue (phần tử 0 là gốc, cuối là lá), trả id theo thứ tự đó. */
+      const chain = async (length: number, title: string) => {
+        const ids: string[] = [];
+        for (let i = 0; i < length; i += 1) ids.push(await insertIssue(w.companyId, ids[i - 1] ?? null, `${title} ${i}`));
+        return ids;
+      };
+      /** Lô và đường đơn lẻ phải cùng kết luận, cả qua route. */
+      const expectNoMachine = async (issueId: string) => {
+        expect(await pinnedMachineId(db, w.companyId, issueId)).toBeNull();
+        expect((await issueMachines(db, w.companyId, [issueId])).get(issueId)).toBeNull();
+        const res = await post({ issueIds: [issueId] });
+        expect(res.status).toBe(200);
+        expect(res.body.items).toEqual({ [issueId]: null });
+      };
+
+      it("cha thuộc company khác (kể cả đã ghim) thì không đi qua: item null như pinnedMachineId", async () => {
+        const other = randomUUID();
+        await db.insert(companies).values({ id: other, name: "Company cha", issuePrefix: `P${other.replace(/-/g, "").slice(0, 5).toUpperCase()}` });
+        await seedPairing(db, ns, other, BOOK, await seedTemplate(db, BOOK));
+        const foreignParent = await insertIssue(other, null, "Cha company khác");
+        const child = await insertIssue(w.companyId, foreignParent, "Con có cha company khác");
+        await pinTo(other, foreignParent);
+        // Dòng ghim cùng company với con nhưng trỏ vào cha ngoại: bỏ lọc company ở CTE thì lô sẽ nhận máy này.
+        await pinTo(w.companyId, foreignParent);
+        await expectNoMachine(child);
+      });
+
+      it("vòng parentId giữa hai issue: item null, không lỗi, issue khác trong lô vẫn đúng", async () => {
+        const [x, y] = [await insertIssue(w.companyId, null, "Vòng X"), await insertIssue(w.companyId, null, "Vòng Y")];
+        await db.update(issues).set({ parentId: y }).where(sql`${issues.id} = ${x}`);
+        await db.update(issues).set({ parentId: x }).where(sql`${issues.id} = ${y}`);
+        await pinTo(w.companyId, x);
+        await pinTo(w.companyId, y);
+        await expectNoMachine(x);
+        await expectNoMachine(y);
+        const batch = await issueMachines(db, w.companyId, [x, y, t.pinned]);
+        expect(batch.get(x)).toBeNull();
+        expect(batch.get(y)).toBeNull();
+        expect(batch.get(t.pinned)).toMatchObject({ rootIssueId: t.pinned, machineId: BOOK.machineId });
+      });
+
+      it("độ sâu: gốc ở MAX_TREE_DEPTH còn tìm được, MAX_TREE_DEPTH + 1 thì null như pinnedMachineId", async () => {
+        const reachable = await chain(MAX_TREE_DEPTH + 1, "Sâu đủ");
+        const tooDeep = await chain(MAX_TREE_DEPTH + 2, "Sâu quá");
+        await pinTo(w.companyId, reachable[0]!);
+        await pinTo(w.companyId, tooDeep[0]!);
+        const leaf = reachable.at(-1)!;
+        expect(await pinnedMachineId(db, w.companyId, leaf)).toBe(BOOK.machineId);
+        expect((await issueMachines(db, w.companyId, [leaf])).get(leaf)).toMatchObject({ rootIssueId: reachable[0], machineId: BOOK.machineId });
+        await expectNoMachine(tooDeep.at(-1)!);
+        // Một issue nằm giữa chuỗi quá sâu nhưng cách gốc ≤ MAX_TREE_DEPTH vẫn nhận máy.
+        const middle = tooDeep[1]!;
+        expect((await issueMachines(db, w.companyId, [middle])).get(middle)).toMatchObject({ rootIssueId: tooDeep[0], machineId: BOOK.machineId });
+        expect(await pinnedMachineId(db, w.companyId, middle)).toBe(BOOK.machineId);
+      }, 60_000);
     });
 
     it("body sai: 400 crew_machine_invalid", async () => {
