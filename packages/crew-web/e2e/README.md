@@ -164,3 +164,10 @@ Server cần `PAPERCLIP_ALLOWED_HOSTNAMES` có `127.0.0.1:5183` để Better Aut
 `plugins.package_path` của `crew.core` trong DB nhúng sang `$FORK/packages/crew-plugin`, rồi khởi động lại server để
 plugin kích hoạt và áp migration mới (bảng góp ý có từ migration `0013`). Dùng thư mục T1 khác (`CREW_E2E_T1_ENV=<đường
 tới board.env>`) để không đụng stack cũ.
+
+## Ca giả API (không cần stack T1)
+
+`e2e/fake/*.spec.ts` chạy bằng `pnpm exec playwright test -c playwright.fake.config.ts` (config tự bật vite dev cổng 5185
+và tắt khi xong; không đăng nhập, không `global-setup`). Trình duyệt, bundle và render là thật; API do ca giả bằng
+`page.route`. Dùng cho ca chỉ cần UI render từ file nhúng sẵn, ví dụ `agents-md-no-background.spec.ts` (luật không chạy
+nền trong AGENTS.md của 4 vai ở tab Hướng dẫn).
