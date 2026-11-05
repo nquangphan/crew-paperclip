@@ -48,7 +48,10 @@ Cấu trúc thư mục, luật và cách xem thử nằm ở `packages/crew-web/
    (`hostname=null`) và không trả thời điểm mất liên lạc, nên cây yêu cầu ghi chữ "Đã gỡ ghép" thay tên (không gạch
    ngang; prop `strike` chỉ dùng khi có tên) và tooltip không có mốc giờ; mockup đã sửa theo bản build (06/11/2026),
    không đổi hợp đồng route. `stateText` thêm "· trạng thái" (màn hẹp,
-   thẻ Bảng), `layout="option"` cho mục bộ lọc (chữ trạng thái xuống dòng), `tooltip` cho cột desktop. `IssueListRow` có
+   thẻ Bảng), `layout="option"` cho mục bộ lọc (chữ trạng thái xuống dòng), `tooltip` cho cột desktop. Nhãn có
+   `tooltip` nổi trên link phủ dòng (`relative z-10`) để nhận hover, nên click lên nhãn được chuyển xuống link của dòng
+   (`data-slot="task-row-link"` của `IssueListRow`) kèm phím bổ trợ: bấm mở yêu cầu như phần còn lại của dòng,
+   Cmd/Ctrl+click để trình duyệt mở tab mới. `IssueListRow` có
    `subline` (dòng phụ dưới tiêu đề, chỉ dưới `sm`); `FilterOption` của `ToolbarFilterMenu` có `content` (nội dung thay
    nhãn, `label` thành tên ô tích) và `count` (số ở mép phải); `KanbanCardData.machine` là dòng cuối thẻ ngăn bằng đường
    kẻ mảnh.

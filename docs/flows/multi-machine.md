@@ -23,7 +23,7 @@ fallback) dựa vào kho git dùng chung trên một máy. Owner chọn máy lú
 | Method, đường | Body | Trả |
 |---|---|---|
 | `GET …/machines?projectId=` | — | `{ items: [{ machineId, hostname, online, status, running, load1, cpuCount, memFreePct }] }` |
-| `GET …/issues/:issueId/machine` | — | `{ rootIssueId, isRoot, locked, pin: null \| { machineId, hostname, source, reason, pinnedAt } }` |
+| `GET …/issues/:issueId/machine` | — | `{ rootIssueId, isRoot, locked, pin: null \| { machineId, hostname, source, reason, pinnedAt } }`; không tìm được gốc (vòng `parentId`, quá `MAX_TREE_DEPTH`) thì `pin: null`, `isRoot: false` như route lô |
 | `POST …/issue-machines` | `{ issueIds: uuid[1..500] }` | `{ items: { "<issueId>": null \| { rootIssueId, machineId, hostname: string \| null, online, paired } } }` |
 | `PUT …/issues/:issueId/machine` | `{ machineId }` | như GET; lỗi 422 `crew_machine_not_root`, 409 `crew_machine_locked`, 422 `crew_machine_unknown`, 409 `crew_machine_no_repo`/`crew_machine_no_roles` |
 | `GET …/projects/:projectId/machines` | — | `{ repo: null \| { originUrl, branch, companions }, machines: [{ machineId, hostname, online, status, error, repoPath, updatedAt }] }` |
@@ -100,7 +100,9 @@ fallback) dựa vào kho git dùng chung trên một máy. Owner chọn máy lú
      (`machine-pin.ts`) trả cả lô trong một truy vấn: CTE đệ quy lên gốc (cùng luật `findRootIssueId`/`pinnedMachineId`,
      sâu tối đa `MAX_TREE_DEPTH`), join `issue_machine_pins`, `machine_pairings` chưa gỡ và `machine_latest`; số truy vấn
      không tăng theo số issue. Issue con và cháu nhận máy của gốc (`rootIssueId` là gốc); cây chưa ghim hay không tìm được
-     gốc thì `null`; id không thuộc company (hay không có) bị bỏ khỏi `items`. `paired=false` khi máy ghim không còn dòng
+     gốc thì `null`; id không thuộc company (hay không có) bị bỏ khỏi `items`. `GET …/issues/:issueId/machine` của trang
+     chi tiết cùng kết luận: không tìm được gốc thì `pin: null`, `isRoot: false` (không lấy ghim nằm trên chính issue),
+     khớp `pinnedMachineId` mà run dùng. `paired=false` khi máy ghim không còn dòng
      ghép chưa gỡ: `hostname=null` (không lấy tên từ bản tin, không trả id thô), `online=false`; còn lại `hostname` lấy từ
      dòng ghép và `online` theo `isOnline` như `GET …/machines` (bản tin không cũ quá 5 phút). Route lô và
      `GET …/issues/:issueId/machine` không lọc theo quyền xem project của thành viên, có chủ đích: quyền đó chỉ là lọc
@@ -216,7 +218,9 @@ lần mỗi run).
   thì 409 `crew_machine_locked`, thêm máy ở trang project (403, 422 máy chưa ghép, 202); route lô `issue-machines`: gốc ghim,
   con và cháu kế thừa máy gốc, cây chưa ghim `null`, máy đã gỡ ghép `paired=false`/`hostname=null`, máy có bản tin cũ
   offline, issue company khác hay id không có bị bỏ, body sai 400, người ngoài company và agent bị từ chối đúng như
-  `GET …/issues/:issueId/machine`, số truy vấn SQL như nhau với 1 và 7 issue.
+  `GET …/issues/:issueId/machine`, số truy vấn SQL như nhau với 1 và 7 issue; cha khác company, vòng `parentId` và chuỗi
+  quá `MAX_TREE_DEPTH` (kể cả có ghim trên chính issue) thì lô, `pinnedMachineId` và `GET …/issues/:issueId/machine`
+  cùng không có máy.
 - `server/src/__tests__/crew-machine-release.db.test.ts` (Postgres nhúng): cây ghim còn run thì từ chối gỡ và không archive,
   agent không thuộc vai trò của project (project khác cùng company) thì không archive, không xếp việc, agent trong dòng
   vai trò mà ngoài bố cục (terminated, không có environment SSH) vẫn được nhận và chỉ bỏ checkout của nó, project không
