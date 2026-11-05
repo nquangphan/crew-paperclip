@@ -108,7 +108,12 @@ test('PW-S26-3 lọc theo máy (URL và popover Lọc) chỉ còn cây chạy tr
 
   // Chọn máy còn lại trong popover Lọc: URL đổi, danh sách chuyển sang cây của máy đó.
   await page.getByRole('button', { name: /^Lọc/ }).click();
-  await page.getByRole('checkbox', { name: shortName(book.hostname) }).click();
+  // Tên exact theo luật trùng tên của UI: hai máy cùng tên gọn thì máy có `machineId` sau mang "#2".
+  const bookName =
+    shortName(book.hostname) === shortName(mini.hostname) && book.machineId > mini.machineId
+      ? `${shortName(book.hostname)} #2`
+      : shortName(book.hostname);
+  await page.getByRole('checkbox', { name: bookName, exact: true }).click();
   await expect(page).toHaveURL(new RegExp(`machine=${book.machineId}`));
   await expect(issueRow(page, onBook.root.id)).toBeVisible();
   await expect(issueRow(page, onBook.child.id)).toBeVisible();
