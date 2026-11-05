@@ -114,6 +114,19 @@ async function agentName(db: Db, agentId: string): Promise<string> {
   return row?.name ?? agentId;
 }
 
+/**
+ * Agent đã có environment trên máy ghim: vẫn đối chiếu dòng `project_machines` (chỉ đổi khi đang `provisioning`), để việc
+ * `ensure-project` máy đã làm xong đưa dòng về `ready` kèm `repo_path` mà không cần ai mở trang Máy (Bug Finding đọc dòng
+ * này). Lỗi chỉ ghi log: cổng vẫn `pass` với environment của agent như trước.
+ */
+async function settleProvisioning(db: Db, run: Run, projectId: string, machineId: string): Promise<void> {
+  try {
+    await reconcileProjectMachine(db, { companyId: run.companyId, projectId, machineId });
+  } catch (err) {
+    logger.warn({ err, runId: run.id, projectId, machineId }, "crew-machine-gate: reconcile failed; agent environment kept");
+  }
+}
+
 async function decide(db: Db, run: Run, now: Date, state: PinState): Promise<MachineGateOutcome> {
   const issueId = readIssueId(run.contextSnapshot);
   if (!issueId || !(await machineTablesReady(db))) return PASS;
@@ -161,7 +174,10 @@ async function decide(db: Db, run: Run, now: Date, state: PinState): Promise<Mac
       });
   }
   const ready = await agentEnvironmentOnMachine(db, run.companyId, run.agentId, machine);
-  if (ready) return { action: "pass", environmentId: ready };
+  if (ready) {
+    await settleProvisioning(db, run, projectId, machine.machineId);
+    return { action: "pass", environmentId: ready };
+  }
   const layout = await projectLayout(db, run.companyId, projectId);
   if (!layout?.agents.some((agent) => agent.agentId === run.agentId)) {
     if (!(await agentRunsOnMac(db, run.companyId, run.agentId))) return PASS;
@@ -194,7 +210,8 @@ async function decide(db: Db, run: Run, now: Date, state: PinState): Promise<Mac
 /**
  * Bước đầu của cổng claim. Không có issue, bảng chưa có hay project chưa có máy nào trong `project_machines`: `pass`
  * với `null` (hành vi stock). Cây chưa ghim thì chọn máy rồi ghim `auto` (máy chưa dựng project chỉ được chọn khi project
- * dựng được). Cây đã ghim: agent có environment trên máy ghim thì `pass` kèm id đó; máy ghim không còn ghép, hay agent
+ * dựng được). Cây đã ghim: agent có environment trên máy ghim thì đối chiếu dòng `project_machines` đang `provisioning`
+ * (lỗi chỉ ghi log) rồi `pass` kèm id đó; máy ghim không còn ghép, hay agent
  * không phải vai trò của project mà chạy trên Mac khác, thì `hold`; agent vai trò thiếu environment thì đối chiếu việc
  * dựng, xếp lại việc khi cần và `hold` với comment một lần mỗi run; dựng hỏng hay không dựng được thì `fail`. Mọi lý do
  * `hold` dùng chung một đồng hồ: run chờ quá `PROVISION_TIMEOUT_MS` (tính từ lần chờ đầu) thì `fail` với lý do của trường

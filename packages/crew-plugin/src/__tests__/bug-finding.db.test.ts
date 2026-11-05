@@ -201,6 +201,40 @@ describe("xếp lượt khi ticket tổng vào stage cầu nối", () => {
     expect(await runs(issue)).toMatchObject([{ run: 1, state: "failed", machine_id: other, error: "Mac chưa cập nhật 2P Crew có Bug Finding" }]);
   });
 
+  /** Máy ghim `mini`: dòng `project_machines` đổi sang `status`, và một việc `ensure-project` của project ở `jobStatus`. */
+  async function pinMiniWithEnsure(issue: string, status: string, jobStatus: string) {
+    await host.sql.unsafe(`INSERT INTO ${host.ns}.issue_machine_pins (company_id,root_issue_id,machine_id,source) VALUES ($1,$2,$3,'auto')`,
+      [companyId, issue, mini]);
+    await host.sql.unsafe(`UPDATE ${host.ns}.project_machines SET status = $3, repo_path = NULL WHERE company_id = $1 AND machine_id = $2`,
+      [companyId, mini, status]);
+    const result = { kind: "ensure-project", repoPath: "/Users/o/crew-agents/my-crew/repo", cloned: true, checkouts: [], companions: [] };
+    await host.sql.unsafe(`INSERT INTO ${host.ns}.crew_machine_jobs (company_id,machine_id,kind,payload,status,result,created_by_user_id)
+      VALUES ($1,$2,'ensure-project',$3::text::jsonb,$4,$5::text::jsonb,'crew:auto')`,
+    [companyId, mini, JSON.stringify({ kind: "ensure-project", projectId }), jobStatus, jobStatus === "done" ? JSON.stringify(result) : null]);
+  }
+
+  it("máy ghim còn provisioning nhưng việc ensure-project đã done kèm repoPath: chọn máy ghim với repo đó, dòng không đổi", async () => {
+    const issue = addIssue(19);
+    await pinMiniWithEnsure(issue, "provisioning", "done");
+    await handleIssueUpdated(ctx, updated(issue));
+    expect(await runs(issue)).toMatchObject([{ run: 1, state: "requested", machine_id: mini, error: null }]);
+    const queued = (await jobs()).filter((job) => job.kind === "bug-finding-review");
+    expect(queued).toMatchObject([{ machine_id: mini, payload: { repoPath: "/Users/o/crew-agents/my-crew/repo", projectKey: "my-crew" } }]);
+    const [row] = await host.sql.unsafe(`SELECT status, repo_path FROM ${host.ns}.project_machines WHERE company_id = $1 AND machine_id = $2`,
+      [companyId, mini]);
+    expect(row).toMatchObject({ status: "provisioning", repo_path: null });
+  });
+
+  it("máy ghim provisioning với việc chưa xong, hay failed dù việc done: vẫn báo chưa có repo", async () => {
+    for (const [n, status, jobStatus] of [[20, "provisioning", "claimed"], [21, "failed", "done"]] as const) {
+      await host.sql.unsafe(`DELETE FROM ${host.ns}.crew_machine_jobs`);
+      const issue = addIssue(n);
+      await pinMiniWithEnsure(issue, status, jobStatus);
+      await handleIssueUpdated(ctx, updated(issue));
+      expect(await runs(issue)).toMatchObject([{ run: 1, state: "failed", machine_id: mini, error: "Máy đã ghim chưa có repo của project" }]);
+    }
+  });
+
   it("vòng đã có 3 lượt: không xếp lượt thứ tư", async () => {
     const issue = addIssue(6);
     for (const [run, head] of [[1, "1"], [2, "2"], [3, "3"]] as const) {
