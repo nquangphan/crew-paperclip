@@ -4,7 +4,9 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { eq, sql } from "drizzle-orm";
 import { agents, createDb, issues } from "@paperclipai/db";
 import { getEmbeddedPostgresTestSupport, startEmbeddedPostgresTestDatabase } from "./helpers/embedded-postgres.js";
-import { applyCrewMachineTables, BOOK, MINI, seedCrewProject, seedPairing, seedTemplate } from "./helpers/crew-machine-tables.js";
+import {
+  applyCrewMachineTables, BOOK, MINI, seedAddProjectRun, seedCrewProject, seedEnsureJob, seedPairing, seedTemplate,
+} from "./helpers/crew-machine-tables.js";
 import { readPin, setOwnerPin } from "../crew/machine-pin.ts";
 import { listProjectMachines } from "../crew/machine-provision.ts";
 
@@ -65,13 +67,15 @@ suite("backfill máy cho project và cây đang mở", () => {
     const [done] = await db.insert(issues).values({ companyId: kidy.companyId, projectId: kidy.projectId, title: "Xong", status: "done" }).returning();
     const [cancelled] = await db.insert(issues).values({ companyId: kidy.companyId, projectId: kidy.projectId, title: "Hủy", status: "cancelled" }).returning();
     const [child] = await db.insert(issues).values({ companyId: kidy.companyId, projectId: kidy.projectId, parentId: open!.id, title: "Con", status: "todo" }).returning();
+    await seedAddProjectRun(db, ns, { companyId: kidy.companyId, projectId: kidy.projectId, machine: MINI, key: "kidy-school", root: "/Users/mini/kidy" });
+    await seedAddProjectRun(db, ns, { companyId: kidy.companyId, projectId: kidy.projectId, machine: BOOK, key: "kidy-school", root: "/Volumes/CORSAIR/Projects/kidy_school" });
     const unpaired = await seedCrewProject(db, ns, { key: "my-money", host: "100.64.9.9" });
     const [unpairedOpen] = await db.insert(issues).values({ companyId: unpaired.companyId, projectId: unpaired.projectId, title: "Chưa ghép", status: "todo" }).returning();
 
     await runScriptTwice();
 
     expect(await listProjectMachines(db, kidy.companyId, kidy.projectId)).toEqual([
-      expect.objectContaining({ machineId: BOOK.machineId, status: "ready", error: null }),
+      expect.objectContaining({ machineId: BOOK.machineId, status: "ready", error: null, repoPath: "/Volumes/CORSAIR/Projects/kidy_school" }),
     ]);
     expect(await readPin(db, kidy.companyId, open!.id)).toMatchObject({ machineId: BOOK.machineId, source: "auto", reason: { backfill: true } });
     expect(await readPin(db, kidy.companyId, done!.id)).toBeNull();
@@ -115,14 +119,27 @@ suite("backfill máy cho project và cây đang mở", () => {
     const noSsh = await seedCrewProject(db, ns, { key: "no-ssh", host: MINI.ip });
     await db.update(agents).set({ defaultEnvironmentId: null }).where(eq(agents.id, noSsh.agents.reviewer.agentId));
     await seedPairing(db, ns, noSsh.companyId, MINI, await seedTemplate(db, MINI));
+    await seedEnsureJob(db, ns, { companyId: p.companyId, projectId: p.projectId, machine: MINI, status: "done", repoPath: "/Users/owner/crew-agents/moved/repo" });
 
     await runScriptTwice();
 
     expect(await listProjectMachines(db, p.companyId, p.projectId)).toEqual([
-      expect.objectContaining({ machineId: MINI.machineId, status: "ready" }),
+      expect.objectContaining({ machineId: MINI.machineId, status: "ready", repoPath: "/Users/owner/crew-agents/moved/repo" }),
     ]);
     expect(await readPin(db, p.companyId, assignedToTerminated!.id)).toMatchObject({ machineId: MINI.machineId, source: "auto" });
     expect(await listProjectMachines(db, noSsh.companyId, noSsh.projectId)).toEqual([]);
+  });
+
+  it("máy khớp mọi agent nhưng không có nguồn repo đáng tin: không gắn ready thiếu repo, không ghim auto cây nào", async () => {
+    const p = await seedCrewProject(db, ns, { key: "no-repo", host: BOOK.ip });
+    await seedPairing(db, ns, p.companyId, BOOK, await seedTemplate(db, BOOK));
+    await seedEnsureJob(db, ns, { companyId: p.companyId, projectId: p.projectId, machine: BOOK, status: "done", repoPath: "relative/repo" });
+    const [open] = await db.insert(issues).values({ companyId: p.companyId, projectId: p.projectId, title: "Đang chạy", status: "todo" }).returning();
+
+    await runScriptTwice();
+
+    expect(await listProjectMachines(db, p.companyId, p.projectId)).toEqual([]);
+    expect(await readPin(db, p.companyId, open!.id)).toBeNull();
   });
 
   it("các khối xem trước chạy được và chỉ đọc", async () => {
