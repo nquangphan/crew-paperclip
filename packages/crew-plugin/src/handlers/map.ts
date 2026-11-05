@@ -29,7 +29,7 @@ export interface CrewMap {
 }
 
 type LocationRow = { id: string; company_id: string; parent_id: string | null };
-type IssueRow = LocationRow & {
+export type IssueRow = LocationRow & {
   identifier: string | null;
   title: string;
   status: string;
@@ -40,9 +40,9 @@ type IssueRow = LocationRow & {
   execution_state: unknown;
 };
 type RelationRow = { issue_id: string; related_issue_id: string };
-type CommentRow = { issue_id: string; body: string };
+export type CommentRow = { issue_id: string; body: string };
 
-function nodeFrom(row: IssueRow): CrewMapNode {
+export function nodeFrom(row: IssueRow): CrewMapNode {
   const state = jsonObject(row.execution_state);
   const policy = jsonObject(row.execution_policy);
   const completed = Array.isArray(state?.completedStageIds)
@@ -148,28 +148,47 @@ export async function loadCrewMap(ctx: Pick<PluginContext, "db">, issueId: strin
       "SELECT issue_id, body FROM public.issue_comments WHERE company_id = $1 AND issue_id = ANY(string_to_array($2, ',')::uuid[]) AND deleted_at IS NULL ORDER BY created_at DESC, id DESC",
       [companyId, ids.join(",")],
     ) : [];
-    const commitsByIssue = new Map<string, Set<string>>();
-    for (const comment of comments) {
-      const sha = parseCrewCommit(comment.body);
-      if (!sha) continue;
-      const commits = commitsByIssue.get(comment.issue_id) ?? new Set<string>();
-      commits.add(sha);
-      commitsByIssue.set(comment.issue_id, commits);
-    }
-    for (const fix of fixes) {
-      const base = parseCrewFixBase(fix.description);
-      const repaired = rows.find((row) => row.id !== fix.id
-        && row.parent_id === fix.parent_id && !!base && commitsByIssue.get(row.id)?.has(base));
-      if (repaired) edges.push({ kind: "repair", from: repaired.id, to: fix.id });
-      else diagnostics.push(`Không xác định được issue được sửa bởi ${fix.identifier ?? fix.id}`);
-    }
+    const repair = crewRepairEdges(rows, comments);
+    edges.push(...repair.edges);
+    diagnostics.push(...repair.diagnostics);
   }
-  for (const node of nodes) {
-    if (node.reviewRounds > 0) {
-      edges.push({ kind: "repair", from: node.id, to: node.id, label: `${node.reviewRounds} vòng sửa` });
-    }
-  }
+  edges.push(...reviewRoundEdges(nodes));
   return { root, nodes, edges, diagnostics, runs: await loadMapRuns(ctx, companyId, ids) };
+}
+
+/**
+ * Cạnh "sửa": việc `crew-fix base=<sha>` nối từ việc anh em cùng cha có `crew-commit sha=<sha>`. Không tìm được thì ghi
+ * vào `diagnostics`, không đoán. `comments` chỉ cần comment của các việc anh em của việc sửa.
+ */
+export function crewRepairEdges(
+  rows: readonly Pick<IssueRow, "id" | "parent_id" | "identifier" | "description">[],
+  comments: readonly CommentRow[],
+): { edges: CrewMap["edges"]; diagnostics: string[] } {
+  const edges: CrewMap["edges"] = [];
+  const diagnostics: string[] = [];
+  const commitsByIssue = new Map<string, Set<string>>();
+  for (const comment of comments) {
+    const sha = parseCrewCommit(comment.body);
+    if (!sha) continue;
+    const commits = commitsByIssue.get(comment.issue_id) ?? new Set<string>();
+    commits.add(sha);
+    commitsByIssue.set(comment.issue_id, commits);
+  }
+  for (const fix of rows) {
+    const base = parseCrewFixBase(fix.description);
+    if (!base) continue;
+    const repaired = rows.find((row) => row.id !== fix.id
+      && row.parent_id === fix.parent_id && commitsByIssue.get(row.id)?.has(base));
+    if (repaired) edges.push({ kind: "repair", from: repaired.id, to: fix.id });
+    else diagnostics.push(`Không xác định được issue được sửa bởi ${fix.identifier ?? fix.id}`);
+  }
+  return { edges, diagnostics };
+}
+
+/** Cạnh vòng sửa tự nối (nhãn "N vòng sửa") cho việc đã bị yêu cầu sửa. */
+export function reviewRoundEdges(nodes: readonly CrewMapNode[]): CrewMap["edges"] {
+  return nodes.flatMap((node) => node.reviewRounds > 0
+    ? [{ kind: "repair" as const, from: node.id, to: node.id, label: `${node.reviewRounds} vòng sửa` }] : []);
 }
 
 export function registerMapFeature(ctx: PluginContext): void {

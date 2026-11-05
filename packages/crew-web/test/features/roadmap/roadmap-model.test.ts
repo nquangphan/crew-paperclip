@@ -8,6 +8,7 @@ import {
   docsParentFolder,
   folderTrail,
   isHumanRoot,
+  issuesFromRoadmap,
   MORE_ID,
   NO_PROJECT,
   type RoadmapIssue,
@@ -301,5 +302,49 @@ describe('trạng thái QC trên thẻ yêu cầu', () => {
     const request = buildRequestLevel({ request: root, descendants: [kid], statusOf });
     expect(request.center).toMatchObject({ status: 'qc_awaiting', done: 1, total: 1 });
     expect(request.nodes[0]?.status).toBe('done');
+  });
+});
+
+describe('issuesFromRoadmap', () => {
+  const node = (id: string, parentId: string | null, over: Record<string, unknown> = {}) => ({
+    id,
+    identifier: id.toUpperCase(),
+    title: `Việc ${id}`,
+    status: 'todo',
+    parentId,
+    rootId: 'r1',
+    projectId: 'p1',
+    createdByUserId: parentId ? null : 'u1',
+    createdAt: '2026-10-01T00:00:00.000Z',
+    updatedAt: '2026-10-02T00:00:00.000Z',
+    assignee: null,
+    stage: null,
+    reviewRounds: 0,
+    maxReviewRounds: 3,
+    kind: 'code' as const,
+    bundle: null,
+    ...over,
+  });
+
+  it('đổi nút crew.roadmap thành issue của bản đồ: người làm, cạnh chặn từ quan hệ của worker; cạnh sửa không thành chặn', () => {
+    const out = issuesFromRoadmap({
+      requests: ['r1'],
+      nodes: [node('r1', null), node('a', 'r1', { assignee: { id: 'ag1', name: 'Dev' } }), node('b', 'r1')],
+      edges: [
+        { kind: 'parent', from: 'r1', to: 'a' },
+        { kind: 'parent', from: 'r1', to: 'b' },
+        { kind: 'dependency', from: 'a', to: 'b' },
+        { kind: 'repair', from: 'a', to: 'b' },
+      ],
+      diagnostics: [],
+      truncated: false,
+    });
+    expect(out.map((i) => [i.id, i.parentId, i.assigneeAgentId, i.blockedBy])).toEqual([
+      ['r1', null, null, []],
+      ['a', 'r1', 'ag1', []],
+      ['b', 'r1', null, [{ id: 'a' }]],
+    ]);
+    expect(out[0]).toMatchObject({ identifier: 'R1', projectId: 'p1', createdByUserId: 'u1', status: 'todo' });
+    expect(isHumanRoot(out[0])).toBe(true);
   });
 });

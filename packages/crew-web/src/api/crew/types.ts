@@ -254,6 +254,8 @@ export type { CrewMachine, CrewMachinePairing, MachineCardModel } from '@crew/pa
 export type {
   CrewMap,
   CrewMapNode,
+  CrewRoadmap,
+  CrewRoadmapNode,
   CrewRoot,
   IssueMapRuns,
   MapEdge,

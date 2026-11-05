@@ -158,6 +158,7 @@ describe("Crew: viewer đọc data plugin crew.core", () => {
       "crew.docsCheck",
       "crew.machines",
       "crew.map",
+      "crew.roadmap",
       "crew.roots",
       "crew.runtimeDecisions",
       "crew.setupRuns",

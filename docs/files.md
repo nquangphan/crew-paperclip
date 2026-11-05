@@ -146,6 +146,7 @@ File nào thuộc flow nào. Dùng `crew-docs where <file>` để tra từ dòng
 | `packages/crew-plugin/src/__tests__/migration-0022.db.test.ts` | [crew-plugin](flows/crew-plugin.md) (test) |
 | `packages/crew-plugin/src/__tests__/policy.test.ts` | [crew-plugin](flows/crew-plugin.md) (test) |
 | `packages/crew-plugin/src/__tests__/registry.test.ts` | [crew-plugin](flows/crew-plugin.md) (test) |
+| `packages/crew-plugin/src/__tests__/roadmap.data.test.ts` | [roadmap-map](flows/roadmap-map.md) (test) |
 | `packages/crew-plugin/src/__tests__/roles.db.test.ts` | [project-roles](flows/project-roles.md) (test) |
 | `packages/crew-plugin/src/__tests__/roots.data.test.ts` | [roadmap-map](flows/roadmap-map.md) (test) |
 | `packages/crew-plugin/src/__tests__/runtime-decisions.db.test.ts` | [runtime-fallback](flows/runtime-fallback.md) (test) |
@@ -185,6 +186,7 @@ File nào thuộc flow nào. Dùng `crew-docs where <file>` để tra từ dòng
 | `packages/crew-plugin/src/docs/webhook.ts` | [docs-snapshot](flows/docs-snapshot.md) (điểm vào) |
 | `packages/crew-plugin/src/features.ts` | [crew-plugin](flows/crew-plugin.md) (file) |
 | `packages/crew-plugin/src/handlers/map.ts` | [roadmap-map](flows/roadmap-map.md) (điểm vào) |
+| `packages/crew-plugin/src/handlers/roadmap.ts` | [roadmap-map](flows/roadmap-map.md) (file) |
 | `packages/crew-plugin/src/handlers/roots.ts` | [roadmap-map](flows/roadmap-map.md) (file) |
 | `packages/crew-plugin/src/handlers/runs.ts` | [roadmap-map](flows/roadmap-map.md) (file) |
 | `packages/crew-plugin/src/issues/force-done.ts` | [issues-web](flows/issues-web.md) (điểm vào) |
@@ -899,6 +901,7 @@ File nào thuộc flow nào. Dùng `crew-docs where <file>` để tra từ dòng
 | `server/src/__tests__/crew-remote-stop.test.ts` | [ssh-run-lifecycle](flows/ssh-run-lifecycle.md) (test) |
 | `server/src/__tests__/crew-remote-termination.db.test.ts` | [ssh-run-lifecycle](flows/ssh-run-lifecycle.md) (test) |
 | `server/src/__tests__/crew-retry-progress.test.ts` | [run-claim](flows/run-claim.md) (test) |
+| `server/src/__tests__/crew-roadmap-viewer-scope.test.ts` | [roadmap-map](flows/roadmap-map.md) (test) |
 | `server/src/__tests__/crew-run-cancelled.test.ts` | [run-handoff](flows/run-handoff.md) (test) |
 | `server/src/__tests__/crew-run-environment.test.ts` | [multi-machine](flows/multi-machine.md) (test) |
 | `server/src/__tests__/crew-runtime-fallback-reconcile.test.ts` | [runtime-fallback](flows/runtime-fallback.md) (test) |

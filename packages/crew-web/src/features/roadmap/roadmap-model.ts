@@ -2,13 +2,11 @@
 // Tầng công ty → project (+ "Chưa gắn project" cho owner) → yêu cầu gốc do người tạo (+ nút Docs) → cây việc con;
 // nhánh Docs: bộ docs → thư mục → trang. Không gọi API, không đọc URL; trang lo phần đó.
 import { buildDocsTree, type DocsNode } from '@crew/paperclip-plugin/shared/docs-tree';
-import type { MapRuns } from '@crew/paperclip-plugin/shared/map';
+import type { CrewRoadmap, MapRuns } from '@crew/paperclip-plugin/shared/map';
 import { type RoadmapEdge, type RoadmapLevel, type RoadmapNode, roadmapRuns } from '@/ds';
 
 /** Trần số nút vẽ mỗi tầng; vượt thì có nút "+N khác" mở dạng danh sách. */
 export const CAPS = { projects: 40, requests: 60, tickets: 150, docs: 60 } as const;
-/** Trần dòng mỗi lời gọi danh sách issue của server. */
-export const LIST_LIMIT = 1000;
 
 export const COMPANY_ID = 'company';
 /** Id nút và giá trị `?project=` của nhóm yêu cầu không thuộc project nào (chỉ owner thấy). */
@@ -32,6 +30,30 @@ export interface RoadmapIssue {
   createdAt: string | Date;
   assigneeAgentId?: string | null;
   blockedBy?: readonly { id: string }[] | null;
+}
+
+/**
+ * Dữ liệu `crew.roadmap` (mọi yêu cầu và cây việc con) thành danh sách issue phẳng cho các tầng. Quan hệ lấy nguyên từ
+ * worker: cha từ `parentId`, chặn từ cạnh `dependency` (`from` chặn `to`); cạnh sửa không đổi thành chặn.
+ */
+export function issuesFromRoadmap(data: CrewRoadmap): RoadmapIssue[] {
+  const blockers = new Map<string, { id: string }[]>();
+  for (const edge of data.edges) {
+    if (edge.kind !== 'dependency') continue;
+    blockers.set(edge.to, [...(blockers.get(edge.to) ?? []), { id: edge.from }]);
+  }
+  return data.nodes.map((node) => ({
+    id: node.id,
+    identifier: node.identifier,
+    title: node.title,
+    status: node.status,
+    parentId: node.parentId,
+    projectId: node.projectId,
+    createdByUserId: node.createdByUserId,
+    createdAt: node.createdAt,
+    assigneeAgentId: node.assignee?.id ?? null,
+    blockedBy: blockers.get(node.id) ?? [],
+  }));
 }
 
 export interface RoadmapProject {
