@@ -13,7 +13,7 @@ vi.mock("../services/secrets.ts", async (importOriginal) => ({
 import { defaultBeforeClaimDeps, evaluateBeforeClaim } from "../crew/load-gate.ts";
 import { evaluateMachineGate, MACHINE_FAILED_ACTION, MACHINE_PINNED_ACTION, MACHINE_WAITING_ACTION } from "../crew/machine-gate.ts";
 import { readPin, setOwnerPin } from "../crew/machine-pin.ts";
-import { writeProjectRepo } from "../crew/machine-provision.ts";
+import { readProjectMachine, startProvisioning, writeProjectRepo } from "../crew/machine-provision.ts";
 
 const support = await getEmbeddedPostgresTestSupport();
 const suite = support.supported ? describe.sequential : describe.skip;
@@ -131,6 +131,55 @@ suite("cổng ghim máy của H1 (Postgres)", () => {
     const passed = await evaluateMachineGate(db, run);
     expect(passed.action).toBe("pass");
     expect(passed.action === "pass" && passed.environmentId !== null && passed.environmentId !== w.agents["executor-1"].environmentId).toBe(true);
+  });
+
+  /** Việc `ensure-project` của project trên máy BOOK (mọi agent đã có environment mặc định ở đó) chuyển `done`. */
+  async function bookEnsureDone(w: Awaited<ReturnType<typeof world>>, repoPath: string) {
+    expect(await startProvisioning(db, { companyId: w.companyId, projectId: w.projectId, machineId: BOOK.machineId, createdBy: "owner" }))
+      .toMatchObject({ ok: true });
+    const result = {
+      kind: "ensure-project", repoPath, cloned: true, companions: [],
+      checkouts: ["assistant", "executor-1", "reviewer", "integrator"].map((role) => ({ role, path: `/Users/owner/crew-agents/kidy-school/${role}`, head: "d".repeat(40) })),
+    };
+    await db.execute(sql.raw(`UPDATE ${ns}.crew_machine_jobs SET status = 'done', result = '${JSON.stringify(result)}'::jsonb
+      WHERE company_id = '${w.companyId}' AND kind = 'ensure-project'`));
+  }
+
+  it("agent đã có environment trên máy ghim, ensure-project done: cổng pass như cũ và đối chiếu dòng provisioning thành ready", async () => {
+    const w = await world();
+    await setOwnerPin(db, { companyId: w.companyId, rootIssueId: w.root, machineId: BOOK.machineId });
+    await bookEnsureDone(w, "/Users/owner/crew-agents/kidy-school/repo");
+    expect(await readProjectMachine(db, w.companyId, w.projectId, BOOK.machineId)).toMatchObject({ status: "provisioning", repoPath: null });
+    const run = await queuedRun(w.companyId, w.agents.integrator.agentId, w.child);
+    expect(await evaluateMachineGate(db, run)).toEqual({ action: "pass", environmentId: w.agents.integrator.environmentId });
+    expect(await readProjectMachine(db, w.companyId, w.projectId, BOOK.machineId))
+      .toMatchObject({ status: "ready", error: null, repoPath: "/Users/owner/crew-agents/kidy-school/repo" });
+    expect(await actions(run.id, MACHINE_WAITING_ACTION)).toHaveLength(0);
+  });
+
+  it("dòng ready hay failed trên máy ghim không đổi khi agent có environment qua cổng", async () => {
+    for (const status of ["ready", "failed"] as const) {
+      const w = await world();
+      await setOwnerPin(db, { companyId: w.companyId, rootIssueId: w.root, machineId: BOOK.machineId });
+      await bookEnsureDone(w, "/Users/owner/crew-agents/kidy-school/repo-moi");
+      await db.execute(sql.raw(`UPDATE ${ns}.project_machines SET status = '${status}', repo_path = '/Users/owner/cu/repo',
+        error = ${status === "failed" ? "'Máy không dựng checkout reviewer'" : "NULL"}
+        WHERE company_id = '${w.companyId}' AND machine_id = '${BOOK.machineId}'`));
+      const before = await readProjectMachine(db, w.companyId, w.projectId, BOOK.machineId);
+      const run = await queuedRun(w.companyId, w.agents.assistant.agentId, w.root);
+      expect(await evaluateMachineGate(db, run)).toEqual({ action: "pass", environmentId: w.agents.assistant.environmentId });
+      expect(await readProjectMachine(db, w.companyId, w.projectId, BOOK.machineId)).toEqual(before);
+    }
+  });
+
+  it("đối chiếu lỗi khi agent đã có environment: cổng vẫn pass với environment đó", async () => {
+    const w = await world();
+    await setOwnerPin(db, { companyId: w.companyId, rootIssueId: w.root, machineId: BOOK.machineId });
+    await bookEnsureDone(w, "/Users/owner/crew-agents/kidy-school/repo");
+    const run = await queuedRun(w.companyId, w.agents.assistant.agentId, w.root);
+    expect(await evaluateMachineGate(failingOn("crew_machine_jobs"), run))
+      .toEqual({ action: "pass", environmentId: w.agents.assistant.environmentId });
+    expect(await readProjectMachine(db, w.companyId, w.projectId, BOOK.machineId)).toMatchObject({ status: "provisioning" });
   });
 
   it("project chưa có repo, mọi máy ready quá tải: không ghim máy chưa dựng, không chặn issue", async () => {

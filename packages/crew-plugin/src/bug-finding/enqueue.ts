@@ -96,7 +96,9 @@ type MachineChoice = { machineId: string; repoPath: string } | { machineId: stri
 
 /**
  * Máy chạy Bug Finding: máy đã ghim cho cây (`issue_machine_pins`), không ghim thì máy `ready` của project trong
- * `project_machines`. Máy phải có repo của project và app báo khả năng `bug-finding-review` trong bản tin máy.
+ * `project_machines`. Máy phải có repo của project và app báo khả năng `bug-finding-review` trong bản tin máy. Dòng còn
+ * `provisioning` mà việc `ensure-project` mới nhất của project trên máy đã `done` kèm `repoPath` tuyệt đối thì repo đã có
+ * trên máy: dùng `repoPath` đó (chỉ đọc; server mới đối chiếu dòng sang `ready`). Dòng `ready`/`failed` đọc như cũ.
  */
 async function chooseMachine(ctx: Ctx, companyId: string, issue: Issue): Promise<MachineChoice> {
   const projectId = issue.projectId;
@@ -104,11 +106,16 @@ async function chooseMachine(ctx: Ctx, companyId: string, issue: Issue): Promise
   const ns = pluginNamespace(ctx);
   const pinned = await pinnedMachine(ctx, companyId, issue);
   const rows = await ctx.db.query<{ machine_id: string; repo_path: string | null; status: string; capable: boolean | null }>(
-    `SELECT m.machine_id::text AS machine_id, pm.repo_path, COALESCE(pm.status, 'absent') AS status,
+    `SELECT m.machine_id::text AS machine_id,
+       CASE WHEN ej.status = 'done' THEN ej.repo_path ELSE pm.repo_path END AS repo_path,
+       CASE WHEN ej.status = 'done' THEN 'ready' ELSE COALESCE(pm.status, 'absent') END AS status,
        (l.report->'jobsAgent'->'capabilities') @> '["${BUG_FINDING_CAPABILITY}"]'::jsonb AS capable
      FROM (SELECT machine_id FROM ${ns}.project_machines WHERE company_id = $1 AND project_id = $2
            UNION SELECT $3::uuid WHERE $3::uuid IS NOT NULL) m
      LEFT JOIN ${ns}.project_machines pm ON pm.company_id = $1 AND pm.project_id = $2 AND pm.machine_id = m.machine_id
+     LEFT JOIN LATERAL (SELECT j.status, j.result->>'repoPath' AS repo_path FROM ${ns}.crew_machine_jobs j
+       WHERE j.company_id = $1 AND j.machine_id = m.machine_id AND j.kind = 'ensure-project'
+         AND j.payload->>'projectId' = $2::text ORDER BY j.created_at DESC, j.id DESC LIMIT 1) ej ON pm.status = 'provisioning'
      LEFT JOIN ${ns}.machine_latest l ON l.company_id = $1 AND l.machine_id = m.machine_id
      ORDER BY pm.updated_at DESC NULLS LAST, m.machine_id`,
     [companyId, checkedId(projectId), pinned],
