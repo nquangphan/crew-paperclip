@@ -30,11 +30,13 @@ const STATUS_VI = { backlog: 'Tồn đọng', todo: 'Cần làm', in_progress: '
 const glyph = (s, size = 14) =>
   `<svg class="i" style="width:${size}px;height:${size}px;color:var(--status-task-icon-${s})" viewBox="0 0 24 24" role="img" aria-label="${STATUS_VI[s]}">${GLYPH[s]}</svg>`;
 
-// ── Máy mẫu. Tên hiện = hostname máy báo, bỏ hậu tố miền (".local", ".tail1234.ts.net"). ──
+// ── Máy mẫu (tên giả). Tên hiện = hostname máy báo, bỏ hậu tố miền (".local", ".tail1234.ts.net"). Máy đã gỡ ghép
+// không có tên: server trả `hostname=null` cho máy đó, nhãn ghi "Đã gỡ ghép". Server không trả thời điểm mất liên lạc
+// hay gỡ ghép, nên tooltip không có mốc giờ. ──
 const MACHINES = {
-  mini: { host: 'phans-mac-mini', full: 'phans-mac-mini.local', state: 'online' },
-  mbp: { host: 'phans-macbook-pro', full: 'phans-macbook-pro.local', state: 'offline', since: '14:02 05/11' },
-  imac: { host: 'quang-imac', full: 'quang-imac.local', state: 'unpaired', since: '09:40 04/11' },
+  mini: { host: 'demo-mac-01', full: 'demo-mac-01.local', state: 'online' },
+  mbp: { host: 'demo-mac-02', full: 'demo-mac-02.local', state: 'offline' },
+  imac: { host: null, full: null, state: 'unpaired' },
 };
 const STATE_VI = { online: 'đang kết nối', offline: 'mất liên lạc', unpaired: 'đã gỡ ghép' };
 
@@ -42,8 +44,8 @@ const STATE_VI = { online: 'đang kết nối', offline: 'mất liên lạc', un
 function tipText(m) {
   if (!m) return 'Cây yêu cầu này chưa ghim máy. Lượt chạy đầu tiên sẽ ghim máy còn trống.';
   if (m.state === 'online') return `<b>${m.full}</b><br>Đang kết nối. Mọi yêu cầu trong cây chạy trên máy này.`;
-  if (m.state === 'offline') return `<b>${m.full}</b><br>Mất liên lạc từ ${m.since}. Yêu cầu trong cây chờ máy này trở lại.`;
-  return `<b>${m.full}</b><br>Máy đã gỡ ghép lúc ${m.since}. Yêu cầu trong cây không chạy được cho tới khi ghim máy khác.`;
+  if (m.state === 'offline') return `<b>${m.full}</b><br>Mất liên lạc. Yêu cầu trong cây chờ máy này trở lại.`;
+  return 'Máy đã gỡ ghép. Yêu cầu trong cây không chạy được cho tới khi ghim máy khác.';
 }
 
 /**
@@ -58,6 +60,10 @@ function machineLabel(key, { withState = false, unpinned = 'none' } = {}) {
   }
   const ind =
     m.state === 'online' ? '<i></i>' : m.state === 'offline' ? icon('wifiOff') : icon('unlink');
+  // Máy đã gỡ ghép không có tên: chữ "Đã gỡ ghép" thay tên, không thêm chữ trạng thái.
+  if (!m.host) {
+    return `<span class="ml ${m.state}" aria-label="Máy ${STATE_VI[m.state]}" title="${STATE_VI[m.state]}"><span class="ind" aria-hidden="true">${ind}</span><span class="host" aria-hidden="true">Đã gỡ ghép</span></span>`;
+  }
   const aria = `Máy ${m.host}, ${STATE_VI[m.state]}`;
   return `<span class="ml ${m.state}${withState ? ' with-state' : ''}" aria-label="${aria}" title="${m.full} · ${STATE_VI[m.state]}"><span class="ind" aria-hidden="true">${ind}</span><span class="host" aria-hidden="true">${m.host}</span>${m.state === 'online' ? '' : `<span class="st" aria-hidden="true">${STATE_VI[m.state]}</span>`}</span>`;
 }

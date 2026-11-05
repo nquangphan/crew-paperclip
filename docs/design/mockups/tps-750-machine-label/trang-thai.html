@@ -21,15 +21,15 @@
   const legend = `<table class="legend">
     <thead><tr><th>Trạng thái</th><th>Cột Máy (desktop, có tooltip)</th><th>Thẻ board · màn hẹp · bộ lọc</th><th>Ý nghĩa và tooltip</th></tr></thead>
     <tbody>
-      ${ctxRow('mini', 'Online', 'Chấm xanh. Tooltip: “phans-mac-mini.local · Đang kết nối.”')}
-      ${ctxRow('mbp', 'Offline', 'Icon wifi gạch, xám. Tooltip: “Mất liên lạc từ 14:02 05/11. Yêu cầu trong cây chờ máy này trở lại.”')}
-      ${ctxRow('imac', 'Đã gỡ ghép', 'Icon mắt xích đứt, hổ phách, tên gạch ngang. Tooltip: “Máy đã gỡ ghép… cho tới khi ghim máy khác.”')}
+      ${ctxRow('mini', 'Online', 'Chấm xanh. Tooltip: “demo-mac-01.local · Đang kết nối.”')}
+      ${ctxRow('mbp', 'Offline', 'Icon wifi gạch, xám. Tooltip: tên đầy đủ và “Mất liên lạc. Yêu cầu trong cây chờ máy này trở lại.” Không có mốc giờ: server không trả thời điểm mất liên lạc.')}
+      ${ctxRow('imac', 'Đã gỡ ghép', 'Icon mắt xích đứt, hổ phách, chữ “Đã gỡ ghép” thay tên. Server không trả tên hay thời điểm cho máy đã gỡ ghép, nên không có tên gạch ngang hay mốc giờ. Tooltip: “Máy đã gỡ ghép… cho tới khi ghim máy khác.”')}
       ${ctxRow(null, 'Chưa ghim', 'Chỉ cột danh sách desktop hiện chữ “Chưa ghim” để giữ thẳng cột và giải thích ô trống. Thẻ board, màn hẹp: không hiện gì.')}
     </tbody></table>`;
   const loading = rows([ISSUES[2]], { machineCell: () => '<span class="skel" aria-label="Đang tải máy"></span>' });
   const error = `<p class="err" role="alert">Không tải được máy của các yêu cầu. <a href="#">Thử lại</a></p>` +
     rows([ISSUES[2]], { machineCell: () => '<span class="muted" title="Không tải được máy">—</span>' });
-  const longM = (MACHINES.long = { host: 'phans-mac-studio-phong-hop-tang-3', full: 'phans-mac-studio-phong-hop-tang-3.local', state: 'online' });
+  const longM = (MACHINES.long = { host: 'demo-mac-04-ten-may-rat-dai-de-thu-cat-chu', full: 'demo-mac-04-ten-may-rat-dai-de-thu-cat-chu.local', state: 'online' });
   const longRow = rows([{ ...ISSUES[4], m: 'long', id: 'TPS-742', title: 'Tên máy dài bị cắt bằng dấu …, đủ tên trong tooltip' }]);
   const board = (cls) => `<div class="board ${cls}">${['mini', 'mbp', 'imac', null].map((m, i) => `<div style="width:260px;flex-shrink:0">${card({ ...flat()[i + 1], m })}</div>`).join('')}</div>`;
   const body = `<h1 class="title">Trạng thái nhãn máy</h1>

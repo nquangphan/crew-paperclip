@@ -21,7 +21,7 @@ interface MachineLabelProps {
   stateText?: string;
   /** `option`: chữ cỡ thường màu chữ chính, chữ trạng thái xuống dòng dưới tên (mục bộ lọc). */
   layout?: 'inline' | 'option';
-  /** Nhãn đọc màn hình ("Máy phans-mac-mini, mất liên lạc"); mặc định là `name`. */
+  /** Nhãn đọc màn hình ("Máy demo-mac-01, mất liên lạc"); mặc định là `name`. */
   ariaLabel?: string;
   /** Nội dung tooltip (cột Máy trên desktop). */
   tooltip?: React.ReactNode;

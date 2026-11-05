@@ -27,16 +27,17 @@
   <h2>Các màn</h2>
   <ul class="screens">
     <li><a href="danh-sach.html"><b>1. Danh sách có cột Máy</b><span>Bốn trạng thái máy, cây con lấy máy của gốc, tooltip máy offline; màn hẹp có dòng phụ</span></a></li>
-    <li><a href="bo-loc.html"><b>2. Bộ lọc theo máy</b><span>Mục "Máy" trong popover Lọc, đang lọc phans-macbook-pro</span></a></li>
+    <li><a href="bo-loc.html"><b>2. Bộ lọc theo máy</b><span>Mục "Máy" trong popover Lọc, đang lọc demo-mac-02</span></a></li>
     <li><a href="bang.html"><b>3. Bảng Kanban</b><span>Dòng máy cuối thẻ, kèm chữ trạng thái khi máy không online</span></a></li>
     <li><a href="trang-thai.html"><b>4. Trạng thái và biên</b><span>Chú giải, đang tải, lỗi tải, tên dài, thẻ gọn, theme tối</span></a></li>
   </ul>
 
   <h2>Quyết định</h2>
   <ul>
-    <li><b>Tên máy:</b> giữ hostname máy báo, chỉ bỏ hậu tố miền (<code>phans-macbook-pro.local</code> → <code>phans-macbook-pro</code>). Không đoán ra "MacBook Pro": hai máy cùng đời sẽ trùng tên, còn hostname là tên owner đã thấy ở trang Máy và trong comment "đang chờ máy". Tên đầy đủ trong tooltip; quá dài thì cắt bằng "…".</li>
+    <li><b>Tên máy:</b> giữ hostname máy báo, chỉ bỏ hậu tố miền (<code>demo-mac-02.local</code> → <code>demo-mac-02</code>; tên trong mockup là tên giả). Không đoán ra "MacBook Pro": hai máy cùng đời sẽ trùng tên, còn hostname là tên owner đã thấy ở trang Máy và trong comment "đang chờ máy". Tên đầy đủ trong tooltip; quá dài thì cắt bằng "…".</li>
     <li><b>Chưa ghim:</b> cột Máy ở danh sách desktop ghi "Chưa ghim" (chữ xám, không chỉ báo); thẻ board và màn hẹp không hiện gì. Bộ lọc có lựa chọn "Chưa ghim". Không bao giờ hiện id máy.</li>
-    <li><b>Online / offline / đã gỡ ghép:</b> chấm xanh / icon wifi gạch xám / icon mắt xích đứt hổ phách + tên gạch ngang. Khác nhau cả hình lẫn màu; chỗ không có tooltip (màn hẹp, thẻ board, bộ lọc) thêm chữ "mất liên lạc" / "đã gỡ ghép".</li>
+    <li><b>Online / offline / đã gỡ ghép:</b> chấm xanh / icon wifi gạch xám / icon mắt xích đứt hổ phách + chữ "Đã gỡ ghép" thay tên. Khác nhau cả hình lẫn màu; chỗ không có tooltip (màn hẹp, thẻ board, bộ lọc) máy offline thêm chữ "mất liên lạc".</li>
+    <li><b>Máy đã gỡ ghép và mốc giờ:</b> server không trả tên hay thời điểm cho máy đã gỡ ghép (<code>hostname=null</code>) và không trả thời điểm mất liên lạc, nên nhãn không có tên gạch ngang và tooltip không có mốc giờ. Mockup đã sửa theo bản build (06/11/2026, sau Bug Finding lượt 1 của TPS-750); không đổi hợp đồng route.</li>
     <li><b>Con lấy máy của gốc:</b> mọi dòng trong cây hiện cùng một nhãn.</li>
     <li><b>Lọc:</b> thêm mục thứ năm "Máy" vào popover Lọc hiện có (<code>ToolbarFilterMenu</code>), chọn một giá trị như các mục khác, có số yêu cầu mỗi máy.</li>
     <li><b>Cột Máy:</b> thêm vào menu Cột (<code>COLUMN_IDS</code>), bật mặc định, đặt giữa "Giai đoạn Crew" và "Người làm".</li>

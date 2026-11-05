@@ -99,7 +99,7 @@ h1.title { font-size: 14px; font-weight: 600; margin: 0; }
    Cỡ chữ 12px + màu muted-foreground như RowCell; chỉ báo 12px đứng trước tên máy.
    online   : chấm 8px màu --status-task-icon-done
    offline  : icon WifiOff (lucide) màu --status-task-icon-backlog, tên máy giữ màu muted
-   unpaired : icon Unlink (lucide) màu --status-task-icon-todo, tên máy gạch ngang
+   unpaired : icon Unlink (lucide) màu --status-task-icon-todo, chữ "Đã gỡ ghép" thay tên (server không trả tên máy đã gỡ ghép)
    unpinned : chữ "Chưa ghim", không chỉ báo (chỉ ở cột danh sách desktop)
    Không bao giờ chỉ dựa vào màu: offline/đã gỡ ghép khác hình (icon) và có chữ trạng thái ở nơi không có tooltip. */
 .ml { display: inline-flex; align-items: center; gap: 6px; min-width: 0; font-size: 12px; color: var(--muted-foreground); white-space: nowrap; }
@@ -109,7 +109,6 @@ h1.title { font-size: 14px; font-weight: 600; margin: 0; }
 .ml.offline .ind { color: var(--status-task-icon-backlog); }
 .ml.unpaired .ind { color: var(--status-task-icon-todo); }
 .ml .host { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
-.ml.unpaired .host { text-decoration: line-through; text-decoration-color: color-mix(in oklab, var(--muted-foreground) 70%, transparent); }
 .ml .st { display: none; }
 .ml.with-state .st { display: inline; }
 .ml.with-state .st::before { content: "· "; }

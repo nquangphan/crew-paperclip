@@ -44,7 +44,10 @@ Cấu trúc thư mục, luật và cách xem thử nằm ở `packages/crew-web/
 4b. `packages/crew-web/src/ds/widgets/machine-label.tsx` → `MachineLabel`, `MachineLabelPending`, `MachineLabelMissing`:
    nhãn máy của cây yêu cầu (mockup `docs/design/mockups/tps-750-machine-label`). Chữ 12px muted như `RowCell`, chỉ báo
    12px: `online` chấm `--status-task-icon-done`, `offline` icon WifiOff `--status-task-icon-backlog`, `unpaired` icon
-   Unlink `--status-task-icon-todo` và tên gạch ngang, `unpinned` chỉ chữ; `stateText` thêm "· trạng thái" (màn hẹp,
+   Unlink `--status-task-icon-todo`, `unpinned` chỉ chữ. Server không trả tên hay thời điểm cho máy đã gỡ ghép
+   (`hostname=null`) và không trả thời điểm mất liên lạc, nên cây yêu cầu ghi chữ "Đã gỡ ghép" thay tên (không gạch
+   ngang; prop `strike` chỉ dùng khi có tên) và tooltip không có mốc giờ; mockup đã sửa theo bản build (06/11/2026),
+   không đổi hợp đồng route. `stateText` thêm "· trạng thái" (màn hẹp,
    thẻ Bảng), `layout="option"` cho mục bộ lọc (chữ trạng thái xuống dòng), `tooltip` cho cột desktop. `IssueListRow` có
    `subline` (dòng phụ dưới tiêu đề, chỉ dưới `sm`); `FilterOption` của `ToolbarFilterMenu` có `content` (nội dung thay
    nhãn, `label` thành tên ô tích) và `count` (số ở mép phải); `KanbanCardData.machine` là dòng cuối thẻ ngăn bằng đường
