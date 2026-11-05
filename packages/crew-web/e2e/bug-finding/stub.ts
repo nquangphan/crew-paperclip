@@ -48,8 +48,11 @@ export type Kind = keyof typeof POLICIES;
 /** Vị trí stage hiện tại: 1 = review (Bug Finding với code-bf), 2 = owner duyệt. */
 export type Position = 1 | 2;
 
-function executionState(kind: Kind, position: Position) {
-  const stages = POLICIES[kind].stages;
+/** Policy ghim của ticket tổng: `POLICIES[kind]`, hoặc policy do server dựng (`StubOptions.policy`). */
+export type Policy = { stages: readonly { id: string; type: string; participants: readonly Principal[] }[] };
+
+function executionState(policy: Policy, position: Position) {
+  const stages = policy.stages;
   const current = stages[position];
   const participant = current.participants[0];
   return {
@@ -70,7 +73,7 @@ function executionState(kind: Kind, position: Position) {
   };
 }
 
-export function rootIssue(kind: Kind, position: Position) {
+export function rootIssue(kind: Kind, position: Position, policy: Policy = POLICIES[kind]) {
   return {
     id: 'i-root',
     companyId: COMPANY.id,
@@ -85,8 +88,8 @@ export function rootIssue(kind: Kind, position: Position) {
     assigneeUserId: position === 2 ? ME.id : null,
     labels: [],
     blockedBy: [],
-    executionPolicy: POLICIES[kind],
-    executionState: executionState(kind, position),
+    executionPolicy: policy,
+    executionState: executionState(policy, position),
     createdAt: '2026-11-04T01:00:00.000Z',
     updatedAt: '2026-11-04T05:00:00.000Z',
     startedAt: '2026-11-04T02:00:00.000Z',
@@ -111,8 +114,8 @@ function node(id: string, identifier: string, title: string, status: string, ove
   };
 }
 
-export function crewMap(kind: Kind, position: Position) {
-  const stages = POLICIES[kind].stages;
+export function crewMap(kind: Kind, position: Position, policy: Policy = POLICIES[kind]) {
+  const stages = policy.stages;
   const root = node('i-root', 'TPS-645', 'Làm theo kế hoạch: gom app Bug Finding', 'in_review', {
     kind,
     stage: {
@@ -157,6 +160,8 @@ function finding(id: string, severity: string, title: string, over: object = {})
   };
 }
 
+export const GITHUB_PR = 'https://github.com/nquangphan/crew/pull/87';
+
 function run(over: object) {
   return {
     id: 'r1',
@@ -168,7 +173,7 @@ function run(over: object) {
     machineJobId: null,
     machineId: 'm1',
     headSha: HEAD1,
-    prUrl: 'https://github.com/nquangphan/crew/pull/87',
+    prUrl: GITHUB_PR,
     state: 'succeeded',
     verdict: 'BLOCK',
     lanesDone: 7,
@@ -187,8 +192,9 @@ function run(over: object) {
 }
 
 /** Lượt 1 xong (BLOCK, 4 finding, Trợ Lý phân ba nhóm), lượt 2 đang chạy 4/7 lane trên head mới. */
-export function bugFindingView(state: 'running' | 'approved') {
+export function bugFindingView(state: 'running' | 'approved', prUrl: string = GITHUB_PR) {
   const first = run({
+    prUrl,
     findings: [
       finding('F-01', 'HIGH', 'Lọc ngày dùng giờ máy'),
       finding('F-02', 'MEDIUM', 'Thiếu test ngày cuối tháng', { action: 'TEST_FIX' }),
@@ -217,6 +223,7 @@ export function bugFindingView(state: 'running' | 'approved') {
       ? run({
           id: 'r2',
           run: 2,
+          prUrl,
           requestId: 'q2',
           headSha: HEAD2,
           state: 'running',
@@ -232,6 +239,7 @@ export function bugFindingView(state: 'running' | 'approved') {
       : run({
           id: 'r2',
           run: 2,
+          prUrl,
           requestId: 'q2',
           headSha: HEAD2,
           verdict: 'APPROVE',
@@ -248,6 +256,10 @@ export interface StubOptions {
   position: Position;
   /** Không có: ticket policy cũ, route Bug Finding không được gọi. */
   bugFinding?: 'running' | 'approved';
+  /** Policy ghim do server dựng (thay cho `POLICIES[kind]`). */
+  policy?: Policy;
+  /** URL PR/MR trong kết quả Bug Finding (mặc định PR GitHub). */
+  prUrl?: string;
 }
 
 export interface Stub {
@@ -262,7 +274,7 @@ const json = (route: Route, body: unknown, status = 200) => route.fulfill({ stat
 /** Giả toàn bộ `/api/*` cho trang ticket tổng TPS-645. */
 export async function stubApi(page: Page, options: StubOptions): Promise<Stub> {
   const stub: Stub = { writes: [], bugFindingCalls: [] };
-  const issue = rootIssue(options.kind, options.position);
+  const issue = rootIssue(options.kind, options.position, options.policy);
   await page.route(
     (url) => url.pathname.startsWith('/api/'),
     async (route) => {
@@ -276,13 +288,14 @@ export async function stubApi(page: Page, options: StubOptions): Promise<Stub> {
       if (path === '/api/companies') return json(route, [COMPANY]);
       if (path === `${PLUGIN}/data/crew.companies`)
         return json(route, { data: [{ id: COMPANY.id, name: COMPANY.name }] });
-      if (path === `${PLUGIN}/data/crew.map`) return json(route, { data: crewMap(options.kind, options.position) });
+      if (path === `${PLUGIN}/data/crew.map`)
+        return json(route, { data: crewMap(options.kind, options.position, options.policy) });
       if (path === `${PLUGIN}/data/crew.runtimeDecisions`) return json(route, { data: [] });
       if (path === `${PLUGIN}/data/crew.docsCheck`) return json(route, { data: null });
       if (path === `${PLUGIN}/api/issues/i-root/bug-finding`) {
         stub.bugFindingCalls.push(url.search);
         return options.bugFinding
-          ? json(route, bugFindingView(options.bugFinding))
+          ? json(route, bugFindingView(options.bugFinding, options.prUrl))
           : json(route, { error: 'not_bug_finding' }, 404);
       }
       if (path === '/api/issues/TPS-645' || path === '/api/issues/i-root') {
