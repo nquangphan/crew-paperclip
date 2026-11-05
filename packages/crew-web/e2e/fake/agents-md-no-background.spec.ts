@@ -1,7 +1,7 @@
 // Luật "không chạy nền rồi kết thúc lượt" (TPS-741) hiện trên web: template crew/agents/*.md được nhúng nguyên văn
 // (`?raw`) vào crew-web; owner mở tab Hướng dẫn của agent, bấm "Render lại theo vai trò", web render template rồi PUT
 // AGENTS.md và hiện lại nội dung. API do ca giả (không có stack T1 ở máy chạy); trình duyệt, bundle và render là thật.
-import { readFileSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { expect, type Page, type Route, test } from '@playwright/test';
 
@@ -19,6 +19,12 @@ const ROLES = [
   { role: 'reviewer', name: 'Reviewer' },
   { role: 'integrator', name: 'Integrator' },
 ] as const;
+// bmad và designer cố ý ngoài phạm vi E2E này: tab Hướng dẫn chỉ có "Render lại theo vai trò" cho agent giữ một ô vai trò
+// của project (assistant, executor*, reviewer*, integrator; `HeldRole` ở features/agents/use-agent-roles.ts). Hai vai này
+// không có ô vai trò trong project nên web không có đường render AGENTS.md cho agent bmad/designer. Luật của chúng vẫn được
+// khóa ở chỗ khác: instructions.test.mjs (đoạn luật giống hệt ở 6 template) và render.test.ts (web render khớp từng byte
+// fixture bmad.md, designer.md). Test cuối file giữ 4 + 2 vai này đúng bằng số template trong crew/agents.
+const ROLES_OUT_OF_SCOPE = ['bmad', 'designer'] as const;
 const SESSION = {
   session: { id: 's1', userId: 'u1' },
   user: { id: 'u1', email: 'owner@example.com', name: 'Owner', image: null },
@@ -143,7 +149,13 @@ test.describe('AGENTS.md trên crew-web có luật không chạy nền', () => {
       await expect(page.getByRole('heading', { name: 'Không bao giờ' })).toBeVisible();
       const para = page.getByText(RULE_START);
       await expect(para).toBeVisible();
-      await expect(para).toContainText('không có thông báo đánh thức lại');
+      // Một cách hiểu thống nhất (TPS-757): chỉ cấm bỏ lệnh nền của run; chờ server đánh thức theo luồng của vai vẫn hợp lệ.
+      await expect(para).not.toContainText('không có thông báo đánh thức lại');
+      await expect(para).toContainText('lệnh nền của chính run');
+      await expect(para).toContainText('chờ server đánh thức theo luồng của vai vẫn hợp lệ');
+      await expect(para).toContainText('bằng & trong lượt, ghi $!');
+      await expect(para).toContainText('Job do server xếp hàng chạy riêng ngoài run');
+      await expect(para).toContainText('không thuộc luật này');
       await expect(para).toContainText('Một lệnh tối đa 10 phút');
       await expect(para).toContainText('không kết thúc lượt để "chờ thông báo"');
       await expect(para.locator('code', { hasText: 'run_in_background' })).toBeVisible();
@@ -154,4 +166,13 @@ test.describe('AGENTS.md trên crew-web có luật không chạy nền', () => {
       await page.screenshot({ path: `test-results/agents-md-${role}-${name}.png`, fullPage: true });
     });
   }
+});
+
+test('mọi template vai trò hoặc có ca E2E ở trên hoặc được ghi chú loại trừ', () => {
+  const templates = readdirSync(join(ROOT, 'crew/agents'))
+    .filter((f) => f.endsWith('.md'))
+    .map((f) => f.slice(0, -'.md'.length))
+    .sort();
+  const covered = [...ROLES.map((r) => r.role), ...ROLES_OUT_OF_SCOPE].sort();
+  expect(covered).toEqual(templates);
 });
