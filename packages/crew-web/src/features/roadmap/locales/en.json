@@ -10,6 +10,7 @@
   "canvasLabel": "Company map",
   "listLabel": "Map as a list",
   "loadFailed": "Could not load the map",
+  "partialLoadFailed": "Part of the map could not be loaded; it may be stale or incomplete.",
   "notFound": "Not found or you do not have access",
   "notFoundHint": "This item is not on your map. The map shows the overview; pick another item.",
   "truncated": "There are more than {{limit}} items; the map may be incomplete.",

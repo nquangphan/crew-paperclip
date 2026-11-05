@@ -10,6 +10,7 @@
   "canvasLabel": "Bản đồ công ty",
   "listLabel": "Bản đồ dạng danh sách",
   "loadFailed": "Không tải được bản đồ",
+  "partialLoadFailed": "Một phần bản đồ chưa tải được, bản đồ có thể cũ hoặc thiếu.",
   "notFound": "Không tìm thấy hoặc bạn không được xem",
   "notFoundHint": "Mục này không có trên bản đồ của bạn. Bản đồ đang ở toàn cảnh, chọn mục khác.",
   "truncated": "Có hơn {{limit}} việc, bản đồ có thể thiếu một phần.",

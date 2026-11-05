@@ -2,9 +2,10 @@
 // worker, không gọi theo từng yêu cầu); server Crew đã lọc theo project người xem được cấp, hook lọc thêm bằng
 // `useVisibleProjects` cho chắc. Khóa nằm dưới tiền tố `crew` nên sự kiện live của issue làm tươi (`live-events.ts`).
 // Run và tiền tải lười theo yêu cầu đang lấy nét (`crew.runs`). Cây Docs của các project có docs tải song song (vài KB
-// mỗi project, chỉ đường và tiêu đề) để đảo Docs có đủ kích thước ngay, bố cục không xê dịch khi tải xong.
+// mỗi project, chỉ đường và tiêu đề) để đảo Docs có đủ kích thước ngay, bố cục không xê dịch khi tải xong; docs lỗi
+// không chặn bản đồ.
 import { useQueries, useQuery } from '@tanstack/react-query';
-import { useMemo } from 'react';
+import { useMemo, useRef } from 'react';
 import { api, queryKeys } from '@/api';
 import { useVisibleProjects } from '@/features/access';
 import type { ProjectDocs } from './roadmap-model';
@@ -63,29 +64,39 @@ export function useRoadmapData(companyId: string, p: RoadmapDataParams) {
     enabled: visible.ready,
   });
   const docProjectIds = useMemo(() => (docsProjects.data ?? []).map((d) => d.projectId), [docsProjects.data]);
-  // Chờ danh sách docs và các cây (lỗi thì bỏ qua) để bố cục dựng một lần với đủ đảo Docs. `combine` trả kết quả ổn
-  // định (chia sẻ cấu trúc) nên chỉ đổi khi một cây đổi.
+  // Lần đầu chờ danh sách docs và các cây để bố cục dựng với đủ đảo Docs. Nhánh Docs không được chặn bản đồ chính: danh
+  // sách docs lỗi (kể cả đang thử lại) thì dựng không có đảo Docs, cây lỗi (kể cả đang thử lại) là `null` ngay. Đã hiện
+  // bản đồ rồi thì không chờ nữa: docs tải được về sau được bổ sung, cây còn đang tải là `'loading'` (nút Docs giữ chỗ).
+  // `combine` trả kết quả ổn định (chia sẻ cấu trúc) nên chỉ đổi khi một cây đổi.
   const trees = useQueries({
     queries: docProjectIds.map((projectId) => ({
       queryKey: queryKeys.crew('crew.docs.tree', { companyId, projectId }),
       queryFn: () => api.crew.docsTree(companyId, projectId),
     })),
     combine: (results) => ({
-      pending: results.some((q) => q.isPending),
+      loading: results.map((q) => q.isPending && q.failureCount === 0),
       data: results.map((q) => q.data ?? null),
     }),
   });
-  const docsPending = visible.ready && (docsProjects.isPending || trees.pending);
-  /** undefined: còn đang tải. */
+  /** Company đã qua lần chờ docs đầu tiên (đổi company thì chờ lại). */
+  const shown = useRef<string | null>(null);
+  const docsListFailed = docsProjects.isError || docsProjects.failureCount > 0;
+  const docsPending =
+    shown.current !== companyId &&
+    visible.ready &&
+    !docsListFailed &&
+    (docsProjects.isPending || trees.loading.includes(true));
+  if (visible.ready && !docsPending) shown.current = companyId;
+  /** undefined: còn đang tải lần đầu. */
   const docs = useMemo(() => {
     if (docsPending) return undefined;
     const out = new Map<string, ProjectDocs>();
     docProjectIds.forEach((projectId, i) => {
       const tree = trees.data[i];
-      out.set(projectId, tree ? { pages: tree.pages } : null);
+      out.set(projectId, tree ? { pages: tree.pages } : trees.loading[i] ? 'loading' : null);
     });
     return out;
-  }, [docProjectIds, trees.data, docsPending]);
+  }, [docProjectIds, trees.data, trees.loading, docsPending]);
   const docTree = docProject ? (trees.data[docProjectIds.indexOf(docProject)] ?? null) : null;
 
   const page = useQuery({
@@ -94,5 +105,5 @@ export function useRoadmapData(companyId: string, p: RoadmapDataParams) {
     enabled: !!docProject && docProjectIds.includes(docProject) && p.doc !== null,
   });
 
-  return { visible, projects, roadmapQuery, roadmap, requestId, runs, docs, docProject, docTree, page };
+  return { visible, projects, roadmapQuery, roadmap, requestId, runs, docsProjects, docs, docProject, docTree, page };
 }

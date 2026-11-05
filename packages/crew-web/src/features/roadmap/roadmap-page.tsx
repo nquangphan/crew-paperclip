@@ -131,14 +131,17 @@ export function RoadmapPage() {
     },
     [navigate, location, params.focus, params.doc],
   );
+  const docsFocusProject = target.kind === 'docs' || target.kind === 'folder' ? target.projectId : null;
   const openDoc = useCallback(
     (projectId: string, path: string) => {
-      const base = target.kind === 'docs' || target.kind === 'folder' ? null : focusHref(location, `docs:${projectId}`);
+      // Đang lấy nét đúng Docs của project này thì giữ chỗ lấy nét; trang của project khác thì lấy nét Docs của nó để
+      // popup đọc đúng project.
+      const base = projectId === docsFocusProject ? null : focusHref(location, `docs:${projectId}`);
       const from = base ? { pathname: location.pathname, search: new URL(base, 'http://x').search } : location;
       const state: DocPopupState = { roadmapDoc: true };
       navigate(docHref(from, path), { state, preventScrollReset: true });
     },
-    [navigate, location, target.kind],
+    [navigate, location, docsFocusProject],
   );
   const closeDoc = useCallback(() => {
     if (pushedByDocPopup(location.state)) navigate(-1);
@@ -303,6 +306,15 @@ export function RoadmapPage() {
       retry: () => void data.roadmapQuery.refetch(),
     });
 
+  // Đã có bản đồ mà lần tải lại (hoặc nhánh phụ docs / run) lỗi: giữ bản đồ, báo nhẹ kèm Thử lại.
+  const partialError =
+    loadError ||
+    (data.docsProjects.error && {
+      message: data.docsProjects.error.message,
+      retry: () => void data.docsProjects.refetch(),
+    }) ||
+    (data.runs.error && { message: data.runs.error.message, retry: () => void data.runs.refetch() });
+
   let body: ReactNode;
   if (visible.ready && visible.restricted && projects.data && projects.data.length === 0) {
     body = <EmptyState title={t('common:access.noProjectsYet')} description={t('common:access.noProjectsYetHint')} />;
@@ -344,6 +356,16 @@ export function RoadmapPage() {
         {target.kind === 'missing' ? (
           <Alert variant="warning" title={t('notFound')}>
             {t('notFoundHint')}
+          </Alert>
+        ) : null}
+        {partialError ? (
+          <Alert variant="warning" title={t('partialLoadFailed')}>
+            <span className="flex flex-wrap items-center gap-2">
+              <span>{partialError.message}</span>
+              <Button variant="outline" size="sm" onClick={partialError.retry}>
+                {t('common:action.retry')}
+              </Button>
+            </span>
           </Alert>
         ) : null}
         {roadmap?.truncated ? <Alert variant="warning" title={t('truncated', { limit: NODE_LIMIT })} /> : null}

@@ -149,6 +149,8 @@ function WorldFlow({
   const [cardView, setCardView] = useState<WorldBox | null>(null);
   const cardViewRef = useRef<WorldBox | null>(null);
   const flying = useRef(false);
+  /** Thế hệ chuyến bay: chuyến bị chuyến sau ngắt không được hạ cờ `flying` của chuyến sau. */
+  const flight = useRef(0);
   const setCards = useCallback((b: WorldBox) => {
     cardViewRef.current = b;
     setCardView(b);
@@ -156,6 +158,10 @@ function WorldFlow({
   const onActivateRef = useRef(onActivate);
   onActivateRef.current = onActivate;
   const activate = useCallback((node: RoadmapNode, far?: boolean) => onActivateRef.current(node, far), []);
+
+  // Nhãn mức đọc qua ref: người gọi truyền mảng mới mỗi lần render, không được làm effect camera đăng ký lại store.
+  const lodLabels = useRef(labels.lod);
+  lodLabels.current = labels.lod;
 
   const readView = useCallback(() => {
     const s = store.getState();
@@ -184,7 +190,7 @@ function WorldFlow({
         const vb = viewBoxOf(s.transform, { width: s.width, height: s.height });
         if (!cardViewRef.current || !containsBox(cardViewRef.current, vb)) setCards(padBox(vb, CARD_PAD));
       }
-      if (chip.current) chip.current.textContent = `${Math.round(k * 100)}% · ${labels.lod[next]}`;
+      if (chip.current) chip.current.textContent = `${Math.round(k * 100)}% · ${lodLabels.current[next]}`;
       const r = miniView.current;
       if (r) {
         r.setAttribute('x', String(-tx / k));
@@ -195,7 +201,7 @@ function WorldFlow({
     };
     apply(store.getState());
     return store.subscribe(apply);
-  }, [store, labels.lod, setCards]);
+  }, [store, setCards]);
 
   // ---- Nút và cạnh -----------------------------------------------------------------------------------------------------
   const lit = focus.kind !== 'overview';
@@ -334,9 +340,10 @@ function WorldFlow({
         const h = st.height / target.zoom;
         setCards(padBox({ x: target.x - w / 2, y: target.y - h / 2, w, h }, CARD_PAD));
       }
+      const gen = ++flight.current;
       flying.current = duration > 0;
       return rf.setCenter(target.x, target.y, { zoom: target.zoom, duration, ease: easeOutExpo }).finally(() => {
-        flying.current = false;
+        if (flight.current === gen) flying.current = false;
       });
     },
     [rf, store, reduced, setCards],
@@ -346,26 +353,34 @@ function WorldFlow({
   const [placed, setPlaced] = useState(false);
   const shownKey = useRef<string | null>(null);
   const timer = useRef<number | undefined>(undefined);
+  /** Vòng rAF đang đưa focus bàn phím tới mục đang xem; chỗ lấy nét mới hay unmount thì hủy. */
+  const focusRaf = useRef(0);
   useEffect(() => {
     if (!ready || shownKey.current === focusKey) return;
     const first = shownKey.current === null;
     shownKey.current = focusKey;
     window.clearTimeout(timer.current);
+    window.cancelAnimationFrame(focusRaf.current);
     const st = store.getState();
     const s = {
       width: st.width || wrap.current?.clientWidth || 0,
       height: st.height || wrap.current?.clientHeight || 0,
     };
     const target = worldFocusView(world, focus, s, PADDING);
+    const key = focusKey;
     const focusEl = () => {
+      // Chuyến bay cũ xong muộn sau khi đã lấy nét chỗ khác: không giành focus về mục cũ.
+      if (shownKey.current !== key) return;
+      window.cancelAnimationFrame(focusRaf.current);
       let tries = 0;
       const id = currentId ?? world.company.node.id;
       const step = () => {
         const el = wrap.current?.querySelector<HTMLElement>(`[data-roadmap-id="${cssEscape(id)}"]`);
         if (el && document.activeElement !== el) el.focus({ preventScroll: true });
-        if (document.activeElement !== el && ++tries < FOCUS_TRIES) window.requestAnimationFrame(step);
+        if (document.activeElement !== el && ++tries < FOCUS_TRIES)
+          focusRaf.current = window.requestAnimationFrame(step);
       };
-      window.requestAnimationFrame(step);
+      focusRaf.current = window.requestAnimationFrame(step);
     };
     if (first) {
       void fly(worldFocusView(world, { kind: 'overview' }, s, PADDING), true);
@@ -390,7 +405,13 @@ function WorldFlow({
       focusEl();
     });
   }, [ready, focusKey, focus, world, currentId, fly, readView, reduced, store]);
-  useEffect(() => () => window.clearTimeout(timer.current), []);
+  useEffect(
+    () => () => {
+      window.clearTimeout(timer.current);
+      window.cancelAnimationFrame(focusRaf.current);
+    },
+    [],
+  );
 
   // Bấm vào nền ở mức xa: trúng ô của một việc thì bay thẳng tới việc đó.
   const onPaneClick = useCallback(

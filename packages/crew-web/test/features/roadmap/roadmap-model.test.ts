@@ -5,6 +5,7 @@ import {
   buildWorldInput,
   focusOfNode,
   focusTrail,
+  isHumanRoot,
   parentFocus,
   resolveFocus,
   type WorldDataInput,
@@ -148,6 +149,91 @@ describe('buildWorldInput', () => {
   });
 });
 
+// Các ca đối chiếu với mô hình nhiều tầng cũ (buildCompanyLevel/buildProjectLevel/buildRequestLevel/buildDocsLevel):
+// hành vi còn tồn tại trên thế giới một trang thì giữ ca; trần "+N" và tự đi xuống thư mục không còn (bản đồ vẽ đủ).
+describe('buildWorldInput: hành vi giữ từ mô hình nhiều tầng', () => {
+  it('isHumanRoot: chỉ gốc do người tạo; gốc do agent tạo không thành đảo', () => {
+    expect(isHumanRoot(node('a', 1))).toBe(true);
+    expect(isHumanRoot(node('b', 2, { createdByUserId: null }))).toBe(false);
+    expect(isHumanRoot(node('c', 3, { createdByUserId: '  ' }))).toBe(false);
+    expect(isHumanRoot(node('d', 4, { parentId: 'a', rootId: 'a' }))).toBe(false);
+    const roadmap = { ...ROADMAP, nodes: [...ROADMAP.nodes, node('agent', 8, { createdByUserId: null })] };
+    const ids = buildWorldInput(data({ roadmap })).clusters.flatMap((c) => c.islands.map((i) => i.center.id));
+    expect(ids).not.toContain('agent');
+  });
+
+  it('"Chưa gắn project" chỉ lấy gốc không có project; không có gốc như vậy thì không có cụm', () => {
+    const none = buildWorldInput(data()).clusters.at(-1);
+    expect(none?.node).toMatchObject({ id: 'none', title: 'Chưa gắn project', total: 1 });
+    expect(none?.islands.map((i) => i.center.id)).toEqual(['loose']);
+    const roadmap = { ...ROADMAP, nodes: ROADMAP.nodes.filter((n) => n.id !== 'loose') };
+    expect(buildWorldInput(data({ roadmap })).clusters.map((c) => c.node.id)).toEqual(['p1', 'p2']);
+  });
+
+  it('không còn trần "+N": mọi project và mọi yêu cầu đều có mặt', () => {
+    const projects = Array.from({ length: 45 }, (_, i) => ({
+      id: `q${i}`,
+      name: `P${i}`,
+      color: null,
+      archivedAt: null,
+    }));
+    const many = Array.from({ length: 65 }, (_, i) => node(`m${i}`, 100 + i, { projectId: 'q0' }));
+    const input = buildWorldInput(
+      data({ projects, roadmap: { ...ROADMAP, requests: many.map((n) => n.id), nodes: many, edges: [] } }),
+    );
+    expect(input.clusters).toHaveLength(45);
+    expect(input.clusters[0].islands).toHaveLength(65);
+    expect(input.clusters.some((c) => c.node.kind === 'more')).toBe(false);
+  });
+
+  it('thứ tự ổn định: yêu cầu mới thêm vào cuối; cùng thời điểm tạo thì theo mã số', () => {
+    const later = node('r9', 9, { createdAt: '2026-11-01T00:00:00.000Z' });
+    const ids = (roadmap: CrewRoadmap) =>
+      buildWorldInput(data({ roadmap })).clusters[0].islands.map((i) => i.center.id);
+    const before = ids(ROADMAP);
+    const after = ids({ ...ROADMAP, nodes: [...ROADMAP.nodes, later] });
+    expect(after).toEqual([...before, 'r9']);
+    const same = '2026-10-01T00:00:00.000Z';
+    const tied = [
+      node('x10', 10, { createdAt: same }),
+      node('x9', 9, { createdAt: same }),
+      node('x2', 2, { createdAt: same }),
+    ];
+    expect(ids({ ...ROADMAP, nodes: tied, edges: [] })).toEqual(['docs:p1', 'x2', 'x9', 'x10']);
+  });
+
+  it('cạnh chỉ giữ khi hai đầu cùng một cây; việc không thuộc yêu cầu nào thấy được thì bị bỏ', () => {
+    const roadmap: CrewRoadmap = {
+      ...ROADMAP,
+      nodes: [...ROADMAP.nodes, node('stray', 20, { parentId: 'gone', rootId: 'gone' })],
+      edges: [
+        ...ROADMAP.edges,
+        { kind: 'dependency', from: 'c1', to: 'rB' },
+        { kind: 'dependency', from: 'c1', to: 'outside' },
+      ],
+    };
+    const input = buildWorldInput(data({ roadmap }));
+    const r1 = input.clusters[0].islands[1];
+    expect(r1.edges.filter((e) => e.kind === 'blocks').map((e) => `${e.source}>${e.target}`)).toEqual(['c1>c2']);
+    const all = input.clusters.flatMap((c) => c.islands.flatMap((i) => [i.center.id, ...i.nodes.map((n) => n.id)]));
+    expect(all).not.toContain('stray');
+  });
+
+  it('docs không tải được (null): nút Docs mờ, 0 trang; thư mục đếm trang của nó', () => {
+    const failed = buildWorldInput(data({ docs: new Map([['p1', null]]) })).clusters[0].islands[0];
+    expect(failed.center).toMatchObject({ id: 'docs:p1', disabled: true, total: 0 });
+    const docs = buildWorldInput(data()).clusters[0].islands[0];
+    expect(docs.center.disabled).toBe(false);
+    expect(docs.nodes.find((n) => n.id === 'dir:p1:docs')).toMatchObject({ kind: 'folder', total: 1 });
+  });
+
+  it('trạng thái QC chỉ đổi nhãn thẻ; số đang mở vẫn theo trạng thái lõi', () => {
+    const plain = buildWorldInput(data()).clusters[0].node;
+    const qc = buildWorldInput(data({ statusOf: (i) => (i.id === 'r2' ? 'qc_awaiting' : i.status) })).clusters[0].node;
+    expect(qc.open).toBe(plain.open);
+  });
+});
+
 describe('focus: phân giải, cha, breadcrumb', () => {
   const world = layoutWorld(buildWorldInput(data()));
 
@@ -161,6 +247,7 @@ describe('focus: phân giải, cha, breadcrumb', () => {
     expect(resolveFocus(world, 'dir:p1:docs')).toMatchObject({ kind: 'folder', id: 'dir:p1:docs', projectId: 'p1' });
     expect(resolveFocus(world, 'TPS-999')).toEqual({ kind: 'missing', focus: 'TPS-999' });
     expect(resolveFocus(world, 'project:old')).toEqual({ kind: 'missing', focus: 'project:old' });
+    expect(resolveFocus(world, 'dir:p1:nope')).toEqual({ kind: 'missing', focus: 'dir:p1:nope' });
   });
 
   it('focus của một nút (để đẩy vào URL)', () => {

@@ -140,7 +140,10 @@ function Where() {
   return <output data-testid="loc">{`${loc.pathname}${loc.search}`}</output>;
 }
 
-function mount(path: string) {
+let client: QueryClient;
+/** `queries`: ghi đè tùy chọn mặc định của query (mặc định không thử lại). */
+function mount(path: string, queries: Record<string, unknown> = { retry: false }) {
+  client = new QueryClient({ defaultOptions: { queries } });
   const router = createMemoryRouter(
     [
       {
@@ -156,7 +159,7 @@ function mount(path: string) {
     { initialEntries: [path] },
   );
   render(
-    <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+    <QueryClientProvider client={client}>
       <RouterProvider router={router} />
     </QueryClientProvider>,
   );
@@ -173,6 +176,10 @@ const zoom = () => {
   return m ? Number(m[1]) : Number.NaN;
 };
 const lod = () => canvas()?.dataset.lod;
+const fail = { status: 500, body: { error: 'Máy chủ lỗi' } };
+const ROADMAP_KEY = 'POST /api/plugins/crew.core/data/crew.roadmap';
+const DOCS_PROJECTS_KEY = 'POST /api/plugins/crew.core/data/crew.docs.projects';
+const partialAlert = () => screen.queryByText('Một phần bản đồ chưa tải được, bản đồ có thể cũ hoặc thiếu.');
 /** Camera đã đặt lần đầu (toàn cảnh hoặc chỗ trên URL). */
 const placed = () => waitFor(() => expect(canvas()?.dataset.camera).toBe('placed'));
 
@@ -372,5 +379,109 @@ describe('RoadmapPage một trang', () => {
     await waitFor(() => expect(node('c2')).toBeTruthy());
     expect(canvas()?.querySelector('[data-edge-flow]')).toBeNull();
     expect(canvas()?.querySelector('path[data-running]')).toBeTruthy();
+  });
+  it('crew.roadmap lỗi lần đầu: ErrorState kèm Thử lại; thử lại thành công thì hiện bản đồ', async () => {
+    let ok = false;
+    server({ [ROADMAP_KEY]: () => (ok ? { body: { data: roadmapOf(ROWS) } } : fail) });
+    mount('/TPS/roadmap');
+    expect(await screen.findByText('Không tải được bản đồ')).toBeTruthy();
+    expect(canvas()).toBeNull();
+    ok = true;
+    fireEvent.click(screen.getByRole('button', { name: 'Thử lại' }));
+    await waitFor(() => expect(node('p1')).toBeTruthy());
+    expect(screen.queryByText('Không tải được bản đồ')).toBeNull();
+  });
+
+  it('vượt trần nút: cảnh báo bản đồ có thể thiếu một phần', async () => {
+    server({ [ROADMAP_KEY]: { body: { data: { ...roadmapOf(ROWS), truncated: true } } } });
+    mount('/TPS/roadmap');
+    expect(await screen.findByText('Có hơn 5000 việc, bản đồ có thể thiếu một phần.')).toBeTruthy();
+    expect(canvas()).toBeTruthy();
+  });
+
+  it('tải lại crew.roadmap lỗi khi đã có bản đồ: giữ bản đồ, báo nhẹ kèm Thử lại', async () => {
+    let ok = true;
+    server({ [ROADMAP_KEY]: () => (ok ? { body: { data: roadmapOf(ROWS) } } : fail) });
+    mount('/TPS/roadmap');
+    await waitFor(() => expect(node('p1')).toBeTruthy());
+    expect(partialAlert()).toBeNull();
+    ok = false;
+    await client.refetchQueries({ queryKey: ['crew', 'crew.roadmap'], exact: false });
+    await waitFor(() => expect(partialAlert()).toBeTruthy());
+    expect(node('p1')).toBeTruthy();
+    expect(screen.queryByText('Không tải được bản đồ')).toBeNull();
+    ok = true;
+    fireEvent.click(screen.getByRole('button', { name: 'Thử lại' }));
+    await waitFor(() => expect(partialAlert()).toBeNull());
+  });
+
+  it('crew.docs.projects lỗi: bản đồ vẫn hiện (không đảo Docs) kèm báo nhẹ', async () => {
+    server({ [DOCS_PROJECTS_KEY]: fail });
+    mount('/TPS/roadmap?view=list');
+    const list = await screen.findByRole('region', { name: 'Bản đồ dạng danh sách' });
+    await waitFor(() => expect(list.querySelector('[data-roadmap-id="r1"]')).toBeTruthy());
+    expect(list.querySelector('[data-roadmap-id="docs:p1"]')).toBeNull();
+    expect(partialAlert()).toBeTruthy();
+  });
+
+  it('docs đang thử lại không chặn bản đồ; docs về sau thì đảo Docs được bổ sung', async () => {
+    let docsCalls = 0;
+    const { calls } = server({
+      [DOCS_PROJECTS_KEY]: () => (++docsCalls === 1 ? fail : { body: { data: [{ projectId: 'p1', repo: 'crew' }] } }),
+    });
+    mount('/TPS/roadmap?view=list', { retry: 3, retryDelay: 300 });
+    const list = await screen.findByRole('region', { name: 'Bản đồ dạng danh sách' });
+    await waitFor(() => expect(list.querySelector('[data-roadmap-id="r1"]')).toBeTruthy());
+    // Bản đồ đã hiện trong lúc danh sách docs còn chờ thử lại (mới gọi một lần).
+    expect(calls.filter((c) => c.url.endsWith('/data/crew.docs.projects'))).toHaveLength(1);
+    expect(list.querySelector('[data-roadmap-id="docs:p1"]')).toBeNull();
+    await waitFor(() => expect(list.querySelector('[data-roadmap-id="docs:p1"]')).toBeTruthy(), { timeout: 3000 });
+    expect(screen.getByRole('region', { name: 'Bản đồ dạng danh sách' })).toBe(list);
+  });
+
+  it('cây docs lỗi: bản đồ vẫn hiện, nút Docs mờ', async () => {
+    server({ 'POST /api/plugins/crew.core/data/crew.docs.tree': fail });
+    mount('/TPS/roadmap?view=list', { retry: 3, retryDelay: 10_000 });
+    const list = await screen.findByRole('region', { name: 'Bản đồ dạng danh sách' });
+    await waitFor(() => expect(list.querySelector('[data-roadmap-id="docs:p1"]')).toBeTruthy());
+    expect(list.querySelector('[data-roadmap-id="r1"]')).toBeTruthy();
+    expect(list.querySelector('[data-roadmap-id="page:p1:README.md"]')).toBeNull();
+  });
+
+  it('crew.runs lỗi khi lấy nét yêu cầu: giữ bản đồ, báo nhẹ', async () => {
+    server({ 'POST /api/plugins/crew.core/data/crew.runs': fail });
+    mount('/TPS/roadmap?focus=TPS-1');
+    await waitFor(() => expect(node('r1')?.getAttribute('aria-current')).toBe('true'));
+    await waitFor(() => expect(partialAlert()).toBeTruthy());
+  });
+
+  it('đang lấy nét Docs của project này, bấm trang Docs của project khác: popup đọc đúng project đó', async () => {
+    const { calls } = server({
+      [DOCS_PROJECTS_KEY]: {
+        body: {
+          data: [
+            { projectId: 'p1', repo: 'crew' },
+            { projectId: 'p2', repo: 'beta' },
+          ],
+        },
+      },
+    });
+    mount('/TPS/roadmap?focus=docs:p1&view=list');
+    const list = await screen.findByRole('region', { name: 'Bản đồ dạng danh sách' });
+    const page = await waitFor(() => {
+      const el = list.querySelector<HTMLButtonElement>('[data-roadmap-id="page:p2:README.md"]');
+      expect(el).toBeTruthy();
+      return el as HTMLButtonElement;
+    });
+    fireEvent.click(page);
+    await waitFor(() => {
+      const q = new URLSearchParams(loc().split('?')[1]);
+      expect([q.get('focus'), q.get('doc')]).toEqual(['docs:p2', 'README.md']);
+    });
+    await screen.findByTestId('roadmap-doc-popup');
+    await waitFor(() => {
+      const pages = calls.filter((c) => c.url.endsWith('/data/crew.docs.page'));
+      expect(pages.map((c) => (c.body as { params: { projectId: string } }).params.projectId)).toEqual(['p2']);
+    });
   });
 });
