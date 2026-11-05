@@ -93,6 +93,7 @@ Luật chính:
 - `run-handoff`: router gọi Trợ Lý bằng tag gắn bên trong (`crewAssistantCallRoutes`).
 - `web-terminal`: router terminal web (`crewTerminalRoutes`) gắn bên trong, chỉ owner.
 - `crew-plugin`: bộ chờ plugin khởi động gắn ở router này.
+- `roadmap-map`, `project-access`: router này gắn `crewRoadmapViewerScope` trên `CREW_ROADMAP_SCOPE_PATHS` (data `crew.roadmap`, so trên key đã decode nên `crew%2Eroadmap` cũng bị bắt): server ghi đè `params.viewer` theo project người gọi được xem trước route data stock; viewer client gửi không tới worker.
 - `issues-web`, `web-pages`: chi tiết issue, sidebar và trang thành viên dùng các component và `/access`.
 
 ## Tests
