@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 import type { Db } from "@paperclipai/db";
 import * as projectAccess from "../crew/project-access.js";
 import { crewContributionRoutes } from "../crew/contribution-routes.js";
+import { errorHandler } from "../middleware/error-handler.js";
 import { CREW_ROADMAP_SCOPE_PATHS, CREW_VIEWER_DATA_KEYS, crewRoadmapViewerScope } from "../crew/plugin-data-scope.js";
 
 const COMPANY = "10000000-0000-4000-8000-000000000001";
@@ -77,7 +78,7 @@ describe("crewRoadmapViewerScope: server ghi đè phạm vi xem của crew.roadm
     expect(map.body.params.viewer).toEqual({ all: true });
   });
 
-  it("đóng khi lỗi: agent, API key, local_implicit, company không thuộc phiên, uuid sai, lỗi đọc quyền", async () => {
+  it("đóng khi lỗi: agent, API key, local_implicit, company không thuộc phiên, uuid sai", async () => {
     const closed = { all: false, projectIds: [] };
     const cases: Array<[Actor, unknown]> = [
       [{ type: "agent", agentId: "a", companyId: COMPANY }, COMPANY],
@@ -94,10 +95,26 @@ describe("crewRoadmapViewerScope: server ghi đè phạm vi xem của crew.roadm
         .send({ companyId, params: { viewer: { all: true } } });
       expect(res.body.params.viewer).toEqual(closed);
     }
-    const failing = await request(app(session("member"), async () => { throw new Error("db down"); }))
+  });
+
+  it("lỗi đọc quyền: trả 503 có mã lỗi, route stock không chạy (không phải Roadmap rỗng 200)", async () => {
+    const server = app(session("member"), async () => { throw new Error("db down"); });
+    server.use(errorHandler);
+    for (const path of ["/plugins/crew.core/data/crew.roadmap", "/plugins/crew.core/data/crew%2Eroadmap"]) {
+      const res = await request(server).post(path).send({ companyId: COMPANY, params: { viewer: { all: true } } });
+      expect(res.status).toBe(503);
+      expect(res.body).toMatchObject({ code: "crew_roadmap_scope_unavailable" });
+      expect(res.body.params).toBeUndefined();
+    }
+    const bridge = await request(server).post("/plugins/crew.core/bridge/data")
+      .send({ key: "crew.roadmap", companyId: COMPANY, params: { viewer: { all: true } } });
+    expect(bridge.status).toBe(503);
+    // Không được cấp project nào (đọc quyền thành công) vẫn là Roadmap rỗng 200.
+    const none = await request(app(session("member"), async () => ({ all: false, projectIds: [] })))
       .post("/plugins/crew.core/data/crew.roadmap")
       .send({ companyId: COMPANY });
-    expect(failing.body.params).toEqual({ viewer: closed });
+    expect(none.status).toBe(200);
+    expect(none.body.params.viewer).toEqual({ all: false, projectIds: [] });
   });
 
   it("được gắn trong router Crew trước route plugin stock", async () => {
@@ -107,12 +124,14 @@ describe("crewRoadmapViewerScope: server ghi đè phạm vi xem của crew.roadm
       (req as unknown as { actor: Actor }).actor = session("member");
       next();
     });
-    // DB giả không đọc được: phạm vi đóng, nhưng viewer client tự gửi vẫn bị ghi đè.
+    // DB giả không đọc được: middleware chặn bằng 503 trước route stock, viewer client tự gửi không tới worker.
     server.use(crewContributionRoutes({ execute: async () => { throw new Error("no db"); } } as unknown as Db));
-    server.post("/plugins/:pluginId/data/:key", (req, res) => res.json(req.body));
+    const stock = vi.fn((req: express.Request, res: express.Response) => res.json(req.body));
+    server.post("/plugins/:pluginId/data/:key", stock);
     const res = await request(server).post("/plugins/crew.core/data/crew.roadmap")
       .send({ companyId: COMPANY, params: { viewer: { all: true } } });
-    expect(res.body.params.viewer).toEqual({ all: false, projectIds: [] });
+    expect(res.status).toBe(503);
+    expect(stock).not.toHaveBeenCalled();
   });
 });
 
@@ -142,11 +161,11 @@ describe("router Crew: viewer client gửi không tới worker với mọi cách
     expect(vi.mocked(projectAccess.visibleProjectsFor)).toHaveBeenCalledWith(expect.anything(), COMPANY, "one-project");
   });
 
-  it.each(KEY_SPELLINGS)("data/%s: lỗi đọc quyền thì viewer đóng, không phải viewer client", async (spelling) => {
+  it.each(KEY_SPELLINGS)("data/%s: lỗi đọc quyền thì 503, viewer client không tới worker", async (spelling) => {
     const res = await request(crewApp("member")).post(`/plugins/crew.core/data/${spelling}`)
       .send({ companyId: COMPANY, params: { viewer: { all: true } } });
-    expect(res.body.key).toBe("crew.roadmap");
-    expect(res.body.body.params.viewer).toEqual({ all: false, projectIds: [] });
+    expect(res.status).toBe(503);
+    expect(res.body.key).toBeUndefined();
   });
 
   it("bridge/data key crew.roadmap: viewer client bị ghi đè", async () => {

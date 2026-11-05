@@ -39,7 +39,10 @@ export interface CrewRoadmap {
   nodes: CrewRoadmapNode[];
   edges: CrewMap["edges"];
   diagnostics: string[];
-  /** Vượt `ROADMAP_NODE_LIMIT` nút: phần còn lại bị cắt. */
+  /**
+   * Vượt `ROADMAP_NODE_LIMIT` nút: phần còn lại bị cắt theo cây (yêu cầu mới trước), nên các yêu cầu cũ nhất vắng hẳn,
+   * nhiều nhất một cây bị cắt dở (giữ gốc và các tầng trên), không việc nào mất gốc hay mất cha.
+   */
   truncated: boolean;
 }
 
@@ -77,6 +80,8 @@ export async function loadCrewRoadmap(
   ctx: Pick<PluginContext, "db">,
   companyId: string,
   viewerParam: unknown,
+  /** Trần số nút; chỉ test hạ xuống để thử nhánh cắt. */
+  limit = ROADMAP_NODE_LIMIT,
 ): Promise<CrewRoadmap> {
   checkedId(companyId);
   const viewer = parseRoadmapViewer(viewerParam);
@@ -85,14 +90,15 @@ export async function loadCrewRoadmap(
   const projects = uuidArray(viewer.all ? [] : viewer.projectIds);
 
   // Q1: một truy vấn đệ quy từ mọi yêu cầu gốc thấy được; mỗi bước lọc project nên nhánh không được cấp bị cắt cả cây.
+  // Sắp theo cây (yêu cầu mới trước) rồi theo tầng, nên khi vượt trần chỉ cây cuối bị cắt dở và cha luôn đứng trước con.
   const fetched = await ctx.db.query<RoadmapRow>(`
     WITH RECURSIVE tree AS (
-      SELECT i.id, i.id AS root_id
+      SELECT i.id, i.id AS root_id, 0 AS depth
       FROM public.issues i
       WHERE i.company_id = $1 AND i.parent_id IS NULL AND btrim(coalesce(i.created_by_user_id, '')) <> ''
         AND ($2::boolean OR i.project_id = ANY($3::uuid[]))
       UNION ALL
-      SELECT c.id, t.root_id
+      SELECT c.id, t.root_id, t.depth + 1
       FROM public.issues c JOIN tree t ON c.parent_id = t.id
       WHERE c.company_id = $1 AND ($2::boolean OR c.project_id = ANY($3::uuid[]))
     )
@@ -101,12 +107,13 @@ export async function loadCrewRoadmap(
            i.assignee_agent_id, a.name AS assignee_name, i.execution_policy, i.execution_state
     FROM tree
     JOIN public.issues i ON i.id = tree.id
+    JOIN public.issues r ON r.id = tree.root_id
     LEFT JOIN public.agents a ON a.id = i.assignee_agent_id AND a.company_id = $1
-    ORDER BY i.identifier NULLS LAST, i.id
+    ORDER BY r.created_at DESC, tree.root_id, tree.depth, i.identifier NULLS LAST, i.id
     LIMIT $4
-  `, [companyId, all, projects, ROADMAP_NODE_LIMIT + 1]);
-  const truncated = fetched.length > ROADMAP_NODE_LIMIT;
-  const rows = truncated ? fetched.slice(0, ROADMAP_NODE_LIMIT) : fetched;
+  `, [companyId, all, projects, limit + 1]);
+  const truncated = fetched.length > limit;
+  const rows = truncated ? fetched.slice(0, limit) : fetched;
   if (rows.length === 0) return { ...EMPTY };
 
   const nodes: CrewRoadmapNode[] = rows.map((row) => ({

@@ -135,6 +135,37 @@ describe("crew.roadmap", () => {
     expect(roadmap.nodes).toEqual([]);
   });
 
+  it("vượt trần: cắt theo cây, không việc nào mất gốc hay mất cha, nhiều nhất một cây cắt dở", async () => {
+    // Mã đan xen khi so chuỗi (OTH-10..12 đứng trước OTH-2, OTH-9): cắt theo mã sẽ giữ con của OTH-9 mà mất gốc.
+    await issue({ id: id(60), companyId: other, identifier: "OTH-2", projectId: otherProject });
+    await issue({ id: id(61), companyId: other, parentId: id(60), identifier: "OTH-3", projectId: otherProject });
+    await issue({ id: id(62), companyId: other, identifier: "OTH-9", projectId: otherProject });
+    for (const [n, parent] of [[63, 62], [64, 62], [65, 63]] as const) {
+      await issue({ id: id(n), companyId: other, parentId: id(parent), identifier: `OTH-${n - 53}`, projectId: otherProject });
+    }
+    const full = await loadCrewRoadmap(ctx, other, { all: true });
+    expect(full.nodes).toHaveLength(7);
+    const sizeOf = (roadmap: typeof full) => {
+      const size = new Map<string, number>();
+      for (const node of roadmap.nodes) size.set(node.rootId, (size.get(node.rootId) ?? 0) + 1);
+      return size;
+    };
+    const fullSize = sizeOf(full);
+    for (let limit = 1; limit < 7; limit += 1) {
+      const cut = await loadCrewRoadmap(ctx, other, { all: true }, limit);
+      expect(cut.truncated).toBe(true);
+      expect(cut.nodes).toHaveLength(limit);
+      const seen = new Set(cut.nodes.map((node) => node.id));
+      for (const node of cut.nodes) {
+        expect(cut.requests).toContain(node.rootId);
+        if (node.parentId) expect(seen.has(node.parentId)).toBe(true);
+      }
+      const partial = [...sizeOf(cut)].filter(([root, size]) => size < (fullSize.get(root) ?? 0));
+      expect(partial.length).toBeLessThanOrEqual(1);
+    }
+    expect((await loadCrewRoadmap(ctx, other, { all: true }, 7)).truncated).toBe(false);
+  });
+
   it("số query cố định, không tăng theo số yêu cầu (dữ liệu cỡ thật: 165 yêu cầu, ~700 issue)", async () => {
     // Company "big" giả cỡ company thật (đo 2026-11-04: 698 issue, 165 gốc, cây lớn nhất 61, có cạnh chặn và việc sửa).
     const sizes = [61, 20, 18, 17, 16, 15, 15, 14, 13, 13];

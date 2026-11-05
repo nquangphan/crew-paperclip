@@ -1,6 +1,7 @@
 import { and, eq } from "drizzle-orm";
 import type { NextFunction, Request, RequestHandler, Response } from "express";
 import { companyMemberships, type Db } from "@paperclipai/db";
+import { HttpError } from "../errors.js";
 import { logger } from "../middleware/logger.js";
 import { hasCompanyAccess } from "../routes/authz.js";
 import { loadCrewCompanyConfig } from "./issue-policy.js";
@@ -104,9 +105,10 @@ export const CREW_ROADMAP_SCOPE_PATHS = ["/plugins/:pluginId/data/:key", "/plugi
  * `crew%2Eroadmap`; và `bridge/data` có `key: "crew.roadmap"`) rồi GHI ĐÈ `params.viewer` (giá trị client tự gửi bị
  * bỏ). Key so đúng giá trị route stock chuyển cho worker: `req.params.key` đã decode, hay `body.key` của `bridge/data`.
  * Cùng luật với `project-access/me`: chỉ actor board đăng nhập bằng phiên trình duyệt; owner `{ all: true }`, người
- * khác project được cấp. Actor khác, company không thuộc phiên, uuid sai hay lỗi đọc quyền thì
- * `{ all: false, projectIds: [] }` (đóng khi lỗi). Kiểm quyền company vẫn do route stock. Chỉ `crew.roadmap` đọc
- * `params.viewer`; key khác trong {@link CREW_VIEWER_DATA_KEYS} đi nguyên.
+ * khác project được cấp. Actor khác, company không thuộc phiên hay uuid sai thì `{ all: false, projectIds: [] }`.
+ * Lỗi đọc quyền thì trả 503 (route stock không chạy, worker không nhận gì) để client báo lỗi kèm Thử lại thay vì hiện
+ * Roadmap rỗng như thể không có yêu cầu. Kiểm quyền company vẫn do route stock. Chỉ `crew.roadmap` đọc `params.viewer`;
+ * key khác trong {@link CREW_VIEWER_DATA_KEYS} đi nguyên.
  */
 export function crewRoadmapViewerScope(
   db: Db,
@@ -126,11 +128,16 @@ export function crewRoadmapViewerScope(
       next();
     };
     void roadmapViewerOf(req, body.companyId, visible).then(write, (error: unknown) => {
-      logger.warn({ err: error }, "Crew: không đọc được quyền xem project cho crew.roadmap, trả phạm vi rỗng");
-      write(CLOSED);
+      logger.warn({ err: error }, "Crew: không đọc được quyền xem project cho crew.roadmap, trả 503");
+      next(roadmapScopeUnavailable());
     });
   };
 }
+
+const roadmapScopeUnavailable = () =>
+  new HttpError(503, "Crew: tạm thời không đọc được quyền xem project, hãy thử lại.", {
+    code: "crew_roadmap_scope_unavailable",
+  });
 
 async function roadmapViewerOf(req: Request, companyId: unknown, visible: VisibleResolver): Promise<RoadmapViewerScope> {
   const actor = req.actor;
