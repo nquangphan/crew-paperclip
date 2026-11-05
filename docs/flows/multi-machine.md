@@ -102,7 +102,10 @@ fallback) dựa vào kho git dùng chung trên một máy. Owner chọn máy lú
      không tăng theo số issue. Issue con và cháu nhận máy của gốc (`rootIssueId` là gốc); cây chưa ghim hay không tìm được
      gốc thì `null`; id không thuộc company (hay không có) bị bỏ khỏi `items`. `paired=false` khi máy ghim không còn dòng
      ghép chưa gỡ: `hostname=null` (không lấy tên từ bản tin, không trả id thô), `online=false`; còn lại `hostname` lấy từ
-     dòng ghép và `online` theo `isOnline` như `GET …/machines` (bản tin không cũ quá 5 phút).
+     dòng ghép và `online` theo `isOnline` như `GET …/machines` (bản tin không cũ quá 5 phút). Route lô và
+     `GET …/issues/:issueId/machine` không lọc theo quyền xem project của thành viên, có chủ đích: quyền đó chỉ là lọc
+     giao diện, không phải ranh giới bảo mật (owner chốt 05/11/2026, flow `project-access`,
+     `docs/flows/project-access.md`); ranh giới vẫn là company ở mọi bước CTE và JOIN.
    - `PUT …/issues/:issueId/machine`: chỉ owner; chỉ issue gốc (issue con: 422 `crew_machine_not_root`); cây đã có lease
      (`treeStarted`) thì 409 `crew_machine_locked`, kiểm trước khi ghi ghim; máy phải còn ghép (không thì 422
      `crew_machine_unknown`); project chưa dựng trên máy đó (không `ready`/`provisioning`) thì `startProvisioning` xếp

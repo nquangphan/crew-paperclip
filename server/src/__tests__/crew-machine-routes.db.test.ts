@@ -182,7 +182,7 @@ suite("route máy của Crew", () => {
   });
 
   describe("route lô máy ghim cho danh sách issue", () => {
-    const OLD = { machineId: "50000000-0000-4000-8000-0000000000c3", hostname: "Phans-Old-iMac", ip: "100.64.0.4" };
+    const OLD = { machineId: "50000000-0000-4000-8000-0000000000c3", hostname: "demo-mac-old", ip: "100.64.0.4" };
     const GONE = "50000000-0000-4000-8000-0000000000d4";
     let t: Record<string, string>;
     let otherIssue: string;
@@ -202,9 +202,9 @@ suite("route máy của Crew", () => {
       await seedPairing(db, ns, w.companyId, OLD, await seedTemplate(db, OLD));
       await seedReport(db, ns, w.companyId, OLD, { receivedAt: new Date(now.getTime() - 10 * 60_000), load1: 1, cpuCount: 8, memFreePct: 50, pollAt: null });
       await db.execute(sql.raw(`INSERT INTO ${ns}.machine_pairings (company_id, machine_id, hostname, key_nonce, revoked_at)
-        VALUES ('${w.companyId}', '${GONE}', 'Phans-Gone-Mac', 'nonce', now())`));
+        VALUES ('${w.companyId}', '${GONE}', 'demo-mac-gone', 'nonce', now())`));
       await db.execute(sql.raw(`INSERT INTO ${ns}.machine_latest (company_id, machine_id, hostname, received_at, sent_at, report)
-        VALUES ('${w.companyId}', '${GONE}', 'Phans-Gone-Mac', now(), now(), '{}'::jsonb)`));
+        VALUES ('${w.companyId}', '${GONE}', 'demo-mac-gone', now(), now(), '{}'::jsonb)`));
       const pin = (root: string, machineId: string, companyId = w.companyId) => db.execute(sql.raw(`INSERT INTO ${ns}.issue_machine_pins
         (company_id, root_issue_id, machine_id, source) VALUES ('${companyId}', '${root}', '${machineId}', 'auto')`));
       await pin(pinned, BOOK.machineId);
