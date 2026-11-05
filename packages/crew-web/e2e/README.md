@@ -172,3 +172,10 @@ bằng REST (không có project, không có run), ghim gốc bằng `PUT …/iss
 Tiền đề: company e2e có **ít nhất hai máy đã ghép** (hỏi qua `GET …/machines?projectId=`, project lấy từ
 `CREW_E2E_BASE_PROJECT_ID` hoặc project đầu tiên của company); thiếu thì ca tự bỏ qua. Chạy riêng:
 `bash e2e/support/run-e2e.sh --project=t1 e2e/specs/s26-machine-label.spec.ts`.
+
+## Ca giả API (không cần stack T1)
+
+`e2e/fake/*.spec.ts` chạy bằng `pnpm exec playwright test -c playwright.fake.config.ts` (config tự bật vite dev cổng 5185
+và tắt khi xong; không đăng nhập, không `global-setup`). Trình duyệt, bundle và render là thật; API do ca giả bằng
+`page.route`. Dùng cho ca chỉ cần UI render từ file nhúng sẵn, ví dụ `agents-md-no-background.spec.ts` (luật không chạy
+nền trong AGENTS.md của 4 vai ở tab Hướng dẫn).
