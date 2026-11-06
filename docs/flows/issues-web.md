@@ -101,7 +101,9 @@ Luật chính:
    lượt một thẻ: PR, commit review, lượt n / tối đa; lượt chờ/chạy có thanh tiến độ `lanesDone/lanesTotal`; lượt hỏng
    hiện lý do; lượt `succeeded` chia finding thành Trợ Lý tự sửa (kèm việc con sửa và trạng thái), Cần owner chốt (câu
    hỏi), Trợ Lý bỏ qua (lý do) theo `triage` của route (flow `bug-finding`), finding ngoài kế hoạch vào nhóm "khác",
-   chưa có kế hoạch thì bảng phẳng kèm câu "Trợ Lý chưa phân loại". Mảnh hiển thị (thanh tiến độ, mức, verdict, mã
+   chưa có kế hoạch thì bảng phẳng kèm câu "Trợ Lý chưa phân loại". Lượt có hơn `FINDINGS_COLLAPSED` (3) finding thì mặc
+   định chỉ hiện 3 finding đầu theo thứ tự nhóm (tự sửa, hỏi, bỏ qua, khác; nhãn bảng và dải số đếm vẫn ghi đủ), nút
+   "Xem thêm N finding" / "Thu gọn" (`aria-expanded`, `aria-controls` trỏ vùng finding) mở và đóng lại. Mảnh hiển thị (thanh tiến độ, mức, verdict, mã
    commit) ở `packages/crew-web/src/ds/widgets/crew/bug-finding-parts.tsx`; màn hình chỉ dùng class bố cục.
 4b. `packages/crew-web/src/features/issues/detail/crew/interactions-slot.tsx` → `InteractionsSlot`: thẻ
    `ask_user_questions` / xác nhận đang chờ thì hiện thẻ đó (`InteractionCard`). Không có thẻ nào đang chờ thì
@@ -164,7 +166,7 @@ gửi, thông báo mất ở lần gửi sau. Bình luận không có tag không
 | `packages/crew-web/src/features/issues/detail/use-issue.ts` | Dữ liệu chi tiết | `useIssue`, `useChildIssues`, `useIssueActivity` |
 | `packages/crew-web/src/features/issues/detail/crew/gate-actions.ts` | Luật nút cổng, nhận ticket tổng duyệt là merge | `gateActionsFor`, `awaitingMyApproval`, `mergesOnApprove`, `MIN_CHANGE_REASON` |
 | `packages/crew-web/src/features/issues/detail/crew/actions-slot.tsx`, `gate-dialogs.tsx` | Nút và hộp cổng (Duyệt / Duyệt và merge) | `ActionsSlot`, `CommentDialog` |
-| `packages/crew-web/src/features/issues/detail/crew/bug-finding-panel.tsx` | Khối Bug Finding và thẻ trong màn duyệt | `BugFindingSection`, `BugFindingPanel`, `BugFindingApproval`, `BugFindingApprovalCard`, `withBugFindingDetails`, `prNumberOf` |
+| `packages/crew-web/src/features/issues/detail/crew/bug-finding-panel.tsx` | Khối Bug Finding và thẻ trong màn duyệt | `BugFindingSection`, `BugFindingPanel`, `BugFindingApproval`, `BugFindingApprovalCard`, `withBugFindingDetails`, `prNumberOf`, `FINDINGS_COLLAPSED` |
 | `packages/crew-web/src/api/crew/bug-finding.ts` | Client và hook route GET Bug Finding | `bugFindingApi`, `useBugFinding`, `hasOpenRun`, `BUG_FINDING_POLL_MS` |
 | `packages/crew-web/src/ds/widgets/crew/bug-finding-parts.tsx` | Thanh tiến độ lane, nhãn mức, verdict, trạng thái finding, mã commit | `LaneProgress`, `SeverityBadge`, `VerdictBadge`, `FindingStatusBadge`, `MonoText`, `FindingMeta` |
 | `packages/crew-web/src/features/issues/detail/crew/force-done.ts`, `force-done-dialog.tsx` | Ép Done phía web | `ForceDoneAction`, `MIN_FORCE_REASON` |
@@ -241,7 +243,8 @@ gửi, thông báo mất ở lần gửi sau. Bình luận không có tag không
   merge PR ngay và thẻ Bug Finding trong dialog.
 - `packages/crew-web/test/features/issues/bug-finding-panel.test.tsx`: lượt chạy có thanh tiến độ lane và số lô sửa;
   lượt xong chia ba nhóm theo kế hoạch (việc con sửa, câu hỏi, lý do bỏ qua); chưa có kế hoạch thì bảng phẳng; lượt
-  hết giờ hiện lý do; thẻ màn duyệt hiện kết quả cuối trên đúng commit sẽ merge và cách xử lý; `BugFindingSection` gọi
+  hết giờ hiện lý do; mặc định chỉ 3 finding đầu, "Xem thêm" mở hết và "Thu gọn" đóng lại (cả bảng phẳng), lượt từ 3
+  finding trở xuống không có nút; thẻ màn duyệt hiện kết quả cuối trên đúng commit sẽ merge và cách xử lý; `BugFindingSection` gọi
   route kèm `companyId`.
 - `packages/crew-web/test/features/issues/summary-slot.test.tsx` (phần `code-bf`): dải bốn giai đoạn có dòng phụ và
   khối Bug Finding khi xem ticket tổng; việc con không hiện, không gọi route.
