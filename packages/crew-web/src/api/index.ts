@@ -1,5 +1,6 @@
 // Cổng vào lớp dữ liệu: feature chỉ import từ '@/api'.
 import { assistantCallApi } from './crew/assistant-call';
+import { awaitingOwnerApi } from './crew/awaiting-owner';
 import { bugFindingApi } from './crew/bug-finding';
 import { contributionsApi } from './crew/contributions';
 import { crewDataApi } from './crew/data';
@@ -70,6 +71,7 @@ export const api = {
   setup: setupApi,
   contributions: contributionsApi,
   qc: qcApi,
+  awaitingOwner: awaitingOwnerApi,
   projectAccess: projectAccessApi,
   modelSettings: modelSettingsApi,
   assistantCall: assistantCallApi,

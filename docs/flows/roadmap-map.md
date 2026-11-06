@@ -97,7 +97,8 @@ Luật chính:
 9. `packages/crew-web/src/features/roadmap/roadmap-model.ts` → `buildWorldInput`: project (theo tên, bỏ project lưu
    trữ; "Chưa gắn project" cuối, chỉ owner), mỗi project một cụm gồm đảo Docs (thư mục → trang) rồi các đảo yêu cầu theo
    thứ tự tạo; đảo yêu cầu dựng bằng `crewMapLevel` từ phần `crew.roadmap` của yêu cầu đó (thẻ yêu cầu hiện trạng thái QC
-   qua `statusOf`). `resolveFocus`, `parentFocus`, `focusOfNode`, `worldFocusOf`, `focusTrail`: chỗ lấy nét trên URL →
+   hay "Chờ owner trả lời" qua `statusOf`; `RoadmapPage` dựng `statusOf` bằng `issueDisplayStatus` của flow `issues-web`,
+   màu `--roadmap-tone-awaiting_owner`, có trong `TONED` của `roadmap-node.tsx`). `resolveFocus`, `parentFocus`, `focusOfNode`, `worldFocusOf`, `focusTrail`: chỗ lấy nét trên URL →
    mục trên thế giới, mức ngoài (Esc), khung camera, breadcrumb. `worldListItems`: dạng danh sách. Không gọi API, không
    đọc URL.
 10. `packages/crew-web/src/features/roadmap/roadmap-page.tsx` → `RoadmapPage`: dựng thế giới (`layoutWorld` với

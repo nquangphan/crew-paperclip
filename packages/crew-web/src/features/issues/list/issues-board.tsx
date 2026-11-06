@@ -5,6 +5,7 @@
 // nguyên văn câu lỗi, không tự thử lại. Người chỉ đọc không kéo được.
 // Yêu cầu của Phòng QC đã Xong vẫn nằm ở cột Hoàn thành (trạng thái lõi là done, kéo thẻ vẫn đổi trạng thái lõi), kèm
 // nhãn QC (Chờ QC duyệt, Chờ owner duyệt mở lại, QC verified) trên thẻ thay vì thêm cột không kéo vào được.
+// Dòng cuối thẻ là máy của cây (kèm chữ trạng thái khi không online); cây chưa ghim máy thì không có dòng này.
 import type { CompactIssue } from '@paperclipai/shared';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useMemo, useState } from 'react';
@@ -20,10 +21,13 @@ import {
   resolveStageKey,
   StageBadge,
 } from '@/ds';
+import { AwaitingOwnerBadge, awaitingOwnerStatus } from '@/features/awaiting-owner';
 import { QcBadge, qcDisplayStatus } from '@/features/qc';
 import { useT } from '@/i18n';
 import type { useIssueOpener } from '../popup/issue-nav';
 import { needsNextStep, subtreeLiveCounts } from './list-view';
+import { IssueMachineLabel } from './machine-label';
+import type { IssueMachines } from './machines';
 import type { ListState } from './use-issues';
 
 /** Mật độ thẻ và cột lạnh đang áp dụng; mật độ "tự động" gọn thẻ khi bảng quá nhiều thẻ. */
@@ -37,6 +41,8 @@ export function boardLayout(state: Pick<ListState, 'density' | 'lanes' | 'pageSi
 }
 
 const NO_QC: ReadonlyMap<string, QcIssueState> = new Map();
+const NO_NAMES: ReadonlyMap<string, string> = new Map();
+const NO_AWAITING: ReadonlySet<string> = new Set();
 
 interface MoveError {
   identifier: string;
@@ -49,10 +55,18 @@ interface IssuesBoardProps {
   issues: readonly CompactIssue[];
   state: ListState;
   rootsById: ReadonlyMap<string, CrewRoot>;
+  /** Máy của cây chứa từng yêu cầu (route lô); chưa về hoặc lỗi thì thẻ không có dòng máy. */
+  machines?: IssueMachines;
+  machineNames?: ReadonlyMap<string, string>;
   agentName: ReadonlyMap<string, string>;
   live: ReadonlySet<string>;
   /** Vòng QC đang mở theo id issue (yêu cầu của Phòng QC đã Xong). */
   qcStates?: ReadonlyMap<string, QcIssueState>;
+  /**
+   * Id yêu cầu chưa đóng có thẻ chờ owner trả lời: thẻ mang nhãn "Chờ owner trả lời" nhưng vẫn ở cột trạng thái lõi
+   * (như nhãn QC), vì kéo thẻ là đổi trạng thái lõi.
+   */
+  awaiting?: ReadonlySet<string>;
   opener: ReturnType<typeof useIssueOpener>;
   readOnly: boolean;
 }
@@ -62,9 +76,12 @@ export function IssuesBoard({
   issues,
   state,
   rootsById,
+  machines,
+  machineNames = NO_NAMES,
   agentName,
   live,
   qcStates = NO_QC,
+  awaiting = NO_AWAITING,
   opener,
   readOnly,
 }: IssuesBoardProps) {
@@ -108,6 +125,8 @@ export function IssuesBoard({
     const identifier = issue.identifier ?? issue.id;
     const root = rootsById.get(issue.id);
     const qc = qcDisplayStatus(issue, qcStates);
+    const waiting = awaitingOwnerStatus(issue, awaiting);
+    const machine = machines?.[issue.id];
     return {
       id: issue.id,
       status: moved.get(issue.id) ?? issue.status,
@@ -121,8 +140,9 @@ export function IssuesBoard({
       liveBelow: liveBelow.get(issue.id) ?? 0,
       needsNextStep: needsNextStep(issue),
       meta:
-        root || qc ? (
+        root || qc || waiting ? (
           <>
+            {waiting ? <AwaitingOwnerBadge /> : null}
             {qc ? <QcBadge status={qc} /> : null}
             {root ? <StageBadge stage={resolveStageKey(root.stage, root.kind)} /> : null}
             {root && root.totalChildren > 0 ? (
@@ -130,6 +150,7 @@ export function IssuesBoard({
             ) : null}
           </>
         ) : null,
+      machine: machine ? <IssueMachineLabel machine={machine} names={machineNames} variant="inline" /> : null,
     };
   });
 

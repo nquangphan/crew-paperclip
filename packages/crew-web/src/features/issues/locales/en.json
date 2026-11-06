@@ -37,6 +37,7 @@
     "col": {
       "stage": "Crew stage",
       "progress": "Child requests",
+      "machine": "Machine",
       "assignee": "Assignee",
       "project": "Project",
       "labels": "Labels",
@@ -46,6 +47,7 @@
     "colHint": {
       "stage": "Stage of the root request in the Crew flow.",
       "progress": "Finished child requests out of the total.",
+      "machine": "Machine running the request tree (sub-requests use the root machine).",
       "assignee": "Agent working on the request.",
       "project": "Project of the request.",
       "labels": "Labels on the request.",
@@ -74,7 +76,8 @@
       "today": "Today",
       "yesterday": "Yesterday",
       "earlier": "Earlier"
-    }
+    },
+    "machine": "Machine"
   },
   "board": {
     "viewMode": "View mode",
@@ -514,6 +517,8 @@
     "skipped": "The owner allowed skipping Bug Finding for this PR head.",
     "noTriage": "The assistant has not triaged this run's findings yet.",
     "noFindings": "No findings.",
+    "showMore": "Show {{count}} more findings",
+    "showLess": "Show less",
     "noFixIssue": "No child task yet",
     "askHint": "Questions for the owner are in the assistant's question card on this task, with a recommendation.",
     "batchProgress": "Fix batch bf-fix-{{batch}}: {{done}}/{{total}} done · Bug Finding re-runs once when the whole batch is done and questions are answered",
@@ -573,5 +578,28 @@
       "run": "Run {{run}} / max {{max}} · {{state}}",
       "merge": "Integrator merges the PR after approval"
     }
+  },
+  "machine": {
+    "state": {
+      "online": "connected",
+      "offline": "offline",
+      "unpaired": "unpaired"
+    },
+    "unpaired": "Unpaired",
+    "unpinned": "Not pinned",
+    "aria": "Machine {{name}}, {{state}}",
+    "ariaUnnamed": "Machine {{state}}",
+    "tip": {
+      "online": "Connected. Every request in this tree runs on this machine.",
+      "offline": "Lost contact. Requests in this tree wait for this machine to come back.",
+      "unpaired": "Machine was unpaired. Requests in this tree cannot run until another machine is pinned.",
+      "unpinned": "This request tree has no pinned machine yet. The first run pins a free machine."
+    },
+    "loading": "Loading machine",
+    "loadFailed": "Could not load the machines of these requests.",
+    "missing": "Could not load machine",
+    "gone": "Machine no longer in the list",
+    "filterFailed": "Could not filter by machine because the machines of these requests could not be loaded.",
+    "retry": "Retry"
   }
 }

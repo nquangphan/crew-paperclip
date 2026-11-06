@@ -164,3 +164,18 @@ Server cần `PAPERCLIP_ALLOWED_HOSTNAMES` có `127.0.0.1:5183` để Better Aut
 `plugins.package_path` của `crew.core` trong DB nhúng sang `$FORK/packages/crew-plugin`, rồi khởi động lại server để
 plugin kích hoạt và áp migration mới (bảng góp ý có từ migration `0013`). Dùng thư mục T1 khác (`CREW_E2E_T1_ENV=<đường
 tới board.env>`) để không đụng stack cũ.
+
+## Ca nhãn máy (`specs/s26-machine-label.spec.ts`)
+
+Ba ca (PW-S26-1..3, tag `@t1`) kiểm nhãn máy của cây đã ghim trên danh sách, thẻ Bảng và lọc theo máy. Ca tạo gốc + con
+bằng REST (không có project, không có run), ghim gốc bằng `PUT …/issues/:id/machine` của owner rồi kiểm UI.
+Tiền đề: company e2e có **ít nhất hai máy đã ghép** (hỏi qua `GET …/machines?projectId=`, project lấy từ
+`CREW_E2E_BASE_PROJECT_ID` hoặc project đầu tiên của company); thiếu thì ca tự bỏ qua. Chạy riêng:
+`bash e2e/support/run-e2e.sh --project=t1 e2e/specs/s26-machine-label.spec.ts`.
+
+## Ca giả API (không cần stack T1)
+
+`e2e/fake/*.spec.ts` chạy bằng `pnpm exec playwright test -c playwright.fake.config.ts` (config tự bật vite dev cổng 5185
+và tắt khi xong; không đăng nhập, không `global-setup`). Trình duyệt, bundle và render là thật; API do ca giả bằng
+`page.route`. Dùng cho ca chỉ cần UI render từ file nhúng sẵn, ví dụ `agents-md-no-background.spec.ts` (luật không chạy
+nền trong AGENTS.md của 4 vai ở tab Hướng dẫn).

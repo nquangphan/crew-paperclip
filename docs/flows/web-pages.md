@@ -17,7 +17,9 @@ Luật chính:
   `adapterConfig.model` (PATCH merge, không `replaceAdapterConfig`); reviewer Codex chạy model cố định.
 - Project: chỉ đổi tên, mô tả, màu, biểu tượng; tab Vai trò, Docs, Sẵn sàng thuộc các flow riêng.
 - Hộp thư "Chờ tôi duyệt" gồm issue có stage đang chờ chính user này hoặc có câu hỏi/xác nhận chờ trả lời. Danh sách
-  của server không có `executionState`, nên người tham gia stage đọc từ `reviewAttention`.
+  của server không có `executionState`, nên người tham gia stage đọc từ `reviewAttention`. Danh sách lõi chỉ báo thẻ chờ
+  của issue `in_review`, nên thẻ chờ owner ở issue Đang làm hay Đang bị chặn lấy thêm từ route Crew `…/awaiting-owner`
+  (flow `issues-web`, mục Chờ owner trả lời).
 - Run: Dừng cho run đang chạy hay chờ, Chạy lại cho run `failed`/`timed_out`, Tiếp tục cho run `process_lost`, theo
   đúng body mà route wakeup của server nhận.
 - Tìm kiếm và mọi danh sách chỉ hiện kết quả thuộc project người xem được cấp.
@@ -33,9 +35,12 @@ Luật chính:
 
 1. `packages/crew-web/src/features/dashboard/dashboard-page.tsx` → `DashboardPage`: thẻ số, biểu đồ 14 ngày
    (`dashboard-logic.ts` → `last14Days`, `runActivityBars`), hoạt động gần đây, thẻ góp ý chờ duyệt cho owner; dữ liệu
-   qua `use-dashboard.ts`.
+   qua `use-dashboard.ts` (thẻ "chờ bạn duyệt" đếm bằng `inboxTabs` cùng tập id của `useAwaitingOwner`, nên luôn bằng
+   tab Hộp thư).
 2. `packages/crew-web/src/features/inbox/inbox-page.tsx` → `InboxPage`: chia tab bằng `inbox/tabs.ts`
    (`INBOX_TAB_IDS`, `isMyExecutionStage`, `hasPendingUserInteraction`); số trên sidebar qua `useInboxBadge`.
+   `inboxTabs` và `hasPendingUserInteraction` nhận thêm tập id issue chờ owner trả lời (`useAwaitingOwner().issueIds`):
+   issue chưa đóng có trong tập thì vào "Chờ tôi duyệt" với lý do câu hỏi, dù danh sách lõi không báo.
 3. `packages/crew-web/src/features/search/search-page.tsx` → `SearchPage`: tìm theo `q` trên URL, lọc bằng
    `resultVisible`, bấm kết quả mở popup issue.
 4. `packages/crew-web/src/features/runs/run-page.tsx` → `RunPage`: agent, trạng thái, nội dung chạy, log, yêu cầu liên
@@ -101,11 +106,13 @@ Luật chính:
   viên và lọc kết quả.
 - `multi-machine`: tab Máy của project (S25.3) và các route máy của project.
 - `web-shell`, `design-system`: khung và component.
+- `issues-web`: route và hook `useAwaitingOwner` (issue chờ owner trả lời thẻ) mà Hộp thư và Tổng quan dùng.
 
 ## Tests
 
 - `packages/crew-web/test/features/dashboard/`: biểu đồ 14 ngày theo giờ Việt Nam, thẻ số, thẻ góp ý chỉ cho owner.
-- `packages/crew-web/test/features/inbox/`: luật tab "Chờ tôi duyệt" và các tab khác, số đếm.
+- `packages/crew-web/test/features/inbox/`: luật tab "Chờ tôi duyệt" và các tab khác, số đếm; issue Đang làm hay Bị
+  chặn có trong tập chờ owner thì vào "Chờ tôi duyệt", đã đóng thì không.
 - `packages/crew-web/test/features/search/search-page.test.tsx`: ngưỡng ký tự, kết quả, mở popup giữ neo.
 - `packages/crew-web/test/features/runs/`: thao tác theo trạng thái run và body gửi đi, trang run, run không có log, log dễ đọc và log thô.
 - `packages/crew-web/test/features/agents/`: danh sách và lọc, tổng quan và "Làm tiếp", AGENTS.md chỉ đọc và render
