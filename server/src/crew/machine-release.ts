@@ -4,8 +4,8 @@ import type { Db } from "@paperclipai/db";
 import { environmentService } from "../services/environments.js";
 import { crewTableSql, type ExecDb, jsonRecord, MAX_TREE_DEPTH, pairedMachine, pairedMachines } from "./machine-pin.js";
 import {
-  listProjectMachines, type ProjectLayout, projectLayout, projectRoleAgentIds, readProjectMachine, readProjectRepo,
-  startProvisioning, writeProjectRepo,
+  knownRepoPath, listProjectMachines, type ProjectLayout, projectLayout, projectRoleAgentIds, readProjectMachine,
+  readProjectRepo, startProvisioning, writeProjectRepo,
 } from "./machine-provision.js";
 import { rowsOf } from "./project-roles.js";
 
@@ -179,7 +179,9 @@ export async function releaseProjectMachines(
 
 /**
  * Máy chính (máy đã dựng project trước, `exceptMachineId`) được ghi `ready` khi environment mặc định của mọi agent vai
- * trò trỏ đúng host của máy, để máy chính được đếm như máy đã dựng project.
+ * trò trỏ đúng host của máy, để máy chính được đếm như máy đã dựng project. Dòng `ready` luôn có `repo_path`: giữ
+ * `repo_path` tuyệt đối đã có của dòng, không có thì lấy `knownRepoPath` của máy chính; không có nguồn repo nào thì không
+ * ghi gì (dòng cũ, kể cả `ready` thiếu repo, giữ nguyên). Dòng `ready` thiếu repo được điền repo, không đổi gì khác.
  */
 async function markPrimaryReady(db: ExecDb, input: { companyId: string; projectId: string; machineId: string }): Promise<void> {
   const machine = await pairedMachine(db, input.companyId, input.machineId);
@@ -191,10 +193,17 @@ async function markPrimaryReady(db: ExecDb, input: { companyId: string; projectI
     FROM agents a JOIN environments e ON e.id = a.default_environment_id
     WHERE a.company_id = ${input.companyId} AND a.id = ANY(string_to_array(${ids}, ',')::uuid[])`));
   if (hosts.length !== layout.agents.length || hosts.some((row) => row.host !== machine.tailscaleIp)) return;
-  await db.execute(sql`INSERT INTO ${crewTableSql("project_machines")} (company_id, project_id, machine_id, status)
-    VALUES (${input.companyId}, ${input.projectId}, ${machine.machineId}, 'ready')
-    ON CONFLICT (company_id, project_id, machine_id) DO UPDATE SET status = 'ready', error = NULL, updated_at = now()
-    WHERE ${crewTableSql("project_machines")}.status <> 'ready'`);
+  const key = { companyId: input.companyId, projectId: input.projectId, machineId: machine.machineId };
+  const current = await readProjectMachine(db, input.companyId, input.projectId, machine.machineId);
+  if (current?.status === "ready" && current.repoPath?.startsWith("/")) return;
+  const repoPath = current?.repoPath?.startsWith("/") ? current.repoPath : await knownRepoPath(db, key);
+  if (!repoPath) return;
+  const table = crewTableSql("project_machines");
+  await db.execute(sql`INSERT INTO ${table} (company_id, project_id, machine_id, status, repo_path)
+    VALUES (${input.companyId}, ${input.projectId}, ${machine.machineId}, 'ready', ${repoPath})
+    ON CONFLICT (company_id, project_id, machine_id) DO UPDATE SET status = 'ready', error = NULL, updated_at = now(),
+      repo_path = EXCLUDED.repo_path
+    WHERE ${table}.status <> 'ready' OR ${table}.repo_path IS NULL OR ${table}.repo_path NOT LIKE '/%'`);
 }
 
 /**

@@ -175,6 +175,27 @@ export function ensureProjectPayload(projectId: string, layout: ProjectLayout, r
   };
 }
 
+/**
+ * Repo của project trên máy mà Crew tin được, cho máy chưa có `repo_path` trong `project_machines` (máy chính dựng bằng
+ * wizard): `repoPath` của việc `ensure-project` mới nhất đã `done` của project trên máy (app báo sau khi dựng), không có
+ * thì repo gốc mà bước `inspect` của lần thêm project mới nhất trên đúng máy đó kiểm được (`steps.inspect.refs.root`, gốc
+ * git của thư mục owner chọn, nơi các checkout agent là worktree). Chỉ nhận đường tuyệt đối; không có nguồn nào thì `null`.
+ */
+export async function knownRepoPath(
+  db: ExecDb, input: { companyId: string; projectId: string; machineId: string },
+): Promise<string | null> {
+  const jobs = rowsOf(await db.execute(sql`SELECT result->>'repoPath' AS repo_path FROM ${crewTableSql("crew_machine_jobs")}
+    WHERE company_id = ${input.companyId} AND machine_id = ${input.machineId} AND kind = 'ensure-project' AND status = 'done'
+      AND payload->>'projectId' = ${input.projectId} AND result->>'repoPath' LIKE '/%'
+    ORDER BY created_at DESC, id DESC LIMIT 1`));
+  if (typeof jobs[0]?.repo_path === "string") return jobs[0].repo_path;
+  const runs = rowsOf(await db.execute(sql`SELECT steps->'inspect'->'refs'->>'root' AS root FROM ${crewTableSql("crew_setup_runs")}
+    WHERE company_id = ${input.companyId} AND project_id = ${input.projectId} AND machine_id = ${input.machineId}
+      AND kind = 'add-project' AND steps->'inspect'->>'status' = 'done' AND steps->'inspect'->'refs'->>'root' LIKE '/%'
+    ORDER BY updated_at DESC, id DESC LIMIT 1`));
+  return typeof runs[0]?.root === "string" ? runs[0].root : null;
+}
+
 const PM_COLUMNS = sql`machine_id::text AS machine_id, status, error, repo_path, updated_at`;
 function toProjectMachine(row: Row): ProjectMachineRow {
   return {
@@ -241,7 +262,10 @@ export async function startProvisioning(
 
 function parseResult(value: unknown): EnsureProjectResult | null {
   const r = jsonRecord(value);
-  if (r.kind !== "ensure-project" || typeof r.repoPath !== "string" || !Array.isArray(r.checkouts)) return null;
+  // Dòng `ready` luôn có `repo_path` tuyệt đối (Bug Finding đọc nó): repo rỗng hay tương đối là kết quả không hợp lệ.
+  if (r.kind !== "ensure-project" || typeof r.repoPath !== "string" || !r.repoPath.startsWith("/") || !Array.isArray(r.checkouts)) {
+    return null;
+  }
   const checkouts = r.checkouts.map((item) => jsonRecord(item))
     .filter((c) => typeof c.role === "string" && typeof c.path === "string" && c.path.startsWith("/"))
     .map((c) => ({ role: String(c.role), path: String(c.path), head: String(c.head ?? "") }));
