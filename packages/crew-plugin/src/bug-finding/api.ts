@@ -143,10 +143,51 @@ function parseFinding(value: unknown): BugFindingFinding | null {
   return Object.fromEntries(FINDING_KEYS.map((key) => [key, text(value[key])])) as unknown as BugFindingFinding;
 }
 
+/** Câu hỏi cho owner mà Bug Finding gom ở `decision_items` của `review-result.json` (chỉ giữ trường cần để gắn vào finding). */
+export interface BugFindingDecisionItem { id: string; question: string; findings: string[] }
+
+const MAX_DECISION_ITEMS = 200;
+
+/**
+ * `decisionItems` (tùy chọn) là `decision_items` của Bug Finding mà 2P Crew chuyển nguyên: mỗi mục `{id, question,
+ * findings[]}`, trường khác bỏ. Mục sai dạng (thiếu `id`/`question` chuỗi) bị bỏ riêng để một câu hỏi lỗi không làm mất cả
+ * kết quả; `findings` không phải mảng chuỗi thì coi như rỗng. Không phải mảng thì trả lỗi.
+ */
+export function parseDecisionItems(value: unknown): BugFindingDecisionItem[] | string {
+  if (!Array.isArray(value) || value.length > MAX_DECISION_ITEMS) return `decisionItems phải là mảng tối đa ${MAX_DECISION_ITEMS} phần tử`;
+  const items: BugFindingDecisionItem[] = [];
+  for (const raw of value) {
+    if (!isObject(raw)) continue;
+    const id = text(raw.id, 64)?.trim();
+    const question = text(raw.question)?.trim();
+    if (!id || !question) continue;
+    const findings = Array.isArray(raw.findings)
+      ? raw.findings.filter((item): item is string => typeof item === "string" && item.trim() !== "").map((item) => item.trim())
+      : [];
+    items.push({ id, question, findings });
+  }
+  return items;
+}
+
+/**
+ * Gắn câu hỏi của owner vào finding: finding có tên trong `findings` của mục nào thì `question` thành `<id mục>: <câu hỏi>`,
+ * nhiều mục thì nối bằng xuống dòng sau `question` sẵn có của finding (nếu có). Mục không nhắc finding nào chỉ nằm trong
+ * báo cáo `.md`. Không đổi trường nào khác.
+ */
+export function applyDecisionItems(findings: BugFindingFinding[], items: readonly BugFindingDecisionItem[]): BugFindingFinding[] {
+  if (!items.length) return findings;
+  return findings.map((finding) => {
+    const asked = items.filter((item) => item.findings.includes(finding.id)).map((item) => `${item.id}: ${item.question}`);
+    if (!asked.length) return finding;
+    const parts = [...new Set([...(finding.question ? [finding.question] : []), ...asked])];
+    return { ...finding, question: cut(parts.join("\n"), FIELD_MAX) };
+  });
+}
+
 function parseReport(body: unknown, companyId: string): Report | string {
   if (!isObject(body)) return "body phải là object";
   const unknown = unknownKeyError(body, ["companyId", "machineId", "requestId", "state", "round", "headSha", "lanesDone", "lanesTotal",
-    "verdict", "costUsd", "error", "findings", "reportMarkdown"]);
+    "verdict", "costUsd", "error", "findings", "decisionItems", "reportMarkdown"]);
   if (unknown) return unknown;
   if (typeof body.companyId !== "string" || body.companyId.toLowerCase() !== companyId.toLowerCase()) return "companyId không hợp lệ";
   if (!uuid(body.machineId)) return "machineId phải là uuid";
@@ -172,6 +213,11 @@ function parseReport(body: unknown, companyId: string): Report | string {
       if (!finding) return "finding thiếu id, title, severity hoặc status";
       findings.push(finding);
     }
+  }
+  if (body.decisionItems !== undefined) {
+    const items = parseDecisionItems(body.decisionItems);
+    if (typeof items === "string") return items;
+    if (findings) findings = applyDecisionItems(findings, items);
   }
   if (body.state === "succeeded" && (body.verdict === undefined || findings === undefined)) return "succeeded cần verdict và findings";
   return {

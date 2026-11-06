@@ -2,6 +2,8 @@
 // "Chờ tôi duyệt" = owner phải làm gì đó: stage đang chờ có người tham gia là user này hoặc có thẻ câu hỏi/xác nhận
 // chờ trả lời. Danh sách của server luôn trả executionState null (chỉ chi tiết GET /issues/:id có), nên người tham gia
 // stage đọc từ reviewAttention (isMyExecutionStage); executionState vẫn được xét khi có (cùng điều kiện nút Duyệt).
+// Danh sách lõi chỉ báo thẻ chờ của issue in_review, nên thẻ chờ owner của issue Đang làm/Đang bị chặn lấy từ route Crew
+// `…/awaiting-owner` (tập id `awaitingOwner`).
 import { awaitingMyApproval } from '@/features/issues/detail/crew/gate-actions';
 
 export type InboxTabId = 'awaiting_me' | 'mine' | 'unread' | 'stuck' | 'all';
@@ -32,13 +34,19 @@ export interface InboxIssue {
 }
 
 const CLOSED = new Set(['done', 'cancelled']);
+const NO_AWAITING: ReadonlySet<string> = new Set();
 
 /**
  * Thẻ tương tác đang chờ owner trả lời. Nguồn: server/src/services/issues.ts listIssueReviewAttentionMap
  * (path `interaction`, responder là tên agent nếu thẻ gửi cho agent, ngược lại "Board") và blockedInboxAttention
- * (reason pending_user_decision / pending_board_decision với chủ là user hoặc board).
+ * (reason pending_user_decision / pending_board_decision với chủ là user hoặc board), cộng tập id của route Crew
+ * `…/awaiting-owner` (thẻ chờ người trả lời ở issue chưa đóng, mọi trạng thái).
  */
-export function hasPendingUserInteraction(issue: InboxIssue): boolean {
+export function hasPendingUserInteraction(
+  issue: InboxIssue,
+  awaitingOwner: ReadonlySet<string> = NO_AWAITING,
+): boolean {
+  if (awaitingOwner.has(issue.id)) return true;
   const onReview = issue.reviewAttention?.paths?.some(
     (path) => path.kind === 'interaction' && (!path.responder || path.responder === 'Board'),
   );
@@ -60,7 +68,7 @@ export function isMyExecutionStage(issue: InboxIssue, me: { id: string }): boole
   return !!issue.reviewAttention?.paths?.some((path) => path.kind === 'execution_participant' && path.ref === me.id);
 }
 
-function awaitingMe(issue: InboxIssue, me: { id: string }): boolean {
+function awaitingMe(issue: InboxIssue, me: { id: string }, awaitingOwner: ReadonlySet<string>): boolean {
   if (CLOSED.has(issue.status)) return false;
   if (awaitingMyApproval(issue, me) || isMyExecutionStage(issue, me)) return true;
   const state = issue.executionState;
@@ -68,12 +76,16 @@ function awaitingMe(issue: InboxIssue, me: { id: string }): boolean {
     state?.status === 'pending' &&
     state.currentParticipant?.type === 'user' &&
     state.currentParticipant.userId === me.id;
-  return escalated || hasPendingUserInteraction(issue);
+  return escalated || hasPendingUserInteraction(issue, awaitingOwner);
 }
 
-export function inboxTabs<T extends InboxIssue>(issues: readonly T[], me: { id: string }): Record<InboxTabId, T[]> {
+export function inboxTabs<T extends InboxIssue>(
+  issues: readonly T[],
+  me: { id: string },
+  awaitingOwner: ReadonlySet<string> = NO_AWAITING,
+): Record<InboxTabId, T[]> {
   return {
-    awaiting_me: issues.filter((issue) => awaitingMe(issue, me)),
+    awaiting_me: issues.filter((issue) => awaitingMe(issue, me, awaitingOwner)),
     mine: issues.filter((issue) => !!issue.myLastTouchAt || issue.assigneeUserId === me.id),
     unread: issues.filter((issue) => issue.isUnreadForMe === true),
     stuck: issues.filter((issue) => issue.status === 'blocked' || issue.reviewAttention?.state === 'stalled'),

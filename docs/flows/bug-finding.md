@@ -36,7 +36,7 @@ Luật chính:
   - `POST /bug-finding/request` (`bug-finding.request`, agent; company của agent gọi), body `{issueId}`: chỉ reviewer
     của stage cầu nối; trả `{run}` (201 khi xếp mới, 200 khi đã có);
   - `POST /bug-finding/results` (`bug-finding.results`, board key của máy), body `{companyId, machineId, requestId,
-    state, round?, headSha, lanesDone?, lanesTotal?, verdict?, costUsd?, error?, findings?, reportMarkdown?}`;
+    state, round?, headSha, lanesDone?, lanesTotal?, verdict?, costUsd?, error?, findings?, decisionItems?, reportMarkdown?}`;
   - `GET /issues/:issueId/bug-finding` (`bug-finding.get`, board hoặc agent) → `{runs, batchesUsed, maxBatches: 2,
     currentHead, approvalRound}`; mỗi lượt có thêm `triage` (kế hoạch của Trợ Lý, `null` khi chưa có); kiểu body cho
     web ở `packages/crew-plugin/src/shared-web/bug-finding.ts` (`BugFindingView`, chỉ kiểu);
@@ -57,7 +57,13 @@ Luật chính:
    khối này của Trợ Lý, `executionState.returnAssignee`, viết sau lượt trước); ghi lượt `requested` (`ON CONFLICT DO
    NOTHING` trên khóa duy nhất), rồi việc máy `bug-finding-review` (flow `machine-jobs`) và gắn `machine_job_id`.
 3. `packages/crew-plugin/src/bug-finding/api.ts` → `resultsRoute`: kiểm body (`parseReport`; finding chỉ giữ 12 trường
-   `FINDING_KEYS`, báo cáo tối đa `REPORT_MAX_BYTES` 2 MB), kiểm máy, head, trạng thái, rồi ghi tiến độ. Kết quả cuối
+   `FINDING_KEYS`, báo cáo tối đa `REPORT_MAX_BYTES` 2 MB), kiểm máy, head, trạng thái, rồi ghi tiến độ. `decisionItems`
+   (tùy chọn) là `decision_items` của `review-result.json` (`mobile-review/result@2`): câu hỏi cho owner mà Bug Finding gom
+   theo mục. `parseDecisionItems` giữ `{id, question, findings}` (tối đa 200 mục; mục thiếu `id`/`question` bị bỏ riêng,
+   không phải mảng thì 400), `applyDecisionItems` ghi `question` của finding có tên trong mục thành `<id mục>: <câu hỏi>`
+   (nhiều mục thì mỗi mục một dòng, sau `question` sẵn có). Mục không nhắc finding nào chỉ nằm trong báo cáo `.md`. Kết
+   quả `review-result.json` không có `action` theo finding nên `action` giữ `null`; không có `decisionItems` (2P Crew cũ)
+   thì `question` giữ nguyên như máy gửi. Trợ Lý dùng `question` để quyết hỏi owner hay tự sửa (flow `agent-roles`). Kết quả cuối
    (`succeeded`, `failed`, `cancelled`) → `finishRun`: ghi báo cáo `.md` thành document của issue (key
    `bug-finding-round-<vòng>-run-<n>`, lưu ở `report_document_key`), rồi `announceRun`.
 4. `packages/crew-plugin/src/bug-finding/runs.ts` → `announceRun`: comment hệ thống, dòng đầu
@@ -85,7 +91,7 @@ Luật chính:
 
 | Đường dẫn | Vai trò | Symbol chính |
 |-----------|---------|--------------|
-| `packages/crew-plugin/src/bug-finding/api.ts` | Route request, results, get, skip | `handleBugFindingApi`, `REPORT_MAX_BYTES` |
+| `packages/crew-plugin/src/bug-finding/api.ts` | Route request, results, get, skip; gắn `decision_items` vào finding | `handleBugFindingApi`, `REPORT_MAX_BYTES`, `parseDecisionItems`, `applyDecisionItems` |
 | `packages/crew-plugin/src/bug-finding/enqueue.ts` | Xếp lượt, chọn máy, sự kiện, đăng ký | `enqueueBugFinding`, `handleIssueUpdated`, `bridgeStage`, `latestCrewPr`, `feedbackText`, `registerBugFinding` |
 | `packages/crew-plugin/src/bug-finding/runs.ts` | Kiểu, SQL sổ lượt, vòng, báo kết quả | `listRuns`, `getRunByRequest`, `approvalRound`, `batchesUsed`, `announceRun`, `MAX_RUNS`, `MAX_BATCHES` |
 | `packages/crew-plugin/src/bug-finding/triage.ts` | Kế hoạch `crew-bf-triage` của Trợ Lý và việc con sửa cho từng lượt | `attachTriage`, `parseTriage`, `triageAuthor` |
@@ -130,11 +136,15 @@ Luật chính:
 - `server/src/__tests__/crew-issue-gate.db.test.ts`: reader mặc định đọc bảng lượt thật của plugin; owner yêu cầu sửa
   ticket tổng Bug Finding tăng vòng, reviewer cầu nối yêu cầu sửa thì không.
 - `packages/crew-plugin/src/__tests__/machine-jobs-validate.test.ts`: payload và result `bug-finding-review`.
+- `packages/crew-plugin/src/__tests__/bug-finding-decision-items.test.ts`: fixture rút gọn từ `review-result.json` thật;
+  finding nhận câu hỏi kèm id mục, finding thuộc hai mục có hai dòng, finding không thuộc mục nào và `action` giữ `null`,
+  `question` sẵn có đứng trước, mục sai dạng bị bỏ riêng, không phải mảng thì lỗi. `bug-finding.db.test.ts` thêm: results
+  có `decisionItems` lưu `question` đúng finding, `decisionItems` sai dạng 400.
 - `packages/crew-plugin/src/__tests__/bug-finding-triage.test.ts`: đọc dòng `crew-bf-triage` và lý do, nhóm rỗng `-`;
   Trợ Lý là `returnAssignee` hay assignee; ghép kế hoạch trong khoảng sau lượt xong và trước lượt kế, bỏ comment của
   người khác, việc con sửa theo finding (một con nhiều finding).
 - `packages/crew-web/e2e/bug-finding/root-bf.spec.ts` (Playwright, giả toàn bộ `/api/*` bằng `stub.ts`, chạy
   `pnpm exec playwright test -c e2e/bug-finding/playwright.config.ts` từ `packages/crew-web`, web dev cổng 5193): ticket
   tổng `code-bf` hiện dải 4 giai đoạn có "Review Bug Finding", tiến độ lane của lượt đang chạy và ba nhóm kế hoạch của
-  Trợ Lý; owner thấy "Duyệt và merge" với kết quả Bug Finding trên đúng commit và gửi `done`; ticket policy `code` cũ
+  Trợ Lý (nhóm thứ ba hiện sau khi bấm "Xem thêm"); owner thấy "Duyệt và merge" với kết quả Bug Finding trên đúng commit và gửi `done`; ticket policy `code` cũ
   giữ nút "Duyệt" và không gọi route Bug Finding.
