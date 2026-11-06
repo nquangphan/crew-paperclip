@@ -8,6 +8,7 @@ import {
   CircleMinus,
   createLucideIcon,
   type LucideIcon,
+  MessageCircleQuestion,
   ShieldAlert,
   ShieldCheck,
   ShieldEllipsis,
@@ -35,6 +36,8 @@ const STATUS_ICON: Record<string, LucideIcon> = {
   qc_awaiting: ShieldEllipsis,
   qc_reopen: ShieldAlert,
   qc_verified: ShieldCheck,
+  // crew: issue chưa đóng có thẻ câu hỏi/xác nhận chờ owner trả lời (lõi vẫn in_progress, blocked…).
+  awaiting_owner: MessageCircleQuestion,
 };
 
 const COLOR_VAR: Record<string, string> = {
@@ -49,6 +52,7 @@ const COLOR_VAR: Record<string, string> = {
   qc_awaiting: '--status-task-icon-qc_awaiting',
   qc_reopen: '--status-task-icon-qc_awaiting',
   qc_verified: '--status-task-icon-qc_verified',
+  awaiting_owner: '--status-task-icon-awaiting_owner',
 };
 
 /** Màu trạng thái dùng chung (cùng bảng với biểu tượng ở danh sách và bảng Kanban), dạng `var(--status-task-icon-*)`. */

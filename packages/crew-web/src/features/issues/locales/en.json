@@ -517,6 +517,8 @@
     "skipped": "The owner allowed skipping Bug Finding for this PR head.",
     "noTriage": "The assistant has not triaged this run's findings yet.",
     "noFindings": "No findings.",
+    "showMore": "Show {{count}} more findings",
+    "showLess": "Show less",
     "noFixIssue": "No child task yet",
     "askHint": "Questions for the owner are in the assistant's question card on this task, with a recommendation.",
     "batchProgress": "Fix batch bf-fix-{{batch}}: {{done}}/{{total}} done · Bug Finding re-runs once when the whole batch is done and questions are answered",

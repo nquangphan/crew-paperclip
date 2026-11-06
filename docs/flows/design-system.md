@@ -32,6 +32,10 @@ Cấu trúc thư mục, luật và cách xem thử nằm ở `packages/crew-web/
    từ `ui/src/index.css` và `ui/src/motion-tokens.css`. Cuối file có thêm bảng `--terminal-*` (nền, mặt, viền, chữ, chữ phụ,
    vùng chọn) cố định cho cả hai theme, map sang màu Tailwind `terminal`, `terminal-surface`, `terminal-border`,
    `terminal-foreground`, `terminal-muted`.
+   Màu trạng thái yêu cầu `--status-task-*` (nền chip) và `--status-task-icon-*` (biểu tượng, chữ viên, đạt 3:1 cả hai
+   theme) có thêm các trạng thái hiển thị Crew: `qc_awaiting`, `qc_verified` (flow `qc-department`) và
+   `awaiting_owner` "Chờ owner trả lời" (flow `issues-web`): hồng `#db2777`, biểu tượng `#be185d` (pink-700) ở theme
+   sáng, `#f472b6` (pink-400) ở theme tối, tách khỏi tím Đang làm, đỏ Bị chặn và cam Chờ QC duyệt.
 2. `packages/crew-web/src/ds/components/`: component chép từ `ui/src/components/ui/*` và component tự dựng (bảng, field,
    trạng thái trống và lỗi, spinner, `ThemeScope`, `AppFrame`).
 3. `packages/crew-web/src/ds/components/app-frame.tsx` → `AppFrame`: khung trang cho shell; dưới `md` ẩn sidebar và mở
@@ -41,6 +45,10 @@ Cấu trúc thư mục, luật và cách xem thử nằm ở `packages/crew-web/
    đúng dạng `agent://<uuid>` được `urlTransformFor` giữ lại và `MarkdownLink` hiện thành chip
    `<span data-agent-mention>` (chữ là nội dung link, ví dụ `@Trợ Lý`, màu theo nền quanh nó), không phải thẻ `<a>`;
    `agent:` sai dạng và `javascript:` vẫn bị bỏ.
+4c. `packages/crew-web/src/ds/widgets/status-glyph.tsx` → `StatusGlyph`, `statusColorVar` và `status-pill.tsx` →
+   `StatusPill`: một bảng biểu tượng và màu theo chuỗi trạng thái, gồm cả trạng thái hiển thị Crew: `qc_awaiting`
+   (ShieldEllipsis), `qc_reopen` (ShieldAlert), `qc_verified` (ShieldCheck), `awaiting_owner` (MessageCircleQuestion,
+   không quay như Đang làm). Trạng thái lạ dùng CircleDashed và màu backlog.
 4b. `packages/crew-web/src/ds/widgets/machine-label.tsx` → `MachineLabel`, `MachineLabelPending`, `MachineLabelMissing`:
    nhãn máy của cây yêu cầu (mockup `docs/design/mockups/tps-750-machine-label`). Chữ 12px muted như `RowCell`, chỉ báo
    12px: `online` chấm `--status-task-icon-done`, `offline` icon WifiOff `--status-task-icon-backlog`, `unpaired` icon

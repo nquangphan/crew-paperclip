@@ -97,6 +97,7 @@ const TONED = new Set([
   'qc_awaiting',
   'qc_reopen',
   'qc_verified',
+  'awaiting_owner',
 ]);
 
 /** Màu trạng thái của bản đồ (`var(--roadmap-tone-*)`); trạng thái lạ dùng màu "chưa lên kế hoạch". */

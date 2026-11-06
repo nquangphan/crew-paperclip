@@ -517,6 +517,8 @@
     "skipped": "Owner đã cho bỏ qua Bug Finding cho head PR này.",
     "noTriage": "Trợ Lý chưa phân loại finding của lượt này.",
     "noFindings": "Không có finding.",
+    "showMore": "Xem thêm {{count}} finding",
+    "showLess": "Thu gọn",
     "noFixIssue": "Chưa tạo việc con",
     "askHint": "Câu hỏi cho owner nằm ở thẻ hỏi của Trợ Lý trên ticket này, kèm đề xuất.",
     "batchProgress": "Lô sửa bf-fix-{{batch}}: {{done}}/{{total}} xong · Bug Finding chạy lại một lần khi cả lô xong và câu hỏi đã trả lời",

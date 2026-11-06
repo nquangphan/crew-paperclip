@@ -209,12 +209,20 @@ là integrator, stage 2 là reviewer, stage 3 là `approval` của owner); polic
   `GET /api/plugins/crew.core/api/issues/<id>/bug-finding` (flow `bug-finding`), không tin comment. Chưa có lượt cho head
   hiện tại thì xếp (`bug-finding/request`); lượt hỏng lần đầu xếp lại, lần hai hỏi owner bằng `request_confirmation` khóa
   `crew-bf-skip:<id>:<vòng>:<head12>:<số lượt hỏng>`, owner đồng ý thì gọi `bug-finding/skip`; lượt `succeeded` còn finding
-  mở (trừ finding owner chọn `wontfix`/`split` trong thẻ `crew-bf:<id>:<vòng>-<lượt>` và finding `LOW`/`INFO` trong `dismiss=`
-  của `crew-bf-triage` do Trợ Lý viết) và còn lô thì `Reviewer: cần sửa` về Trợ Lý, không thì cho qua sang owner.
+  mở (trừ finding owner chọn `wontfix`/`split` trong thẻ `crew-bf:<id>:<vòng>-<lượt>` của mọi vòng và finding `LOW`/`INFO`
+  trong `dismiss=` của `crew-bf-triage` do Trợ Lý viết) và còn lô thì `Reviewer: cần sửa` về Trợ Lý, không thì cho qua sang
+  owner. Câu trả lời áp cho mọi id finding trong `questionId` (nối bằng dấu phẩy); thẻ của lượt khác khớp finding hiện tại
+  khi cùng `rule` (khác `UNCATEGORIZED`) và cùng file của `location`, hoặc cùng `title`.
 - Trợ Lý (`assistant.md`, mục "Xử lý finding Bug Finding"): đọc cùng route và document báo cáo, phân loại theo bảng tự sửa /
-  hỏi owner / bỏ qua (`CRITICAL`, `HIGH` không bao giờ bỏ qua), ghi `crew-bf-triage run=<n> batch=bf-fix-<k> …` trước mọi
-  thẻ và con (`<k>` tăng qua mọi vòng), một thẻ `ask_user_questions` khóa `crew-bf:<id gốc>:<vòng>-<n>` (id câu là id
-  finding, lựa chọn `fix`/`wontfix`/`split`), con sửa có `crew-fix base=<head PR>`, `crew-child key=bf-<F-xx>
+  hỏi owner / bỏ qua (`CRITICAL`, `HIGH` không bao giờ bỏ qua). Tự sửa không đòi `action` (Bug Finding không ghi trường
+  này; có thì phải là `CODE_FIX`/`TEST_FIX`), mọi mức từ `LOW` tới `CRITICAL`, khi finding `introduced`, `Confirmed` (hoặc
+  `Potential` có `SOURCE`), có `fix` và `accept`, không có `question` và không đổi hành vi, API, dữ liệu. `question` đến từ
+  `decision_items` của Bug Finding (flow `bug-finding`); finding có `question` thì hỏi owner. Trước khi phân loại, câu trả
+  lời của owner trong thẻ `crew-bf:` của mọi vòng được dùng lại cho finding khớp (cùng `rule` khác `UNCATEGORIZED` + cùng
+  file, hoặc cùng `title`): `fix` vào nhóm tự sửa, `wontfix`/`split` vào phản hồi, không hỏi lại. Ghi
+  `crew-bf-triage run=<n> batch=bf-fix-<k> …` trước mọi thẻ và con (`<k>` tăng qua mọi vòng), một thẻ `ask_user_questions`
+  khóa `crew-bf:<id gốc>:<vòng>-<n>` (finding cùng `question` chung một câu; id câu là các id finding nối bằng dấu phẩy,
+  ví dụ `F-01,F-02`; lựa chọn `fix`/`wontfix`/`split`), con sửa có `crew-fix base=<head PR>`, `crew-child key=bf-<F-xx>
   revision=bf-fix-<k>`, `crew-bf finding=<F-xx> run=<n>`, con E2E `e2e-fix-bf<k>` khi gốc có E2E. Chỉ `PATCH done` một lần
   khi mọi con của lô xong và mọi thẻ đã trả lời, comment kèm khối `crew-bf-feedback`. "Đóng issue gốc" nói rõ `code-bf` đi
   sang integrator, không còn reviewer cấp gốc.

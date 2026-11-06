@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import type { BugFindingFinding, BugFindingRunView, BugFindingView } from '@crew/paperclip-plugin/shared/bug-finding';
 import { parsePrUrl } from '@crew/paperclip-plugin/shared/pr-url';
-import { cleanup, screen, within } from '@testing-library/react';
+import { cleanup, fireEvent, screen, within } from '@testing-library/react';
 import { afterEach, beforeAll, describe, expect, it } from 'vitest';
 import {
   BugFindingApprovalCard,
@@ -144,6 +144,7 @@ describe('BugFindingPanel', () => {
     expect(within(fix).getByText('TPS-652')).toBeTruthy();
     const ask = within(card).getByRole('table', { name: 'Cần owner chốt (1)' });
     expect(within(ask).getByText('Có cần giới hạn 12 tháng?')).toBeTruthy();
+    fireEvent.click(within(card).getByRole('button', { name: 'Xem thêm 1 finding' }));
     const dismiss = within(card).getByRole('table', { name: 'Trợ Lý bỏ qua (1)' });
     expect(within(dismiss).getByText('Có từ trước PR này, ngoài phạm vi yêu cầu.')).toBeTruthy();
     expect(within(card).queryByText('Trợ Lý chưa phân loại finding của lượt này.')).toBeNull();
@@ -153,6 +154,40 @@ describe('BugFindingPanel', () => {
     mount(<BugFindingPanel view={view([run({ findings: FIRST.findings, triage: null })], 0)} />);
     expect(screen.getByText('Trợ Lý chưa phân loại finding của lượt này.')).toBeTruthy();
     expect(screen.getByRole('table', { name: 'Finding (4)' })).toBeTruthy();
+  });
+
+  it('mặc định chỉ hiện 3 finding đầu, "Xem thêm" mở hết rồi "Thu gọn" đóng lại', () => {
+    mount(<BugFindingPanel view={view([RUNNING, FIRST])} />);
+    const card = screen.getByRole('region', { name: 'Bug Finding lượt 1' });
+    // Dải số đếm ba nhóm và nhãn bảng luôn đủ; bảng nhóm cuối (bỏ qua) bị ẩn khi thu gọn.
+    expect(within(card).getByRole('table', { name: 'Trợ Lý tự sửa (2)' })).toBeTruthy();
+    expect(within(card).getByRole('table', { name: 'Cần owner chốt (1)' })).toBeTruthy();
+    expect(within(card).queryByRole('table', { name: 'Trợ Lý bỏ qua (1)' })).toBeNull();
+    expect(within(card).queryByText('Tên biến viết tắt')).toBeNull();
+    const more = within(card).getByRole('button', { name: 'Xem thêm 1 finding' });
+    expect(more.getAttribute('aria-expanded')).toBe('false');
+    const controls = more.getAttribute('aria-controls');
+    expect(controls && document.getElementById(controls)).toBeTruthy();
+
+    fireEvent.click(more);
+    const less = within(card).getByRole('button', { name: 'Thu gọn' });
+    expect(less.getAttribute('aria-expanded')).toBe('true');
+    expect(within(card).getByText('Tên biến viết tắt')).toBeTruthy();
+
+    fireEvent.click(less);
+    expect(within(card).queryByText('Tên biến viết tắt')).toBeNull();
+    expect(within(card).getByRole('button', { name: 'Xem thêm 1 finding' })).toBeTruthy();
+  });
+
+  it('lượt chưa có kế hoạch cũng thu gọn bảng finding; lượt từ 3 finding trở xuống không có nút', () => {
+    mount(<BugFindingPanel view={view([run({ findings: FIRST.findings, triage: null })], 0)} />);
+    const table = screen.getByRole('table', { name: 'Finding (4)' });
+    expect(within(table).getAllByRole('row')).toHaveLength(4);
+    fireEvent.click(screen.getByRole('button', { name: 'Xem thêm 1 finding' }));
+    expect(within(screen.getByRole('table', { name: 'Finding (4)' })).getAllByRole('row')).toHaveLength(5);
+    cleanup();
+    mount(<BugFindingPanel view={view([run({ findings: FIRST.findings?.slice(0, 3), triage: null })], 0)} />);
+    expect(screen.queryByRole('button', { name: /Xem thêm|Thu gọn/ })).toBeNull();
   });
 
   it('lượt hỏng hiện lý do', () => {

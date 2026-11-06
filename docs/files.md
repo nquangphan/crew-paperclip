@@ -268,6 +268,7 @@ File nào thuộc flow nào. Dùng `crew-docs where <file>` để tra từ dòng
 | `packages/crew-plugin/src/usage/rollup.ts` | [usage-storage](flows/usage-storage.md) (file) |
 | `packages/crew-plugin/src/worker.ts` | [crew-plugin](flows/crew-plugin.md) (điểm vào) |
 | `packages/crew-web/src/api/crew/assistant-call.ts` | [issues-web](flows/issues-web.md) (file) |
+| `packages/crew-web/src/api/crew/awaiting-owner.ts` | [issues-web](flows/issues-web.md) (file) |
 | `packages/crew-web/src/api/crew/bug-finding.ts` | [issues-web](flows/issues-web.md) (file) |
 | `packages/crew-web/src/api/crew/contributions.ts` | [contributions](flows/contributions.md) (file) |
 | `packages/crew-web/src/api/crew/data.ts` | [web-shell](flows/web-shell.md) (file) |
@@ -456,6 +457,10 @@ File nào thuộc flow nào. Dùng `crew-docs where <file>` để tra từ dòng
 | `packages/crew-web/src/features/agents/paths.ts` | [web-pages](flows/web-pages.md) (file) |
 | `packages/crew-web/src/features/agents/routes.tsx` | [web-pages](flows/web-pages.md) (điểm vào) |
 | `packages/crew-web/src/features/agents/use-agent-roles.ts` | [web-pages](flows/web-pages.md) (file) |
+| `packages/crew-web/src/features/awaiting-owner/awaiting-owner-badge.tsx` | [issues-web](flows/issues-web.md) (file) |
+| `packages/crew-web/src/features/awaiting-owner/awaiting-owner.ts` | [issues-web](flows/issues-web.md) (file) |
+| `packages/crew-web/src/features/awaiting-owner/index.ts` | [issues-web](flows/issues-web.md) (file) |
+| `packages/crew-web/src/features/awaiting-owner/use-awaiting-owner.ts` | [issues-web](flows/issues-web.md) (file) |
 | `packages/crew-web/src/features/contributions/approve-flow.ts` | [contributions](flows/contributions.md) (file) |
 | `packages/crew-web/src/features/contributions/approve-issue-dialog.tsx` | [contributions](flows/contributions.md) (file) |
 | `packages/crew-web/src/features/contributions/contribution-actions.tsx` | [contributions](flows/contributions.md) (file) |
@@ -742,6 +747,8 @@ File nào thuộc flow nào. Dùng `crew-docs where <file>` để tra từ dòng
 | `packages/crew-web/test/features/agents/rename-dialog.test.tsx` | [web-pages](flows/web-pages.md) (test) |
 | `packages/crew-web/test/features/agents/runtime-tab.test.tsx` | [web-pages](flows/web-pages.md) (test) |
 | `packages/crew-web/test/features/agents/skills-tab.test.tsx` | [web-pages](flows/web-pages.md) (test) |
+| `packages/crew-web/test/features/awaiting-owner/awaiting-owner-pages.test.tsx` | [issues-web](flows/issues-web.md) (test) |
+| `packages/crew-web/test/features/awaiting-owner/awaiting-owner.test.ts` | [issues-web](flows/issues-web.md) (test) |
 | `packages/crew-web/test/features/contributions/approve-actions.test.tsx` | [contributions](flows/contributions.md) (test) |
 | `packages/crew-web/test/features/contributions/approve-dialog.test.tsx` | [contributions](flows/contributions.md) (test) |
 | `packages/crew-web/test/features/contributions/approve-flow.test.ts` | [contributions](flows/contributions.md) (test) |
@@ -872,6 +879,7 @@ File nào thuộc flow nào. Dùng `crew-docs where <file>` để tra từ dòng
 | `server/src/__tests__/crew-agent-board-only-routes.test.ts` | [agent-guards](flows/agent-guards.md) (test) |
 | `server/src/__tests__/crew-agent-config.test.ts` | [agent-guards](flows/agent-guards.md) (test) |
 | `server/src/__tests__/crew-assistant-call.db.test.ts` | [run-handoff](flows/run-handoff.md) (test) |
+| `server/src/__tests__/crew-awaiting-owner.db.test.ts` | [issues-web](flows/issues-web.md) (test) |
 | `server/src/__tests__/crew-before-claim.test.ts` | [run-claim](flows/run-claim.md) (test) |
 | `server/src/__tests__/crew-board-child.db.test.ts` | [issue-gate](flows/issue-gate.md) (test) |
 | `server/src/__tests__/crew-bridge-allowlist.test.ts` | [model-settings](flows/model-settings.md) (test) |
@@ -934,6 +942,7 @@ File nào thuộc flow nào. Dùng `crew-docs where <file>` để tra từ dòng
 | `server/src/crew/agent-config-gate.ts` | [agent-guards](flows/agent-guards.md) (điểm vào) |
 | `server/src/crew/agent-write-guard.ts` | [agent-guards](flows/agent-guards.md) (điểm vào) |
 | `server/src/crew/assistant-call-routes.ts` | [run-handoff](flows/run-handoff.md) (điểm vào) |
+| `server/src/crew/awaiting-owner.ts` | [issues-web](flows/issues-web.md) (file) |
 | `server/src/crew/bug-finding-runs.ts` | [bug-finding](flows/bug-finding.md) (file) |
 | `server/src/crew/bundle-resume.ts` | [run-claim](flows/run-claim.md) (file) |
 | `server/src/crew/contribution-routes.ts` | [contributions](flows/contributions.md) (điểm vào) |
