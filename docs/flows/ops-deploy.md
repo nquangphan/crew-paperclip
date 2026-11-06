@@ -50,7 +50,9 @@ phối run đó. Job launchd có PPID 1, nhóm process và session riêng, cwd n
 6. `crew/ops/compose-set-image.py`: chỉ đổi image của service `server` và đảm bảo `stop_grace_period: 60s`.
 7. `crew/ops/auto-deploy.mjs` → `enqueue`: đọc `crew/release/auto-deploy.json` (`parseConfig`); repo không có file hay
    `enabled=false` thì thoát 3 không in gì, kể cả khi `--pr` là URL MR GitLab (repo origin GitLab không bật deploy tự
-   động); repo đã bật chỉ nhận `--pr` là URL pull request GitHub (`PR_URL_RE`, worker chờ bằng `gh pr view`). Xếp commit vào hàng chờ
+   động); repo đã bật chỉ nhận `--pr` là URL pull request GitHub (`PR_URL_RE`, worker chờ bằng `gh pr view`). Repo origin GitLab
+   không hỗ trợ deploy tự động: ở stage merge của ticket tổng `code-bf` GitLab, script PR ghi `deploy.txt=skip` và integrator
+   không gọi `enqueue` (`integrator.md`, Stage merge bước 4; flow `agent-roles`). Xếp commit vào hàng chờ
    (`mergeQueue`, `addWaiting` cho pull request chưa merge), khởi động worker launchd (`plistFor`, `jobEnv`), in thân
    comment `crew-deploy sha=… status=queued` cho integrator đăng.
 8. `crew/ops/auto-deploy.mjs` → `worker`, `workerLoop`: chờ pull request merge (`gh pr view`, mỗi `PR_POLL_MS`, tối đa
