@@ -91,7 +91,7 @@ Sau đó comment trên issue gốc nêu lý do và issue con vừa tạo, rồi 
 
 **Nhận diện.** Issue gốc (`parentId` rỗng) có `executionPolicy.stages` đúng 4 stage: stage 1 `review` có participant agent là bạn (ME, `GET /api/agents/me`), stage 2 `review` có participant agent khác (reviewer làm cầu nối Bug Finding), stage 3 `approval` có participant user (owner), stage 4 `review` có participant agent là bạn. Policy cũ (`code`) có stage 1 là reviewer: làm như các mục trên, không đổi gì. Ticket tổng research, tài liệu, kế hoạch không bao giờ là `code-bf`.
 
-Với `code-bf` không có reviewer Claude ở cấp gốc: bạn gộp, kiểm và mở pull request **trước**, app Bug Finding review pull request đó, owner duyệt trên Crew, rồi bạn merge pull request. Mục "Không bao giờ", "Gọi API", "Kiểm một lần trên cây đã merge", "Yêu cầu sửa" và "Lỗi server" giữ nguyên; hai mục dưới thay cho "Gộp" bước 2, "Ghi bằng chứng rồi quyết định" bước 2 và "Stage 4". Server chỉ gắn policy này khi `origin` của project ở GitHub hoặc GitLab đã nhận diện (`gitlab.com`, hay host khai báo trong `bugFinding.gitlabHosts`). Origin GitLab: script không dùng `gh` hay token mà đi đường GitLab (mở merge request bằng push option qua SSH sẵn có, kiểm conflict bằng git cục bộ, merge bằng push thường); "pull request" bên dưới là merge request, dòng bằng chứng giữ nguyên dạng với `pr=<URL merge request>`.
+Với `code-bf` không có reviewer Claude ở cấp gốc: bạn gộp, kiểm và mở pull request **trước**, app Bug Finding review pull request đó, owner duyệt trên Crew, rồi bạn merge pull request. Mục "Không bao giờ", "Gọi API", "Kiểm một lần trên cây đã merge", "Yêu cầu sửa" và "Lỗi server" giữ nguyên; hai mục dưới thay cho "Gộp" bước 2, "Ghi bằng chứng rồi quyết định" bước 2 và "Stage 4". Server chỉ gắn policy này khi `origin` của project ở GitHub hoặc GitLab đã nhận diện (`gitlab.com`, hay host khai báo trong `bugFinding.gitlabHosts`). Script nhận diện origin theo host chữ thường, cùng luật với server: `user@host:…` hoặc URL `https`/`http`/`ssh`; host `github.com` (mọi cách viết hoa, có hay không user) là GitHub; host khác ở `MODE=bf|merge` là GitLab (server đã kiểm khi gắn policy); không đọc được host (đường dẫn cục bộ, `file://`) thì `rc=2`, không mặc định GitLab. Origin GitLab: script không dùng `gh` hay token mà đi đường GitLab (mở merge request bằng push option qua SSH sẵn có, kiểm conflict bằng git cục bộ, merge bằng push thường); "pull request" bên dưới là merge request, dòng bằng chứng giữ nguyên dạng với `pr=<URL merge request>`.
 
 ### Stage gộp (stage 1): gộp, kiểm, mở hoặc cập nhật pull request
 
@@ -106,7 +106,7 @@ Khi `executionState.currentStageId` là id stage 1 và `executionState.currentPa
 4. **Mở hoặc cập nhật pull request** khi `DOCS_EXIT` là 0 hoặc 3. `T=$(git rev-parse HEAD)` (bằng `commit=` của bằng chứng vừa ghi). Tạo `D`, `$D/issue.json` và chép script ở mục "Script mở pull request" vào `$D/crew-pr.sh` đúng như Stage 4 bước 2, rồi chạy trong worktree:
    `MODE=bf T=<T> DEFAULT=<nhánh mặc định> NOTE="test <lệnh test và lệnh E2E>: pass; docs exit <DOCS_EXIT>" bash "$D/crew-pr.sh" "$D"; echo "rc=$?"`
    Script không đọc quyết định nào của owner: nó đẩy `crew/req/<identifier>` tại `T` bằng push thường, dùng lại pull request đang mở của nhánh (cập nhật tiêu đề, nội dung) hoặc mở pull request mới, rồi viết `$D/pr-comment.json` (dòng đầu `crew-pr sha=<T> pr=<URL pull request>`) và `$D/done.json` (mô tả mới có mục con `### Merge request`).
-   Origin GitLab: không dùng `gh`; script kiểm conflict của `T` với `origin/<nhánh mặc định>` bằng `git merge-tree` (conflict: `rc=7`, chưa push), rồi đẩy nhánh bằng `git push -o merge_request.create -o merge_request.target=<nhánh mặc định> -o merge_request.title=…` và lấy URL merge request từ output push (merge request đang mở của nhánh thì GitLab dùng lại và in lại link, không tạo trùng; push không đổi ref thì script tìm merge request có head `T` trong refs/merge-requests). Không lấy được URL: `rc=6`.
+   Origin GitLab: không dùng `gh`; script kiểm conflict của `T` với `origin/<nhánh mặc định>` bằng `git merge-tree` (conflict: `rc=7`, chưa push), rồi đẩy nhánh bằng `git push -o merge_request.create -o merge_request.target=<nhánh mặc định> -o merge_request.title=…` và lấy URL merge request từ output push (merge request đang mở của nhánh thì GitLab dùng lại và in lại link, không tạo trùng). Push không đổi ref (nhánh trên origin đã ở `T`) thì GitLab không in link; script không đoán merge request qua refs/merge-requests (ref head của merge request đã đóng hay đã merge vẫn còn, git không biết merge request nào đang mở của nhánh) mà thoát `rc=6`, không ghi `crew-pr`. Không lấy được URL: `rc=6`, `$D/error.txt` có hướng dẫn cho owner (đóng merge request cũ nếu còn, xóa nhánh `crew/req/<identifier>` trên GitLab rồi comment để chạy lại; lần sau script đẩy lại nhánh và mở merge request mới).
    - `rc=0`: `POST /api/issues/<id>/comments` với `-d @"$D/pr-comment.json"`; `GET /api/issues/<id>/comments` kiểm đó là comment `crew-pr` mới nhất của bạn và mới hơn bằng chứng; rồi lệnh ghi cuối `PATCH /api/issues/<id>` với `-d @"$D/done.json"`. Không sửa nội dung hai file. Server chuyển sang stage Bug Finding và tự xếp lượt review cho head pull request này.
    - `rc=7` (pull request có conflict vì nhánh mặc định vừa đi tiếp): làm lại từ bước 2 (gộp `origin/$DEFAULT` mới); conflict thật thì yêu cầu sửa như bước 2.
    - rc khác: chỉ comment `Integrator: chưa mở được pull request — <các dòng của $D/error.txt>` (thêm dòng nhờ foreman như Stage 4 bước 2 khi `rc=4`; `rc=5` thì không push lại bằng `--force`), không đổi status; lần chạy sau làm lại từ bước 2.
@@ -120,13 +120,14 @@ Khi `executionState.currentStageId` là id stage 1 và `executionState.currentPa
 3. Tạo `D`, `$D/issue.json`, chép script vào `$D/crew-pr.sh` như Stage 4 bước 2, rồi chạy:
    `MODE=merge T=<T> DEFAULT=<nhánh mặc định> HEAD_OK=<rỗng hoặc sha> PR=<URL của crew-pr> bash "$D/crew-pr.sh" "$D"; echo "rc=$?"`
    Script kiểm head pull request đúng `T` (hoặc `HEAD_OK`), chọn `--merge` (giữ commit của từng con) hay `--squash` khi repo cấm merge commit (`gh repo view --json mergeCommitAllowed`), chạy `gh pr merge <URL> --merge --match-head-commit <T>`, đọc merge commit, rồi viết `$D/merge-comment.json` (dòng đầu `crew-merge sha=<T> branch=<nhánh mặc định> pushed=merged pr=<URL pull request> merge=<sha merge>`) và `$D/done.json`.
-   Origin GitLab (không `gh`): script kiểm head nhánh `crew/req/<identifier>` trên origin đúng `T` (hoặc `HEAD_OK`, lệch: `rc=8`), rồi push thường vào nhánh mặc định: đúng commit đó khi fast-forward được, không thì một merge commit (cha: `origin/<nhánh mặc định>` và commit đó, như `--merge` của GitHub) khi `git merge-tree` gộp sạch (conflict: `rc=7`, không push); không `--force`. GitLab tự đánh dấu merge request đã merge khi commit của nó vào nhánh mặc định. `merge=` là commit đã đẩy; chạy lại khi commit đã nằm trên nhánh mặc định thì không đẩy lại. Push bị từ chối (nhánh bảo vệ, thiếu quyền): `rc=5`, xử lý như rc khác.
+   Origin GitLab (không `gh`): script kiểm head nhánh `crew/req/<identifier>` trên origin đúng `T` (hoặc `HEAD_OK`, lệch: `rc=8`), rồi push thường vào nhánh mặc định: đúng commit đó khi fast-forward được, không thì một merge commit (cha: `origin/<nhánh mặc định>` và commit đó, như `--merge` của GitHub) khi `git merge-tree` gộp sạch (conflict: `rc=7`, không push); không `--force`. GitLab tự đánh dấu merge request đã merge khi commit của nó vào nhánh mặc định. `merge=` là commit đã đẩy; chạy lại khi commit đã nằm trên nhánh mặc định thì không đẩy lại. Push lỗi thì script fetch lại nhánh mặc định trước khi kết luận: commit đã vào (mất kết nối sau khi GitLab cập nhật ref) thì `rc=0` với `merge=` đúng; chưa vào thì `rc=5` (bị từ chối: nhánh bảo vệ, thiếu quyền, nhánh mặc định vừa đi tiếp); không fetch lại được thì `rc=6` "chưa rõ" (không báo "bị từ chối", lần chạy sau kiểm lại). Xử lý `rc=5`, `rc=6` như rc khác.
+   Origin GitLab, Crew duyệt là cổng duy nhất: script push commit đã duyệt thẳng vào nhánh mặc định, nên pipeline bắt buộc ("Pipelines must succeed") và approval rule của merge request trên GitLab **không** được xét, và trạng thái merge request trên GitLab (đã đóng hay còn mở) cũng không được xét ở stage merge. Project GitLab chạy `code-bf` không được dựa vào pipeline hay approval rule của GitLab để chặn merge.
    - `rc=0`: `POST /api/issues/<id>/comments` với `-d @"$D/merge-comment.json"` (không sửa nội dung), rồi bước 4.
    - `rc=7` (conflict): comment `Integrator: chưa merge được — conflict`, dòng sau là nội dung `$D/error.txt`, rồi một dòng nhờ owner xử lý conflict trên GitHub hoặc GitLab (gộp nhánh mặc định vào nhánh yêu cầu, hoặc comment yêu cầu sửa) và comment lại trên issue để đánh thức bạn. Không tự gộp, không sửa conflict, không đổi status; dừng.
    - `rc=8` (head pull request khác commit owner duyệt, hay không còn pull request của nhánh): comment `Integrator: không merge — <các dòng của $D/error.txt>`, không đổi status, dừng.
    - `rc=9` (`HEAD_OK` có commit ngoài merge nhánh mặc định, tức code chưa được owner duyệt): comment `Integrator: không merge — head pull request có commit chưa được owner duyệt`, dòng sau là nội dung `$D/error.txt`, rồi một dòng nhờ owner chỉ gộp nhánh mặc định vào nhánh (không thêm commit khác) hoặc duyệt lại commit mới trên Crew. Không đổi status; dừng.
    - rc khác: comment `Integrator: chưa merge được — <các dòng của $D/error.txt>` (nhánh bảo vệ đòi review hay check, thiếu quyền, `gh` chưa đăng nhập: nhờ owner xử lý rồi comment lại), không đổi status, dừng. Lần chạy sau bắt đầu lại từ bước 1.
-4. **Deploy tự động** như Stage 4 bước 7b, thêm `--pr <URL pull request>` vào cuối lệnh `enqueue` (pull request đã merge nên job deploy ngay merge commit trên nhánh cấu hình).
+4. **Deploy tự động** theo `$D/deploy.txt` do script viết ở bước 3. `skip` (origin GitLab): bỏ qua hẳn bước này, không chạy `enqueue`, không comment `crew-deploy`: repo GitLab không hỗ trợ auto-deploy (`enqueue` chỉ nhận `--pr` là URL pull request GitHub, kể cả khi repo có `crew/release/auto-deploy.json` bật); foreman deploy tay nếu cần. `pr` (origin GitHub): như Stage 4 bước 7b, thêm `--pr <URL pull request>` vào cuối lệnh `enqueue` (pull request đã merge nên job deploy ngay merge commit trên nhánh cấu hình).
 5. Lệnh ghi cuối: `PATCH /api/issues/<id>` với `-d @"$D/done.json"` (không sửa nội dung). Trước khi gửi, comment `crew-merge … pushed=merged` mới nhất của bạn phải là dòng mới nhất (sau nó chỉ được có comment `crew-deploy`). Server chặn `done` khi thiếu `crew-merge … pushed=merged pr=<URL> merge=<sha>` mới hơn quyết định của owner (`merge_missing`) hoặc `sha` khác `commit=` của bằng chứng (`push_sha_mismatch`). 422: run đã bị hủy, dừng.
 
 ## Stage 4: giao code sau khi owner duyệt (pull request trên GitHub)
@@ -189,12 +190,13 @@ Dùng ở bước 2 của stage 4 (policy cũ, `MODE` bỏ trống), ở stage g
 #   mọi commit trong T..HEAD_OK chưa có trên origin/DEFAULT phải là merge commit có cha thứ hai nằm trên origin/DEFAULT).
 #   Origin không ở GitHub với MODE=bf|merge (ticket tổng code-bf chỉ có khi origin ở GitLab): không dùng gh hay API.
 #   MODE=bf mở/dùng lại merge request bằng push option merge_request.* và lấy URL MR từ output push (push không đổi ref
-#   thì tìm MR có head T trong refs/merge-requests); conflict tính bằng git merge-tree cục bộ. MODE=merge (PR = URL MR
+#   thì thoát 6, không đoán MR qua refs/merge-requests); conflict tính bằng git merge-tree cục bộ. MODE=merge (PR = URL MR
 #   trong crew-pr của T) kiểm head nhánh MR trên origin đúng T (hoặc HEAD_OK) rồi push thường vào nhánh mặc định:
 #   đúng commit đó khi fast-forward được, không thì merge commit (cha: origin/DEFAULT, commit đó); GitLab tự đánh dấu MR merged.
 # Vào: "$D/issue.json" = JSON của GET /api/issues/<id gốc>.
 # Ra (thoát 0): "$D/pr-url.txt", "$D/done.json" (PATCH done kèm mô tả mới), và "$D/merge-comment.json" ({"body":…},
-#   MODE=owner|merge) hoặc "$D/pr-comment.json" ({"body":…}, MODE=bf).
+#   MODE=owner|merge) hoặc "$D/pr-comment.json" ({"body":…}, MODE=bf). MODE=merge thêm "$D/deploy.txt": `pr` (origin GitHub,
+#   deploy tự động với --pr) hoặc `skip` (origin GitLab, không deploy tự động).
 # Thoát: 0 xong; 3 origin không ở GitHub và MODE=owner (dùng push thẳng); 2 thiếu dữ liệu; 4 gh không dùng được;
 # 5 push bị từ chối; 6 gh/git lỗi khi tìm/tạo/đọc/merge PR hoặc MR; 7 PR/MR có conflict (MODE=bf|merge);
 # 8 không có PR đúng commit T, hay head nhánh MR khác commit được duyệt (MODE=merge);
@@ -220,18 +222,25 @@ HEAD_OK=${HEAD_OK:-}
 export MODE HEAD_OK
 git cat-file -e "${T}^{commit}" 2>/dev/null || fail 2 "không có commit $T trong repo"
 origin=$(git remote get-url origin 2>/dev/null) || fail 2 "repo không có remote origin"
-case "$origin" in
-  https://github.com/* | https://*@github.com/* | git@github.com:* | ssh://git@github.com/*) provider=github ;;
-  *) [ "$MODE" != owner ] || exit 3; provider=gitlab ;;
-esac
-if [ "$provider" = github ]; then
-  repo=$(printf '%s' "$origin" | sed -E 's#^(https://([^@/]*@)?github\.com/|git@github\.com:|ssh://git@github\.com/)##; s#/+$##; s#\.git$##')
-else
-  # Trang web project GitLab, chỉ để dựng lại URL MR khi push không in link: bỏ credential, cổng SSH, đuôi .git.
-  web=$(printf '%s' "$origin" | sed -E 's#^https://([^@/]*@)?#https://#; s#^ssh://([^@/]*@)?([^/:]+)(:[0-9]+)?/#https://\2/#; s#^[^@/:]+@([^:/]+):#https://\1/#; s#/+$##; s#\.git$##')
+# Host (chữ thường) và đường dẫn của origin theo đúng luật originHost của server (issue-create-policy.ts): `user@host:path`
+# (không có ://), hay URL https/http/ssh. Chỉ in host và đường dẫn, không in credential.
+hostpath=$(node -e 'const u = String(process.argv[1] ?? "").trim(); let h = "", p = "";
+const scp = /^[^@/\s]+@([^:/\s]+):(.*)$/.exec(u);
+if (scp && !u.includes("://")) { h = scp[1]; p = scp[2]; }
+else { try { const x = new URL(u); if (["https:", "http:", "ssh:"].includes(x.protocol) && x.hostname) { h = x.hostname; p = x.pathname; } } catch {} }
+if (h) process.stdout.write(h.toLowerCase() + " " + p.replace(/^\/+/, "").replace(/\/+$/, "").replace(/\.git$/, ""));' "$origin")
+host=${hostpath%% *}
+# github.com là GitHub. Host khác: MODE=owner thoát 3 (push thẳng); MODE=bf|merge là GitLab (server chỉ gắn code-bf khi origin
+# là GitHub hay GitLab đã nhận diện). Không đọc được host (đường dẫn cục bộ, file://): không phải GitHub hay GitLab.
+if [ "$host" = github.com ]; then provider=github
+elif [ "$MODE" = owner ]; then exit 3
+elif [ -n "$host" ]; then provider=gitlab
+else fail 2 "origin không phải GitHub hay GitLab (không đọc được host https/ssh): ticket code-bf cần origin GitHub hoặc GitLab"
 fi
+export PROVIDER=$provider
 origin=
 if [ "$provider" = github ]; then
+  repo=${hostpath#* }
   printf '%s' "$repo" | grep -qE '^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$' || fail 2 "không nhận ra owner/repo GitHub của origin"
   command -v gh > /dev/null 2>&1 || fail 4 "máy không có lệnh gh"
   gh api user --jq .login > "$D/out.txt" 2>&1 || fail 4 "gh chưa đăng nhập hoặc không đọc được token (keychain khóa?)"
@@ -242,6 +251,7 @@ const fs = require("fs");
 const [cmd, D, T, DEF] = process.argv.slice(2);
 const MODE = process.env.MODE || "owner";
 const HEAD_OK = process.env.HEAD_OK || "";
+const GITLAB = process.env.PROVIDER === "gitlab";
 const NOTE = String(process.env.NOTE ?? "").replace(/\s+/g, " ").trim().slice(0, 400);
 const issue = JSON.parse(fs.readFileSync(`${D}/issue.json`, "utf8"));
 const ident = String(issue.identifier ?? "");
@@ -346,7 +356,10 @@ if (cmd === "meta") {
     write("pr-comment.json", JSON.stringify({ body: lines.join("\n") }));
     write("done.json", JSON.stringify({ status: "done", description: next, comment: `Integrator: approve — ${head} tại ${T}, pull request ${url}${note}; chờ Bug Finding review` }));
   } else if (MODE === "merge") {
-    const lines = [`crew-merge sha=${T} branch=${DEF} pushed=merged pr=${url} merge=${merge}`, "", `Đã merge pull request ${url} vào \`${DEF}\`: commit owner duyệt \`${T}\`, merge commit \`${merge}\`.`, ...extra.map((l) => l.slice(2) + "."), updated];
+    // Deploy tự động (integrator.md, Stage merge bước 4): `pr` thì enqueue với --pr <URL>; `skip` (origin GitLab) thì không gọi enqueue.
+    write("deploy.txt", GITLAB ? "skip" : "pr");
+    const noDeploy = GITLAB ? ["Origin GitLab: không deploy tự động (repo GitLab không hỗ trợ auto-deploy), không chạy `enqueue`."] : [];
+    const lines = [`crew-merge sha=${T} branch=${DEF} pushed=merged pr=${url} merge=${merge}`, "", `Đã merge pull request ${url} vào \`${DEF}\`: commit owner duyệt \`${T}\`, merge commit \`${merge}\`.`, ...extra.map((l) => l.slice(2) + "."), ...noDeploy, updated];
     write("merge-comment.json", JSON.stringify({ body: lines.join("\n") }));
     write("done.json", JSON.stringify({ status: "done", description: next, comment: `Integrator: approve — đã merge pull request ${url} vào \`${DEF}\` tại ${merge} (commit owner duyệt ${T})` }));
   } else {
@@ -405,13 +418,9 @@ if [ "$provider" = gitlab ]; then
     git merge-base --is-ancestor "$base" "$T" || mergetree
     git push -o merge_request.create -o "merge_request.target=${DEFAULT}" -o "merge_request.title=$(cat "$D/pr-title.txt")" origin "${T}:refs/heads/${branch}" > "$D/out.txt" 2>&1 || fail 5 "push nhánh $branch bị từ chối (nhánh trên origin đã đi khác commit $T, hoặc thiếu quyền). Không push lại bằng --force: owner đóng MR cũ và xóa nhánh $branch trên GitLab rồi comment để chạy lại."
     url=$(grep -Eo "$MR_RE" "$D/out.txt" | tail -1)
-    if [ -z "$url" ]; then
-      # Push không đổi ref (nhánh đã ở T) thì GitLab không in link: tìm MR có head là T.
-      git ls-remote origin 'refs/merge-requests/*/head' > "$D/mrs.txt" 2> "$D/out.txt" || fail 6 "không đọc được refs/merge-requests trên origin"
-      iid=$(awk -v t="$T" '$1 == t { split($2, p, "/"); print p[3] }' "$D/mrs.txt" | sort -n | tail -1)
-      [ -z "$iid" ] || url="$web/-/merge_requests/$iid"
-    fi
-    printf '%s' "$url" | grep -qxE "$MR_RE" || { : > "$D/out.txt"; fail 6 "không lấy được URL merge request của nhánh $branch từ output push"; }
+    # Push không đổi ref (nhánh đã ở T) thì GitLab không in link. Không đoán MR qua refs/merge-requests: ref head của MR
+    # đã đóng hay đã merge vẫn còn, git không biết MR nào đang mở của nhánh này.
+    printf '%s' "$url" | grep -qxE "$MR_RE" || { : > "$D/out.txt"; fail 6 "không lấy được URL merge request của nhánh $branch từ output push: không xác định được merge request đang mở của nhánh $branch (nhánh trên origin đã ở $T nên push không cập nhật gì, hoặc GitLab không mở được merge request). Không push lại bằng --force: owner đóng merge request cũ của nhánh (nếu còn), xóa nhánh $branch trên GitLab rồi comment để chạy lại; lần chạy sau đẩy lại nhánh và mở merge request mới."; }
     state=OPEN
   else
     url=$PR
@@ -429,7 +438,12 @@ if [ "$provider" = gitlab ]; then
         mergetree
         merge=$(git commit-tree "$(head -1 "$D/tree.txt")" -p "$base" -p "$want" -m "Merge branch '${branch}' into ${DEFAULT}" 2> "$D/out.txt") || fail 6 "không tạo được merge commit"
       fi
-      git push origin "${merge}:refs/heads/${DEFAULT}" > "$D/out.txt" 2>&1 || fail 5 "push vào $DEFAULT bị từ chối (nhánh bảo vệ, thiếu quyền, hoặc $DEFAULT vừa đi tiếp). Không push lại bằng --force."
+      if ! git push origin "${merge}:refs/heads/${DEFAULT}" > "$D/out.txt" 2>&1; then
+        # Push lỗi (kể cả mất kết nối sau khi GitLab đã cập nhật ref): đọc lại nhánh mặc định rồi mới kết luận.
+        cp "$D/out.txt" "$D/push.txt"
+        git fetch origin "+refs/heads/${DEFAULT}:refs/remotes/origin/${DEFAULT}" > "$D/out.txt" 2>&1 || { cat "$D/push.txt" "$D/out.txt" > "$D/both.txt"; mv "$D/both.txt" "$D/out.txt"; fail 6 "push vào $DEFAULT lỗi và không đọc lại được $DEFAULT trên origin: chưa rõ commit $merge đã vào $DEFAULT hay chưa. Không push lại bằng --force; lần chạy sau kiểm lại (commit đã vào $DEFAULT thì không đẩy lại)."; }
+        git merge-base --is-ancestor "$merge" "$base" || { cp "$D/push.txt" "$D/out.txt"; fail 5 "push vào $DEFAULT bị từ chối (nhánh bảo vệ, thiếu quyền, hoặc $DEFAULT vừa đi tiếp). Không push lại bằng --force."; }
+      fi
     fi
     state=MERGED
   fi

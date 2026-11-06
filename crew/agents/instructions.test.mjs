@@ -1461,6 +1461,17 @@ test("integrator: ticket tổng code-bf với origin GitLab mở MR bằng push 
   assert.match(text, /9\. Ở stage 4 khi `origin` ở GitHub: push vào nhánh mặc định, chạy `gh pr merge`[^\n]*origin GitLab[^\n]*chỉ script `MODE=merge` đẩy vào nhánh mặc định/);
   // Ticket thường có origin không ở GitHub vẫn push thẳng (rc=3).
   assert.ok(text.includes("`rc=3`: `origin` không ở GitHub: làm bước 3–6"));
+  // F-09: không đoán MR qua refs/merge-requests khi push không đổi ref.
+  assert.match(stage1, /script không đoán merge request qua refs\/merge-requests[^\n]*thoát `rc=6`, không ghi `crew-pr`/);
+  // F-13: nhận diện host như server, host lạ không mặc định GitLab.
+  assert.match(bf, /host `github\.com` \(mọi cách viết hoa, có hay không user\) là GitHub/);
+  assert.match(bf, /không đọc được host \(đường dẫn cục bộ, `file:\/\/`\) thì `rc=2`, không mặc định GitLab/);
+  // F-16: push lỗi được kiểm lại, không báo "bị từ chối" khi chưa rõ.
+  assert.match(stage4, /Push lỗi thì script fetch lại nhánh mặc định trước khi kết luận[^\n]*`rc=6` "chưa rõ" \(không báo "bị từ chối"/);
+  // F-07, F-08: Crew duyệt là cổng duy nhất với origin GitLab.
+  assert.match(stage4, /Origin GitLab, Crew duyệt là cổng duy nhất[^\n]*pipeline bắt buộc[^\n]*approval rule của merge request trên GitLab \*\*không\*\* được xét[^\n]*trạng thái merge request trên GitLab \(đã đóng hay còn mở\) cũng không được xét ở stage merge/);
+  // F-10, F-17: origin GitLab không gọi enqueue.
+  assert.match(stage4, /4\. \*\*Deploy tự động\*\* theo `\$D\/deploy\.txt`[^\n]*`skip` \(origin GitLab\): bỏ qua hẳn bước này, không chạy `enqueue`, không comment `crew-deploy`: repo GitLab không hỗ trợ auto-deploy[^\n]*`pr` \(origin GitHub\): như Stage 4 bước 7b, thêm `--pr <URL pull request>`/);
 });
 
 test("reviewer: ticket tổng code-bf là cầu nối Bug Finding theo luật cố định, đọc route kết quả, không đọc code, không tin comment", () => {
