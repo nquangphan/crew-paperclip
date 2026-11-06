@@ -1453,7 +1453,9 @@ test("reviewer: ticket tổng code-bf là cầu nối Bug Finding theo luật c�
     "`request_confirmation`",
     "crew-bf-skip:<id issue>:",
     "Bug Finding không chạy được: <lý do>. Bỏ qua Bug Finding cho yêu cầu này?",
-    "`crew-bf:<id issue>:<approvalRound>-`",
+    "`crew-bf:<id issue>:` (mọi vòng",
+    "tách theo dấu phẩy",
+    "cùng `rule` (khác `UNCATEGORIZED`) và cùng file của `location`",
     "Route not allowed",
   ]) assert.ok(bf.includes(needle), `mục cầu nối thiếu: ${needle}`);
   const changes = /`(\{"status":"in_progress","comment":"Reviewer: cần sửa — Bug Finding[^`]*\})`/.exec(bf);
@@ -1497,7 +1499,19 @@ test("assistant: xử lý finding Bug Finding theo bảng tự sửa / hỏi own
     "crew-fix base=<head PR>",
     "e2e-fix-bf<k>",
     "### Cần owner quyết định",
+    // Bug Finding không ghi `action`: thiếu không chặn tự sửa; câu hỏi của owner đến từ `decision_items`.
+    "`action` không bắt buộc: thiếu (`null`) không chặn",
+    "`question` rỗng",
+    "`Q-01: <câu hỏi>`",
+    // Câu trả lời của owner dùng lại qua mọi vòng, khớp theo rule + file hoặc tiêu đề.
+    "`crew-bf:<id gốc>:` (mọi `approvalRound`",
+    "cùng `rule` (khác `UNCATEGORIZED`) và cùng file của `location`",
+    // Một câu cho mỗi mục hỏi, `id` là các finding nối bằng dấu phẩy.
+    "Finding có `question` giống hệt nhau (cùng mục hỏi của Bug Finding) chung **một** câu",
+    '{"id":"<F-xx>[,<F-yy>…]"',
   ]) assert.ok(bf.includes(needle), `mục finding thiếu: ${needle}`);
+  const fixRow = bf.split("\n").find((l) => l.startsWith("| **Tự sửa** |"));
+  assert.doesNotMatch(fixRow, /`action` là `CODE_FIX` hoặc `TEST_FIX`;/, "tự sửa không còn đòi action");
   // Dòng kế hoạch lô khớp gate server.
   const triage = /`(crew-bf-triage run=<n> batch=bf-fix-<k> fix=[^`]+)`/.exec(bf);
   assert.ok(triage, "thiếu dòng mẫu crew-bf-triage");
