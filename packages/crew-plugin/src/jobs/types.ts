@@ -57,9 +57,12 @@ export type JobPayload =
    */
   | ({ kind: "bug-finding-review" } & BugFindingReviewPayload);
 
+/** Nơi có pull request (GitHub) hoặc merge request (GitLab) cần review; lấy theo URL `crew-pr`, không theo cấu hình. */
+export type PrProvider = "github" | "gitlab";
+
 export interface BugFindingReviewPayload {
   requestId: string; issueId: string; identifier: string; run: number; projectId: string; projectKey: string;
-  repoPath: string; provider: "github"; prNumber: number; prUrl: string; headSha: string; baseBranch: string;
+  repoPath: string; provider: PrProvider; prNumber: number; prUrl: string; headSha: string; baseBranch: string;
   reviewerInputText?: string;
 }
 /** Phản hồi người review gửi kèm lượt chạy lại (khối `crew-bf-feedback` của Trợ Lý), tối đa chừng này ký tự. */
