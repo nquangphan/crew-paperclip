@@ -5,7 +5,7 @@ import type {
   BugFindingRunView,
   BugFindingView,
 } from '@crew/paperclip-plugin/shared/bug-finding';
-import type { ReactNode } from 'react';
+import { type ReactNode, useId, useState } from 'react';
 import { useBugFinding } from '@/api';
 import type { StageStripItem } from '@/ds';
 import {
@@ -45,6 +45,8 @@ const OPEN_STATUSES = new Set(['OPEN', 'STILL_PRESENT', 'REGRESSED', 'PARTIALLY_
 const OPEN_RUN_STATES = new Set(['requested', 'queued', 'running']);
 const BROKEN_RUN_STATES = new Set(['failed', 'timeout', 'cancelled']);
 const PR_NUMBER = /\/pull\/(\d+)(?:$|[/?#])/;
+/** Thẻ lượt mặc định chỉ hiện chừng này finding đầu (theo thứ tự nhóm); nút "Xem thêm" mở hết. */
+export const FINDINGS_COLLAPSED = 3;
 
 export const sha12 = (sha: string) => sha.slice(0, 12);
 export function prNumberOf(url: string | null | undefined): string | null {
@@ -114,8 +116,30 @@ function FindingTable({
   );
 }
 
-/** Ba nhóm theo kế hoạch `crew-bf-triage` của Trợ Lý; finding không có trong kế hoạch vào nhóm "khác". */
-function TriageGroups({ run, triage }: { run: BugFindingRunView; triage: BugFindingRunTriage }) {
+/** Cắt các nhóm theo thứ tự, tổng không quá `limit` finding (`null` là không cắt). */
+function takeRows<T>(groups: T[][], limit: number | null): T[][] {
+  if (limit === null) return groups;
+  let left = limit;
+  return groups.map((group) => {
+    const shown = group.slice(0, Math.max(0, left));
+    left -= shown.length;
+    return shown;
+  });
+}
+
+/**
+ * Ba nhóm theo kế hoạch `crew-bf-triage` của Trợ Lý; finding không có trong kế hoạch vào nhóm "khác". `limit` cắt số
+ * dòng hiện (nhãn bảng vẫn ghi đủ số finding của nhóm), dải số đếm ba nhóm luôn hiện.
+ */
+function TriageGroups({
+  run,
+  triage,
+  limit,
+}: {
+  run: BugFindingRunView;
+  triage: BugFindingRunTriage;
+  limit: number | null;
+}) {
   const { t } = useT('issues');
   const findings = run.findings ?? [];
   const byId = new Map(findings.map((f) => [f.id, f]));
@@ -125,6 +149,7 @@ function TriageGroups({ run, triage }: { run: BugFindingRunView; triage: BugFind
   const dismiss = pick(triage.dismiss);
   const planned = new Set([...triage.fix, ...triage.ask, ...triage.dismiss]);
   const other = findings.filter((f) => !planned.has(f.id));
+  const [fixRows = [], askRows = [], dismissRows = [], otherRows = []] = takeRows([fix, ask, dismiss, other], limit);
   const fixIssues = Object.values(triage.fixIssues).flat();
   const uniqueFix = [...new Map(fixIssues.map((i) => [i.id, i])).values()];
   const fixDone = uniqueFix.filter((i) => i.status === 'done').length;
@@ -150,7 +175,7 @@ function TriageGroups({ run, triage }: { run: BugFindingRunView; triage: BugFind
           </MutedText>
         ) : null}
       </div>
-      {fix.length ? (
+      {fixRows.length ? (
         <FindingTable
           label={t('bugFinding.group.fix', { count: fix.length })}
           head={[
@@ -160,7 +185,7 @@ function TriageGroups({ run, triage }: { run: BugFindingRunView; triage: BugFind
             t('bugFinding.col.fixIssue'),
             t('bugFinding.col.status'),
           ]}
-          rows={fix.map((f) => {
+          rows={fixRows.map((f) => {
             const issues = triage.fixIssues[f.id] ?? [];
             return {
               key: f.id,
@@ -205,12 +230,12 @@ function TriageGroups({ run, triage }: { run: BugFindingRunView; triage: BugFind
           })}
         />
       ) : null}
-      {ask.length ? (
+      {askRows.length ? (
         <div className="flex flex-col gap-1">
           <FindingTable
             label={t('bugFinding.group.ask', { count: ask.length })}
             head={[t('bugFinding.col.finding'), t('bugFinding.col.severity'), t('bugFinding.col.question')]}
-            rows={ask.map((f) => ({
+            rows={askRows.map((f) => ({
               key: f.id,
               cells: (
                 <>
@@ -226,11 +251,11 @@ function TriageGroups({ run, triage }: { run: BugFindingRunView; triage: BugFind
           <MutedText>{t('bugFinding.askHint')}</MutedText>
         </div>
       ) : null}
-      {dismiss.length ? (
+      {dismissRows.length ? (
         <FindingTable
           label={t('bugFinding.group.dismiss', { count: dismiss.length })}
           head={[t('bugFinding.col.finding'), t('bugFinding.col.severity'), t('bugFinding.col.reason')]}
-          rows={dismiss.map((f) => ({
+          rows={dismissRows.map((f) => ({
             key: f.id,
             cells: (
               <>
@@ -244,8 +269,8 @@ function TriageGroups({ run, triage }: { run: BugFindingRunView; triage: BugFind
           }))}
         />
       ) : null}
-      {other.length ? (
-        <PlainFindings label={t('bugFinding.group.other', { count: other.length })} findings={other} />
+      {otherRows.length ? (
+        <PlainFindings label={t('bugFinding.group.other', { count: other.length })} findings={otherRows} />
       ) : null}
     </div>
   );
@@ -291,10 +316,14 @@ function runLabel(t: Translate, run: BugFindingRunView): string {
 
 function RunCard({ run, maxRuns }: { run: BugFindingRunView; maxRuns: number }) {
   const { t, lang } = useT('issues');
+  const [expanded, setExpanded] = useState(false);
+  const findingsId = useId();
   const label = runLabel(t, run);
   const pr = prNumberOf(run.prUrl);
   const findings = run.findings ?? [];
   const spent = minutes(run);
+  const collapsible = run.state === 'succeeded' && findings.length > FINDINGS_COLLAPSED;
+  const limit = collapsible && !expanded ? FINDINGS_COLLAPSED : null;
   const costLine = [
     run.costUsd !== null ? formatUsd(run.costUsd, lang) : null,
     spent !== null ? t('bugFinding.minutes', { count: spent }) : null,
@@ -364,18 +393,39 @@ function RunCard({ run, maxRuns }: { run: BugFindingRunView; maxRuns: number }) 
           ) : null}
           {run.state === 'skipped' ? <MutedText>{t('bugFinding.skipped')}</MutedText> : null}
           {run.state === 'succeeded' ? (
-            run.triage ? (
-              <TriageGroups run={run} triage={run.triage} />
-            ) : findings.length ? (
-              <>
-                {findings.some((f) => OPEN_STATUSES.has(f.status)) ? (
-                  <MutedText>{t('bugFinding.noTriage')}</MutedText>
-                ) : null}
-                <PlainFindings label={t('bugFinding.group.all', { count: findings.length })} findings={findings} />
-              </>
-            ) : (
-              <MutedText>{t('bugFinding.noFindings')}</MutedText>
-            )
+            <div id={findingsId} className="flex flex-col gap-3">
+              {run.triage ? (
+                <TriageGroups run={run} triage={run.triage} limit={limit} />
+              ) : findings.length ? (
+                <>
+                  {findings.some((f) => OPEN_STATUSES.has(f.status)) ? (
+                    <MutedText>{t('bugFinding.noTriage')}</MutedText>
+                  ) : null}
+                  <PlainFindings
+                    label={t('bugFinding.group.all', { count: findings.length })}
+                    findings={limit === null ? findings : findings.slice(0, limit)}
+                  />
+                </>
+              ) : (
+                <MutedText>{t('bugFinding.noFindings')}</MutedText>
+              )}
+            </div>
+          ) : null}
+          {collapsible ? (
+            <div className="flex">
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                aria-expanded={expanded}
+                aria-controls={findingsId}
+                onClick={() => setExpanded((v) => !v)}
+              >
+                {expanded
+                  ? t('bugFinding.showLess')
+                  : t('bugFinding.showMore', { count: findings.length - FINDINGS_COLLAPSED })}
+              </Button>
+            </div>
           ) : null}
         </CardContent>
       </Card>

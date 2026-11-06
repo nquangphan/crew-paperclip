@@ -36,6 +36,10 @@ test.describe('ticket tổng code-bf (root-bf)', () => {
     await expect(fix).toContainText('Lọc ngày dùng giờ máy');
     await expect(fix).toContainText('TPS-651');
     await expect(first.getByRole('table', { name: 'Cần owner chốt (1)' })).toContainText('Có cần giới hạn 12 tháng?');
+    // Mặc định chỉ hiện 3 finding đầu; "Xem thêm" mở nhóm bỏ qua.
+    await expect(first.getByRole('table', { name: 'Trợ Lý bỏ qua (1)' })).toHaveCount(0);
+    await first.getByRole('button', { name: 'Xem thêm 1 finding' }).click();
+    await expect(first.getByRole('button', { name: 'Thu gọn' })).toHaveAttribute('aria-expanded', 'true');
     await expect(first.getByRole('table', { name: 'Trợ Lý bỏ qua (1)' })).toContainText(
       'Có từ trước PR này, ngoài phạm vi yêu cầu.',
     );
