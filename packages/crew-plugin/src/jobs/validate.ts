@@ -1,8 +1,9 @@
 import { UUID } from "../shared/db.js";
+import { parsePrUrl } from "./pr-url.js";
 import { maskUrlUserinfo, sanitizeJobError } from "./sanitize.js";
 import {
   BUG_FINDING_INPUT_MAX, CREW_ROLE_SLOTS, type CrewRoleSlot, DESIGNER_CHECKOUT, MAX_EXECUTORS, type JobPayload, type JobResult, KEPT_CHECKOUT_REASONS, type KeptCheckoutReason, MACHINE_JOB_KINDS,
-  type MachineJobKind, type PrProvider, type WorkspaceRole,
+  type MachineJobKind, type WorkspaceRole,
 } from "./types.js";
 
 /** Same rule as the app's project key. */
@@ -39,23 +40,7 @@ const KEYS: Record<MachineJobKind, readonly string[]> = {
 };
 const IDENTIFIER = /^[A-Z][A-Z0-9]{0,9}-[1-9][0-9]{0,8}$/;
 const HEAD_SHA = /^[0-9a-f]{40}$/;
-/** URL pull request GitHub, giống `GITHUB_PR_URL` của server (`server/src/crew/issue-policy.ts`). */
-export const GITHUB_PR_URL = /^https:\/\/github\.com\/[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+\/pull\/([1-9][0-9]*)$/;
-/**
- * URL merge request GitLab (gitlab.com hoặc tự host, có thể kèm cổng): `https://<host>/<group>[/<subgroup>…]/<repo>/-/merge_requests/<iid>`.
- * Mỗi đoạn đường dẫn theo luật path của GitLab (chữ, số, `_`, `-`, `.`; không bắt đầu bằng `-` hay `.`), nên `/-/` chỉ là dấu
- * tách của GitLab. github.com không có MR.
- */
-export const GITLAB_MR_URL =
-  /^https:\/\/(?!github\.com[:/])[A-Za-z0-9][A-Za-z0-9.-]*(?::[0-9]{1,5})?(?:\/[A-Za-z0-9_][A-Za-z0-9_.-]*){2,}\/-\/merge_requests\/([1-9][0-9]*)$/;
-
-/** Provider và số PR/MR (`iid` với GitLab) của URL `crew-pr`; URL lạ trả `null`. */
-export function parsePrUrl(url: string): { provider: PrProvider; number: number } | null {
-  const github = GITHUB_PR_URL.exec(url);
-  if (github) return { provider: "github", number: Number(github[1]) };
-  const gitlab = GITLAB_MR_URL.exec(url);
-  return gitlab ? { provider: "gitlab", number: Number(gitlab[1]) } : null;
-}
+export { GITHUB_PR_URL, GITLAB_MR_URL, parsePrUrl } from "./pr-url.js";
 
 const isObject = (value: unknown): value is Record<string, unknown> =>
   !!value && typeof value === "object" && !Array.isArray(value);
