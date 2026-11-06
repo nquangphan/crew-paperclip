@@ -231,6 +231,10 @@ interface FilterOption {
   label: string;
   /** Glyph trạng thái đứng trước nhãn. */
   status?: string;
+  /** Nội dung hiện thay cho `label` (vd. nhãn máy có chỉ báo); có `content` hay `count` thì `label` là tên đọc màn hình của ô tích. */
+  content?: React.ReactNode;
+  /** Số yêu cầu khớp lựa chọn, hiện ở mép phải. */
+  count?: number;
 }
 
 interface FilterSection {
@@ -289,15 +293,31 @@ function ToolbarFilterMenu({ label, title, clearLabel, activeCount, onClear, sec
                       <label
                         key={o.value}
                         htmlFor={id}
-                        className="flex cursor-pointer items-center gap-2 rounded-sm px-2 py-1 hover:bg-accent/50"
+                        className={cn(
+                          'flex cursor-pointer gap-2 rounded-sm px-2 py-1 hover:bg-accent/50',
+                          o.content ? 'items-start [&>button]:mt-0.5' : 'items-center',
+                        )}
                       >
                         <Checkbox
                           id={id}
                           checked={checked}
+                          aria-label={o.content || o.count !== undefined ? o.label : undefined}
                           onCheckedChange={() => section.onChange(checked ? '' : o.value)}
                         />
                         {o.status ? <StatusGlyph status={o.status} size="sm" /> : null}
-                        <span className="min-w-0 truncate text-sm">{o.label}</span>
+                        {o.content ? (
+                          <span className="flex min-w-0 flex-1">{o.content}</span>
+                        ) : (
+                          <span className="min-w-0 truncate text-sm">{o.label}</span>
+                        )}
+                        {o.count !== undefined ? (
+                          <span
+                            data-testid="filter-option-count"
+                            className="ml-auto shrink-0 text-xs text-muted-foreground tabular-nums"
+                          >
+                            {o.count}
+                          </span>
+                        ) : null}
                       </label>
                     );
                   })}
@@ -458,6 +478,8 @@ interface IssueListRowProps extends Omit<React.HTMLAttributes<HTMLDivElement>, '
   /** Mũi tên mở/thu task con, hoặc `<TreeSpacer/>`. */
   leading?: React.ReactNode;
   titleSuffix?: React.ReactNode;
+  /** Dòng phụ dưới tiêu đề, chỉ hiện dưới `sm` (cột phụ bị ẩn), vd. nhãn máy. */
+  subline?: React.ReactNode;
   /** Cột phụ bên phải (giai đoạn, người làm, project…). */
   metadata?: React.ReactNode;
   identifier?: string | null;
@@ -474,6 +496,7 @@ function IssueListRow({
   chevronInGuide = false,
   leading,
   titleSuffix,
+  subline,
   metadata,
   identifier,
   time,
@@ -491,6 +514,7 @@ function IssueListRow({
       {...rest}
     >
       <NavAnchor
+        data-slot="task-row-link"
         href={href}
         onOpen={onOpen}
         aria-label={title}
@@ -523,14 +547,21 @@ function IssueListRow({
         {leading}
         <StatusGlyph status={status} title={statusLabel} />
       </span>
-      <span className="flex min-w-0 flex-1 items-baseline gap-1.5 sm:items-center">
-        <span data-slot="task-row-title" className="line-clamp-2 min-w-0 text-sm sm:line-clamp-none sm:truncate">
-          {title}
-          {titleSuffix}
+      <span className="flex min-w-0 flex-1 flex-col">
+        <span className="flex min-w-0 items-baseline gap-1.5 sm:items-center">
+          <span data-slot="task-row-title" className="line-clamp-2 min-w-0 text-sm sm:line-clamp-none sm:truncate">
+            {title}
+            {titleSuffix}
+          </span>
+          {time ? (
+            <span className="ml-auto shrink-0 text-right text-xs whitespace-nowrap text-muted-foreground sm:hidden">
+              {time.text}
+            </span>
+          ) : null}
         </span>
-        {time ? (
-          <span className="ml-auto shrink-0 text-right text-xs whitespace-nowrap text-muted-foreground sm:hidden">
-            {time.text}
+        {subline ? (
+          <span data-slot="task-row-subline" className="flex min-w-0 pt-1 sm:hidden">
+            {subline}
           </span>
         ) : null}
       </span>

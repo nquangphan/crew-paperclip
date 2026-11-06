@@ -400,6 +400,7 @@ File nào thuộc flow nào. Dùng `crew-docs where <file>` để tra từ dòng
 | `packages/crew-web/src/ds/widgets/issue-list.tsx` | [design-system](flows/design-system.md) (file) |
 | `packages/crew-web/src/ds/widgets/issue-row.tsx` | [design-system](flows/design-system.md) (file) |
 | `packages/crew-web/src/ds/widgets/kanban-board.tsx` | [design-system](flows/design-system.md) (file) |
+| `packages/crew-web/src/ds/widgets/machine-label.tsx` | [design-system](flows/design-system.md) (file) |
 | `packages/crew-web/src/ds/widgets/markdown-image-policy.ts` | [attachments](flows/attachments.md) (file) |
 | `packages/crew-web/src/ds/widgets/markdown-renderer.tsx` | [design-system](flows/design-system.md) (file) |
 | `packages/crew-web/src/ds/widgets/markdown-view.tsx` | [design-system](flows/design-system.md) (file) |
@@ -527,6 +528,8 @@ File nào thuộc flow nào. Dùng `crew-docs where <file>` để tra từ dòng
 | `packages/crew-web/src/features/issues/list/issues-board.tsx` | [issues-web](flows/issues-web.md) (file) |
 | `packages/crew-web/src/features/issues/list/issues-page.tsx` | [issues-web](flows/issues-web.md) (file) |
 | `packages/crew-web/src/features/issues/list/list-view.ts` | [issues-web](flows/issues-web.md) (file) |
+| `packages/crew-web/src/features/issues/list/machine-label.tsx` | [issues-web](flows/issues-web.md) (file) |
+| `packages/crew-web/src/features/issues/list/machines.ts` | [issues-web](flows/issues-web.md) (file) |
 | `packages/crew-web/src/features/issues/list/tree.ts` | [issues-web](flows/issues-web.md) (file) |
 | `packages/crew-web/src/features/issues/list/use-issues.ts` | [issues-web](flows/issues-web.md) (file) |
 | `packages/crew-web/src/features/issues/new/add-child-dialog.tsx` | [issues-web](flows/issues-web.md) (file) |
@@ -779,6 +782,7 @@ File nào thuộc flow nào. Dùng `crew-docs where <file>` để tra từ dòng
 | `packages/crew-web/test/features/issues/issue-popup.test.tsx` | [issues-web](flows/issues-web.md) (test) |
 | `packages/crew-web/test/features/issues/issue-runs.test.tsx` | [issues-web](flows/issues-web.md) (test) |
 | `packages/crew-web/test/features/issues/issues-board.test.tsx` | [issues-web](flows/issues-web.md) (test) |
+| `packages/crew-web/test/features/issues/issues-machines.test.tsx` | [issues-web](flows/issues-web.md) (test) |
 | `packages/crew-web/test/features/issues/issues-page-pending.test.tsx` | [issues-web](flows/issues-web.md) (test) |
 | `packages/crew-web/test/features/issues/issues-page.test.tsx` | [issues-web](flows/issues-web.md) (test) |
 | `packages/crew-web/test/features/issues/kind-labels.test.tsx` | [issues-web](flows/issues-web.md) (test) |

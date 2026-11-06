@@ -2,6 +2,7 @@
 import { call } from '../endpoints';
 import type {
   IssueMachine,
+  IssueMachineSummary,
   MachineCandidate,
   ProjectMachines,
   ProjectRepo,
@@ -9,6 +10,9 @@ import type {
   ReleaseBlocker,
   ReleaseResult,
 } from './types';
+
+/** Số id tối đa mỗi request của route lô (server trả 400 nếu quá). */
+const BATCH_LIMIT = 500;
 
 export const machinePinsApi = {
   /** Máy đã ghép của company kèm số run, tải và trạng thái project trên máy (form tạo yêu cầu gốc). */
@@ -22,6 +26,24 @@ export const machinePinsApi = {
   },
   /** Máy của cả cây chứa yêu cầu này. */
   get: (companyId: string, issueId: string): Promise<IssueMachine> => call('machinePin.get', { companyId, issueId }),
+  /**
+   * Máy của cây chứa từng yêu cầu (danh sách, Bảng): một POST cho tới `BATCH_LIMIT` id, quá thì chia khúc. Id company
+   * khác hay không có thì không có trong kết quả.
+   */
+  issueMachines: async (
+    companyId: string,
+    issueIds: readonly string[],
+  ): Promise<Record<string, IssueMachineSummary | null>> => {
+    const chunks: string[][] = [];
+    for (let i = 0; i < issueIds.length; i += BATCH_LIMIT) chunks.push(issueIds.slice(i, i + BATCH_LIMIT));
+    const pages = await Promise.all(
+      chunks.map(
+        (ids): Promise<{ items: Record<string, IssueMachineSummary | null> }> =>
+          call('machinePin.batch', { companyId }, { body: { issueIds: ids } }),
+      ),
+    );
+    return Object.assign({}, ...pages.map((p) => p.items));
+  },
   /** Owner chọn máy cho yêu cầu gốc (cây chưa có run). */
   set: (companyId: string, issueId: string, machineId: string): Promise<IssueMachine> =>
     call('machinePin.set', { companyId, issueId }, { body: { machineId } }),
@@ -58,6 +80,7 @@ export const machinePinsApi = {
 export const __endpoints = [
   'machinePin.candidates',
   'machinePin.get',
+  'machinePin.batch',
   'machinePin.set',
   'projectMachines.get',
   'projectMachines.add',
