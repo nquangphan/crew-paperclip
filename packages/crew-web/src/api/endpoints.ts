@@ -253,6 +253,8 @@ export const ENDPOINTS = {
   'machinePin.candidates': { ids: ['S25.1'], method: 'GET', path: `${CREW}/machines` },
   'machinePin.get': { ids: ['S25.2'], method: 'GET', path: `${CREW}/issues/:issueId/machine` },
   'machinePin.set': { ids: ['S25.1', 'S25.2'], method: 'PUT', path: `${CREW}/issues/:issueId/machine` },
+  // Máy của cây chứa từng yêu cầu trên danh sách và Bảng (một POST cho tới 500 id).
+  'machinePin.batch': { ids: ['S4.1', 'S4.2'], method: 'POST', path: `${CREW}/issue-machines` },
   'projectMachines.get': { ids: ['S25.3'], method: 'GET', path: `${CREW}/projects/:projectId/machines` },
   'projectMachines.add': { ids: ['S25.3'], method: 'POST', path: `${CREW}/projects/:projectId/machines` },
   'projectMachines.setRepo': { ids: ['S25.3'], method: 'PUT', path: `${CREW}/projects/:projectId/repo` },

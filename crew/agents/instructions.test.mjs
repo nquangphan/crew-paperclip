@@ -7,6 +7,7 @@ const DOCS_CHECK_RE = /^crew-docs-check commit=([0-9a-f]{40}) range=([0-9a-f]{7,
 const ROLES = ["executor", "reviewer", "integrator", "assistant", "bmad", "designer"];
 const read = (name) => readFileSync(new URL(`./${name}.md`, import.meta.url), "utf8");
 const RECURSIVE_DELETE_RULE = "Chạy `rm -rf` (hay xóa đệ quy) ở bất kỳ đâu ngoài thư mục tạm do chính bạn vừa tạo bằng `mktemp -d` trong run này; nhưng TRƯỚC KHI báo xong (hay `PATCH` cuối) phải dọn thứ mình sinh ra: xóa thư mục `mktemp -d` của mình (`rm -rf \"$D\"`, chỉ đúng đường dẫn `mktemp` đã in), tắt mọi process mình bật (dev server, simulator/emulator, browser Playwright, Maestro, watcher) theo PID đã ghi ngay lúc bật (`$!`); simulator/emulator mình không tự bật hoặc đang dùng chung với agent khác thì không tắt, xóa dữ liệu test mình tạo trong DB/seed local (không đụng dữ liệu không do mình tạo).";
+const NO_BACKGROUND_RULE = "Chạy lệnh ở chế độ nền rồi kết thúc lượt (sự cố TPS-693: executor bật flow Maestro iOS chạy nền rồi kết thúc lượt \"chờ monitor báo kết quả\"; run agent là một lần `claude --print`, kết thúc lượt thì process thoát và lệnh nền của chính run bị cắt, lệnh nền không đánh thức lại agent). Mọi lệnh (test, build, E2E, simulator) chạy tiền cảnh và đọc kết quả trong cùng lượt: không dùng `run_in_background` hay Monitor của công cụ agent, không kết thúc lượt để \"chờ thông báo\" của lệnh nền. Một lệnh tối đa 10 phút: việc dài thì tách nhỏ (ví dụ từng flow/spec một), mỗi phần một lệnh có timeout. Còn lệnh nền của chính run thì không được kết thúc lượt: chỉ kết thúc lượt khi mọi lệnh của run đã có kết quả thật. Cần tiến trình phụ (dev server cho E2E) thì tự bật bằng `&` trong lượt, ghi `$!`, dùng xong và tắt theo PID trước khi kết thúc lượt. Luật này chỉ nói về lệnh nền của run: dừng chờ server đánh thức theo luồng của vai vẫn hợp lệ (comment và giữ status, hoặc `PATCH` trạng thái kèm lý do, đúng như luồng của vai). Job do server xếp hàng chạy riêng ngoài run (deploy của integrator, Bug Finding) không thuộc luật này.";
 const fill = (line) =>
   line
     .replaceAll("<git rev-parse HEAD>", "a".repeat(40))
@@ -28,6 +29,41 @@ const templateLine = (text, prefix) => {
 test("mọi instructions đều cấm xóa đệ quy ngoài thư mục tạm vừa tạo trong run", () => {
   for (const name of ROLES) {
     assert.ok(read(name).includes(RECURSIVE_DELETE_RULE), `${name}: thiếu quy tắc xóa đệ quy`);
+  }
+});
+
+test("mọi instructions đều cấm chạy lệnh nền rồi kết thúc lượt, nằm trong mục Không bao giờ", () => {
+  for (const name of ROLES) {
+    const text = read(name);
+    assert.equal(text.split(NO_BACKGROUND_RULE).length - 1, 1, `${name}: luật chạy nền phải xuất hiện đúng một lần`);
+    const start = text.indexOf("## Không bao giờ");
+    const end = text.indexOf("\n## ", start + 1);
+    assert.ok(start >= 0 && text.slice(start, end).includes(NO_BACKGROUND_RULE), `${name}: luật chạy nền phải nằm trong mục "Không bao giờ"`);
+  }
+});
+
+/** Đoạn luật chạy nền của template (đoạn bắt đầu bằng "Chạy lệnh ở chế độ nền"), để kiểm từng ý riêng. */
+const backgroundParagraph = (name) => {
+  const para = read(name).split("\n\n").find((p) => p.startsWith("Chạy lệnh ở chế độ nền"));
+  assert.ok(para, `${name}: thiếu đoạn luật chạy nền`);
+  return para;
+};
+
+test("F-01: luật chạy nền chỉ cấm bỏ lệnh nền của run, chờ server đánh thức theo luồng của vai vẫn hợp lệ", () => {
+  for (const name of ROLES) {
+    const para = backgroundParagraph(name);
+    assert.ok(!para.includes("không có thông báo đánh thức lại"), `${name}: còn mệnh đề chung "không có thông báo đánh thức lại"`);
+    assert.ok(para.includes("chờ server đánh thức theo luồng của vai vẫn hợp lệ"), `${name}: thiếu câu cho phép chờ server đánh thức`);
+    assert.ok(para.includes("lệnh nền của chính run"), `${name}: thiếu câu chỉ nói về lệnh nền của run`);
+  }
+});
+
+test("F-02: luật chạy nền nêu ranh giới: tiến trình phụ bằng & ghi $!, job do server xếp hàng không thuộc luật", () => {
+  for (const name of ROLES) {
+    const para = backgroundParagraph(name);
+    assert.ok(para.includes("`run_in_background`") && para.includes("Monitor của công cụ agent"), `${name}: thiếu cấm run_in_background/Monitor của công cụ agent`);
+    assert.ok(para.includes("bằng `&`") && para.includes("`$!`"), `${name}: thiếu cách bật tiến trình phụ bằng & và ghi $!`);
+    assert.ok(para.includes("Job do server xếp hàng") && para.includes("không thuộc luật"), `${name}: thiếu ngoại lệ job do server xếp hàng`);
   }
 });
 

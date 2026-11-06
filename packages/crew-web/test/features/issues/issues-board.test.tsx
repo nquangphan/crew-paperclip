@@ -88,6 +88,8 @@ function server(over: Record<string, unknown> = {}) {
     'POST /api/plugins/crew.core/data/crew.roots': { body: { data: ROOTS } },
     'GET /api/companies/c1/projects': { body: [{ id: 'p1', name: 'Alpha', archivedAt: null }] },
     'GET /api/companies/c1/agents': { body: [{ id: 'a1', name: 'Trợ Lý Alpha' }] },
+    // Nhãn máy (route lô): không ghim máy nào.
+    'POST /api/crew/companies/c1/issue-machines': { body: { items: {} } },
     ...over,
   } as Parameters<typeof mockServer>[0]);
 }

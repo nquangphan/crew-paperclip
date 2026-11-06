@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TPS-750 · Danh sách yêu cầu có cột Máy</title>
+<link rel="stylesheet" href="./tokens.css">
+<link rel="stylesheet" href="./mockup.css">
+<script src="./ui.js"></script>
+</head>
+<body>
+<!-- Màn 1: danh sách yêu cầu, nhóm theo trạng thái gốc như mặc định. Cột Máy (mới) giữa Giai đoạn và Người làm.
+     Màn hẹp (< 640px): cột phụ ẩn như hiện nay, nhãn máy xuống dòng phụ dưới tiêu đề kèm chữ trạng thái. -->
+<div id="app"></div>
+<script>
+  const tip = `<span class="tip" style="top:30px;left:-8px">${tipText(MACHINES.mbp)}</span>`;
+  const body = toolbar() + colHead() +
+    `<section aria-label="Đang làm"><div class="group-h">${icon('chevron')}Đang làm</div>${rows([ISSUES[0], ISSUES[4]], { hover: 'TPS-725' })}</section>` +
+    `<section aria-label="Bị chặn"><div class="group-h">${icon('chevron')}Bị chặn</div>${rows([ISSUES[1]], { hover: 'TPS-723' })}</section>` +
+    `<section aria-label="Cần làm"><div class="group-h">${icon('chevron')}Cần làm</div>${rows([ISSUES[2]])}</section>` +
+    `<section aria-label="Tồn đọng"><div class="group-h">${icon('chevron')}Tồn đọng</div>${rows([ISSUES[3]])}</section>`;
+  document.getElementById('app').innerHTML = frame(body);
+  // Tooltip mẫu khi rê chuột vào nhãn máy offline (chỉ desktop).
+  const cell = document.querySelector('[data-id="TPS-723"] .mcell');
+  if (cell && matchMedia('(min-width: 640px)').matches) { cell.style.position = 'relative'; cell.style.overflow = 'visible'; cell.insertAdjacentHTML('beforeend', tip); }
+</script>
+</body>
+</html>
