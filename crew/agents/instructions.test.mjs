@@ -97,21 +97,29 @@ test("regex crew-docs-check trong test trùng chuỗi regex của server", { ski
   assert.equal(match[1], DOCS_CHECK_RE.source);
 });
 
-// Server dựng regex PR bằng `new RegExp(\`…${GITHUB_PR_URL}…\`)`: đọc lại nguồn và thay hằng URL để so chuỗi.
+// Server dựng regex PR bằng `new RegExp(\`…${PR_URL}…\`)`: đọc lại nguồn và thay các hằng URL để so chuỗi.
 const GH_PR = String.raw`https:\/\/github\.com\/[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+\/pull\/[1-9][0-9]*`;
-const MERGE_SERVER_RE = new RegExp(`^crew-merge sha=([0-9a-f]{40}) branch=(\\S+) pushed=(?:yes|pr pr=(${GH_PR})|merged pr=(${GH_PR}) merge=([0-9a-f]{40}))$`);
-const CREW_PR_RE = new RegExp(`^crew-pr sha=([0-9a-f]{40}) pr=(${GH_PR})$`);
+// URL merge request GitLab (gitlab.com hoặc tự host, cổng, nhóm con): GITLAB_MR_URL của issue-policy.ts.
+const GL_MR = String.raw`https:\/\/(?!github\.com[:/])[A-Za-z0-9][A-Za-z0-9.-]*(?::[0-9]{1,5})?(?:\/[A-Za-z0-9_][A-Za-z0-9_.-]*){2,}\/-\/merge_requests\/[1-9][0-9]*`;
+const mergeServerRe = (url) => new RegExp(`^crew-merge sha=([0-9a-f]{40}) branch=(\\S+) pushed=(?:yes|pr pr=(${url})|merged pr=(${url}) merge=([0-9a-f]{40}))$`);
+const crewPrRe = (url) => new RegExp(`^crew-pr sha=([0-9a-f]{40}) pr=(${url})$`);
+const MERGE_SERVER_RE = mergeServerRe(`(?:${GH_PR}|${GL_MR})`);
+const CREW_PR_RE = crewPrRe(`(?:${GH_PR}|${GL_MR})`);
 function serverRegex(name) {
   const src = readFileSync(POLICY_SOURCE, "utf8");
-  const url = /const GITHUB_PR_URL = String\.raw`([^`]+)`;/.exec(src)?.[1];
+  const consts = new Map();
+  for (const m of src.matchAll(/^const ([A-Z_]+) = (String\.raw)?`([^`]*)`;/gm)) consts.set(m[1], m[2] ? m[3] : m[3].replaceAll("\\\\", "\\"));
   const tpl = new RegExp(`export const ${name} = new RegExp\\(\\s*\`([^\`]+)\`,?\\s*\\);`).exec(src)?.[1];
-  assert.ok(url && tpl, `không tìm thấy ${name}`);
-  return tpl.replaceAll("${GITHUB_PR_URL}", url).replaceAll("\\\\", "\\");
+  assert.ok(consts.has("GITHUB_PR_URL") && tpl, `không tìm thấy ${name}`);
+  const expand = (s) => s.replace(/\$\{([A-Z_]+)\}/g, (_, k) => (assert.ok(consts.has(k), `server thiếu hằng ${k}`), expand(consts.get(k))));
+  return expand(tpl.replaceAll("\\\\", "\\"));
 }
 
 test("regex crew-merge trong test trùng chuỗi regex của server", { skip: !existsSync(POLICY_SOURCE) && "issue-policy.ts chưa có trên nhánh này" }, () => {
-  assert.equal(serverRegex("CREW_MERGE_RE"), MERGE_SERVER_RE.source);
-  assert.equal(serverRegex("CREW_PR_RE"), CREW_PR_RE.source);
+  // Server chưa nhận MR GitLab (nhánh chưa gộp phần server) thì so với bản chỉ GitHub; đã nhận thì so với bản đủ.
+  const url = /^const GITLAB_MR_URL = /m.test(readFileSync(POLICY_SOURCE, "utf8")) ? `(?:${GH_PR}|${GL_MR})` : GH_PR;
+  assert.equal(serverRegex("CREW_MERGE_RE"), mergeServerRe(url).source);
+  assert.equal(serverRegex("CREW_PR_RE"), crewPrRe(url).source);
   // Mọi dòng luồng cũ (pushed=yes|pr) vẫn được server nhận.
   for (const line of [`crew-merge sha=${"a".repeat(40)} branch=main pushed=yes`, `crew-merge sha=${"a".repeat(40)} branch=main pushed=pr pr=https://github.com/o/r/pull/1`]) {
     assert.match(line, MERGE_CHECK_RE);
@@ -1431,6 +1439,28 @@ test("integrator: ticket tổng code-bf gộp và mở PR ở stage 1 bằng MOD
   const old = text.slice(text.indexOf("## Stage 4"));
   assert.match(old, /owner bấm Merge trên GitHub/);
   assert.ok(old.includes('T=<EVIDENCE 40 ký tự> DEFAULT=<nhánh mặc định> bash "$D/crew-pr.sh" "$D"'), "lệnh luồng cũ không có MODE");
+});
+
+test("integrator: ticket tổng code-bf với origin GitLab mở MR bằng push option, merge bằng push thường qua script; luồng GitHub và push thẳng giữ nguyên", () => {
+  const text = integratorProse();
+  const bf = sectionOf(text, "## Ticket tổng `code-bf` (luồng Bug Finding)");
+  assert.doesNotMatch(bf, /cần origin ở GitHub/, "code-bf không còn đòi origin ở GitHub");
+  assert.match(bf, /`origin` của project ở GitHub hoặc GitLab/);
+  const stage1 = sectionOf(bf, "### Stage gộp (stage 1)", /\n### /g);
+  for (const needle of ["`git push -o merge_request.create -o merge_request.target=<nhánh mặc định> -o merge_request.title=…`", "không dùng `gh`", "`git merge-tree`", "refs/merge-requests"]) {
+    assert.ok(stage1.includes(needle), `stage gộp thiếu: ${needle}`);
+  }
+  const stage4 = sectionOf(bf, "### Stage merge (stage 4)", /\n### |\n## /g);
+  for (const needle of [
+    "MODE=merge T=<T> DEFAULT=<nhánh mặc định> HEAD_OK=<rỗng hoặc sha> PR=<URL của crew-pr>",
+    "`git ls-remote origin refs/heads/crew/req/<identifier>`",
+    "push thường vào nhánh mặc định",
+    "GitLab tự đánh dấu merge request đã merge",
+  ]) assert.ok(stage4.includes(needle), `stage merge thiếu: ${needle}`);
+  // Luật cứng: chỉ script MODE=merge (GitLab) được đẩy vào nhánh mặc định của ticket code-bf; không tự push.
+  assert.match(text, /9\. Ở stage 4 khi `origin` ở GitHub: push vào nhánh mặc định, chạy `gh pr merge`[^\n]*origin GitLab[^\n]*chỉ script `MODE=merge` đẩy vào nhánh mặc định/);
+  // Ticket thường có origin không ở GitHub vẫn push thẳng (rc=3).
+  assert.ok(text.includes("`rc=3`: `origin` không ở GitHub: làm bước 3–6"));
 });
 
 test("reviewer: ticket tổng code-bf là cầu nối Bug Finding theo luật cố định, đọc route kết quả, không đọc code, không tin comment", () => {
