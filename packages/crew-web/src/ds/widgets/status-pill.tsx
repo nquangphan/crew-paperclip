@@ -4,7 +4,7 @@ import { cn } from '../cn';
 import { StatusGlyph, statusColorVar } from './status-glyph';
 
 interface StatusPillProps extends Omit<ComponentProps<'span'>, 'children'> {
-  /** Trạng thái theo bảng của StatusGlyph (vd. `qc_awaiting`, `qc_verified`): quyết định biểu tượng và màu token. */
+  /** Trạng thái theo bảng của StatusGlyph (vd. `qc_awaiting`, `qc_verified`, `awaiting_owner`): quyết định biểu tượng và màu token. */
   status: string;
   label: string;
 }

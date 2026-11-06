@@ -404,6 +404,17 @@ export interface QcIssueState {
   reopenRequest: { id: string; status: 'pending' | 'approving' } | null;
 }
 
+// Yêu cầu chờ owner trả lời thẻ câu hỏi/xác nhận (router Crew, `/api/crew/companies/:companyId/awaiting-owner`).
+export type AwaitingOwnerKind = 'ask_user_questions' | 'request_confirmation' | 'request_checkbox_confirmation';
+
+/** Issue chưa đóng có thẻ chờ người trả lời (không gửi cho agent); thẻ là thẻ chờ lâu nhất của issue. */
+export interface AwaitingOwnerItem {
+  issueId: string;
+  interactionId: string;
+  kind: AwaitingOwnerKind;
+  createdAt: string;
+}
+
 // Chạy nhiều máy: router Crew của server (`server/src/crew/machine-routes.ts`).
 export type ProjectMachineStatus = 'ready' | 'provisioning' | 'failed';
 export interface MachineCandidate {

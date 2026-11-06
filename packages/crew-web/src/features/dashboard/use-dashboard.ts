@@ -3,6 +3,7 @@ import { useMemo } from 'react';
 import { api, queryKeys } from '@/api';
 import { useMe } from '@/app/hooks';
 import { useVisibleProjects } from '@/features/access';
+import { useAwaitingOwner } from '@/features/awaiting-owner';
 import { inboxTabs, useInboxIssues } from '@/features/inbox';
 
 /** Số dòng trong danh sách hoạt động và yêu cầu gần đây (giống Paperclip gốc). */
@@ -25,7 +26,11 @@ export function useDashboard(companyId: string) {
     queryFn: () => api.dashboard.summary(companyId),
   });
   const inbox = useInboxIssues(companyId);
-  const awaiting = useMemo(() => inboxTabs(inbox.data ?? [], me).awaiting_me.length, [inbox.data, me]);
+  const awaitingOwner = useAwaitingOwner().issueIds;
+  const awaiting = useMemo(
+    () => inboxTabs(inbox.data ?? [], me, awaitingOwner).awaiting_me.length,
+    [inbox.data, me, awaitingOwner],
+  );
   const issues = useQuery({
     queryKey: queryKeys.issues(companyId, { dashboard: true, limit: ISSUE_LIMIT }),
     queryFn: () => api.issues.list(companyId, { limit: ISSUE_LIMIT }),

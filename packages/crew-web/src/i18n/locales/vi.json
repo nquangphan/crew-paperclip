@@ -22,7 +22,8 @@
     "timed_out": "Quá giờ",
     "qc_awaiting": "Chờ QC duyệt",
     "qc_reopen": "Chờ owner duyệt mở lại",
-    "qc_verified": "QC verified"
+    "qc_verified": "QC verified",
+    "awaiting_owner": "Chờ owner trả lời"
   },
   "stage": {
     "none": "Chưa có giai đoạn",

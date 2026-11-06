@@ -30,9 +30,10 @@ import {
   RoadmapWorldSkeleton,
 } from '@/ds';
 import { ArrowLeft, Scan } from '@/ds/icons';
+import { issueDisplayStatus, useAwaitingOwner } from '@/features/awaiting-owner';
 import { popupIssueRef } from '@/features/issues/popup/issue-href';
 import { useIssueOpener } from '@/features/issues/popup/issue-nav';
-import { displayStatus, useQcStates } from '@/features/qc';
+import { useQcStates } from '@/features/qc';
 import { useT } from '@/i18n';
 import { RoadmapDocReader } from './roadmap-doc-reader';
 import {
@@ -93,7 +94,11 @@ export function RoadmapPage() {
   const { visible, projects, roadmap } = data;
   // Yêu cầu của Phòng QC đã Xong: thẻ hiện trạng thái QC (Chờ QC duyệt, QC verified) thay cho Hoàn thành.
   const qcStates = useQcStates().byIssue;
-  const statusOf = useCallback<StatusOf>((issue) => displayStatus(issue, qcStates), [qcStates]);
+  const awaiting = useAwaitingOwner().issueIds;
+  const statusOf = useCallback<StatusOf>(
+    (issue) => issueDisplayStatus(issue, qcStates, awaiting),
+    [qcStates, awaiting],
+  );
 
   // ---- Thế giới: dựng một lần cho mỗi lần dữ liệu đổi; bố cục từng đảo nhớ lại giữa các lần --------------------------
   const cache = useRef(createIslandCache());
