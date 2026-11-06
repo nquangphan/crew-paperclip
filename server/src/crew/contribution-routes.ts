@@ -33,6 +33,7 @@ import { CREW_ROADMAP_SCOPE_PATHS, crewRoadmapViewerScope } from "./plugin-data-
 import { crewPluginStartupWait } from "./plugin-startup-wait.js";
 import { listQcStates, QC_ERRORS, verifyQcRound } from "./qc-verification.js";
 import { crewAssistantCallRoutes } from "./assistant-call-routes.js";
+import { crewAwaitingOwnerRoutes } from "./awaiting-owner.js";
 import { crewMachineRoutes } from "./machine-routes.js";
 import { crewModelSettingsRoutes } from "./model-settings-routes.js";
 import { crewProjectAccessRoutes } from "./project-access-routes.js";
@@ -67,7 +68,8 @@ function conflictWith(res: Response, code: string, error: string, contribution: 
  * - Router quyền xem project (`…/project-access`), router máy
  *   (`…/machines`, `…/issues/:id/machine`, `…/projects/:id/machines|repo`) và router cài đặt model
  *   (`/crew/model-settings`, toàn instance, có luật người gọi riêng) và router gọi Trợ Lý bằng tag
- *   (`…/issues/:id/assistant-call`, chỉ owner, có ghi `activity_log`) gắn bên trong router này, nên không cần vá lõi riêng.
+ *   (`…/issues/:id/assistant-call`, chỉ owner, có ghi `activity_log`) và router thẻ chờ owner trả lời (`…/awaiting-owner`,
+ *   chỉ đọc) gắn bên trong router này, nên không cần vá lõi riêng.
  */
 export function crewContributionRoutes(db: Db): Router {
   const router = Router();
@@ -83,6 +85,7 @@ export function crewContributionRoutes(db: Db): Router {
   router.use(crewTerminalRoutes(db));
   router.use(crewModelSettingsRoutes(db));
   router.use(crewAssistantCallRoutes(db));
+  router.use(crewAwaitingOwnerRoutes(db));
   // Router này gắn trước route plugin stock: request `/plugins/...` lúc vừa khởi động chờ worker plugin đăng ký xong.
   router.use("/plugins", crewPluginStartupWait());
   // Data `crew.roadmap` (mọi cách viết key, so trên key đã decode): server ghi đè `params.viewer` bằng project người gọi
