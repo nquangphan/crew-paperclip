@@ -5,6 +5,7 @@ import type {
   BugFindingRunView,
   BugFindingView,
 } from '@crew/paperclip-plugin/shared/bug-finding';
+import { parsePrUrl } from '@crew/paperclip-plugin/shared/pr-url';
 import type { ReactNode } from 'react';
 import { useBugFinding } from '@/api';
 import type { StageStripItem } from '@/ds';
@@ -44,12 +45,14 @@ type Translate = ReturnType<typeof useT>['t'];
 const OPEN_STATUSES = new Set(['OPEN', 'STILL_PRESENT', 'REGRESSED', 'PARTIALLY_FIXED', 'UNABLE_TO_VERIFY']);
 const OPEN_RUN_STATES = new Set(['requested', 'queued', 'running']);
 const BROKEN_RUN_STATES = new Set(['failed', 'timeout', 'cancelled']);
-/** Số PR GitHub (`/pull/N`) hoặc số MR GitLab (`/-/merge_requests/N`). */
-const PR_NUMBER = /\/(?:pull|-\/merge_requests)\/(\d+)(?:$|[/?#])/;
-
 export const sha12 = (sha: string) => sha.slice(0, 12);
+/**
+ * Số PR GitHub hoặc số MR GitLab (`iid`) theo đúng luật `parsePrUrl` của plugin; phần `?…`/`#…` ở cuối (link tới một note)
+ * được bỏ trước khi đọc.
+ */
 export function prNumberOf(url: string | null | undefined): string | null {
-  return url ? (PR_NUMBER.exec(url)?.[1] ?? null) : null;
+  const pr = url ? parsePrUrl(url.replace(/[?#].*$/, '')) : null;
+  return pr ? String(pr.number) : null;
 }
 
 function minutes(run: BugFindingRunView): number | null {

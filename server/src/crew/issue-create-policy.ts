@@ -29,7 +29,7 @@ import {
 } from "./project-roles.js";
 import { loadModelSettings } from "./model-settings.js";
 import { readRuntimeSwitch, resolveAgentMachine } from "./runtime-switch.js";
-import { crewTableSql } from "./machine-pin.js";
+import { crewTable, crewTableSql } from "./machine-pin.js";
 import { logger } from "../middleware/logger.js";
 
 /** Cùng shape với IssueCreateLike trong core-hooks.ts (không import registry). */
@@ -207,6 +207,21 @@ export function originProvider(originUrl: string | null | undefined, gitlabHosts
   return null;
 }
 
+/**
+ * URL `crew-pr`/`crew-merge` (đã qua regex định dạng) có thuộc origin của project không: host so không phân biệt hoa
+ * thường với host origin; URL merge request GitLab còn phải ở gitlab.com hoặc host trong `gitlabHosts`, URL pull request
+ * GitHub ở github.com. Origin chưa biết (project không có dòng `project_repos`): PR GitHub giữ luật cũ, MR GitLab bị chặn vì
+ * không đối chiếu được host.
+ */
+export function prUrlMatchesOrigin(prUrl: string, originUrl: string | null | undefined, gitlabHosts: readonly string[]): boolean {
+  const host = originHost(prUrl);
+  if (!host) return false;
+  const expected: OriginProvider = /\/-\/merge_requests\/[0-9]+$/.test(prUrl) ? "gitlab" : "github";
+  if (originProvider(prUrl, gitlabHosts) !== expected) return false;
+  const origin = originHost(originUrl);
+  return origin === null ? expected === "github" : origin === host;
+}
+
 /** Tên nhãn (chữ thường) trong `CREW_NON_CODE_LABELS` mà issue mang, chỉ nhãn cùng company. */
 async function nonCodeLabelNames(db: Db, companyId: string, labelIds: readonly string[] | null | undefined): Promise<Set<string>> {
   if (!labelIds?.length) return new Set();
@@ -222,6 +237,19 @@ async function nonCodeLabelNames(db: Db, companyId: string, labelIds: readonly s
 }
 
 /**
+ * `origin_url` của project trong `project_repos` của plugin crew.core; bảng hay dòng chưa có thì `null`. Kiểm `to_regclass`
+ * trước để câu đọc không làm hỏng transaction của lệnh ghi (H2 đọc trong `tx`); lỗi khác được ném ra.
+ */
+export async function loadProjectOriginUrl(db: Db, companyId: string, projectId: string | null): Promise<string | null> {
+  if (!projectId || !UUID_RE.test(projectId)) return null;
+  const ready = rowsOf(await db.execute(sql`SELECT to_regclass(${crewTable("project_repos")}) IS NOT NULL AS ok`));
+  if (ready[0]?.ok !== true) return null;
+  const rows = rowsOf(await db.execute(sql`SELECT origin_url FROM ${crewTableSql("project_repos")}
+    WHERE company_id = ${companyId} AND project_id = ${projectId} LIMIT 1`));
+  return typeof rows[0]?.origin_url === "string" ? rows[0].origin_url : null;
+}
+
+/**
  * Provider origin của project trong `project_repos` của plugin crew.core. Chỉ gọi khi company bật Bug Finding; đọc lỗi
  * (plugin chưa cài, bảng chưa có) thì coi như không GitHub/GitLab: ticket tổng giữ luồng cũ, không chặn tạo issue.
  */
@@ -233,9 +261,7 @@ async function projectOriginProvider(
 ): Promise<OriginProvider | null> {
   if (!projectId || !UUID_RE.test(projectId)) return null;
   try {
-    const rows = rowsOf(await db.execute(sql`SELECT origin_url FROM ${crewTableSql("project_repos")}
-      WHERE company_id = ${companyId} AND project_id = ${projectId} LIMIT 1`));
-    return originProvider(typeof rows[0]?.origin_url === "string" ? rows[0].origin_url : null, gitlabHosts);
+    return originProvider(await loadProjectOriginUrl(db, companyId, projectId), gitlabHosts);
   } catch (err) {
     logger.warn({ err, companyId, projectId }, "crew: reading project_repos failed; root issue keeps the root policy");
     return null;

@@ -98,9 +98,9 @@ test("regex crew-docs-check trong test trùng chuỗi regex của server", { ski
 });
 
 // Server dựng regex PR bằng `new RegExp(\`…${PR_URL}…\`)`: đọc lại nguồn và thay các hằng URL để so chuỗi.
-const GH_PR = String.raw`https:\/\/github\.com\/[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+\/pull\/[1-9][0-9]*`;
+const GH_PR = String.raw`https:\/\/github\.com\/[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+\/pull\/[1-9][0-9]{0,9}`;
 // URL merge request GitLab (gitlab.com hoặc tự host, cổng, nhóm con): GITLAB_MR_URL của issue-policy.ts.
-const GL_MR = String.raw`https:\/\/(?!github\.com[:/])[A-Za-z0-9][A-Za-z0-9.-]*(?::[0-9]{1,5})?(?:\/[A-Za-z0-9_][A-Za-z0-9_.-]*){2,}\/-\/merge_requests\/[1-9][0-9]*`;
+const GL_MR = String.raw`https:\/\/(?![Gg][Ii][Tt][Hh][Uu][Bb]\.[Cc][Oo][Mm][:/])[A-Za-z0-9][A-Za-z0-9.-]*(?::[0-9]{1,5})?(?:\/[A-Za-z0-9_][A-Za-z0-9_.-]*){2,}\/-\/merge_requests\/[1-9][0-9]{0,9}`;
 const mergeServerRe = (url) => new RegExp(`^crew-merge sha=([0-9a-f]{40}) branch=(\\S+) pushed=(?:yes|pr pr=(${url})|merged pr=(${url}) merge=([0-9a-f]{40}))$`);
 const crewPrRe = (url) => new RegExp(`^crew-pr sha=([0-9a-f]{40}) pr=(${url})$`);
 const MERGE_SERVER_RE = mergeServerRe(`(?:${GH_PR}|${GL_MR})`);

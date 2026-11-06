@@ -93,15 +93,23 @@ Luật áp theo company:
    - vào `done` hay hoàn tất stage docs/push cần: mỗi stage có approval trong vòng hiện tại và không do người làm tự ký;
      stage docs (`docsGateStages`) cần comment `crew-docs-check` mới, `exit=0` (`exit=3` repo chưa init thì cho qua kèm
      activity); stage push (`pushGateStages`) cần comment `crew-merge` sau lần owner duyệt và đúng commit của bằng chứng
-     docs.
+     docs; `crew-merge` có `pr=<URL>` thì URL phải thuộc origin của project (`push_origin_mismatch`, luật ở gạch đầu dòng
+     tiếp theo).
+   - URL PR/MR của integrator (`crew-pr`, `crew-merge … pr=`) phải thuộc origin của project, không chỉ đúng định dạng
+     (`prUrlMatchesOrigin` trong `issue-create-policy.ts`): host của URL trùng host origin trong `project_repos` (không
+     phân biệt hoa thường, bỏ cổng); URL merge request GitLab còn phải ở `gitlab.com` hoặc host trong
+     `bugFinding.gitlabHosts`, URL pull request GitHub ở `github.com`. Project chưa có origin (không có dòng
+     `project_repos`, bảng chưa có hay đọc lỗi): PR GitHub giữ luật cũ, MR GitLab bị chặn. H2 chỉ đọc `project_repos`
+     (`loadProjectOriginUrl`, kiểm `to_regclass` trước để không làm hỏng transaction) khi có bằng chứng mang URL.
    - ticket tổng Bug Finding (`isBugFindingRootPolicy`: 4 stage `review` integrator, `review` reviewer, `approval` owner,
      `review` integrator, nhận theo vị trí như `crewPolicyKind` `code-bf` của plugin): stage docs là stage 0 và
      `prGateStages` (stage 0) cần thêm `crew-pr sha=<merged commit> pr=<URL>` (URL pull request GitHub hoặc merge
      request GitLab, xem mục comment bằng chứng) mới hơn bằng chứng docs (`pr_missing`,
-     `pr_sha_mismatch`); `bugFindingGateStages` (stage 1) cần lượt Bug Finding `succeeded` hoặc `skipped` cho đúng head PR
+     `pr_sha_mismatch`), URL thuộc origin của project (`pr_origin_mismatch`); `bugFindingGateStages` (stage 1) cần lượt Bug Finding `succeeded` hoặc `skipped` cho đúng head PR
      (sha của `crew-pr` mới nhất), thiếu thì `bf_missing`; stage merge cần `crew-merge … pushed=merged pr=<URL>
-     merge=<sha>` sau lần owner duyệt (`pushed=pr`/`yes` hay cũ hơn owner: `merge_missing`) và đúng commit của bằng
-     chứng docs (`push_sha_mismatch`);
+     merge=<sha>` sau lần owner duyệt (`pushed=pr`/`yes` hay cũ hơn owner: `merge_missing`), đúng commit của bằng
+     chứng docs (`push_sha_mismatch`), URL thuộc origin (`push_origin_mismatch`) và trùng URL của `crew-pr` mới nhất
+     (`merge_pr_mismatch`);
    - Trợ Lý nộp lại ticket tổng Bug Finding khi lô `bf-fix-<k>` mới nhất (comment `crew-bf-triage run=<n>
      batch=bf-fix-<k>` mới nhất của chính agent nộp) còn con chưa xong (mô tả có `crew-child … revision=bf-fix-<k>` hoặc
      `crew-bf finding=… run=<n>`, chưa `done`/`cancelled`) bị chặn `bf_batch_open`; còn thẻ `ask_user_questions`
@@ -150,12 +158,16 @@ Luật áp theo company:
   `crew-pr sha=… pr=<url>` (`CREW_PR_RE`), `crew-bf-triage run=<n> batch=bf-fix-<k> …` (`CREW_BF_TRIAGE_RE`).
   `<url>` của `crew-merge`/`crew-pr` là pull request GitHub `https://github.com/<owner>/<repo>/pull/<n>` hoặc merge
   request GitLab `https://<host>[:cổng]/<nhóm>[/<nhóm con>…]/<repo>/-/merge_requests/<iid>` (gitlab.com hoặc tự host,
-  cùng luật với `GITLAB_MR_URL` của plugin); cổng không so host MR với `gitlabHosts`. `readBugFindingRuns`
+  github.com ở mọi kiểu hoa thường không phải host GitLab), số `<n>`/`<iid>` tối đa 10 chữ số; cùng luật với `parsePrUrl`
+  của plugin (`packages/crew-plugin/src/jobs/pr-url.ts`). Regex chỉ kiểm định dạng; host được đối chiếu với origin của
+  project ở `evaluateIssueGate` (bước 5: `pr_origin_mismatch`, `push_origin_mismatch`, `merge_pr_mismatch`). `readBugFindingRuns`
   (`bug-finding-runs.ts`) chỉ đọc `head_sha` và `state` của lượt, không đọc URL nên không phụ thuộc provider.
 - Env và cấu hình: `CREW_POLICY_CONFIG` (đường dẫn file JSON chỉ đọc; công cụ sửa ở flow `ops-tools`). Mỗi company trong
   file có thể có `bugFinding: { enabled?: boolean, gitlabHosts?: string[] }`: `enabled` mặc định tắt; `gitlabHosts`
   mặc định rỗng, là danh sách host GitLab tự host, chỉ tên host (không scheme, cổng, `user@` hay đường dẫn), lưu chữ
-  thường. Sai kiểu thì cấu hình `invalid`. Khai báo GitLab tự host cho business-app:
+  thường. Phần tử sai dạng (ví dụ `gitlab.corp.vn:2222`, `https://…`) hay giá trị không phải mảng bị bỏ và ghi log error
+  một lần (`companyId`, `droppedHosts`); phần còn lại của cấu hình company vẫn có hiệu lực, không thành `invalid`. Sai
+  kiểu của `bugFinding` hay `enabled` vẫn làm cấu hình `invalid`. Khai báo GitLab tự host cho business-app:
 
   ```json
   { "companies": { "<companyId>": { "…": "…",
@@ -164,7 +176,8 @@ Luật áp theo company:
 
   Server đọc lại file ở mỗi lần tạo issue nên không cần khởi động lại; chỉ ticket tổng tạo sau khi sửa mới nhận
   `root-bf` (policy chốt lúc tạo).
-- Bảng plugin đọc ở H4: `project_repos.origin_url` (chỉ khi company bật Bug Finding).
+- Bảng plugin đọc ở H4: `project_repos.origin_url` (chỉ khi company bật Bug Finding). H2 đọc cùng cột khi có bằng chứng
+  `crew-pr`/`crew-merge` mang URL, để đối chiếu host.
 
 ## Flow liên quan
 
@@ -186,12 +199,18 @@ Luật áp theo company:
   thống, research, project theo dõi, bmad, design, override theo runtime, watchdog trả về executor), `withProjectTag` và tag
   `[tên project]` trên title qua `issueService.create`; `root-bf` (template, cờ, nhãn docs/plan, origin GitHub/GitLab,
   `originProvider` với GitHub, gitlab.com, GitLab tự host có và không khai báo, origin lạ, rỗng; `bugFinding.enabled` và
-  `bugFinding.gitlabHosts` trong file cấu hình) cả hàm thuần lẫn qua `issueService.create` với `project_repos`.
+  `bugFinding.gitlabHosts` trong file cấu hình, phần tử sai dạng bị bỏ kèm log) cả hàm thuần lẫn qua `issueService.create`
+  với `project_repos`; `prUrlMatchesOrigin` (host trùng origin không phân biệt hoa thường, host lạ, GitLab chưa khai báo,
+  origin chưa biết).
 - `server/src/__tests__/crew-issue-gate.test.ts`: parse file cấu hình (absent, invalid, hoa thường), đọc lại file mỗi
-  lần, cảnh báo lúc khởi động, template policy, fingerprint policy, các nhánh của `evaluateIssueGate`.
+  lần, cảnh báo lúc khởi động, template policy, fingerprint policy, các nhánh của `evaluateIssueGate` (kể cả
+  `push_origin_mismatch` của `crew-merge pushed=pr`); parse URL PR/MR (github.com viết hoa không là GitLab, số quá 10
+  chữ số bị từ chối).
 - `server/src/__tests__/crew-issue-gate.db.test.ts`: H2 trên DB thật: chặn override, xóa policy, cancel, giao cho
   reviewer; board override ghi activity; mở lại issue không tính approval cũ; bằng chứng docs/push; luồng gốc bốn stage
-  với push thẳng và pull request; override opus của reviewer gốc.
+  với push thẳng và pull request; override opus của reviewer gốc; ticket tổng `root-bf` với project có origin trong
+  `project_repos`: `crew-pr` host lạ/chưa khai báo bị chặn `pr_origin_mismatch`, `crew-merge` URL khác `crew-pr`
+  (`merge_pr_mismatch`) hay host lạ (`push_origin_mismatch`) bị chặn.
 - `server/src/__tests__/crew-model-settings.db.test.ts` (flow `model-settings`): H2/H4 nhận model vừa thêm, chặn model
   vừa gỡ, override reviewer Codex và reviewer gốc theo `roles`, đọc bảng lỗi không làm hỏng lệnh ghi.
 - `server/src/__tests__/crew-agent-assignment.db.test.ts`: luật giao việc ở H4 và H2 theo vai trò project, khóa

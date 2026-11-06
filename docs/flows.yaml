@@ -517,6 +517,7 @@ flows:
       - packages/crew-plugin/src/jobs/api.ts
     files:
       - packages/crew-plugin/src/jobs/data.ts
+      - packages/crew-plugin/src/jobs/pr-url.ts
       - packages/crew-plugin/src/jobs/sanitize.ts
       - packages/crew-plugin/src/jobs/types.ts
       - packages/crew-plugin/src/jobs/validate.ts
@@ -538,6 +539,7 @@ flows:
       - packages/crew-plugin/src/bug-finding/triage.ts
       - packages/crew-plugin/src/bug-finding/watchdog.ts
       - packages/crew-plugin/src/shared-web/bug-finding.ts
+      - packages/crew-plugin/src/shared-web/pr-url.ts
       - server/src/crew/bug-finding-runs.ts
     tests:
       - packages/crew-plugin/src/__tests__/bug-finding-triage.test.ts

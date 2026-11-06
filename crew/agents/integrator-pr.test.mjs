@@ -9,9 +9,9 @@ import path from "node:path";
 import { afterEach, test } from "node:test";
 
 // Dòng crew-pr và crew-merge pushed=merged mà gate server nhận (CREW_PR_RE, CREW_MERGE_RE của issue-policy.ts).
-const GH_PR = String.raw`https:\/\/github\.com\/[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+\/pull\/[1-9][0-9]*`;
+const GH_PR = String.raw`https:\/\/github\.com\/[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+\/pull\/[1-9][0-9]{0,9}`;
 // URL merge request GitLab (gitlab.com hoặc tự host, cổng, nhóm con): GITLAB_MR_URL của issue-policy.ts.
-const GL_MR = String.raw`https:\/\/(?!github\.com[:/])[A-Za-z0-9][A-Za-z0-9.-]*(?::[0-9]{1,5})?(?:\/[A-Za-z0-9_][A-Za-z0-9_.-]*){2,}\/-\/merge_requests\/[1-9][0-9]*`;
+const GL_MR = String.raw`https:\/\/(?![Gg][Ii][Tt][Hh][Uu][Bb]\.[Cc][Oo][Mm][:/])[A-Za-z0-9][A-Za-z0-9.-]*(?::[0-9]{1,5})?(?:\/[A-Za-z0-9_][A-Za-z0-9_.-]*){2,}\/-\/merge_requests\/[1-9][0-9]{0,9}`;
 const PR_URL = `(?:${GH_PR}|${GL_MR})`;
 const crewPrRe = (url) => new RegExp(`^crew-pr sha=([0-9a-f]{40}) pr=(${url})$`);
 const mergedRe = (url) => new RegExp(`^crew-merge sha=([0-9a-f]{40}) branch=(\\S+) pushed=merged pr=(${url}) merge=([0-9a-f]{40})$`);
