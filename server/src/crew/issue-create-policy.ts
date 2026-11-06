@@ -83,7 +83,8 @@ const AGENT_CREATE_FORBIDDEN_STATUSES = new Set(["done", "cancelled", "in_review
  * `crew-kind bmad` hay `crew-kind design` trong mô tả: nhận template bmad/design (reviewer rồi owner duyệt). Board gửi policy riêng
  * thì giữ; không gửi thì nhận template theo loại issue, owner của template gốc lấy từ file cấu hình.
  * Board tạo issue gốc có nhãn research nhận template reviewer rồi owner. Board tạo ticket tổng code/bug (không nhãn
- * research/docs/plan) khi company bật `bugFinding.enabled` và project có origin GitHub nhận `root-bf`; còn lại `root`.
+ * research/docs/plan) khi company bật `bugFinding.enabled` và project có origin GitHub hoặc GitLab (`originProvider`) nhận
+ * `root-bf`; còn lại `root`.
  * Issue gốc trong project theo dõi
  * (`trackingProjectIds`) không nhận policy; policy chốt lúc tạo, đổi project sau đó không đổi gì.
  * Hệ thống (không người tạo): issue watchdog/recovery giữ hành vi stock, trừ khi giao lại cho agent đang làm issue
@@ -101,8 +102,8 @@ export function decideCreatePolicy(input: {
   nonCodeLabel?: boolean;
   /** Company bật `bugFinding.enabled` trong file cấu hình Crew. */
   bugFindingEnabled?: boolean;
-  /** Project của issue có origin GitHub trong `project_repos` (integrator mở được PR bằng `gh`). */
-  githubOrigin?: boolean;
+  /** Provider của origin project trong `project_repos` (`originProvider`); `null`/không truyền: không GitHub, không GitLab. */
+  originProvider?: OriginProvider | null;
   /** Issue thuộc project theo dõi của company: board tạo issue gốc ở đây không nhận policy Crew. */
   trackingProject?: boolean;
   /** Mọi agent reviewer/integrator của company (file ∪ vai trò theo project); không truyền thì dùng `roles`. */
@@ -171,26 +172,39 @@ export function decideCreatePolicy(input: {
   if (input.trackingProject) return { kind: "keep" };
   if (!input.ownerUserId) return { kind: "keep" };
   if (input.researchLabel) return { kind: "set", template: "research", ownerUserId: input.ownerUserId };
-  const bugFinding = !input.nonCodeLabel && !!input.bugFindingEnabled && !!input.githubOrigin;
+  const bugFinding = !input.nonCodeLabel && !!input.bugFindingEnabled && !!input.originProvider;
   return { kind: "set", template: bugFinding ? "root-bf" : "root", ownerUserId: input.ownerUserId };
 }
 
 /** Nhãn của issue gốc khiến nó không phải ticket tổng code/bug (luồng cũ, không Bug Finding). */
 export const CREW_NON_CODE_LABELS: readonly string[] = [CREW_RESEARCH_LABEL, "docs", "plan"];
 
-/**
- * Origin trỏ tới github.com: `https://github.com/…`, `git@github.com:…`, `ssh://git@github.com[:port]/…`. So host
- * chính xác (không phân biệt hoa thường), nên `github.com.khac.vn` hay `notgithub.com` không tính.
- */
-export function isGithubOrigin(originUrl: string | null | undefined): boolean {
+export type OriginProvider = "github" | "gitlab";
+
+/** Host (chữ thường) của origin `git@<host>:…`, `ssh://git@<host>[:port]/…` hoặc `https://<host>/…`; dạng khác trả `null`. */
+function originHost(originUrl: string | null | undefined): string | null {
   const url = originUrl?.trim() ?? "";
   const scp = /^[^@/\s]+@([^:/\s]+):/.exec(url);
-  if (scp && !url.includes("://")) return scp[1]!.toLowerCase() === "github.com";
+  if (scp && !url.includes("://")) return scp[1]!.toLowerCase();
   try {
-    return new URL(url).hostname.toLowerCase() === "github.com";
+    const parsed = new URL(url);
+    return ["https:", "http:", "ssh:"].includes(parsed.protocol) && parsed.hostname ? parsed.hostname.toLowerCase() : null;
   } catch {
-    return false;
+    return null;
   }
+}
+
+/**
+ * Provider của origin: `github` khi host là github.com, `gitlab` khi host là gitlab.com hoặc nằm trong `gitlabHosts`
+ * (`bugFinding.gitlabHosts` của file cấu hình Crew, chữ thường); còn lại `null`. So host chính xác (không phân biệt hoa
+ * thường), không đoán theo chữ "gitlab" trong host, nên `github.com.khac.vn` hay `gitlab.corp.vn` chưa khai báo không tính.
+ */
+export function originProvider(originUrl: string | null | undefined, gitlabHosts: readonly string[]): OriginProvider | null {
+  const host = originHost(originUrl);
+  if (!host) return null;
+  if (host === "github.com") return "github";
+  if (host === "gitlab.com" || gitlabHosts.includes(host)) return "gitlab";
+  return null;
 }
 
 /** Tên nhãn (chữ thường) trong `CREW_NON_CODE_LABELS` mà issue mang, chỉ nhãn cùng company. */
@@ -208,18 +222,23 @@ async function nonCodeLabelNames(db: Db, companyId: string, labelIds: readonly s
 }
 
 /**
- * Project có origin GitHub trong `project_repos` của plugin crew.core. Chỉ gọi khi company bật Bug Finding; đọc lỗi
- * (plugin chưa cài, bảng chưa có) thì coi như không GitHub: ticket tổng giữ luồng cũ, không chặn tạo issue.
+ * Provider origin của project trong `project_repos` của plugin crew.core. Chỉ gọi khi company bật Bug Finding; đọc lỗi
+ * (plugin chưa cài, bảng chưa có) thì coi như không GitHub/GitLab: ticket tổng giữ luồng cũ, không chặn tạo issue.
  */
-async function projectHasGithubOrigin(db: Db, companyId: string, projectId: string | null): Promise<boolean> {
-  if (!projectId || !UUID_RE.test(projectId)) return false;
+async function projectOriginProvider(
+  db: Db,
+  companyId: string,
+  projectId: string | null,
+  gitlabHosts: readonly string[],
+): Promise<OriginProvider | null> {
+  if (!projectId || !UUID_RE.test(projectId)) return null;
   try {
     const rows = rowsOf(await db.execute(sql`SELECT origin_url FROM ${crewTableSql("project_repos")}
       WHERE company_id = ${companyId} AND project_id = ${projectId} LIMIT 1`));
-    return isGithubOrigin(typeof rows[0]?.origin_url === "string" ? rows[0].origin_url : null);
+    return originProvider(typeof rows[0]?.origin_url === "string" ? rows[0].origin_url : null, gitlabHosts);
   } catch (err) {
     logger.warn({ err, companyId, projectId }, "crew: reading project_repos failed; root issue keeps the root policy");
-    return false;
+    return null;
   }
 }
 
@@ -442,10 +461,10 @@ export async function crewBeforeIssueCreate<T extends IssueCreateFields>(input: 
   const nonCodeLabel = rootLabels.size > 0;
   const trackingProject = isTrackingProject(config, data.projectId);
   const bugFindingEnabled = config.kind === "ok" && config.bugFinding.enabled;
-  const githubOrigin =
-    boardRoot && bugFindingEnabled && !nonCodeLabel && !trackingProject
-      ? await projectHasGithubOrigin(input.db, input.companyId, projectId)
-      : false;
+  const repoProvider =
+    config.kind === "ok" && boardRoot && bugFindingEnabled && !nonCodeLabel && !trackingProject
+      ? await projectOriginProvider(input.db, input.companyId, projectId, config.bugFinding.gitlabHosts)
+      : null;
   const checksOverrides = !!data.createdByAgentId && data.assigneeAdapterOverrides != null;
   const assigneeAdapterType = checksOverrides
     ? await loadAssigneeAdapterType(input.db, input.companyId, data.assigneeAgentId)
@@ -459,7 +478,7 @@ export async function crewBeforeIssueCreate<T extends IssueCreateFields>(input: 
     researchLabel,
     nonCodeLabel,
     bugFindingEnabled,
-    githubOrigin,
+    originProvider: repoProvider,
     trackingProject,
     roleAgentIds,
     projectAgentRoles,

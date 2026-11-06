@@ -44,7 +44,8 @@ type Translate = ReturnType<typeof useT>['t'];
 const OPEN_STATUSES = new Set(['OPEN', 'STILL_PRESENT', 'REGRESSED', 'PARTIALLY_FIXED', 'UNABLE_TO_VERIFY']);
 const OPEN_RUN_STATES = new Set(['requested', 'queued', 'running']);
 const BROKEN_RUN_STATES = new Set(['failed', 'timeout', 'cancelled']);
-const PR_NUMBER = /\/pull\/(\d+)(?:$|[/?#])/;
+/** Số PR GitHub (`/pull/N`) hoặc số MR GitLab (`/-/merge_requests/N`). */
+const PR_NUMBER = /\/(?:pull|-\/merge_requests)\/(\d+)(?:$|[/?#])/;
 
 export const sha12 = (sha: string) => sha.slice(0, 12);
 export function prNumberOf(url: string | null | undefined): string | null {

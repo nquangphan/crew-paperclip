@@ -81,7 +81,7 @@ describe("parseCrewPolicyConfig", () => {
       roles,
       ownerUserId: "owner-1",
       trackingProjectIds: [],
-      bugFinding: { enabled: false },
+      bugFinding: { enabled: false, gitlabHosts: [] },
     });
   });
 
@@ -275,6 +275,44 @@ describe("parseCrewMergeEvidence", () => {
       `crew-merge sha=${SHA_HEAD} branch=main pushed=no pr=https://github.com/a/b/pull/5`,
     ]) {
       expect(parseCrewMergeEvidence(bad), bad).toBeNull();
+    }
+  });
+});
+
+describe("bằng chứng integrator với URL merge request GitLab", () => {
+  const MRS = [
+    "https://gitlab.qasoftsolution.com/nail/business-app/-/merge_requests/12",
+    "https://gitlab.com/group/sub/app/-/merge_requests/3",
+    "https://git.corp.vn:8443/a/b/-/merge_requests/7",
+  ];
+  const merge = "d".repeat(40);
+
+  it("crew-pr, crew-merge pushed=pr và pushed=merged nhận URL MR GitLab (tự host, subgroup, cổng)", () => {
+    for (const mr of MRS) {
+      expect(parseCrewPrEvidence(`crew-pr sha=${SHA_HEAD} pr=${mr}`), mr).toEqual({ sha: SHA_HEAD, pr: mr });
+      expect(parseCrewMergeEvidence(`crew-merge sha=${SHA_HEAD} branch=crew/req/TPS-1 pushed=pr pr=${mr}`), mr).toEqual({
+        sha: SHA_HEAD,
+        branch: "crew/req/TPS-1",
+        pr: mr,
+      });
+      expect(parseCrewMergeEvidence(`crew-merge sha=${SHA_HEAD} branch=crew/req/TPS-1 pushed=merged pr=${mr} merge=${merge}`), mr)
+        .toEqual({ sha: SHA_HEAD, branch: "crew/req/TPS-1", pr: mr, merge });
+    }
+  });
+
+  it("URL MR sai dạng bị từ chối", () => {
+    for (const bad of [
+      "http://gitlab.com/a/b/-/merge_requests/5",
+      "https://gitlab.com/a/-/merge_requests/5",
+      "https://gitlab.com/a/b/merge_requests/5",
+      "https://gitlab.com/a/b/-/merge_requests/0",
+      "https://gitlab.com/a/b/-/merge_requests/5x",
+      "https://gitlab.com/a/b/-/issues/5",
+      "https://github.com/a/b/-/merge_requests/5",
+      "https://gitlab.com/-/b/-/merge_requests/5",
+    ]) {
+      expect(parseCrewPrEvidence(`crew-pr sha=${SHA_HEAD} pr=${bad}`), bad).toBeNull();
+      expect(parseCrewMergeEvidence(`crew-merge sha=${SHA_HEAD} branch=main pushed=merged pr=${bad} merge=${merge}`), bad).toBeNull();
     }
   });
 });
