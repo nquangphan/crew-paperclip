@@ -41,6 +41,8 @@ interface PropertiesPanelProps {
   forcedDone?: boolean;
   /** Vòng QC đang mở (yêu cầu của Phòng QC đã Xong): trạng thái QC thay cho Hoàn thành, kèm người QC duyệt. */
   qc?: QcIssueState | null;
+  /** Trạng thái đã tính sẵn ở chi tiết (gồm "Chờ owner trả lời"); không có thì tính từ `qc` và trạng thái lõi. */
+  shownStatus?: string;
 }
 
 interface IssueRef {
@@ -62,11 +64,12 @@ export function PropertiesPanel({
   childIssues,
   forcedDone = false,
   qc = null,
+  shownStatus: shownStatusProp,
 }: PropertiesPanelProps) {
   const { t, lang } = useT('issues');
   const me = useMe();
   const authorName = useAuthorNames();
-  const shownStatus = qc ? displayStatus(issue, new Map([[issue.id, qc]])) : issue.status;
+  const shownStatus = shownStatusProp ?? (qc ? displayStatus(issue, new Map([[issue.id, qc]])) : issue.status);
   const none = <PropertyEmpty>{t('detail.props.none')}</PropertyEmpty>;
   const issueChip = (i: IssueRef) => (
     <PropertyChip key={i.id}>

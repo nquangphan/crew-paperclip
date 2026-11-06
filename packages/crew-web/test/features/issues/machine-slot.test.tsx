@@ -2,6 +2,7 @@
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { MachineSlot } from '@/features/issues/detail/crew/machine-slot';
+import { useIssueMachines } from '@/features/issues/list/machines';
 import { initI18n, setLanguage } from '@/i18n';
 import { accessRoute, mockServer } from '../../app/fetch-mock';
 import { ISSUE, wrap } from './detail-fixtures';
@@ -88,6 +89,65 @@ describe('dòng Máy trên trang yêu cầu', () => {
       expect(screen.getByTestId('issue-machine').textContent).toBe('Phans-MacBook-Pro · Đại Ca chọn'),
     );
     expect(calls.find((c) => c.method === 'PUT')?.body).toEqual({ machineId: 'm-book' });
+  });
+
+  it('đổi máy xong thì lô máy của danh sách đang mở tải lại, nhãn đổi theo máy mới', async () => {
+    const BOOK_PIN = { ...AUTO, machineId: 'm-book', hostname: 'Phans-MacBook-Pro', source: 'owner', reason: {} };
+    let pinned = 'm-mini';
+    const summary = () => ({
+      rootIssueId: 'i0',
+      machineId: pinned,
+      hostname: pinned === 'm-book' ? 'Phans-MacBook-Pro' : 'Phans-Mac-mini',
+      online: true,
+      paired: true,
+    });
+    const { calls } = mockServer({
+      [`GET ${URL}`]: { body: view(AUTO) },
+      'GET /api/crew/companies/c1/machines': {
+        body: {
+          items: [
+            {
+              machineId: 'm-book',
+              hostname: 'Phans-MacBook-Pro',
+              online: true,
+              status: 'ready',
+              running: 1,
+              load1: 2,
+              cpuCount: 12,
+              memFreePct: 60,
+            },
+          ],
+        },
+      },
+      [`PUT ${URL}`]: () => {
+        pinned = 'm-book';
+        return { body: view(BOOK_PIN) };
+      },
+      'POST /api/crew/companies/c1/issue-machines': () => ({ body: { items: { i0: summary() } } }),
+    });
+    // Danh sách đang mở phía dưới popup: cùng QueryClient, dùng lô máy như trang Yêu cầu.
+    const listed = [ROOT as never];
+    function ListProbe() {
+      const machines = useIssueMachines('c1', listed);
+      return <output data-testid="list-machine">{machines.data?.i0?.hostname ?? ''}</output>;
+    }
+    render(
+      wrap(
+        <>
+          <MachineSlot issue={ROOT as never} />
+          <ListProbe />
+        </>,
+      ),
+    );
+    await waitFor(() => expect(screen.getByTestId('list-machine').textContent).toBe('Phans-Mac-mini'));
+    fireEvent.click(await screen.findByRole('button', { name: 'Đổi máy' }));
+    fireEvent.keyDown(await screen.findByRole('combobox', { name: 'Máy' }), { key: 'Enter' });
+    fireEvent.click(
+      within(await screen.findByRole('listbox')).getByRole('option', { name: 'Phans-MacBook-Pro · 1 run · load 2' }),
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Lưu' }));
+    await waitFor(() => expect(screen.getByTestId('list-machine').textContent).toBe('Phans-MacBook-Pro'));
+    expect(calls.filter((c) => c.method === 'POST' && c.url.endsWith('/issue-machines'))).toHaveLength(2);
   });
 
   it('không phải owner thì không có nút Đổi máy', async () => {

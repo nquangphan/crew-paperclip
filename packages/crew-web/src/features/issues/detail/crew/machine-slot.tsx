@@ -6,6 +6,7 @@ import { api, type IssueMachine, queryKeys } from '@/api';
 import { Button, ErrorState, PropertyRow, Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/ds';
 import { useCompanyAccess } from '@/features/access';
 import { useT } from '@/i18n';
+import { invalidateIssueMachines } from '../../list/machines';
 import { formatMachineNumber, machineOptionLabel } from '../../new/machine-field';
 
 type Translate = ReturnType<typeof useT>['t'];
@@ -49,6 +50,7 @@ export function MachineSlot({ issue }: { issue: Issue }) {
     mutationFn: (machineId: string) => api.machinePins.set(issue.companyId, issue.id, machineId),
     onSuccess: (next) => {
       queryClient.setQueryData(queryKeys.issueMachine(issue.id), next);
+      void invalidateIssueMachines(queryClient);
       setEditing(false);
     },
   });

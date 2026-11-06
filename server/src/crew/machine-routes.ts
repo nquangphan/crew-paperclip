@@ -7,7 +7,7 @@ import { logger } from "../middleware/logger.js";
 import { hasCompanyAccess } from "../routes/authz.js";
 import { isUuid, requireOwner, resolveContributionActor } from "./contributions.js";
 import {
-  findRootIssueId, loadMachineCandidates, machineHostname, machineTablesReady, pairedMachine, pairedMachines, readPin,
+  findRootIssueId, issueMachines, loadMachineCandidates, machineHostname, machineTablesReady, pairedMachine, pairedMachines, readPin,
   setOwnerPin, treeStarted,
 } from "./machine-pin.js";
 import {
@@ -54,6 +54,9 @@ export const projectRepoSchema = z.object({
     .refine((list) => new Set(list.map((item) => item.name)).size === list.length, "tên repo đi kèm bị trùng"),
 }).strict();
 const machineBodySchema = z.object({ machineId: z.string().uuid() }).strict();
+/** Số issue tối đa mỗi lần hỏi lô máy ghim (danh sách issue, board). */
+export const ISSUE_MACHINES_MAX = 500;
+const issueMachinesSchema = z.object({ issueIds: z.array(z.string().uuid()).min(1).max(ISSUE_MACHINES_MAX) }).strict();
 
 /** Số agent tối đa trong một lệnh hỏi chặn hay dọn máy khác. */
 const RELEASE_MAX_AGENTS = 20;
@@ -92,11 +95,14 @@ async function assertProject(db: Db, companyId: string, projectId: string): Prom
 
 async function issueMachineView(db: Db, companyId: string, issueId: string) {
   const issue = await loadIssue(db, companyId, issueId);
-  const rootIssueId = (await findRootIssueId(db, companyId, issue.id)) ?? issue.id;
-  const pin = await readPin(db, companyId, rootIssueId);
+  // Không tìm được gốc (vòng parentId, quá MAX_TREE_DEPTH): không có máy, không đổi được, cùng kết luận với route lô và
+  // `pinnedMachineId` của run; không lấy ghim của chính issue.
+  const root = await findRootIssueId(db, companyId, issue.id);
+  const rootIssueId = root ?? issue.id;
+  const pin = root ? await readPin(db, companyId, root) : null;
   return {
     rootIssueId,
-    isRoot: rootIssueId === issue.id,
+    isRoot: root === issue.id,
     locked: await treeStarted(db, companyId, rootIssueId),
     pin: pin
       ? {
@@ -117,6 +123,7 @@ async function issueMachineView(db: Db, companyId: string, issueId: string) {
  * - `GET  …/machines?projectId=`: máy đã ghép cho form chọn máy (online, số run, tải, trạng thái project).
  * - `GET  …/issues/:issueId/machine`, `PUT` `{ machineId }`: ghim máy của cây yêu cầu; chỉ issue gốc, cây đã có lease
  *   thì khóa; máy chưa dựng project thì xếp `ensure-project` trước khi ghim.
+ * - `POST …/issue-machines` `{ issueIds }`: máy ghim của từng issue (theo gốc) cho danh sách issue và board, một truy vấn.
  * - `GET  …/projects/:projectId/machines`: repo và máy của project, đối chiếu việc dựng đang chờ trước khi trả.
  * - `POST …/projects/:projectId/machines` `{ machineId }`: dựng project trên một máy (202).
  * - `PUT  …/projects/:projectId/repo`: origin, nhánh và repo đi kèm; sai luật thì 422 `crew_machine_invalid`.
@@ -153,6 +160,20 @@ export function crewMachineRoutes(db: Db): Router {
     const actor = await actorOf(req);
     await ready();
     res.json(await issueMachineView(db, actor.companyId, req.params.issueId));
+  });
+
+  router.post(`${BASE}/issue-machines`, async (req, res) => {
+    const actor = await actorOf(req);
+    await ready();
+    const { issueIds } = body(issueMachinesSchema, req.body, "issueIds phải là 1–500 uuid.");
+    const now = new Date();
+    const items: Record<string, unknown> = {};
+    for (const [issueId, m] of await issueMachines(db, actor.companyId, issueIds)) {
+      items[issueId] = m && {
+        rootIssueId: m.rootIssueId, machineId: m.machineId, hostname: m.hostname, online: m.paired && isOnline(m, now), paired: m.paired,
+      };
+    }
+    res.json({ items });
   });
 
   router.put(`${BASE}/issues/:issueId/machine`, async (req, res) => {

@@ -245,6 +245,10 @@ export const ENDPOINTS = {
   'qc.list': { ids: ['S23.3'], method: 'GET', path: `${CREW}/qc` },
   'qc.verify': { ids: ['S23.1'], method: 'POST', path: `${CREW}/qc/issues/:issueId/verify` },
 
+  // Yêu cầu chờ owner trả lời thẻ câu hỏi/xác nhận: trạng thái hiển thị ở danh sách, Bảng, chi tiết, Roadmap (S4.1,
+  // S4.2, S6.9) và tab "Chờ tôi duyệt" của Hộp thư (S3.1).
+  'awaitingOwner.list': { ids: ['S3.1', 'S4.1', 'S4.2', 'S6.9'], method: 'GET', path: `${CREW}/awaiting-owner` },
+
   // Quyền xem project theo thành viên (S21): owner đặt ở trang Thành viên, mọi trang lọc theo `projectAccess.me`.
   'projectAccess.me': { ids: ['S21.2'], method: 'GET', path: `${CREW}/project-access/me` },
   'projectAccess.list': { ids: ['S21.1'], method: 'GET', path: `${CREW}/project-access` },
@@ -253,6 +257,8 @@ export const ENDPOINTS = {
   'machinePin.candidates': { ids: ['S25.1'], method: 'GET', path: `${CREW}/machines` },
   'machinePin.get': { ids: ['S25.2'], method: 'GET', path: `${CREW}/issues/:issueId/machine` },
   'machinePin.set': { ids: ['S25.1', 'S25.2'], method: 'PUT', path: `${CREW}/issues/:issueId/machine` },
+  // Máy của cây chứa từng yêu cầu trên danh sách và Bảng (một POST cho tới 500 id).
+  'machinePin.batch': { ids: ['S4.1', 'S4.2'], method: 'POST', path: `${CREW}/issue-machines` },
   'projectMachines.get': { ids: ['S25.3'], method: 'GET', path: `${CREW}/projects/:projectId/machines` },
   'projectMachines.add': { ids: ['S25.3'], method: 'POST', path: `${CREW}/projects/:projectId/machines` },
   'projectMachines.setRepo': { ids: ['S25.3'], method: 'PUT', path: `${CREW}/projects/:projectId/repo` },

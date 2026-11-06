@@ -376,6 +376,21 @@ describe("route", () => {
     expect(await result(run!.request_id)).toMatchObject({ status: 409 });
   });
 
+  it("results: decisionItems gắn câu hỏi của owner vào đúng finding, kết quả không có decisionItems giữ question cũ", async () => {
+    const issue = addIssue(42);
+    await handleIssueUpdated(ctx, updated(issue));
+    const [run] = await runs(issue);
+    expect(await result(run!.request_id, { decisionItems: "Q-01" })).toMatchObject({ status: 400 });
+    const decisionItems = [
+      { id: "Q-01", question: "Kiểm quyền có cần cho cả agent?", owner: "owner", kind: "PRODUCT", findings: ["F-01"] },
+      { id: "Q-02", question: "Không gắn finding nào", findings: [] },
+    ];
+    expect(await result(run!.request_id, { decisionItems })).toMatchObject({ status: 200 });
+    const [saved] = await runs(issue);
+    expect((saved!.findings as { id: string; question: string | null }[]).map((f) => [f.id, f.question]))
+      .toEqual([["F-01", "Q-01: Kiểm quyền có cần cho cả agent?"], ["F-02", null]]);
+  });
+
   it("GET: mọi lượt kèm kế hoạch của Trợ Lý, số lô sửa trong vòng, tối đa 2 lô, head hiện tại", async () => {
     const issue = addIssue(11);
     for (const [run, head, state] of [[1, HEAD, "succeeded"], [2, NEXT_HEAD, "failed"], [3, NEXT_HEAD, "requested"]] as const) {

@@ -1,0 +1,79 @@
+/* Token của mockup: chép nguyên giá trị từ packages/crew-web/src/ds/tokens.css (không đặt màu mới).
+   Font: packages/crew-web/public/fonts/InterVariable.woff2 (chép vào ./fonts, nạp bằng đường dẫn tương đối). */
+
+@font-face {
+  font-family: "InterVariable";
+  src: url("./fonts/InterVariable.woff2") format("woff2");
+  font-display: swap;
+  font-style: normal;
+  font-weight: 100 900;
+}
+
+/* tokens.css dòng 6-7, 52-53, 106-125, 135-142, 220-249, 591 (theme sáng) */
+:root {
+  --motion-ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+  --motion-ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
+  --font-sans: "InterVariable", "Inter", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  --text-compact: 13px;
+  --radius: 0.5rem;
+  --background: oklch(1 0 0);
+  --foreground: oklch(0.145 0 0);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.145 0 0);
+  --popover: oklch(1 0 0);
+  --primary: oklch(0.205 0 0);
+  --primary-foreground: oklch(0.985 0 0);
+  --secondary: oklch(0.97 0 0);
+  --muted: oklch(0.97 0 0);
+  --muted-foreground: oklch(0.556 0 0);
+  --accent: oklch(0.97 0 0);
+  --border: oklch(0.922 0 0);
+  --ring: oklch(0.708 0 0);
+  --sidebar: oklch(0.985 0 0);
+  --sidebar-foreground: oklch(0.145 0 0);
+  --sidebar-accent: oklch(0.88 0 0);
+  --sidebar-accent-foreground: oklch(0.205 0 0);
+  --sidebar-border: oklch(0.922 0 0);
+  --status-task-icon-backlog: #52585d;
+  --status-task-icon-todo: #cc7a00;
+  --status-task-icon-in_progress: #7c3aed;
+  --status-task-icon-in_review: #0891b2;
+  --status-task-icon-done: #16a34a;
+  --status-task-icon-blocked: #dc2626;
+  --status-task-icon-cancelled: #52585d;
+  --status-task-icon-qc_awaiting: #c2410c;
+  --status-task-icon-qc_verified: #0f766e;
+}
+
+/* tokens.css dòng 406-466 (theme tối) */
+.dark {
+  --background: oklch(0.205 0 0);
+  --foreground: oklch(0.985 0 0);
+  --card: oklch(0.205 0 0);
+  --card-foreground: oklch(0.985 0 0);
+  --popover: oklch(0.205 0 0);
+  --primary: oklch(0.922 0 0);
+  --primary-foreground: oklch(0.205 0 0);
+  --secondary: oklch(0.269 0 0);
+  --muted: oklch(0.269 0 0);
+  --muted-foreground: oklch(0.708 0 0);
+  --accent: oklch(0.269 0 0);
+  --border: oklch(1 0 0 / 10%);
+  --ring: oklch(0.556 0 0);
+  --sidebar: oklch(0.205 0 0);
+  --sidebar-foreground: oklch(0.985 0 0);
+  --sidebar-accent: oklch(0.32 0 0);
+  --sidebar-accent-foreground: oklch(0.985 0 0);
+  --sidebar-border: oklch(1 0 0 / 10%);
+  --status-task-icon-backlog: #9a958a;
+  --status-task-icon-todo: #fbbf24;
+  --status-task-icon-in_progress: #a78bfa;
+  --status-task-icon-in_review: #22d3ee;
+  --status-task-icon-done: #34d06f;
+  --status-task-icon-blocked: #dc2626;
+  --status-task-icon-cancelled: #9a958a;
+  --status-task-icon-qc_awaiting: #fb923c;
+  --status-task-icon-qc_verified: #2dd4bf;
+}
+

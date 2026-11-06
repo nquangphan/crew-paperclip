@@ -28,7 +28,8 @@ Luật chính:
   board. Router này cũng gắn router quyền xem project (flow `project-access`), router máy (flow `multi-machine`),
   router cài đặt model (flow `model-settings`, `/api/crew/model-settings`, toàn instance, luật người gọi riêng: owner là
   instance admin), router gọi Trợ Lý bằng tag (flow `run-handoff`, `POST …/issues/:issueId/assistant-call`, chỉ owner,
-  có ghi activity), router terminal web của owner (flow `web-terminal`, `…/terminal/targets|unlock|tickets`) và bộ chờ
+  có ghi activity), router issue chờ owner trả lời thẻ (flow `issues-web`, `GET …/awaiting-owner`, chỉ đọc, mọi thành
+  viên, lọc theo project được xem), router terminal web của owner (flow `web-terminal`, `…/terminal/targets|unlock|tickets`) và bộ chờ
   plugin khởi động.
 - Route dưới `/api/crew/companies/:companyId`: `GET /access`, `GET /contributions`, `GET /contributions/summary`,
   `GET /contributions/:id`, `POST /contributions`, `POST /contributions/:id/approve`,
@@ -91,6 +92,7 @@ Luật chính:
 - `multi-machine`: router máy (chọn máy cho yêu cầu gốc, máy và repo của project) gắn bên trong, cùng luật người gọi.
 - `model-settings`: router cài đặt model gắn bên trong (`crewModelSettingsRoutes`), không theo company.
 - `run-handoff`: router gọi Trợ Lý bằng tag gắn bên trong (`crewAssistantCallRoutes`).
+- `issues-web`: router issue chờ owner trả lời thẻ gắn bên trong (`crewAwaitingOwnerRoutes`).
 - `web-terminal`: router terminal web (`crewTerminalRoutes`) gắn bên trong, chỉ owner.
 - `crew-plugin`: bộ chờ plugin khởi động gắn ở router này.
 - `roadmap-map`, `project-access`: router này gắn `crewRoadmapViewerScope` trên `CREW_ROADMAP_SCOPE_PATHS` (data `crew.roadmap`, so trên key đã decode nên `crew%2Eroadmap` cũng bị bắt): server ghi đè `params.viewer` theo project người gọi được xem trước route data stock; viewer client gửi không tới worker.

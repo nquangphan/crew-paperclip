@@ -35,6 +35,36 @@ thì Trợ Lý comment `Trợ Lý: không đọc được bảng model (<lỗi>)
 thức sau thử lại. Khi server trả `crew_override_forbidden`, Trợ Lý đọc lại bảng (owner có thể vừa lưu) rồi tạo lại con. Vì
 `AGENTS.md` không còn chứa bảng, đổi bảng không cần render lại hay upload lại `AGENTS.md`.
 
+## Luật chung: không chạy nền rồi kết thúc lượt
+
+Mục "Không bao giờ" của cả 6 template (`executor`, `reviewer`, `integrator`, `assistant`, `designer`, `bmad`) có cùng một đoạn
+cấm chạy lệnh ở chế độ nền rồi kết thúc lượt, đứng ngay sau đoạn cấm xóa đệ quy (đoạn không đánh số, nên số mục không đổi).
+Các vai biến thể `executor-codex`, `executor-opencode` (template `executor`) và `reviewer-codex` (template `reviewer`) dùng chung
+template nên có luật này, không có file riêng. Đoạn giống hệt nhau ở mọi file vì `render-instructions.mjs` không có cơ chế phần chung.
+
+Nội dung: mọi lệnh (test, build, E2E, simulator) chạy tiền cảnh và đọc kết quả trong cùng lượt, không dùng `run_in_background`
+hay Monitor của công cụ agent, không kết thúc lượt để "chờ thông báo" của lệnh nền; một lệnh tối đa 10 phút (việc dài thì tách
+từng flow/spec, mỗi phần một lệnh có timeout). Cần tiến trình phụ (dev server cho E2E) thì tự bật bằng `&` trong lượt, ghi
+`$!`, dùng xong và tắt theo PID trước khi kết thúc lượt (khớp mục "Không bao giờ" về dọn process và luồng E2E của executor).
+
+Cách hiểu thống nhất (Bug Finding lượt 1 của TPS-741, sửa ở TPS-757): luật chỉ cấm bỏ **lệnh nền của chính run** rồi kết thúc
+lượt, vì lệnh nền không đánh thức lại agent. Luật không cấm dừng chờ **server** đánh thức theo luồng của vai: reviewer chờ kết
+quả Bug Finding (`reviewer.md`, kết thúc run không đổi status), reviewer/integrator chỉ comment lý do và giữ status khi chờ
+owner, integrator chờ con sửa xong, Trợ Lý chờ cả lô con hoặc owner trả lời thẻ, BMAD `blocked` chờ owner. Server đánh thức bằng
+sự kiện của chính nó (issue được giao, con xong, owner trả lời), không dựa vào lệnh nền của run. Job do server xếp hàng chạy
+riêng ngoài run (deploy của integrator ở bước 7b, Bug Finding) không thuộc luật. Đoạn luật không còn mệnh đề chung "không có
+thông báo đánh thức lại", chỉ nói về lệnh nền của run.
+
+Lý do (sự cố TPS-693, 05/11/2026): executor bật flow Maestro iOS chạy nền rồi kết thúc lượt "chờ monitor báo kết quả". Run
+agent là một lần `claude --print`: kết thúc lượt thì process thoát và lệnh nền bị cắt, không có gì đánh thức lại agent. Issue
+bị `blocked` sau 5 run hỏng `adapter_failed` exit 255.
+
+Kiểm: `crew/agents/instructions.test.mjs` (đoạn luật giống hệt ở 6 template; F-01/F-02 kiểm câu cho phép chờ server đánh thức,
+`&`/`$!`, ngoại lệ job do server xếp hàng), `packages/crew-web/test/lib/instructions/render.test.ts` (fixture render) và E2E
+ca giả `packages/crew-web/e2e/fake/agents-md-no-background.spec.ts` (web hiện luật ở 4 vai có thao tác "Render lại theo vai
+trò": Trợ Lý, executor, reviewer, integrator). `bmad` và `designer` cố ý ngoài phạm vi E2E vì web không có ô vai trò và đường
+render AGENTS.md cho hai agent này; spec ghi chú lý do và có ca khóa danh sách đủ 6 template.
+
 ## Tổng kết của Trợ Lý trên mô tả gốc
 
 Mục `## Tổng kết của Trợ Lý` ở cuối mô tả gốc là chỗ owner đọc để nắm cả yêu cầu. Luật nằm ở mục "Tổng kết trên mô tả gốc" của
@@ -155,12 +185,20 @@ là integrator, stage 2 là reviewer, stage 3 là `approval` của owner); polic
   `GET /api/plugins/crew.core/api/issues/<id>/bug-finding` (flow `bug-finding`), không tin comment. Chưa có lượt cho head
   hiện tại thì xếp (`bug-finding/request`); lượt hỏng lần đầu xếp lại, lần hai hỏi owner bằng `request_confirmation` khóa
   `crew-bf-skip:<id>:<vòng>:<head12>:<số lượt hỏng>`, owner đồng ý thì gọi `bug-finding/skip`; lượt `succeeded` còn finding
-  mở (trừ finding owner chọn `wontfix`/`split` trong thẻ `crew-bf:<id>:<vòng>-<lượt>` và finding `LOW`/`INFO` trong `dismiss=`
-  của `crew-bf-triage` do Trợ Lý viết) và còn lô thì `Reviewer: cần sửa` về Trợ Lý, không thì cho qua sang owner.
+  mở (trừ finding owner chọn `wontfix`/`split` trong thẻ `crew-bf:<id>:<vòng>-<lượt>` của mọi vòng và finding `LOW`/`INFO`
+  trong `dismiss=` của `crew-bf-triage` do Trợ Lý viết) và còn lô thì `Reviewer: cần sửa` về Trợ Lý, không thì cho qua sang
+  owner. Câu trả lời áp cho mọi id finding trong `questionId` (nối bằng dấu phẩy); thẻ của lượt khác khớp finding hiện tại
+  khi cùng `rule` (khác `UNCATEGORIZED`) và cùng file của `location`, hoặc cùng `title`.
 - Trợ Lý (`assistant.md`, mục "Xử lý finding Bug Finding"): đọc cùng route và document báo cáo, phân loại theo bảng tự sửa /
-  hỏi owner / bỏ qua (`CRITICAL`, `HIGH` không bao giờ bỏ qua), ghi `crew-bf-triage run=<n> batch=bf-fix-<k> …` trước mọi
-  thẻ và con (`<k>` tăng qua mọi vòng), một thẻ `ask_user_questions` khóa `crew-bf:<id gốc>:<vòng>-<n>` (id câu là id
-  finding, lựa chọn `fix`/`wontfix`/`split`), con sửa có `crew-fix base=<head PR>`, `crew-child key=bf-<F-xx>
+  hỏi owner / bỏ qua (`CRITICAL`, `HIGH` không bao giờ bỏ qua). Tự sửa không đòi `action` (Bug Finding không ghi trường
+  này; có thì phải là `CODE_FIX`/`TEST_FIX`), mọi mức từ `LOW` tới `CRITICAL`, khi finding `introduced`, `Confirmed` (hoặc
+  `Potential` có `SOURCE`), có `fix` và `accept`, không có `question` và không đổi hành vi, API, dữ liệu. `question` đến từ
+  `decision_items` của Bug Finding (flow `bug-finding`); finding có `question` thì hỏi owner. Trước khi phân loại, câu trả
+  lời của owner trong thẻ `crew-bf:` của mọi vòng được dùng lại cho finding khớp (cùng `rule` khác `UNCATEGORIZED` + cùng
+  file, hoặc cùng `title`): `fix` vào nhóm tự sửa, `wontfix`/`split` vào phản hồi, không hỏi lại. Ghi
+  `crew-bf-triage run=<n> batch=bf-fix-<k> …` trước mọi thẻ và con (`<k>` tăng qua mọi vòng), một thẻ `ask_user_questions`
+  khóa `crew-bf:<id gốc>:<vòng>-<n>` (finding cùng `question` chung một câu; id câu là các id finding nối bằng dấu phẩy,
+  ví dụ `F-01,F-02`; lựa chọn `fix`/`wontfix`/`split`), con sửa có `crew-fix base=<head PR>`, `crew-child key=bf-<F-xx>
   revision=bf-fix-<k>`, `crew-bf finding=<F-xx> run=<n>`, con E2E `e2e-fix-bf<k>` khi gốc có E2E. Chỉ `PATCH done` một lần
   khi mọi con của lô xong và mọi thẻ đã trả lời, comment kèm khối `crew-bf-feedback`. "Đóng issue gốc" nói rõ `code-bf` đi
   sang integrator, không còn reviewer cấp gốc.
@@ -259,7 +297,7 @@ là integrator, stage 2 là reviewer, stage 3 là `approval` của owner); polic
 
 ## Tests
 
-- `crew/agents/instructions.test.mjs`: luật chung của mọi template (cấm xóa đệ quy ngoài thư mục tạm), dòng mẫu
+- `crew/agents/instructions.test.mjs`: luật chung của mọi template (cấm xóa đệ quy ngoài thư mục tạm; cấm chạy lệnh nền rồi kết thúc lượt, đúng một đoạn trong mục "Không bao giờ"), dòng mẫu
   `crew-docs-check`, `crew-merge`, `crew-fix`, `crew-commit`, `crew-review` khớp định dạng và regex của server, cách
   integrator nhận diện stage. Loại yêu cầu Lập kế hoạch: Trợ Lý nhận bằng nhãn `plan`, hỏi owner trước khi tạo con, chỉ tạo con `crew-kind plan`
   và ghi `- File kế hoạch:` trong tổng kết; executor, reviewer, integrator có luật tương ứng. Ticket tổng `code-bf`: mục mới của bốn template có đủ bước, dòng mẫu `crew-pr`, `crew-merge … pushed=merged`, `crew-bf-triage`, marker con lô và khối `crew-bf-feedback` khớp regex của server và plugin; regex `CREW_MERGE_RE`, `CREW_PR_RE` của server được đọc lại từ nguồn để so. Tổng kết của Trợ Lý: có từ lúc lập kế hoạch, đủ mục Yêu cầu/Việc con/Hình ảnh theo thứ tự, cập nhật mỗi run bằng `PATCH` ghi cuối, giữ `### Merge request`. Bảng model: `assistant.md` không chứa id model nào, có đúng lệnh `curl` đọc bảng cùng bốn đường dẫn JSON và đường lui khi lệnh lỗi. Agent UIUX: `designer.md` đi qua mọi luật chung, dòng mẫu `crew-design-result` và `crew-commit` khớp định dạng, cấm sửa code app, CDN và `--persist`, mục File đính kèm giống executor; Trợ Lý có bước con thiết kế (dòng `crew-kind design` đứng riêng, `child-key=design-1`, kiểm 2 stage) và mục "Được gọi bằng tag" (bước kiểm khóa ghi trên gốc đứng trước bước làm việc, con `in_progress` thì trả lời trên gốc, không thử lại lệnh bị khóa); reviewer có mục Issue thiết kế đúng thứ tự; executor có mục `crew-design on=` và dòng `crew-design-used`, bước đọc mockup kiểm sha bằng `git cat-file -e`, `git fetch origin` rồi mới rơi về ảnh và giải thích.

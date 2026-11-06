@@ -143,6 +143,8 @@ export interface KanbanCardData {
   needsNextStep?: boolean;
   /** Phần thêm ở dòng cuối thẻ (giai đoạn Crew, x/y con xong). */
   meta?: React.ReactNode;
+  /** Dòng máy cuối thẻ, ngăn bằng đường kẻ mảnh; không có thì không vẽ dòng. */
+  machine?: React.ReactNode;
 }
 
 export interface KanbanBoardLabels {
@@ -251,6 +253,14 @@ function KanbanCardView({
           ) : null}
           {card.meta}
         </div>
+        {card.machine ? (
+          <div
+            data-slot="kanban-card-machine"
+            className={cn('flex min-w-0 border-t border-border/70', compact ? 'mt-1.5 pt-1' : 'mt-2 pt-1.5')}
+          >
+            {card.machine}
+          </div>
+        ) : null}
       </NavAnchor>
     </Card>
   );

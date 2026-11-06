@@ -23,14 +23,15 @@ fallback) dựa vào kho git dùng chung trên một máy. Owner chọn máy lú
 | Method, đường | Body | Trả |
 |---|---|---|
 | `GET …/machines?projectId=` | — | `{ items: [{ machineId, hostname, online, status, running, load1, cpuCount, memFreePct }] }` |
-| `GET …/issues/:issueId/machine` | — | `{ rootIssueId, isRoot, locked, pin: null \| { machineId, hostname, source, reason, pinnedAt } }` |
+| `GET …/issues/:issueId/machine` | — | `{ rootIssueId, isRoot, locked, pin: null \| { machineId, hostname, source, reason, pinnedAt } }`; không tìm được gốc (vòng `parentId`, quá `MAX_TREE_DEPTH`) thì `pin: null`, `isRoot: false` như route lô |
+| `POST …/issue-machines` | `{ issueIds: uuid[1..500] }` | `{ items: { "<issueId>": null \| { rootIssueId, machineId, hostname: string \| null, online, paired } } }` |
 | `PUT …/issues/:issueId/machine` | `{ machineId }` | như GET; lỗi 422 `crew_machine_not_root`, 409 `crew_machine_locked`, 422 `crew_machine_unknown`, 409 `crew_machine_no_repo`/`crew_machine_no_roles` |
 | `GET …/projects/:projectId/machines` | — | `{ repo: null \| { originUrl, branch, companions }, machines: [{ machineId, hostname, online, status, error, repoPath, updatedAt }] }` |
 | `POST …/projects/:projectId/machines` | `{ machineId }` | 202 `{ status: "provisioning" }` |
 | `PUT …/projects/:projectId/repo` | `{ originUrl, branch, companions }` | 200 repo; sai luật thì 422 `crew_machine_invalid` |
 
   `status` của máy trong project: `"ready" | "provisioning" | "failed" | null` (null = chưa dựng). Bảng máy chưa có thì
-  503 `crew_machine_unavailable`; body `machineId` sai thì 400 `crew_machine_invalid`.
+  503 `crew_machine_unavailable`; body `machineId` (hay `issueIds`) sai thì 400 `crew_machine_invalid`.
 - Ba route dọn/dựng máy khác, cùng router, chỉ owner bằng phiên trình duyệt hoặc board API key của owner (app 2P Crew gọi
   bằng board key); không phải owner thì 403 `crew_machine_forbidden`, body sai thì 400 `crew_machine_invalid`; `agentIds`
   có id không nằm trong dòng `crew_project_roles` của project (`scopeReleaseAgents`) hay quá 20 id thì 422
@@ -107,6 +108,20 @@ fallback) dựa vào kho git dùng chung trên một máy. Owner chọn máy lú
    - `fail`: activity `crew.machine.failed` và comment một lần mỗi run; cổng tải hủy run và chuyển issue sang `blocked`;
    - lỗi bất ngờ khi cây đã ghim hay đang ghi ghim: `hold`; lỗi trước khi biết có ghim: `pass` với `null` như stock.
 5. `server/src/crew/machine-routes.ts` (route của owner):
+   - `POST …/issue-machines` (đọc, mọi thành viên, quyền như `GET …/issues/:issueId/machine`): máy ghim cho danh sách issue
+     và board (flow `issues-web`: crew-web gọi một lần cho mọi yêu cầu đã tải qua `api.machinePins.issueMachines`, chia
+     khúc 500 id; tên hiện là hostname bỏ hậu tố miền, `paired=false` hiện "Đã gỡ ghép"), 1–500 id mỗi lần (`ISSUE_MACHINES_MAX`), id trùng được gộp. `issueMachines`
+     (`machine-pin.ts`) trả cả lô trong một truy vấn: CTE đệ quy lên gốc (cùng luật `findRootIssueId`/`pinnedMachineId`,
+     sâu tối đa `MAX_TREE_DEPTH`), join `issue_machine_pins`, `machine_pairings` chưa gỡ và `machine_latest`; số truy vấn
+     không tăng theo số issue. Issue con và cháu nhận máy của gốc (`rootIssueId` là gốc); cây chưa ghim hay không tìm được
+     gốc thì `null`; id không thuộc company (hay không có) bị bỏ khỏi `items`. `GET …/issues/:issueId/machine` của trang
+     chi tiết cùng kết luận: không tìm được gốc thì `pin: null`, `isRoot: false` (không lấy ghim nằm trên chính issue),
+     khớp `pinnedMachineId` mà run dùng. `paired=false` khi máy ghim không còn dòng
+     ghép chưa gỡ: `hostname=null` (không lấy tên từ bản tin, không trả id thô), `online=false`; còn lại `hostname` lấy từ
+     dòng ghép và `online` theo `isOnline` như `GET …/machines` (bản tin không cũ quá 5 phút). Route lô và
+     `GET …/issues/:issueId/machine` không lọc theo quyền xem project của thành viên, có chủ đích: quyền đó chỉ là lọc
+     giao diện, không phải ranh giới bảo mật (owner chốt 05/11/2026, flow `project-access`,
+     `docs/flows/project-access.md`); ranh giới vẫn là company ở mọi bước CTE và JOIN.
    - `PUT …/issues/:issueId/machine`: chỉ owner; chỉ issue gốc (issue con: 422 `crew_machine_not_root`); cây đã có lease
      (`treeStarted`) thì 409 `crew_machine_locked`, kiểm trước khi ghi ghim; máy phải còn ghép (không thì 422
      `crew_machine_unknown`); project chưa dựng trên máy đó (không `ready`/`provisioning`) thì `startProvisioning` xếp
@@ -174,8 +189,8 @@ fallback) dựa vào kho git dùng chung trên một máy. Owner chọn máy lú
 |-----------|---------|--------------|
 | `server/src/crew/machine-gate.ts` | Cổng ghim máy trong cổng claim: ghim cây, giữ run khi máy đang dựng, hủy khi dựng hỏng | `evaluateMachineGate`, `MachineGateOutcome`, `MACHINE_PINNED_ACTION`, `MACHINE_WAITING_ACTION`, `MACHINE_FAILED_ACTION` |
 | `server/src/crew/machine-select.ts` | Chọn máy (thuần) | `chooseMachine`, `choiceReason`, `isOnline`, `MACHINE_REPORT_MAX_AGE_MS`, `DEFAULT_MAX_LOAD1` |
-| `server/src/crew/machine-pin.ts` | Truy vấn ghim máy, máy đã ghép, environment theo máy, ứng viên | `findRootIssueId`, `treeStarted`, `readPin`, `insertAutoPin`, `setOwnerPin`, `pairedMachines`, `machineOfHost`, `agentEnvironmentOnMachine`, `resolvePinnedEnvironment`, `crewResolveRunEnvironment`, `loadMachineCandidates` |
-| `server/src/crew/machine-routes.ts` | Route máy cho form yêu cầu và trang project | `crewMachineRoutes`, `MACHINE_ERRORS`, `projectRepoSchema`, `ORIGIN_RE` |
+| `server/src/crew/machine-pin.ts` | Truy vấn ghim máy, máy đã ghép, environment theo máy, ứng viên | `findRootIssueId`, `issueMachines`, `IssueMachine`, `treeStarted`, `readPin`, `insertAutoPin`, `setOwnerPin`, `pairedMachines`, `machineOfHost`, `agentEnvironmentOnMachine`, `resolvePinnedEnvironment`, `crewResolveRunEnvironment`, `loadMachineCandidates` |
+| `server/src/crew/machine-routes.ts` | Route máy cho form yêu cầu và trang project | `crewMachineRoutes`, `MACHINE_ERRORS`, `ISSUE_MACHINES_MAX`, `projectRepoSchema`, `ORIGIN_RE` |
 | `server/src/crew/machine-release.ts` | Dọn environment và checkout ở máy khác khi gỡ, dựng sẵn project ở máy khác khi thêm | `machineReleaseBlockers`, `releaseProjectMachines`, `scopeReleaseAgents`, `ReleaseOutcome`, `provisionOtherMachines`, `ReleaseBlocker`, `ReleaseResult`, `ProvisionOthersResult` |
 | `server/src/crew/machine-provision.ts` | Repo của project, xếp việc `ensure-project`, đối chiếu kết quả, tạo environment theo máy | `readProjectRepo`, `writeProjectRepo`, `originHasCredential`, `projectRoleAgentIds`, `projectLayout`, `projectProvisionable`, `ensureProjectPayload`, `startProvisioning`, `reconcileProjectMachine`, `knownRepoPath`, `listProjectMachines`, `machineEnvironmentName`, `createMachineEnvironment`, `PROVISION_TIMEOUT_MS`, `CHECKOUT_RE` |
 | `crew/ops/backfill-machines.sql` | Chuyển dữ liệu cũ lúc rollout: gắn project với máy đang chạy nó, ghim cây đang mở | — |
@@ -226,7 +241,12 @@ lần mỗi run).
 - `server/src/__tests__/crew-machine-routes.db.test.ts` (Postgres nhúng): danh sách máy cho form, ghim chỉ owner/chỉ issue
   gốc/máy phải ghép, máy chưa dựng mà project chưa có repo thì 409 không ghim, luật repo (422 `crew_machine_invalid`, tên
   repo đi kèm trùng checkout vai trò, mật khẩu trong `ssh://`, nhận `ssh://git@…`), owner chọn máy chưa dựng thì ghim và trang project thấy `provisioning`, cây có lease
-  thì 409 `crew_machine_locked`, thêm máy ở trang project (403, 422 máy chưa ghép, 202).
+  thì 409 `crew_machine_locked`, thêm máy ở trang project (403, 422 máy chưa ghép, 202); route lô `issue-machines`: gốc ghim,
+  con và cháu kế thừa máy gốc, cây chưa ghim `null`, máy đã gỡ ghép `paired=false`/`hostname=null`, máy có bản tin cũ
+  offline, issue company khác hay id không có bị bỏ, body sai 400, người ngoài company và agent bị từ chối đúng như
+  `GET …/issues/:issueId/machine`, số truy vấn SQL như nhau với 1 và 7 issue; cha khác company, vòng `parentId` và chuỗi
+  quá `MAX_TREE_DEPTH` (kể cả có ghim trên chính issue) thì lô, `pinnedMachineId` và `GET …/issues/:issueId/machine`
+  cùng không có máy.
 - `server/src/__tests__/crew-machine-release.db.test.ts` (Postgres nhúng): cây ghim còn run thì từ chối gỡ và không archive,
   agent không thuộc vai trò của project (project khác cùng company) thì không archive, không xếp việc, agent trong dòng
   vai trò mà ngoài bố cục (terminated, không có environment SSH) vẫn được nhận và chỉ bỏ checkout của nó, project không

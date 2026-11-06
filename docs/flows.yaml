@@ -726,9 +726,14 @@ flows:
       - packages/crew-plugin/src/issues/force-done.ts
     files:
       - packages/crew-web/src/api/crew/assistant-call.ts
+      - packages/crew-web/src/api/crew/awaiting-owner.ts
       - packages/crew-web/src/api/crew/bug-finding.ts
       - packages/crew-web/src/api/crew/force-done.ts
       - packages/crew-web/src/ds/widgets/crew/bug-finding-parts.tsx
+      - packages/crew-web/src/features/awaiting-owner/awaiting-owner-badge.tsx
+      - packages/crew-web/src/features/awaiting-owner/awaiting-owner.ts
+      - packages/crew-web/src/features/awaiting-owner/index.ts
+      - packages/crew-web/src/features/awaiting-owner/use-awaiting-owner.ts
       - packages/crew-web/src/features/issues/detail/assistant-mention.ts
       - packages/crew-web/src/features/issues/detail/attachment-viewer-provider.tsx
       - packages/crew-web/src/features/issues/detail/assistant-summary.tsx
@@ -763,6 +768,8 @@ flows:
       - packages/crew-web/src/features/issues/list/issues-board.tsx
       - packages/crew-web/src/features/issues/list/issues-page.tsx
       - packages/crew-web/src/features/issues/list/list-view.ts
+      - packages/crew-web/src/features/issues/list/machine-label.tsx
+      - packages/crew-web/src/features/issues/list/machines.ts
       - packages/crew-web/src/features/issues/list/tree.ts
       - packages/crew-web/src/features/issues/list/use-issues.ts
       - packages/crew-web/src/features/issues/new/add-child-dialog.tsx
@@ -778,8 +785,11 @@ flows:
       - packages/crew-web/src/features/issues/popup/issue-nav.tsx
       - packages/crew-web/src/features/issues/popup/issue-popup-host.tsx
       - packages/crew-web/src/features/issues/popup/issue-popup.tsx
+      - server/src/crew/awaiting-owner.ts
     tests:
       - packages/crew-plugin/src/__tests__/force-done.test.ts
+      - packages/crew-web/test/features/awaiting-owner/awaiting-owner-pages.test.tsx
+      - packages/crew-web/test/features/awaiting-owner/awaiting-owner.test.ts
       - packages/crew-web/test/features/issues/add-child-dialog.test.tsx
       - packages/crew-web/test/features/issues/add-child.test.ts
       - packages/crew-web/test/features/issues/assistant-mention.test.ts
@@ -804,6 +814,7 @@ flows:
       - packages/crew-web/test/features/issues/issue-popup.test.tsx
       - packages/crew-web/test/features/issues/issue-runs.test.tsx
       - packages/crew-web/test/features/issues/issues-board.test.tsx
+      - packages/crew-web/test/features/issues/issues-machines.test.tsx
       - packages/crew-web/test/features/issues/issues-page-pending.test.tsx
       - packages/crew-web/test/features/issues/issues-page.test.tsx
       - packages/crew-web/test/features/issues/kind-labels.test.tsx
@@ -818,6 +829,7 @@ flows:
       - packages/crew-web/test/features/issues/title-editor.test.tsx
       - packages/crew-web/test/features/issues/tree.test.ts
       - packages/crew-web/test/features/issues/use-create-request.test.ts
+      - server/src/__tests__/crew-awaiting-owner.db.test.ts
   usage-storage:
     title: "Chi phí (usage) và dung lượng lưu trữ"
     doc: docs/flows/usage-storage.md
@@ -1056,6 +1068,7 @@ flows:
       - packages/crew-web/src/ds/widgets/issue-list.tsx
       - packages/crew-web/src/ds/widgets/issue-row.tsx
       - packages/crew-web/src/ds/widgets/kanban-board.tsx
+      - packages/crew-web/src/ds/widgets/machine-label.tsx
       - packages/crew-web/src/ds/widgets/markdown-renderer.tsx
       - packages/crew-web/src/ds/widgets/markdown-view.tsx
       - packages/crew-web/src/ds/widgets/metric-card.tsx

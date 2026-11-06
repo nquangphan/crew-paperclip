@@ -69,15 +69,15 @@ Luật chính:
 | `packages/crew-web/src/api/index.ts` | Cổng vào lớp dữ liệu | `api` |
 | `packages/crew-web/src/api/queryKeys.ts` | Khóa TanStack Query (kèm `modelSettings` cho bảng cài đặt model) | `queryKeys` |
 | `packages/crew-web/src/api/crew/data.ts` | Data plugin `crew.core` | `CREW_DATA_KEYS` |
-| `packages/crew-web/src/api/crew/machine-pins.ts` | Client router Crew của server cho chạy nhiều máy (ứng viên, máy ghim của yêu cầu, máy của project, chặn/gỡ/dựng máy khác) | `machinePinsApi` |
-| `packages/crew-web/src/api/crew/types.ts` | Kiểu dữ liệu plugin dùng ở web | `WorkspaceRole` (ô vai trò hay `designer`) |
+| `packages/crew-web/src/api/crew/machine-pins.ts` | Client router Crew của server cho chạy nhiều máy (ứng viên, máy ghim của yêu cầu, máy của nhiều yêu cầu một lần cho danh sách: `issueMachines` chia khúc 500 id, máy của project, chặn/gỡ/dựng máy khác) | `machinePinsApi` |
+| `packages/crew-web/src/api/crew/types.ts` | Kiểu dữ liệu plugin dùng ở web | `WorkspaceRole` (ô vai trò hay `designer`), `IssueMachineSummary` (máy của cây trong route lô), `AwaitingOwnerItem` (issue chờ owner trả lời thẻ) |
 | `packages/crew-web/src/api/paperclip/` | Client route lõi Paperclip (issue, agent, project, environment, skill...) | |
 | `packages/crew-web/src/i18n/index.ts`, `format.ts` | i18n và định dạng giờ, tiền | `useT`, `formatDateTime` |
 | `packages/crew-web/src/lib/stale-chunk-reload.ts` | Tải lại khi chunk cũ mất | `installStaleChunkReload` |
 
 ## Dữ liệu
 
-- Route lõi Paperclip và route plugin: toàn bộ liệt kê trong `ENDPOINTS` (`packages/crew-web/src/api/endpoints.ts`), kể cả các khóa chạy nhiều máy `machinePin.*` và `projectMachines.*`; khóa query tương ứng là `machineCandidates`, `issueMachine`, `projectMachines`. Khóa `crew.bugFinding` (route GET lượt Bug Finding, `companyId` ở query) gộp vào `api.crew`; hook `useBugFinding` cũng export qua `api/index.ts` (flow `issues-web`).
+- Route lõi Paperclip và route plugin: toàn bộ liệt kê trong `ENDPOINTS` (`packages/crew-web/src/api/endpoints.ts`), kể cả các khóa chạy nhiều máy `machinePin.*` (gồm `machinePin.batch` = `POST …/issue-machines`) và `projectMachines.*`; khóa query tương ứng là `machineCandidates`, `issueMachine`, `projectMachines`; lô máy của danh sách dùng `queryKeys.crew('issue-machines', …)`. Khóa `awaitingOwner.list` (`GET …/awaiting-owner`, client `api.awaitingOwner`, khóa query `queryKeys.crew('awaiting-owner', { companyId })`, flow `issues-web`). Khóa `crew.bugFinding` (route GET lượt Bug Finding, `companyId` ở query) gộp vào `api.crew`; hook `useBugFinding` cũng export qua `api/index.ts` (flow `issues-web`).
   Plugin ở `/api/plugins/crew.core`, router Crew của server ở `/api/crew/companies/:companyId`.
 - WebSocket `/api/companies/:companyId/events/ws`.
 - Trình duyệt: `localStorage` khóa `crew.lang`; `sessionStorage` cho chống lặp tải lại.

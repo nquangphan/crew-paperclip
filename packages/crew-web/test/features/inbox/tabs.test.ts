@@ -135,3 +135,22 @@ describe('hasPendingUserInteraction', () => {
     expect(hasPendingUserInteraction(issue({ id: 'x' }))).toBe(false);
   });
 });
+
+// Danh sách lõi chỉ báo thẻ chờ của issue in_review; thẻ chờ owner ở issue Đang làm/Đang bị chặn đến từ route Crew
+// `…/awaiting-owner` (tập id).
+describe('thẻ chờ owner của issue không ở in_review', () => {
+  const working = issue({ id: 'w1', status: 'in_progress', reviewAttention: { state: 'none', paths: [] } });
+  const blocked = issue({ id: 'w2', status: 'blocked', blockedInboxAttention: null });
+  const closed = issue({ id: 'w3', status: 'done' });
+  const awaiting = new Set(['w1', 'w2', 'w3']);
+
+  it('vào "Chờ tôi duyệt" khi có trong tập chờ owner, issue đã đóng thì không', () => {
+    expect(inboxTabs([working, blocked, closed], ME, awaiting).awaiting_me.map((i) => i.id)).toEqual(['w1', 'w2']);
+  });
+
+  it('không có tập chờ owner thì như cũ: danh sách lõi không báo nên không vào', () => {
+    expect(inboxTabs([working, blocked], ME).awaiting_me).toEqual([]);
+    expect(hasPendingUserInteraction(working)).toBe(false);
+    expect(hasPendingUserInteraction(working, awaiting)).toBe(true);
+  });
+});

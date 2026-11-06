@@ -4,6 +4,8 @@
 // vạch Hôm nay/Hôm qua. Giữ phần Crew: cột giai đoạn và x/y con xong, nhóm và chip Chờ duyệt, chế độ chỉ đọc.
 // Nút Danh sách/Bảng như Paperclip: chế độ Bảng (`issues-board.tsx`) dùng cùng dữ liệu và bộ lọc, ẩn Sắp xếp/Nhóm, hiện
 // nút mật độ bảng. Mọi trạng thái xem nằm trong URL (`use-issues.ts`), trừ nhóm/nhánh đang thu gọn.
+// Nhãn máy (TPS-753, mockup docs/design/mockups/tps-750-machine-label): cột Máy trên desktop, dòng phụ dưới tiêu đề ở
+// màn hẹp, dòng cuối thẻ Bảng, mục Máy trong bộ lọc; một request lô cho mọi yêu cầu (`machines.ts`).
 import type { CompactIssue } from '@paperclipai/shared';
 import { type ReactNode, useEffect, useMemo, useState } from 'react';
 import { Link, useLocation, useSearchParams } from 'react-router-dom';
@@ -19,12 +21,15 @@ import {
   EmptyState,
   ErrorState,
   Identity,
+  InlineError,
   IssueGroup,
   IssueListRow,
   KanbanToolbarControls,
   LabelPill,
   ListItemRow,
   LiveBadge,
+  MachineLabelMissing,
+  MachineLabelPending,
   MutedText,
   RowCell,
   RowNote,
@@ -41,11 +46,17 @@ import {
 } from '@/ds';
 import { CircleDot, Plus } from '@/ds/icons';
 import { useCompanyAccess, useVisibleProjects } from '@/features/access';
+import {
+  AwaitingOwnerBadge,
+  awaitingOwnerStatus,
+  issueDisplayStatus,
+  useAwaitingOwner,
+} from '@/features/awaiting-owner';
 import { ContributionActions } from '@/features/contributions/contribution-actions';
 import { ContributionBadge } from '@/features/contributions/contribution-badge';
 import { contributionHref } from '@/features/contributions/contribution-popup-host';
 import { useAuthorLabel, useContributions } from '@/features/contributions/use-contributions';
-import { displayStatus, QcBadge, qcDisplayStatus, useQcStates } from '@/features/qc';
+import { QcBadge, qcDisplayStatus, useQcStates } from '@/features/qc';
 import { useSelectableAgents } from '@/features/wizards';
 import { formatDateTime, formatRelative, useT } from '@/i18n';
 import { StartWorkButton } from '../detail/start-work';
@@ -61,6 +72,8 @@ import {
   groupIssues,
   liveIssueIds,
 } from './list-view';
+import { IssueMachineLabel } from './machine-label';
+import { MACHINE_FILTER_NONE, machineCounts, machineDisplayNames, matchesMachine } from './machines';
 import { buildIssueTree, flattenTree, type TreeNode } from './tree';
 import {
   COLUMN_IDS,
@@ -153,7 +166,7 @@ export function IssuesPage() {
   const opener = useIssueOpener();
   const [params, setParams] = useSearchParams();
   const state = useMemo(() => parseListState(params), [params]);
-  const { issues, roots, projects, agents, liveRuns } = useIssuesData(company.id, state);
+  const { issues, roots, projects, agents, liveRuns, machines } = useIssuesData(company.id, state);
   const selectable = useSelectableAgents(company.id);
   const [collapsedParents, setCollapsedParents] = useState<Set<string>>(new Set());
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
@@ -179,6 +192,8 @@ export function IssuesPage() {
   const projectAccess = useVisibleProjects();
   // Yêu cầu của Phòng QC đã Xong hiện trạng thái QC (Chờ QC duyệt, QC verified) thay cho Hoàn thành.
   const qcStates = useQcStates().byIssue;
+  // Yêu cầu chưa đóng có thẻ câu hỏi/xác nhận chờ owner hiện "Chờ owner trả lời" thay cho trạng thái lõi.
+  const awaiting = useAwaitingOwner().issueIds;
   const pending = ((access.isOwner || access.isContributor ? pendingQuery.data : undefined) ?? []).filter((c) =>
     projectAccess.canSeeProject(c.projectId),
   );
@@ -199,10 +214,55 @@ export function IssuesPage() {
   const agentName = useMemo(() => new Map((agents.data ?? []).map((a) => [a.id, a.name])), [agents.data]);
   const live = useMemo(() => liveIssueIds(liveRuns.data, issues.data ?? []), [liveRuns.data, issues.data]);
 
-  const visible = useMemo(
+  const machineItems = machines.data;
+  const machineNames = useMemo(() => machineDisplayNames(Object.values(machineItems ?? {})), [machineItems]);
+  const ofKind = useMemo(
     () => (issues.data ?? []).filter((i) => matchesKind(i, state.kind, rootsById)),
     [issues.data, state.kind, rootsById],
   );
+  const visible = useMemo(
+    () => ofKind.filter((i) => matchesMachine(i, state.machine, machineItems)),
+    [ofKind, state.machine, machineItems],
+  );
+  // Mục Máy của bộ lọc: máy có trong danh sách (theo tên), số yêu cầu sau lọc loại, cuối là Chưa ghim. Máy đang chọn
+  // vẫn có trong lô máy nhưng bộ lọc khác loại hết yêu cầu thì giữ tên máy với số 0; chỉ giá trị `?machine=` không còn
+  // trong lô (link cũ, máy không còn yêu cầu) mới là ô "Máy không còn trong danh sách", vẫn tích để thấy và bỏ được.
+  // Máy đã gỡ ghép không có tên: thêm "#2", "#3"… theo thứ tự `machineId` để mỗi ô có tên truy cập riêng.
+  const machineOptions = useMemo(() => {
+    if (!machineItems) return [];
+    const counts = machineCounts(ofKind, machineItems);
+    const known = new Map(Object.values(machineItems).flatMap((m) => (m ? [[m.machineId, m] as const] : [])));
+    const shown = [...known.values()].filter((m) => counts.has(m.machineId) || m.machineId === state.machine);
+    const named = shown.sort(
+      (a, b) =>
+        (machineNames.get(a.machineId) ?? '\uffff').localeCompare(machineNames.get(b.machineId) ?? '\uffff', 'vi') ||
+        (a.machineId < b.machineId ? -1 : a.machineId > b.machineId ? 1 : 0),
+    );
+    // Số thứ tự đánh trên mọi máy không tên của lô (không theo bộ lọc loại) để "#2" không đổi khi đổi Loại.
+    const unnamed = [...known.keys()].filter((id) => !machineNames.has(id)).sort();
+    const labelOf = (machineId: string) => {
+      const name = machineNames.get(machineId);
+      if (name) return name;
+      const n = unnamed.indexOf(machineId) + 1;
+      return n === 1 ? t('machine.unpaired') : `${t('machine.unpaired')} #${n}`;
+    };
+    const selectedGone = state.machine !== '' && state.machine !== MACHINE_FILTER_NONE && !known.has(state.machine);
+    return [
+      ...named.map((m) => {
+        const label = labelOf(m.machineId);
+        return {
+          value: m.machineId,
+          label,
+          content: <IssueMachineLabel machine={m} names={machineNames} variant="option" unnamedLabel={label} />,
+          count: counts.get(m.machineId) ?? 0,
+        };
+      }),
+      ...(selectedGone ? [{ value: state.machine, label: t('machine.gone'), count: 0 }] : []),
+      ...(counts.has(MACHINE_FILTER_NONE) || state.machine === MACHINE_FILTER_NONE
+        ? [{ value: MACHINE_FILTER_NONE, label: t('machine.unpinned'), count: counts.get(MACHINE_FILTER_NONE) ?? 0 }]
+        : []),
+    ];
+  }, [machineItems, machineNames, ofKind, state.machine, t]);
   const board = state.view === 'board';
   const boardIssues = useMemo(
     () => (board ? [...visible].sort(sortCompare(state.sort)) : []),
@@ -228,6 +288,7 @@ export function IssuesPage() {
     state.projectId,
     state.assigneeAgentId,
     state.kind === 'all' ? '' : state.kind,
+    state.machine,
   ].filter(Boolean).length;
 
   const setNewOpen = (open: boolean) =>
@@ -249,6 +310,14 @@ export function IssuesPage() {
     </Button>
   );
 
+  /** Ô cột Máy: nhãn, chờ lô về, hoặc "—" khi tải lỗi. */
+  const machineCell = (issue: CompactIssue): ReactNode => {
+    const m = machineItems?.[issue.id];
+    if (m !== undefined) return <IssueMachineLabel machine={m} names={machineNames} variant="cell" />;
+    if (machines.error) return <MachineLabelMissing title={t('machine.missing')} />;
+    return machines.isFetching ? <MachineLabelPending label={t('machine.loading')} /> : null;
+  };
+
   const metadata = (issue: CompactIssue): ReactNode => {
     const root = rootsById.get(issue.id);
     const assignee = issue.assigneeAgentId ? agentName.get(issue.assigneeAgentId) : undefined;
@@ -257,6 +326,7 @@ export function IssuesPage() {
     const qc = qcDisplayStatus(issue, qcStates);
     return (
       <>
+        {awaitingOwnerStatus(issue, awaiting) ? <AwaitingOwnerBadge /> : null}
         {qc ? <QcBadge status={qc} /> : null}
         <StartWorkButton issue={issue} size="xs" />
         {live.has(issue.id) ? <LiveBadge label={t('list.live')} /> : null}
@@ -270,6 +340,7 @@ export function IssuesPage() {
               : null}
           </RowCell>
         ) : null}
+        {show('machine') ? <RowCell size="lg">{machineCell(issue)}</RowCell> : null}
         {show('assignee') ? (
           <RowCell size="lg" title={assignee}>
             {assignee ? <Identity name={assignee} /> : null}
@@ -296,7 +367,7 @@ export function IssuesPage() {
     const hasChildren = node.children.length > 0;
     const expanded = !collapsedParents.has(issue.id);
     const at = activityAt(issue);
-    const shownStatus = displayStatus(issue, qcStates);
+    const shownStatus = issueDisplayStatus(issue, qcStates, awaiting);
     return (
       <IssueListRow
         key={issue.id}
@@ -323,6 +394,11 @@ export function IssuesPage() {
         }
         titleSuffix={
           hasChildren && !expanded ? <RowNote>{t('list.children', { count: countDescendants(node) })}</RowNote> : null
+        }
+        subline={
+          machineItems?.[issue.id] ? (
+            <IssueMachineLabel machine={machineItems[issue.id]} names={machineNames} variant="inline" />
+          ) : null
         }
         metadata={metadata(issue)}
         identifier={show('id') ? identifier : null}
@@ -356,6 +432,21 @@ export function IssuesPage() {
         <ErrorState title={t('page.loadFailed')} message={issues.error.message} onRetry={() => void issues.refetch()} />
       );
     }
+    // Đang lọc theo máy thì danh sách phụ thuộc lô máy: lô lỗi thì báo lỗi (không báo "không có yêu cầu"); lô đang tải,
+    // hay còn là bản của tập yêu cầu trước (`isPlaceholderData` sau khi đổi bộ lọc server), thì chờ, không lọc bằng map cũ.
+    if (state.machine && machines.error) {
+      return (
+        <ErrorState
+          title={t('machine.filterFailed')}
+          message={machines.error.message}
+          onRetry={() => void machines.refetch()}
+          retryLabel={t('machine.retry')}
+        />
+      );
+    }
+    if (state.machine && (machines.isLoading || machines.isPlaceholderData)) {
+      return <Skeleton aria-label={tc('ui.loading')} />;
+    }
     if (board) {
       return (
         <IssuesBoard
@@ -363,9 +454,12 @@ export function IssuesPage() {
           issues={boardIssues}
           state={state}
           rootsById={rootsById}
+          machines={machineItems}
+          machineNames={machineNames}
           agentName={agentName}
           live={live}
           qcStates={qcStates}
+          awaiting={awaiting}
           opener={opener}
           readOnly={access.readOnly}
         />
@@ -486,7 +580,7 @@ export function IssuesPage() {
               title={t('list.filterTitle')}
               clearLabel={t('list.clear')}
               activeCount={filterCount}
-              onClear={() => patch({ status: null, projectId: null, assigneeAgentId: null, kind: null })}
+              onClear={() => patch({ status: null, projectId: null, assigneeAgentId: null, kind: null, machine: null })}
               sections={[
                 {
                   id: 'status',
@@ -521,6 +615,13 @@ export function IssuesPage() {
                     value: k,
                     label: t(`list.kindOption.${k}`),
                   })),
+                },
+                {
+                  id: 'machine',
+                  label: t('list.machine'),
+                  value: state.machine,
+                  onChange: (v) => patch({ machine: v }),
+                  options: machineOptions,
                 },
               ]}
             />
@@ -562,6 +663,14 @@ export function IssuesPage() {
         ) : (
           <EmptyState title={tg('issuesGroup.empty')} />
         )
+      ) : null}
+      {machines.error && !pendingOnly && !state.machine ? (
+        <InlineError>
+          {t('machine.loadFailed')}{' '}
+          <Button type="button" variant="link" size="xs" onClick={() => void machines.refetch()}>
+            {t('machine.retry')}
+          </Button>
+        </InlineError>
       ) : null}
       {pendingOnly ? null : body()}
       <NewRequestDialog
