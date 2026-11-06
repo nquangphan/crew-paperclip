@@ -56,7 +56,8 @@ function isRecord(value: unknown): value is Record<string, unknown> {
  * `trackingProjectIds` (tùy chọn, mảng uuid không trùng): project theo dõi, issue gốc board tạo trong đó không nhận policy Crew.
  * `bugFinding` (tùy chọn, `{ enabled?: boolean, gitlabHosts?: string[] }`, mặc định tắt): bật luồng Bug Finding cho ticket
  * tổng code/bug mới. `gitlabHosts` liệt kê host GitLab tự host (chỉ tên host, không scheme, cổng hay đường dẫn), ví dụ
- * `["gitlab.qasoftsolution.com"]`; host không khai báo không được coi là GitLab.
+ * `["gitlab.qasoftsolution.com"]`; host không khai báo không được coi là GitLab. Phần tử sai dạng (kèm cổng, scheme…) hay
+ * giá trị không phải mảng bị bỏ và ghi log error; phần còn lại của cấu hình vẫn có hiệu lực.
  */
 export function parseCrewPolicyConfig(text: string, companyId: string): CrewCompanyConfig {
   let parsed: unknown;
@@ -103,10 +104,12 @@ export function parseCrewPolicyConfig(text: string, companyId: string): CrewComp
   if (bugFinding !== undefined && (!isRecord(bugFinding) || (bugFinding.enabled !== undefined && typeof bugFinding.enabled !== "boolean"))) {
     return { kind: "invalid", reason: `companies.${companyId}.bugFinding phải là object { enabled: boolean }` };
   }
-  const hosts = bugFinding?.gitlabHosts;
-  if (hosts !== undefined && (!Array.isArray(hosts) || hosts.some((host) => typeof host !== "string" || !HOSTNAME_RE.test(host)))) {
-    return { kind: "invalid", reason: `companies.${companyId}.bugFinding.gitlabHosts phải là mảng tên host (không scheme, cổng, đường dẫn)` };
-  }
+  // `gitlabHosts` là ô tùy chọn: phần tử sai dạng bị bỏ (ghi log) thay vì làm invalid cả cấu hình Crew của company.
+  const rawHosts = bugFinding?.gitlabHosts;
+  const validHost = (host: unknown): host is string => typeof host === "string" && HOSTNAME_RE.test(host);
+  const hosts = Array.isArray(rawHosts) ? rawHosts.filter(validHost) : [];
+  const droppedHosts = Array.isArray(rawHosts) ? rawHosts.filter((host) => !validHost(host)) : rawHosts === undefined ? [] : [rawHosts];
+  if (droppedHosts.length > 0) logDroppedGitlabHosts(companyId, droppedHosts);
   return {
     kind: "ok",
     roles: { reviewerAgentId: reviewerAgentId.toLowerCase(), integratorAgentId: integratorAgentId.toLowerCase() },
@@ -114,7 +117,7 @@ export function parseCrewPolicyConfig(text: string, companyId: string): CrewComp
     trackingProjectIds,
     bugFinding: {
       enabled: bugFinding?.enabled === true,
-      gitlabHosts: ((hosts ?? []) as string[]).map((host) => host.toLowerCase()),
+      gitlabHosts: hosts.map((host) => host.toLowerCase()),
     },
   };
 }
@@ -177,6 +180,17 @@ export async function loadSourceExecutorAgentIds(db: Db, sourceIssueId: string |
 }
 
 const loggedProblems = new Set<string>();
+
+/** File cấu hình được đọc lại ở mỗi lần gọi: mỗi bộ host bị bỏ chỉ ghi log một lần cho mỗi company. */
+function logDroppedGitlabHosts(companyId: string, droppedHosts: unknown[]): void {
+  const key = `gitlabHosts\0${companyId}\0${JSON.stringify(droppedHosts)}`;
+  if (loggedProblems.has(key)) return;
+  loggedProblems.add(key);
+  logger.error(
+    { companyId, droppedHosts },
+    "crew policy config: bugFinding.gitlabHosts entries ignored (host names only, no scheme, port or path)",
+  );
+}
 
 function logConfigProblem(file: string, companyId: string, reason: string): void {
   const key = `${file}\0${companyId}\0${reason}`;
@@ -275,13 +289,16 @@ export function policyGateFingerprint(policy: unknown): string {
   );
 }
 
-const GITHUB_PR_URL = String.raw`https:\/\/github\.com\/[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+\/pull\/[1-9][0-9]*`;
+/** Số PR/MR: 1 tới 10 chữ số (luôn là số nguyên an toàn), cùng luật với `parsePrUrl` của plugin. */
+const PR_NUMBER = String.raw`[1-9][0-9]{0,9}`;
+const GITHUB_PR_URL = String.raw`https:\/\/github\.com\/[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+\/pull\/${PR_NUMBER}`;
 /**
  * URL merge request GitLab (gitlab.com hoặc tự host, có thể kèm cổng, nhóm con):
- * `https://<host>/<group>[/<subgroup>…]/<repo>/-/merge_requests/<iid>`; cùng luật với `GITLAB_MR_URL` của plugin
- * (`packages/crew-plugin/src/jobs/validate.ts`).
+ * `https://<host>/<group>[/<subgroup>…]/<repo>/-/merge_requests/<iid>`; github.com (mọi kiểu hoa thường) không có MR. Cùng
+ * luật với `GITLAB_MR_URL` của plugin (`packages/crew-plugin/src/jobs/pr-url.ts`). Regex chỉ kiểm định dạng: H2 còn đối
+ * chiếu host với origin của project (`prUrlMatchesOrigin`).
  */
-const GITLAB_MR_URL = String.raw`https:\/\/(?!github\.com[:/])[A-Za-z0-9][A-Za-z0-9.-]*(?::[0-9]{1,5})?(?:\/[A-Za-z0-9_][A-Za-z0-9_.-]*){2,}\/-\/merge_requests\/[1-9][0-9]*`;
+const GITLAB_MR_URL = String.raw`https:\/\/(?![Gg][Ii][Tt][Hh][Uu][Bb]\.[Cc][Oo][Mm][:/])[A-Za-z0-9][A-Za-z0-9.-]*(?::[0-9]{1,5})?(?:\/[A-Za-z0-9_][A-Za-z0-9_.-]*){2,}\/-\/merge_requests\/${PR_NUMBER}`;
 /** URL pull request GitHub hoặc merge request GitLab trong `crew-merge`/`crew-pr`. */
 const PR_URL = `(?:${GITHUB_PR_URL}|${GITLAB_MR_URL})`;
 

@@ -19,7 +19,9 @@ Luật chính:
 - Head PR là sha của `crew-pr` mới nhất có URL hợp lệ do agent stage gộp viết (`latestCrewPr`). URL quyết định nơi review:
   pull request GitHub `https://github.com/<owner>/<repo>/pull/N` → `provider` `github`; merge request GitLab
   (gitlab.com hoặc tự host, có thể có subgroup và cổng) `https://<host>/<group>[/<subgroup>…]/<repo>/-/merge_requests/N`
-  → `provider` `gitlab`, `prNumber` là `iid` của MR. URL lạ thì coi như chưa có `crew-pr`. App Bug Finding tra MR theo
+  → `provider` `gitlab`, `prNumber` là `iid` của MR (tối đa 10 chữ số, `parsePrUrl`). URL lạ thì coi như chưa có `crew-pr`.
+  Cổng H2 của server còn đòi host URL trùng host origin của project (flow `issue-gate`), nên `crew-pr` của host lạ không
+  qua được stage gộp; `crew-merge pushed=merged` phải mang đúng URL của `crew-pr`. App Bug Finding tra MR theo
   project dò từ origin của repo trên Mac và `iid == prNumber`, nên MR GitLab cần app đăng nhập host
   GitLab đó; app Mac cũ chỉ nhận `github` thì việc máy bị từ chối và lượt `failed` có lý do.
 - Máy: máy đã ghim cho cây (`issue_machine_pins`), không ghim thì máy `ready` của project (`project_machines`). Máy phải
@@ -95,6 +97,7 @@ Luật chính:
 | `packages/crew-plugin/src/bug-finding/runs.ts` | Kiểu, SQL sổ lượt, vòng, báo kết quả | `listRuns`, `getRunByRequest`, `approvalRound`, `batchesUsed`, `announceRun`, `MAX_RUNS`, `MAX_BATCHES` |
 | `packages/crew-plugin/src/bug-finding/triage.ts` | Kế hoạch `crew-bf-triage` của Trợ Lý và việc con sửa cho từng lượt | `attachTriage`, `parseTriage`, `triageAuthor` |
 | `packages/crew-plugin/src/shared-web/bug-finding.ts` | Kiểu body route GET cho web (chỉ kiểu) | `BugFindingView`, `BugFindingRunView` |
+| `packages/crew-plugin/src/shared-web/pr-url.ts` | `parsePrUrl` cho web (số "PR #<n>" của thẻ lượt, cùng luật với payload việc máy) | `parsePrUrl` |
 | `packages/crew-plugin/src/bug-finding/watchdog.ts` | Job hết giờ và đối chiếu việc máy | `runBugFindingWatchdog`, `REQUEST_TIMEOUT_MS`, `RESULT_TIMEOUT_MS` |
 | `packages/crew-plugin/migrations/0025_bug_finding.sql` | Bảng lượt, bảng vòng, kind việc máy | `crew_bug_finding_runs`, `crew_bug_finding_rounds` |
 | `server/src/crew/bug-finding-runs.ts` | Server đọc lượt cho gate, ghi vòng | `readBugFindingRuns`, `bumpBugFindingRound` |

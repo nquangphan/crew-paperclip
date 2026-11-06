@@ -192,6 +192,7 @@ File nào thuộc flow nào. Dùng `crew-docs where <file>` để tra từ dòng
 | `packages/crew-plugin/src/issues/force-done.ts` | [issues-web](flows/issues-web.md) (điểm vào) |
 | `packages/crew-plugin/src/jobs/api.ts` | [machine-jobs](flows/machine-jobs.md) (điểm vào) |
 | `packages/crew-plugin/src/jobs/data.ts` | [machine-jobs](flows/machine-jobs.md) (file) |
+| `packages/crew-plugin/src/jobs/pr-url.ts` | [machine-jobs](flows/machine-jobs.md) (file) |
 | `packages/crew-plugin/src/jobs/sanitize.ts` | [machine-jobs](flows/machine-jobs.md) (file) |
 | `packages/crew-plugin/src/jobs/types.ts` | [machine-jobs](flows/machine-jobs.md) (file) |
 | `packages/crew-plugin/src/jobs/validate.ts` | [machine-jobs](flows/machine-jobs.md) (file) |
@@ -220,6 +221,7 @@ File nào thuộc flow nào. Dùng `crew-docs where <file>` để tra từ dòng
 | `packages/crew-plugin/src/shared-web/docs-tree.ts` | [docs-snapshot](flows/docs-snapshot.md) (file) |
 | `packages/crew-plugin/src/shared-web/machine-card.ts` | [machine-status](flows/machine-status.md) (file) |
 | `packages/crew-plugin/src/shared-web/map.ts` | [roadmap-map](flows/roadmap-map.md) (file) |
+| `packages/crew-plugin/src/shared-web/pr-url.ts` | [bug-finding](flows/bug-finding.md) (file) |
 | `packages/crew-plugin/src/shared/css.d.ts` | [crew-plugin](flows/crew-plugin.md) (file) |
 | `packages/crew-plugin/src/shared/db.ts` | [crew-plugin](flows/crew-plugin.md) (file) |
 | `packages/crew-plugin/src/shared/markers.ts` | [crew-plugin](flows/crew-plugin.md) (file) |

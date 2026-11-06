@@ -56,6 +56,7 @@ Luật chính:
 |-----------|---------|--------------|
 | `packages/crew-plugin/src/jobs/api.ts` | Route API hàng đợi | `handleJobsApi` |
 | `packages/crew-plugin/src/jobs/data.ts` | SQL hàng đợi, data key | `claimNextJob`, `finishJob`, `insertJob`, `listJobs`, `registerJobsData` |
+| `packages/crew-plugin/src/jobs/pr-url.ts` | Đọc URL pull request GitHub / merge request GitLab (thuần, web dùng chung qua `shared/pr-url`) | `parsePrUrl`, `GITHUB_PR_URL`, `GITLAB_MR_URL` |
 | `packages/crew-plugin/src/jobs/validate.ts` | Kiểm payload và kết quả | `validateJobPayload`, `validateJobResult` |
 | `packages/crew-plugin/src/jobs/sanitize.ts` | Làm sạch lỗi từ Mac | `sanitizeJobError`, `maskUrlUserinfo` |
 | `packages/crew-plugin/src/jobs/types.ts` | Hợp đồng loại việc, trạng thái, mã lỗi | `MachineJobKind`, `JobErrorCode`, `JOB_LEASE_MINUTES` |
@@ -76,8 +77,9 @@ Luật chính:
   `crew:bug-finding`): payload `requestId` (uuid), `issueId`, `identifier`, `run` (1–3), `projectId`, `projectKey`,
   `repoPath` (tuyệt đối), `provider` (`github` hoặc `gitlab`, phải khớp loại URL của `prUrl`), `prNumber` (nguyên dương,
   khớp số trong `prUrl`), `prUrl` (URL pull request GitHub `https://github.com/<owner>/<repo>/pull/N`, hoặc URL merge
-  request GitLab `https://<host>/<group>[/<subgroup>…]/<repo>/-/merge_requests/N` với host gitlab.com hay tự host;
-  `parsePrUrl`, `GITLAB_MR_URL`), `headSha` (40 hex), `baseBranch`, `reviewerInputText` (không bắt buộc, tối đa
+  request GitLab `https://<host>/<group>[/<subgroup>…]/<repo>/-/merge_requests/N` với host gitlab.com hay tự host, không
+  phải github.com ở mọi kiểu hoa thường; `N` tối đa 10 chữ số và là số nguyên an toàn, số dài hơn thì `prUrl không hợp lệ`;
+  `parsePrUrl`, `GITLAB_MR_URL` trong `jobs/pr-url.ts`, cùng luật với regex URL của server), `headSha` (40 hex), `baseBranch`, `reviewerInputText` (không bắt buộc, tối đa
   `BUG_FINDING_INPUT_MAX` 20 000 ký tự); result `{ accepted: true }` (app nhận yêu cầu là xong việc, tiến độ và kết quả
   đi route `bug-finding.results`). Mã lỗi riêng: `project_missing`, `bug_finding_missing`, `standalone_running`.
 - Ô vai trò (`CREW_ROLE_SLOTS`, 11 ô): `assistant`, `executor`, `executor-2` … `executor-5` (`MAX_EXECUTORS = 5`),

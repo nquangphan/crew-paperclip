@@ -2,14 +2,15 @@ import { randomUUID } from "node:crypto";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { and, eq } from "drizzle-orm";
 import { agents, companies, createDb, issues, labels, projects, routineTriggers } from "@paperclipai/db";
 import { sql } from "drizzle-orm";
 import { getEmbeddedPostgresTestSupport, startEmbeddedPostgresTestDatabase } from "./helpers/embedded-postgres.js";
-import { boardChildAwaitingExecutor, decideCreatePolicy, executorRuntimeOf, originProvider, withProjectTag } from "../crew/issue-create-policy.ts";
+import { boardChildAwaitingExecutor, decideCreatePolicy, executorRuntimeOf, originProvider, prUrlMatchesOrigin, withProjectTag } from "../crew/issue-create-policy.ts";
 import { buildCrewPolicy, CREW_MAX_REVIEW_ROUNDS, CREW_POLICY_CONFIG_ENV, parseCrewPolicyConfig } from "../crew/issue-policy.ts";
 import { applyCrewMachineTables } from "./helpers/crew-machine-tables.js";
+import { logger } from "../middleware/logger.js";
 import { heartbeatService } from "../services/heartbeat.ts";
 import { issueService } from "../services/issues.js";
 import { routineService } from "../services/routines.ts";
@@ -413,7 +414,7 @@ describe("ticket tổng root-bf (Bug Finding)", () => {
     for (const bad of [true, "yes", { enabled: "true" }, [] as unknown]) expect(parse({ bugFinding: bad })).toMatchObject({ kind: "invalid" });
   });
 
-  it("parseCrewPolicyConfig: bugFinding.gitlabHosts mặc định rỗng, viết thường; sai dạng host thì invalid", () => {
+  it("parseCrewPolicyConfig: bugFinding.gitlabHosts mặc định rỗng, viết thường; phần tử sai dạng bị bỏ và ghi log, cấu hình vẫn hợp lệ", () => {
     const C = "10000000-0000-4000-8000-000000000001";
     const entry = { reviewerAgentId: "20000000-0000-4000-8000-000000000001", integratorAgentId: "20000000-0000-4000-8000-000000000002", ownerUserId: OWNER };
     const parse = (extra: Record<string, unknown>) => parseCrewPolicyConfig(JSON.stringify({ companies: { [C]: { ...entry, ...extra } } }), C);
@@ -423,16 +424,56 @@ describe("ticket tổng root-bf (Bug Finding)", () => {
       kind: "ok",
       bugFinding: { enabled: true, gitlabHosts: ["gitlab.qasoftsolution.com"] },
     });
-    for (const bad of [
-      "gitlab.qasoftsolution.com",
-      [1],
-      [""],
-      ["https://gitlab.qasoftsolution.com"],
-      ["gitlab.qasoftsolution.com/nail"],
-      ["gitlab.qasoftsolution.com:2222"],
-      ["git@gitlab.qasoftsolution.com"],
-      ["gitlab qasoft"],
-    ] as unknown[]) expect(parse({ bugFinding: { enabled: true, gitlabHosts: bad } }), JSON.stringify(bad)).toMatchObject({ kind: "invalid" });
+    const errors = vi.spyOn(logger, "error").mockImplementation(() => undefined as never);
+    try {
+      // F-02: một phần tử sai không làm invalid cả company; phần còn lại giữ hiệu lực, phần tử bị bỏ được ghi log.
+      expect(parse({ bugFinding: { enabled: true, gitlabHosts: ["gitlab.x.com:2222", "GitLab.OK.com"] } })).toMatchObject({
+        kind: "ok",
+        roles: { reviewerAgentId: entry.reviewerAgentId, integratorAgentId: entry.integratorAgentId },
+        bugFinding: { enabled: true, gitlabHosts: ["gitlab.ok.com"] },
+      });
+      expect(errors).toHaveBeenCalledWith(
+        expect.objectContaining({ companyId: C, droppedHosts: ["gitlab.x.com:2222"] }),
+        expect.stringContaining("gitlabHosts"),
+      );
+      for (const bad of [
+        "gitlab.qasoftsolution.com",
+        [1],
+        [""],
+        ["https://gitlab.qasoftsolution.com"],
+        ["gitlab.qasoftsolution.com/nail"],
+        ["gitlab.qasoftsolution.com:2222"],
+        ["git@gitlab.qasoftsolution.com"],
+        ["gitlab qasoft"],
+      ] as unknown[]) {
+        expect(parse({ bugFinding: { enabled: true, gitlabHosts: bad } }), JSON.stringify(bad)).toMatchObject({
+          kind: "ok",
+          bugFinding: { enabled: true, gitlabHosts: [] },
+        });
+      }
+    } finally {
+      errors.mockRestore();
+    }
+  });
+
+  it("prUrlMatchesOrigin: host URL PR/MR phải trùng host origin (không phân biệt hoa thường); MR GitLab chỉ trên gitlab.com hoặc gitlabHosts", () => {
+    const hosts = ["gitlab.qasoftsolution.com"];
+    const selfHosted = "git@gitlab.qasoftsolution.com:nail/business-app.git";
+    const mr = "https://gitlab.qasoftsolution.com/nail/business-app/-/merge_requests/12";
+    expect(prUrlMatchesOrigin(mr, selfHosted, hosts)).toBe(true);
+    expect(prUrlMatchesOrigin("https://GitLab.QASoftSolution.com/nail/business-app/-/merge_requests/12", selfHosted, hosts)).toBe(true);
+    expect(prUrlMatchesOrigin(mr, "ssh://git@GITLAB.qasoftsolution.com:2222/nail/business-app.git", hosts)).toBe(true);
+    expect(prUrlMatchesOrigin("https://evil.example/a/b/-/merge_requests/1", selfHosted, hosts)).toBe(false);
+    expect(prUrlMatchesOrigin("https://evil.example/a/b/-/merge_requests/1", "git@evil.example:a/b.git", hosts)).toBe(false);
+    expect(prUrlMatchesOrigin(mr, selfHosted, [])).toBe(false);
+    expect(prUrlMatchesOrigin("https://gitlab.com/team/app/-/merge_requests/3", "https://gitlab.com/team/app.git", [])).toBe(true);
+    expect(prUrlMatchesOrigin("https://gitlab.com/team/app/-/merge_requests/3", selfHosted, hosts)).toBe(false);
+    expect(prUrlMatchesOrigin("https://github.com/acme/app/pull/87", "git@github.com:acme/app.git", hosts)).toBe(true);
+    expect(prUrlMatchesOrigin("https://github.com/acme/app/pull/87", selfHosted, hosts)).toBe(false);
+    expect(prUrlMatchesOrigin(mr, "git@github.com:acme/app.git", hosts)).toBe(false);
+    // Origin chưa biết: giữ luật cũ cho PR GitHub, MR GitLab bị chặn vì không đối chiếu được host.
+    expect(prUrlMatchesOrigin("https://github.com/acme/app/pull/87", null, hosts)).toBe(true);
+    expect(prUrlMatchesOrigin(mr, null, hosts)).toBe(false);
   });
 });
 
