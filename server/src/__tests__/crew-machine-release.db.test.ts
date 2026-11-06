@@ -8,7 +8,9 @@ import { eq, sql } from "drizzle-orm";
 import { agents, companyMemberships, createDb, environments, heartbeatRuns, issues, projects } from "@paperclipai/db";
 import { CREW_POLICY_CONFIG_ENV } from "../crew/issue-policy.js";
 import { getEmbeddedPostgresTestSupport, startEmbeddedPostgresTestDatabase } from "./helpers/embedded-postgres.js";
-import { applyCrewMachineTables, BOOK, MINI, type SeededProject, seedCrewProject, seedPairing, seedTemplate } from "./helpers/crew-machine-tables.js";
+import {
+  applyCrewMachineTables, BOOK, MINI, type SeededProject, seedAddProjectRun, seedCrewProject, seedEnsureJob, seedPairing, seedTemplate,
+} from "./helpers/crew-machine-tables.js";
 import { setOwnerPin } from "../crew/machine-pin.ts";
 import { machineReleaseBlockers, provisionOtherMachines, releaseProjectMachines } from "../crew/machine-release.ts";
 import { readProjectRepo, writeProjectRepo } from "../crew/machine-provision.ts";
@@ -16,6 +18,7 @@ import { readProjectRepo, writeProjectRepo } from "../crew/machine-provision.ts"
 const support = await getEmbeddedPostgresTestSupport();
 const suite = support.supported ? describe.sequential : describe.skip;
 const ORIGIN = "git@github.com:nquangphan/kidy_school.git";
+const BOOK_REPO = "/Users/owner/Projects/kidy_school";
 
 suite("dọn máy khác khi gỡ, dựng sẵn máy khác khi thêm", () => {
   let db: ReturnType<typeof createDb>;
@@ -262,6 +265,7 @@ suite("dọn máy khác khi gỡ, dựng sẵn máy khác khi thêm", () => {
   it("dựng sẵn: máy chính (máy của crew-mac status, chứa environment mặc định của agent) được ghi ready, máy khác thì không", async () => {
     const w = await world();
     await db.execute(sql.raw(`DELETE FROM ${ns}.project_machines WHERE project_id = '${w.projectId}'`));
+    await seedAddProjectRun(db, ns, { companyId: w.companyId, projectId: w.projectId, machine: BOOK, key: "kidy-school", root: BOOK_REPO });
     const statusOf = async (machineId: string) =>
       rows(await db.execute(sql.raw(`SELECT status FROM ${ns}.project_machines
         WHERE project_id = '${w.projectId}' AND machine_id = '${machineId}'`)))[0]?.status ?? null;
@@ -280,6 +284,63 @@ suite("dọn máy khác khi gỡ, dựng sẵn máy khác khi thêm", () => {
     });
     expect(await statusOf(MINI.machineId)).toBeNull();
     expect(await statusOf(BOOK.machineId)).toBe("provisioning");
+  });
+
+  const machineRow = async (w: SeededProject, machineId: string) =>
+    rows(await db.execute(sql.raw(`SELECT status, repo_path, error FROM ${ns}.project_machines
+      WHERE project_id = '${w.projectId}' AND machine_id = '${machineId}'`)))[0] ?? null;
+  const provisionFromBook = (w: SeededProject) => provisionOtherMachines(db, {
+    companyId: w.companyId, projectId: w.projectId, exceptMachineId: BOOK.machineId, includeReady: false, repo: { originUrl: ORIGIN, branch: "main" },
+    createdBy: "owner",
+  });
+
+  it("máy chính ghi ready kèm repo_path tuyệt đối: repo gốc mà bước inspect của lần thêm project trên máy chính kiểm được", async () => {
+    const w = await world();
+    await db.execute(sql.raw(`DELETE FROM ${ns}.project_machines WHERE project_id = '${w.projectId}'`));
+    // Lần thêm project trên máy khác (Mac mini) không phải repo của máy chính.
+    await seedAddProjectRun(db, ns, { companyId: w.companyId, projectId: w.projectId, machine: MINI, key: "kidy-school", root: "/Users/mini/kidy" });
+    await seedAddProjectRun(db, ns, { companyId: w.companyId, projectId: w.projectId, machine: BOOK, key: "kidy-school", root: BOOK_REPO });
+    await provisionFromBook(w);
+    expect(await machineRow(w, BOOK.machineId)).toEqual({ status: "ready", repo_path: BOOK_REPO, error: null });
+  });
+
+  it("máy chính ghi ready kèm repoPath của việc ensure-project mới nhất đã done trên máy chính (ưu tiên hơn lần thêm project)", async () => {
+    const w = await world();
+    await db.execute(sql.raw(`DELETE FROM ${ns}.project_machines WHERE project_id = '${w.projectId}'`));
+    await seedAddProjectRun(db, ns, { companyId: w.companyId, projectId: w.projectId, machine: BOOK, key: "kidy-school", root: "/Users/owner/old" });
+    const older = new Date(Date.now() - 60_000);
+    await seedEnsureJob(db, ns, { companyId: w.companyId, projectId: w.projectId, machine: BOOK, status: "done", repoPath: "/Users/owner/older", at: older });
+    await seedEnsureJob(db, ns, { companyId: w.companyId, projectId: w.projectId, machine: BOOK, status: "done", repoPath: BOOK_REPO });
+    await seedEnsureJob(db, ns, { companyId: w.companyId, projectId: w.projectId, machine: BOOK, status: "done", repoPath: "relative/repo" });
+    await seedEnsureJob(db, ns, { companyId: w.companyId, projectId: w.projectId, machine: BOOK, status: "failed" });
+    await provisionFromBook(w);
+    expect(await machineRow(w, BOOK.machineId)).toEqual({ status: "ready", repo_path: BOOK_REPO, error: null });
+  });
+
+  it("máy chính không có nguồn repo đáng tin: không ghi ready thiếu repo, dòng cũ giữ nguyên", async () => {
+    const w = await world();
+    await db.execute(sql.raw(`DELETE FROM ${ns}.project_machines WHERE project_id = '${w.projectId}'`));
+    await seedEnsureJob(db, ns, { companyId: w.companyId, projectId: w.projectId, machine: BOOK, status: "claimed" });
+    expect(await provisionFromBook(w)).toEqual({ queued: [{ machineId: MINI.machineId, jobId: expect.any(String) }], skipped: [] });
+    expect(await machineRow(w, BOOK.machineId)).toBeNull();
+    await db.execute(sql.raw(`INSERT INTO ${ns}.project_machines (company_id, project_id, machine_id, status, error)
+      VALUES ('${w.companyId}', '${w.projectId}', '${BOOK.machineId}', 'failed', 'hỏng')`));
+    await provisionFromBook(w);
+    expect(await machineRow(w, BOOK.machineId)).toEqual({ status: "failed", repo_path: null, error: "hỏng" });
+  });
+
+  it("máy chính đã ready thiếu repo_path: lần dựng sau điền repo; ready đã có repo thì giữ nguyên repo cũ", async () => {
+    const w = await world();
+    await db.execute(sql.raw(`UPDATE ${ns}.project_machines SET repo_path = NULL WHERE project_id = '${w.projectId}'`));
+    await provisionFromBook(w);
+    expect(await machineRow(w, BOOK.machineId)).toEqual({ status: "ready", repo_path: null, error: null });
+    await seedAddProjectRun(db, ns, { companyId: w.companyId, projectId: w.projectId, machine: BOOK, key: "kidy-school", root: BOOK_REPO });
+    await provisionFromBook(w);
+    expect(await machineRow(w, BOOK.machineId)).toEqual({ status: "ready", repo_path: BOOK_REPO, error: null });
+    await db.execute(sql.raw(`UPDATE ${ns}.project_machines SET repo_path = '/Users/owner/hand-filled' WHERE project_id = '${w.projectId}'
+      AND machine_id = '${BOOK.machineId}'`));
+    await provisionFromBook(w);
+    expect(await machineRow(w, BOOK.machineId)).toEqual({ status: "ready", repo_path: "/Users/owner/hand-filled", error: null });
   });
 
   it("dựng sẵn khi project chưa có repo: máy nằm ở skipped với lý do, không ném", async () => {

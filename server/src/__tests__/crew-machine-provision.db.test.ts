@@ -146,6 +146,22 @@ suite("dựng project trên máy (Postgres)", () => {
     expect(await db.select().from(environments).where(sql`${environments.metadata}->>'crewMachineId' = ${MINI.machineId}`)).toHaveLength(4);
   });
 
+  it("việc xong mà repoPath rỗng hay không tuyệt đối: failed (kết quả không hợp lệ), không bao giờ ready thiếu repo", async () => {
+    const w = await world();
+    await writeProjectRepo(db, { companyId: w.companyId, projectId: w.projectId, userId: "owner", repo: { originUrl: ORIGIN, branch: "main", companions: [] } });
+    for (const repoPath of ["", "crew-agents/kidy-school/repo"]) {
+      const started = await startProvisioning(db, { companyId: w.companyId, projectId: w.projectId, machineId: MINI.machineId, createdBy: "crew:auto" });
+      if (!started.ok) throw new Error("không xếp được việc");
+      const result = {
+        kind: "ensure-project", repoPath, cloned: false, companions: [],
+        checkouts: ["assistant", "executor-1", "reviewer", "integrator"].map((role) => ({ role, path: `/Users/owner/crew-agents/kidy-school/${role}`, head: "a".repeat(40) })),
+      };
+      await db.execute(sql.raw(`UPDATE ${ns}.crew_machine_jobs SET status = 'done', result = '${JSON.stringify(result)}'::jsonb WHERE id = '${started.jobId}'`));
+      expect(await reconcileProjectMachine(db, { companyId: w.companyId, projectId: w.projectId, machineId: MINI.machineId }))
+        .toMatchObject({ status: "failed", repoPath: null, error: "Máy trả kết quả dựng project không hợp lệ" });
+    }
+  });
+
   it("việc lỗi thì failed kèm lý do; việc còn chờ thì vẫn provisioning dù lâu (máy tắt, việc nằm trong hàng đợi)", async () => {
     const w = await world();
     await writeProjectRepo(db, { companyId: w.companyId, projectId: w.projectId, userId: "owner", repo: { originUrl: ORIGIN, branch: "main", companions: [] } });
