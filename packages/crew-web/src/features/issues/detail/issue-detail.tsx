@@ -22,7 +22,8 @@ import {
 } from '@/ds';
 import { ArrowLeft, Check, Copy, ExternalLink, X } from '@/ds/icons';
 import { useCompanyAccess, useVisibleProjects } from '@/features/access';
-import { displayStatus, QcPanel, useQcStates } from '@/features/qc';
+import { issueDisplayStatus, useAwaitingOwner } from '@/features/awaiting-owner';
+import { QcPanel, useQcStates } from '@/features/qc';
 import { useT } from '@/i18n';
 import { AddChildAction } from '../new/add-child-dialog';
 import { FollowPlanAction } from '../new/follow-plan-action';
@@ -122,6 +123,7 @@ export function IssueDetail({ issueRef, variant, onClose }: IssueDetailProps) {
   const navigate = useNavigate();
   const canGoBack = useIssuePopupCanGoBack();
   const qcStates = useQcStates().byIssue;
+  const awaiting = useAwaitingOwner().issueIds;
 
   // Chưa có tiêu đề để làm tên hộp thoại thì popup tạm lấy mã yêu cầu; khi có, h1 của TitleEditor là DialogTitle.
   const untitled = (node: ReactNode): ReactNode =>
@@ -154,8 +156,9 @@ export function IssueDetail({ issueRef, variant, onClose }: IssueDetailProps) {
 
   const code = issue.identifier ?? issue.id;
   const fullPage = issuePageHref(company.issuePrefix, code);
-  // Yêu cầu của Phòng QC đã Xong: trạng thái QC (Chờ QC duyệt, QC verified) thay cho Hoàn thành.
-  const shownStatus = displayStatus(issue, qcStates);
+  // Yêu cầu của Phòng QC đã Xong: trạng thái QC (Chờ QC duyệt, QC verified) thay cho Hoàn thành; yêu cầu chưa đóng có
+  // thẻ chờ owner trả lời: "Chờ owner trả lời" thay cho trạng thái lõi.
+  const shownStatus = issueDisplayStatus(issue, qcStates, awaiting);
   const statusLabel = t(`status.${shownStatus}`, { ns: 'common', defaultValue: shownStatus });
   const nameOf = (agentId: string | null, userId: string | null): string | null => {
     if (agentId) return agentNames[agentId] ?? t('detail.comments.agent');
@@ -221,6 +224,7 @@ export function IssueDetail({ issueRef, variant, onClose }: IssueDetailProps) {
               childIssues={childIssues}
               forcedDone={forcedDoneActive(activity.data ?? [], issue.status)}
               qc={qcStates.get(issue.id) ?? null}
+              shownStatus={shownStatus}
             />
             <History issue={issue} agentNames={agentNames} />
           </>

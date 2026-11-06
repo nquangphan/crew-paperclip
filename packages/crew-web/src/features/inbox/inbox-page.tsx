@@ -22,6 +22,7 @@ import {
   SelectValue,
   Skeleton,
 } from '@/ds';
+import { useAwaitingOwner } from '@/features/awaiting-owner';
 import { useIssueOpener } from '@/features/issues';
 import { awaitingMyApproval } from '@/features/issues/detail/crew/gate-actions';
 import { useT } from '@/i18n';
@@ -52,7 +53,8 @@ export function InboxPage() {
   const [archivedNotice, setArchivedNotice] = useState<{ id: string; label: string } | null>(null);
 
   const list = useInboxIssues(company.id);
-  const tabs = useMemo(() => inboxTabs(list.data ?? [], me), [list.data, me]);
+  const awaitingOwner = useAwaitingOwner().issueIds;
+  const tabs = useMemo(() => inboxTabs(list.data ?? [], me, awaitingOwner), [list.data, me, awaitingOwner]);
 
   const mutation = useMutation({
     mutationFn: async (op: Op) => {
@@ -85,7 +87,7 @@ export function InboxPage() {
   const reasonOf = (issue: Issue): string | null => {
     if (tab !== 'awaiting_me') return null;
     if (awaitingMyApproval(issue, me) || isMyExecutionStage(issue, me)) return t('reason.approval');
-    if (hasPendingUserInteraction(issue)) return t('reason.question');
+    if (hasPendingUserInteraction(issue, awaitingOwner)) return t('reason.question');
     return t('reason.escalated');
   };
 

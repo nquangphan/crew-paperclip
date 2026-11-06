@@ -46,11 +46,17 @@ import {
 } from '@/ds';
 import { CircleDot, Plus } from '@/ds/icons';
 import { useCompanyAccess, useVisibleProjects } from '@/features/access';
+import {
+  AwaitingOwnerBadge,
+  awaitingOwnerStatus,
+  issueDisplayStatus,
+  useAwaitingOwner,
+} from '@/features/awaiting-owner';
 import { ContributionActions } from '@/features/contributions/contribution-actions';
 import { ContributionBadge } from '@/features/contributions/contribution-badge';
 import { contributionHref } from '@/features/contributions/contribution-popup-host';
 import { useAuthorLabel, useContributions } from '@/features/contributions/use-contributions';
-import { displayStatus, QcBadge, qcDisplayStatus, useQcStates } from '@/features/qc';
+import { QcBadge, qcDisplayStatus, useQcStates } from '@/features/qc';
 import { useSelectableAgents } from '@/features/wizards';
 import { formatDateTime, formatRelative, useT } from '@/i18n';
 import { StartWorkButton } from '../detail/start-work';
@@ -186,6 +192,8 @@ export function IssuesPage() {
   const projectAccess = useVisibleProjects();
   // Yêu cầu của Phòng QC đã Xong hiện trạng thái QC (Chờ QC duyệt, QC verified) thay cho Hoàn thành.
   const qcStates = useQcStates().byIssue;
+  // Yêu cầu chưa đóng có thẻ câu hỏi/xác nhận chờ owner hiện "Chờ owner trả lời" thay cho trạng thái lõi.
+  const awaiting = useAwaitingOwner().issueIds;
   const pending = ((access.isOwner || access.isContributor ? pendingQuery.data : undefined) ?? []).filter((c) =>
     projectAccess.canSeeProject(c.projectId),
   );
@@ -318,6 +326,7 @@ export function IssuesPage() {
     const qc = qcDisplayStatus(issue, qcStates);
     return (
       <>
+        {awaitingOwnerStatus(issue, awaiting) ? <AwaitingOwnerBadge /> : null}
         {qc ? <QcBadge status={qc} /> : null}
         <StartWorkButton issue={issue} size="xs" />
         {live.has(issue.id) ? <LiveBadge label={t('list.live')} /> : null}
@@ -358,7 +367,7 @@ export function IssuesPage() {
     const hasChildren = node.children.length > 0;
     const expanded = !collapsedParents.has(issue.id);
     const at = activityAt(issue);
-    const shownStatus = displayStatus(issue, qcStates);
+    const shownStatus = issueDisplayStatus(issue, qcStates, awaiting);
     return (
       <IssueListRow
         key={issue.id}
@@ -450,6 +459,7 @@ export function IssuesPage() {
           agentName={agentName}
           live={live}
           qcStates={qcStates}
+          awaiting={awaiting}
           opener={opener}
           readOnly={access.readOnly}
         />

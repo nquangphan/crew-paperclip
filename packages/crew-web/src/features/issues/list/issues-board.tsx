@@ -21,6 +21,7 @@ import {
   resolveStageKey,
   StageBadge,
 } from '@/ds';
+import { AwaitingOwnerBadge, awaitingOwnerStatus } from '@/features/awaiting-owner';
 import { QcBadge, qcDisplayStatus } from '@/features/qc';
 import { useT } from '@/i18n';
 import type { useIssueOpener } from '../popup/issue-nav';
@@ -41,6 +42,7 @@ export function boardLayout(state: Pick<ListState, 'density' | 'lanes' | 'pageSi
 
 const NO_QC: ReadonlyMap<string, QcIssueState> = new Map();
 const NO_NAMES: ReadonlyMap<string, string> = new Map();
+const NO_AWAITING: ReadonlySet<string> = new Set();
 
 interface MoveError {
   identifier: string;
@@ -60,6 +62,11 @@ interface IssuesBoardProps {
   live: ReadonlySet<string>;
   /** Vòng QC đang mở theo id issue (yêu cầu của Phòng QC đã Xong). */
   qcStates?: ReadonlyMap<string, QcIssueState>;
+  /**
+   * Id yêu cầu chưa đóng có thẻ chờ owner trả lời: thẻ mang nhãn "Chờ owner trả lời" nhưng vẫn ở cột trạng thái lõi
+   * (như nhãn QC), vì kéo thẻ là đổi trạng thái lõi.
+   */
+  awaiting?: ReadonlySet<string>;
   opener: ReturnType<typeof useIssueOpener>;
   readOnly: boolean;
 }
@@ -74,6 +81,7 @@ export function IssuesBoard({
   agentName,
   live,
   qcStates = NO_QC,
+  awaiting = NO_AWAITING,
   opener,
   readOnly,
 }: IssuesBoardProps) {
@@ -117,6 +125,7 @@ export function IssuesBoard({
     const identifier = issue.identifier ?? issue.id;
     const root = rootsById.get(issue.id);
     const qc = qcDisplayStatus(issue, qcStates);
+    const waiting = awaitingOwnerStatus(issue, awaiting);
     const machine = machines?.[issue.id];
     return {
       id: issue.id,
@@ -131,8 +140,9 @@ export function IssuesBoard({
       liveBelow: liveBelow.get(issue.id) ?? 0,
       needsNextStep: needsNextStep(issue),
       meta:
-        root || qc ? (
+        root || qc || waiting ? (
           <>
+            {waiting ? <AwaitingOwnerBadge /> : null}
             {qc ? <QcBadge status={qc} /> : null}
             {root ? <StageBadge stage={resolveStageKey(root.stage, root.kind)} /> : null}
             {root && root.totalChildren > 0 ? (
