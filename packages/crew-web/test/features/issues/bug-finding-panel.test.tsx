@@ -1,11 +1,13 @@
 // @vitest-environment jsdom
 import type { BugFindingFinding, BugFindingRunView, BugFindingView } from '@crew/paperclip-plugin/shared/bug-finding';
+import { parsePrUrl } from '@crew/paperclip-plugin/shared/pr-url';
 import { cleanup, fireEvent, screen, within } from '@testing-library/react';
 import { afterEach, beforeAll, describe, expect, it } from 'vitest';
 import {
   BugFindingApprovalCard,
   BugFindingPanel,
   BugFindingSection,
+  prNumberOf,
 } from '@/features/issues/detail/crew/bug-finding-panel';
 import { initI18n, setLanguage } from '@/i18n';
 import { mockServer } from '../../app/fetch-mock';
@@ -228,5 +230,31 @@ describe('BugFindingSection', () => {
     mount(<BugFindingSection companyId="c1" issueId="i-root" />);
     expect(await screen.findByText('4/7 lane xong')).toBeTruthy();
     expect(s.calls[0]?.url).toBe('/api/plugins/crew.core/api/issues/i-root/bug-finding?companyId=c1');
+  });
+});
+
+describe('prNumberOf', () => {
+  it('rút số PR GitHub và số MR GitLab (tự host, nhóm con); URL khác trả null', () => {
+    expect(prNumberOf('https://github.com/nquangphan/crew/pull/87')).toBe('87');
+    expect(prNumberOf('https://gitlab.qasoftsolution.com/nail/business-app/-/merge_requests/12')).toBe('12');
+    expect(prNumberOf('https://gitlab.com/group/sub/app/-/merge_requests/3#note_1')).toBe('3');
+    expect(prNumberOf('https://gitlab.com/a/b/-/issues/3')).toBeNull();
+    expect(prNumberOf(null)).toBeNull();
+  });
+
+  it('F-06: trả iid ở cuối URL như parsePrUrl của plugin, không lấy /pull/N giữa đường dẫn', () => {
+    expect(prNumberOf('https://gitlab.com/x/pull/3/-/merge_requests/5')).toBe('5');
+    for (const url of [
+      'https://gitlab.com/x/pull/3/-/merge_requests/5',
+      'https://gitlab.com/group/pull/7/app/-/merge_requests/9',
+      'https://gitlab.qasoftsolution.com/nail/merge_requests/2/business-app/-/merge_requests/12',
+      'https://git.corp.vn:8443/a/b/-/merge_requests/7',
+      'https://github.com/nquangphan/crew/pull/87',
+    ]) {
+      const pr = parsePrUrl(url);
+      expect(pr, url).not.toBeNull();
+      expect(prNumberOf(url), url).toBe(String(pr?.number));
+    }
+    expect(prNumberOf('https://gitlab.com/a/b/-/merge_requests/99999999999999999999')).toBeNull();
   });
 });

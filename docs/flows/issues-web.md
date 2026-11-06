@@ -102,7 +102,9 @@ Luật chính:
    khối Bug Finding (`bug-finding-panel.tsx` → `BugFindingSection`/`BugFindingPanel`). Dữ liệu từ
    `packages/crew-web/src/api/crew/bug-finding.ts` → `useBugFinding` (`GET /api/plugins/crew.core/api/issues/:id/bug-finding?companyId=`,
    khóa `queryKeys.crew('crew.bugFinding', …)`, đọc lại mỗi `BUG_FINDING_POLL_MS` 30 giây khi còn lượt chờ/chạy). Mỗi
-   lượt một thẻ: PR, commit review, lượt n / tối đa; lượt chờ/chạy có thanh tiến độ `lanesDone/lanesTotal`; lượt hỏng
+   lượt một thẻ: PR (link tới URL của lượt; `prNumberOf` rút số PR GitHub hoặc `iid` MR GitLab bằng
+   `parsePrUrl` của plugin (`@crew/paperclip-plugin/shared/pr-url`, số ở cuối URL, bỏ `?…`/`#…`), nên luôn cùng số với
+   payload việc máy; không rút được thì hiện nguyên URL), commit review, lượt n / tối đa; lượt chờ/chạy có thanh tiến độ `lanesDone/lanesTotal`; lượt hỏng
    hiện lý do; lượt `succeeded` chia finding thành Trợ Lý tự sửa (kèm việc con sửa và trạng thái), Cần owner chốt (câu
    hỏi), Trợ Lý bỏ qua (lý do) theo `triage` của route (flow `bug-finding`), finding ngoài kế hoạch vào nhóm "khác",
    chưa có kế hoạch thì bảng phẳng kèm câu "Trợ Lý chưa phân loại". Lượt có hơn `FINDINGS_COLLAPSED` (3) finding thì mặc
@@ -291,7 +293,8 @@ kích hoạt stage và người duyệt của execution policy. Thay vào đó:
   lượt xong chia ba nhóm theo kế hoạch (việc con sửa, câu hỏi, lý do bỏ qua); chưa có kế hoạch thì bảng phẳng; lượt
   hết giờ hiện lý do; mặc định chỉ 3 finding đầu, "Xem thêm" mở hết và "Thu gọn" đóng lại (cả bảng phẳng), lượt từ 3
   finding trở xuống không có nút; thẻ màn duyệt hiện kết quả cuối trên đúng commit sẽ merge và cách xử lý; `BugFindingSection` gọi
-  route kèm `companyId`.
+  route kèm `companyId`; `prNumberOf` rút số PR GitHub và số MR GitLab, URL khác trả null; với mọi URL `parsePrUrl`
+  nhận, `prNumberOf` trả đúng số đó (`…/x/pull/3/-/merge_requests/5` là 5), số quá 10 chữ số trả null.
 - `packages/crew-web/test/features/issues/summary-slot.test.tsx` (phần `code-bf`): dải bốn giai đoạn có dòng phụ và
   khối Bug Finding khi xem ticket tổng; việc con không hiện, không gọi route.
 - `packages/crew-web/test/features/issues/comment-questions.test.ts`, `interaction-card.test.tsx`: đọc câu hỏi theo các

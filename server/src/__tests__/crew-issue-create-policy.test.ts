@@ -2,14 +2,15 @@ import { randomUUID } from "node:crypto";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { and, eq } from "drizzle-orm";
 import { agents, companies, createDb, issues, labels, projects, routineTriggers } from "@paperclipai/db";
 import { sql } from "drizzle-orm";
 import { getEmbeddedPostgresTestSupport, startEmbeddedPostgresTestDatabase } from "./helpers/embedded-postgres.js";
-import { boardChildAwaitingExecutor, decideCreatePolicy, executorRuntimeOf, isGithubOrigin, withProjectTag } from "../crew/issue-create-policy.ts";
+import { boardChildAwaitingExecutor, decideCreatePolicy, executorRuntimeOf, originProvider, prUrlMatchesOrigin, withProjectTag } from "../crew/issue-create-policy.ts";
 import { buildCrewPolicy, CREW_MAX_REVIEW_ROUNDS, CREW_POLICY_CONFIG_ENV, parseCrewPolicyConfig } from "../crew/issue-policy.ts";
 import { applyCrewMachineTables } from "./helpers/crew-machine-tables.js";
+import { logger } from "../middleware/logger.js";
 import { heartbeatService } from "../services/heartbeat.ts";
 import { issueService } from "../services/issues.js";
 import { routineService } from "../services/routines.ts";
@@ -301,8 +302,11 @@ describe("decideCreatePolicy", () => {
 
 describe("ticket tổng root-bf (Bug Finding)", () => {
   const OWNER = "owner-1";
-  /** Board tạo ticket tổng: nhãn (tên), cờ `bugFinding.enabled` của company, host của origin GitHub/khác trong `project_repos`. */
-  const decide = (input: { labels: string[]; bugFindingEnabled: boolean; originHost: string | null }) =>
+  /**
+   * Board tạo ticket tổng: nhãn (tên), cờ `bugFinding.enabled` của company, host của origin trong `project_repos` và
+   * host GitLab tự host khai báo trong `bugFinding.gitlabHosts`.
+   */
+  const decide = (input: { labels: string[]; bugFindingEnabled: boolean; originHost: string | null; gitlabHosts?: string[] }) =>
     decideCreatePolicy({
       data: { createdByUserId: OWNER },
       roles,
@@ -310,7 +314,7 @@ describe("ticket tổng root-bf (Bug Finding)", () => {
       researchLabel: input.labels.includes("research"),
       nonCodeLabel: input.labels.some((name) => ["research", "docs", "plan"].includes(name)),
       bugFindingEnabled: input.bugFindingEnabled,
-      githubOrigin: input.originHost ? isGithubOrigin(`https://${input.originHost}/o/r.git`) : false,
+      originProvider: input.originHost ? originProvider(`https://${input.originHost}/o/r.git`, input.gitlabHosts ?? []) : null,
     }) as { kind: string; template?: string };
 
   it("root-bf: integrator, reviewer cầu nối, owner, integrator", () => {
@@ -333,30 +337,71 @@ describe("ticket tổng root-bf (Bug Finding)", () => {
     expect(decide({ labels: ["research"], bugFindingEnabled: true, originHost: "github.com" })).toMatchObject({ template: "research" });
   });
 
+  it("origin GitLab: gitlab.com và host tự host đã khai báo → root-bf; host chưa khai báo, origin lạ → root; GitHub giữ nguyên", () => {
+    const hosts = ["gitlab.qasoftsolution.com"];
+    const bf = { labels: [], bugFindingEnabled: true, gitlabHosts: hosts };
+    expect(decide({ ...bf, originHost: "gitlab.qasoftsolution.com" })).toEqual({ kind: "set", template: "root-bf", ownerUserId: OWNER });
+    expect(decide({ ...bf, originHost: "gitlab.com" })).toEqual({ kind: "set", template: "root-bf", ownerUserId: OWNER });
+    expect(decide({ ...bf, originHost: "github.com" })).toEqual({ kind: "set", template: "root-bf", ownerUserId: OWNER });
+    expect(decide({ ...bf, originHost: "gitlab.qasoftsolution.com", gitlabHosts: [] })).toMatchObject({ template: "root" });
+    expect(decide({ ...bf, originHost: "git.corp.vn" })).toMatchObject({ template: "root" });
+    expect(decide({ ...bf, originHost: "gitlab.qasoftsolution.com", labels: ["docs"] })).toMatchObject({ template: "root" });
+    expect(decide({ ...bf, originHost: "gitlab.qasoftsolution.com", bugFindingEnabled: false })).toMatchObject({ template: "root" });
+  });
+
   it("chỉ ticket tổng board tạo mới nhận root-bf; con, policy riêng, project theo dõi, hệ thống giữ như cũ", () => {
-    const bf = { bugFindingEnabled: true, githubOrigin: true } as const;
+    const bf = { bugFindingEnabled: true, originProvider: "github" } as const;
     expect(decideCreatePolicy({ data: { createdByUserId: OWNER, parentId: "p" }, roles, ownerUserId: OWNER, ...bf })).toEqual({ kind: "set", template: "child" });
     expect(decideCreatePolicy({ data: { createdByUserId: OWNER, executionPolicy: { stages: [] } }, roles, ownerUserId: OWNER, ...bf })).toEqual({ kind: "keep" });
     expect(decideCreatePolicy({ data: { createdByUserId: OWNER }, roles, ownerUserId: OWNER, trackingProject: true, ...bf })).toEqual({ kind: "keep" });
     expect(decideCreatePolicy({ data: {}, roles, ownerUserId: OWNER, ...bf })).toEqual({ kind: "set", template: "root", ownerUserId: OWNER });
   });
 
-  it("isGithubOrigin: https, ssh scp và ssh:// tới github.com; host khác thì không", () => {
+  it("originProvider: GitHub qua https, scp và ssh://; host khác thì không", () => {
     for (const url of [
       "https://github.com/nquangphan/kidy_school.git",
       "https://GitHub.com/o/r",
       "git@github.com:nquangphan/kidy_school.git",
       "ssh://git@github.com/o/r.git",
       "ssh://git@github.com:22/o/r.git",
-    ]) expect(isGithubOrigin(url), url).toBe(true);
+    ]) expect(originProvider(url, []), url).toBe("github");
     for (const url of [
       "https://gitlab.corp.vn/o/r.git",
-      "git@gitlab.com:o/r.git",
       "https://github.com.evil.vn/o/r.git",
       "https://notgithub.com/o/r.git",
       "/Volumes/CORSAIR/Projects/r",
-      "",
-    ]) expect(isGithubOrigin(url), url).toBe(false);
+    ]) expect(originProvider(url, []), url).toBeNull();
+  });
+
+  it("originProvider: gitlab.com luôn là GitLab, mọi dạng origin", () => {
+    for (const url of [
+      "https://gitlab.com/o/r.git",
+      "https://GitLab.com/group/sub/r",
+      "git@gitlab.com:o/r.git",
+      "ssh://git@gitlab.com/o/r.git",
+      "ssh://git@gitlab.com:2222/o/r.git",
+    ]) expect(originProvider(url, []), url).toBe("gitlab");
+    expect(originProvider("https://gitlab.com.evil.vn/o/r.git", [])).toBeNull();
+  });
+
+  it("originProvider: GitLab tự host chỉ khi host được khai báo, không đoán theo chữ gitlab", () => {
+    const hosts = ["gitlab.qasoftsolution.com"];
+    for (const url of [
+      "git@gitlab.qasoftsolution.com:nail/business-app.git",
+      "ssh://git@gitlab.qasoftsolution.com:2222/nail/business-app.git",
+      "https://GITLAB.qasoftsolution.com/nail/business-app.git",
+    ]) {
+      expect(originProvider(url, hosts), url).toBe("gitlab");
+      expect(originProvider(url, []), url).toBeNull();
+    }
+    expect(originProvider("git@gitlab.corp.vn:o/r.git", hosts)).toBeNull();
+    expect(originProvider("git@code.corp.vn:o/r.git", ["code.corp.vn"])).toBe("gitlab");
+  });
+
+  it("originProvider: null, rỗng, chuỗi lạ → null", () => {
+    for (const url of [null, undefined, "", "   ", "không phải url", "file:///tmp/r"]) {
+      expect(originProvider(url, ["gitlab.qasoftsolution.com"]), String(url)).toBeNull();
+    }
   });
 
   it("parseCrewPolicyConfig: bugFinding.enabled mặc định false; sai kiểu thì invalid", () => {
@@ -367,6 +412,68 @@ describe("ticket tổng root-bf (Bug Finding)", () => {
     expect(parse({ bugFinding: { enabled: true } })).toMatchObject({ kind: "ok", bugFinding: { enabled: true } });
     expect(parse({ bugFinding: {} })).toMatchObject({ kind: "ok", bugFinding: { enabled: false } });
     for (const bad of [true, "yes", { enabled: "true" }, [] as unknown]) expect(parse({ bugFinding: bad })).toMatchObject({ kind: "invalid" });
+  });
+
+  it("parseCrewPolicyConfig: bugFinding.gitlabHosts mặc định rỗng, viết thường; phần tử sai dạng bị bỏ và ghi log, cấu hình vẫn hợp lệ", () => {
+    const C = "10000000-0000-4000-8000-000000000001";
+    const entry = { reviewerAgentId: "20000000-0000-4000-8000-000000000001", integratorAgentId: "20000000-0000-4000-8000-000000000002", ownerUserId: OWNER };
+    const parse = (extra: Record<string, unknown>) => parseCrewPolicyConfig(JSON.stringify({ companies: { [C]: { ...entry, ...extra } } }), C);
+    expect(parse({})).toMatchObject({ kind: "ok", bugFinding: { enabled: false, gitlabHosts: [] } });
+    expect(parse({ bugFinding: { enabled: true } })).toMatchObject({ bugFinding: { enabled: true, gitlabHosts: [] } });
+    expect(parse({ bugFinding: { enabled: true, gitlabHosts: ["GitLab.QASoftSolution.com"] } })).toMatchObject({
+      kind: "ok",
+      bugFinding: { enabled: true, gitlabHosts: ["gitlab.qasoftsolution.com"] },
+    });
+    const errors = vi.spyOn(logger, "error").mockImplementation(() => undefined as never);
+    try {
+      // F-02: một phần tử sai không làm invalid cả company; phần còn lại giữ hiệu lực, phần tử bị bỏ được ghi log.
+      expect(parse({ bugFinding: { enabled: true, gitlabHosts: ["gitlab.x.com:2222", "GitLab.OK.com"] } })).toMatchObject({
+        kind: "ok",
+        roles: { reviewerAgentId: entry.reviewerAgentId, integratorAgentId: entry.integratorAgentId },
+        bugFinding: { enabled: true, gitlabHosts: ["gitlab.ok.com"] },
+      });
+      expect(errors).toHaveBeenCalledWith(
+        expect.objectContaining({ companyId: C, droppedHosts: ["gitlab.x.com:2222"] }),
+        expect.stringContaining("gitlabHosts"),
+      );
+      for (const bad of [
+        "gitlab.qasoftsolution.com",
+        [1],
+        [""],
+        ["https://gitlab.qasoftsolution.com"],
+        ["gitlab.qasoftsolution.com/nail"],
+        ["gitlab.qasoftsolution.com:2222"],
+        ["git@gitlab.qasoftsolution.com"],
+        ["gitlab qasoft"],
+      ] as unknown[]) {
+        expect(parse({ bugFinding: { enabled: true, gitlabHosts: bad } }), JSON.stringify(bad)).toMatchObject({
+          kind: "ok",
+          bugFinding: { enabled: true, gitlabHosts: [] },
+        });
+      }
+    } finally {
+      errors.mockRestore();
+    }
+  });
+
+  it("prUrlMatchesOrigin: host URL PR/MR phải trùng host origin (không phân biệt hoa thường); MR GitLab chỉ trên gitlab.com hoặc gitlabHosts", () => {
+    const hosts = ["gitlab.qasoftsolution.com"];
+    const selfHosted = "git@gitlab.qasoftsolution.com:nail/business-app.git";
+    const mr = "https://gitlab.qasoftsolution.com/nail/business-app/-/merge_requests/12";
+    expect(prUrlMatchesOrigin(mr, selfHosted, hosts)).toBe(true);
+    expect(prUrlMatchesOrigin("https://GitLab.QASoftSolution.com/nail/business-app/-/merge_requests/12", selfHosted, hosts)).toBe(true);
+    expect(prUrlMatchesOrigin(mr, "ssh://git@GITLAB.qasoftsolution.com:2222/nail/business-app.git", hosts)).toBe(true);
+    expect(prUrlMatchesOrigin("https://evil.example/a/b/-/merge_requests/1", selfHosted, hosts)).toBe(false);
+    expect(prUrlMatchesOrigin("https://evil.example/a/b/-/merge_requests/1", "git@evil.example:a/b.git", hosts)).toBe(false);
+    expect(prUrlMatchesOrigin(mr, selfHosted, [])).toBe(false);
+    expect(prUrlMatchesOrigin("https://gitlab.com/team/app/-/merge_requests/3", "https://gitlab.com/team/app.git", [])).toBe(true);
+    expect(prUrlMatchesOrigin("https://gitlab.com/team/app/-/merge_requests/3", selfHosted, hosts)).toBe(false);
+    expect(prUrlMatchesOrigin("https://github.com/acme/app/pull/87", "git@github.com:acme/app.git", hosts)).toBe(true);
+    expect(prUrlMatchesOrigin("https://github.com/acme/app/pull/87", selfHosted, hosts)).toBe(false);
+    expect(prUrlMatchesOrigin(mr, "git@github.com:acme/app.git", hosts)).toBe(false);
+    // Origin chưa biết: giữ luật cũ cho PR GitHub, MR GitLab bị chặn vì không đối chiếu được host.
+    expect(prUrlMatchesOrigin("https://github.com/acme/app/pull/87", null, hosts)).toBe(true);
+    expect(prUrlMatchesOrigin(mr, null, hosts)).toBe(false);
   });
 });
 
@@ -575,6 +682,38 @@ suite("crew policy in issueService.create", () => {
     configured[companyId] = { ...(configured[companyId] as object), bugFinding: { enabled: false } };
     writeConfig();
     expect(await principals((await create(github)).id)).toEqual(rootPipeline);
+  });
+
+  it("cờ bugFinding bật: project origin GitLab tự host nhận root-bf khi host được khai báo trong gitlabHosts, chưa khai báo thì root", async () => {
+    const { companyId, reviewerId, integratorId } = await seed();
+    configured[companyId] = { ...(configured[companyId] as object), bugFinding: { enabled: true } };
+    writeConfig();
+    const ns = await crewTables();
+    const selfHosted = randomUUID();
+    const gitlabCom = randomUUID();
+    await db.insert(projects).values([
+      { id: selfHosted, companyId, name: "business-app" },
+      { id: gitlabCom, companyId, name: "glcom" },
+    ]);
+    await db.execute(sql.raw(`INSERT INTO ${ns}.project_repos (company_id, project_id, origin_url, branch, updated_by_user_id) VALUES
+      ('${companyId}', '${selfHosted}', 'git@gitlab.qasoftsolution.com:nail/business-app.git', 'main', 'owner-1'),
+      ('${companyId}', '${gitlabCom}', 'https://gitlab.com/team/app.git', 'main', 'owner-1')`));
+    const stagesOf = async (id: string) =>
+      ((await db.select().from(issues).where(eq(issues.id, id)))[0]!.executionPolicy as {
+        stages: { type: string; participants: { agentId?: string | null; userId?: string | null }[] }[];
+      }).stages.map((s) => [s.type, s.participants.map((p) => p.agentId ?? p.userId)]);
+    const create = (projectId: string) =>
+      issueService(db).create(companyId, { title: "t", createdByUserId: "owner-1", projectId } as never);
+    const rootPipeline = [["review", [reviewerId]], ["review", [integratorId]], ["approval", ["owner-1"]], ["review", [integratorId]]];
+    const bfPipeline = [["review", [integratorId]], ["review", [reviewerId]], ["approval", ["owner-1"]], ["review", [integratorId]]];
+    expect(await stagesOf((await create(selfHosted)).id)).toEqual(rootPipeline);
+    expect(await stagesOf((await create(gitlabCom)).id)).toEqual(bfPipeline);
+    configured[companyId] = {
+      ...(configured[companyId] as object),
+      bugFinding: { enabled: true, gitlabHosts: ["gitlab.qasoftsolution.com"] },
+    };
+    writeConfig();
+    expect(await stagesOf((await create(selfHosted)).id)).toEqual(bfPipeline);
   });
 
   it("nhãn research của company khác không tính", async () => {

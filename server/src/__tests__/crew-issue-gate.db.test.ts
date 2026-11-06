@@ -16,6 +16,7 @@ import {
   issueExecutionDecisions,
   issues,
   issueThreadInteractions,
+  projects,
   toolApplications,
   toolConnections,
 } from "@paperclipai/db";
@@ -33,6 +34,7 @@ import {
 } from "../services/issue-execution-policy.js";
 import { issueService } from "../services/issues.js";
 import { crewTable } from "../crew/machine-pin.js";
+import { applyCrewMachineTables } from "./helpers/crew-machine-tables.js";
 
 // Hook H2 (first line of runUpdate) through the real issue service: every caller of
 // issueService(db).update goes through the Crew gate, not only the REST route.
@@ -1395,6 +1397,90 @@ suite("crew issue gate in issueService.update", () => {
       await post(c, issueId, c.integratorId, `crew-merge sha=${SHA_BASE} branch=crew/req/X pushed=merged pr=${PR} merge=${MERGE}`);
       await expect(act(c, issueId, { agentId: c.integratorId }, "done")).rejects.toMatchObject(blocked(["push_sha_mismatch"]));
       await post(c, issueId, c.integratorId, `crew-merge sha=${SHA_HEAD} branch=crew/req/X pushed=merged pr=${PR} merge=${MERGE}`);
+      expect(await act(c, issueId, { agentId: c.integratorId }, "done")).toMatchObject({ status: "done" });
+    });
+
+    let crewNs: string | undefined;
+    /** Project có origin trong `project_repos` của plugin, và `bugFinding.gitlabHosts` của company. */
+    async function projectWithOrigin(c: Company, originUrl: string, gitlabHosts: string[] = []) {
+      crewNs ??= await applyCrewMachineTables(db);
+      const projectId = randomUUID();
+      await db.insert(projects).values({ id: projectId, companyId: c.companyId, name: "business-app" });
+      await db.execute(sql`INSERT INTO ${sql.raw(`${crewNs}.project_repos`)} (company_id, project_id, origin_url, branch, updated_by_user_id)
+        VALUES (${c.companyId}, ${projectId}, ${originUrl}, 'main', 'owner-1')`);
+      configured[c.companyId] = { ...(configured[c.companyId] as object), bugFinding: { enabled: true, gitlabHosts } };
+      writeConfig();
+      return projectId;
+    }
+    const SELF_HOSTED_ORIGIN = "git@gitlab.qasoftsolution.com:nail/business-app.git";
+
+    it("origin GitLab: crew-pr và crew-merge pushed=merged mang URL MR GitLab qua đủ bốn stage", async () => {
+      useRuns();
+      const MR = "https://gitlab.qasoftsolution.com/nail/business-app/-/merge_requests/12";
+      const c = await company();
+      const projectId = await projectWithOrigin(c, SELF_HOSTED_ORIGIN, ["gitlab.qasoftsolution.com"]);
+      const issueId = await issue(c, { status: "in_progress", assigneeAgentId: c.executorId, executionPolicy: c.rootBf, projectId });
+      await act(c, issueId, { agentId: c.executorId }, "done");
+      await post(c, issueId, c.integratorId, docsLine(0));
+      await post(c, issueId, c.integratorId, `crew-pr sha=${SHA_HEAD} pr=${MR}`);
+      expect(await act(c, issueId, { agentId: c.integratorId }, "done")).toMatchObject({ assigneeAgentId: c.reviewerId });
+      runs.set(issueId, [{ headSha: SHA_HEAD, state: "succeeded" }]);
+      expect(await act(c, issueId, { agentId: c.reviewerId }, "done")).toMatchObject({ assigneeUserId: "owner-1" });
+      expect(await act(c, issueId, { userId: "owner-1" }, "done")).toMatchObject({ assigneeAgentId: c.integratorId });
+      await post(c, issueId, c.integratorId, `crew-merge sha=${SHA_HEAD} branch=crew/req/X pushed=merged pr=${MR} merge=${MERGE}`);
+      expect(await act(c, issueId, { agentId: c.integratorId }, "done")).toMatchObject({ status: "done" });
+    });
+
+    it("F-01: crew-pr có host khác origin của project bị chặn (pr_origin_mismatch); host viết hoa vẫn khớp", async () => {
+      useRuns();
+      const c = await company();
+      const projectId = await projectWithOrigin(c, SELF_HOSTED_ORIGIN, ["gitlab.qasoftsolution.com"]);
+      const issueId = await issue(c, { status: "in_progress", assigneeAgentId: c.executorId, executionPolicy: c.rootBf, projectId });
+      await act(c, issueId, { agentId: c.executorId }, "done");
+      await post(c, issueId, c.integratorId, docsLine(0));
+      for (const pr of [
+        "https://evil.example/a/b/-/merge_requests/1",
+        "https://gitlab.com/nail/business-app/-/merge_requests/12",
+        "https://github.com/acme/app/pull/87",
+      ]) {
+        await post(c, issueId, c.integratorId, `crew-pr sha=${SHA_HEAD} pr=${pr}`);
+        await expect(act(c, issueId, { agentId: c.integratorId }, "done"), pr).rejects.toMatchObject(blocked(["pr_origin_mismatch"]));
+      }
+      await post(c, issueId, c.integratorId, `crew-pr sha=${SHA_HEAD} pr=https://GitLab.QASoftSolution.com/nail/business-app/-/merge_requests/12`);
+      expect(await act(c, issueId, { agentId: c.integratorId }, "done")).toMatchObject({ assigneeAgentId: c.reviewerId });
+    });
+
+    it("F-01: host GitLab tự host chưa khai báo trong gitlabHosts thì crew-pr bị chặn", async () => {
+      const c = await company();
+      const projectId = await projectWithOrigin(c, SELF_HOSTED_ORIGIN, []);
+      const issueId = await issue(c, { status: "in_progress", assigneeAgentId: c.executorId, executionPolicy: c.rootBf, projectId });
+      await act(c, issueId, { agentId: c.executorId }, "done");
+      await post(c, issueId, c.integratorId, docsLine(0));
+      await post(c, issueId, c.integratorId, `crew-pr sha=${SHA_HEAD} pr=https://gitlab.qasoftsolution.com/nail/business-app/-/merge_requests/12`);
+      await expect(act(c, issueId, { agentId: c.integratorId }, "done")).rejects.toMatchObject(blocked(["pr_origin_mismatch"]));
+    });
+
+    it("F-01: crew-merge có URL khác crew-pr (merge_pr_mismatch) hoặc host khác origin (push_origin_mismatch) bị chặn", async () => {
+      useRuns();
+      const MR = "https://gitlab.qasoftsolution.com/nail/business-app/-/merge_requests/12";
+      const c = await company();
+      const projectId = await projectWithOrigin(c, SELF_HOSTED_ORIGIN, ["gitlab.qasoftsolution.com"]);
+      const issueId = await issue(c, { status: "in_progress", assigneeAgentId: c.executorId, executionPolicy: c.rootBf, projectId });
+      await act(c, issueId, { agentId: c.executorId }, "done");
+      await post(c, issueId, c.integratorId, docsLine(0));
+      await post(c, issueId, c.integratorId, `crew-pr sha=${SHA_HEAD} pr=${MR}`);
+      await act(c, issueId, { agentId: c.integratorId }, "done");
+      runs.set(issueId, [{ headSha: SHA_HEAD, state: "succeeded" }]);
+      await act(c, issueId, { agentId: c.reviewerId }, "done");
+      expect(await act(c, issueId, { userId: "owner-1" }, "done")).toMatchObject({ assigneeAgentId: c.integratorId });
+      const merged = (pr: string) => `crew-merge sha=${SHA_HEAD} branch=crew/req/X pushed=merged pr=${pr} merge=${MERGE}`;
+      await post(c, issueId, c.integratorId, merged("https://gitlab.qasoftsolution.com/nail/business-app/-/merge_requests/13"));
+      await expect(act(c, issueId, { agentId: c.integratorId }, "done")).rejects.toMatchObject(blocked(["merge_pr_mismatch"]));
+      await post(c, issueId, c.integratorId, merged("https://evil.example/nail/business-app/-/merge_requests/12"));
+      await expect(act(c, issueId, { agentId: c.integratorId }, "done")).rejects.toMatchObject(
+        blocked(["push_origin_mismatch", "merge_pr_mismatch"]),
+      );
+      await post(c, issueId, c.integratorId, merged(MR));
       expect(await act(c, issueId, { agentId: c.integratorId }, "done")).toMatchObject({ status: "done" });
     });
 

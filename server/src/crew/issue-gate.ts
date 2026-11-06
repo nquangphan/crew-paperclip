@@ -12,9 +12,10 @@ import {
 } from "@paperclipai/db";
 import type { IssueExecutionPolicy, IssueExecutionStage, IssueExecutionStagePrincipal } from "@paperclipai/shared";
 import { unprocessable } from "../errors.js";
+import { logger } from "../middleware/logger.js";
 import { persistActivity } from "../services/activity-log.js";
 import { normalizeIssueExecutionPolicy, parseIssueExecutionState } from "../services/issue-execution-policy.js";
-import { loadAssigneeAdapterType } from "./issue-create-policy.js";
+import { loadAssigneeAdapterType, loadProjectOriginUrl, prUrlMatchesOrigin } from "./issue-create-policy.js";
 import { CREW_OVERRIDE_FORBIDDEN_MESSAGE, checkAgentAdapterOverrides } from "./model-policy.js";
 import { codexReviewerOverrides, loadModelSettings, rootReviewerOverrides } from "./model-settings.js";
 import {
@@ -105,6 +106,11 @@ export interface IssueGateFacts {
   pushEvidence: (CrewMergeEvidence & { createdAt: Date }) | null;
   /** Ticket tổng Bug Finding: comment `crew-pr` mới nhất (chưa xóa) của participant stage gộp. */
   prEvidence?: (CrewPrEvidence & { createdAt: Date }) | null;
+  /**
+   * Origin của project (`project_repos`, `null` khi chưa có) và `bugFinding.gitlabHosts` của company, để đối chiếu host URL
+   * của `crew-pr`/`crew-merge` (`prUrlMatchesOrigin`). Không truyền là origin chưa biết.
+   */
+  projectOrigin?: { originUrl: string | null; gitlabHosts: readonly string[] };
   /** Ticket tổng Bug Finding: các lượt Bug Finding của issue (`BugFindingRunReader`). Không truyền là chưa có lượt. */
   bugFindingRuns?: ReadonlyArray<BugFindingRunFact>;
   /**
@@ -546,12 +552,16 @@ export function evaluateIssueGate(f: IssueGateFacts): IssueGateVerdict {
     else if (docs.evidence.exit !== 0) violations.push(`docs_failed:${docs.evidence.exit}`);
   }
 
+  // URL PR/MR của integrator phải thuộc origin của project (host, provider), không chỉ đúng định dạng.
+  const prUrlOk = (url: string) =>
+    prUrlMatchesOrigin(url, f.projectOrigin?.originUrl ?? null, f.projectOrigin?.gitlabHosts ?? []);
   // Ticket tổng Bug Finding, stage gộp: PR phải mở/cập nhật sau bằng chứng docs và đúng merged commit của nó.
   const bugFindingRoot = bugFindingStages.length > 0;
   if (bugFindingRoot && checkDocs) {
     const pr = f.prEvidence;
     if (!pr || (f.docsEvidence && pr.createdAt.getTime() <= f.docsEvidence.createdAt.getTime())) violations.push("pr_missing");
     else if (f.docsEvidence && pr.sha !== f.docsEvidence.evidence.commit) violations.push("pr_sha_mismatch");
+    else if (!prUrlOk(pr.pr)) violations.push("pr_origin_mismatch");
   }
   // Stage cầu nối: cần lượt Bug Finding `succeeded` (hay `skipped` do owner cho bỏ qua) cho đúng head PR hiện tại.
   if (bugFindingRoot && (enteringDone || completingBugFindingStage)) {
@@ -572,12 +582,18 @@ export function evaluateIssueGate(f: IssueGateFacts): IssueGateVerdict {
     const push = f.pushEvidence;
     const fresh = !!push && ownerApprovedAt !== null && push.createdAt.getTime() > ownerApprovedAt;
     if (bugFindingRoot) {
-      // Ticket tổng Bug Finding: integrator tự merge PR, `pushed=pr` (PR còn mở) không đủ.
+      // Ticket tổng Bug Finding: integrator tự merge PR, `pushed=pr` (PR còn mở) không đủ; PR merge phải đúng PR của `crew-pr`.
       if (!push || !fresh || !push.merge || !push.pr) violations.push("merge_missing");
       else if (push.sha !== f.docsEvidence?.evidence.commit) violations.push("push_sha_mismatch");
+      else {
+        if (!prUrlOk(push.pr)) violations.push("push_origin_mismatch");
+        // Không có `crew-pr` thì `pr_missing` đã chặn; chỉ so khi có.
+        if (f.prEvidence && push.pr !== f.prEvidence.pr) violations.push("merge_pr_mismatch");
+      }
     } else if (!push) violations.push("push_missing");
     else if (!fresh) violations.push("push_stale");
     else if (push.sha !== f.docsEvidence?.evidence.commit) violations.push("push_sha_mismatch");
+    else if (push.pr && !prUrlOk(push.pr)) violations.push("push_origin_mismatch");
   }
 
   if (violations.length === 0) return { kind: "allow", notes };
@@ -602,6 +618,11 @@ const BLOCK_MESSAGES: Record<string, string> = {
   agent_cancel_forbidden: "Crew: chỉ board được hủy issue; agent muốn bỏ việc thì chuyển blocked kèm lý do.",
   participant_changed:
     "Crew: chỉ board đổi người đang review; hệ thống chỉ được chuyển reviewer Codex sang reviewer Claude của project.",
+  pr_origin_mismatch:
+    "Crew: URL trong crew-pr không thuộc origin của project (host khác origin, hoặc host GitLab chưa khai báo trong bugFinding.gitlabHosts).",
+  push_origin_mismatch:
+    "Crew: URL trong crew-merge không thuộc origin của project (host khác origin, hoặc host GitLab chưa khai báo trong bugFinding.gitlabHosts).",
+  merge_pr_mismatch: "Crew: URL trong crew-merge pushed=merged phải trùng URL của crew-pr mới nhất.",
   board_child_open:
     "Crew: yêu cầu còn việc con do owner hoặc thành viên thêm chưa xong; nhận việc đó vào kế hoạch và chờ nó xong rồi mới nộp.",
 };
@@ -732,6 +753,19 @@ export async function crewBeforeIssueWrite(input: IssueWriteHookInput): Promise<
     if (writesState) bugFindingRuns = await bugFindingRunReader({ db: tx, companyId: locked.companyId, issueId });
   }
 
+  // Origin của project chỉ cần khi có URL PR/MR để đối chiếu. Đọc lỗi (plugin chưa cài, bảng chưa có): origin chưa biết,
+  // nên MR GitLab bị chặn còn PR GitHub giữ luật cũ.
+  let projectOrigin: IssueGateFacts["projectOrigin"];
+  if (prEvidence || pushEvidence?.pr) {
+    let originUrl: string | null = null;
+    try {
+      originUrl = await loadProjectOriginUrl(tx, locked.companyId, locked.projectId);
+    } catch (err) {
+      logger.warn({ err, companyId: locked.companyId, projectId: locked.projectId }, "crew: reading project_repos failed; PR origin unknown");
+    }
+    projectOrigin = { originUrl, gitlabHosts: config.kind === "ok" ? config.bugFinding.gitlabHosts : [] };
+  }
+
   // Việc con board thêm dưới issue gốc, chưa xong: chỉ cần khi agent đổi trạng thái/state của issue gốc. Đọc trong
   // transaction của lệnh ghi.
   let openBoardChildren = 0;
@@ -819,6 +853,7 @@ export async function crewBeforeIssueWrite(input: IssueWriteHookInput): Promise<
     docsEvidence,
     pushEvidence,
     prEvidence,
+    projectOrigin,
     bugFindingRuns,
     openBoardChildren,
     openBugFindingBatchChildren,

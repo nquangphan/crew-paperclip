@@ -6,7 +6,7 @@ import { describe, expect, it } from "vitest";
 const here = dirname(fileURLToPath(import.meta.url));
 const pkgRoot = resolve(here, "../..");
 const pkg = JSON.parse(readFileSync(resolve(pkgRoot, "package.json"), "utf8"));
-const SUBPATHS = ["map", "docs-tree", "machine-card", "attachment-rules", "bug-finding"] as const;
+const SUBPATHS = ["map", "docs-tree", "machine-card", "attachment-rules", "bug-finding", "pr-url"] as const;
 
 describe("exports ./shared/*", () => {
   it("package.json trỏ subpath vào src/shared-web", () => {
@@ -21,6 +21,12 @@ describe("exports ./shared/*", () => {
     const positions = mod.layoutHierarchy(projection);
     expect(Object.keys(positions)).toContain("r");
     expect(typeof mod.cardWidth).toBe("number");
+  });
+
+  it("pr-url: parsePrUrl dùng chung với web", async () => {
+    const { parsePrUrl } = await import("../shared-web/pr-url.js");
+    expect(parsePrUrl("https://gitlab.com/x/pull/3/-/merge_requests/5")).toEqual({ provider: "gitlab", number: 5 });
+    expect(parsePrUrl("https://github.com/a/b/pull/87")).toEqual({ provider: "github", number: 87 });
   });
 
   it("docs-tree: dựng cây thư mục", async () => {

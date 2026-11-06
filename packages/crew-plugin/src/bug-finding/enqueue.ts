@@ -1,8 +1,8 @@
 import { randomUUID } from "node:crypto";
 import type { Issue, PluginContext, PluginEvent } from "@paperclipai/plugin-sdk";
 import { insertJob } from "../jobs/data.js";
-import { BUG_FINDING_INPUT_MAX, type JobPayload } from "../jobs/types.js";
-import { GITHUB_PR_URL, validateJobPayload } from "../jobs/validate.js";
+import { BUG_FINDING_INPUT_MAX, type JobPayload, type PrProvider } from "../jobs/types.js";
+import { parsePrUrl, validateJobPayload } from "../jobs/validate.js";
 import { pinnedMachineOfIssue } from "../runtimes/machine.js";
 import { checkedId, jsonObject, pluginNamespace, UUID } from "../shared/db.js";
 import { crewPolicyKind } from "../shared/policy.js";
@@ -57,13 +57,17 @@ export function bridgeStage(issue: Issue): BridgeStage | null {
 const time = (value: Date | string) => new Date(value).getTime();
 const newestFirst = (comments: readonly Comment[]) => [...comments].sort((a, b) => time(b.createdAt) - time(a.createdAt));
 
-/** `crew-pr` mới nhất của agent stage gộp: head PR (merged commit), URL và số PR GitHub. */
-export function latestCrewPr(comments: readonly Comment[], integratorId: string): { sha: string; prUrl: string; prNumber: number } | null {
+/**
+ * `crew-pr` mới nhất có URL hợp lệ của agent stage gộp: head PR (merged commit), URL, số PR GitHub (`/pull/N`) hoặc số MR GitLab
+ * (`/-/merge_requests/N`, tức `iid`) và provider theo URL.
+ */
+export function latestCrewPr(comments: readonly Comment[], integratorId: string):
+  { sha: string; prUrl: string; prNumber: number; provider: PrProvider } | null {
   for (const comment of newestFirst(comments)) {
     if (comment.authorAgentId !== integratorId) continue;
     const match = CREW_PR.exec(comment.body.split("\n", 1)[0]?.trim() ?? "");
-    const pr = match ? GITHUB_PR_URL.exec(match[2]!) : null;
-    if (match && pr) return { sha: match[1]!, prUrl: match[2]!, prNumber: Number(pr[1]) };
+    const pr = match ? parsePrUrl(match[2]!) : null;
+    if (match && pr) return { sha: match[1]!, prUrl: match[2]!, prNumber: pr.number, provider: pr.provider };
   }
   return null;
 }
@@ -206,7 +210,7 @@ export async function enqueueBugFinding(ctx: Ctx, issue: Issue, options: { retry
     payload = projectKey
       ? validateJobPayload("bug-finding-review", {
         requestId, issueId: issue.id, identifier: issue.identifier, run: runNo, projectId: issue.projectId, projectKey,
-        repoPath: machine.repoPath, provider: "github", prNumber: pr.prNumber, prUrl: pr.prUrl, headSha: pr.sha,
+        repoPath: machine.repoPath, provider: pr.provider, prNumber: pr.prNumber, prUrl: pr.prUrl, headSha: pr.sha,
         baseBranch: await baseBranchOf(ctx, companyId, issue.projectId!), ...(feedback ? { reviewerInputText: feedback } : {}),
       })
       : "Không xác định được khóa project trên máy";

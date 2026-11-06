@@ -81,7 +81,7 @@ describe("parseCrewPolicyConfig", () => {
       roles,
       ownerUserId: "owner-1",
       trackingProjectIds: [],
-      bugFinding: { enabled: false },
+      bugFinding: { enabled: false, gitlabHosts: [] },
     });
   });
 
@@ -275,6 +275,51 @@ describe("parseCrewMergeEvidence", () => {
       `crew-merge sha=${SHA_HEAD} branch=main pushed=no pr=https://github.com/a/b/pull/5`,
     ]) {
       expect(parseCrewMergeEvidence(bad), bad).toBeNull();
+    }
+  });
+});
+
+describe("bằng chứng integrator với URL merge request GitLab", () => {
+  const MRS = [
+    "https://gitlab.qasoftsolution.com/nail/business-app/-/merge_requests/12",
+    "https://gitlab.com/group/sub/app/-/merge_requests/3",
+    "https://git.corp.vn:8443/a/b/-/merge_requests/7",
+  ];
+  const merge = "d".repeat(40);
+
+  it("crew-pr, crew-merge pushed=pr và pushed=merged nhận URL MR GitLab (tự host, subgroup, cổng)", () => {
+    for (const mr of [...MRS, "https://gitlab.com/a/b/-/merge_requests/9999999999", "https://github.com/a/b/pull/9999999999"]) {
+      expect(parseCrewPrEvidence(`crew-pr sha=${SHA_HEAD} pr=${mr}`), mr).toEqual({ sha: SHA_HEAD, pr: mr });
+      expect(parseCrewMergeEvidence(`crew-merge sha=${SHA_HEAD} branch=crew/req/TPS-1 pushed=pr pr=${mr}`), mr).toEqual({
+        sha: SHA_HEAD,
+        branch: "crew/req/TPS-1",
+        pr: mr,
+      });
+      expect(parseCrewMergeEvidence(`crew-merge sha=${SHA_HEAD} branch=crew/req/TPS-1 pushed=merged pr=${mr} merge=${merge}`), mr)
+        .toEqual({ sha: SHA_HEAD, branch: "crew/req/TPS-1", pr: mr, merge });
+    }
+  });
+
+  it("URL MR sai dạng bị từ chối", () => {
+    for (const bad of [
+      "http://gitlab.com/a/b/-/merge_requests/5",
+      "https://gitlab.com/a/-/merge_requests/5",
+      "https://gitlab.com/a/b/merge_requests/5",
+      "https://gitlab.com/a/b/-/merge_requests/0",
+      "https://gitlab.com/a/b/-/merge_requests/5x",
+      "https://gitlab.com/a/b/-/issues/5",
+      "https://github.com/a/b/-/merge_requests/5",
+      "https://gitlab.com/-/b/-/merge_requests/5",
+      // F-01: github.com viết hoa không được coi là host GitLab.
+      "https://GITHUB.COM/a/b/-/merge_requests/1",
+      "https://GitHub.com/a/b/-/merge_requests/1",
+      // F-05: số MR quá 10 chữ số (mất chính xác khi đổi sang Number).
+      "https://gitlab.com/a/b/-/merge_requests/99999999999999999999",
+      "https://gitlab.com/a/b/-/merge_requests/12345678901",
+      "https://github.com/a/b/pull/99999999999999999999",
+    ]) {
+      expect(parseCrewPrEvidence(`crew-pr sha=${SHA_HEAD} pr=${bad}`), bad).toBeNull();
+      expect(parseCrewMergeEvidence(`crew-merge sha=${SHA_HEAD} branch=main pushed=merged pr=${bad} merge=${merge}`), bad).toBeNull();
     }
   });
 });
@@ -820,6 +865,20 @@ describe("evaluateIssueGate", () => {
       expect(evaluateIssueGate(facts({ ...base, pushEvidence: push(T2, SHA_BASE, PR) }))).toMatchObject({
         violations: ["push_sha_mismatch"],
       });
+    });
+
+    it("F-01: URL pull/merge request của crew-merge phải thuộc origin của project (push_origin_mismatch)", () => {
+      const MR = "https://gitlab.qasoftsolution.com/nail/app/-/merge_requests/3";
+      const selfHosted = { originUrl: "git@gitlab.qasoftsolution.com:nail/app.git", gitlabHosts: ["gitlab.qasoftsolution.com"] };
+      const withPr = (pr: string, projectOrigin?: { originUrl: string | null; gitlabHosts: string[] }) =>
+        evaluateIssueGate(facts({ ...base, pushEvidence: push(T2, SHA_HEAD, pr), projectOrigin }));
+      expect(withPr(MR, selfHosted)).toEqual({ kind: "allow", notes: [] });
+      expect(withPr("https://evil.example/nail/app/-/merge_requests/3", selfHosted)).toMatchObject({ violations: ["push_origin_mismatch"] });
+      expect(withPr(PR, selfHosted)).toMatchObject({ violations: ["push_origin_mismatch"] });
+      expect(withPr(MR, { ...selfHosted, gitlabHosts: [] })).toMatchObject({ violations: ["push_origin_mismatch"] });
+      // Origin chưa biết: PR GitHub giữ luật cũ, MR GitLab bị chặn.
+      expect(withPr(PR)).toEqual({ kind: "allow", notes: [] });
+      expect(withPr(MR)).toMatchObject({ violations: ["push_origin_mismatch"] });
     });
 
     it("thiếu, cũ hơn quyết định owner, hoặc lệch sha bằng chứng docs: 422", () => {
