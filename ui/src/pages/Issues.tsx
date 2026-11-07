@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useCallback, useRef, useState } from "react";
-import { useLocation, useSearchParams } from "@/lib/router";
+import { useEffect, useMemo, useCallback, useRef } from "react";
+import { useLocation, useNavigate, useSearchParams } from "@/lib/router";
 import { useInfiniteQuery, useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { issuesApi } from "../api/issues";
 import { agentsApi } from "../api/agents";
@@ -75,26 +75,21 @@ export function Issues() {
   const queryClient = useQueryClient();
   const fetchNextPageInFlightRef = useRef(false);
 
-  const urlSearch = searchParams.get("q") ?? "";
-  const [searchOverride, setSearchOverride] = useState<{ search: string; locationSearch: string } | null>(null);
-  const syncedSearch = useMemo(() => {
-    if (typeof window !== "undefined" && searchOverride?.locationSearch === window.location.search) {
-      return searchOverride.search;
-    }
-    return urlSearch;
-  }, [searchOverride, urlSearch, location.search]);
+  const navigate = useNavigate();
+  const syncedSearch = searchParams.get("q") ?? "";
   const participantAgentId = searchParams.get("participantAgentId") ?? undefined;
   const initialWorkspaces = searchParams.getAll("workspace").filter((workspaceId) => workspaceId.length > 0);
   const workspaceIdFilter = initialWorkspaces.length === 1 ? initialWorkspaces[0] : undefined;
+  // Go through the router (not window.history) so its location never keeps a stale `q`:
+  // links back to this list and the search box both read the router location.
   const handleSearchChange = useCallback((search: string) => {
-    const nextUrl = buildIssuesSearchUrl(window.location.href, search);
-    if (!nextUrl) {
-      setSearchOverride(null);
-      return;
-    }
-    window.history.replaceState(window.history.state, "", nextUrl);
-    setSearchOverride({ search, locationSearch: window.location.search });
-  }, []);
+    const nextUrl = buildIssuesSearchUrl(
+      `${window.location.origin}${location.pathname}${location.search}${location.hash}`,
+      search,
+    );
+    if (!nextUrl) return;
+    navigate(nextUrl, { replace: true, state: location.state, preventScrollReset: true });
+  }, [location.hash, location.pathname, location.search, location.state, navigate]);
 
   const { data: agents } = useQuery({
     queryKey: queryKeys.agents.list(selectedCompanyId!),
