@@ -484,6 +484,7 @@ type IssueResolutionContext = {
   assigneeAgentId: string | null;
   assigneeUserId: string | null;
   reviewPolicy: IssueReviewPolicy | null;
+  executionState: Record<string, unknown> | null;
   createdByAgentId: string | null;
   createdByUserId: string | null;
 };
@@ -826,6 +827,11 @@ function interactionTerminalError(row: { status: string; result?: unknown }) {
   );
 }
 
+function hasActiveExecutionStage(issue: IssueResolutionContext) {
+  const stageId = issue.executionState?.currentStageId;
+  return issue.status === "in_review" && typeof stageId === "string" && stageId.length > 0;
+}
+
 function shouldReturnAcceptedConfirmationToCreatorAgent(args: {
   issue: IssueResolutionContext;
   current: IssueThreadInteractionRow;
@@ -836,6 +842,11 @@ function shouldReturnAcceptedConfirmationToCreatorAgent(args: {
   if (!args.actor.userId) return false;
   if (isTerminalIssueStatus(args.issue.status)) return false;
   if (args.issue.assigneeAgentId) {
+    // A staged execution policy owns the in_review status of its current stage;
+    // returning the issue to todo would drop it out of that stage while the
+    // stage still expects its participant to act. Keep the status and let the
+    // continuation wake the assignee instead.
+    if (hasActiveExecutionStage(args.issue)) return false;
     return (
       args.issue.status === "in_review" &&
       args.issue.assigneeAgentId === args.current.createdByAgentId
@@ -2141,6 +2152,7 @@ export function issueThreadInteractionService(
           assigneeAgentId: issues.assigneeAgentId,
           assigneeUserId: issues.assigneeUserId,
           reviewPolicy: issues.reviewPolicy,
+          executionState: issues.executionState,
           createdByAgentId: issues.createdByAgentId,
           createdByUserId: issues.createdByUserId,
         })
@@ -2418,6 +2430,7 @@ export function issueThreadInteractionService(
           assigneeAgentId: issues.assigneeAgentId,
           assigneeUserId: issues.assigneeUserId,
           reviewPolicy: issues.reviewPolicy,
+          executionState: issues.executionState,
           createdByAgentId: issues.createdByAgentId,
           createdByUserId: issues.createdByUserId,
         })

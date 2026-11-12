@@ -938,6 +938,7 @@ File nào thuộc flow nào. Dùng `crew-docs where <file>` để tra từ dòng
 | `server/src/__tests__/crew-terminal-stores.test.ts` | [web-terminal](flows/web-terminal.md) (test) |
 | `server/src/__tests__/crew-terminal-ws.test.ts` | [web-terminal](flows/web-terminal.md) (test) |
 | `server/src/__tests__/crew-viewer-write-matrix.test.ts` | [crew-plugin](flows/crew-plugin.md) (test) |
+| `server/src/__tests__/issue-thread-interactions-service.test.ts` | [bug-finding](flows/bug-finding.md) (test) |
 | `server/src/app.ts` | [crew-plugin](flows/crew-plugin.md) (dùng chung), [contributions](flows/contributions.md) (dùng chung) |
 | `server/src/crew/agent-config-gate.ts` | [agent-guards](flows/agent-guards.md) (điểm vào) |
 | `server/src/crew/agent-write-guard.ts` | [agent-guards](flows/agent-guards.md) (điểm vào) |
@@ -996,6 +997,7 @@ File nào thuộc flow nào. Dùng `crew-docs where <file>` để tra từ dòng
 | `server/src/routes/projects.ts` | [agent-guards](flows/agent-guards.md) (dùng chung) |
 | `server/src/services/environment-runtime.ts` | [ssh-run-lifecycle](flows/ssh-run-lifecycle.md) (dùng chung) |
 | `server/src/services/heartbeat.ts` | [run-claim](flows/run-claim.md) (dùng chung), [runtime-switches](flows/runtime-switches.md) (dùng chung), [run-handoff](flows/run-handoff.md) (dùng chung), [ssh-run-lifecycle](flows/ssh-run-lifecycle.md) (dùng chung) |
+| `server/src/services/issue-thread-interactions.ts` | [bug-finding](flows/bug-finding.md) (file) |
 | `server/src/services/issues.ts` | [issue-gate](flows/issue-gate.md) (dùng chung), [qc-department](flows/qc-department.md) (dùng chung) |
 | `server/src/services/legacy-execution-recovery.ts` | [run-handoff](flows/run-handoff.md) (dùng chung) |
 | `server/src/services/plugin-worker-manager.ts` | [crew-plugin](flows/crew-plugin.md) (dùng chung) |

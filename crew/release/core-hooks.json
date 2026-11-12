@@ -48,7 +48,9 @@
       "importLine": "import { crewCoreHooks } from \"../crew/core-hooks.js\";",
       "description": "Stop the run's remote work when an SSH run lease is released (cancel, failed, expired).",
       "upstreamPr": null,
-      "tests": ["server/src/__tests__/crew-core-hooks.test.ts"]
+      "tests": [
+        "server/src/__tests__/crew-core-hooks.test.ts"
+      ]
     },
     {
       "id": "H4",
@@ -60,7 +62,9 @@
       "importLine": "import { crewCoreHooks } from \"../crew/core-hooks.js\";",
       "description": "Attach the Crew execution-policy template to new issues (owner approval for agent-created BMAD epic/story children and `crew-kind design` mockup children), refuse agent-created root issues, agent-created children outside the parent's project, issues from agent-authored routines, and agent-created children assigned outside the project's assistant/executor rule; check model/effort overrides against the assignee's runtime; code children whose executor does not run Codex get the project's Codex reviewer first and its Claude reviewer second in the review stage when Codex is switched on for the Codex reviewer's machine.",
       "upstreamPr": null,
-      "tests": ["server/src/__tests__/crew-issue-create-policy.test.ts"]
+      "tests": [
+        "server/src/__tests__/crew-issue-create-policy.test.ts"
+      ]
     },
     {
       "id": "H5",
@@ -72,7 +76,10 @@
       "importLine": "import { crewCoreHooks } from \"../crew/core-hooks.js\";",
       "description": "Block agents in Crew companies from creating or hiring agents, test-running adapters, updating any agent (including role and permissions), resuming paused agents, syncing skills, rewriting instructions, and rolling back config revisions.",
       "upstreamPr": null,
-      "tests": ["server/src/__tests__/crew-agent-config.test.ts", "server/src/__tests__/crew-core-hooks.test.ts"]
+      "tests": [
+        "server/src/__tests__/crew-agent-config.test.ts",
+        "server/src/__tests__/crew-core-hooks.test.ts"
+      ]
     },
     {
       "id": "P1",
@@ -84,7 +91,9 @@
       "importLine": "import { sshLeaseWorkspaceRealization } from \"../crew/ssh-in-place.js\";",
       "description": "SSH lease metadata opts the run into in_place realization when environment metadata sets workspaceRealizationMode to in_place.",
       "upstreamPr": null,
-      "tests": ["server/src/__tests__/crew-ssh-in-place.test.ts"]
+      "tests": [
+        "server/src/__tests__/crew-ssh-in-place.test.ts"
+      ]
     },
     {
       "id": "P2",
@@ -94,7 +103,9 @@
       "anchor": "  const inPlaceRoot = executionTarget?.workspaceRealization?.mode === \"in_place\"",
       "description": "claude_local runs in the authoritative root and skips workspace upload/restore for in_place realization, like codex_local.",
       "upstreamPr": null,
-      "tests": ["packages/adapters/claude-local/src/server/execute.remote.crew.test.ts"]
+      "tests": [
+        "packages/adapters/claude-local/src/server/execute.remote.crew.test.ts"
+      ]
     },
     {
       "id": "P3",
@@ -118,7 +129,9 @@
       "anchor": "  } else if (\n    !canResumeSession &&\n    runtimeSessionId &&\n    isValidUuid &&\n    runtimeSessionCwd.length > 0 &&",
       "description": "Do not log the cwd mismatch / fresh session notice when the session is actually resumed.",
       "upstreamPr": null,
-      "tests": ["packages/adapters/claude-local/src/server/execute.remote.crew.test.ts"]
+      "tests": [
+        "packages/adapters/claude-local/src/server/execute.remote.crew.test.ts"
+      ]
     },
     {
       "id": "P5",
@@ -129,7 +142,9 @@
       "occurrences": 2,
       "description": "Session codec keeps remoteExecution so SSH runs can resume their Codex session.",
       "upstreamPr": null,
-      "tests": ["packages/adapters/codex-local/src/server/session-codec.crew.test.ts"]
+      "tests": [
+        "packages/adapters/codex-local/src/server/session-codec.crew.test.ts"
+      ]
     },
     {
       "id": "P6",
@@ -139,7 +154,9 @@
       "anchor": "  const inPlaceRoot = executionTarget?.workspaceRealization?.mode === \"in_place\"",
       "description": "opencode_local runs in the authoritative root for in_place realization: no workspace upload/restore and no copy into the remote $HOME/.claude/skills.",
       "upstreamPr": null,
-      "tests": ["packages/adapters/opencode-local/src/server/execute.in-place.crew.test.ts"]
+      "tests": [
+        "packages/adapters/opencode-local/src/server/execute.in-place.crew.test.ts"
+      ]
     },
     {
       "id": "P7",
@@ -150,7 +167,9 @@
       "occurrences": 2,
       "description": "Session codec keeps remoteExecution so SSH runs can resume their OpenCode session.",
       "upstreamPr": null,
-      "tests": ["packages/adapters/opencode-local/src/server/session-codec.crew.test.ts"]
+      "tests": [
+        "packages/adapters/opencode-local/src/server/session-codec.crew.test.ts"
+      ]
     },
     {
       "id": "P8",
@@ -162,7 +181,9 @@
       "importLine": "import { retrySshPendingTeardown } from \"../crew/ssh-pending-teardown.js\";",
       "description": "The SSH driver gets the pending_cleanup teardown retry the stock cleanup sweep calls (stock SSH has none, so an SSH lease moved to pending_cleanup by an Interrupt or the orphaned-active-lease sweep failed with destroy_failed forever). It returns a stopped receipt only when the legacy run provably never launched an adapter or Crew's stop command on the host finds no process of the run left; otherwise it throws and the sweep retries with its backoff, with a crew.remote_stop activity per attempt and one crew.remote_stop.escalated activity when the attempts reach the stock cap.",
       "upstreamPr": null,
-      "tests": ["server/src/__tests__/crew-ssh-pending-teardown.db.test.ts"]
+      "tests": [
+        "server/src/__tests__/crew-ssh-pending-teardown.db.test.ts"
+      ]
     },
     {
       "id": "P9",
@@ -172,7 +193,9 @@
       "anchor": "  if (isClaudeSuccessResult(parsed)) return { requiresLogin: false, loginUrl };",
       "description": "A Claude result with subtype success and is_error false is never classified as claude_auth_required, and the login-prompt markers (unauthorized, please run /login, ...) are matched only against Claude's own output: the parsed result and errors, stderr, plain-text stdout lines, and assistant events the CLI flags with an error. Stock matched them against every stdout line, so a successful run whose tool output printed an OpenAPI \"401 Unauthorized\" and that exited 255 after its final result (a background process stopped by the terminal-result cleanup) was labelled claude_auth_required, which showed the auth-repair card, blocked the retry and switched the runtime. The run still ends failed (stock unmanaged background task policy); only the auth label is dropped.",
       "upstreamPr": null,
-      "tests": ["packages/adapters/claude-local/src/server/parse.auth.crew.test.ts"]
+      "tests": [
+        "packages/adapters/claude-local/src/server/parse.auth.crew.test.ts"
+      ]
     },
     {
       "id": "C1",
@@ -392,7 +415,9 @@
       "anchor": "  { method: \"GET\", path: /^\\/api\\/crew\\/model-settings$/ },",
       "description": "Allow four Crew routes through the sandbox callback bridge of SSH runs: GET /api/crew/model-settings, so the Crew assistant reads the owner's model table (catalog, complexity table, role defaults) at the start of every run instead of an embedded copy in AGENTS.md; and the three crew.core Bug Finding routes agents call on code-bf root issues (GET /api/plugins/crew.core/api/issues/<id>/bug-finding, POST .../bug-finding/request, POST .../bug-finding/skip). Model settings are read only: PUT and POST of the same path and every other /api/crew route stay denied, as do every other plugin route (bug-finding/results stays board-only), and the server still checks the actor on top of the allowlist. The allowlist is enforced on the server host (http2-bridge-server), so deploying the server is enough.",
       "upstreamPr": null,
-      "tests": ["server/src/__tests__/crew-bridge-allowlist.test.ts"]
+      "tests": [
+        "server/src/__tests__/crew-bridge-allowlist.test.ts"
+      ]
     },
     {
       "id": "C18",
@@ -402,7 +427,9 @@
       "anchor": "          actor.agentId !== issue.assigneeAgentId &&",
       "description": "When the assignee agent moves its own issue to blocked while every blocker is already done, stock emits an issue_blockers_resolved wake (source issue.blockers_restored) to the same agent. A Crew executor blocks itself to wait for something else (an owner confirmation card, a merge conflict the owner must decide), so the wake reran it, it blocked again and the cycle repeated every minute (46 runs in 38 minutes on one issue). The restored-dependency wake now fires only when someone other than the assignee sets the blocked state (board, another agent); a blocker reaching done still wakes dependents as stock does.",
       "upstreamPr": null,
-      "tests": ["server/src/__tests__/issue-dependency-wakeups-routes.test.ts"]
+      "tests": [
+        "server/src/__tests__/issue-dependency-wakeups-routes.test.ts"
+      ]
     },
     {
       "id": "C19",
@@ -427,6 +454,18 @@
       "upstreamPr": null,
       "tests": [
         "server/src/__tests__/heartbeat-process-recovery.test.ts"
+      ]
+    },
+    {
+      "id": "C21",
+      "kind": "core-patch",
+      "file": "server/src/services/issue-thread-interactions.ts",
+      "symbol": "shouldReturnAcceptedConfirmationToCreatorAgent (staged in_review)",
+      "anchor": "    if (hasActiveExecutionStage(args.issue)) return false;",
+      "description": "Accepting a request_confirmation the assigned agent created while the issue is in_review sent the issue back to todo. On an issue whose execution policy is at a stage (executionState.currentStageId set) that drops it out of the stage, so the Bug Finding bridge reviewer's skip call failed with 409 not_at_bridge_stage after the owner accepted the skip card and the root ticket sat in todo with no run (TPS-735, TPS-743, TPS-851, TPS-863). A staged in_review issue now keeps its status and the continuation wakes the assignee.",
+      "upstreamPr": null,
+      "tests": [
+        "server/src/__tests__/issue-thread-interactions-service.test.ts"
       ]
     }
   ]

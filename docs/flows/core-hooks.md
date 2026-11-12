@@ -74,6 +74,7 @@ import cuối file để merge upstream ít conflict), mô tả lý do và `upst
 - `ssh-run-lifecycle`: implementation của H3, vá P1, P8, C9.
 - `adapter-patches`: vá P2–P7, P9.
 - `run-handoff`: vá C10–C14, C18–C20 (C19, C20: run hội thoại bị backstop chốt khi server khởi động lại được chạy lại, không lặp mở recovery action).
+- `bug-finding`: vá C21 (chấp nhận thẻ xác nhận của assignee không kéo issue đang ở stage khỏi `in_review`).
 - `contributions`: vá C7 (router góp ý, route Phòng QC, router con quyền xem project, máy và cài đặt model, bộ chờ plugin
   khởi động).
 - `docs-snapshot`: vá C15 (parser JSON 16 MB cho webhook `docs-snapshot`).
