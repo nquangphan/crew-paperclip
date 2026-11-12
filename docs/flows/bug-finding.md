@@ -40,6 +40,8 @@ Luật chính:
   (`RESULT_TIMEOUT_MS`, gồm cả lúc app chờ mạng hay tài nguyên).
 - Bỏ qua Bug Finding chỉ khi owner của stage duyệt đã chấp nhận thẻ `request_confirmation` của reviewer (khóa
   `crew-bf-skip:<issueId>:…`) sau lượt hỏng; lượt hỏng của head hiện tại thành `skipped`, gate cho qua.
+  Chấp nhận thẻ không đổi status: vá C21 giữ `in_review` cho issue đang ở một stage của execution policy (lõi trả
+  issue về `todo` khi owner chấp nhận thẻ của chính assignee, làm skip trả 409 `not_at_bridge_stage`).
 
 ## Điểm vào
 
@@ -113,6 +115,7 @@ Luật chính:
 | `packages/crew-plugin/src/shared-web/pr-url.ts` | `parsePrUrl` cho web (số "PR #<n>" của thẻ lượt, cùng luật với payload việc máy) | `parsePrUrl` |
 | `packages/crew-plugin/src/bug-finding/watchdog.ts` | Job hết giờ và đối chiếu việc máy | `runBugFindingWatchdog`, `REQUEST_TIMEOUT_MS`, `RESULT_TIMEOUT_MS` |
 | `packages/crew-plugin/migrations/0025_bug_finding.sql` | Bảng lượt, bảng vòng, kind việc máy | `crew_bug_finding_runs`, `crew_bug_finding_rounds` |
+| `server/src/services/issue-thread-interactions.ts` | Vá C21: chấp nhận thẻ xác nhận của assignee không kéo issue đang ở stage khỏi `in_review` | `shouldReturnAcceptedConfirmationToCreatorAgent`, `hasActiveExecutionStage` |
 | `server/src/crew/bug-finding-runs.ts` | Server đọc lượt cho gate, ghi vòng | `readBugFindingRuns`, `bumpBugFindingRound` |
 
 ## Dữ liệu
@@ -154,6 +157,8 @@ Luật chính:
   document báo cáo, comment và wake, gửi lại 409; GET kèm kế hoạch của Trợ Lý (bỏ comment của agent khác); skip chỉ khi owner đã chấp nhận; watchdog hết giờ 30 phút và 8
   giờ, việc máy hỏng thành `failed`, việc nhận xong thành `queued`; `crew-pr` là URL MR GitLab thì payload `provider`
   `gitlab`, `prNumber` là số MR.
+- `server/src/__tests__/issue-thread-interactions-service.test.ts`: issue `in_review` có `executionState.currentStageId`, owner chấp nhận thẻ của assignee thì
+  issue giữ `in_review` và stage, `continuationIssue` rỗng (vẫn đánh thức assignee).
 - `packages/crew-plugin/src/__tests__/bug-finding-pr.test.ts`: `latestCrewPr` nhận URL PR GitHub, MR gitlab.com, GitLab tự
   host có subgroup và cổng; không nhận URL lạ (thiếu namespace hay `/-/`, `http`, số 0, có đuôi, MR trên github.com,
   issue GitLab); lấy `crew-pr` mới nhất có URL hợp lệ của integrator.

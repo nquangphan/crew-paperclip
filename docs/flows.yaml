@@ -24,6 +24,7 @@ source:
     - "server/src/services/plugin-worker-manager.ts"
     - "server/src/services/recovery/service.ts"
     - "server/src/services/legacy-execution-recovery.ts"
+    - "server/src/services/issue-thread-interactions.ts"
     - "packages/adapter-utils/src/sandbox-callback-bridge.ts"
     - "packages/adapters/claude-local/src/server/execute.ts"
     - "packages/adapters/claude-local/src/server/index.ts"
@@ -541,9 +542,11 @@ flows:
       - packages/crew-plugin/src/shared-web/bug-finding.ts
       - packages/crew-plugin/src/shared-web/pr-url.ts
       - server/src/crew/bug-finding-runs.ts
+      - server/src/services/issue-thread-interactions.ts
     tests:
       - packages/crew-plugin/src/__tests__/bug-finding-triage.test.ts
       - packages/crew-plugin/src/__tests__/bug-finding.db.test.ts
+      - server/src/__tests__/issue-thread-interactions-service.test.ts
   setup-wizards:
     title: "Wizard thêm agent, thêm project, gỡ và kiểm sẵn sàng"
     doc: docs/flows/setup-wizards.md
